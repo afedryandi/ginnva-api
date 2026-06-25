@@ -15,10 +15,7 @@ class SyncWarrantyToChina implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    // Tentukan jumlah maksimal percobaan ulang (retry) jika timeout
     public $tries = 5;
-
-    // Jeda waktu (detik) sebelum mencoba ulang
     public $backoff = 60;
 
     protected $warranty;
@@ -30,33 +27,38 @@ class SyncWarrantyToChina implements ShouldQueue
 
     public function handle(): void
     {
-        // Ambil data endpoint China dari konfigurasi .env
         $endpoint = config('services.china.api_url') . '/warranty/sync';
 
-        // Kirim data ke sistem China dengan batas timeout ketat (misal 5 detik)
         $response = Http::timeout(5)
             ->withHeaders([
-                'X-Sign-Key' => config('services.china.secret_key')
+                'X-Sign-Key' => config('services.china.secret_key'),
             ])->post($endpoint, [
-                'code' => $this->warranty->code,
-                'product_id' => $this->warranty->product_id,
-                'store_id' => $this->warranty->store_id,
-                'owner' => $this->warranty->owner,
-                'car_info' => $this->warranty->car_info,
-                'install_date' => $this->warranty->install_date,
+                'warranty_code'     => $this->warranty->warranty_code,
+                'customer_name'     => $this->warranty->customer_name,
+                'phone_number'      => $this->warranty->phone_number,
+                'car_plate'         => $this->warranty->car_plate,
+                'car_type'          => $this->warranty->car_type,
+                'product_series'    => $this->warranty->product_series,
+                'installation_date' => $this->warranty->installation_date,
+                'expiry_date'       => $this->warranty->expiry_date,
+                'dealer_name'       => $this->warranty->dealer_name,
             ]);
 
-        if ($response->successful()) {
-            $this->warranty->update(['status' => 'success']);
-        } else {
+        if (!$response->successful()) {
             // Gagalkan job secara eksplisit agar masuk mekanisme retry/backoff
-            throw new Exception('Sistem China merespons dengan error atau lambat.');
+            throw new Exception('Sistem China merespons dengan error atau lambat. Status: ' . $response->status());
         }
+
+        // Tidak perlu update status jadi "success" — status warranty (active/expired/pending)
+        // sudah ditentukan di awal saat submit dan dihitung otomatis oleh model, bukan oleh hasil sync.
     }
 
     public function failed(Exception $exception): void
     {
-        // Eksekusi jika 5 kali percobaan tetap gagal total
-        $this->warranty->update(['status' => 'failed']);
+        // Catat ke log supaya tim bisa cek kasus gagal sync secara manual,
+        // karena tidak ada kolom status khusus "failed" di skema warranty saat ini.
+        \Illuminate\Support\Facades\Log::error('Gagal sync warranty ke China: ' . $this->warranty->warranty_code, [
+            'error' => $exception->getMessage(),
+        ]);
     }
 }

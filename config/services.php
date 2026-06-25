@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    // Endpoint dan kredensial API milik kantor pusat China.
+    // Wajib diminta ke tim China: base URL dan secret key untuk autentikasi.
+    'china' => [
+        'api_url' => env('CHINA_API_URL'),
+        'secret_key' => env('CHINA_API_SECRET_KEY'),
+    ],
+
 ];

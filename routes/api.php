@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('warranty')->group(function () {
     Route::post('/submit', [WarrantyController::class, 'submit']);
-    Route::get('/check/{code}', [WarrantyController::class, 'check']);
+    Route::get('/check', [WarrantyController::class, 'check']);
     Route::get('/download/{code}', [WarrantyController::class, 'download']);
 });
 

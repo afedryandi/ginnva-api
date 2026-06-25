@@ -8,19 +8,22 @@ use App\Jobs\SyncWarrantyToChina;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use Barryvdh\DomPDF\Facade\Pdf; // Pastikan library dompdf sudah di-install
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class WarrantyController extends Controller
 {
     // POST /api/warranty/submit
     public function submit(Request $request)
     {
-        $validator = Validator::make($request->all(), [\
-            'product_id' => 'required|string',\
-            'store_id' => 'required|string',\
-            'owner' => 'required|string',\
-            'car_info' => 'required|array',\
-            'install_date' => 'required|date',\
+        $validator = Validator::make($request->all(), [
+            'customer_name'     => 'required|string|max:255',
+            'phone_number'      => 'required|string|max:30',
+            'car_plate'         => 'required|string|max:20',
+            'car_type'          => 'required|string|max:255',
+            'product_series'    => 'required|string|max:255',
+            'installation_date' => 'required|date',
+            'expiry_date'       => 'required|date|after:installation_date',
+            'dealer_name'       => 'required|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -29,65 +32,66 @@ class WarrantyController extends Controller
 
         $warrantyCode = 'GNV-' . strtoupper(Str::random(10));
 
-        $warranty = Warranty::create([\
-            'code' => $warrantyCode,\
-            'product_id' => $request->product_id,\
-            'store_id' => $request->store_id,\
-            'owner' => $request->owner,\
-            'car_info' => $request->car_info,\
-            'install_date' => $request->install_date,\
-            'status' => 'pending'\
+        $warranty = Warranty::create([
+            'warranty_code'     => $warrantyCode,
+            'customer_name'     => $request->customer_name,
+            'phone_number'      => $request->phone_number,
+            'car_plate'         => $request->car_plate,
+            'car_type'          => $request->car_type,
+            'product_series'    => $request->product_series,
+            'installation_date' => $request->installation_date,
+            'expiry_date'       => $request->expiry_date,
+            'dealer_name'       => $request->dealer_name,
+            'status'            => 'active',
         ]);
 
+        // Sinkronisasi ke sistem China dilakukan di background (queue),
+        // supaya respons ke user tidak menunggu API China selesai.
         SyncWarrantyToChina::dispatch($warranty);
 
-        return response()->json([\
-            'message' => 'Data garansi berhasil diterima dan sedang disinkronisasikan.',\
-            'code' => $warrantyCode,\
-            'status' => 'pending'\
-        ], 202);
+        return response()->json([
+            'message' => 'Data garansi berhasil didaftarkan.',
+            'data' => $warranty,
+        ], 201);
     }
 
-    // GET /api/warranty/check/{code}
-    public function check($code)
+    // GET /api/warranty/check?code=GNV-XXXXXXXXXX
+    public function check(Request $request)
     {
-        $warranty = Warranty::where('code', $code)->first();
+        $code = $request->query('code');
+
+        if (!$code) {
+            return response()->json([
+                'message' => 'Parameter "code" wajib diisi.',
+            ], 422);
+        }
+
+        $warranty = Warranty::where('warranty_code', $code)
+            ->orWhere('car_plate', $code)
+            ->first();
 
         if (!$warranty) {
-            return response()->json([\
-                'message' => 'Nomor garansi tidak ditemukan.'\
+            return response()->json([
+                'message' => 'Nomor garansi atau plat nomor tidak ditemukan.',
             ], 404);
         }
 
-        // Jika status masih pending/proses sinkronisasi belum selesai
-        if ($warranty->status === 'pending') {
-            return response()->json([\
-                'status' => 'pending',\
-                'message' => 'Data garansi terdaftar, namun sedang dalam proses sinkronisasi sistem.'\
-            ], 200);
-        }
-
-        return response()->json([\
-            'code' => $warranty->code,\
-            'product_id' => $warranty->product_id,\
-            'store_id' => $warranty->store_id,\
-            'owner' => $warranty->owner,\
-            'car_info' => is_string($warranty->car_info) ? json_decode($warranty->car_info, true) : $warranty->car_info,\
-            'install_date' => $warranty->install_date,\
-            'status' => $warranty->status\
+        // $warranty otomatis menyertakan remaining_days & status terkini
+        // karena di-handle oleh accessor pada model Warranty.
+        return response()->json([
+            'success' => true,
+            'data' => $warranty,
         ], 200);
     }
 
     // GET /api/warranty/download/{code}
     public function download($code)
     {
-        $warranty = Warranty::where('code', $code)->firstOrFail();
-        $carInfo = is_string($warranty->car_info) ? json_decode($warranty->car_info, true) : $warranty->car_info;
-    
-        $pdf = Pdf::loadView('pdf.warranty_card', compact('warranty', 'carInfo'))
-                  ->setPaper('a4', 'landscape');
-    
-        // UBAH DARI download() KE stream() UNTUK DEBUGS
-        return $pdf->stream("E-Warranty-Ginnva-{$code}.pdf");
+        $warranty = Warranty::where('warranty_code', $code)->firstOrFail();
+
+        $pdf = Pdf::loadView('pdf.warranty_card', compact('warranty'))
+                  ->setPaper('a4', 'portrait');
+
+        return $pdf->download("E-Warranty-Ginnva-{$code}.pdf");
     }
 }

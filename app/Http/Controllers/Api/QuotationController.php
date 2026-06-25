@@ -9,7 +9,7 @@ use App\Models\FilmProduct;
 use App\Models\PriceRule;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
-use Barrier\DomPDF\Facade\Pdf;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
@@ -37,8 +37,7 @@ class QuotationController extends Controller
 
         foreach ($request->items as $item) {
             $product = FilmProduct::findOrFail($item['film_product_id']);
-            
-            // Mengambil koefisien berdasarkan ukuran mobil dan bagian spesifik (Referensi XMind)
+
             $rule = PriceRule::where('vehicle_size', $vehicle->size_category)
                              ->where('car_part', $item['car_part'])
                              ->first();
@@ -75,7 +74,6 @@ class QuotationController extends Controller
      */
     public function generatePdf(Request $request)
     {
-        // Validasi input sama seperti endpoint kalkulasi
         $request->validate([
             'vehicle_id' => 'required|exists:vehicles,id',
             'customer_name' => 'required|string|max:255',
@@ -89,24 +87,21 @@ class QuotationController extends Controller
         $vehicle = Vehicle::findOrFail($request->vehicle_id);
 
         return DB::transaction(function () use ($request, $vehicle) {
-            // 1. Generate Nomor Quotation Unik (Format: QTN-YYYYMM-XXXX)
             $quotationNumber = 'QTN-' . date('Ym') . '-' . strtoupper(Str::random(4));
 
-            // 2. Buat Induk Quotation
             $quotation = Quotation::create([
                 'quotation_number' => $quotationNumber,
                 'vehicle_id' => $vehicle->id,
                 'customer_name' => $request->customer_name,
                 'customer_phone' => $request->customer_phone,
                 'license_plate' => $request->license_plate,
-                'total_price' => 0, // Diupdate setelah loop selesai
+                'total_price' => 0,
                 'status' => 'draft',
             ]);
 
             $totalPrice = 0;
             $itemsDataForPdf = [];
 
-            // 3. Loop Kalkulasi dan Simpan Detail Items
             foreach ($request->items as $item) {
                 $product = FilmProduct::findOrFail($item['film_product_id']);
                 $rule = PriceRule::where('vehicle_size', $vehicle->size_category)
@@ -136,14 +131,11 @@ class QuotationController extends Controller
                 ];
             }
 
-            // Update Total Harga di Tabel Induk
             $quotation->update(['total_price' => $totalPrice]);
 
-            // 4. Generate QR Code URL untuk validasi e-warranty/cek keaslian kelak
             $qrUrl = "https://ginnva.id/warranty/verify?qtn=" . $quotationNumber;
             $qrCode = "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=" . urlencode($qrUrl);
 
-            // 5. Susun Data untuk Template PDF View
             $pdfData = [
                 'logo_url' => 'https://www.ginnvafilm.com/static/home/images/logoO.png',
                 'quotation_number' => $quotationNumber,
@@ -157,7 +149,6 @@ class QuotationController extends Controller
                 'qr_code' => $qrCode
             ];
 
-            // 6. Render View HTML ke DomPDF dan Download Langsung
             $pdf = Pdf::loadView('pdf.quotation', $pdfData);
             return $pdf->download($quotationNumber . '.pdf');
         });
