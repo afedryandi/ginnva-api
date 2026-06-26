@@ -7,46 +7,34 @@ use App\Models\PriceRule;
 
 class PriceRuleSeeder extends Seeder
 {
+    /**
+     * Jalankan dengan: php artisan db:seed --class=PriceRuleSeeder
+     *
+     * Setiap kombinasi vehicle_size x car_part harus unik (sesuai
+     * constraint unique di migration), jadi seeder ini mengisi
+     * SEMUA kombinasi 4 size x 4 car_part = 16 baris, supaya
+     * QuotationController tidak pernah gagal cari rule yang cocok.
+     *
+     * Koefisien di sini contoh logis (semakin besar mobil = makin mahal),
+     * SESUAIKAN dengan harga riil dari kantor pusat China kalau sudah ada.
+     */
     public function run(): void
     {
-        // coefficient mengalikan base_price produk, berdasarkan ukuran mobil + bagian yang dipasang.
-        // Logic: semakin besar mobil & semakin luas bagian (full_set), semakin besar coefficient.
-        $rules = [
-            // === small ===
-            ['vehicle_size' => 'small', 'car_part' => 'front',    'coefficient' => 0.40],
-            ['vehicle_size' => 'small', 'car_part' => 'side',     'coefficient' => 0.80],
-            ['vehicle_size' => 'small', 'car_part' => 'back',     'coefficient' => 0.30],
-            ['vehicle_size' => 'small', 'car_part' => 'full_set', 'coefficient' => 1.00],
-
-            // === medium ===
-            ['vehicle_size' => 'medium', 'car_part' => 'front',    'coefficient' => 0.45],
-            ['vehicle_size' => 'medium', 'car_part' => 'side',     'coefficient' => 0.90],
-            ['vehicle_size' => 'medium', 'car_part' => 'back',     'coefficient' => 0.35],
-            ['vehicle_size' => 'medium', 'car_part' => 'full_set', 'coefficient' => 1.20],
-
-            // === large ===
-            ['vehicle_size' => 'large', 'car_part' => 'front',    'coefficient' => 0.55],
-            ['vehicle_size' => 'large', 'car_part' => 'side',     'coefficient' => 1.10],
-            ['vehicle_size' => 'large', 'car_part' => 'back',     'coefficient' => 0.40],
-            ['vehicle_size' => 'large', 'car_part' => 'full_set', 'coefficient' => 1.50],
-
-            // === luxury ===
-            ['vehicle_size' => 'luxury', 'car_part' => 'front',    'coefficient' => 0.65],
-            ['vehicle_size' => 'luxury', 'car_part' => 'side',     'coefficient' => 1.30],
-            ['vehicle_size' => 'luxury', 'car_part' => 'back',     'coefficient' => 0.50],
-            ['vehicle_size' => 'luxury', 'car_part' => 'full_set', 'coefficient' => 1.90],
+        $coefficients = [
+            'S'  => ['front' => 0.8, 'back' => 0.8, 'side' => 0.7, 'full_set' => 3.0],
+            'M'  => ['front' => 1.0, 'back' => 1.0, 'side' => 0.9, 'full_set' => 3.8],
+            'L'  => ['front' => 1.2, 'back' => 1.2, 'side' => 1.1, 'full_set' => 4.6],
+            'XL' => ['front' => 1.5, 'back' => 1.5, 'side' => 1.4, 'full_set' => 5.8],
         ];
 
-        foreach ($rules as $rule) {
-            PriceRule::updateOrCreate(
-                [
-                    'vehicle_size' => $rule['vehicle_size'],
-                    'car_part'     => $rule['car_part'],
-                ],
-                [
-                    'coefficient' => $rule['coefficient'],
-                ]
-            );
+        foreach ($coefficients as $size => $parts) {
+            foreach ($parts as $part => $coefficient) {
+                PriceRule::create([
+                    'vehicle_size' => $size,
+                    'car_part' => $part,
+                    'coefficient' => $coefficient,
+                ]);
+            }
         }
     }
 }

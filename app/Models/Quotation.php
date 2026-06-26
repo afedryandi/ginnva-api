@@ -12,13 +12,8 @@ class Quotation extends Model
         'customer_name',
         'customer_phone',
         'license_plate',
-        'total_price',
         'status',
-        'notes',
-    ];
-
-    protected $casts = [
-        'total_price' => 'decimal:2',
+        'message',
     ];
 
     public function vehicle()

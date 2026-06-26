@@ -6,151 +6,90 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Vehicle;
 use App\Models\FilmProduct;
-use App\Models\PriceRule;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * QuotationController — versi lead capture.
+ *
+ * Ginnva Shield Indonesia baru expand dari China, harga jual produk
+ * di Indonesia belum ditentukan. Jadi quotation di sini TIDAK menghitung
+ * harga apapun — fungsinya hanya menangkap minat/kontak customer yang
+ * benar-benar ingin beli, supaya sales bisa follow up dan bicarakan
+ * harga secara langsung.
+ */
 class QuotationController extends Controller
 {
     /**
-     * POST /api/quotation/calculate
-     * Menghitung rincian harga per bagian dan total penawaran.
+     * GET /api/quotation/options
+     * Data untuk dropdown di form quotation (vehicle & produk).
+     * Dipisah dari submit supaya frontend bisa load pilihan form
+     * tanpa perlu submit data dulu.
      */
-    public function calculate(Request $request)
+    public function options()
     {
-        $request->validate([
-            'vehicle_id' => 'required|exists:vehicles,id',
-            'customer_name' => 'required|string|max:255',
-            'customer_phone' => 'nullable|string',
-            'license_plate' => 'nullable|string',
-            'items' => 'required|array|min:1',
-            'items.*.film_product_id' => 'required|exists:film_products,id',
-            'items.*.car_part' => 'required|in:front,back,side,full_set',
-        ]);
-
-        $vehicle = Vehicle::findOrFail($request->vehicle_id);
-        $calculatedItems = [];
-        $totalPrice = 0;
-
-        foreach ($request->items as $item) {
-            $product = FilmProduct::findOrFail($item['film_product_id']);
-
-            $rule = PriceRule::where('vehicle_size', $vehicle->size_category)
-                             ->where('car_part', $item['car_part'])
-                             ->first();
-
-            $coefficient = $rule ? $rule->coefficient : 1.00;
-            $calculatedPrice = $product->base_price * $coefficient;
-
-            $calculatedItems[] = [
-                'product_id' => $product->id,
-                'product_name' => $product->name,
-                'car_part' => $item['car_part'],
-                'base_price' => (float) $product->base_price,
-                'coefficient' => (float) $coefficient,
-                'calculated_price' => (float) $calculatedPrice,
-            ];
-
-            $totalPrice += $calculatedPrice;
-        }
-
         return response()->json([
             'success' => true,
             'data' => [
-                'customer_name' => $request->customer_name,
-                'vehicle' => $vehicle->brand . ' ' . $vehicle->model . ' (' . $vehicle->size_category . ')',
-                'items' => $calculatedItems,
-                'total_price' => $totalPrice
-            ]
+                'vehicles' => Vehicle::select('id', 'brand', 'model')->orderBy('brand')->get(),
+                'products' => FilmProduct::where('is_active', true)
+                    ->select('id', 'name', 'product_type')
+                    ->orderBy('product_type')
+                    ->get(),
+            ],
         ]);
     }
 
     /**
-     * POST /api/quotation/generate-pdf
-     * Menghitung, menyimpan data ke database, dan menghasilkan berkas DomPDF dengan QR Code.
+     * POST /api/quotation/submit
+     * Menyimpan minat/inquiry customer. Tidak ada perhitungan harga sama sekali.
      */
-    public function generatePdf(Request $request)
+    public function submit(Request $request)
     {
         $request->validate([
-            'vehicle_id' => 'required|exists:vehicles,id',
-            'customer_name' => 'required|string|max:255',
-            'customer_phone' => 'nullable|string',
-            'license_plate' => 'nullable|string',
-            'items' => 'required|array|min:1',
+            'vehicle_id'      => 'required|exists:vehicles,id',
+            'customer_name'   => 'required|string|max:255',
+            'customer_phone'  => 'required|string|max:30',
+            'license_plate'   => 'nullable|string|max:20',
+            'message'         => 'nullable|string|max:1000',
+            'items'           => 'required|array|min:1',
             'items.*.film_product_id' => 'required|exists:film_products,id',
-            'items.*.car_part' => 'required|in:front,back,side,full_set',
         ]);
 
-        $vehicle = Vehicle::findOrFail($request->vehicle_id);
-
-        return DB::transaction(function () use ($request, $vehicle) {
-            $quotationNumber = 'QTN-' . date('Ym') . '-' . strtoupper(Str::random(4));
+        $quotation = DB::transaction(function () use ($request) {
+            $quotationNumber = 'INQ-' . date('Ym') . '-' . strtoupper(Str::random(4));
 
             $quotation = Quotation::create([
                 'quotation_number' => $quotationNumber,
-                'vehicle_id' => $vehicle->id,
-                'customer_name' => $request->customer_name,
-                'customer_phone' => $request->customer_phone,
-                'license_plate' => $request->license_plate,
-                'total_price' => 0,
-                'status' => 'draft',
+                'vehicle_id'       => $request->vehicle_id,
+                'customer_name'    => $request->customer_name,
+                'customer_phone'   => $request->customer_phone,
+                'license_plate'    => $request->license_plate,
+                'status'           => 'new',
+                'message'          => $request->message,
             ]);
 
-            $totalPrice = 0;
-            $itemsDataForPdf = [];
-
             foreach ($request->items as $item) {
-                $product = FilmProduct::findOrFail($item['film_product_id']);
-                $rule = PriceRule::where('vehicle_size', $vehicle->size_category)
-                                 ->where('car_part', $item['car_part'])
-                                 ->first();
-
-                $coefficient = $rule ? $rule->coefficient : 1.00;
-                $calculatedPrice = $product->base_price * $coefficient;
-
                 QuotationItem::create([
-                    'quotation_id' => $quotation->id,
-                    'film_product_id' => $product->id,
-                    'price_rule_id' => $rule ? $rule->id : null,
-                    'base_price_snapshot' => $product->base_price,
-                    'coefficient_snapshot' => $coefficient,
-                    'calculated_price' => $calculatedPrice,
+                    'quotation_id'    => $quotation->id,
+                    'film_product_id' => $item['film_product_id'],
                 ]);
-
-                $totalPrice += $calculatedPrice;
-
-                $itemsDataForPdf[] = [
-                    'product_name' => $product->name,
-                    'car_part' => strtoupper($item['car_part']),
-                    'base_price' => $product->base_price,
-                    'coefficient' => $coefficient,
-                    'calculated_price' => $calculatedPrice
-                ];
             }
 
-            $quotation->update(['total_price' => $totalPrice]);
-
-            $qrUrl = "https://ginnva.id/warranty/verify?qtn=" . $quotationNumber;
-            $qrCode = "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=" . urlencode($qrUrl);
-
-            $pdfData = [
-                'logo_url' => 'https://www.ginnvafilm.com/static/home/images/logoO.png',
-                'quotation_number' => $quotationNumber,
-                'date' => date('d F Y'),
-                'customer_name' => $quotation->customer_name,
-                'customer_phone' => $quotation->customer_phone ?? '-',
-                'license_plate' => $quotation->license_plate ? strtoupper($quotation->license_plate) : '-',
-                'vehicle_model' => $vehicle->brand . ' ' . $vehicle->model . ' (' . $vehicle->size_category . ')',
-                'items' => $itemsDataForPdf,
-                'total_price' => $totalPrice,
-                'qr_code' => $qrCode
-            ];
-
-            $pdf = Pdf::loadView('pdf.quotation', $pdfData);
-            return $pdf->download($quotationNumber . '.pdf');
+            return $quotation;
         });
+
+        // TODO: kirim notifikasi ke sales (email/WhatsApp/Slack) begitu inquiry baru masuk,
+        // supaya follow up bisa secepat mungkin tanpa sales harus cek dashboard manual.
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Permintaan penawaran berhasil dikirim. Tim sales kami akan segera menghubungi Anda.',
+            'data' => [
+                'quotation_number' => $quotation->quotation_number,
+            ],
+        ], 201);
     }
 }

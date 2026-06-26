@@ -7,41 +7,39 @@ use App\Models\Vehicle;
 
 class VehicleSeeder extends Seeder
 {
+    /**
+     * Jalankan dengan: php artisan db:seed --class=VehicleSeeder
+     *
+     * size_category menentukan koefisien harga yang dipakai di PriceRule.
+     * Pembagian S/M/L/XL di sini berdasarkan dimensi umum kendaraan,
+     * bukan merek/harga jual mobil.
+     */
     public function run(): void
     {
         $vehicles = [
-            // === Size: small (city car/hatchback) ===
-            ['brand' => 'Toyota', 'model' => 'Agya', 'size_category' => 'small'],
-            ['brand' => 'Daihatsu', 'model' => 'Ayla', 'size_category' => 'small'],
-            ['brand' => 'Honda', 'model' => 'Brio', 'size_category' => 'small'],
-            ['brand' => 'Suzuki', 'model' => 'Ignis', 'size_category' => 'small'],
+            // Size S — city car / hatchback kecil
+            ['brand' => 'Honda', 'model' => 'Brio', 'size_category' => 'S'],
+            ['brand' => 'Toyota', 'model' => 'Agya', 'size_category' => 'S'],
+            ['brand' => 'Daihatsu', 'model' => 'Sirion', 'size_category' => 'S'],
 
-            // === Size: medium (sedan/MPV kecil) ===
-            ['brand' => 'Toyota', 'model' => 'Avanza', 'size_category' => 'medium'],
-            ['brand' => 'Daihatsu', 'model' => 'Xenia', 'size_category' => 'medium'],
-            ['brand' => 'Honda', 'model' => 'Mobilio', 'size_category' => 'medium'],
-            ['brand' => 'Toyota', 'model' => 'Vios', 'size_category' => 'medium'],
-            ['brand' => 'Honda', 'model' => 'City', 'size_category' => 'medium'],
+            // Size M — sedan / MPV kecil
+            ['brand' => 'Toyota', 'model' => 'Avanza', 'size_category' => 'M'],
+            ['brand' => 'Honda', 'model' => 'Civic', 'size_category' => 'M'],
+            ['brand' => 'Honda', 'model' => 'HR-V', 'size_category' => 'M'],
 
-            // === Size: large (SUV/MPV besar) ===
-            ['brand' => 'Toyota', 'model' => 'Innova', 'size_category' => 'large'],
-            ['brand' => 'Toyota', 'model' => 'Fortuner', 'size_category' => 'large'],
-            ['brand' => 'Honda', 'model' => 'CR-V', 'size_category' => 'large'],
-            ['brand' => 'Mitsubishi', 'model' => 'Pajero Sport', 'size_category' => 'large'],
-            ['brand' => 'Toyota', 'model' => 'Alphard', 'size_category' => 'large'],
+            // Size L — SUV / MPV besar
+            ['brand' => 'Toyota', 'model' => 'Innova', 'size_category' => 'L'],
+            ['brand' => 'Honda', 'model' => 'CR-V', 'size_category' => 'L'],
+            ['brand' => 'Mitsubishi', 'model' => 'Pajero Sport', 'size_category' => 'L'],
 
-            // === Size: luxury (premium/eksekutif) ===
-            ['brand' => 'Mercedes-Benz', 'model' => 'C-Class', 'size_category' => 'luxury'],
-            ['brand' => 'BMW', 'model' => '3 Series', 'size_category' => 'luxury'],
-            ['brand' => 'Lexus', 'model' => 'RX', 'size_category' => 'luxury'],
-            ['brand' => 'Toyota', 'model' => 'Land Cruiser', 'size_category' => 'luxury'],
+            // Size XL — premium SUV / minibus
+            ['brand' => 'Toyota', 'model' => 'Alphard', 'size_category' => 'XL'],
+            ['brand' => 'Toyota', 'model' => 'Fortuner', 'size_category' => 'XL'],
+            ['brand' => 'Isuzu', 'model' => 'Elf (Minibus)', 'size_category' => 'XL'],
         ];
 
         foreach ($vehicles as $vehicle) {
-            Vehicle::updateOrCreate(
-                ['brand' => $vehicle['brand'], 'model' => $vehicle['model']],
-                $vehicle
-            );
+            Vehicle::create($vehicle);
         }
     }
 }

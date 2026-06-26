@@ -19,6 +19,7 @@ return [
     'allowed_origins' => [
         'https://ginnva.id',
         'https://www.ginnva.id',
+        'http://localhost:3000',
     ],
 
     // Untuk domain preview Vercel yang berubah-ubah, misal:
