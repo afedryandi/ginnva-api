@@ -12,6 +12,7 @@ class Quotation extends Model
         'customer_name',
         'customer_phone',
         'license_plate',
+        'store_id',
         'status',
         'message',
     ];
@@ -19,6 +20,11 @@ class Quotation extends Model
     public function vehicle()
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
     }
 
     public function items()

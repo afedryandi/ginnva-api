@@ -1,0 +1,141 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\NewsResource\Pages;
+use App\Models\News;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Illuminate\Support\Str;
+
+class NewsResource extends Resource
+{
+    protected static ?string $model = News::class;
+
+    protected static ?string $navigationIcon = 'heroicon-o-newspaper';
+
+    protected static ?string $navigationGroup = 'Konten';
+
+    protected static ?string $navigationLabel = 'Berita';
+
+    protected static ?string $modelLabel = 'Berita';
+
+    protected static ?string $pluralModelLabel = 'Berita';
+
+    /**
+     * Resource ini company-wide (bukan per-toko), jadi tidak ada
+     * navigationGroup scoping store di sini — aksesnya full di-gate lewat
+     * NewsPolicy (hanya super_admin) supaya tidak muncul sama sekali di
+     * sidebar regional_admin.
+     */
+    public static function form(Form $form): Form
+    {
+        return $form->schema([
+            Forms\Components\Section::make('Konten Berita')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\TextInput::make('title')
+                        ->label('Judul')
+                        ->required()
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(function (string $operation, $state, Forms\Set $set) {
+                            if ($operation === 'create') {
+                                $set('slug', Str::slug($state));
+                            }
+                        })
+                        ->maxLength(255)
+                        ->columnSpanFull(),
+
+                    Forms\Components\TextInput::make('slug')
+                        ->label('Slug')
+                        ->required()
+                        ->unique(ignoreRecord: true)
+                        ->maxLength(255),
+
+                    Forms\Components\TextInput::make('source_url')
+                        ->label('Link Sumber (opsional, kalau berita hanya link keluar)')
+                        ->url()
+                        ->maxLength(255),
+
+                    Forms\Components\Textarea::make('excerpt')
+                        ->label('Ringkasan Singkat')
+                        ->columnSpanFull(),
+
+                    Forms\Components\RichEditor::make('content')
+                        ->label('Isi Berita')
+                        ->columnSpanFull(),
+
+                    Forms\Components\FileUpload::make('cover_image')
+                        ->label('Gambar Cover')
+                        ->image()
+                        ->directory('news')
+                        ->columnSpanFull(),
+
+                    Forms\Components\Toggle::make('is_published')
+                        ->label('Publikasikan')
+                        ->live()
+                        ->default(false),
+
+                    Forms\Components\DateTimePicker::make('published_at')
+                        ->label('Tanggal Publish')
+                        ->default(now())
+                        ->visible(fn (Forms\Get $get) => $get('is_published')),
+                ]),
+        ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('title')
+                    ->label('Judul')
+                    ->searchable()
+                    ->limit(50),
+
+                Tables\Columns\IconColumn::make('is_published')
+                    ->label('Published')
+                    ->boolean(),
+
+                Tables\Columns\TextColumn::make('published_at')
+                    ->label('Tanggal Publish')
+                    ->date('d M Y')
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('author.name')
+                    ->label('Penulis')
+                    ->placeholder('—'),
+
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Dibuat')
+                    ->dateTime('d M Y')
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->filters([
+                Tables\Filters\TernaryFilter::make('is_published')
+                    ->label('Status Publish'),
+            ])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
+            ->defaultSort('created_at', 'desc');
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListNews::route('/'),
+            'create' => Pages\CreateNews::route('/create'),
+            'edit' => Pages\EditNews::route('/{record}/edit'),
+        ];
+    }
+}

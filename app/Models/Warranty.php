@@ -17,6 +17,7 @@ class Warranty extends Model
         'installation_date',
         'expiry_date',
         'dealer_name',
+        'store_id',
         'status',
     ];
 
@@ -27,6 +28,11 @@ class Warranty extends Model
 
     // Field tambahan yang otomatis ikut saat model di-convert ke JSON / array
     protected $appends = ['remaining_days'];
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
 
     /**
      * remaining_days TIDAK disimpan di kolom database — dihitung otomatis
