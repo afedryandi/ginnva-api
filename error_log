@@ -34,3 +34,4 @@ Stack trace:
 #3 {main}
   thrown in /home/ginnva/ginnva-api/vendor/composer/platform_check.php on line 22
 [25-Jun-2026 08:14:02 UTC] PHP Deprecated:  trim(): Passing null to parameter #1 ($string) of type string is deprecated in /home/ginnva/ginnva-api/vendor/laravel/framework/src/Illuminate/Log/LogManager.php on line 637
+[27-Jun-2026 09:36:01 Asia/Jakarta] PHP Fatal error:  Cannot declare class App\Filament\Resources\UserResource, because the name is already in use in /home/ginnva/public_html/ginnva-api/app/Filament/Resources/UserResource/Pages/ListUsers.php on line 16
