@@ -54,4 +54,8 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     {
         return $this->belongsTo(Store::class);
     }
+    public function getDefaultGuardName(): string
+    {
+        return 'web';
+    }
 }

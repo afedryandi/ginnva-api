@@ -27,6 +27,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->profile()
             ->brandName('Ginnva Admin')
             ->colors([
                 'primary' => Color::Red,
