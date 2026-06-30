@@ -18,6 +18,9 @@
         .status-active { background-color: #2f855a; }
         .status-expired { background-color: #c53030; }
         .status-pending { background-color: #b7791f; }
+        .qr-box { float: right; text-align: center; margin-top: -4px; }
+        .qr-box img { width: 90px; height: 90px; }
+        .qr-box .qr-caption { font-size: 9px; color: #a0aec0; margin-top: 4px; letter-spacing: 0.5px; }
         .footer { border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 11px; color: #a0aec0; text-align: center; line-height: 1.6; }
     </style>
 </head>
@@ -37,8 +40,24 @@
                 <div class="value" style="color: #2b6cb0; font-size: 18px; font-weight: bold;">{{ $warranty->warranty_code }}</div>
             </td>
             <td width="50%">
-                <div class="label">Nama Pemilik</div>
-                <div class="value">{{ $warranty->customer_name }}</div>
+                <table cellspacing="0" cellpadding="0" width="100%">
+                    <tr>
+                        <td width="60%" valign="top">
+                            <div class="label">Nama Pemilik</div>
+                            <div class="value">{{ $warranty->customer_name }}</div>
+                        </td>
+                        <td width="40%" valign="top" align="right">
+                            {{-- QR code mengarah ke halaman cek garansi publik
+                                 (ginnva.id/warranty?code=...), supaya siapapun
+                                 yang scan pakai kamera HP biasa (tidak harus app
+                                 Ginnva) langsung melihat hasil verifikasi resmi. --}}
+                            <div class="qr-box">
+                                <img src="{{ $qrCodeDataUri }}" alt="QR Verifikasi">
+                                <div class="qr-caption">SCAN UNTUK VERIFIKASI</div>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
             </td>
         </tr>
         <tr>

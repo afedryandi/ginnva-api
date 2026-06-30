@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Warranty;
+use App\Services\QrCodeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -127,7 +128,18 @@ class WarrantyController extends Controller
             ], 403);
         }
 
-        $pdf = Pdf::loadView('pdf.warranty_card', compact('warranty'))
+        // QR code berisi LINK ke halaman cek garansi publik di web
+        // (bukan cuma teks kode polos), supaya kalau di-scan pakai
+        // kamera HP manapun (tidak harus app Ginnva), langsung terbuka
+        // di browser dan otomatis menampilkan hasil verifikasi —
+        // ginnva-web/app/warranty/WarrantyForm.tsx sudah disesuaikan
+        // untuk baca query param ?code= ini dan auto-trigger pencarian.
+        $verifyUrl = rtrim(config('app.frontend_url', 'https://ginnva.id'), '/')
+            . '/warranty?code=' . urlencode($warranty->warranty_code);
+
+        $qrCodeDataUri = QrCodeService::generateDataUri($verifyUrl);
+
+        $pdf = Pdf::loadView('pdf.warranty_card', compact('warranty', 'qrCodeDataUri'))
                   ->setPaper('a4', 'portrait');
 
         return $pdf->download("E-Warranty-Ginnva-{$code}.pdf");

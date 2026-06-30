@@ -56,6 +56,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frontend Application URL
+    |--------------------------------------------------------------------------
+    |
+    | Domain web publik (ginnva-web / Next.js), TERPISAH dari APP_URL di
+    | atas (yang menunjuk ke domain API ini sendiri, mis. api.ginnva.id).
+    | Dipakai untuk membangun link yang mengarah ke web publik, mis. QR
+    | code di sertifikat e-warranty yang mengarah ke halaman cek garansi
+    | (ginnva.id/warranty?code=...).
+    |
+    */
+
+    'frontend_url' => env('FRONTEND_URL', 'https://ginnva.id'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
