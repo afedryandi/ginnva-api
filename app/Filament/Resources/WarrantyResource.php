@@ -3,14 +3,18 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\WarrantyResource\Pages;
+use App\Filament\Resources\WarrantyResource\RelationManagers;
+use App\Exports\WarrantyExport;
 use App\Models\Store;
 use App\Models\Warranty;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Facades\Excel;
 
 class WarrantyResource extends Resource
 {
@@ -45,6 +49,23 @@ class WarrantyResource extends Resource
         return $query;
     }
 
+    /**
+     * Badge angka merah di sidebar — jumlah QA Certificate yang masih
+     * menunggu review, supaya super_admin langsung tahu ada berapa yang
+     * perlu ditindak begitu login.
+     */
+    public static function getNavigationBadge(): ?string
+    {
+        $count = static::getEloquentQuery()->where('review_status', 'pending_review')->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
     public static function form(Form $form): Form
     {
         $isSuperAdmin = auth()->user()?->hasRole('super_admin');
@@ -60,7 +81,7 @@ class WarrantyResource extends Resource
                         ->maxLength(255),
 
                     Forms\Components\Select::make('status')
-                        ->label('Status')
+                        ->label('Status (Garansi)')
                         ->options([
                             'active' => 'Active',
                             'expired' => 'Expired',
@@ -119,6 +140,34 @@ class WarrantyResource extends Resource
                         ->label('Tanggal Berakhir')
                         ->required(),
                 ]),
+
+            // Section QA Certificate review — hanya ditampilkan sebagai
+            // info (read-only) di form. Aksi approve/reject yang
+            // sebenarnya dilakukan lewat tombol di tabel/halaman edit
+            // (lihat getHeaderActions di EditWarranty), bukan field form,
+            // supaya tidak bisa "diam-diam" diubah lewat save form biasa.
+            Forms\Components\Section::make('Status Review (QA Certificate)')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\Placeholder::make('review_status')
+                        ->label('Status Review')
+                        ->content(fn (?Warranty $record) => match ($record?->review_status) {
+                            'approved' => 'Approved',
+                            'rejected' => 'Rejected',
+                            default => 'Pending Review',
+                        }),
+
+                    Forms\Components\Placeholder::make('reviewed_at')
+                        ->label('Direview Pada')
+                        ->content(fn (?Warranty $record) => $record?->reviewed_at?->format('d M Y H:i') ?? '—'),
+
+                    Forms\Components\Placeholder::make('rejection_reason')
+                        ->label('Alasan Reject')
+                        ->content(fn (?Warranty $record) => $record?->rejection_reason ?? '—')
+                        ->columnSpanFull()
+                        ->visible(fn (?Warranty $record) => $record?->review_status === 'rejected'),
+                ])
+                ->visible(fn (?Warranty $record) => $record !== null),
         ]);
     }
 
@@ -148,11 +197,26 @@ class WarrantyResource extends Resource
                     ->placeholder('—')
                     ->toggleable(),
 
+                Tables\Columns\BadgeColumn::make('review_status')
+                    ->label('Review QA')
+                    ->colors([
+                        'warning' => 'pending_review',
+                        'success' => 'approved',
+                        'danger' => 'rejected',
+                    ])
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'pending_review' => 'Pending Review',
+                        'approved' => 'Approved',
+                        'rejected' => 'Rejected',
+                        default => $state,
+                    }),
+
                 Tables\Columns\BadgeColumn::make('status')
+                    ->label('Status Garansi')
                     ->colors([
                         'success' => 'active',
                         'danger' => 'expired',
-                        'warning' => 'pending',
+                        'warning' => fn ($state) => in_array($state, ['pending', 'pending_review', 'rejected']),
                     ]),
 
                 Tables\Columns\TextColumn::make('expiry_date')
@@ -165,13 +229,54 @@ class WarrantyResource extends Resource
                     ->sortable(false),
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Dibuat')
+                    ->label('Diajukan')
                     ->dateTime('d M Y')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->headerActions([
+                // Export Excel untuk dikirim manual (email) ke tim Ginnva
+                // China secara mingguan/bulanan. Ini PENGGANTI mekanisme
+                // sync API realtime yang sebelumnya direncanakan (job
+                // SyncWarrantyToChina) — per info resmi China (akhir Juni
+                // 2026), mereka belum bisa sediakan API/data interface
+                // karena ketentuan pemerintah. Hanya super_admin yang bisa
+                // export, karena ini data sensitif (info pelanggan
+                // lengkap) yang dikirim ke pihak luar.
+                Tables\Actions\Action::make('exportExcel')
+                    ->label('Export ke Excel')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
+                    ->visible(fn () => auth()->user()?->hasRole('super_admin') ?? false)
+                    ->form([
+                        Forms\Components\DatePicker::make('start_date')
+                            ->label('Dari Tanggal (opsional)')
+                            ->helperText('Kosongkan untuk export semua data dari awal.'),
+
+                        Forms\Components\DatePicker::make('end_date')
+                            ->label('Sampai Tanggal (opsional)')
+                            ->helperText('Kosongkan untuk export sampai data terbaru.'),
+                    ])
+                    ->action(function (array $data) {
+                        $filename = 'warranty-export-' . now()->format('Ymd-His') . '.xlsx';
+
+                        return Excel::download(
+                            new WarrantyExport($data['start_date'] ?? null, $data['end_date'] ?? null),
+                            $filename
+                        );
+                    }),
+            ])
             ->filters([
+                Tables\Filters\SelectFilter::make('review_status')
+                    ->label('Status Review QA')
+                    ->options([
+                        'pending_review' => 'Pending Review',
+                        'approved' => 'Approved',
+                        'rejected' => 'Rejected',
+                    ]),
+
                 Tables\Filters\SelectFilter::make('status')
+                    ->label('Status Garansi')
                     ->options([
                         'active' => 'Active',
                         'expired' => 'Expired',
@@ -182,8 +287,66 @@ class WarrantyResource extends Resource
                     ->label('Toko')
                     ->relationship('store', 'name')
                     ->visible(fn () => auth()->user()?->hasRole('super_admin')),
+
+                Tables\Filters\Filter::make('created_at')
+                    ->label('Rentang Tanggal Diajukan')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')->label('Dari'),
+                        Forms\Components\DatePicker::make('until')->label('Sampai'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when($data['from'] ?? null, fn (Builder $q, $date) => $q->whereDate('created_at', '>=', $date))
+                            ->when($data['until'] ?? null, fn (Builder $q, $date) => $q->whereDate('created_at', '<=', $date));
+                    }),
             ])
             ->actions([
+                // Approve/Reject hanya untuk super_admin, sesuai keputusan
+                // akses QA review. Muncul hanya kalau masih pending_review.
+                Tables\Actions\Action::make('approve')
+                    ->label('Approve')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (Warranty $record) => auth()->user()?->hasRole('super_admin') && $record->review_status === 'pending_review')
+                    ->requiresConfirmation()
+                    ->action(function (Warranty $record) {
+                        $record->update([
+                            'review_status' => 'approved',
+                            'rejection_reason' => null,
+                            'reviewed_by' => auth()->id(),
+                            'reviewed_at' => now(),
+                        ]);
+
+                        Notification::make()
+                            ->title('Garansi disetujui')
+                            ->success()
+                            ->send();
+                    }),
+
+                Tables\Actions\Action::make('reject')
+                    ->label('Reject')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn (Warranty $record) => auth()->user()?->hasRole('super_admin') && $record->review_status === 'pending_review')
+                    ->form([
+                        Forms\Components\Textarea::make('rejection_reason')
+                            ->label('Alasan Reject')
+                            ->required(),
+                    ])
+                    ->action(function (Warranty $record, array $data) {
+                        $record->update([
+                            'review_status' => 'rejected',
+                            'rejection_reason' => $data['rejection_reason'],
+                            'reviewed_by' => auth()->id(),
+                            'reviewed_at' => now(),
+                        ]);
+
+                        Notification::make()
+                            ->title('Garansi ditolak')
+                            ->warning()
+                            ->send();
+                    }),
+
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
@@ -193,6 +356,13 @@ class WarrantyResource extends Resource
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\ClaimsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Warranty;
-use App\Jobs\SyncWarrantyToChina;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class WarrantyController extends Controller
 {
@@ -32,6 +32,28 @@ class WarrantyController extends Controller
 
         $warrantyCode = 'GNV-' . strtoupper(Str::random(10));
 
+        // Endpoint ini SENGAJA tetap publik (tidak wajib login) — guest
+        // tanpa akun tetap bisa daftar garansi seperti biasa. Tapi kalau
+        // request menyertakan Bearer token customer yang valid, warranty
+        // ini otomatis terhubung ke akun itu supaya muncul di "Garansi
+        // Saya" (我的质保) di mobile app. parseToken() dibungkus try-catch
+        // karena token bisa saja tidak ada sama sekali, kedaluwarsa, atau
+        // tidak valid — semua kondisi itu HARUS tetap lanjut sebagai guest,
+        // bukan menggagalkan submission warranty.
+        $customerId = null;
+        try {
+            $customer = JWTAuth::setToken(JWTAuth::getToken())->authenticate();
+            $customerId = $customer?->id;
+        } catch (\Throwable $e) {
+            // Tidak ada token / token tidak valid -> lanjut sebagai guest.
+        }
+
+        // Catatan QA Management: submission baru TIDAK langsung aktif.
+        // status tetap 'active' sebagai nilai kolom mentah, tapi
+        // review_status dimulai dari 'pending_review' — accessor
+        // getStatusAttribute() di model Warranty akan menampilkan
+        // 'pending_review' ke luar selama belum di-approve oleh
+        // super_admin lewat panel Filament.
         $warranty = Warranty::create([
             'warranty_code'     => $warrantyCode,
             'customer_name'     => $request->customer_name,
@@ -42,15 +64,22 @@ class WarrantyController extends Controller
             'installation_date' => $request->installation_date,
             'expiry_date'       => $request->expiry_date,
             'dealer_name'       => $request->dealer_name,
+            'customer_id'       => $customerId,
             'status'            => 'active',
+            'review_status'     => 'pending_review',
         ]);
 
-        // Sinkronisasi ke sistem China dilakukan di background (queue),
-        // supaya respons ke user tidak menunggu API China selesai.
-        SyncWarrantyToChina::dispatch($warranty);
+        // CATATAN PENTING (per info resmi tim Ginnva China, akhir Juni
+        // 2026): mereka belum bisa menyediakan API/data interface untuk
+        // koneksi sistem realtime karena ketentuan pemerintah. Sinkronisasi
+        // data warranty + after-sales + info pelanggan ke China sekarang
+        // dilakukan lewat EXPORT EXCEL manual (mingguan/bulanan), dikirim
+        // via email oleh tim Indonesia, BUKAN lewat API call. Export ada
+        // di WarrantyResource (tombol "Export ke Excel"), bukan otomatis
+        // dari sini.
 
         return response()->json([
-            'message' => 'Data garansi berhasil didaftarkan.',
+            'message' => 'Data garansi berhasil didaftarkan dan sedang menunggu review admin.',
             'data' => $warranty,
         ], 201);
     }
@@ -77,7 +106,8 @@ class WarrantyController extends Controller
         }
 
         // $warranty otomatis menyertakan remaining_days & status terkini
-        // karena di-handle oleh accessor pada model Warranty.
+        // (termasuk 'pending_review' / 'rejected' bila relevan) karena
+        // di-handle oleh accessor pada model Warranty.
         return response()->json([
             'success' => true,
             'data' => $warranty,
@@ -88,6 +118,14 @@ class WarrantyController extends Controller
     public function download($code)
     {
         $warranty = Warranty::where('warranty_code', $code)->firstOrFail();
+
+        // E-warranty resmi hanya bisa diunduh setelah QA Certificate
+        // disetujui oleh super_admin. Sebelum itu, dokumen belum sah.
+        if ($warranty->review_status !== 'approved') {
+            return response()->json([
+                'message' => 'Sertifikat garansi ini belum disetujui dan belum bisa diunduh.',
+            ], 403);
+        }
 
         $pdf = Pdf::loadView('pdf.warranty_card', compact('warranty'))
                   ->setPaper('a4', 'portrait');

@@ -24,6 +24,13 @@ class WarrantyPolicy
 
     public function update(User $user, Warranty $warranty): bool
     {
+        // Catatan QA Management: policy ini mengatur edit field biasa
+        // (nama, plat nomor, tanggal, dst) lewat form EditWarranty.
+        // Action Approve/Reject (review_status) di WarrantyResource &
+        // ClaimsRelationManager DIATUR TERPISAH lewat ->visible() yang
+        // mengecek hasRole('super_admin') secara langsung, bukan lewat
+        // policy ini — supaya admin toko tetap bisa edit detail garansi
+        // miliknya tanpa otomatis bisa approve/reject.
         return $user->can('warranty.manage') && $this->canAccessRecord($user, $warranty);
     }
 

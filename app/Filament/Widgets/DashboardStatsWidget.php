@@ -5,6 +5,8 @@ namespace App\Filament\Widgets;
 use App\Models\ProductInquiry;
 use App\Models\Quotation;
 use App\Models\Store;
+use App\Models\User;
+use App\Models\Vehicle;
 use App\Models\Warranty;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -18,7 +20,7 @@ class DashboardStatsWidget extends BaseWidget
      * QuotationResource, supaya angka di widget ini selalu cocok dengan
      * apa yang admin toko lihat saat klik ke tabel listing-nya.
      *
-     * Inquiry & Total Toko tetap global untuk semua role, karena kedua
+     * Inquiry, Toko, Produk & User tetap global untuk semua role, karena
      * data ini tidak ber-scope ke toko tertentu.
      */
     protected function getStats(): array
@@ -26,11 +28,16 @@ class DashboardStatsWidget extends BaseWidget
         $user = auth()->user();
         $isSuperAdmin = $user?->hasRole('super_admin') ?? false;
 
-        return [
+        $stats = [
             Stat::make('Garansi Aktif', $this->countActiveWarranties($user, $isSuperAdmin))
-                ->description('Total e-warranty dengan status aktif')
+                ->description('QA Certificate approved & belum kedaluwarsa')
                 ->descriptionIcon('heroicon-m-shield-check')
                 ->color('success'),
+
+            Stat::make('Menunggu Review QA', $this->countPendingReview($user, $isSuperAdmin))
+                ->description('QA Certificate belum di-approve/reject')
+                ->descriptionIcon('heroicon-m-clock')
+                ->color('warning'),
 
             Stat::make('Quotation Baru (7 Hari)', $this->countRecentQuotations($user, $isSuperAdmin))
                 ->description('Permintaan quotation masuk minggu ini')
@@ -47,11 +54,27 @@ class DashboardStatsWidget extends BaseWidget
                 ->descriptionIcon('heroicon-m-building-storefront')
                 ->color('gray'),
         ];
+
+        // Stat tambahan khusus super_admin (gambaran nasional, tidak
+        // relevan untuk admin toko karena tidak ber-scope ke 1 toko).
+        if ($isSuperAdmin) {
+            $stats[] = Stat::make('Total User Admin', User::count())
+                ->description('Akun admin (super_admin + regional_admin)')
+                ->descriptionIcon('heroicon-m-users')
+                ->color('gray');
+
+            $stats[] = Stat::make('Total Produk Aktif', Vehicle::count())
+                ->description('Data kendaraan terdaftar untuk dropdown quotation')
+                ->descriptionIcon('heroicon-m-truck')
+                ->color('gray');
+        }
+
+        return $stats;
     }
 
     protected function countActiveWarranties($user, bool $isSuperAdmin): int
     {
-        $query = Warranty::query();
+        $query = Warranty::query()->where('review_status', 'approved');
 
         if (! $isSuperAdmin) {
             $query->where(function ($q) use ($user) {
@@ -65,6 +88,20 @@ class DashboardStatsWidget extends BaseWidget
         // sedangkan untuk hitung total kita cukup bandingkan expiry_date
         // langsung lewat query supaya tetap efisien untuk data banyak.
         return $query->whereDate('expiry_date', '>=', now())->count();
+    }
+
+    protected function countPendingReview($user, bool $isSuperAdmin): int
+    {
+        $query = Warranty::query()->where('review_status', 'pending_review');
+
+        if (! $isSuperAdmin) {
+            $query->where(function ($q) use ($user) {
+                $q->where('store_id', $user->store_id)
+                    ->orWhereNull('store_id');
+            });
+        }
+
+        return $query->count();
     }
 
     protected function countRecentQuotations($user, bool $isSuperAdmin): int
