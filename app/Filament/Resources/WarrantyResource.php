@@ -117,6 +117,21 @@ class WarrantyResource extends Resource
                         ->required()
                         ->maxLength(255),
 
+                    Forms\Components\Select::make('product_category')
+                        ->label('Kategori Produk')
+                        ->options([
+                            'window_film' => 'Window Film',
+                            'ppf' => 'PPF',
+                            'color_change' => 'Color Change Film',
+                        ])
+                        ->live()
+                        ->required(),
+
+                    Forms\Components\TextInput::make('vin')
+                        ->label('VIN (Nomor Rangka)')
+                        ->helperText('Berbeda dari plat nomor — VIN permanen, penting untuk garansi jangka panjang.')
+                        ->maxLength(255),
+
                     Forms\Components\TextInput::make('dealer_name')
                         ->label('Nama Dealer (teks bebas)')
                         ->required()
@@ -140,6 +155,59 @@ class WarrantyResource extends Resource
                         ->label('Tanggal Berakhir')
                         ->required(),
                 ]),
+
+            // Field kondisional berdasarkan kategori produk — supaya
+            // staff toko tidak diminta isi field yang tidak relevan.
+            // PPF: installation_position pilihan tetap (Seluruh Bodi/
+            // Parsial) sesuai sertifikat China (装贴部位: [ ] 整车 [ ] 局部),
+            // dengan keterangan detail area kalau Parsial dipilih.
+            // Window Film: roll number & tipe film DIPISAH untuk Kaca
+            // Depan vs Kaca Samping & Belakang, karena biasanya pakai
+            // roll film yang berbeda (卷芯号 前挡 vs 侧后).
+            Forms\Components\Section::make('Detail Instalasi (PPF)')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\Select::make('installation_position')
+                        ->label('Posisi Pemasangan')
+                        ->options([
+                            'full_body' => 'Seluruh Bodi',
+                            'partial' => 'Parsial (Bagian Tertentu)',
+                        ])
+                        ->live()
+                        ->helperText('Area mobil yang dilapisi PPF.'),
+
+                    Forms\Components\TextInput::make('installation_position_detail')
+                        ->label('Keterangan Area')
+                        ->placeholder('Contoh: Bumper Depan, Kap Mesin, Fender')
+                        ->visible(fn (Forms\Get $get) => $get('installation_position') === 'partial'),
+
+                    Forms\Components\TextInput::make('roll_number')
+                        ->label('Roll Number / ID Material')
+                        ->placeholder('Nomor batch produksi PPF')
+                        ->helperText('Untuk traceability kalau ada recall/klaim cacat produksi.'),
+                ])
+                ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf'),
+
+            Forms\Components\Section::make('Detail Instalasi (Window Film)')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\TextInput::make('roll_number_front')
+                        ->label('Roll Number — Kaca Depan')
+                        ->placeholder('Nomor batch roll film kaca depan'),
+
+                    Forms\Components\TextInput::make('roll_number_side_rear')
+                        ->label('Roll Number — Kaca Samping & Belakang')
+                        ->placeholder('Nomor batch roll film kaca samping & belakang'),
+
+                    Forms\Components\TextInput::make('film_model_front')
+                        ->label('Tipe Film — Kaca Depan')
+                        ->placeholder('Contoh: VLT 40%'),
+
+                    Forms\Components\TextInput::make('film_model_side_rear')
+                        ->label('Tipe Film — Kaca Samping & Belakang')
+                        ->placeholder('Contoh: VLT 20%'),
+                ])
+                ->visible(fn (Forms\Get $get) => $get('product_category') === 'window_film'),
 
             // Section QA Certificate review — hanya ditampilkan sebagai
             // info (read-only) di form. Aksi approve/reject yang
@@ -191,6 +259,22 @@ class WarrantyResource extends Resource
                 Tables\Columns\TextColumn::make('product_series')
                     ->label('Produk')
                     ->searchable(),
+
+                Tables\Columns\BadgeColumn::make('product_category')
+                    ->label('Kategori')
+                    ->placeholder('—')
+                    ->colors([
+                        'info' => 'window_film',
+                        'success' => 'ppf',
+                        'warning' => 'color_change',
+                    ])
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'window_film' => 'Window Film',
+                        'ppf' => 'PPF',
+                        'color_change' => 'Color Change',
+                        default => '—',
+                    })
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
@@ -281,6 +365,14 @@ class WarrantyResource extends Resource
                         'active' => 'Active',
                         'expired' => 'Expired',
                         'pending' => 'Pending',
+                    ]),
+
+                Tables\Filters\SelectFilter::make('product_category')
+                    ->label('Kategori Produk')
+                    ->options([
+                        'window_film' => 'Window Film',
+                        'ppf' => 'PPF',
+                        'color_change' => 'Color Change Film',
                     ]),
 
                 Tables\Filters\SelectFilter::make('store_id')
