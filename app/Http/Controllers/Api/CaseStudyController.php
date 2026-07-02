@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CaseStudy;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class CaseStudyController extends Controller
@@ -12,19 +13,29 @@ class CaseStudyController extends Controller
     /**
      * GET /api/case-studies
      *
-     * Daftar galeri pemasangan untuk home page (menggantikan CASE_DATA
-     * hardcoded di CaseAndNewsSection.tsx). Hanya is_active = true,
-     * diurutkan sesuai sort_order yang diatur admin lewat drag-reorder
-     * di Filament.
+     * Daftar galeri pemasangan. Parameter opsional:
+     *   ?product_type=window_film  → hanya item yang film_product-nya bertipe window_film
+     *   ?product_type=ppf          → hanya PPF
+     *   (tanpa parameter)          → semua (dipakai home page & galeri umum)
+     *
+     * Nilai product_type mengacu pada enum di tabel film_products
+     * (window_film | ppf | color_change).
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $items = CaseStudy::query()
+        $query = CaseStudy::query()
             ->where('is_active', true)
             ->with(['vehicle', 'filmProduct'])
-            ->orderBy('sort_order')
-            ->get()
-            ->map(fn (CaseStudy $item) => $this->transform($item));
+            ->orderBy('sort_order');
+
+        // Filter per-produk — dipakai halaman product detail web
+        if ($request->filled('product_type')) {
+            $query->whereHas('filmProduct', function ($q) use ($request) {
+                $q->where('product_type', $request->input('product_type'));
+            });
+        }
+
+        $items = $query->get()->map(fn (CaseStudy $item) => $this->transform($item));
 
         return response()->json([
             'success' => true,
@@ -34,10 +45,8 @@ class CaseStudyController extends Controller
 
     /**
      * image disimpan sebagai path relatif oleh Filament FileUpload.
-     * Sama seperti NewsController::fullImageUrl() — dipaksa jadi full
-     * absolute URL secara manual (gabung dengan APP_URL), supaya tidak
-     * terulang masalah gambar broken di frontend (domain berbeda) yang
-     * sebelumnya terjadi pada cover_image berita.
+     * Dipaksa jadi full absolute URL supaya frontend lintas-domain bisa
+     * load gambar tanpa perlu prefix manual.
      */
     private function transform(CaseStudy $item): array
     {
@@ -52,8 +61,9 @@ class CaseStudyController extends Controller
                 'model' => $item->vehicle->model,
             ] : null,
             'film_product' => $item->filmProduct ? [
-                'id'   => $item->filmProduct->id,
-                'name' => $item->filmProduct->name,
+                'id'           => $item->filmProduct->id,
+                'name'         => $item->filmProduct->name,
+                'product_type' => $item->filmProduct->product_type,
             ] : null,
             'sort_order'   => $item->sort_order,
         ];

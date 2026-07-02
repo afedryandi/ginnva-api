@@ -16,11 +16,16 @@ class FilmProduct extends Model
 
     protected $casts = [
         'base_price' => 'decimal:2',
-        'is_active' => 'boolean',
+        'is_active'  => 'boolean',
     ];
 
     public function quotationItems()
     {
         return $this->hasMany(QuotationItem::class);
+    }
+
+    public function caseStudies()
+    {
+        return $this->hasMany(CaseStudy::class);
     }
 }
