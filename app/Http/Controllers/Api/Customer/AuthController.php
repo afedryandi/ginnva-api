@@ -102,12 +102,13 @@ class AuthController extends Controller
 
     /**
      * PUT /api/customer/auth/profile
-     * Update nama (dan nanti nomor HP, setelah WA OTP aktif).
+     * Update nama dan nomor WhatsApp.
      */
     public function updateProfile(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
+            'name'         => 'required|string|max:255',
+            'phone_number' => 'nullable|string|max:20',
         ]);
 
         if ($validator->fails()) {
@@ -115,7 +116,10 @@ class AuthController extends Controller
         }
 
         $customer = $request->user('customer');
-        $customer->update(['name' => $request->name]);
+        $customer->update([
+            'name'         => $request->name,
+            'phone_number' => $request->phone_number,
+        ]);
 
         return response()->json([
             'message' => 'Profil berhasil diperbarui.',
