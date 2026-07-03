@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\BookingController;
 use App\Http\Controllers\Api\Customer\MyWarrantyController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\ChatController;
 
 Route::prefix('warranty')->group(function () {
     Route::post('/submit', [WarrantyController::class, 'submit']);
@@ -43,6 +44,9 @@ Route::get('/case-studies', [CaseStudyController::class, 'index']);
 // Baru: pengajuan kemitraan/franchise (我要加盟) — publik, tidak wajib
 // login (lihat catatan di PartnershipInquiryController).
 Route::post('/partnership/submit', [PartnershipInquiryController::class, 'submit']);
+
+// Chatbot — publik, tidak wajib login
+Route::post('/chat', [ChatController::class, 'send']);
 
 /*
 |--------------------------------------------------------------------------

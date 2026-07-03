@@ -41,5 +41,9 @@ return [
         'api_url' => env('CHINA_API_URL'),
         'secret_key' => env('CHINA_API_SECRET_KEY'),
     ],
+    
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+    ],
 
 ];
