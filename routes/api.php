@@ -77,3 +77,14 @@ Route::prefix('customer')->group(function () {
         Route::post('/bookings', [BookingController::class, 'store']);
     });
 });
+
+// Push Notification token management
+use App\Http\Controllers\Api\NotificationController;
+
+// Register/update token — bisa dipanggil guest maupun logged-in customer
+Route::post('/notifications/register-token', [NotificationController::class, 'registerToken']);
+
+// Link anonymous token ke customer setelah login
+Route::middleware('auth:customer')->group(function () {
+    Route::post('/notifications/link-token', [NotificationController::class, 'linkToken']);
+});

@@ -46,4 +46,11 @@ return [
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],
 
+    'fcm' => [
+        // Path ke Service Account JSON yang didownload dari Firebase Console
+        // → Project Settings → Service Accounts → Generate new private key
+        // Simpan file di storage/app/firebase/ (jangan di public/)
+        'credentials_path' => env('FCM_CREDENTIALS_PATH', storage_path('app/firebase/service-account.json')),
+    ],
+
 ];
