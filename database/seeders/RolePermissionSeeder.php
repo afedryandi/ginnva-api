@@ -13,9 +13,16 @@ class RolePermissionSeeder extends Seeder
 {
     /**
      * Role:
-     * - super_admin     : akses penuh ke semua resource Filament.
-     * - regional_admin  : "admin toko" — di-scope ke 1 store via users.store_id,
-     *                      tidak punya akses ke Store & News (lihat Policies).
+     * - super_admin     : "Direksi" — akses penuh ke semua resource Filament
+     *                      + semua booking/chat di semua toko.
+     * - regional_admin  : "Store Manager/Admin Toko" — di-scope ke 1 store via
+     *                      users.store_id, tidak punya akses ke Store & News
+     *                      (lihat Policies).
+     * - installer       : "Tim Instalasi" — TIDAK punya akses Filament sama
+     *                      sekali (login mobile app saja, guard 'api'). Hanya
+     *                      bisa lihat & chat teks (bukan foto/update tahap) di
+     *                      booking yang di-assign ke dirinya lewat kolom
+     *                      bookings.installer_user_id.
      */
     public function run(): void
     {
@@ -46,6 +53,11 @@ class RolePermissionSeeder extends Seeder
             'store.view', // hanya lihat store miliknya sendiri, lihat StorePolicy
         ]);
 
+        // installer TIDAK dikasih permission Filament apapun — dia cuma
+        // login lewat mobile app (guard 'api'), tidak pernah masuk panel
+        // admin web sama sekali.
+        Role::findOrCreate('installer', 'web');
+
         // User super_admin default — GANTI PASSWORD setelah login pertama kali.
         $admin = User::firstOrCreate(
             ['email' => 'admin@ginnva.test'],
@@ -69,6 +81,18 @@ class RolePermissionSeeder extends Seeder
                 ]
             );
             $regional->syncRoles(['regional_admin']);
+
+            // Contoh user installer — login mobile app saja, tidak pernah
+            // dipakai untuk masuk Filament (lihat User::canAccessPanel()).
+            $installer = User::firstOrCreate(
+                ['email' => 'installer@ginnva.test'],
+                [
+                    'name' => 'Installer - '.$firstStore->name,
+                    'password' => Hash::make('password'),
+                    'store_id' => $firstStore->id,
+                ]
+            );
+            $installer->syncRoles(['installer']);
         }
     }
 }

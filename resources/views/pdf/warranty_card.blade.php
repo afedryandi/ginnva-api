@@ -54,7 +54,8 @@
     <table class="header-table" cellspacing="0" cellpadding="0">
         <tr>
             <td width="70%">
-                <div class="brand">GINNVA SHIELD</div>
+                <div class="brand">GINNVA HOUSE</div>
+                <div style="font-size: 9px; color: #555; letter-spacing: 0.4px; margin-top: 3px; font-weight: 600;">PT. GINNVA SHIELD INDONESIA</div>
                 <div class="title">OFFICIAL E-WARRANTY CERTIFICATE</div>
             </td>
             <td width="30%" align="right">
@@ -208,7 +209,7 @@
     </table>
 
     <div class="footer" style="margin-top: 20px;">
-        Sertifikat digital ini diterbitkan secara sah oleh sistem manajemen garansi terpusat Ginnva Shield Indonesia.<br>
+        Sertifikat digital ini diterbitkan secara sah oleh sistem manajemen garansi terpusat Ginnva House · PT. Ginnva Shield Indonesia.<br>
         Segala bentuk pemalsuan atau manipulasi data akan diverifikasi langsung melalui basis data server utama kami.
     </div>
 </div>

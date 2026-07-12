@@ -42,13 +42,32 @@ class CaseStudyResource extends Resource
             Forms\Components\Section::make('Detail Pemasangan')
                 ->columns(2)
                 ->schema([
+                    Forms\Components\Select::make('vehicle_brand')
+                        ->label('Merek Mobil')
+                        ->options(fn () => Vehicle::distinct()->orderBy('brand')->pluck('brand', 'brand'))
+                        ->searchable()
+                        ->live()
+                        ->afterStateUpdated(fn (Forms\Set $set) => $set('vehicle_id', null))
+                        ->dehydrated(false)
+                        ->afterStateHydrated(function (Forms\Set $set, Forms\Get $get, $state, ?CaseStudy $record) {
+                            if ($record?->vehicle) {
+                                $set('vehicle_brand', $record->vehicle->brand);
+                            }
+                        }),
+
                     Forms\Components\Select::make('vehicle_id')
-                        ->label('Kendaraan')
-                        ->relationship('vehicle', 'model')
-                        ->getOptionLabelFromRecordUsing(fn (Vehicle $record) => "{$record->brand} {$record->model}")
-                        ->searchable(['brand', 'model'])
-                        ->preload()
-                        ->required(),
+                        ->label('Tipe Mobil')
+                        ->options(fn (Forms\Get $get) => Vehicle::when(
+                                $get('vehicle_brand'),
+                                fn ($q, $brand) => $q->where('brand', $brand)
+                            )
+                            ->orderBy('model')
+                            ->get()
+                            ->mapWithKeys(fn (Vehicle $v) => [$v->id => trim("{$v->model} {$v->variant}")])
+                        )
+                        ->searchable()
+                        ->required()
+                        ->disabled(fn (Forms\Get $get) => ! $get('vehicle_brand')),
 
                     Forms\Components\Select::make('film_product_id')
                         ->label('Produk Film')
@@ -59,14 +78,14 @@ class CaseStudyResource extends Resource
 
                     Forms\Components\TextInput::make('title')
                         ->label('Judul Lengkap')
-                        ->helperText('Ditampilkan saat foto ini jadi sorotan utama. Contoh: "Kaca Film · Zeekr 9X — Ginnva Ziwei 70"')
+                        ->helperText('Ditampilkan saat foto ini jadi sorotan utama. Contoh: "Toyota Fortuner · Kaca Film · A70"')
                         ->required()
                         ->maxLength(255)
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('short_title')
                         ->label('Judul Singkat')
-                        ->helperText('Ditampilkan di thumbnail kecil. Contoh: "Zeekr 9X · Ziwei 70"')
+                        ->helperText('Ditampilkan di thumbnail kecil. Contoh: "Fortuner · A70"')
                         ->required()
                         ->maxLength(255)
                         ->columnSpanFull(),
@@ -75,6 +94,8 @@ class CaseStudyResource extends Resource
                         ->label('Foto Hasil Pemasangan')
                         ->image()
                         ->directory('case-studies')
+                        ->maxSize(2048)
+                        ->helperText('Maks. 2 MB. Format: JPG, PNG, WebP.')
                         ->required()
                         ->columnSpanFull(),
 

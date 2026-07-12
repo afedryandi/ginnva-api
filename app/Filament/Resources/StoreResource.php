@@ -79,6 +79,12 @@ class StoreResource extends Resource
                         ->label('Aktif (tampil di web publik)')
                         ->default(true),
 
+                    Forms\Components\TextInput::make('google_place_id')
+                        ->label('Google Place ID')
+                        ->helperText('Dipakai untuk tombol "Beri Ulasan" di mobile app. Cari toko di Google Maps → Bagikan → Sematkan peta HTML → salin ID setelah "!1s0x". Atau pakai tool "Place ID Finder" di developers.google.com/maps/documentation/places/web-service/place-id.')
+                        ->columnSpanFull()
+                        ->maxLength(255),
+
                     Forms\Components\Textarea::make('address')
                         ->label('Alamat')
                         ->required()

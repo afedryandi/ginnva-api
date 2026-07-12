@@ -2,6 +2,9 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\Booking;
+use App\Models\FilmProduct;
+use App\Models\PartnershipInquiry;
 use App\Models\ProductInquiry;
 use App\Models\Quotation;
 use App\Models\Store;
@@ -49,6 +52,21 @@ class DashboardStatsWidget extends BaseWidget
                 ->descriptionIcon('heroicon-m-question-mark-circle')
                 ->color('info'),
 
+            Stat::make('Kemitraan Baru', PartnershipInquiry::where('status', 'new')->count())
+                ->description('Pengajuan dealer/distributor belum ditindaklanjuti')
+                ->descriptionIcon('heroicon-m-briefcase')
+                ->color('warning'),
+
+            Stat::make('Garansi Hampir Kedaluwarsa', $this->countExpiringWarranties($user, $isSuperAdmin))
+                ->description('Garansi berakhir dalam 30 hari ke depan')
+                ->descriptionIcon('heroicon-m-exclamation-triangle')
+                ->color('danger'),
+
+            Stat::make('Booking Hari Ini', $this->countTodayBookings($user, $isSuperAdmin))
+                ->description('Jadwal servis/pemasangan yang masuk hari ini')
+                ->descriptionIcon('heroicon-m-calendar-days')
+                ->color('info'),
+
             Stat::make('Toko Aktif', Store::where('is_active', true)->count())
                 ->description('Total toko/dealer yang tampil di web publik')
                 ->descriptionIcon('heroicon-m-building-storefront')
@@ -63,9 +81,9 @@ class DashboardStatsWidget extends BaseWidget
                 ->descriptionIcon('heroicon-m-users')
                 ->color('gray');
 
-            $stats[] = Stat::make('Total Produk Aktif', Vehicle::count())
-                ->description('Data kendaraan terdaftar untuk dropdown quotation')
-                ->descriptionIcon('heroicon-m-truck')
+            $stats[] = Stat::make('Produk Film', FilmProduct::where('is_active', true)->count())
+                ->description('Produk film aktif yang ditampilkan di website & aplikasi')
+                ->descriptionIcon('heroicon-m-film')
                 ->color('gray');
         }
 
@@ -116,5 +134,37 @@ class DashboardStatsWidget extends BaseWidget
         }
 
         return $query->where('created_at', '>=', now()->subDays(7))->count();
+    }
+
+    protected function countExpiringWarranties($user, bool $isSuperAdmin): int
+    {
+        $query = Warranty::query()
+            ->where('review_status', 'approved')
+            ->whereDate('expiry_date', '>=', now())
+            ->whereDate('expiry_date', '<=', now()->addDays(30));
+
+        if (! $isSuperAdmin) {
+            $query->where(function ($q) use ($user) {
+                $q->where('store_id', $user->store_id)
+                    ->orWhereNull('store_id');
+            });
+        }
+
+        return $query->count();
+    }
+
+    protected function countTodayBookings($user, bool $isSuperAdmin): int
+    {
+        $query = Booking::query()
+            ->whereDate('preferred_date', now()->toDateString());
+
+        if (! $isSuperAdmin) {
+            $query->where(function ($q) use ($user) {
+                $q->where('store_id', $user->store_id)
+                    ->orWhereNull('store_id');
+            });
+        }
+
+        return $query->count();
     }
 }

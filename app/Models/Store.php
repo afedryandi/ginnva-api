@@ -17,6 +17,7 @@ class Store extends Model
         'opening_hours',
         'latitude',
         'longitude',
+        'google_place_id',
         'is_active',
     ];
 
@@ -39,5 +40,10 @@ class Store extends Model
     public function quotations()
     {
         return $this->hasMany(Quotation::class);
+    }
+
+    public function technicians()
+    {
+        return $this->hasMany(Technician::class);
     }
 }

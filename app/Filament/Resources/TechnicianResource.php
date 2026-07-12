@@ -1,0 +1,215 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\TechnicianResource\Pages;
+use App\Models\Technician;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+
+class TechnicianResource extends Resource
+{
+    protected static ?string $model = Technician::class;
+
+    protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
+
+    protected static ?string $navigationGroup = 'Operasional';
+
+    protected static ?string $navigationLabel = 'Teknisi';
+
+    protected static ?string $modelLabel = 'Teknisi';
+
+    protected static ?string $pluralModelLabel = 'Teknisi';
+
+    protected static ?int $navigationSort = 10;
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user  = auth()->user();
+
+        if ($user && ! $user->hasRole('super_admin')) {
+            $query->where('store_id', $user->store_id);
+        }
+
+        return $query;
+    }
+
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+    }
+
+    public static function form(Form $form): Form
+    {
+        return $form->schema([
+            Forms\Components\Section::make('Data Teknisi')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\Select::make('store_id')
+                        ->label('Toko')
+                        ->relationship('store', 'name')
+                        ->searchable()
+                        ->preload()
+                        ->required()
+                        ->default(fn () => auth()->user()?->store_id)
+                        ->disabled(fn () => ! auth()->user()?->hasRole('super_admin'))
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('name')
+                        ->label('Nama Teknisi')
+                        ->required()
+                        ->maxLength(255),
+
+                    Forms\Components\TextInput::make('phone')
+                        ->label('No. Telepon / HP')
+                        ->tel()
+                        ->maxLength(255),
+
+                    Forms\Components\Select::make('level')
+                        ->label('Level Sertifikasi')
+                        ->options([
+                            'intermediate' => 'Intermediate',
+                            'advanced'     => 'Advanced',
+                            'mentor'       => 'Mentor',
+                        ])
+                        ->required()
+                        ->default('intermediate'),
+
+                    Forms\Components\Select::make('status')
+                        ->label('Status')
+                        ->options([
+                            'pending_review' => 'Menunggu Review',
+                            'active'         => 'Aktif',
+                            'inactive'       => 'Nonaktif',
+                        ])
+                        ->required()
+                        ->default('pending_review')
+                        ->disabled(fn () => ! auth()->user()?->hasRole('super_admin'))
+                        ->dehydrated(),
+
+                    Forms\Components\Textarea::make('notes')
+                        ->label('Catatan')
+                        ->columnSpanFull(),
+                ]),
+        ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('name')
+                    ->label('Nama')
+                    ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('phone')
+                    ->label('No. Telepon')
+                    ->placeholder('—')
+                    ->searchable(),
+
+                Tables\Columns\TextColumn::make('store.name')
+                    ->label('Toko')
+                    ->sortable()
+                    ->toggleable(),
+
+                Tables\Columns\BadgeColumn::make('level')
+                    ->label('Level')
+                    ->colors([
+                        'gray'    => 'intermediate',
+                        'warning' => 'advanced',
+                        'success' => 'mentor',
+                    ])
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'intermediate' => 'Intermediate',
+                        'advanced'     => 'Advanced',
+                        'mentor'       => 'Mentor',
+                        default        => $state,
+                    }),
+
+                Tables\Columns\BadgeColumn::make('status')
+                    ->label('Status')
+                    ->colors([
+                        'warning' => 'pending_review',
+                        'success' => 'active',
+                        'danger'  => 'inactive',
+                    ])
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'pending_review' => 'Menunggu Review',
+                        'active'         => 'Aktif',
+                        'inactive'       => 'Nonaktif',
+                        default          => $state,
+                    }),
+
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Ditambahkan')
+                    ->dateTime('d M Y')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('level')
+                    ->label('Level')
+                    ->options([
+                        'intermediate' => 'Intermediate',
+                        'advanced'     => 'Advanced',
+                        'mentor'       => 'Mentor',
+                    ]),
+
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->options([
+                        'pending_review' => 'Menunggu Review',
+                        'active'         => 'Aktif',
+                        'inactive'       => 'Nonaktif',
+                    ]),
+
+                Tables\Filters\SelectFilter::make('store_id')
+                    ->label('Toko')
+                    ->relationship('store', 'name')
+                    ->visible(fn () => auth()->user()?->hasRole('super_admin')),
+            ])
+            ->actions([
+                Tables\Actions\Action::make('approve')
+                    ->label('Aktifkan')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (Technician $record) => auth()->user()?->hasRole('super_admin')
+                        && $record->status === 'pending_review')
+                    ->requiresConfirmation()
+                    ->action(fn (Technician $record) => $record->update(['status' => 'active'])),
+
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
+            ->defaultSort('created_at', 'desc');
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        $count = static::getEloquentQuery()->where('status', 'pending_review')->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    protected static ?string $navigationBadgeColor = 'warning';
+
+    public static function getPages(): array
+    {
+        return [
+            'index'  => Pages\ListTechnicians::route('/'),
+            'create' => Pages\CreateTechnician::route('/create'),
+            'edit'   => Pages\EditTechnician::route('/{record}/edit'),
+        ];
+    }
+}

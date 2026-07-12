@@ -9,6 +9,7 @@ class Vehicle extends Model
     protected $fillable = [
         'brand',
         'model',
+        'variant',
         'size_category',
     ];
 

@@ -39,11 +39,15 @@ class BookingController extends Controller
             'service_type'    => 'required|string|max:255',
             'preferred_date'  => 'required|date|after_or_equal:today',
             'preferred_time'  => 'nullable|string|max:50',
-            'notes'           => 'nullable|string',
+            'notes'           => 'nullable|string|max:2000',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors'  => $validator->errors(),
+            ], 422);
         }
 
         $booking = Booking::create([
@@ -53,6 +57,7 @@ class BookingController extends Controller
             'preferred_date'  => $request->preferred_date,
             'preferred_time'  => $request->preferred_time,
             'notes'           => $request->notes,
+            'source'          => 'app',
             'status'          => 'pending',
         ]);
 

@@ -57,8 +57,18 @@ class FilmProductResource extends Resource
                         ->options([
                             'window_film' => 'Kaca Film',
                             'ppf' => 'Paint Protection Film (PPF)',
-                            'color_change' => 'Color Change',
                         ])
+                        ->live()
+                        ->required(),
+
+                    Forms\Components\Select::make('position')
+                        ->label('Posisi Kaca')
+                        ->options([
+                            'front'     => 'Kaca Depan (Windshield)',
+                            'side_rear' => 'Kaca Samping & Belakang',
+                        ])
+                        ->default('front')
+                        ->visible(fn (Forms\Get $get) => $get('product_type') === 'window_film')
                         ->required(),
 
                     Forms\Components\TextInput::make('base_price')
@@ -95,7 +105,6 @@ class FilmProductResource extends Resource
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'window_film' => 'Kaca Film',
                         'ppf' => 'PPF',
-                        'color_change' => 'Color Change',
                         default => $state,
                     })
                     ->sortable(),
@@ -120,7 +129,6 @@ class FilmProductResource extends Resource
                     ->options([
                         'window_film' => 'Kaca Film',
                         'ppf' => 'PPF',
-                        'color_change' => 'Color Change',
                     ]),
 
                 Tables\Filters\TernaryFilter::make('is_active')

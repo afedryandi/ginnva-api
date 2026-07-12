@@ -9,9 +9,10 @@ class QuotationItem extends Model
     protected $fillable = [
         'quotation_id',
         'film_product_id',
+        'quantity',
+        'notes',
         // price_rule_id, base_price_snapshot, coefficient_snapshot, calculated_price
-        // SENGAJA TIDAK diisi — kolomnya tetap ada di database untuk masa depan,
-        // tapi tidak dipakai karena harga belum ditentukan oleh Ginnva Indonesia.
+        // belum dipakai — harga belum ditentukan oleh Ginnva Indonesia.
     ];
 
     public function quotation()

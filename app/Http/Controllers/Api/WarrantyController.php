@@ -4,12 +4,16 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Warranty;
+use App\Models\PointTransaction;
 use App\Services\QrCodeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\WarrantyRegisteredMail;
 
 class WarrantyController extends Controller
 {
@@ -28,7 +32,11 @@ class WarrantyController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors'  => $validator->errors(),
+            ], 422);
         }
 
         $warrantyCode = 'GNV-' . strtoupper(Str::random(10));
@@ -80,6 +88,7 @@ class WarrantyController extends Controller
         // dari sini.
 
         return response()->json([
+            'success' => true,
             'message' => 'Data garansi berhasil didaftarkan dan sedang menunggu review admin.',
             'data' => $warranty,
         ], 201);
@@ -92,6 +101,7 @@ class WarrantyController extends Controller
 
         if (!$code) {
             return response()->json([
+                'success' => false,
                 'message' => 'Parameter "code" wajib diisi.',
             ], 422);
         }
@@ -102,17 +112,77 @@ class WarrantyController extends Controller
 
         if (!$warranty) {
             return response()->json([
+                'success' => false,
                 'message' => 'Nomor garansi atau plat nomor tidak ditemukan.',
             ], 404);
         }
 
-        // $warranty otomatis menyertakan remaining_days & status terkini
-        // (termasuk 'pending_review' / 'rejected' bila relevan) karena
-        // di-handle oleh accessor pada model Warranty.
+        // Whitelist field yang aman untuk publik — tidak expose customer_id
         return response()->json([
             'success' => true,
-            'data' => $warranty,
+            'data' => [
+                'id'                => $warranty->id,
+                'warranty_code'     => $warranty->warranty_code,
+                'customer_name'     => $warranty->customer_name,
+                'car_plate'         => $warranty->car_plate,
+                'car_type'          => $warranty->car_type,
+                'product_series'    => $warranty->product_series,
+                'installation_date' => $warranty->installation_date,
+                'expiry_date'       => $warranty->expiry_date,
+                'dealer_name'       => $warranty->dealer_name,
+                'review_status'     => $warranty->review_status,
+                'has_owner'         => $warranty->customer_id !== null,
+            ],
         ], 200);
+    }
+
+    /**
+     * POST /api/warranty/claim
+     * Hubungkan warranty ke akun customer yang sedang login.
+     * Hanya bisa kalau warranty belum dimiliki siapapun (customer_id = null).
+     */
+    public function claim(Request $request)
+    {
+        $request->validate(['warranty_code' => 'required|string']);
+
+        $warranty = Warranty::where('warranty_code', $request->warranty_code)->first();
+
+        if (!$warranty) {
+            return response()->json(['success' => false, 'message' => 'Garansi tidak ditemukan.'], 404);
+        }
+
+        if ($warranty->customer_id !== null) {
+            return response()->json(['success' => false, 'message' => 'Garansi ini sudah terhubung ke akun lain.'], 409);
+        }
+
+        $customer = auth('customer')->user();
+        $warranty->update(['customer_id' => $customer->id]);
+
+        // Kalau warranty sudah approved sebelum diklaim, award poin sekarang.
+        // Observer tidak akan terpicu lagi karena review_status tidak berubah.
+        $alreadyRewarded = PointTransaction::where('reference_type', 'warranty')
+            ->where('reference_id', $warranty->id)
+            ->exists();
+
+        $pointsAwarded = false;
+        if ($warranty->review_status === 'approved' && !$alreadyRewarded) {
+            PointTransaction::create([
+                'customer_id'    => $customer->id,
+                'type'           => 'earn',
+                'points'         => 100,
+                'description'    => 'Garansi disetujui: ' . $warranty->warranty_code,
+                'reference_type' => 'warranty',
+                'reference_id'   => $warranty->id,
+            ]);
+            $customer->increment('loyalty_points', 100);
+            $pointsAwarded = true;
+        }
+
+        return response()->json([
+            'success'       => true,
+            'message'       => 'Garansi berhasil dihubungkan ke akun Anda.',
+            'points_awarded' => $pointsAwarded ? 100 : 0,
+        ]);
     }
 
     // GET /api/warranty/download/{code}
@@ -124,6 +194,7 @@ class WarrantyController extends Controller
         // disetujui oleh super_admin. Sebelum itu, dokumen belum sah.
         if ($warranty->review_status !== 'approved') {
             return response()->json([
+                'success' => false,
                 'message' => 'Sertifikat garansi ini belum disetujui dan belum bisa diunduh.',
             ], 403);
         }

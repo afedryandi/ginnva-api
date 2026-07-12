@@ -1,6 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\CarouselController;
+use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\CaseStudyController;
+use App\Http\Controllers\Api\JobOpeningController;
 use App\Http\Controllers\Api\NewsController;
 use App\Http\Controllers\Api\PartnershipInquiryController;
 use App\Http\Controllers\Api\ProductInquiryController;
@@ -9,29 +12,45 @@ use App\Http\Controllers\Api\StoreController;
 use App\Http\Controllers\Api\WarrantyController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\BookingController;
+use App\Http\Controllers\Api\Customer\BookingMessageController;
 use App\Http\Controllers\Api\Customer\MyWarrantyController;
+use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
+use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
+use App\Http\Controllers\Api\Staff\BookingMessageController as StaffBookingMessageController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PointController;
+
+Route::get('/carousels', [CarouselController::class, 'index']);
+Route::get('/materials', [MaterialController::class, 'index']);
+
+// Layar login terpadu mobile app — deteksi email ini staff atau customer
+// SEBELUM proses login sesungguhnya dimulai.
+Route::post('/auth/detect-role', [StaffAuthController::class, 'detectRole'])->middleware('throttle:20,1');
 
 Route::prefix('warranty')->group(function () {
-    Route::post('/submit', [WarrantyController::class, 'submit']);
-    Route::get('/check', [WarrantyController::class, 'check']);
-    Route::get('/download/{code}', [WarrantyController::class, 'download']);
+    Route::post('/submit', [WarrantyController::class, 'submit'])->middleware('throttle:10,1');
+    Route::get('/check', [WarrantyController::class, 'check'])->middleware('throttle:30,1');
+    Route::get('/download/{code}', [WarrantyController::class, 'download'])->middleware('throttle:20,1');
+    Route::middleware('auth:customer')->post('/claim', [WarrantyController::class, 'claim']);
 });
 
 Route::prefix('quotation')->group(function () {
-    Route::get('/options', [QuotationController::class, 'options']);
-    Route::post('/submit', [QuotationController::class, 'submit']);
+    Route::get('/options', [QuotationController::class, 'options'])->middleware('throttle:30,1');
+    Route::post('/submit', [QuotationController::class, 'submit'])->middleware('throttle:5,1');
 });
 
 Route::prefix('inquiry')->group(function () {
-    Route::post('/submit', [ProductInquiryController::class, 'submit']);
-    Route::get('/', [ProductInquiryController::class, 'index']);
+    Route::post('/submit', [ProductInquiryController::class, 'submit'])->middleware('throttle:5,1');
+    // Index hanya untuk admin — tidak boleh publik
+    Route::middleware('auth:sanctum')->get('/', [ProductInquiryController::class, 'index']);
 });
 
 Route::prefix('stores')->group(function () {
     Route::get('/', [StoreController::class, 'index']);
     Route::get('/{id}', [StoreController::class, 'show']);
+    Route::get('/{id}/blocked-dates', [StoreController::class, 'blockedDates']);
 });
 
 Route::prefix('news')->group(function () {
@@ -41,12 +60,14 @@ Route::prefix('news')->group(function () {
 
 Route::get('/case-studies', [CaseStudyController::class, 'index']);
 
+Route::get('/job-openings', [JobOpeningController::class, 'index']);
+
 // Baru: pengajuan kemitraan/franchise (我要加盟) — publik, tidak wajib
 // login (lihat catatan di PartnershipInquiryController).
-Route::post('/partnership/submit', [PartnershipInquiryController::class, 'submit']);
+Route::post('/partnership/submit', [PartnershipInquiryController::class, 'submit'])->middleware('throttle:5,1');
 
 // Chatbot — publik, tidak wajib login
-Route::post('/chat', [ChatController::class, 'send']);
+Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:20,1');
 
 /*
 |--------------------------------------------------------------------------
@@ -58,8 +79,8 @@ Route::post('/chat', [ChatController::class, 'send']);
 */
 Route::prefix('customer')->group(function () {
     Route::prefix('auth')->group(function () {
-        Route::post('/request-otp', [CustomerAuthController::class, 'requestOtp']);
-        Route::post('/verify-otp', [CustomerAuthController::class, 'verifyOtp']);
+        Route::post('/request-otp', [CustomerAuthController::class, 'requestOtp'])->middleware('throttle:5,1');
+        Route::post('/verify-otp', [CustomerAuthController::class, 'verifyOtp'])->middleware('throttle:10,1');
 
         Route::middleware('auth:customer')->group(function () {
             Route::get('/me', [CustomerAuthController::class, 'me']);
@@ -71,20 +92,61 @@ Route::prefix('customer')->group(function () {
     Route::middleware('auth:customer')->group(function () {
         // 我的质保 — Garansi Saya
         Route::get('/warranties', [MyWarrantyController::class, 'index']);
+    Route::get('/warranties/{id}', [MyWarrantyController::class, 'show']);
 
         // 我的预约 — Booking Saya
         Route::get('/bookings', [BookingController::class, 'index']);
         Route::post('/bookings', [BookingController::class, 'store']);
+
+        // Chat + progress tracking per booking (polling, bukan real-time)
+        Route::get('/bookings/{id}/messages', [BookingMessageController::class, 'index']);
+        Route::post('/bookings/{id}/messages', [BookingMessageController::class, 'store']);
+
+        // Galeri pemasangan personal — foto dari booking milik customer sendiri
+        Route::get('/my-gallery', [BookingMessageController::class, 'gallery']);
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Staff (mobile app) — akun admin toko / super_admin, akun SAMA dengan
+| yang dipakai login Filament (App\Models\User), guard 'api' (JWT).
+|--------------------------------------------------------------------------
+*/
+Route::prefix('staff')->group(function () {
+    Route::post('/auth/login', [StaffAuthController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('/auth/forgot-password', [StaffAuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
+    Route::post('/auth/reset-password', [StaffAuthController::class, 'resetPassword'])->middleware('throttle:10,1');
+
+    Route::middleware('auth:api')->group(function () {
+        Route::get('/auth/me', [StaffAuthController::class, 'me']);
+        Route::post('/auth/logout', [StaffAuthController::class, 'logout']);
+
+        Route::get('/bookings', [StaffBookingController::class, 'index']);
+        Route::get('/bookings/{id}', [StaffBookingController::class, 'show']);
+
+        Route::get('/bookings/{id}/messages', [StaffBookingMessageController::class, 'index']);
+        Route::post('/bookings/{id}/messages', [StaffBookingMessageController::class, 'store']);
+
+        // Link anonymous token (didaftarkan saat app pertama kali dibuka)
+        // ke akun staff yang baru login — supaya push notif booking/chat
+        // sampai ke HP admin toko, bukan cuma customer.
+        Route::post('/notifications/link-token', [NotificationController::class, 'linkTokenStaff'])
+            ->middleware('throttle:20,1');
     });
 });
 
 // Push Notification token management
-use App\Http\Controllers\Api\NotificationController;
-
 // Register/update token — bisa dipanggil guest maupun logged-in customer
-Route::post('/notifications/register-token', [NotificationController::class, 'registerToken']);
+Route::post('/notifications/register-token', [NotificationController::class, 'registerToken'])
+    ->middleware('throttle:20,1');
 
 // Link anonymous token ke customer setelah login
 Route::middleware('auth:customer')->group(function () {
-    Route::post('/notifications/link-token', [NotificationController::class, 'linkToken']);
+    Route::post('/notifications/link-token', [NotificationController::class, 'linkToken'])
+        ->middleware('throttle:20,1');
+    Route::get('/customer/notifications', [NotificationController::class, 'history']);
+    Route::post('/customer/notifications/{id}/read', [NotificationController::class, 'markRead']);
+    Route::post('/customer/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::get('/customer/points', [PointController::class, 'index']);
 });

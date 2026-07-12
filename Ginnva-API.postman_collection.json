@@ -1,0 +1,563 @@
+{
+  "info": {
+    "name": "Ginnva API",
+    "description": "Dokumentasi lengkap REST API Ginnva (ginnva-api, Laravel) — dipakai oleh ginnva-web (Next.js) dan ginnva-mobile (Expo). Semua endpoint di /api/*. Response error selalu berbentuk { success: false, message, errors? } (lihat bootstrap/app.php exception handler).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "https://api.ginnva.id", "type": "string" },
+    { "key": "customer_token", "value": "", "type": "string", "description": "JWT dari POST /customer/auth/verify-otp, guard 'customer'" },
+    { "key": "staff_token", "value": "", "type": "string", "description": "JWT dari POST /staff/auth/login, guard 'api'" }
+  ],
+  "auth": { "type": "noauth" },
+  "item": [
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "List Carousels",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/carousels", "host": ["{{base_url}}"], "path": ["api", "carousels"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"data\": [\n    { \"id\": 1, \"title\": \"Promo Kaca Film\", \"subtitle\": \"Diskon 20%\", \"image\": \"https://api.ginnva.id/storage/carousels/x.jpg\", \"link_url\": \"https://ginnva.id/promo\" }\n  ]\n}" }]
+        },
+        {
+          "name": "List Materials (brosur)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/materials", "host": ["{{base_url}}"], "path": ["api", "materials"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"data\": [\n    { \"id\": 1, \"name\": \"PPF\", \"materials\": [ { \"id\": 1, \"name\": \"Brosur PPF\", \"file_type\": \"pdf\", \"file_size\": \"2.3 MB\", \"url\": \"https://api.ginnva.id/storage/materials/x.pdf\" } ] }\n  ]\n}" }]
+        },
+        {
+          "name": "Detect Role (staff/customer)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/auth/detect-role", "host": ["{{base_url}}"], "path": ["api", "auth", "detect-role"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@example.com\"\n}" }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"role\": \"customer\" }" }]
+        },
+        {
+          "name": "List Stores",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/stores?city=Tangerang", "host": ["{{base_url}}"], "path": ["api", "stores"], "query": [{ "key": "city", "value": "Tangerang", "description": "opsional" }] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": [ { \"id\": 1, \"name\": \"Ginnva PIK\", \"city\": \"Tangerang\", \"address\": \"...\", \"phone\": \"...\", \"is_active\": true } ]\n}" }]
+        },
+        {
+          "name": "Store Detail",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/stores/1", "host": ["{{base_url}}"], "path": ["api", "stores", "1"] }
+          },
+          "response": [
+            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"data\": { \"id\": 1, \"name\": \"Ginnva PIK\", \"city\": \"Tangerang\", \"address\": \"...\" } }" },
+            { "name": "404 Not Found", "code": 404, "body": "{ \"success\": false, \"message\": \"Toko tidak ditemukan.\" }" }
+          ]
+        },
+        {
+          "name": "Store Blocked Dates",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/stores/1/blocked-dates", "host": ["{{base_url}}"], "path": ["api", "stores", "1", "blocked-dates"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"data\": [\"2026-07-15\", \"2026-07-20\"] }" }]
+        },
+        {
+          "name": "List News",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/news?limit=10", "host": ["{{base_url}}"], "path": ["api", "news"], "query": [{ "key": "limit", "value": "10", "description": "opsional" }] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": [ { \"id\": 1, \"title\": \"Ginnva Buka Cabang Baru\", \"slug\": \"ginnva-buka-cabang\", \"excerpt\": \"...\", \"cover_image\": \"https://api.ginnva.id/storage/news/x.jpg\", \"source_url\": null, \"published_at\": \"2026-07-01T00:00:00.000000Z\" } ]\n}" }]
+        },
+        {
+          "name": "News Detail",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/news/ginnva-buka-cabang-baru", "host": ["{{base_url}}"], "path": ["api", "news", "ginnva-buka-cabang-baru"] }
+          },
+          "response": [
+            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"data\": { \"id\": 1, \"title\": \"...\", \"slug\": \"...\", \"content\": \"<p>full html...</p>\", \"cover_image\": \"...\", \"published_at\": \"...\" } }" },
+            { "name": "404 Not Found", "code": 404, "body": "{ \"success\": false, \"message\": \"Berita tidak ditemukan.\" }" }
+          ]
+        },
+        {
+          "name": "List Case Studies",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/case-studies?product_type=ppf", "host": ["{{base_url}}"], "path": ["api", "case-studies"], "query": [{ "key": "product_type", "value": "ppf", "description": "opsional: window_film|ppf|color_change" }] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": [ { \"id\": 1, \"title\": \"Toyota Alphard PPF\", \"short_title\": \"Alphard\", \"image\": \"...\", \"vehicle\": { \"id\": 1, \"brand\": \"Toyota\", \"model\": \"Alphard\" }, \"film_product\": { \"id\": 1, \"name\": \"Black Crystal\", \"product_type\": \"ppf\" }, \"sort_order\": 1 } ]\n}" }]
+        },
+        {
+          "name": "List Job Openings",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/job-openings", "host": ["{{base_url}}"], "path": ["api", "job-openings"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": [ { \"id\": 1, \"title\": \"Sales Executive\", \"department\": \"Sales\", \"location\": \"Jakarta\", \"type\": \"full_time\", \"description\": \"...\", \"requirements\": [\"Min D3\", \"Pengalaman 1 tahun\"] } ]\n}" }]
+        },
+        {
+          "name": "Chat (Asisten AI)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/chat", "host": ["{{base_url}}"], "path": ["api", "chat"] },
+            "body": { "mode": "raw", "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Berapa lama garansi PPF?\" }\n  ]\n}" }
+          },
+          "response": [
+            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"reply\": \"Garansi PPF Ginnva berlaku hingga 8 tahun tergantung seri produk...\" }" },
+            { "name": "422 Validation", "code": 422, "body": "{ \"success\": false, \"message\": \"Pesan tidak valid.\" }" },
+            { "name": "502 Upstream Error", "code": 502, "body": "{ \"success\": false, \"message\": \"Asisten sedang tidak tersedia. Silakan coba lagi.\" }" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Warranty",
+      "item": [
+        {
+          "name": "Submit Warranty Registration",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/warranty/submit", "host": ["{{base_url}}"], "path": ["api", "warranty", "submit"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_name\": \"Budi Santoso\",\n  \"phone_number\": \"081234567890\",\n  \"car_plate\": \"B 1234 XY\",\n  \"car_type\": \"Toyota Avanza\",\n  \"product_series\": \"Nano-Ceramic\",\n  \"installation_date\": \"2026-07-01\",\n  \"expiry_date\": \"2034-07-01\",\n  \"dealer_name\": \"Ginnva PIK\"\n}"
+            }
+          },
+          "response": [
+            { "name": "201 Created", "code": 201, "body": "{ \"success\": true, \"message\": \"Data garansi berhasil didaftarkan dan sedang menunggu review admin.\", \"data\": { \"id\": 1, \"warranty_code\": \"GNV-ABC1234XYZ\", \"status\": \"active\", \"review_status\": \"pending_review\" } }" },
+            { "name": "422 Validation", "code": 422, "body": "{ \"success\": false, \"message\": \"The given data was invalid.\", \"errors\": { \"phone_number\": [\"The phone number field is required.\"] } }" }
+          ]
+        },
+        {
+          "name": "Check Warranty",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/warranty/check?code=GNV-ABC1234XYZ", "host": ["{{base_url}}"], "path": ["api", "warranty", "check"], "query": [{ "key": "code", "value": "GNV-ABC1234XYZ", "description": "warranty_code ATAU car_plate" }] }
+          },
+          "response": [
+            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"data\": { \"id\": 1, \"warranty_code\": \"GNV-ABC1234XYZ\", \"car_plate\": \"B 1234 XY\", \"review_status\": \"approved\", \"has_owner\": true } }" },
+            { "name": "404 Not Found", "code": 404, "body": "{ \"success\": false, \"message\": \"Nomor garansi atau plat nomor tidak ditemukan.\" }" }
+          ]
+        },
+        {
+          "name": "Download Warranty PDF",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/warranty/download/GNV-ABC1234XYZ", "host": ["{{base_url}}"], "path": ["api", "warranty", "download", "GNV-ABC1234XYZ"] }
+          },
+          "response": [
+            { "name": "200 OK (binary PDF)", "code": 200, "body": "<binary PDF stream>" },
+            { "name": "403 Belum Disetujui", "code": 403, "body": "{ \"success\": false, \"message\": \"Sertifikat garansi ini belum disetujui dan belum bisa diunduh.\" }" }
+          ]
+        },
+        {
+          "name": "Claim Warranty (link to account)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/warranty/claim", "host": ["{{base_url}}"], "path": ["api", "warranty", "claim"] },
+            "body": { "mode": "raw", "raw": "{\n  \"warranty_code\": \"GNV-ABC1234XYZ\"\n}" }
+          },
+          "response": [
+            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"message\": \"Garansi berhasil dihubungkan ke akun Anda.\", \"points_awarded\": 100 }" },
+            { "name": "409 Sudah Diklaim", "code": 409, "body": "{ \"success\": false, \"message\": \"Garansi ini sudah terhubung ke akun lain.\" }" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Quotation & Inquiry",
+      "item": [
+        {
+          "name": "Get Quotation Options",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/quotation/options", "host": ["{{base_url}}"], "path": ["api", "quotation", "options"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": {\n    \"brands\": [\"Toyota\", \"Honda\"],\n    \"vehicles\": [ { \"id\": 1, \"brand\": \"Toyota\", \"model\": \"Avanza\", \"variant\": \"1.5 G\" } ],\n    \"products\": [ { \"id\": 1, \"name\": \"Nano-Ceramic\", \"product_type\": \"window_film\" } ]\n  }\n}" }]
+        },
+        {
+          "name": "Submit Quotation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/quotation/submit", "host": ["{{base_url}}"], "path": ["api", "quotation", "submit"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicle_id\": 1,\n  \"customer_name\": \"Budi Santoso\",\n  \"customer_email\": \"budi@example.com\",\n  \"customer_phone\": \"081234567890\",\n  \"license_plate\": \"B 1234 XY\",\n  \"message\": \"Mau tanya harga kaca depan saja\",\n  \"items\": [ { \"film_product_id\": 1 } ]\n}"
+            }
+          },
+          "response": [{ "name": "201 Created", "code": 201, "body": "{ \"success\": true, \"message\": \"Permintaan penawaran berhasil dikirim. Tim sales kami akan segera menghubungi Anda.\", \"data\": { \"quotation_number\": \"INQ-202607-AB12\" } }" }]
+        },
+        {
+          "name": "Submit Product Inquiry (belum dijual)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/inquiry/submit", "host": ["{{base_url}}"], "path": ["api", "inquiry", "submit"] },
+            "body": { "mode": "raw", "raw": "{\n  \"customer_name\": \"Budi Santoso\",\n  \"customer_contact\": \"081234567890\",\n  \"message\": \"[Color Change Film] Tertarik warna matte black\"\n}" }
+          },
+          "response": [{ "name": "201 Created", "code": 201, "body": "{ \"success\": true, \"message\": \"Pertanyaan Anda berhasil dikirim. Tim kami akan segera menghubungi Anda.\", \"data\": { \"inquiry_number\": \"...\" } }" }]
+        },
+        {
+          "name": "List Product Inquiries (admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
+            "url": { "raw": "{{base_url}}/api/inquiry?status=new", "host": ["{{base_url}}"], "path": ["api", "inquiry"], "query": [{ "key": "status", "value": "new", "description": "opsional" }] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"data\": { \"current_page\": 1, \"data\": [ { \"id\": 1, \"customer_name\": \"Budi\", \"customer_contact\": \"08123\", \"message\": \"...\", \"status\": \"new\" } ], \"per_page\": 20, \"total\": 5 } }" }]
+        },
+        {
+          "name": "Submit Partnership Inquiry",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/partnership/submit", "host": ["{{base_url}}"], "path": ["api", "partnership", "submit"] },
+            "body": { "mode": "raw", "raw": "{\n  \"applicant_name\": \"Budi Santoso\",\n  \"phone_number\": \"081234567890\",\n  \"email\": \"budi@example.com\",\n  \"city\": \"Jakarta\",\n  \"message\": \"Tertarik jadi dealer resmi\"\n}" }
+          },
+          "response": [{ "name": "201 Created", "code": 201, "body": "{ \"success\": true, \"message\": \"Pengajuan kemitraan berhasil dikirim. Tim kami akan segera menghubungi Anda.\", \"data\": { \"id\": 1, \"status\": \"new\" } }" }]
+        }
+      ]
+    },
+    {
+      "name": "Customer — Auth",
+      "item": [
+        {
+          "name": "Request OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/customer/auth/request-otp", "host": ["{{base_url}}"], "path": ["api", "customer", "auth", "request-otp"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"budi@example.com\"\n}" }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"message\": \"Kode verifikasi telah dikirim ke email Anda.\" }" }]
+        },
+        {
+          "name": "Verify OTP (login/register)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/customer/auth/verify-otp", "host": ["{{base_url}}"], "path": ["api", "customer", "auth", "verify-otp"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"budi@example.com\",\n  \"code\": \"123456\"\n}" }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"message\": \"Berhasil masuk.\", \"token\": \"eyJ0eXAiOiJKV1Qi...\", \"is_new\": false, \"data\": { \"id\": 1, \"email\": \"budi@example.com\", \"name\": \"Budi\", \"phone_number\": null } }" }]
+        },
+        {
+          "name": "Me (current customer)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/auth/me", "host": ["{{base_url}}"], "path": ["api", "customer", "auth", "me"] }
+          },
+          "response": [
+            { "name": "200 OK", "code": 200, "body": "{ \"data\": { \"id\": 1, \"email\": \"budi@example.com\", \"name\": \"Budi\", \"phone_number\": \"08123\", \"loyalty_points\": 100 } }" },
+            { "name": "401 Unauthenticated", "code": 401, "body": "{ \"success\": false, \"message\": \"Unauthenticated.\" }" }
+          ]
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/customer/auth/profile", "host": ["{{base_url}}"], "path": ["api", "customer", "auth", "profile"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Budi Santoso\",\n  \"phone_number\": \"081234567890\"\n}" }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"message\": \"Profil berhasil diperbarui.\", \"data\": { \"id\": 1, \"name\": \"Budi Santoso\", \"phone_number\": \"081234567890\" } }" }]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/auth/logout", "host": ["{{base_url}}"], "path": ["api", "customer", "auth", "logout"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"message\": \"Berhasil keluar.\" }" }]
+        }
+      ]
+    },
+    {
+      "name": "Customer — Data",
+      "item": [
+        {
+          "name": "My Warranties",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/warranties", "host": ["{{base_url}}"], "path": ["api", "customer", "warranties"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"data\": [ { \"id\": 1, \"warranty_code\": \"GNV-ABC1234XYZ\", \"car_plate\": \"B 1234 XY\", \"review_status\": \"approved\" } ] }" }]
+        },
+        {
+          "name": "My Warranty Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/warranties/1", "host": ["{{base_url}}"], "path": ["api", "customer", "warranties", "1"] }
+          },
+          "response": [
+            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"data\": { \"id\": 1, \"warranty_code\": \"GNV-ABC1234XYZ\", \"review_status\": \"approved\" } }" },
+            { "name": "404 Bukan Milik Anda", "code": 404, "body": "{ \"success\": false, \"message\": \"Garansi tidak ditemukan.\" }" }
+          ]
+        },
+        {
+          "name": "My Bookings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/bookings", "host": ["{{base_url}}"], "path": ["api", "customer", "bookings"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"data\": [ { \"id\": 1, \"booking_number\": \"BK-001\", \"service_type\": \"PPF Full Body\", \"status\": \"pending\", \"preferred_date\": \"2026-07-15\", \"store\": { \"id\": 1, \"name\": \"Ginnva PIK\" } } ] }" }]
+        },
+        {
+          "name": "Create Booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/customer/bookings", "host": ["{{base_url}}"], "path": ["api", "customer", "bookings"] },
+            "body": { "mode": "raw", "raw": "{\n  \"store_id\": 1,\n  \"service_type\": \"PPF Full Body\",\n  \"preferred_date\": \"2026-07-15\",\n  \"preferred_time\": \"10:00\",\n  \"notes\": \"Mobil warna putih\"\n}" }
+          },
+          "response": [{ "name": "201 Created", "code": 201, "body": "{ \"message\": \"Booking berhasil diajukan. Toko akan menghubungi Anda untuk konfirmasi.\", \"data\": { \"id\": 1, \"booking_number\": \"BK-001\", \"status\": \"pending\", \"source\": \"app\" } }" }]
+        },
+        {
+          "name": "Booking Messages (progress + chat)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/bookings/1/messages", "host": ["{{base_url}}"], "path": ["api", "customer", "bookings", "1", "messages"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": {\n    \"current_stage\": \"installing\",\n    \"stages\": { \"scheduled\": \"Terjadwal\", \"installing\": \"Sedang Dipasang\" },\n    \"messages\": [ { \"id\": 1, \"sender_type\": \"admin\", \"sender_name\": \"Ginnva PIK\", \"type\": \"text\", \"body\": \"Ditunggu ya\", \"stage\": null, \"photo_url\": null, \"created_at\": \"2026-07-11T00:00:00.000000Z\" } ],\n    \"store\": { \"id\": 1, \"name\": \"Ginnva PIK\" }\n  }\n}" }]
+        },
+        {
+          "name": "Send Booking Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/customer/bookings/1/messages", "host": ["{{base_url}}"], "path": ["api", "customer", "bookings", "1", "messages"] },
+            "body": { "mode": "raw", "raw": "{\n  \"body\": \"Terima kasih infonya\"\n}" }
+          },
+          "response": [{ "name": "201 Created", "code": 201, "body": "{ \"success\": true, \"data\": { \"id\": 2, \"sender_type\": \"customer\", \"type\": \"text\", \"body\": \"Terima kasih infonya\", \"created_at\": \"...\" } }" }]
+        },
+        {
+          "name": "My Gallery",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/my-gallery", "host": ["{{base_url}}"], "path": ["api", "customer", "my-gallery"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": [ { \"booking_id\": 1, \"booking_number\": \"BK-001\", \"service_type\": \"PPF Full Body\", \"store_name\": \"Ginnva PIK\", \"preferred_date\": \"2026-07-15\", \"photos\": [ { \"id\": 1, \"url\": \"https://api.ginnva.id/storage/booking-messages/x.jpg\", \"stage_label\": \"Sedang Dipasang\", \"created_at\": \"...\" } ] } ]\n}" }]
+        },
+        {
+          "name": "Points Balance & History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/points", "host": ["{{base_url}}"], "path": ["api", "customer", "points"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"balance\": 100,\n  \"transactions\": [ { \"id\": 1, \"type\": \"earn\", \"points\": 100, \"description\": \"Garansi disetujui: GNV-ABC1234XYZ\", \"reference_type\": \"warranty\", \"created_at\": \"...\" } ]\n}" }]
+        },
+        {
+          "name": "Notifications History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/notifications", "host": ["{{base_url}}"], "path": ["api", "customer", "notifications"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"data\": [ { \"id\": 1, \"title\": \"Booking Dikonfirmasi\", \"body\": \"Booking Anda telah dikonfirmasi\", \"data\": null, \"read_at\": null, \"created_at\": \"...\" } ],\n  \"meta\": { \"current_page\": 1, \"last_page\": 1, \"total\": 4 },\n  \"unread_count\": 2\n}" }]
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/notifications/1/read", "host": ["{{base_url}}"], "path": ["api", "customer", "notifications", "1", "read"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"message\": \"Marked as read.\" }" }]
+        },
+        {
+          "name": "Mark All Notifications Read",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": { "raw": "{{base_url}}/api/customer/notifications/read-all", "host": ["{{base_url}}"], "path": ["api", "customer", "notifications", "read-all"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"message\": \"All marked as read.\" }" }]
+        },
+        {
+          "name": "Link Push Token (customer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/notifications/link-token", "host": ["{{base_url}}"], "path": ["api", "notifications", "link-token"] },
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]\"\n}" }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"message\": \"Token linked.\" }" }]
+        }
+      ]
+    },
+    {
+      "name": "Notifications (public)",
+      "item": [
+        {
+          "name": "Register Push Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/notifications/register-token", "host": ["{{base_url}}"], "path": ["api", "notifications", "register-token"] },
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]\",\n  \"platform\": \"android\"\n}" }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"message\": \"Token registered.\" }" }]
+        }
+      ]
+    },
+    {
+      "name": "Staff — Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/staff/auth/login", "host": ["{{base_url}}"], "path": ["api", "staff", "auth", "login"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin.toko@ginnva.test\",\n  \"password\": \"password\"\n}" }
+          },
+          "response": [
+            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"token\": \"eyJ0eXAiOiJKV1Qi...\", \"user\": { \"id\": 1, \"name\": \"Admin Toko\", \"email\": \"admin.toko@ginnva.test\", \"role\": \"regional_admin\", \"store_id\": 1 } }" },
+            { "name": "401 Wrong Credentials", "code": 401, "body": "{ \"success\": false, \"message\": \"Email atau password salah.\" }" }
+          ]
+        },
+        {
+          "name": "Forgot Password (request code)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/staff/auth/forgot-password", "host": ["{{base_url}}"], "path": ["api", "staff", "auth", "forgot-password"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin.toko@ginnva.test\"\n}" }
+          },
+          "response": [{ "name": "200 OK (selalu sukses, tidak bocorkan email terdaftar atau tidak)", "code": 200, "body": "{ \"success\": true, \"message\": \"Jika email terdaftar sebagai akun staff, kode verifikasi telah dikirim.\" }" }]
+        },
+        {
+          "name": "Reset Password (verify code + set new password)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/staff/auth/reset-password", "host": ["{{base_url}}"], "path": ["api", "staff", "auth", "reset-password"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin.toko@ginnva.test\",\n  \"code\": \"123456\",\n  \"password\": \"passwordBaru123\",\n  \"password_confirmation\": \"passwordBaru123\"\n}" }
+          },
+          "response": [
+            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"message\": \"Password berhasil diubah. Silakan masuk dengan password baru.\" }" },
+            { "name": "422 Kode Salah/Kedaluwarsa", "code": 422, "body": "{ \"success\": false, \"message\": \"Kode verifikasi salah atau sudah kedaluwarsa.\" }" }
+          ]
+        },
+        {
+          "name": "Me (current staff)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
+            "url": { "raw": "{{base_url}}/api/staff/auth/me", "host": ["{{base_url}}"], "path": ["api", "staff", "auth", "me"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"user\": { \"id\": 1, \"name\": \"Admin Toko\", \"role\": \"regional_admin\", \"store_id\": 1 } }" }]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
+            "url": { "raw": "{{base_url}}/api/staff/auth/logout", "host": ["{{base_url}}"], "path": ["api", "staff", "auth", "logout"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"message\": \"Logout berhasil.\" }" }]
+        }
+      ]
+    },
+    {
+      "name": "Staff — Data",
+      "item": [
+        {
+          "name": "List Bookings (scoped by role)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
+            "url": { "raw": "{{base_url}}/api/staff/bookings?status=pending", "host": ["{{base_url}}"], "path": ["api", "staff", "bookings"], "query": [{ "key": "status", "value": "pending", "description": "opsional" }] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": [ { \"id\": 1, \"booking_number\": \"BK-001\", \"status\": \"pending\", \"customer\": { \"id\": 1, \"name\": \"Budi\", \"phone_number\": \"08123\" }, \"store\": { \"id\": 1, \"name\": \"Ginnva PIK\" } } ],\n  \"meta\": { \"current_page\": 1, \"last_page\": 1, \"total\": 3 }\n}" }]
+        },
+        {
+          "name": "Booking Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
+            "url": { "raw": "{{base_url}}/api/staff/bookings/1", "host": ["{{base_url}}"], "path": ["api", "staff", "bookings", "1"] }
+          },
+          "response": [
+            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"data\": { \"id\": 1, \"booking_number\": \"BK-001\", \"status\": \"pending\", \"customer\": { \"id\": 1, \"name\": \"Budi\" }, \"store\": { \"id\": 1, \"name\": \"Ginnva PIK\" } } }" },
+            { "name": "403 Not Authorized (booking bukan scope Anda)", "code": 403, "body": "{ \"success\": false, \"message\": \"Anda tidak memiliki akses ke booking ini.\" }" }
+          ]
+        },
+        {
+          "name": "Booking Messages",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
+            "url": { "raw": "{{base_url}}/api/staff/bookings/1/messages", "host": ["{{base_url}}"], "path": ["api", "staff", "bookings", "1", "messages"] }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": {\n    \"current_stage\": \"installing\",\n    \"stages\": { \"scheduled\": \"Terjadwal\", \"installing\": \"Sedang Dipasang\" },\n    \"messages\": [ { \"id\": 1, \"sender_type\": \"customer\", \"sender_name\": \"Customer\", \"type\": \"text\", \"body\": \"Halo\", \"stage\": null, \"photo_url\": null, \"created_at\": \"...\" } ]\n  }\n}" }]
+        },
+        {
+          "name": "Send Booking Message / Update Stage (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
+            "url": { "raw": "{{base_url}}/api/staff/bookings/1/messages", "host": ["{{base_url}}"], "path": ["api", "staff", "bookings", "1", "messages"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "type", "value": "stage", "type": "text", "description": "text | photo | stage — installer cuma boleh 'text'" },
+                { "key": "stage", "value": "installing", "type": "text", "description": "required_if type=stage" },
+                { "key": "body", "value": "Sedang proses pemasangan", "type": "text", "description": "opsional" },
+                { "key": "photo", "type": "file", "description": "required_if type=photo, max 5MB" }
+              ]
+            }
+          },
+          "response": [{ "name": "201 Created", "code": 201, "body": "{ \"success\": true, \"data\": { \"id\": 3, \"sender_type\": \"admin\", \"type\": \"stage\", \"stage\": \"installing\", \"photo_url\": null, \"created_at\": \"...\" } }" }]
+        },
+        {
+          "name": "Link Push Token (staff)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staff_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/staff/notifications/link-token", "host": ["{{base_url}}"], "path": ["api", "staff", "notifications", "link-token"] },
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]\"\n}" }
+          },
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"message\": \"Token linked.\" }" }]
+        }
+      ]
+    }
+  ]
+}

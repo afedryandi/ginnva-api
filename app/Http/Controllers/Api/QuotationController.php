@@ -10,6 +10,10 @@ use App\Models\Quotation;
 use App\Models\QuotationItem;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
+use App\Mail\QuotationReceivedMail;
 
 /**
  * QuotationController — versi lead capture.
@@ -30,10 +34,28 @@ class QuotationController extends Controller
      */
     public function options()
     {
+        // Semua merek yang sudah terdaftar (termasuk yang belum punya model)
+        // untuk level pertama cascading dropdown.
+        $brands = Vehicle::select('brand')
+            ->distinct()
+            ->orderBy('brand')
+            ->pluck('brand');
+
+        // Hanya kendaraan yang sudah punya tipe/model untuk dipilih di form.
+        // Entry merek-only (model=null) hanya tampil di panel admin sebagai
+        // placeholder sampai admin melengkapi tipe spesifiknya.
+        $vehicles = Vehicle::select('id', 'brand', 'model', 'variant')
+            ->whereNotNull('model')
+            ->orderBy('brand')
+            ->orderBy('model')
+            ->orderBy('variant')
+            ->get();
+
         return response()->json([
             'success' => true,
             'data' => [
-                'vehicles' => Vehicle::select('id', 'brand', 'model')->orderBy('brand')->get(),
+                'brands'   => $brands,
+                'vehicles' => $vehicles,
                 'products' => FilmProduct::where('is_active', true)
                     ->select('id', 'name', 'product_type')
                     ->orderBy('product_type')
@@ -48,15 +70,24 @@ class QuotationController extends Controller
      */
     public function submit(Request $request)
     {
-        $request->validate([
-            'vehicle_id'      => 'required|exists:vehicles,id',
-            'customer_name'   => 'required|string|max:255',
-            'customer_phone'  => 'required|string|max:30',
-            'license_plate'   => 'nullable|string|max:20',
-            'message'         => 'nullable|string|max:1000',
-            'items'           => 'required|array|min:1',
-            'items.*.film_product_id' => 'required|exists:film_products,id',
-        ]);
+        try {
+            $request->validate([
+                'vehicle_id'      => 'required|exists:vehicles,id',
+                'customer_name'   => 'required|string|max:255',
+                'customer_email'  => 'required|email|max:255',
+                'customer_phone'  => 'required|string|max:30',
+                'license_plate'   => 'nullable|string|max:20',
+                'message'         => 'nullable|string|max:1000',
+                'items'           => 'required|array|min:1',
+                'items.*.film_product_id' => 'required|exists:film_products,id',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors'  => $e->errors(),
+            ], 422);
+        }
 
         $quotation = DB::transaction(function () use ($request) {
             $quotationNumber = 'INQ-' . date('Ym') . '-' . strtoupper(Str::random(4));
@@ -66,6 +97,7 @@ class QuotationController extends Controller
                 'vehicle_id'       => $request->vehicle_id,
                 'customer_name'    => $request->customer_name,
                 'customer_phone'   => $request->customer_phone,
+                'customer_email'   => $request->customer_email,
                 'license_plate'    => $request->license_plate,
                 'status'           => 'new',
                 'message'          => $request->message,
@@ -81,8 +113,12 @@ class QuotationController extends Controller
             return $quotation;
         });
 
-        // TODO: kirim notifikasi ke sales (email/WhatsApp/Slack) begitu inquiry baru masuk,
-        // supaya follow up bisa secepat mungkin tanpa sales harus cek dashboard manual.
+        try {
+            Mail::to($request->customer_email)
+                ->send(new QuotationReceivedMail($quotation->load('vehicle', 'items.filmProduct')));
+        } catch (\Exception $e) {
+            Log::warning('[QuotationMail] Gagal kirim: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,

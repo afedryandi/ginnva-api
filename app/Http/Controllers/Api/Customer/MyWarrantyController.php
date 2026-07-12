@@ -23,4 +23,20 @@ class MyWarrantyController extends Controller
             'data' => $warranties,
         ]);
     }
+
+    /**
+     * GET /api/customer/warranties/{id}
+     * Detail warranty milik customer yang login.
+     */
+    public function show(Request $request, int $id)
+    {
+        $warranty = $request->user('customer')
+            ->warranties()
+            ->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $warranty,
+        ]);
+    }
 }

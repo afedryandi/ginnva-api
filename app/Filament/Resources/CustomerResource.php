@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Exports\CustomerExport;
 use App\Filament\Resources\CustomerResource\Pages;
 use App\Models\Customer;
 use Filament\Forms;
@@ -9,6 +10,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Maatwebsite\Excel\Facades\Excel;
 
 class CustomerResource extends Resource
 {
@@ -102,6 +104,17 @@ class CustomerResource extends Resource
                     ->label('Daftar Pada')
                     ->dateTime('d M Y')
                     ->sortable(),
+            ])
+            ->headerActions([
+                Tables\Actions\Action::make('export')
+                    ->label('Export Excel')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('success')
+                    ->visible(fn () => auth()->user()?->hasRole('super_admin'))
+                    ->action(fn () => Excel::download(
+                        new CustomerExport(),
+                        'customers-' . now()->format('Ymd') . '.xlsx'
+                    )),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),

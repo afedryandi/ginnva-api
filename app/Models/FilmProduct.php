@@ -10,6 +10,7 @@ class FilmProduct extends Model
         'sku',
         'name',
         'product_type',
+        'position',
         'base_price',
         'is_active',
     ];

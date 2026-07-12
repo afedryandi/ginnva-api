@@ -72,7 +72,12 @@ class NewsResource extends Resource
                         ->label('Gambar Cover')
                         ->image()
                         ->directory('news')
+                        ->maxSize(2048)
+                        ->helperText('Maks. 2 MB. Format: JPG, PNG, WebP.')
                         ->columnSpanFull(),
+
+                    Forms\Components\Hidden::make('author_id')
+                        ->default(fn () => auth()->id()),
 
                     Forms\Components\Toggle::make('is_published')
                         ->label('Publikasikan')

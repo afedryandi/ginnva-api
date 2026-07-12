@@ -21,19 +21,19 @@ class PriceRuleSeeder extends Seeder
     public function run(): void
     {
         $coefficients = [
-            'S'  => ['front' => 0.8, 'back' => 0.8, 'side' => 0.7, 'full_set' => 3.0],
-            'M'  => ['front' => 1.0, 'back' => 1.0, 'side' => 0.9, 'full_set' => 3.8],
-            'L'  => ['front' => 1.2, 'back' => 1.2, 'side' => 1.1, 'full_set' => 4.6],
-            'XL' => ['front' => 1.5, 'back' => 1.5, 'side' => 1.4, 'full_set' => 5.8],
+            'S'   => ['front' => 0.80, 'back' => 0.80, 'side' => 0.70, 'full_set' => 3.00],
+            'M'   => ['front' => 1.00, 'back' => 1.00, 'side' => 0.90, 'full_set' => 3.80],
+            'L'   => ['front' => 1.20, 'back' => 1.20, 'side' => 1.10, 'full_set' => 4.60],
+            'XL'  => ['front' => 1.50, 'back' => 1.50, 'side' => 1.40, 'full_set' => 5.80],
+            'XXL' => ['front' => 1.80, 'back' => 1.80, 'side' => 1.70, 'full_set' => 7.00],
         ];
 
         foreach ($coefficients as $size => $parts) {
             foreach ($parts as $part => $coefficient) {
-                PriceRule::create([
-                    'vehicle_size' => $size,
-                    'car_part' => $part,
-                    'coefficient' => $coefficient,
-                ]);
+                PriceRule::firstOrCreate(
+                    ['vehicle_size' => $size, 'car_part' => $part],
+                    ['coefficient'  => $coefficient]
+                );
             }
         }
     }

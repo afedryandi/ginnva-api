@@ -3,6 +3,12 @@
 /public/build
 /public/hot
 /public/storage
+
+# Video besar diupload manual ke server (FTP/SSH) — bukan lewat git,
+# supaya tidak kena limit ukuran file GitHub (pernah kejadian sebelumnya
+# dengan ginnva-hero.mp4 di project ginnva-web).
+/public/video/*.mp4
+!/public/video/.gitkeep
 /storage/*.key
 /storage/pail
 /vendor

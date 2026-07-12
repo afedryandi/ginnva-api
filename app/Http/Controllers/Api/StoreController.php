@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\BlockedDate;
 use App\Models\Store;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -58,6 +59,27 @@ class StoreController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $store,
+        ]);
+    }
+
+    /**
+     * GET /api/stores/{id}/blocked-dates
+     *
+     * Daftar tanggal yang diblokir untuk toko ini (30 hari ke depan).
+     * Dipakai mobile app untuk disable tanggal yang tidak tersedia
+     * di picker booking.
+     */
+    public function blockedDates(int $id): JsonResponse
+    {
+        $dates = BlockedDate::where('store_id', $id)
+            ->whereDate('date', '>=', today())
+            ->whereDate('date', '<=', today()->addDays(30))
+            ->pluck('date')
+            ->map(fn ($date) => $date->format('Y-m-d'));
+
+        return response()->json([
+            'success' => true,
+            'data'    => $dates,
         ]);
     }
 }

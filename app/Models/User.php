@@ -54,6 +54,30 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     {
         return $this->belongsTo(Store::class);
     }
+
+    /**
+     * Label yang ditampilkan di chat booking — SENGAJA bukan nama asli
+     * staff (privasi/profesionalitas), tapi berdasarkan jabatan. Supaya
+     * tidak N+1, panggil method ini setelah eager-load 'store:id,name'
+     * pada query yang memuat user ini (lihat BookingMessageController).
+     */
+    public function chatDisplayLabel(): string
+    {
+        if ($this->hasRole('super_admin')) {
+            return 'Ginnva Management';
+        }
+
+        if ($this->hasRole('installer')) {
+            return 'Tim Instalasi';
+        }
+
+        if ($this->hasRole('regional_admin')) {
+            return $this->store ? "Admin Toko {$this->store->name}" : 'Admin Toko';
+        }
+
+        return 'Tim Ginnva';
+    }
+
     public function getDefaultGuardName(): string
     {
         return 'web';

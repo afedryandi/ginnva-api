@@ -11,6 +11,7 @@ class Quotation extends Model
         'vehicle_id',
         'customer_name',
         'customer_phone',
+        'customer_email',
         'license_plate',
         'store_id',
         'status',

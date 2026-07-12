@@ -5,6 +5,9 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\WarrantyResource\Pages;
 use App\Filament\Resources\WarrantyResource\RelationManagers;
 use App\Exports\WarrantyExport;
+use App\Models\Customer;
+use App\Models\FilmProduct;
+use App\Models\ScrollCode;
 use App\Models\Store;
 use App\Models\Warranty;
 use Filament\Forms;
@@ -76,19 +79,11 @@ class WarrantyResource extends Resource
                 ->schema([
                     Forms\Components\TextInput::make('warranty_code')
                         ->label('Kode Garansi')
+                        ->default(fn () => static::generateWarrantyCode())
                         ->required()
                         ->unique(ignoreRecord: true)
+                        ->disabledOn('edit')
                         ->maxLength(255),
-
-                    Forms\Components\Select::make('status')
-                        ->label('Status (Garansi)')
-                        ->options([
-                            'active' => 'Active',
-                            'expired' => 'Expired',
-                            'pending' => 'Pending',
-                        ])
-                        ->required()
-                        ->default('active'),
 
                     Forms\Components\TextInput::make('customer_name')
                         ->label('Nama Pelanggan')
@@ -100,6 +95,20 @@ class WarrantyResource extends Resource
                         ->tel()
                         ->required()
                         ->maxLength(255),
+
+                    Forms\Components\Select::make('customer_id')
+                        ->label('Akun Customer (opsional)')
+                        ->placeholder('Pilih akun customer jika sudah terdaftar di app')
+                        ->options(fn () => Customer::orderBy('name')
+                            ->get()
+                            ->mapWithKeys(fn (Customer $c) => [
+                                $c->id => trim(($c->name ?? 'Tanpa Nama') . ' — ' . $c->email),
+                            ])
+                        )
+                        ->searchable()
+                        ->nullable()
+                        ->columnSpanFull()
+                        ->helperText('Garansi akan langsung muncul di "Garansi Saya" pada mobile app customer tersebut.'),
 
                     Forms\Components\TextInput::make('car_plate')
                         ->label('Plat Nomor')
@@ -113,7 +122,7 @@ class WarrantyResource extends Resource
 
                     Forms\Components\TextInput::make('product_series')
                         ->label('Seri Produk')
-                        ->placeholder('Contoh: Ziwei 70')
+                        ->placeholder('Contoh: A70')
                         ->required()
                         ->maxLength(255),
 
@@ -121,8 +130,7 @@ class WarrantyResource extends Resource
                         ->label('Kategori Produk')
                         ->options([
                             'window_film' => 'Window Film',
-                            'ppf' => 'PPF',
-                            'color_change' => 'Color Change Film',
+                            'ppf'         => 'PPF',
                         ])
                         ->live()
                         ->required(),
@@ -181,31 +189,67 @@ class WarrantyResource extends Resource
                         ->placeholder('Contoh: Bumper Depan, Kap Mesin, Fender')
                         ->visible(fn (Forms\Get $get) => $get('installation_position') === 'partial'),
 
-                    Forms\Components\TextInput::make('roll_number')
-                        ->label('Roll Number / ID Material')
-                        ->placeholder('Nomor batch produksi PPF')
-                        ->helperText('Untuk traceability kalau ada recall/klaim cacat produksi.'),
+                    Forms\Components\Select::make('roll_number')
+                        ->label('Kode Gulungan')
+                        ->placeholder('Pilih atau ketik kode dari gulungan fisik')
+                        ->options(fn (?Warranty $record) => ScrollCode::query()
+                            ->where(fn ($q) => $q
+                                ->where('status', 'allocated')
+                                ->orWhere('code', $record?->roll_number)
+                            )
+                            ->pluck('code', 'code')
+                        )
+                        ->searchable()
+                        ->helperText('Pilih kode gulungan PPF yang digunakan. Kode akan otomatis ditandai terpakai.'),
                 ])
                 ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf'),
 
             Forms\Components\Section::make('Detail Instalasi (Window Film)')
                 ->columns(2)
                 ->schema([
-                    Forms\Components\TextInput::make('roll_number_front')
-                        ->label('Roll Number — Kaca Depan')
-                        ->placeholder('Nomor batch roll film kaca depan'),
+                    Forms\Components\Select::make('roll_number_front')
+                        ->label('Kode Gulungan — Kaca Depan')
+                        ->placeholder('Pilih kode gulungan kaca depan')
+                        ->options(fn (?Warranty $record) => ScrollCode::query()
+                            ->where(fn ($q) => $q
+                                ->where('status', 'allocated')
+                                ->orWhere('code', $record?->roll_number_front)
+                            )
+                            ->pluck('code', 'code')
+                        )
+                        ->searchable(),
 
-                    Forms\Components\TextInput::make('roll_number_side_rear')
-                        ->label('Roll Number — Kaca Samping & Belakang')
-                        ->placeholder('Nomor batch roll film kaca samping & belakang'),
+                    Forms\Components\Select::make('roll_number_side_rear')
+                        ->label('Kode Gulungan — Kaca Samping & Belakang')
+                        ->placeholder('Pilih kode gulungan kaca samping & belakang')
+                        ->options(fn (?Warranty $record) => ScrollCode::query()
+                            ->where(fn ($q) => $q
+                                ->where('status', 'allocated')
+                                ->orWhere('code', $record?->roll_number_side_rear)
+                            )
+                            ->pluck('code', 'code')
+                        )
+                        ->searchable(),
 
-                    Forms\Components\TextInput::make('film_model_front')
+                    Forms\Components\Select::make('film_model_front')
                         ->label('Tipe Film — Kaca Depan')
-                        ->placeholder('Contoh: VLT 40%'),
+                        ->placeholder('Pilih seri film kaca depan')
+                        ->options(fn () => FilmProduct::where('is_active', true)
+                            ->where('product_type', 'window_film')
+                            ->where('position', 'front')
+                            ->pluck('name', 'name')
+                        )
+                        ->searchable(),
 
-                    Forms\Components\TextInput::make('film_model_side_rear')
+                    Forms\Components\Select::make('film_model_side_rear')
                         ->label('Tipe Film — Kaca Samping & Belakang')
-                        ->placeholder('Contoh: VLT 20%'),
+                        ->placeholder('Pilih seri film kaca samping & belakang')
+                        ->options(fn () => FilmProduct::where('is_active', true)
+                            ->where('product_type', 'window_film')
+                            ->where('position', 'side_rear')
+                            ->pluck('name', 'name')
+                        )
+                        ->searchable(),
                 ])
                 ->visible(fn (Forms\Get $get) => $get('product_category') === 'window_film'),
 
@@ -252,6 +296,13 @@ class WarrantyResource extends Resource
                     ->label('Pelanggan')
                     ->searchable(),
 
+                Tables\Columns\TextColumn::make('customer.email')
+                    ->label('Akun App')
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('info')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('car_plate')
                     ->label('Plat Nomor')
                     ->searchable(),
@@ -264,16 +315,19 @@ class WarrantyResource extends Resource
                     ->label('Kategori')
                     ->placeholder('—')
                     ->colors([
-                        'info' => 'window_film',
+                        'info'    => 'window_film',
                         'success' => 'ppf',
-                        'warning' => 'color_change',
                     ])
                     ->formatStateUsing(fn (?string $state): string => match ($state) {
                         'window_film' => 'Window Film',
-                        'ppf' => 'PPF',
-                        'color_change' => 'Color Change',
-                        default => '—',
+                        'ppf'         => 'PPF',
+                        default       => '—',
                     })
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('phone_number')
+                    ->label('No. Telepon')
+                    ->searchable()
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('store.name')
@@ -306,7 +360,10 @@ class WarrantyResource extends Resource
                 Tables\Columns\TextColumn::make('expiry_date')
                     ->label('Berakhir')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->description(fn ($record) => $record->extension_years > 0
+                        ? "+{$record->extension_years} thn diperpanjang"
+                        : null),
 
                 Tables\Columns\TextColumn::make('remaining_days')
                     ->label('Sisa Hari')
@@ -371,8 +428,7 @@ class WarrantyResource extends Resource
                     ->label('Kategori Produk')
                     ->options([
                         'window_film' => 'Window Film',
-                        'ppf' => 'PPF',
-                        'color_change' => 'Color Change Film',
+                        'ppf'         => 'PPF',
                     ]),
 
                 Tables\Filters\SelectFilter::make('store_id')
@@ -439,6 +495,7 @@ class WarrantyResource extends Resource
                             ->send();
                     }),
 
+                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
@@ -460,9 +517,21 @@ class WarrantyResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListWarranties::route('/'),
+            'index'  => Pages\ListWarranties::route('/'),
             'create' => Pages\CreateWarranty::route('/create'),
-            'edit' => Pages\EditWarranty::route('/{record}/edit'),
+            'view'   => Pages\ViewWarranty::route('/{record}'),
+            'edit'   => Pages\EditWarranty::route('/{record}/edit'),
         ];
+    }
+
+    public static function generateWarrantyCode(): string
+    {
+        do {
+            $candidate = 'GNV-' . now()->format('Y') . '-' . str_pad(
+                random_int(1, 99999), 5, '0', STR_PAD_LEFT
+            );
+        } while (static::getModel()::where('warranty_code', $candidate)->exists());
+
+        return $candidate;
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Customer;
 
 use App\Http\Controllers\Controller;
 use App\Mail\OtpMail;
+use App\Mail\WelcomeMail;
 use App\Models\Customer;
 use App\Models\OtpCode;
 use Illuminate\Http\Request;
@@ -29,7 +30,11 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors'  => $validator->errors(),
+            ], 422);
         }
 
         $otp = OtpCode::generateFor($request->email, 'email');
@@ -60,7 +65,11 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors'  => $validator->errors(),
+            ], 422);
         }
 
         $isValid = OtpCode::verify($request->email, 'email', $request->code);
@@ -76,16 +85,29 @@ class AuthController extends Controller
             ['email_verified_at' => now()]
         );
 
+        $isNew = $customer->wasRecentlyCreated;
+
         if (! $customer->email_verified_at) {
             $customer->update(['email_verified_at' => now()]);
+        }
+
+        // Welcome email hanya untuk akun baru
+        if ($isNew) {
+            try {
+                Mail::to($customer->email)->send(new WelcomeMail($customer));
+            } catch (\Exception $e) {
+                // Jangan crash verifyOtp kalau email gagal terkirim
+                \Illuminate\Support\Facades\Log::warning('[WelcomeMail] Gagal kirim: ' . $e->getMessage());
+            }
         }
 
         $token = JWTAuth::fromUser($customer);
 
         return response()->json([
-            'message' => 'Berhasil masuk.',
-            'token'   => $token,
-            'data'    => $customer,
+            'message'  => 'Berhasil masuk.',
+            'token'    => $token,
+            'is_new'   => $isNew,
+            'data'     => $customer,
         ]);
     }
 
@@ -108,11 +130,15 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name'         => 'required|string|max:255',
-            'phone_number' => 'nullable|string|max:20',
+            'phone_number' => 'required|string|max:20',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors'  => $validator->errors(),
+            ], 422);
         }
 
         $customer = $request->user('customer');

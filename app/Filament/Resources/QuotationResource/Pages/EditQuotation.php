@@ -17,6 +17,18 @@ class EditQuotation extends EditRecord
         ];
     }
 
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        // Isi vehicle_brand otomatis dari relasi saat edit,
+        // supaya dropdown tipe kendaraan bisa terbuka dengan benar.
+        if (! empty($data['vehicle_id'])) {
+            $vehicle = \App\Models\Vehicle::find($data['vehicle_id']);
+            $data['vehicle_brand'] = $vehicle?->brand;
+        }
+
+        return $data;
+    }
+
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $user = auth()->user();
@@ -24,6 +36,9 @@ class EditQuotation extends EditRecord
         if ($user && ! $user->hasRole('super_admin')) {
             $data['store_id'] = $user->store_id;
         }
+
+        // vehicle_brand adalah field virtual, tidak perlu disimpan
+        unset($data['vehicle_brand']);
 
         return $data;
     }

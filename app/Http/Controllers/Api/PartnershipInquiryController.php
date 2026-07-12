@@ -22,13 +22,17 @@ class PartnershipInquiryController extends Controller
         $validator = Validator::make($request->all(), [
             'applicant_name' => 'required|string|max:255',
             'phone_number'   => 'required|string|max:30',
-            'email'          => 'nullable|email',
+            'email'          => 'required|email|max:255',
             'city'           => 'required|string|max:255',
             'message'        => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors'  => $validator->errors(),
+            ], 422);
         }
 
         // Coba ambil customer dari token kalau ada, tapi jangan gagalkan
@@ -52,6 +56,7 @@ class PartnershipInquiryController extends Controller
         ]);
 
         return response()->json([
+            'success' => true,
             'message' => 'Pengajuan kemitraan berhasil dikirim. Tim kami akan segera menghubungi Anda.',
             'data' => $inquiry,
         ], 201);

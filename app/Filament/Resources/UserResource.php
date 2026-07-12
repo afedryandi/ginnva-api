@@ -21,11 +21,11 @@ class UserResource extends Resource
 
     protected static ?string $navigationGroup = 'Master Data';
 
-    protected static ?string $navigationLabel = 'Pengguna Admin';
+    protected static ?string $navigationLabel = 'User';
 
-    protected static ?string $modelLabel = 'Pengguna';
+    protected static ?string $modelLabel = 'User';
 
-    protected static ?string $pluralModelLabel = 'Pengguna Admin';
+    protected static ?string $pluralModelLabel = 'User';
 
     protected static ?int $navigationSort = 90;
 
@@ -81,15 +81,23 @@ class UserResource extends Resource
                         ->relationship('roles', 'name')
                         ->multiple()
                         ->preload()
+                        ->live()
                         ->required()
-                        ->helperText('super_admin: akses penuh. regional_admin: admin toko, wajib pilih Toko di bawah.'),
+                        ->helperText('super_admin: akses penuh. regional_admin & installer: wajib pilih Toko di bawah (installer tidak bisa login ke panel ini, hanya via mobile app).'),
 
                     Forms\Components\Select::make('store_id')
-                        ->label('Toko (khusus regional_admin)')
+                        ->label('Toko (khusus regional_admin & installer)')
                         ->relationship('store', 'name')
                         ->searchable()
                         ->preload()
-                        ->helperText('Wajib diisi kalau role-nya regional_admin. Kosongkan untuk super_admin.'),
+                        ->required(function (Forms\Get $get): bool {
+                            $roleIds = $get('roles') ?? [];
+                            if (empty($roleIds)) return false;
+                            return \Spatie\Permission\Models\Role::whereIn('id', $roleIds)
+                                ->whereIn('name', ['regional_admin', 'installer'])
+                                ->exists();
+                        })
+                        ->helperText('Wajib diisi kalau role-nya regional_admin atau installer. Kosongkan untuk super_admin.'),
 
                     Forms\Components\TextInput::make('password')
                         ->label('Password')
@@ -98,9 +106,19 @@ class UserResource extends Resource
                         ->required(fn (string $context): bool => $context === 'create')
                         ->dehydrated(fn ($state) => filled($state))
                         ->minLength(8)
+                        ->same('passwordConfirmation')
+                        ->live(debounce: 500)
                         ->helperText(fn (string $context) => $context === 'edit'
                             ? 'Kosongkan kalau tidak mau mengubah password.'
                             : 'Minimal 8 karakter.'),
+
+                    Forms\Components\TextInput::make('passwordConfirmation')
+                        ->label('Konfirmasi Password')
+                        ->password()
+                        ->revealable()
+                        ->required(fn (string $context): bool => $context === 'create')
+                        ->dehydrated(false)
+                        ->helperText('Ulangi password yang sama persis.'),
                 ]),
         ]);
     }

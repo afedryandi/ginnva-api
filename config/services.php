@@ -42,8 +42,8 @@ return [
         'secret_key' => env('CHINA_API_SECRET_KEY'),
     ],
     
-    'anthropic' => [
-        'api_key' => env('ANTHROPIC_API_KEY'),
+    'groq' => [
+        'api_key' => env('GROQ_API_KEY'),
     ],
 
     'fcm' => [

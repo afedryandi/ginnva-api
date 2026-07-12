@@ -33,12 +33,15 @@ class Warranty extends Model
         'rejection_reason',
         'reviewed_by',
         'reviewed_at',
+        'extension_years',
+        'original_expiry_date',
     ];
 
     protected $casts = [
-        'installation_date' => 'date',
-        'expiry_date' => 'date',
-        'reviewed_at' => 'datetime',
+        'installation_date'    => 'date',
+        'expiry_date'          => 'date',
+        'original_expiry_date' => 'date',
+        'reviewed_at'          => 'datetime',
     ];
 
     // Field tambahan yang otomatis ikut saat model di-convert ke JSON / array

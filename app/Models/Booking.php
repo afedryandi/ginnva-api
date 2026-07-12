@@ -10,12 +10,17 @@ class Booking extends Model
     protected $fillable = [
         'booking_number',
         'customer_id',
+        'customer_name',
+        'phone_number',
         'store_id',
+        'installer_user_id',
         'service_type',
         'preferred_date',
         'preferred_time',
         'notes',
+        'source',
         'status',
+        'current_stage',
     ];
 
     protected $casts = [
@@ -30,6 +35,16 @@ class Booking extends Model
     public function store()
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function installer()
+    {
+        return $this->belongsTo(User::class, 'installer_user_id');
+    }
+
+    public function messages()
+    {
+        return $this->hasMany(BookingMessage::class)->orderBy('created_at');
     }
 
     protected static function booted(): void
