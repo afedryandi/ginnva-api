@@ -55,6 +55,11 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         return $this->belongsTo(Store::class);
     }
 
+    public function partner()
+    {
+        return $this->hasOne(Partner::class);
+    }
+
     /**
      * Label yang ditampilkan di chat booking — SENGAJA bukan nama asli
      * staff (privasi/profesionalitas), tapi berdasarkan jabatan. Supaya

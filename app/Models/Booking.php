@@ -21,10 +21,15 @@ class Booking extends Model
         'source',
         'status',
         'current_stage',
+        'referral_code',
+        'transaction_amount',
+        'partner_id',
+        'voucher_claim_id',
     ];
 
     protected $casts = [
         'preferred_date' => 'date',
+        'transaction_amount' => 'decimal:2',
     ];
 
     public function customer()
@@ -45,6 +50,16 @@ class Booking extends Model
     public function messages()
     {
         return $this->hasMany(BookingMessage::class)->orderBy('created_at');
+    }
+
+    public function partner()
+    {
+        return $this->belongsTo(Partner::class);
+    }
+
+    public function voucherClaim()
+    {
+        return $this->belongsTo(VoucherClaim::class);
     }
 
     protected static function booted(): void

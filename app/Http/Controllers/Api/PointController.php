@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PointTransaction;
+use App\Models\RewardRedemption;
 
 class PointController extends Controller
 {
@@ -24,5 +25,22 @@ class PointController extends Controller
             'balance'      => $customer->loyalty_points,
             'transactions' => $transactions,
         ]);
+    }
+
+    /**
+     * GET /api/customer/redemptions
+     * Requires: auth:customer
+     */
+    public function redemptions()
+    {
+        $customer = auth('customer')->user();
+
+        $redemptions = RewardRedemption::with('reward')
+            ->where('redeemer_type', 'customer')
+            ->where('redeemer_id', $customer->id)
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $redemptions]);
     }
 }

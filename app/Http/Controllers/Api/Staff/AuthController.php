@@ -21,6 +21,11 @@ class AuthController extends Controller
 {
     private const STAFF_ROLES = ['super_admin', 'regional_admin', 'installer'];
 
+    // Partner login lewat endpoint yang sama persis dengan staff (password,
+    // guard 'api', tabel users) — bedanya cuma role. Mobile app membedakan
+    // tampilan partner vs staff dari field `role` di response login/me.
+    private const PASSWORD_LOGIN_ROLES = ['super_admin', 'regional_admin', 'installer', 'partner'];
+
     /**
      * POST /api/auth/detect-role
      *
@@ -37,7 +42,7 @@ class AuthController extends Controller
         $request->validate(['email' => 'required|email']);
 
         $isStaff = User::where('email', $request->email)
-            ->whereHas('roles', fn ($q) => $q->whereIn('name', self::STAFF_ROLES))
+            ->whereHas('roles', fn ($q) => $q->whereIn('name', self::PASSWORD_LOGIN_ROLES))
             ->exists();
 
         return response()->json(['role' => $isStaff ? 'staff' : 'customer']);
@@ -56,7 +61,7 @@ class AuthController extends Controller
             return response()->json(['success' => false, 'message' => 'Email atau password salah.'], 401);
         }
 
-        if (! $user->hasAnyRole(self::STAFF_ROLES)) {
+        if (! $user->hasAnyRole(self::PASSWORD_LOGIN_ROLES)) {
             return response()->json(['success' => false, 'message' => 'Akun ini tidak memiliki akses staff.'], 403);
         }
 
@@ -96,7 +101,7 @@ class AuthController extends Controller
         $request->validate(['email' => 'required|email']);
 
         $user = User::where('email', $request->email)
-            ->whereHas('roles', fn ($q) => $q->whereIn('name', self::STAFF_ROLES))
+            ->whereHas('roles', fn ($q) => $q->whereIn('name', self::PASSWORD_LOGIN_ROLES))
             ->first();
 
         // Selalu balas sukses terlepas dari email terdaftar atau tidak —
@@ -135,7 +140,7 @@ class AuthController extends Controller
         }
 
         $user = User::where('email', $request->email)
-            ->whereHas('roles', fn ($q) => $q->whereIn('name', self::STAFF_ROLES))
+            ->whereHas('roles', fn ($q) => $q->whereIn('name', self::PASSWORD_LOGIN_ROLES))
             ->first();
 
         if (! $user) {

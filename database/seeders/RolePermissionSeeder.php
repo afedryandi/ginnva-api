@@ -23,6 +23,11 @@ class RolePermissionSeeder extends Seeder
      *                      bisa lihat & chat teks (bukan foto/update tahap) di
      *                      booking yang di-assign ke dirinya lewat kolom
      *                      bookings.installer_user_id.
+     * - partner         : "Mitra Referral" — TIDAK punya akses Filament sama
+     *                      sekali (login mobile app saja, guard 'api').
+     *                      Profil poin & kode referralnya ada di App\Models\Partner
+     *                      (relasi hasOne dari User), dibuat manual oleh admin
+     *                      lewat PartnerResource di Filament.
      */
     public function run(): void
     {
@@ -57,6 +62,10 @@ class RolePermissionSeeder extends Seeder
         // login lewat mobile app (guard 'api'), tidak pernah masuk panel
         // admin web sama sekali.
         Role::findOrCreate('installer', 'web');
+
+        // partner juga TIDAK dikasih permission Filament — sama seperti
+        // installer, cuma login lewat mobile app.
+        Role::findOrCreate('partner', 'web');
 
         // User super_admin default — GANTI PASSWORD setelah login pertama kali.
         $admin = User::firstOrCreate(

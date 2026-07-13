@@ -3,9 +3,11 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PartnershipInquiryResource\Pages;
+use App\Models\Partner;
 use App\Models\PartnershipInquiry;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -84,6 +86,7 @@ class PartnershipInquiryResource extends Resource
                         ->options([
                             'new' => 'Baru',
                             'contacted' => 'Sudah Dihubungi',
+                            'deal' => 'Deal — Siap Jadi Partner',
                             'rejected' => 'Ditolak',
                         ])
                         ->required(),
@@ -118,14 +121,22 @@ class PartnershipInquiryResource extends Resource
                     ->colors([
                         'warning' => 'new',
                         'info' => 'contacted',
+                        'success' => 'deal',
                         'danger' => 'rejected',
                     ])
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'new' => 'Baru',
                         'contacted' => 'Sudah Dihubungi',
+                        'deal' => 'Deal',
                         'rejected' => 'Ditolak',
                         default => $state,
                     }),
+
+                Tables\Columns\TextColumn::make('partner.referral_code')
+                    ->label('Kode Referral')
+                    ->badge()
+                    ->color('info')
+                    ->placeholder('Belum jadi partner'),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Diajukan')
@@ -137,10 +148,53 @@ class PartnershipInquiryResource extends Resource
                     ->options([
                         'new' => 'Baru',
                         'contacted' => 'Sudah Dihubungi',
+                        'deal' => 'Deal',
                         'rejected' => 'Ditolak',
                     ]),
             ])
             ->actions([
+                Tables\Actions\Action::make('jadikan_partner')
+                    ->label('Jadikan Partner')
+                    ->icon('heroicon-o-user-plus')
+                    ->color('success')
+                    ->visible(fn (PartnershipInquiry $record) => $record->status === 'deal' && ! $record->partner_id)
+                    ->form([
+                        Forms\Components\TextInput::make('business_name')
+                            ->label('Nama Partner / Usaha')
+                            ->required(),
+                        Forms\Components\TextInput::make('email')
+                            ->label('Email (untuk login)')
+                            ->email()
+                            ->required()
+                            ->unique(table: 'users', column: 'email')
+                            ->helperText('Wajib diisi kalau pemohon tidak mencantumkan email saat mengajukan.'),
+                        Forms\Components\TextInput::make('phone')
+                            ->label('No. Telepon')
+                            ->tel(),
+                        Forms\Components\TextInput::make('password')
+                            ->label('Password Awal')
+                            ->password()
+                            ->revealable()
+                            ->required()
+                            ->minLength(8)
+                            ->helperText('Sampaikan ke partner secara manual — bisa diganti nanti lewat fitur lupa password di app.'),
+                    ])
+                    ->fillForm(fn (PartnershipInquiry $record) => [
+                        'business_name' => $record->applicant_name,
+                        'email'         => $record->email,
+                        'phone'         => $record->phone_number,
+                    ])
+                    ->action(function (PartnershipInquiry $record, array $data) {
+                        $partner = Partner::createAccount($data);
+                        $record->update(['partner_id' => $partner->id]);
+
+                        Notification::make()
+                            ->title('Akun partner dibuat')
+                            ->body("Kode referral: {$partner->referral_code}")
+                            ->success()
+                            ->send();
+                    }),
+
                 Tables\Actions\EditAction::make()->label('Follow Up'),
                 Tables\Actions\DeleteAction::make(),
             ])

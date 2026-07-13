@@ -1,0 +1,78 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+
+class Partner extends Model
+{
+    protected $fillable = [
+        'user_id',
+        'business_name',
+        'phone',
+        'referral_code',
+        'status',
+        'points_balance',
+    ];
+
+    protected $casts = [
+        'points_balance' => 'integer',
+    ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function pointTransactions(): HasMany
+    {
+        return $this->hasMany(PartnerPointTransaction::class);
+    }
+
+    public function bookings(): HasMany
+    {
+        return $this->hasMany(Booking::class);
+    }
+
+    /**
+     * Generate kode referral unik — dipakai saat partner baru dibuat di
+     * Filament. Format: 8 karakter huruf besar+angka, mudah diucapkan/
+     * diketik manual oleh partner ke kenalannya.
+     */
+    public static function generateReferralCode(): string
+    {
+        do {
+            $code = strtoupper(Str::random(8));
+        } while (self::where('referral_code', $code)->exists());
+
+        return $code;
+    }
+
+    /**
+     * Bikin akun login (User, role 'partner') + profil Partner sekaligus.
+     * Dipakai bersama oleh PartnerResource\Pages\CreatePartner (bikin
+     * partner langsung) dan PartnershipInquiryResource (konversi dari
+     * pengajuan kemitraan yang sudah deal) — supaya logikanya satu tempat.
+     */
+    public static function createAccount(array $data): self
+    {
+        $user = User::create([
+            'name'     => $data['business_name'],
+            'email'    => $data['email'],
+            'password' => Hash::make($data['password']),
+        ]);
+        $user->syncRoles(['partner']);
+
+        return self::create([
+            'user_id'       => $user->id,
+            'business_name' => $data['business_name'],
+            'phone'         => $data['phone'] ?? null,
+            'status'        => $data['status'] ?? 'active',
+            'referral_code' => self::generateReferralCode(),
+        ]);
+    }
+}

@@ -15,10 +15,16 @@ class PartnershipInquiry extends Model
         'message',
         'status',
         'notes',
+        'partner_id',
     ];
 
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function partner()
+    {
+        return $this->belongsTo(Partner::class);
     }
 }

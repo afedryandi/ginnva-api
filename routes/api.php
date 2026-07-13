@@ -21,6 +21,9 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PointController;
+use App\Http\Controllers\Api\RewardController;
+use App\Http\Controllers\Api\VoucherController;
+use App\Http\Controllers\Api\Partner\PartnerController;
 
 Route::get('/carousels', [CarouselController::class, 'index']);
 Route::get('/materials', [MaterialController::class, 'index']);
@@ -69,6 +72,13 @@ Route::post('/partnership/submit', [PartnershipInquiryController::class, 'submit
 // Chatbot — publik, tidak wajib login
 Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:20,1');
 
+// Katalog reward Partnership Referral — sama untuk partner maupun customer.
+Route::get('/rewards', [RewardController::class, 'index']);
+
+// Voucher promo (mis. "Voucher Rp10jt — 200 pembeli pertama") — publik
+// biar bisa nampilin banner sebelum tahu user login atau tidak.
+Route::get('/vouchers/active', [VoucherController::class, 'active']);
+
 /*
 |--------------------------------------------------------------------------
 | Customer (mobile app) — akun end-customer, TERPISAH dari admin Filament
@@ -104,6 +114,16 @@ Route::prefix('customer')->group(function () {
 
         // Galeri pemasangan personal — foto dari booking milik customer sendiri
         Route::get('/my-gallery', [BookingMessageController::class, 'gallery']);
+
+        // Partnership Referral — redeem reward pakai poin loyalty
+        Route::post('/rewards/{id}/redeem', [RewardController::class, 'redeemAsCustomer'])
+            ->middleware('throttle:10,1');
+        Route::get('/redemptions', [PointController::class, 'redemptions']);
+
+        // Voucher promo — klaim & lihat voucher milik sendiri
+        Route::post('/vouchers/{id}/claim', [VoucherController::class, 'claim'])
+            ->middleware('throttle:5,1');
+        Route::get('/vouchers', [VoucherController::class, 'myVouchers']);
     });
 });
 
@@ -124,6 +144,10 @@ Route::prefix('staff')->group(function () {
 
         Route::get('/bookings', [StaffBookingController::class, 'index']);
         Route::get('/bookings/{id}', [StaffBookingController::class, 'show']);
+        // Tandai booking selesai + input kode referral & nominal transaksi
+        // (kalau customer datang lewat kode partner) — lihat ReferralPointService.
+        Route::post('/bookings/{id}/complete', [StaffBookingController::class, 'complete'])
+            ->middleware('throttle:20,1');
 
         Route::get('/bookings/{id}/messages', [StaffBookingMessageController::class, 'index']);
         Route::post('/bookings/{id}/messages', [StaffBookingMessageController::class, 'store']);
@@ -134,6 +158,22 @@ Route::prefix('staff')->group(function () {
         Route::post('/notifications/link-token', [NotificationController::class, 'linkTokenStaff'])
             ->middleware('throttle:20,1');
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Partner (mobile app) — akun mitra referral. Login LEWAT ENDPOINT STAFF
+| di atas (/api/auth/detect-role + /api/staff/auth/login) — akun sama-sama
+| dari tabel users, guard 'api', bedanya cuma role 'partner'. Endpoint di
+| bawah ini spesifik untuk data profil/poin/reward milik partner tsb.
+|--------------------------------------------------------------------------
+*/
+Route::prefix('partner')->middleware('auth:api')->group(function () {
+    Route::get('/me', [PartnerController::class, 'me']);
+    Route::get('/points', [PartnerController::class, 'points']);
+    Route::get('/redemptions', [PartnerController::class, 'redemptions']);
+    Route::post('/rewards/{id}/redeem', [RewardController::class, 'redeemAsPartner'])
+        ->middleware('throttle:10,1');
 });
 
 // Push Notification token management

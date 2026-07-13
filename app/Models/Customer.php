@@ -40,6 +40,16 @@ class Customer extends Model implements Authenticatable, JWTSubject
         return $this->hasMany(Booking::class);
     }
 
+    public function redemptions()
+    {
+        return RewardRedemption::where('redeemer_type', 'customer')->where('redeemer_id', $this->id);
+    }
+
+    public function voucherClaims()
+    {
+        return $this->hasMany(VoucherClaim::class);
+    }
+
     public function getJWTIdentifier()
     {
         return $this->getKey();

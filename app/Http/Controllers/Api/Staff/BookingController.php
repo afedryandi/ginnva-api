@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Services\ReferralPointService;
+use App\Services\VoucherService;
 use Illuminate\Http\Request;
+use RuntimeException;
 
 class BookingController extends Controller
 {
@@ -65,5 +68,76 @@ class BookingController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $booking]);
+    }
+
+    /**
+     * POST /api/staff/bookings/{id}/complete
+     *
+     * Ditandai staff toko saat customer selesai bayar di toko (pembayaran
+     * di luar sistem — cash/EDC/dll). Kalau customer datang lewat kode
+     * referral partner, staff isi `referral_code` — sistem otomatis kasih
+     * poin ke partner & customer (lihat ReferralPointService). Kalau
+     * customer punya voucher, staff isi `voucher_code` — nominalnya
+     * dipotong dari `transaction_amount` SEBELUM poin referral dihitung
+     * (poin dihitung dari nominal yang benar-benar dibayar). Keduanya
+     * opsional — booking tanpa referral/voucher tetap bisa di-complete
+     * seperti biasa.
+     */
+    public function complete(
+        Request $request,
+        int $id,
+        ReferralPointService $referralPoints,
+        VoucherService $vouchers
+    ) {
+        $user = $request->user('api');
+
+        $request->validate([
+            'transaction_amount' => 'nullable|numeric|min:0',
+            'referral_code'      => 'nullable|string|max:20',
+            'voucher_code'       => 'nullable|string|max:20',
+        ]);
+
+        $booking = Booking::findOrFail($id);
+
+        if (! $user->hasRole('super_admin') && $booking->store_id !== $user->store_id) {
+            abort(403, 'Anda tidak punya akses ke booking toko lain.');
+        }
+
+        $booking->update([
+            'status'             => 'completed',
+            'current_stage'      => 'completed',
+            'transaction_amount' => $request->transaction_amount,
+            'referral_code'      => $request->referral_code,
+        ]);
+
+        try {
+            $voucherClaim = $vouchers->redeem($booking, $request->voucher_code);
+        } catch (RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        $discount = 0;
+        if ($voucherClaim) {
+            $discount = (float) $voucherClaim->voucher->discount_amount;
+            $booking->transaction_amount = max(0, $booking->transaction_amount - $discount);
+            $booking->voucher_claim_id = $voucherClaim->id;
+            $booking->save();
+        }
+
+        $partner = $referralPoints->awardForBooking($booking->fresh());
+
+        $messages = [];
+        if ($discount > 0) {
+            $messages[] = 'Voucher Rp' . number_format($discount, 0, ',', '.') . ' berhasil dipakai.';
+        }
+        if ($partner) {
+            $messages[] = "Poin referral diberikan ke partner {$partner->business_name}.";
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => $booking->fresh(),
+            'message' => $messages ? implode(' ', $messages) : 'Booking selesai.',
+        ]);
     }
 }
