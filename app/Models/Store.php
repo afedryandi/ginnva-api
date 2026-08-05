@@ -178,19 +178,39 @@ class Store extends Model
      * Toko tutup di tanggal $date? Dipakai validasi booking customer
      * (BookingController) DAN perhitungan rentang tanggal/kapasitas slot
      * instalasi (Booking::nthWorkingDay(), fullDatesInRange()) — hari
-     * libur toko tidak pernah dihitung sebagai hari kerja instalasi.
+     * libur toko tidak pernah dihitung sebagai hari kerja instalasi. Cek
+     * 2 sumber: libur RUTIN mingguan (opening_hours, mis. Minggu) DAN
+     * tanggal yang di-block manual satu kali (BlockedDate, mis. cuti
+     * bersama yang jatuh di hari kerja biasa).
+     *
      * format('D') Carbon selalu 3-huruf Inggris ("Mon".."Sun") — cocok
      * langsung (di-lowercase) dengan kode day di opening_hours/DAYS di
      * atas, tidak perlu tabel mapping manual terpisah.
+     *
+     * $this->blockedDates di-lazy-load SEKALI lalu di-cache Eloquent per
+     * instance Store — dipanggil berkali-kali (loop harian di
+     * Booking::fullDatesInRange()/nthWorkingDay()) TIDAK query ulang ke
+     * DB tiap panggilan, selama pakai instance Store yang sama.
      */
     public function isClosedOn(\Illuminate\Support\Carbon $date): bool
     {
         $dayCode = strtolower($date->format('D'));
 
-        return collect($this->opening_hours ?? [])
+        $weeklyClosed = collect($this->opening_hours ?? [])
             ->filter(fn ($row) => ! empty($row['closed']))
             ->flatMap(fn ($row) => $row['days'] ?? [])
             ->contains($dayCode);
+
+        if ($weeklyClosed) {
+            return true;
+        }
+
+        return $this->blockedDates->contains(fn (BlockedDate $b) => $b->date->isSameDay($date));
+    }
+
+    public function blockedDates()
+    {
+        return $this->hasMany(BlockedDate::class);
     }
 
     public function users()

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\Customer;
 
 use App\Http\Controllers\Controller;
-use App\Models\BlockedDate;
 use App\Models\Booking;
 use App\Models\Store;
 use Illuminate\Http\Request;
@@ -55,35 +54,20 @@ class BookingController extends Controller
             ], 422);
         }
 
-        // Tanggal yang diblokir toko (lihat /api/stores/{id}/blocked-dates)
-        // sebelumnya cuma dipakai buat disable tanggal di UI picker mobile
-        // — TIDAK ditegakkan di sini, jadi hit langsung ke endpoint ini
-        // (atau race condition tanggal baru diblokir setelah picker dibuka)
-        // bisa lolos booking di tanggal yang sudah ditutup toko.
-        $isBlocked = BlockedDate::where('store_id', $request->store_id)
-            ->whereDate('date', $request->preferred_date)
-            ->exists();
-
-        if ($isBlocked) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tanggal yang dipilih sedang tidak tersedia untuk toko ini. Silakan pilih tanggal lain.',
-                'errors'  => ['preferred_date' => ['Tanggal ini sudah diblokir toko.']],
-            ], 422);
-        }
-
-        // Mobile app sudah nonaktifkan tanggal di hari toko tutup (lihat
-        // jam operasional per-toko), tapi itu cuma UI — ditegakkan lagi di
-        // sini supaya hit langsung ke endpoint ini (atau versi app lama
-        // yang belum tahu fitur ini) tidak bisa lolos booking di hari
-        // toko libur.
+        // Mobile app sudah nonaktifkan tanggal di hari toko tutup/diblokir
+        // (lihat jam operasional & /api/stores/{id}/blocked-dates), tapi
+        // itu cuma UI — ditegakkan lagi di sini supaya hit langsung ke
+        // endpoint ini (atau race condition tanggal baru diblokir setelah
+        // picker dibuka, atau versi app lama) tidak bisa lolos booking.
+        // isClosedOn() cek DUA sumber sekaligus: libur rutin mingguan
+        // (opening_hours) dan tanggal yang di-block manual (BlockedDate).
         $store = Store::find($request->store_id);
 
         if ($store?->isClosedOn(Carbon::parse($request->preferred_date))) {
             return response()->json([
                 'success' => false,
-                'message' => 'Toko tutup pada hari yang dipilih. Silakan pilih tanggal lain.',
-                'errors'  => ['preferred_date' => ['Toko tutup pada hari ini.']],
+                'message' => 'Tanggal yang dipilih sedang tidak tersedia untuk toko ini. Silakan pilih tanggal lain.',
+                'errors'  => ['preferred_date' => ['Toko tutup/tanggal diblokir pada hari ini.']],
             ], 422);
         }
 
