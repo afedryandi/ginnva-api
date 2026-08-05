@@ -37,21 +37,47 @@ class PushNotificationService
     }
 
     /**
-     * Kirim push ke staff yang relevan dengan sebuah toko: admin toko
-     * (regional_admin) toko itu + semua super_admin (supaya management
-     * juga bisa pantau). Dipakai saat CUSTOMER mengirim pesan di booking
-     * chat — staff perlu tahu ada pesan/pertanyaan baru masuk.
+     * Kirim push ke staff yang relevan dengan sebuah toko: staff toko itu
+     * (role apa pun SELAIN installer/partner — role divisi seperti
+     * Store Manager, dst — dicek lewat isRestrictedStaff())
+     * + semua super_admin (selalu, karena itu akun tertinggi/pusat kendali).
+     * 'direksi' SENGAJA tidak diblast di sini lagi — direksi hanya dapat
+     * notif booking yang mereka pantau lewat sendToBookingWatchers(), supaya
+     * tidak kebanjiran notif dari semua toko. Dipakai saat CUSTOMER
+     * mengirim pesan di booking chat.
      */
     public function sendToStoreStaff(int $storeId, string $title, string $body, array $data = []): void
     {
-        $regionalAdminIds = User::where('store_id', $storeId)
+        $storeStaffIds = User::where('store_id', $storeId)
             ->get()
-            ->filter(fn (User $u) => $u->hasRole('regional_admin'))
+            ->filter(fn (User $u) => $u->isRestrictedStaff())
             ->pluck('id');
 
         $superAdminIds = User::role('super_admin')->pluck('id');
 
-        $userIds = $regionalAdminIds->merge($superAdminIds)->unique();
+        $userIds = $storeStaffIds->merge($superAdminIds)->unique();
+
+        $this->sendToUsers($userIds, $title, $body, $data);
+    }
+
+    /**
+     * Kirim push HANYA ke direksi yang ditunjuk sebagai watcher booking
+     * tertentu (lihat Booking::watchers()) — dipakai bersamaan dengan
+     * sendToStoreStaff() saat ada pesan/update baru di booking chat.
+     */
+    public function sendToBookingWatchers(\App\Models\Booking $booking, string $title, string $body, array $data = []): void
+    {
+        $this->sendToUsers($booking->watchers()->pluck('users.id'), $title, $body, $data);
+    }
+
+    /**
+     * Primitif umum: kirim push ke sekumpulan user id apa pun. Dipakai oleh
+     * sendToStoreStaff()/sendToBookingWatchers() dan bisa dipakai langsung
+     * kalau ada kebutuhan lain di masa depan.
+     */
+    public function sendToUsers(iterable $userIds, string $title, string $body, array $data = []): void
+    {
+        $userIds = collect($userIds)->filter()->unique();
 
         if ($userIds->isEmpty()) return;
 
@@ -62,8 +88,23 @@ class PushNotificationService
         $this->pushToTokens($tokens, $title, $body, $data);
     }
 
-    private function pushToTokens(array $tokens, string $title, string $body, array $data): void
+    /**
+     * Kirim push mentah ke daftar token, dengan tracking sent/failed —
+     * dipakai internal oleh method-method di atas (yang cuma "fire and
+     * forget", tidak peduli hasilnya), TAPI juga dibuat public supaya
+     * NotificationController::send() (kirim manual dari Filament) bisa
+     * pakai method yang SAMA PERSIS ini, bukan salinan terpisah. Dulu ada
+     * dua salinan nyaris identik — komentar class ini bahkan bilang
+     * "extract dari NotificationController::send()" tapi controllernya
+     * sendiri lupa di-refactor untuk benar-benar memakai hasil extract-nya.
+     *
+     * @return array{sent: int, failed: int}
+     */
+    public function pushToTokens(array $tokens, string $title, string $body, array $data = []): array
     {
+        $sent = 0;
+        $failed = 0;
+
         foreach (array_chunk($tokens, 100) as $chunk) {
             $messages = array_map(fn ($token) => [
                 'to'    => $token,
@@ -83,21 +124,29 @@ class PushNotificationService
                     $results = $response->json('data') ?? [];
 
                     foreach ($results as $i => $result) {
-                        if (($result['status'] ?? '') !== 'ok') {
-                            $details = $result['details'] ?? [];
-                            if (($details['error'] ?? '') === 'DeviceNotRegistered') {
-                                DeviceToken::where('token', $chunk[$i])->delete();
-                            } else {
-                                Log::warning('[Expo Push] Send gagal', ['error' => $result]);
-                            }
+                        if (($result['status'] ?? '') === 'ok') {
+                            $sent++;
+                            continue;
+                        }
+
+                        $failed++;
+                        $details = $result['details'] ?? [];
+                        if (($details['error'] ?? '') === 'DeviceNotRegistered') {
+                            DeviceToken::where('token', $chunk[$i])->delete();
+                        } else {
+                            Log::warning('[Expo Push] Send gagal', ['error' => $result]);
                         }
                     }
                 } else {
+                    $failed += count($chunk);
                     Log::error('[Expo Push] HTTP error: ' . $response->body());
                 }
             } catch (\Exception $e) {
+                $failed += count($chunk);
                 Log::error('[Expo Push] Exception: ' . $e->getMessage());
             }
         }
+
+        return ['sent' => $sent, 'failed' => $failed];
     }
 }

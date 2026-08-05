@@ -446,7 +446,7 @@
             "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin.toko@ginnva.test\",\n  \"password\": \"password\"\n}" }
           },
           "response": [
-            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"token\": \"eyJ0eXAiOiJKV1Qi...\", \"user\": { \"id\": 1, \"name\": \"Admin Toko\", \"email\": \"admin.toko@ginnva.test\", \"role\": \"regional_admin\", \"store_id\": 1 } }" },
+            { "name": "200 OK", "code": 200, "body": "{ \"success\": true, \"token\": \"eyJ0eXAiOiJKV1Qi...\", \"user\": { \"id\": 1, \"name\": \"Admin Toko\", \"email\": \"admin.toko@ginnva.test\", \"role\": \"store_manager\", \"store_id\": 1 } }" },
             { "name": "401 Wrong Credentials", "code": 401, "body": "{ \"success\": false, \"message\": \"Email atau password salah.\" }" }
           ]
         },
@@ -480,7 +480,7 @@
             "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
             "url": { "raw": "{{base_url}}/api/staff/auth/me", "host": ["{{base_url}}"], "path": ["api", "staff", "auth", "me"] }
           },
-          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"user\": { \"id\": 1, \"name\": \"Admin Toko\", \"role\": \"regional_admin\", \"store_id\": 1 } }" }]
+          "response": [{ "name": "200 OK", "code": 200, "body": "{ \"user\": { \"id\": 1, \"name\": \"Admin Toko\", \"role\": \"store_manager\", \"store_id\": 1 } }" }]
         },
         {
           "name": "Logout",

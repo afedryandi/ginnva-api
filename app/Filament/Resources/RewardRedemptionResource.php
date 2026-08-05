@@ -24,6 +24,8 @@ class RewardRedemptionResource extends Resource
 
     protected static ?string $navigationGroup = 'Partnership Referral';
 
+    protected static ?int $navigationSort = 40;
+
     protected static ?string $navigationLabel = 'Klaim Reward';
 
     protected static ?string $modelLabel = 'Klaim Reward';
@@ -32,7 +34,10 @@ class RewardRedemptionResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function canCreate(): bool

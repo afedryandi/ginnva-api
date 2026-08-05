@@ -18,6 +18,8 @@ class ProductInquiryResource extends Resource
 
     protected static ?string $navigationGroup = 'Penjualan';
 
+    protected static ?int $navigationSort = 30;
+
     protected static ?string $navigationLabel = 'Inquiry Produk';
 
     protected static ?string $modelLabel = 'Inquiry';
@@ -41,11 +43,14 @@ class ProductInquiryResource extends Resource
     /**
      * Tidak ada scope per-toko di sini (sesuai keputusan: inquiry produk
      * yang belum tersedia sifatnya nasional, bukan milik toko tertentu),
-     * jadi semua admin (super_admin & regional_admin) melihat data yang sama.
+     * jadi semua admin (super_admin & staff toko) melihat data yang sama.
      */
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function canCreate(): bool
@@ -58,7 +63,7 @@ class ProductInquiryResource extends Resource
     public static function canDelete($record): bool
     {
         // Sama seperti Warranty/Quotation — hapus data dibatasi super_admin saja.
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        return auth()->user()?->isFullAccess() ?? false;
     }
 
     public static function form(Form $form): Form

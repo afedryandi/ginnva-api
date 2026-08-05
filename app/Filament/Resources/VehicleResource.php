@@ -6,9 +6,11 @@ use App\Filament\Resources\VehicleResource\Pages;
 use App\Models\Vehicle;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\QueryException;
 
 class VehicleResource extends Resource
 {
@@ -18,6 +20,8 @@ class VehicleResource extends Resource
 
     protected static ?string $navigationGroup = 'Master Data';
 
+    protected static ?int $navigationSort = 20;
+
     protected static ?string $navigationLabel = 'Kendaraan';
 
     protected static ?string $modelLabel = 'Kendaraan';
@@ -26,12 +30,15 @@ class VehicleResource extends Resource
 
     /**
      * Data master nasional, tidak ber-scope toko — super_admin dan
-     * regional_admin (admin toko) sama-sama lihat & bisa edit semua baris.
+     * staff toko sama-sama lihat & bisa edit semua baris.
      * Dipakai untuk dropdown pilihan kendaraan di form quotation.
      */
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function form(Form $form): Form
@@ -52,11 +59,29 @@ class VehicleResource extends Resource
                         ->nullable()
                         ->maxLength(255),
 
+                    // unique() di sini scoped ke brand+model lewat
+                    // modifyRuleUsing — beda dari constraint database
+                    // (unique(['brand','model','variant']) di migration),
+                    // validasi Laravel ini BENAR menangkap kasus variant
+                    // kosong (whereNull otomatis kalau value-nya null),
+                    // yang justru tidak tertutup oleh unique index MySQL
+                    // biasa (dua NULL dianggap tidak sama).
                     Forms\Components\TextInput::make('variant')
                         ->label('Varian')
                         ->placeholder('Contoh: 1.5 RS CVT, 2.5 G AT')
                         ->nullable()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->unique(
+                            table: 'vehicles',
+                            column: 'variant',
+                            ignoreRecord: true,
+                            modifyRuleUsing: fn ($rule, Forms\Get $get) => $rule
+                                ->where('brand', $get('brand'))
+                                ->where('model', $get('model')),
+                        )
+                        ->validationMessages([
+                            'unique' => 'Kendaraan dengan merek, model, dan varian yang sama sudah terdaftar.',
+                        ]),
 
                     Forms\Components\Select::make('size_category')
                         ->label('Kategori Ukuran')
@@ -116,7 +141,27 @@ class VehicleResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                // quotations.vehicle_id pakai onDelete('restrict') — hapus
+                // kendaraan yang masih direferensikan quotation akan
+                // ditolak database. Ditangkap di sini supaya staff dapat
+                // pesan jelas, bukan error mentah (pola sama dengan
+                // FilmProductResource).
+                Tables\Actions\DeleteAction::make()
+                    ->action(function (Vehicle $record) {
+                        try {
+                            $record->delete();
+                        } catch (QueryException $e) {
+                            Notification::make()
+                                ->title('Tidak bisa menghapus kendaraan ini')
+                                ->body('Data kendaraan ini masih dipakai oleh quotation yang terdaftar.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Kendaraan dihapus')->success()->send();
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

@@ -20,6 +20,10 @@ return [
         'https://ginnva.id',
         'https://www.ginnva.id',
         'http://localhost:3000',
+        // Expo web dev server (ginnva-mobile) — dipakai buat preview cepat
+        // di browser saat development, port default Expo Router.
+        'http://localhost:8081',
+        'http://localhost:19006',
     ],
 
     // Untuk domain preview Vercel yang berubah-ubah, misal:

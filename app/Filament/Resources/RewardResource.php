@@ -6,9 +6,11 @@ use App\Filament\Resources\RewardResource\Pages;
 use App\Models\Reward;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\QueryException;
 
 class RewardResource extends Resource
 {
@@ -18,6 +20,8 @@ class RewardResource extends Resource
 
     protected static ?string $navigationGroup = 'Partnership Referral';
 
+    protected static ?int $navigationSort = 30;
+
     protected static ?string $navigationLabel = 'Katalog Reward';
 
     protected static ?string $modelLabel = 'Reward';
@@ -26,7 +30,10 @@ class RewardResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function form(Form $form): Form
@@ -106,7 +113,26 @@ class RewardResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                // reward_redemptions.reward_id sekarang restrictOnDelete()
+                // — hapus reward yang masih punya riwayat penukaran akan
+                // ditolak database. Ditangkap di sini supaya staff dapat
+                // pesan jelas ("nonaktifkan saja"), bukan error mentah.
+                Tables\Actions\DeleteAction::make()
+                    ->action(function (Reward $record) {
+                        try {
+                            $record->delete();
+                        } catch (QueryException $e) {
+                            Notification::make()
+                                ->title('Tidak bisa menghapus reward ini')
+                                ->body('Reward ini masih punya riwayat penukaran. Nonaktifkan saja lewat toggle "Aktif" supaya tidak bisa ditukar lagi, tanpa menghapus riwayatnya.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Reward dihapus')->success()->send();
+                    }),
             ])
             ->defaultSort('points_cost');
     }

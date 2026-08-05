@@ -132,7 +132,7 @@
          walau field-nya bertambah banyak (VIN, posisi, roll number,
          dst) — dan supaya jelas beda "info umum" vs "data spesifik
          kategori produk". --}}
-    @if($warranty->product_category === 'ppf' && ($warranty->installation_position || $warranty->roll_number))
+    @if($warranty->product_category === 'ppf' && ($warranty->installation_position || $warranty->roll_number || $warranty->roll_number_2))
     <div class="section-heading">Spesifikasi Teknis <span class="tag">PPF</span></div>
     <div class="tech-card">
         <table class="tech-table" cellspacing="0" cellpadding="0">
@@ -155,6 +155,16 @@
                     @endif
                 </td>
             </tr>
+            @if($warranty->roll_number_2)
+            <tr>
+                <td>
+                    {{-- Mobil yang butuh 2 gulungan PPF (biasanya bodi besar) --}}
+                    <div class="label">Roll Number / ID Material (Gulungan Kedua)</div>
+                    <div class="value">{{ $warranty->roll_number_2 }}</div>
+                </td>
+                <td></td>
+            </tr>
+            @endif
         </table>
     </div>
     @endif

@@ -11,7 +11,7 @@ class CreateTechnician extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        if (! auth()->user()?->hasRole('super_admin')) {
+        if (! auth()->user()?->isFullAccess()) {
             $data['store_id'] = auth()->user()->store_id;
             $data['status']   = 'pending_review';
         }

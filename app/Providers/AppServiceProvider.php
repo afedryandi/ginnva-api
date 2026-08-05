@@ -4,9 +4,13 @@ namespace App\Providers;
 
 use App\Models\Booking;
 use App\Models\BookingMessage;
+use App\Models\Quotation;
+use App\Models\RewardRedemption;
 use App\Models\Warranty;
 use App\Observers\BookingMessageObserver;
 use App\Observers\BookingObserver;
+use App\Observers\QuotationObserver;
+use App\Observers\RewardRedemptionObserver;
 use App\Observers\WarrantyObserver;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -32,6 +36,8 @@ class AppServiceProvider extends ServiceProvider
         Warranty::observe(WarrantyObserver::class);
         Booking::observe(BookingObserver::class);
         BookingMessage::observe(BookingMessageObserver::class);
+        Quotation::observe(QuotationObserver::class);
+        RewardRedemption::observe(RewardRedemptionObserver::class);
 
         if ($this->app->environment('production')) {
             URL::forceScheme('https');

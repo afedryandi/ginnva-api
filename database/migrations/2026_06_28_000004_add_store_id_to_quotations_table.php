@@ -9,7 +9,7 @@ return new class extends Migration
     /**
      * Menambahkan store_id ke quotations (lead capture) supaya lead bisa
      * dikaitkan ke toko/dealer tertentu — dipakai untuk scoping
-     * regional_admin di Filament.
+     * store_manager di Filament.
      */
     public function up(): void
     {

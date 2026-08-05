@@ -4,18 +4,33 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Str;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class VoucherClaim extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'voucher_id',
         'customer_id',
+        'walkin_name',
+        'walkin_phone',
         'code',
         'status',
         'booking_id',
         'used_at',
     ];
+
+    /**
+     * Nama pemegang voucher untuk ditampilkan — akun app kalau ada
+     * (customer_id terisi), atau nama walk-in yang dicatat manual staff
+     * kalau tidak (customer belum/tidak install app).
+     */
+    public function getHolderNameAttribute(): ?string
+    {
+        return $this->customer?->name ?? $this->walkin_name;
+    }
 
     protected $casts = [
         'used_at' => 'datetime',
@@ -36,12 +51,18 @@ class VoucherClaim extends Model
         return $this->belongsTo(Booking::class);
     }
 
-    public static function generateCode(): string
+    public function getActivitylogOptions(): LogOptions
     {
-        do {
-            $code = 'VC' . strtoupper(Str::random(6));
-        } while (self::where('code', $code)->exists());
-
-        return $code;
+        return LogOptions::defaults()
+            ->logOnly(['code', 'status', 'booking_id', 'used_at', 'walkin_name', 'walkin_phone'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('voucher_claim')
+            ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
+                'created' => "Voucher {$this->code} di-assign ke customer",
+                'updated' => "Voucher {$this->code} diubah",
+                'deleted' => "Voucher {$this->code} dihapus",
+                default   => "Voucher {$this->code} — {$eventName}",
+            });
     }
 }

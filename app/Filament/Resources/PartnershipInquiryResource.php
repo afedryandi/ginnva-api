@@ -11,6 +11,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 
 class PartnershipInquiryResource extends Resource
 {
@@ -20,11 +21,13 @@ class PartnershipInquiryResource extends Resource
 
     protected static ?string $navigationGroup = 'Penjualan';
 
-    protected static ?string $navigationLabel = 'Pengajuan Kemitraan';
+    protected static ?int $navigationSort = 20;
+
+    protected static ?string $navigationLabel = 'Kemitraan & Sales Referral';
 
     protected static ?string $modelLabel = 'Pengajuan Kemitraan';
 
-    protected static ?string $pluralModelLabel = 'Pengajuan Kemitraan';
+    protected static ?string $pluralModelLabel = 'Kemitraan & Sales Referral';
 
     protected static ?string $navigationBadgeColor = 'warning';
 
@@ -41,7 +44,10 @@ class PartnershipInquiryResource extends Resource
      */
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function canCreate(): bool
@@ -51,7 +57,7 @@ class PartnershipInquiryResource extends Resource
 
     public static function canDelete($record): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        return auth()->user()?->isFullAccess() ?? false;
     }
 
     public static function form(Form $form): Form
@@ -60,6 +66,16 @@ class PartnershipInquiryResource extends Resource
             Forms\Components\Section::make('Data Pengajuan')
                 ->columns(2)
                 ->schema([
+                    Forms\Components\TextInput::make('category')
+                        ->label('Kategori')
+                        ->formatStateUsing(fn (?string $state): string => match ($state) {
+                            'sales' => 'Sales GIIAS',
+                            'franchise' => 'Franchise',
+                            default => $state ?? '-',
+                        })
+                        ->disabled()
+                        ->dehydrated(false),
+
                     Forms\Components\TextInput::make('applicant_name')
                         ->label('Nama Pemohon')
                         ->disabled(),
@@ -74,10 +90,22 @@ class PartnershipInquiryResource extends Resource
 
                     Forms\Components\TextInput::make('city')
                         ->label('Kota')
+                        ->visible(fn (?PartnershipInquiry $record) => $record?->category !== 'sales')
+                        ->disabled(),
+
+                    Forms\Components\TextInput::make('car_brand')
+                        ->label('Merek Mobil')
+                        ->visible(fn (?PartnershipInquiry $record) => $record?->category === 'sales')
+                        ->disabled(),
+
+                    Forms\Components\TextInput::make('dealer_name')
+                        ->label('Dealer')
+                        ->visible(fn (?PartnershipInquiry $record) => $record?->category === 'sales')
                         ->disabled(),
 
                     Forms\Components\Textarea::make('message')
                         ->label('Pesan dari Pemohon')
+                        ->visible(fn (?PartnershipInquiry $record) => $record?->category !== 'sales')
                         ->disabled()
                         ->columnSpanFull(),
 
@@ -103,6 +131,18 @@ class PartnershipInquiryResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\BadgeColumn::make('category')
+                    ->label('Kategori')
+                    ->colors([
+                        'gray' => 'franchise',
+                        'primary' => 'sales',
+                    ])
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'franchise' => 'Franchise',
+                        'sales' => 'Sales GIIAS',
+                        default => $state,
+                    }),
+
                 Tables\Columns\TextColumn::make('applicant_name')
                     ->label('Nama Pemohon')
                     ->searchable()
@@ -114,7 +154,21 @@ class PartnershipInquiryResource extends Resource
 
                 Tables\Columns\TextColumn::make('city')
                     ->label('Kota')
-                    ->searchable(),
+                    ->searchable()
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: false),
+
+                Tables\Columns\TextColumn::make('car_brand')
+                    ->label('Merek Mobil')
+                    ->searchable()
+                    ->placeholder('—')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('dealer_name')
+                    ->label('Dealer')
+                    ->searchable()
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
@@ -144,6 +198,12 @@ class PartnershipInquiryResource extends Resource
                     ->sortable(),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('category')
+                    ->label('Kategori')
+                    ->options([
+                        'franchise' => 'Franchise',
+                        'sales' => 'Sales GIIAS',
+                    ]),
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
                         'new' => 'Baru',
@@ -185,8 +245,18 @@ class PartnershipInquiryResource extends Resource
                         'phone'         => $record->phone_number,
                     ])
                     ->action(function (PartnershipInquiry $record, array $data) {
-                        $partner = Partner::createAccount($data);
-                        $record->update(['partner_id' => $partner->id]);
+                        // Dibungkus transaction — kalau update() gagal
+                        // setelah createAccount() berhasil, akun User+Partner
+                        // yang baru dibuat ikut di-rollback juga (tombol ini
+                        // baru hilang setelah partner_id benar-benar
+                        // tersimpan, jadi tanpa transaction ada celah re-klik
+                        // bikin akun duplikat kalau langkah kedua gagal).
+                        $partner = DB::transaction(function () use ($record, $data) {
+                            $partner = Partner::createAccount($data);
+                            $record->update(['partner_id' => $partner->id]);
+
+                            return $partner;
+                        });
 
                         Notification::make()
                             ->title('Akun partner dibuat')

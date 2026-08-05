@@ -13,7 +13,10 @@ class EditStore extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            // Sama seperti tabel — hapus toko cascade ke seluruh booking,
+            // teknisi, dan review-nya. Cuma super_admin/direksi.
+            Actions\DeleteAction::make()
+                ->visible(fn () => auth()->user()?->isFullAccess()),
         ];
     }
 }

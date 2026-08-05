@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\ResolvesPublicFileUrl;
 use App\Http\Controllers\Controller;
 use App\Models\CaseStudy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class CaseStudyController extends Controller
 {
+    use ResolvesPublicFileUrl;
+
     /**
      * GET /api/case-studies
      *
@@ -67,20 +69,5 @@ class CaseStudyController extends Controller
             ] : null,
             'sort_order'   => $item->sort_order,
         ];
-    }
-
-    private function fullImageUrl(?string $path): ?string
-    {
-        if (! $path) {
-            return null;
-        }
-
-        $relative = Storage::url($path);
-
-        if (str_starts_with($relative, 'http://') || str_starts_with($relative, 'https://')) {
-            return $relative;
-        }
-
-        return rtrim(config('app.url'), '/') . '/' . ltrim($relative, '/');
     }
 }

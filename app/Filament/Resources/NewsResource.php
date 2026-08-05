@@ -19,6 +19,8 @@ class NewsResource extends Resource
 
     protected static ?string $navigationGroup = 'Konten';
 
+    protected static ?int $navigationSort = 20;
+
     protected static ?string $navigationLabel = 'Berita';
 
     protected static ?string $modelLabel = 'Berita';
@@ -27,9 +29,9 @@ class NewsResource extends Resource
 
     /**
      * Resource ini company-wide (bukan per-toko), jadi tidak ada
-     * navigationGroup scoping store di sini — aksesnya full di-gate lewat
-     * NewsPolicy (hanya super_admin) supaya tidak muncul sama sekali di
-     * sidebar regional_admin.
+     * navigationGroup scoping store di sini — aksesnya diatur lewat
+     * NewsPolicy (canAccessStaffArea() + hasMenuAccess()), jadi bisa
+     * didelegasikan ke role/staff tertentu lewat "Akses Menu".
      */
     public static function form(Form $form): Form
     {

@@ -25,14 +25,14 @@ class TechnicianResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Teknisi';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 40;
 
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
         $user  = auth()->user();
 
-        if ($user && ! $user->hasRole('super_admin')) {
+        if ($user && ! $user->isFullAccess()) {
             $query->where('store_id', $user->store_id);
         }
 
@@ -41,7 +41,10 @@ class TechnicianResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function form(Form $form): Form
@@ -57,7 +60,7 @@ class TechnicianResource extends Resource
                         ->preload()
                         ->required()
                         ->default(fn () => auth()->user()?->store_id)
-                        ->disabled(fn () => ! auth()->user()?->hasRole('super_admin'))
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
                         ->dehydrated(),
 
                     Forms\Components\TextInput::make('name')
@@ -89,7 +92,7 @@ class TechnicianResource extends Resource
                         ])
                         ->required()
                         ->default('pending_review')
-                        ->disabled(fn () => ! auth()->user()?->hasRole('super_admin'))
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
                         ->dehydrated(),
 
                     Forms\Components\Textarea::make('notes')
@@ -172,14 +175,14 @@ class TechnicianResource extends Resource
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
                     ->relationship('store', 'name')
-                    ->visible(fn () => auth()->user()?->hasRole('super_admin')),
+                    ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->actions([
                 Tables\Actions\Action::make('approve')
                     ->label('Aktifkan')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (Technician $record) => auth()->user()?->hasRole('super_admin')
+                    ->visible(fn (Technician $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending_review')
                     ->requiresConfirmation()
                     ->action(fn (Technician $record) => $record->update(['status' => 'active'])),

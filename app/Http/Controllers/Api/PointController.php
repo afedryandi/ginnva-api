@@ -22,6 +22,7 @@ class PointController extends Controller
             ->get();
 
         return response()->json([
+            'success'      => true,
             'balance'      => $customer->loyalty_points,
             'transactions' => $transactions,
         ]);

@@ -19,8 +19,15 @@ class WarrantyByStoreChart extends ChartWidget
      */
     public static function canView(): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        return auth()->user()?->isFullAccess() ?? false;
     }
+
+    // Palet warna bergantian per bar (bukan satu warna flat) supaya tiap
+    // toko gampang dibedakan sekilas mata tanpa harus baca label satu-satu.
+    private const PALETTE = [
+        '#C8A96E', '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
+        '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#6366f1',
+    ];
 
     protected function getData(): array
     {
@@ -30,12 +37,15 @@ class WarrantyByStoreChart extends ChartWidget
             ->limit(10)
             ->get();
 
+        $colors = $stores->values()->map(fn ($store, $i) => self::PALETTE[$i % count(self::PALETTE)])->toArray();
+
         return [
             'datasets' => [
                 [
                     'label' => 'Jumlah Garansi',
                     'data' => $stores->pluck('warranties_count')->toArray(),
-                    'backgroundColor' => '#3b82f6',
+                    'backgroundColor' => $colors,
+                    'borderRadius' => 6,
                 ],
             ],
             'labels' => $stores->pluck('name')->toArray(),
@@ -45,5 +55,24 @@ class WarrantyByStoreChart extends ChartWidget
     protected function getType(): string
     {
         return 'bar';
+    }
+
+    protected function getOptions(): array
+    {
+        return [
+            'plugins' => [
+                'legend' => ['display' => false],
+            ],
+            'scales' => [
+                'y' => [
+                    'beginAtZero' => true,
+                    'ticks' => ['precision' => 0],
+                    'grid' => ['color' => 'rgba(148, 163, 184, 0.12)'],
+                ],
+                'x' => [
+                    'grid' => ['display' => false],
+                ],
+            ],
+        ];
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\OtpMail;
 use App\Mail\WelcomeMail;
 use App\Models\Customer;
+use App\Models\DeviceToken;
 use App\Models\OtpCode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -43,9 +44,19 @@ class AuthController extends Controller
         // asli sudah disetel di .env sebelum production, kalau tidak
         // email OTP hanya akan tertulis di storage/logs/laravel.log,
         // tidak benar-benar terkirim ke inbox customer.
-        Mail::to($request->email)->send(new OtpMail($otp->code));
+        try {
+            Mail::to($request->email)->send(new OtpMail($otp->code));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('[OtpMail] Gagal kirim: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengirim kode verifikasi. Periksa kembali alamat email Anda atau coba lagi nanti.',
+            ], 422);
+        }
 
         return response()->json([
+            'success' => true,
             'message' => 'Kode verifikasi telah dikirim ke email Anda.',
         ]);
     }
@@ -76,6 +87,7 @@ class AuthController extends Controller
 
         if (! $isValid) {
             return response()->json([
+                'success' => false,
                 'message' => 'Kode verifikasi salah atau sudah kedaluwarsa.',
             ], 422);
         }
@@ -104,6 +116,7 @@ class AuthController extends Controller
         $token = JWTAuth::fromUser($customer);
 
         return response()->json([
+            'success'  => true,
             'message'  => 'Berhasil masuk.',
             'token'    => $token,
             'is_new'   => $isNew,
@@ -118,19 +131,33 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         return response()->json([
+            'success' => true,
             'data' => $request->user('customer'),
         ]);
     }
 
     /**
      * PUT /api/customer/auth/profile
-     * Update nama dan nomor WhatsApp.
+     * Update nama dan nomor WhatsApp. `referral_code` OPSIONAL — kode
+     * referral customer LAIN (bukan Partner), diisi customer baru saat
+     * Complete Profile kalau diajak teman. Cuma bisa di-set SEKALI (kalau
+     * sudah pernah terhubung, input berikutnya diabaikan) supaya tidak
+     * bisa diubah-ubah untuk mengakali sumber poin bonus referral.
      */
     public function updateProfile(Request $request)
     {
+        $customer = $request->user('customer');
+
         $validator = Validator::make($request->all(), [
-            'name'         => 'required|string|max:255',
-            'phone_number' => 'required|string|max:20',
+            'name'          => 'required|string|max:255',
+            // Sebelumnya tidak dicek unik di sini — bentrok nomor WA lolos
+            // sampai ke DB unique constraint dan errornya (SQL mentah, host
+            // DB, dll) bocor ke user lewat handler generik. Divalidasi di
+            // sini dulu supaya pesannya jelas & tidak pernah nyampe ke DB.
+            'phone_number'  => 'required|string|max:20|unique:customers,phone_number,' . $customer->id,
+            'referral_code' => 'nullable|string|max:20',
+        ], [
+            'phone_number.unique' => 'Nomor WhatsApp ini sudah terdaftar di akun lain.',
         ]);
 
         if ($validator->fails()) {
@@ -141,13 +168,30 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $customer = $request->user('customer');
-        $customer->update([
+        $data = [
             'name'         => $request->name,
             'phone_number' => $request->phone_number,
-        ]);
+        ];
+
+        if ($request->filled('referral_code') && ! $customer->referred_by_customer_id) {
+            $referrer = Customer::whereRaw('UPPER(referral_code) = ?', [strtoupper($request->referral_code)])
+                ->where('id', '!=', $customer->id)
+                ->first();
+
+            if (! $referrer) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kode referral tidak ditemukan.',
+                ], 422);
+            }
+
+            $data['referred_by_customer_id'] = $referrer->id;
+        }
+
+        $customer->update($data);
 
         return response()->json([
+            'success' => true,
             'message' => 'Profil berhasil diperbarui.',
             'data' => $customer,
         ]);
@@ -161,7 +205,42 @@ class AuthController extends Controller
         JWTAuth::invalidate(JWTAuth::getToken());
 
         return response()->json([
+            'success' => true,
             'message' => 'Berhasil keluar.',
+        ]);
+    }
+
+    /**
+     * DELETE /api/customer/auth/account
+     *
+     * Wajib ada per kebijakan Google Play (app dengan sistem akun harus
+     * sediakan cara hapus akun). Row Customer TIDAK dihapus (booking,
+     * warranty, transaksi poin tetap terikat customer_id untuk kebutuhan
+     * operasional/legal toko) — sebagai gantinya semua PII dianonimkan
+     * dan `deleted_at` diisi sebagai penanda. email/phone_number di-null
+     * -kan (keduanya nullable+unique di skema) supaya alamat itu bisa
+     * dipakai lagi untuk registrasi baru tanpa bentrok unique constraint.
+     */
+    public function deleteAccount(Request $request)
+    {
+        $customer = $request->user('customer');
+
+        DeviceToken::where('customer_id', $customer->id)->delete();
+
+        $customer->update([
+            'name'               => null,
+            'email'              => null,
+            'phone_number'       => null,
+            'email_verified_at'  => null,
+            'phone_verified_at'  => null,
+            'deleted_at'         => now(),
+        ]);
+
+        JWTAuth::invalidate(JWTAuth::getToken());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Akun dan data pribadi Anda berhasil dihapus.',
         ]);
     }
 }

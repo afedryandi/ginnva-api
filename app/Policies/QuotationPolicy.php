@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Filament\Resources\QuotationResource;
 use App\Models\Quotation;
 use App\Models\User;
 
@@ -9,7 +10,8 @@ class QuotationPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['super_admin', 'regional_admin']);
+        return $user->canAccessStaffArea()
+            && $user->hasMenuAccess(QuotationResource::class);
     }
 
     public function view(User $user, Quotation $quotation): bool
@@ -29,12 +31,12 @@ class QuotationPolicy
 
     public function delete(User $user, Quotation $quotation): bool
     {
-        return $user->hasRole('super_admin');
+        return $user->isFullAccess();
     }
 
     protected function canAccessRecord(User $user, Quotation $quotation): bool
     {
-        if ($user->hasRole('super_admin')) {
+        if ($user->isFullAccess()) {
             return true;
         }
 

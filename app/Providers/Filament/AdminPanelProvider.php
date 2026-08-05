@@ -33,6 +33,18 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Red,
             ])
+            // Urutan grup di sidebar — mengikuti alur kerja harian staff
+            // (Penjualan & Operasional dulu, baru konten/master data/sistem
+            // yang lebih jarang disentuh). Tanpa ini Filament menampilkan
+            // grup dalam urutan alfabetis/pendaftaran yang tidak konsisten.
+            ->navigationGroups([
+                'Penjualan',
+                'Operasional',
+                'Partnership Referral',
+                'Konten',
+                'Master Data',
+                'Sistem',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([

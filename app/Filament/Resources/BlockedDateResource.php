@@ -18,7 +18,7 @@ class BlockedDateResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-x-circle';
 
-    protected static ?string $navigationGroup = 'Penjualan';
+    protected static ?string $navigationGroup = 'Operasional';
 
     protected static ?string $navigationLabel = 'Tanggal Tidak Tersedia';
 
@@ -26,11 +26,14 @@ class BlockedDateResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Tanggal Tidak Tersedia';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 30;
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function getEloquentQuery(): Builder
@@ -38,7 +41,7 @@ class BlockedDateResource extends Resource
         $query = parent::getEloquentQuery();
         $user  = auth()->user();
 
-        if ($user && ! $user->hasRole('super_admin')) {
+        if ($user && ! $user->isFullAccess()) {
             $query->where('store_id', $user->store_id);
         }
 
@@ -47,7 +50,7 @@ class BlockedDateResource extends Resource
 
     public static function form(Form $form): Form
     {
-        $isSuperAdmin = auth()->user()?->hasRole('super_admin');
+        $isSuperAdmin = auth()->user()?->isFullAccess();
 
         return $form->schema([
             Forms\Components\Select::make('store_id')
@@ -60,7 +63,19 @@ class BlockedDateResource extends Resource
             Forms\Components\DatePicker::make('date')
                 ->label('Tanggal')
                 ->required()
-                ->minDate(today()),
+                ->minDate(today())
+                // Composite unique (store_id + date) di database — tanpa
+                // validasi ini, coba blokir tanggal yang sudah diblokir
+                // untuk toko yang sama akan kena error database mentah
+                // alih-alih pesan yang jelas.
+                ->unique(
+                    table: 'blocked_dates',
+                    column: 'date',
+                    modifyRuleUsing: fn ($rule, Forms\Get $get) => $rule->where('store_id', $get('store_id')),
+                )
+                ->validationMessages([
+                    'unique' => 'Tanggal ini sudah diblokir untuk toko ini.',
+                ]),
 
             Forms\Components\TextInput::make('reason')
                 ->label('Alasan (opsional)')
@@ -90,7 +105,7 @@ class BlockedDateResource extends Resource
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
                     ->relationship('store', 'name')
-                    ->visible(fn () => auth()->user()?->hasRole('super_admin')),
+                    ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->actions([
                 Tables\Actions\DeleteAction::make(),

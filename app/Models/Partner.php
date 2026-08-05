@@ -7,9 +7,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Partner extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'user_id',
         'business_name',
@@ -74,5 +78,20 @@ class Partner extends Model
             'status'        => $data['status'] ?? 'active',
             'referral_code' => self::generateReferralCode(),
         ]);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['business_name', 'phone', 'status', 'points_balance'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('partner')
+            ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
+                'created' => "Partner \"{$this->business_name}\" dibuat",
+                'updated' => "Partner \"{$this->business_name}\" diubah",
+                'deleted' => "Partner \"{$this->business_name}\" dihapus",
+                default   => "Partner \"{$this->business_name}\" — {$eventName}",
+            });
     }
 }

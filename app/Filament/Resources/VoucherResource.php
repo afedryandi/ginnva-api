@@ -3,12 +3,15 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\VoucherResource\Pages;
+use App\Filament\Resources\VoucherResource\RelationManagers;
 use App\Models\Voucher;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\QueryException;
 
 class VoucherResource extends Resource
 {
@@ -18,6 +21,8 @@ class VoucherResource extends Resource
 
     protected static ?string $navigationGroup = 'Partnership Referral';
 
+    protected static ?int $navigationSort = 20;
+
     protected static ?string $navigationLabel = 'Voucher Promo';
 
     protected static ?string $modelLabel = 'Voucher';
@@ -26,7 +31,10 @@ class VoucherResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function form(Form $form): Form
@@ -54,14 +62,14 @@ class VoucherResource extends Resource
                         ->minValue(1),
 
                     Forms\Components\TextInput::make('total_stock')
-                        ->label('Total Stok')
+                        ->label('Total Stok (jumlah voucher fisik dicetak)')
                         ->numeric()
                         ->required()
                         ->minValue(1)
                         ->disabled(fn (?Voucher $record) => $record !== null)
                         ->dehydrated()
                         ->helperText(fn (?Voucher $record) => $record
-                            ? "Sudah diklaim: {$record->claimed_count} — stok tidak bisa diubah setelah kampanye jalan supaya tidak mengacaukan pelacakan."
+                            ? "Sudah di-assign: {$record->claimed_count} — stok tidak bisa diubah setelah kampanye jalan supaya tidak mengacaukan pelacakan."
                             : null),
 
                     Forms\Components\DateTimePicker::make('expires_at')
@@ -90,7 +98,7 @@ class VoucherResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('claimed_count')
-                    ->label('Terklaim')
+                    ->label('Ter-assign')
                     ->formatStateUsing(fn (Voucher $record) => "{$record->claimed_count} / {$record->total_stock}")
                     ->sortable(),
 
@@ -112,10 +120,37 @@ class VoucherResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                // Tombol disembunyikan kalau sudah ada klaim (UX). Database
+                // (voucher_claims.voucher_id sekarang restrictOnDelete())
+                // jadi lapisan pengaman sungguhan di baliknya — try-catch
+                // di sini menangani seandainya tetap tertembus lewat
+                // request yang dimanipulasi.
                 Tables\Actions\DeleteAction::make()
-                    ->visible(fn (Voucher $record) => $record->claimed_count === 0),
+                    ->visible(fn (Voucher $record) => $record->claimed_count === 0)
+                    ->action(function (Voucher $record) {
+                        try {
+                            $record->delete();
+                        } catch (QueryException $e) {
+                            Notification::make()
+                                ->title('Tidak bisa menghapus voucher ini')
+                                ->body('Kampanye voucher ini masih punya klaim yang tercatat.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Voucher dihapus')->success()->send();
+                    }),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\ClaimsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

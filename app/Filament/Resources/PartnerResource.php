@@ -4,11 +4,15 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PartnerResource\Pages;
 use App\Models\Partner;
+use App\Services\QrCodeService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 
 class PartnerResource extends Resource
 {
@@ -18,6 +22,8 @@ class PartnerResource extends Resource
 
     protected static ?string $navigationGroup = 'Partnership Referral';
 
+    protected static ?int $navigationSort = 10;
+
     protected static ?string $navigationLabel = 'Partner';
 
     protected static ?string $modelLabel = 'Partner';
@@ -26,7 +32,10 @@ class PartnerResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function form(Form $form): Form
@@ -151,8 +160,55 @@ class PartnerResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+
+                Tables\Actions\Action::make('download_qr')
+                    ->label('Unduh QR')
+                    ->icon('heroicon-o-qr-code')
+                    ->color('gray')
+                    ->action(fn (Partner $record) => static::downloadQrPdf(new Collection([$record]))),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('download_qr_bulk')
+                        ->label('Unduh QR (PDF Massal)')
+                        ->icon('heroicon-o-qr-code')
+                        ->action(fn (Collection $records) => static::downloadQrPdf($records))
+                        ->deselectRecordsAfterCompletion(),
+                ]),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    /**
+     * Dipakai bareng oleh aksi unduh QR single (1 partner) dan bulk
+     * (banyak partner sekaligus) — supaya sales GIIAS punya kartu QR
+     * fisik/digital yang bisa langsung di-scan customer ke link
+     * referral mereka masing-masing (https://ginnva.id/giias?ref=KODE),
+     * tanpa perlu tool QR generator eksternal.
+     */
+    private static function downloadQrPdf(Collection $partners)
+    {
+        $baseUrl = rtrim(config('app.frontend_url', 'https://ginnva.id'), '/');
+
+        $items = SupportCollection::make($partners)->map(function (Partner $partner) use ($baseUrl) {
+            $link = "{$baseUrl}/giias?ref={$partner->referral_code}";
+
+            return [
+                'name' => $partner->business_name,
+                'meta' => $partner->phone,
+                'code' => $partner->referral_code,
+                'link' => $link,
+                'qr'   => QrCodeService::generateDataUri($link, 260),
+            ];
+        });
+
+        $pdf = Pdf::loadView('pdf.giias_qr_batch', ['items' => $items])->setPaper('a4', 'portrait');
+
+        $filename = $partners->count() === 1
+            ? "QR-Referral-{$partners->first()->referral_code}.pdf"
+            : 'QR-Referral-GIIAS-Batch-' . now()->format('Ymd-His') . '.pdf';
+
+        return response()->streamDownload(fn () => print($pdf->output()), $filename);
     }
 
     public static function getPages(): array

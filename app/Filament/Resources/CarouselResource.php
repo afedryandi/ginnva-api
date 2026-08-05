@@ -24,11 +24,14 @@ class CarouselResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Banner / Carousel';
 
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 10;
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function form(Form $form): Form
@@ -61,6 +64,17 @@ class CarouselResource extends Resource
                         ->maxLength(255)
                         ->helperText('URL yang dituju saat banner diklik. Kosongkan jika tidak ada.'),
 
+                    Forms\Components\Select::make('audience')
+                        ->label('Tampil Untuk')
+                        ->options([
+                            'customer' => 'Customer (app utama)',
+                            'partner'  => 'Partner (mitra referral)',
+                            'both'     => 'Keduanya',
+                        ])
+                        ->default('customer')
+                        ->required()
+                        ->native(false),
+
                     Forms\Components\Toggle::make('is_active')
                         ->label('Tampilkan')
                         ->default(true),
@@ -87,6 +101,20 @@ class CarouselResource extends Resource
                     ->placeholder('—')
                     ->limit(40)
                     ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\BadgeColumn::make('audience')
+                    ->label('Untuk')
+                    ->formatStateUsing(fn (string $state) => match ($state) {
+                        'customer' => 'Customer',
+                        'partner'  => 'Partner',
+                        'both'     => 'Keduanya',
+                        default    => $state,
+                    })
+                    ->colors([
+                        'primary' => 'customer',
+                        'warning' => 'partner',
+                        'success' => 'both',
+                    ]),
 
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Tampil')

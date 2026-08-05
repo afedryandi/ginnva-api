@@ -24,18 +24,29 @@ class RewardRedemptionService
      */
     public function redeem(Partner|Customer $redeemer, Reward $reward): RewardRedemption
     {
-        if (! $reward->isRedeemable()) {
-            throw new RuntimeException('Reward ini sudah tidak tersedia.');
-        }
+        return DB::transaction(function () use ($redeemer, $reward) {
+            // Lock baris reward & redeemer SELAMA transaction supaya 2
+            // redeem bersamaan (mis. reward stok terbatas saat traffic
+            // tinggi) tidak lolos double-check-then-write dan bikin stok
+            // atau saldo poin minus — pola sama seperti VoucherService::assign().
+            $lockedReward = Reward::where('id', $reward->id)->lockForUpdate()->first();
 
-        $balanceField = $redeemer instanceof Partner ? 'points_balance' : 'loyalty_points';
-        $currentBalance = $redeemer->{$balanceField};
+            if (! $lockedReward->isRedeemable()) {
+                throw new RuntimeException('Reward ini sudah tidak tersedia.');
+            }
 
-        if ($currentBalance < $reward->points_cost) {
-            throw new RuntimeException('Poin Anda tidak cukup untuk menukar reward ini.');
-        }
+            $balanceField = $redeemer instanceof Partner ? 'points_balance' : 'loyalty_points';
 
-        return DB::transaction(function () use ($redeemer, $reward, $balanceField) {
+            $lockedRedeemer = $redeemer->newQuery()->where('id', $redeemer->id)->lockForUpdate()->first();
+            $currentBalance = $lockedRedeemer->{$balanceField};
+
+            if ($currentBalance < $lockedReward->points_cost) {
+                throw new RuntimeException('Poin Anda tidak cukup untuk menukar reward ini.');
+            }
+
+            $reward = $lockedReward;
+            $redeemer = $lockedRedeemer;
+
             $redeemerType = $redeemer instanceof Partner ? 'partner' : 'customer';
 
             $redemption = RewardRedemption::create([

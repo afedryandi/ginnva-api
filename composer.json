@@ -15,6 +15,7 @@
         "maatwebsite/excel": "^3.1",
         "resend/resend-laravel": "^1.4",
         "sentry/sentry-laravel": "^4.13",
+        "spatie/laravel-activitylog": "^4.10",
         "spatie/laravel-permission": "^6.9",
         "tymon/jwt-auth": "^2.3"
     },

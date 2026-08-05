@@ -22,7 +22,21 @@ class RewardController extends Controller
             ->orderBy('points_cost')
             ->get();
 
-        return response()->json(['success' => true, 'data' => $rewards]);
+        return response()->json([
+            'success' => true,
+            'data' => $rewards->map(fn (Reward $r) => [
+                'id'              => $r->id,
+                'name'            => $r->name,
+                'description'     => $r->description,
+                // Kolom `image` di DB cuma path relatif (disk 'public',
+                // mis. "rewards/abc123.png") — wajib di-convert jadi URL
+                // lengkap di sini, sama seperti CarouselController,
+                // karena mobile app langsung pakai field ini sebagai URI.
+                'image'           => $r->image ? asset('storage/' . $r->image) : null,
+                'points_cost'     => $r->points_cost,
+                'stock'           => $r->stock,
+            ]),
+        ]);
     }
 
     /**
@@ -33,6 +47,9 @@ class RewardController extends Controller
     {
         $partner = $request->user('api')->partner;
         abort_if(! $partner, 403, 'Akun ini bukan akun partner.');
+        // Partner nonaktif tidak boleh spend poin walau tokennya masih
+        // valid — sama seperti gate di PartnerController::partnerOrAbort().
+        abort_if($partner->status !== 'active', 403, 'Akun partner ini sedang nonaktif.');
 
         return $this->handleRedeem($service, $partner, $id);
     }

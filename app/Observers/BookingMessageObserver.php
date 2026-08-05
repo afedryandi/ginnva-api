@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Models\Booking;
 use App\Models\BookingMessage;
 use App\Services\PushNotificationService;
 
@@ -26,8 +27,12 @@ class BookingMessageObserver
         if ($message->sender_type === 'admin') {
             // Update tahap terkini di booking (dipakai untuk progress bar
             // di beranda mobile app tanpa perlu query booking_messages).
+            // Booking dengan 2 produk (Kaca Film + PPF) punya track
+            // terpisah — lihat Booking::stageColumnFor().
             if ($message->type === 'stage' && $message->stage) {
-                $booking->update(['current_stage' => $message->stage]);
+                $bothProducts = $booking->product_kaca_film && $booking->product_ppf;
+                $column = Booking::stageColumnFor($bothProducts, $message->stage);
+                $booking->update([$column => $message->stage]);
             }
 
             if ($booking->customer_id) {
@@ -36,6 +41,7 @@ class BookingMessageObserver
                 $this->push->sendToCustomer($booking->customer_id, $title, $body, [
                     'type'       => 'booking_message',
                     'booking_id' => $booking->id,
+                    'route'      => "/booking/{$booking->id}/chat",
                 ]);
             }
 
@@ -43,22 +49,27 @@ class BookingMessageObserver
         }
 
         if ($message->sender_type === 'customer' && $booking->store_id) {
-            $this->push->sendToStoreStaff(
-                $booking->store_id,
-                'Pesan Baru dari Customer',
-                \Illuminate\Support\Str::limit($message->body ?? 'Ada pesan baru masuk.', 100),
-                [
-                    'type'       => 'booking_message',
-                    'booking_id' => $booking->id,
-                ]
-            );
+            $title = 'Pesan Baru dari Customer';
+            $body  = \Illuminate\Support\Str::limit($message->body ?? 'Ada pesan baru masuk.', 100);
+            // Type dibedakan dari punya customer ('booking_message') di atas
+            // — sama-sama chat booking tapi tujuan layarnya beda (app
+            // customer vs app staff), jadi type-nya juga harus beda supaya
+            // tidak ambigu di sisi mobile.
+            $data  = [
+                'type'       => 'staff_booking_message',
+                'booking_id' => $booking->id,
+                'route'      => "/staff/bookings/{$booking->id}",
+            ];
+
+            $this->push->sendToStoreStaff($booking->store_id, $title, $body, $data);
+            $this->push->sendToBookingWatchers($booking, $title, $body, $data);
         }
     }
 
     private function buildNotificationText(BookingMessage $message): array
     {
         if ($message->type === 'stage' && $message->stage) {
-            $stageLabel = BookingMessage::STAGES[$message->stage] ?? $message->stage;
+            $stageLabel = BookingMessage::allStages()[$message->stage] ?? $message->stage;
 
             return [
                 'Update Progress Instalasi',

@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Filament\Resources\StoreResource;
 use App\Models\Store;
 use App\Models\User;
 
@@ -9,12 +10,13 @@ class StorePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['super_admin', 'regional_admin']);
+        return $user->canAccessStaffArea()
+            && $user->hasMenuAccess(StoreResource::class);
     }
 
     public function view(User $user, Store $store): bool
     {
-        if ($user->hasRole('super_admin')) {
+        if ($user->isFullAccess()) {
             return true;
         }
 
@@ -25,16 +27,16 @@ class StorePolicy
     public function create(User $user): bool
     {
         // Buat/hapus/ubah master data toko hanya super_admin.
-        return $user->hasRole('super_admin');
+        return $user->isFullAccess();
     }
 
     public function update(User $user, Store $store): bool
     {
-        return $user->hasRole('super_admin');
+        return $user->isFullAccess();
     }
 
     public function delete(User $user, Store $store): bool
     {
-        return $user->hasRole('super_admin');
+        return $user->isFullAccess();
     }
 }

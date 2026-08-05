@@ -33,7 +33,7 @@ class EditQuotation extends EditRecord
     {
         $user = auth()->user();
 
-        if ($user && ! $user->hasRole('super_admin')) {
+        if ($user && ! $user->isFullAccess()) {
             $data['store_id'] = $user->store_id;
         }
 

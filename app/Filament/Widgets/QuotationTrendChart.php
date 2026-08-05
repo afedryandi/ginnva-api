@@ -8,16 +8,26 @@ use Illuminate\Support\Carbon;
 
 class QuotationTrendChart extends ChartWidget
 {
-    protected static ?string $heading = 'Tren Quotation (12 Bulan Terakhir)';
+    protected static ?string $heading = 'Tren Quotation';
 
     protected static ?int $sort = 4;
+
+    protected function getFilters(): ?array
+    {
+        return [
+            '6'  => '6 Bulan Terakhir',
+            '12' => '12 Bulan Terakhir',
+            '24' => '24 Bulan Terakhir',
+        ];
+    }
 
     protected function getData(): array
     {
         $user = auth()->user();
-        $isSuperAdmin = $user?->hasRole('super_admin') ?? false;
+        $isSuperAdmin = $user?->isFullAccess() ?? false;
 
-        $start = Carbon::now()->subMonths(11)->startOfMonth();
+        $months = (int) ($this->filter ?? 12);
+        $start = Carbon::now()->subMonths($months - 1)->startOfMonth();
 
         $query = Quotation::query()->where('created_at', '>=', $start);
 
@@ -36,7 +46,7 @@ class QuotationTrendChart extends ChartWidget
         $labels = [];
         $data = [];
 
-        for ($i = 11; $i >= 0; $i--) {
+        for ($i = $months - 1; $i >= 0; $i--) {
             $month = Carbon::now()->subMonths($i);
             $key = $month->format('Y-m');
             $labels[] = $month->translatedFormat('M Y');
@@ -49,7 +59,13 @@ class QuotationTrendChart extends ChartWidget
                     'label' => 'Quotation Masuk',
                     'data' => $data,
                     'borderColor' => '#10b981',
-                    'backgroundColor' => 'rgba(16, 185, 129, 0.15)',
+                    'backgroundColor' => 'rgba(16, 185, 129, 0.18)',
+                    'pointBackgroundColor' => '#10b981',
+                    'pointBorderColor' => '#ffffff',
+                    'pointRadius' => 3,
+                    'pointHoverRadius' => 5,
+                    'borderWidth' => 2,
+                    'tension' => 0.4,
                     'fill' => true,
                 ],
             ],
@@ -60,5 +76,24 @@ class QuotationTrendChart extends ChartWidget
     protected function getType(): string
     {
         return 'line';
+    }
+
+    protected function getOptions(): array
+    {
+        return [
+            'plugins' => [
+                'legend' => ['display' => false],
+            ],
+            'scales' => [
+                'y' => [
+                    'beginAtZero' => true,
+                    'ticks' => ['precision' => 0],
+                    'grid' => ['color' => 'rgba(148, 163, 184, 0.12)'],
+                ],
+                'x' => [
+                    'grid' => ['display' => false],
+                ],
+            ],
+        ];
     }
 }

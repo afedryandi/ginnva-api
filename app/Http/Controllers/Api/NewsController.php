@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\ResolvesPublicFileUrl;
 use App\Http\Controllers\Controller;
 use App\Models\News;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class NewsController extends Controller
 {
+    use ResolvesPublicFileUrl;
+
     /**
      * GET /api/news
      *
@@ -108,24 +110,5 @@ class NewsController extends Controller
         }
 
         return $data;
-    }
-
-    private function fullImageUrl(?string $path): ?string
-    {
-        if (! $path) {
-            return null;
-        }
-
-        // Storage::url() bisa mengembalikan path relatif ("/storage/...")
-        // ATAU sudah full URL (kalau disk-nya S3/CDN). rtrim+ltrim di sini
-        // mencegah double-slash kalau APP_URL diakhiri "/" atau path
-        // diawali "/".
-        $relative = Storage::url($path);
-
-        if (str_starts_with($relative, 'http://') || str_starts_with($relative, 'https://')) {
-            return $relative;
-        }
-
-        return rtrim(config('app.url'), '/') . '/' . ltrim($relative, '/');
     }
 }

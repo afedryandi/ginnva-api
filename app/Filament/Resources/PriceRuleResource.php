@@ -24,11 +24,12 @@ class PriceRuleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Koefisien Harga';
 
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 40;
 
     /**
-     * Hanya super_admin yang boleh ubah — ini data master pricing nasional,
-     * bukan per-toko. regional_admin tidak perlu akses ke sini.
+     * Data master pricing nasional, bukan per-toko — aksesnya diatur lewat
+     * canAccessStaffArea() + hasMenuAccess(), jadi bisa didelegasikan ke
+     * staff/role tertentu lewat "Akses Menu".
      */
     // Disembunyikan dari navigasi — kalkulasi harga belum diimplementasikan
     // di quotation flow. Aktifkan kembali saat fitur harga otomatis siap.
@@ -39,7 +40,10 @@ class PriceRuleResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function form(Form $form): Form

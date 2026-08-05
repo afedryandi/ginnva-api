@@ -8,25 +8,30 @@ use Illuminate\Support\Carbon;
 
 class WarrantyTrendChart extends ChartWidget
 {
-    protected static ?string $heading = 'Tren Pengajuan Garansi (30 Hari Terakhir)';
+    protected static ?string $heading = 'Tren Pengajuan Garansi';
 
     protected static ?int $sort = 2;
 
     /**
-     * Sesuai mind map "data statistics" > "Time cycle content statistics"
-     * (Start/End Time). Untuk versi pertama dipakai rentang fix 30 hari
-     * terakhir; filter rentang custom bisa ditambah belakangan kalau
-     * dibutuhkan lewat getFilters().
-     *
-     * regional_admin (admin toko) hanya lihat tren tokonya sendiri,
+     * store_manager (admin toko) hanya lihat tren tokonya sendiri,
      * konsisten dengan scope di WarrantyResource & DashboardStatsWidget.
      */
+    protected function getFilters(): ?array
+    {
+        return [
+            '7'  => '7 Hari Terakhir',
+            '30' => '30 Hari Terakhir',
+            '90' => '90 Hari Terakhir',
+        ];
+    }
+
     protected function getData(): array
     {
         $user = auth()->user();
-        $isSuperAdmin = $user?->hasRole('super_admin') ?? false;
+        $isSuperAdmin = $user?->isFullAccess() ?? false;
 
-        $start = Carbon::now()->subDays(29)->startOfDay();
+        $days = (int) ($this->filter ?? 30);
+        $start = Carbon::now()->subDays($days - 1)->startOfDay();
 
         $query = Warranty::query()->where('created_at', '>=', $start);
 
@@ -56,8 +61,14 @@ class WarrantyTrendChart extends ChartWidget
                 [
                     'label' => 'Garansi Diajukan',
                     'data' => $data,
-                    'borderColor' => '#f59e0b',
-                    'backgroundColor' => 'rgba(245, 158, 11, 0.15)',
+                    'borderColor' => '#C8A96E',
+                    'backgroundColor' => 'rgba(200, 169, 110, 0.18)',
+                    'pointBackgroundColor' => '#C8A96E',
+                    'pointBorderColor' => '#ffffff',
+                    'pointRadius' => 3,
+                    'pointHoverRadius' => 5,
+                    'borderWidth' => 2,
+                    'tension' => 0.4,
                     'fill' => true,
                 ],
             ],
@@ -68,5 +79,24 @@ class WarrantyTrendChart extends ChartWidget
     protected function getType(): string
     {
         return 'line';
+    }
+
+    protected function getOptions(): array
+    {
+        return [
+            'plugins' => [
+                'legend' => ['display' => false],
+            ],
+            'scales' => [
+                'y' => [
+                    'beginAtZero' => true,
+                    'ticks' => ['precision' => 0],
+                    'grid' => ['color' => 'rgba(148, 163, 184, 0.12)'],
+                ],
+                'x' => [
+                    'grid' => ['display' => false],
+                ],
+            ],
+        ];
     }
 }

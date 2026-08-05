@@ -13,9 +13,14 @@ class CreateQuotation extends CreateRecord
     {
         $user = auth()->user();
 
-        if ($user && ! $user->hasRole('super_admin')) {
+        if ($user && ! $user->isFullAccess()) {
             $data['store_id'] = $user->store_id;
         }
+
+        // Ditandai 'staff' supaya QuotationObserver tidak kirim notifikasi
+        // "Lead Baru" — staff yang input manual sudah tahu, tidak perlu
+        // dikabari soal lead yang mereka buat sendiri.
+        $data['source'] = 'staff';
 
         return $data;
     }

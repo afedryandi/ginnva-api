@@ -26,11 +26,14 @@ class MaterialResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Materi Download';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 40;
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function form(Form $form): Form
@@ -48,6 +51,7 @@ class MaterialResource extends Resource
                             Forms\Components\TextInput::make('name')
                                 ->label('Nama Kategori')
                                 ->required()
+                                ->unique('material_categories', 'name')
                                 ->maxLength(255),
                         ])
                         ->createOptionUsing(function (array $data) {

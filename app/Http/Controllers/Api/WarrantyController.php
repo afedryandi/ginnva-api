@@ -8,11 +8,11 @@ use App\Models\PointTransaction;
 use App\Services\QrCodeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
 use App\Mail\WarrantyRegisteredMail;
 
 class WarrantyController extends Controller
@@ -39,7 +39,12 @@ class WarrantyController extends Controller
             ], 422);
         }
 
-        $warrantyCode = 'GNV-' . strtoupper(Str::random(10));
+        // warranty_code TIDAK diisi di sini — baru di-generate otomatis
+        // (nomor acak GNV-PPF-XXXXX / GNV-WF-XXXXX) begitu staff toko
+        // pilih kode gulungan lewat Filament (Select dari ScrollCode)
+        // saat mengisi Detail Instalasi. Jadi warranty_code kosong dulu
+        // sampai saat itu — lihat Warranty::booted() untuk logic auto-
+        // generate-nya.
 
         // Endpoint ini SENGAJA tetap publik (tidak wajib login) — guest
         // tanpa akun tetap bisa daftar garansi seperti biasa. Tapi kalau
@@ -64,7 +69,6 @@ class WarrantyController extends Controller
         // 'pending_review' ke luar selama belum di-approve oleh
         // super_admin lewat panel Filament.
         $warranty = Warranty::create([
-            'warranty_code'     => $warrantyCode,
             'customer_name'     => $request->customer_name,
             'phone_number'      => $request->phone_number,
             'car_plate'         => $request->car_plate,
@@ -106,32 +110,49 @@ class WarrantyController extends Controller
             ], 422);
         }
 
+        // Sesuai kebijakan garansi resmi Ginnva (tercantum di halaman
+        // produk & materi resmi lain): verifikasi mandiri bisa pakai salah
+        // satu dari nomor ponsel, plat nomor, VIN, atau kode garansi.
         $warranty = Warranty::where('warranty_code', $code)
             ->orWhere('car_plate', $code)
+            ->orWhere('vin', $code)
+            ->orWhere('phone_number', $code)
             ->first();
 
         if (!$warranty) {
             return response()->json([
                 'success' => false,
-                'message' => 'Nomor garansi atau plat nomor tidak ditemukan.',
+                'message' => 'Nomor garansi, plat nomor, VIN, atau nomor ponsel tidak ditemukan.',
             ], 404);
         }
 
         // Whitelist field yang aman untuk publik — tidak expose customer_id
+        // maupun kode gulungan (roll_number*) yang dipakai bergantian
+        // banyak mobil (lihat Warranty::booted()/WarrantyObserver untuk
+        // alasan roll_number sengaja TIDAK publik). product_category, vin,
+        // & installation_position AMAN ditambahkan — data ini sama persis
+        // dengan yang sudah bisa diakses siapa pun lewat PDF E-Warranty
+        // publik (download(), di bawah), jadi bukan exposure baru, cuma
+        // menyamakan apa yang tampil di halaman cek vs di PDF-nya.
         return response()->json([
             'success' => true,
             'data' => [
-                'id'                => $warranty->id,
-                'warranty_code'     => $warranty->warranty_code,
-                'customer_name'     => $warranty->customer_name,
-                'car_plate'         => $warranty->car_plate,
-                'car_type'          => $warranty->car_type,
-                'product_series'    => $warranty->product_series,
-                'installation_date' => $warranty->installation_date,
-                'expiry_date'       => $warranty->expiry_date,
-                'dealer_name'       => $warranty->dealer_name,
-                'review_status'     => $warranty->review_status,
-                'has_owner'         => $warranty->customer_id !== null,
+                'id'                            => $warranty->id,
+                'warranty_code'                 => $warranty->warranty_code,
+                'customer_name'                 => $warranty->customer_name,
+                'car_plate'                     => $warranty->car_plate,
+                'car_type'                      => $warranty->car_type,
+                'product_series'                => $warranty->product_series,
+                'product_category'              => $warranty->product_category,
+                'vin'                           => $warranty->vin,
+                'installation_position'         => $warranty->installation_position,
+                'installation_position_detail'  => $warranty->installation_position_detail,
+                'installation_date'             => $warranty->installation_date,
+                'expiry_date'                   => $warranty->expiry_date,
+                'dealer_name'                   => $warranty->dealer_name,
+                'status'                        => $warranty->status,
+                'review_status'                 => $warranty->review_status,
+                'has_owner'                     => $warranty->customer_id !== null,
             ],
         ], 200);
     }
@@ -145,44 +166,56 @@ class WarrantyController extends Controller
     {
         $request->validate(['warranty_code' => 'required|string']);
 
-        $warranty = Warranty::where('warranty_code', $request->warranty_code)->first();
-
-        if (!$warranty) {
-            return response()->json(['success' => false, 'message' => 'Garansi tidak ditemukan.'], 404);
-        }
-
-        if ($warranty->customer_id !== null) {
-            return response()->json(['success' => false, 'message' => 'Garansi ini sudah terhubung ke akun lain.'], 409);
-        }
-
         $customer = auth('customer')->user();
-        $warranty->update(['customer_id' => $customer->id]);
 
-        // Kalau warranty sudah approved sebelum diklaim, award poin sekarang.
-        // Observer tidak akan terpicu lagi karena review_status tidak berubah.
-        $alreadyRewarded = PointTransaction::where('reference_type', 'warranty')
-            ->where('reference_id', $warranty->id)
-            ->exists();
+        // Dibungkus transaction + lockForUpdate supaya dua request claim()
+        // yang hampir bersamaan (double-tap, atau race 2 akun berbeda)
+        // tidak bisa dua-duanya lolos cek "belum ada pemilik" / "belum
+        // pernah dapat poin" sebelum salah satu commit duluan — tanpa lock
+        // ini bisa berakibat customer_id ke-assign dobel sesaat atau poin
+        // ke-award dua kali untuk warranty yang sama.
+        return DB::transaction(function () use ($request, $customer) {
+            $warranty = Warranty::where('warranty_code', $request->warranty_code)
+                ->lockForUpdate()
+                ->first();
 
-        $pointsAwarded = false;
-        if ($warranty->review_status === 'approved' && !$alreadyRewarded) {
-            PointTransaction::create([
-                'customer_id'    => $customer->id,
-                'type'           => 'earn',
-                'points'         => 100,
-                'description'    => 'Garansi disetujui: ' . $warranty->warranty_code,
-                'reference_type' => 'warranty',
-                'reference_id'   => $warranty->id,
+            if (!$warranty) {
+                return response()->json(['success' => false, 'message' => 'Garansi tidak ditemukan.'], 404);
+            }
+
+            if ($warranty->customer_id !== null) {
+                return response()->json(['success' => false, 'message' => 'Garansi ini sudah terhubung ke akun lain.'], 409);
+            }
+
+            $warranty->update(['customer_id' => $customer->id]);
+
+            // Kalau warranty sudah approved sebelum diklaim, award poin sekarang.
+            // Observer tidak akan terpicu lagi karena review_status tidak berubah.
+            $alreadyRewarded = PointTransaction::where('reference_type', 'warranty')
+                ->where('reference_id', $warranty->id)
+                ->lockForUpdate()
+                ->exists();
+
+            $pointsAwarded = false;
+            if ($warranty->review_status === 'approved' && !$alreadyRewarded) {
+                PointTransaction::create([
+                    'customer_id'    => $customer->id,
+                    'type'           => 'earn',
+                    'points'         => 100,
+                    'description'    => 'Garansi disetujui: ' . $warranty->warranty_code,
+                    'reference_type' => 'warranty',
+                    'reference_id'   => $warranty->id,
+                ]);
+                $customer->increment('loyalty_points', 100);
+                $pointsAwarded = true;
+            }
+
+            return response()->json([
+                'success'       => true,
+                'message'       => 'Garansi berhasil dihubungkan ke akun Anda.',
+                'points_awarded' => $pointsAwarded ? 100 : 0,
             ]);
-            $customer->increment('loyalty_points', 100);
-            $pointsAwarded = true;
-        }
-
-        return response()->json([
-            'success'       => true,
-            'message'       => 'Garansi berhasil dihubungkan ke akun Anda.',
-            'points_awarded' => $pointsAwarded ? 100 : 0,
-        ]);
+        });
     }
 
     // GET /api/warranty/download/{code}

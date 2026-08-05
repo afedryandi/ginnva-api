@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class RewardRedemption extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'redeemer_type',
         'redeemer_id',
@@ -49,5 +53,20 @@ class RewardRedemption extends Model
             $redeemer instanceof Customer => $redeemer->name . ' (Customer)',
             default                       => '—',
         };
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['status', 'notes'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('reward_redemption')
+            ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
+                'created' => "Penukaran reward #{$this->id} dibuat ({$this->getRedeemerNameAttribute()})",
+                'updated' => "Penukaran reward #{$this->id} diubah ({$this->getRedeemerNameAttribute()})",
+                'deleted' => "Penukaran reward #{$this->id} dihapus",
+                default   => "Penukaran reward #{$this->id} — {$eventName}",
+            });
     }
 }

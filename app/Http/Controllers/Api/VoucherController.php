@@ -5,72 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Voucher;
 use App\Models\VoucherClaim;
-use App\Services\VoucherService;
 use Illuminate\Http\Request;
-use RuntimeException;
 
+/**
+ * Voucher sekarang FISIK (dicetak dengan kode unik masing-masing, dibagikan
+ * ke customer yang sudah bayar DP) — staff meng-assign kode voucher fisik
+ * ke akun customer lewat Filament (lihat VoucherResource\RelationManagers\
+ * ClaimsRelationManager). Customer TIDAK bisa klaim sendiri lewat app lagi
+ * (endpoint browse/claim yang lama sudah dihapus), cuma bisa lihat daftar
+ * voucher yang sudah di-assign ke akunnya di sini.
+ */
 class VoucherController extends Controller
 {
-    /**
-     * GET /api/vouchers/active
-     * Publik — dipakai buat nampilin banner "Klaim Voucher" di beranda,
-     * termasuk sisa stok, sebelum user tahu apakah dirinya sudah login.
-     */
-    public function active(Request $request)
-    {
-        $voucher = Voucher::where('is_active', true)
-            ->orderByDesc('created_at')
-            ->get()
-            ->first(fn (Voucher $v) => $v->isClaimable());
-
-        if (! $voucher) {
-            return response()->json(['success' => true, 'data' => null]);
-        }
-
-        $alreadyClaimed = false;
-        $customer = auth('customer')->user();
-        if ($customer) {
-            $alreadyClaimed = VoucherClaim::where('voucher_id', $voucher->id)
-                ->where('customer_id', $customer->id)
-                ->exists();
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'id'               => $voucher->id,
-                'name'             => $voucher->name,
-                'description'      => $voucher->description,
-                'discount_amount'  => $voucher->discount_amount,
-                'remaining_stock'  => $voucher->remainingStock(),
-                'total_stock'      => $voucher->total_stock,
-                'already_claimed'  => $alreadyClaimed,
-            ],
-        ]);
-    }
-
-    /**
-     * POST /api/customer/vouchers/{id}/claim
-     * Requires: auth:customer
-     */
-    public function claim(Request $request, int $id, VoucherService $service)
-    {
-        $customer = $request->user('customer');
-        $voucher = Voucher::findOrFail($id);
-
-        try {
-            $claim = $service->claim($customer, $voucher);
-        } catch (RuntimeException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data'    => $claim,
-            'message' => "Voucher berhasil diklaim! Kode: {$claim->code}",
-        ]);
-    }
-
     /**
      * GET /api/customer/vouchers
      * Requires: auth:customer
@@ -85,5 +31,35 @@ class VoucherController extends Controller
             ->get();
 
         return response()->json(['success' => true, 'data' => $claims]);
+    }
+
+    /**
+     * GET /api/customer/vouchers/available
+     * Publik — SENGAJA di luar auth:customer, supaya customer yang belum
+     * login pun bisa lihat promo yang berjalan dan terdorong datang ke
+     * toko (lihat banner ajakan di app/account/promo.tsx).
+     *
+     * Untuk section "Promo" di beranda/menu — daftar KAMPANYE voucher yang
+     * masih berjalan (informasi/marketing), TERPISAH dari "Voucher Saya"
+     * (voucher fisik yang sudah di-assign ke akun ini). Sengaja tetap
+     * tampil di sini walaupun customer sudah punya voucher itu — bukan
+     * untuk klaim, cuma supaya customer tahu promo apa saja yang sedang
+     * berjalan.
+     */
+    public function availableVouchers(Request $request)
+    {
+        $vouchers = Voucher::where('is_active', true)
+            ->orderByDesc('created_at')
+            ->get()
+            ->filter(fn (Voucher $v) => ! $v->expires_at || $v->expires_at->isFuture())
+            // Voucher kuota terbatas (mis. "200 pembeli pertama") yang
+            // kuotanya sudah habis TIDAK boleh ikut tampil sebagai promo
+            // "sedang berjalan" — tanpa filter ini, customer bisa
+            // terdorong datang ke toko untuk promo yang sebenarnya sudah
+            // habis, karena cuma dicek is_active & expiry, bukan stok.
+            ->filter(fn (Voucher $v) => ! $v->total_stock || $v->claimed_count < $v->total_stock)
+            ->values();
+
+        return response()->json(['success' => true, 'data' => $vouchers]);
     }
 }

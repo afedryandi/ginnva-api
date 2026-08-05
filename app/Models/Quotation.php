@@ -15,6 +15,7 @@ class Quotation extends Model
         'license_plate',
         'store_id',
         'status',
+        'source',
         'message',
     ];
 

@@ -42,8 +42,26 @@ return [
         'secret_key' => env('CHINA_API_SECRET_KEY'),
     ],
     
+    // Asisten AI (ChatController) — sempat dicoba pindah ke Gemini API,
+    // tapi project Google Cloud yang dipakai ternyata butuh billing
+    // aktif (bukan gratis seperti seharusnya untuk kasus ini), jadi
+    // dikembalikan ke Groq dengan model lebih kecil (llama-3.1-8b-instant)
+    // supaya limit token-per-menit free tier-nya lebih longgar.
     'groq' => [
         'api_key' => env('GROQ_API_KEY'),
+    ],
+
+    // WhatsApp Business Cloud API (Meta) — dipakai untuk reminder servis
+    // berkala (lihat App\Services\WhatsAppService). Diisi setelah akun
+    // Meta Business Manager + template pesan disetujui. Kalau
+    // access_token/phone_number_id kosong, WhatsAppService diam-diam
+    // skip pengiriman (log saja) — reminder Push & Email tetap jalan
+    // tanpa menunggu ini.
+    'whatsapp' => [
+        'access_token'    => env('WHATSAPP_ACCESS_TOKEN'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'template_name'   => env('WHATSAPP_TEMPLATE_SERVICE_REMINDER', 'service_reminder'),
+        'template_lang'   => env('WHATSAPP_TEMPLATE_LANG', 'id'),
     ],
 
     'fcm' => [

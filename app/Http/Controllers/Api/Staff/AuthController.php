@@ -19,13 +19,6 @@ use Illuminate\Support\Facades\Mail;
  */
 class AuthController extends Controller
 {
-    private const STAFF_ROLES = ['super_admin', 'regional_admin', 'installer'];
-
-    // Partner login lewat endpoint yang sama persis dengan staff (password,
-    // guard 'api', tabel users) — bedanya cuma role. Mobile app membedakan
-    // tampilan partner vs staff dari field `role` di response login/me.
-    private const PASSWORD_LOGIN_ROLES = ['super_admin', 'regional_admin', 'installer', 'partner'];
-
     /**
      * POST /api/auth/detect-role
      *
@@ -34,6 +27,14 @@ class AuthController extends Controller
      * tampilkan alur yang tepat (password untuk staff, OTP untuk
      * customer) tanpa user perlu pilih menu login yang berbeda.
      *
+     * SENGAJA cuma cek "ada barisnya di tabel users atau tidak" — TIDAK
+     * dibatasi ke daftar role tertentu. Tabel `users` ini memang khusus
+     * akun staff/admin/partner (customer punya tabel & login OTP sendiri
+     * yang terpisah total), jadi role apa pun yang ada di baris itu tetap
+     * berarti "staff". Ini juga supaya role baru yang dibuat admin sendiri
+     * lewat Filament (lihat RoleResource) otomatis bisa login tanpa perlu
+     * ada yang update kode di sini setiap kali ada role baru.
+     *
      * Publik & tidak throttle ketat (cuma exists-check, tidak membocorkan
      * info sensitif — hanya "staff" atau "customer").
      */
@@ -41,9 +42,7 @@ class AuthController extends Controller
     {
         $request->validate(['email' => 'required|email']);
 
-        $isStaff = User::where('email', $request->email)
-            ->whereHas('roles', fn ($q) => $q->whereIn('name', self::PASSWORD_LOGIN_ROLES))
-            ->exists();
+        $isStaff = User::where('email', $request->email)->exists();
 
         return response()->json(['role' => $isStaff ? 'staff' : 'customer']);
     }
@@ -61,8 +60,16 @@ class AuthController extends Controller
             return response()->json(['success' => false, 'message' => 'Email atau password salah.'], 401);
         }
 
-        if (! $user->hasAnyRole(self::PASSWORD_LOGIN_ROLES)) {
-            return response()->json(['success' => false, 'message' => 'Akun ini tidak memiliki akses staff.'], 403);
+        // Partner yang dinonaktifkan admin (Partner::status) sebelumnya
+        // masih bisa login & dapat token baru — status cuma ditegakkan
+        // saat earning poin referral (lihat ReferralPointService), bukan
+        // di gerbang akses ini. Staff/role lain tidak punya relasi
+        // partner sama sekali jadi tidak terdampak.
+        if ($user->partner && $user->partner->status !== 'active') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun partner ini sedang nonaktif. Hubungi tim Ginnva untuk informasi lebih lanjut.',
+            ], 403);
         }
 
         $token = Auth::guard('api')->login($user);
@@ -100,16 +107,22 @@ class AuthController extends Controller
     {
         $request->validate(['email' => 'required|email']);
 
-        $user = User::where('email', $request->email)
-            ->whereHas('roles', fn ($q) => $q->whereIn('name', self::PASSWORD_LOGIN_ROLES))
-            ->first();
+        $user = User::where('email', $request->email)->first();
 
         // Selalu balas sukses terlepas dari email terdaftar atau tidak —
         // supaya endpoint ini tidak bisa dipakai untuk enumerasi akun
         // staff mana saja yang valid.
         if ($user) {
             $otp = OtpCode::generateFor($request->email, 'staff_reset_password');
-            Mail::to($request->email)->send(new OtpMail($otp->code));
+
+            // Tetap balas sukses generik di luar blok ini walau kirim
+            // gagal (mis. domain email staff bermasalah) — konsisten
+            // dengan desain anti-enumerasi di atas, cukup dicatat di log.
+            try {
+                Mail::to($request->email)->send(new OtpMail($otp->code));
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('[OtpMail/StaffReset] Gagal kirim: ' . $e->getMessage());
+            }
         }
 
         return response()->json([
@@ -139,9 +152,7 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $user = User::where('email', $request->email)
-            ->whereHas('roles', fn ($q) => $q->whereIn('name', self::PASSWORD_LOGIN_ROLES))
-            ->first();
+        $user = User::where('email', $request->email)->first();
 
         if (! $user) {
             return response()->json(['success' => false, 'message' => 'Akun tidak ditemukan.'], 404);

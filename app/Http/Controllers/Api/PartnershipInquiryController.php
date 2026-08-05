@@ -24,7 +24,7 @@ class PartnershipInquiryController extends Controller
             'phone_number'   => 'required|string|max:30',
             'email'          => 'required|email|max:255',
             'city'           => 'required|string|max:255',
-            'message'        => 'nullable|string',
+            'message'        => 'nullable|string|max:2000',
         ]);
 
         if ($validator->fails()) {

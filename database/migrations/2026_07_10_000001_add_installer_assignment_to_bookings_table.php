@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Penugasan installer per booking — role baru 'installer' hanya boleh
  * lihat & chat di booking yang di-assign ke dirinya (beda dari
- * regional_admin yang scope-nya 1 toko penuh). Ditugaskan oleh Store
+ * store_manager yang scope-nya 1 toko penuh). Ditugaskan oleh Store
  * Manager/Direksi lewat Filament (Select field di BookingResource).
  */
 return new class extends Migration

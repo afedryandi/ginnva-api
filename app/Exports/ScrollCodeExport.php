@@ -21,16 +21,22 @@ class ScrollCodeExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
     public function headings(): array
     {
         return [
-            'Kode', 'Produk Film', 'Toko', 'Status',
+            'Kode', 'Produk Film', 'Tipe', 'Posisi', 'Toko', 'Status',
             'No. Garansi', 'Dialokasi Pada', 'Dipakai Pada', 'Dibuat Pada',
         ];
     }
 
     public function map($row): array
     {
+        $fp = $row->filmProduct;
+
         return [
             $row->code,
-            $row->filmProduct?->name ?? '—',
+            $fp?->name ?? '—',
+            $fp ? ($fp->product_type === 'ppf' ? 'PPF' : 'Kaca Film') : '—',
+            ($fp && $fp->product_type === 'window_film')
+                ? ($fp->position === 'front' ? 'Kaca Depan' : 'Samping & Belakang')
+                : '—',
             $row->store?->name ?? '—',
             match ($row->status) {
                 'unallocated' => 'Belum Dialokasi',

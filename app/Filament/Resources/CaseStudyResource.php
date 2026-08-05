@@ -20,6 +20,8 @@ class CaseStudyResource extends Resource
 
     protected static ?string $navigationGroup = 'Konten';
 
+    protected static ?int $navigationSort = 30;
+
     protected static ?string $navigationLabel = 'Galeri Pemasangan';
 
     protected static ?string $modelLabel = 'Galeri Pemasangan';
@@ -28,12 +30,15 @@ class CaseStudyResource extends Resource
 
     /**
      * Sama seperti VehicleResource/FilmProductResource — data master
-     * company-wide, semua admin (super_admin & regional_admin) boleh
+     * company-wide, semua admin (super_admin & staff toko) boleh
      * lihat & kelola, tidak ber-scope toko.
      */
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function form(Form $form): Form

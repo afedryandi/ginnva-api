@@ -9,7 +9,7 @@ return new class extends Migration
     /**
      * Menambahkan store_id ke warranties supaya data garansi bisa
      * dikaitkan ke toko/dealer tertentu (dipakai untuk scoping
-     * regional_admin di Filament).
+     * store_manager di Filament).
      *
      * Nullable & tidak menggantikan kolom `dealer_name` (tetap dipakai
      * untuk tampilan publik / data lama yang belum dikaitkan ke store).

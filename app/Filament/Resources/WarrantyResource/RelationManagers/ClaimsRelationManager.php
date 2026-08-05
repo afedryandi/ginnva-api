@@ -17,7 +17,7 @@ class ClaimsRelationManager extends RelationManager
 
     protected static ?string $modelLabel = 'Klaim';
 
-    // Admin toko (regional_admin) boleh AJUKAN klaim baru atas nama
+    // Admin toko (store_manager) boleh AJUKAN klaim baru atas nama
     // customer (misal customer datang langsung ke toko) — ini default
     // Filament (create diizinkan kecuali dioverride). Hanya super_admin
     // yang boleh pass/reject, diatur lewat ->visible() pada masing-masing
@@ -93,7 +93,11 @@ class ClaimsRelationManager extends RelationManager
                     ]),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                // Klaim after-sales cuma masuk akal atas warranty yang
+                // sudah lolos QA Certificate review — kalau masih
+                // pending_review/rejected, garansinya belum/tidak sah.
+                Tables\Actions\CreateAction::make()
+                    ->visible(fn () => $this->getOwnerRecord()->review_status === 'approved'),
             ])
             ->actions([
                 // Pass/Reject hanya untuk super_admin, sama seperti review
@@ -102,7 +106,7 @@ class ClaimsRelationManager extends RelationManager
                     ->label('Pass')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn ($record) => auth()->user()?->hasRole('super_admin') && $record->status === 'pending')
+                    ->visible(fn ($record) => auth()->user()?->isFullAccess() && $record->status === 'pending')
                     ->requiresConfirmation()
                     ->action(function ($record) {
                         $record->update([
@@ -122,7 +126,7 @@ class ClaimsRelationManager extends RelationManager
                     ->label('Reject')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn ($record) => auth()->user()?->hasRole('super_admin') && $record->status === 'pending')
+                    ->visible(fn ($record) => auth()->user()?->isFullAccess() && $record->status === 'pending')
                     ->form([
                         Forms\Components\Textarea::make('rejection_reason')
                             ->label('Alasan Reject')
@@ -142,8 +146,14 @@ class ClaimsRelationManager extends RelationManager
                             ->send();
                     }),
 
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                // Begitu klaim sudah di-pass/reject, itu jadi riwayat resmi
+                // — cuma super_admin yang boleh koreksi/hapus (mis. kalau
+                // memang ada salah input). Store Manager masih bebas
+                // edit/hapus SELAMA klaim masih 'pending' (belum diputuskan).
+                Tables\Actions\EditAction::make()
+                    ->visible(fn ($record) => $record->status === 'pending' || auth()->user()?->isFullAccess()),
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn ($record) => $record->status === 'pending' || auth()->user()?->isFullAccess()),
             ])
             ->defaultSort('created_at', 'desc');
     }

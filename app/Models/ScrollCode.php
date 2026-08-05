@@ -11,6 +11,8 @@ class ScrollCode extends Model
         'film_product_id',
         'store_id',
         'status',
+        'usage_count',
+        'max_usage',
         'allocated_at',
         'used_at',
         'warranty_code',

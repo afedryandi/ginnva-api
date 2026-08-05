@@ -73,6 +73,7 @@ class QuotationController extends Controller
         try {
             $request->validate([
                 'vehicle_id'      => 'required|exists:vehicles,id',
+                'store_id'        => 'required|exists:stores,id',
                 'customer_name'   => 'required|string|max:255',
                 'customer_email'  => 'required|email|max:255',
                 'customer_phone'  => 'required|string|max:30',
@@ -90,16 +91,18 @@ class QuotationController extends Controller
         }
 
         $quotation = DB::transaction(function () use ($request) {
-            $quotationNumber = 'INQ-' . date('Ym') . '-' . strtoupper(Str::random(4));
+            $quotationNumber = $this->generateQuotationNumber();
 
             $quotation = Quotation::create([
                 'quotation_number' => $quotationNumber,
                 'vehicle_id'       => $request->vehicle_id,
+                'store_id'         => $request->store_id,
                 'customer_name'    => $request->customer_name,
                 'customer_phone'   => $request->customer_phone,
                 'customer_email'   => $request->customer_email,
                 'license_plate'    => $request->license_plate,
                 'status'           => 'new',
+                'source'           => 'customer',
                 'message'          => $request->message,
             ]);
 
@@ -127,5 +130,23 @@ class QuotationController extends Controller
                 'quotation_number' => $quotation->quotation_number,
             ],
         ], 201);
+    }
+
+    /**
+     * Sebelumnya nomor di-generate sekali tanpa cek unik sama sekali,
+     * padahal quotation_number UNIQUE di database — kalau ada tabrakan
+     * (2 submission di bulan yang sama dapat 4 karakter acak yang sama),
+     * customer dapat 500 mentah. Prefix "INQ-" (beda dari "QTN-" yang
+     * dipakai QuotationResource::generateQuotationNumber() untuk quotation
+     * yang dibuat manual staff) sengaja dipertahankan supaya asal lead
+     * customer vs entri manual tetap bisa dibedakan dari nomornya.
+     */
+    private function generateQuotationNumber(): string
+    {
+        do {
+            $candidate = 'INQ-' . date('Ym') . '-' . strtoupper(Str::random(4));
+        } while (Quotation::where('quotation_number', $candidate)->exists());
+
+        return $candidate;
     }
 }

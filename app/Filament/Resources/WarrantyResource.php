@@ -10,6 +10,7 @@ use App\Models\FilmProduct;
 use App\Models\ScrollCode;
 use App\Models\Store;
 use App\Models\Warranty;
+use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -17,6 +18,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
 class WarrantyResource extends Resource
@@ -27,6 +29,8 @@ class WarrantyResource extends Resource
 
     protected static ?string $navigationGroup = 'Operasional';
 
+    protected static ?int $navigationSort = 50;
+
     protected static ?string $navigationLabel = 'Garansi';
 
     protected static ?string $modelLabel = 'Garansi';
@@ -34,7 +38,7 @@ class WarrantyResource extends Resource
     protected static ?string $pluralModelLabel = 'Garansi';
 
     /**
-     * regional_admin (admin toko) hanya melihat garansi milik store-nya,
+     * store_manager (admin toko) hanya melihat garansi milik store-nya,
      * atau data lama yang belum punya store_id. super_admin lihat semua.
      */
     public static function getEloquentQuery(): Builder
@@ -42,7 +46,7 @@ class WarrantyResource extends Resource
         $query = parent::getEloquentQuery();
         $user = auth()->user();
 
-        if ($user && ! $user->hasRole('super_admin')) {
+        if ($user && ! $user->isFullAccess()) {
             $query->where(function (Builder $q) use ($user) {
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
@@ -69,21 +73,80 @@ class WarrantyResource extends Resource
         return 'warning';
     }
 
+    /**
+     * Logika approve/reject/extend garansi — SATU sumber kebenaran,
+     * dipanggil dari 3 tempat yang sebelumnya copy-paste sendiri-sendiri
+     * (table row action, EditWarranty, ViewWarranty). Cosmetic wiring
+     * (label/icon/color/visible/form) tetap lokal di masing-masing
+     * tempat karena jarang berubah dan beda API antara Tables\Actions\Action
+     * vs Filament\Actions\Action — tapi mutasi datanya (bagian yang
+     * paling rawan bug kalau lupa disinkronkan) sekarang cuma di sini.
+     */
+    public static function performApprove(Warranty $warranty): void
+    {
+        $warranty->update([
+            'review_status'    => 'approved',
+            'rejection_reason' => null,
+            'reviewed_by'      => auth()->id(),
+            'reviewed_at'      => now(),
+        ]);
+
+        Notification::make()->title('Garansi disetujui')->success()->send();
+    }
+
+    public static function performReject(Warranty $warranty, string $reason): void
+    {
+        $warranty->update([
+            'review_status'    => 'rejected',
+            'rejection_reason' => $reason,
+            'reviewed_by'      => auth()->id(),
+            'reviewed_at'      => now(),
+        ]);
+
+        Notification::make()->title('Garansi ditolak')->warning()->send();
+    }
+
+    public static function performExtend(Warranty $warranty, int $years): void
+    {
+        // Lock row-nya — SEBELUMNYA baca-lalu-tulis tanpa lock, jadi kalau
+        // tombol "Perpanjang Garansi" diklik dobel/hampir bersamaan, dua
+        // request bisa dua-duanya baca extension_years yang sama sebelum
+        // salah satu commit (lost update) — satu klik perpanjangan bisa
+        // hilang diam-diam.
+        DB::transaction(function () use ($warranty, $years) {
+            $locked = Warranty::where('id', $warranty->id)->lockForUpdate()->first();
+
+            if (! $locked->original_expiry_date) {
+                $locked->original_expiry_date = $locked->expiry_date;
+            }
+
+            $locked->extension_years += $years;
+            $locked->expiry_date = Carbon::parse($locked->original_expiry_date)
+                ->addYears($locked->extension_years);
+            $locked->save();
+
+            $warranty->refresh();
+        });
+
+        Notification::make()->title("Garansi diperpanjang +{$years} tahun")->success()->send();
+    }
+
     public static function form(Form $form): Form
     {
-        $isSuperAdmin = auth()->user()?->hasRole('super_admin');
+        $isSuperAdmin = auth()->user()?->isFullAccess();
 
         return $form->schema([
             Forms\Components\Section::make('Data Garansi')
                 ->columns(2)
                 ->schema([
-                    Forms\Components\TextInput::make('warranty_code')
+                    // Tidak diisi manual — nomor sekuensial GNV-PPF-00001 /
+                    // GNV-WF-00001 dst, di-generate sekali begitu kode
+                    // gulungan pertama diisi (lihat Warranty::booted()).
+                    // Placeholder ini cuma info, bukan input.
+                    Forms\Components\Placeholder::make('warranty_code_info')
                         ->label('Kode Garansi')
-                        ->default(fn () => static::generateWarrantyCode())
-                        ->required()
-                        ->unique(ignoreRecord: true)
-                        ->disabledOn('edit')
-                        ->maxLength(255),
+                        ->content(fn (?Warranty $record) => $record?->warranty_code
+                            ?? 'Otomatis begitu Detail Instalasi di bawah diisi'),
 
                     Forms\Components\TextInput::make('customer_name')
                         ->label('Nama Pelanggan')
@@ -192,15 +255,50 @@ class WarrantyResource extends Resource
                     Forms\Components\Select::make('roll_number')
                         ->label('Kode Gulungan')
                         ->placeholder('Pilih atau ketik kode dari gulungan fisik')
-                        ->options(fn (?Warranty $record) => ScrollCode::query()
+                        // Difilter product_type='ppf' lewat filmProduct-nya —
+                        // sebelumnya query ini tidak difilter sama sekali,
+                        // jadi kode gulungan Window Film ikut nyelip di sini.
+                        // Kode yang sudah kepilih di roll_number_2 dikecualikan
+                        // supaya staff tidak bisa pilih gulungan yang sama
+                        // persis 2x untuk 1 mobil.
+                        ->options(fn (?Warranty $record, Forms\Get $get) => ScrollCode::query()
+                            ->whereHas('filmProduct', fn ($q) => $q->where('product_type', 'ppf'))
                             ->where(fn ($q) => $q
                                 ->where('status', 'allocated')
                                 ->orWhere('code', $record?->roll_number)
                             )
+                            ->when($get('roll_number_2'), fn ($q, $excluded) => $q->where('code', '!=', $excluded))
                             ->pluck('code', 'code')
                         )
                         ->searchable()
+                        ->live()
                         ->helperText('Pilih kode gulungan PPF yang digunakan. Kode akan otomatis ditandai terpakai.'),
+
+                    Forms\Components\Select::make('roll_number_2')
+                        ->label('Kode Gulungan Kedua (opsional)')
+                        ->placeholder('Pilih kalau mobil ini butuh 2 gulungan')
+                        // Sebagian mobil (biasanya bodi besar) tidak cukup
+                        // dilapisi 1 gulungan PPF — field ini opsional,
+                        // diperlakukan SAMA PERSIS seperti roll_number
+                        // (single-use, langsung 'used' begitu dipakai).
+                        ->options(fn (?Warranty $record, Forms\Get $get) => ScrollCode::query()
+                            ->whereHas('filmProduct', fn ($q) => $q->where('product_type', 'ppf'))
+                            ->where(fn ($q) => $q
+                                ->where('status', 'allocated')
+                                ->orWhere('code', $record?->roll_number_2)
+                            )
+                            ->when($get('roll_number'), fn ($q, $excluded) => $q->where('code', '!=', $excluded))
+                            ->pluck('code', 'code')
+                        )
+                        ->searchable()
+                        ->live()
+                        // Exclude di options() di atas cuma UI (bisa lolos
+                        // lewat back/forward browser atau race klik cepat)
+                        // — rule ini yang benar-benar menegakkan di sisi
+                        // server saat form disimpan.
+                        ->rules(['different:roll_number'])
+                        ->validationMessages(['different' => 'Kode Gulungan Kedua tidak boleh sama dengan Kode Gulungan (pertama).'])
+                        ->helperText('Isi kalau 1 gulungan tidak cukup untuk mobil ini (mis. bodi besar). Kosongkan kalau cukup 1 gulungan.'),
                 ])
                 ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf'),
 
@@ -210,46 +308,64 @@ class WarrantyResource extends Resource
                     Forms\Components\Select::make('roll_number_front')
                         ->label('Kode Gulungan — Kaca Depan')
                         ->placeholder('Pilih kode gulungan kaca depan')
+                        ->helperText('Cuma menampilkan gulungan yang terdaftar untuk posisi kaca depan. 1 gulungan bisa dipakai berkali-kali (~30 mobil) — tetap muncul di pilihan sampai ditandai habis manual. Kode Garansi mobil ini di-generate otomatis terpisah (GNV-WF-XXXXX), bukan dari kode gulungan ini.')
+                        // Difilter product_type='window_film' + posisi
+                        // 'front' lewat filmProduct-nya — supaya staff cuma
+                        // lihat gulungan Window Film yang relevan untuk kaca
+                        // depan (bukan ikut kecampur kode gulungan PPF).
+                        // Kaca depan & samping/belakang selalu produk (seri)
+                        // berbeda — tidak ada produk yang dipakai di
+                        // keduanya, jadi tidak perlu whereIn('all').
                         ->options(fn (?Warranty $record) => ScrollCode::query()
+                            ->whereHas('filmProduct', fn ($q) => $q
+                                ->where('product_type', 'window_film')
+                                ->where('position', 'front'))
                             ->where(fn ($q) => $q
                                 ->where('status', 'allocated')
                                 ->orWhere('code', $record?->roll_number_front)
                             )
-                            ->pluck('code', 'code')
+                            ->with('filmProduct')
+                            ->get()
+                            ->mapWithKeys(fn (ScrollCode $sc) => [
+                                $sc->code => $sc->filmProduct ? "{$sc->code} — {$sc->filmProduct->name}" : $sc->code,
+                            ])
                         )
+                        ->live()
                         ->searchable(),
 
                     Forms\Components\Select::make('roll_number_side_rear')
                         ->label('Kode Gulungan — Kaca Samping & Belakang')
                         ->placeholder('Pilih kode gulungan kaca samping & belakang')
+                        ->helperText('Cuma menampilkan gulungan yang terdaftar untuk posisi kaca samping/belakang. Isi kalau mobil ini juga pasang di posisi ini.')
+                        // Difilter product_type='window_film' + posisi
+                        // 'side_rear' — sama seperti dropdown kaca depan
+                        // di atas.
                         ->options(fn (?Warranty $record) => ScrollCode::query()
+                            ->whereHas('filmProduct', fn ($q) => $q
+                                ->where('product_type', 'window_film')
+                                ->where('position', 'side_rear'))
                             ->where(fn ($q) => $q
                                 ->where('status', 'allocated')
                                 ->orWhere('code', $record?->roll_number_side_rear)
                             )
-                            ->pluck('code', 'code')
+                            ->with('filmProduct')
+                            ->get()
+                            ->mapWithKeys(fn (ScrollCode $sc) => [
+                                $sc->code => $sc->filmProduct ? "{$sc->code} — {$sc->filmProduct->name}" : $sc->code,
+                            ])
                         )
+                        ->live()
                         ->searchable(),
 
-                    Forms\Components\Select::make('film_model_front')
-                        ->label('Tipe Film — Kaca Depan')
-                        ->placeholder('Pilih seri film kaca depan')
-                        ->options(fn () => FilmProduct::where('is_active', true)
-                            ->where('product_type', 'window_film')
-                            ->where('position', 'front')
-                            ->pluck('name', 'name')
-                        )
-                        ->searchable(),
-
-                    Forms\Components\Select::make('film_model_side_rear')
-                        ->label('Tipe Film — Kaca Samping & Belakang')
-                        ->placeholder('Pilih seri film kaca samping & belakang')
-                        ->options(fn () => FilmProduct::where('is_active', true)
-                            ->where('product_type', 'window_film')
-                            ->where('position', 'side_rear')
-                            ->pluck('name', 'name')
-                        )
-                        ->searchable(),
+                    // Placeholder "Tipe Film" dihapus — cuma duplikat info
+                    // yang sudah tampil di label opsi dropdown kode gulungan
+                    // di atas ("{kode} — {nama produk}"), dan membingungkan
+                    // di form Tambah Garansi baru karena Placeholder baca
+                    // dari $record (baru terisi SETELAH save), jadi selalu
+                    // kelihatan kosong walau kode gulungan sudah dipilih.
+                    // Data film_model_front/film_model_side_rear sendiri
+                    // TETAP disimpan (lihat Warranty::booted()) — masih
+                    // dipakai di Export Excel & PDF E-Warranty.
                 ])
                 ->visible(fn (Forms\Get $get) => $get('product_category') === 'window_film'),
 
@@ -353,8 +469,8 @@ class WarrantyResource extends Resource
                     ->label('Status Garansi')
                     ->colors([
                         'success' => 'active',
-                        'danger' => 'expired',
-                        'warning' => fn ($state) => in_array($state, ['pending', 'pending_review', 'rejected']),
+                        'danger'  => fn ($state) => in_array($state, ['expired', 'rejected']),
+                        'warning' => fn ($state) => in_array($state, ['pending', 'pending_review']),
                     ]),
 
                 Tables\Columns\TextColumn::make('expiry_date')
@@ -388,7 +504,7 @@ class WarrantyResource extends Resource
                     ->label('Export ke Excel')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
-                    ->visible(fn () => auth()->user()?->hasRole('super_admin') ?? false)
+                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
                     ->form([
                         Forms\Components\DatePicker::make('start_date')
                             ->label('Dari Tanggal (opsional)')
@@ -416,13 +532,40 @@ class WarrantyResource extends Resource
                         'rejected' => 'Rejected',
                     ]),
 
+                // Opsi & hasil filter ini SENGAJA dibuat sama persis dengan
+                // apa yang ditampilkan BadgeColumn 'status' di atas (yang
+                // mengikuti accessor Warranty::getStatusAttribute(), bisa
+                // menampilkan pending_review/rejected juga) — supaya staff
+                // tidak bingung memfilter "Active" tapi hasilnya ada baris
+                // yang badge-nya kelihatan "Pending Review" (kolom `status`
+                // mentah di database cuma punya active/expired/pending,
+                // beda dari apa yang sebenarnya ditampilkan ke staff).
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status Garansi')
                     ->options([
-                        'active' => 'Active',
-                        'expired' => 'Expired',
-                        'pending' => 'Pending',
-                    ]),
+                        'active'         => 'Active',
+                        'expired'        => 'Expired',
+                        'pending'        => 'Pending',
+                        'pending_review' => 'Pending Review',
+                        'rejected'       => 'Rejected',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        $value = $data['value'] ?? null;
+
+                        return match ($value) {
+                            'pending_review' => $query->where('review_status', 'pending_review'),
+                            'rejected'       => $query->where('review_status', 'rejected'),
+                            'expired'        => $query->where('review_status', 'approved')
+                                ->whereDate('expiry_date', '<', now()),
+                            'active'         => $query->where('review_status', 'approved')
+                                ->where('status', 'active')
+                                ->whereDate('expiry_date', '>=', now()),
+                            'pending'        => $query->where('review_status', 'approved')
+                                ->where('status', 'pending')
+                                ->whereDate('expiry_date', '>=', now()),
+                            default          => $query,
+                        };
+                    }),
 
                 Tables\Filters\SelectFilter::make('product_category')
                     ->label('Kategori Produk')
@@ -434,7 +577,7 @@ class WarrantyResource extends Resource
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
                     ->relationship('store', 'name')
-                    ->visible(fn () => auth()->user()?->hasRole('super_admin')),
+                    ->visible(fn () => auth()->user()?->isFullAccess()),
 
                 Tables\Filters\Filter::make('created_at')
                     ->label('Rentang Tanggal Diajukan')
@@ -455,53 +598,36 @@ class WarrantyResource extends Resource
                     ->label('Approve')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (Warranty $record) => auth()->user()?->hasRole('super_admin') && $record->review_status === 'pending_review')
+                    ->visible(fn (Warranty $record) => auth()->user()?->isFullAccess() && $record->review_status === 'pending_review')
                     ->requiresConfirmation()
-                    ->action(function (Warranty $record) {
-                        $record->update([
-                            'review_status' => 'approved',
-                            'rejection_reason' => null,
-                            'reviewed_by' => auth()->id(),
-                            'reviewed_at' => now(),
-                        ]);
-
-                        Notification::make()
-                            ->title('Garansi disetujui')
-                            ->success()
-                            ->send();
-                    }),
+                    ->action(fn (Warranty $record) => static::performApprove($record)),
 
                 Tables\Actions\Action::make('reject')
                     ->label('Reject')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn (Warranty $record) => auth()->user()?->hasRole('super_admin') && $record->review_status === 'pending_review')
+                    ->visible(fn (Warranty $record) => auth()->user()?->isFullAccess() && $record->review_status === 'pending_review')
                     ->form([
                         Forms\Components\Textarea::make('rejection_reason')
                             ->label('Alasan Reject')
                             ->required(),
                     ])
-                    ->action(function (Warranty $record, array $data) {
-                        $record->update([
-                            'review_status' => 'rejected',
-                            'rejection_reason' => $data['rejection_reason'],
-                            'reviewed_by' => auth()->id(),
-                            'reviewed_at' => now(),
-                        ]);
-
-                        Notification::make()
-                            ->title('Garansi ditolak')
-                            ->warning()
-                            ->send();
-                    }),
+                    ->action(fn (Warranty $record, array $data) => static::performReject($record, $data['rejection_reason'])),
 
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                // SEBELUMNYA tidak dibatasi sama sekali — padahal Approve/
+                // Reject di atas sengaja dikunci super_admin. Akibatnya
+                // Store Manager biasa bisa hapus permanen garansi yang
+                // sudah di-approve (plus riwayat klaimnya), padahal tidak
+                // boleh sekalipun cuma reject. Disamakan aturannya.
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
@@ -522,16 +648,5 @@ class WarrantyResource extends Resource
             'view'   => Pages\ViewWarranty::route('/{record}'),
             'edit'   => Pages\EditWarranty::route('/{record}/edit'),
         ];
-    }
-
-    public static function generateWarrantyCode(): string
-    {
-        do {
-            $candidate = 'GNV-' . now()->format('Y') . '-' . str_pad(
-                random_int(1, 99999), 5, '0', STR_PAD_LEFT
-            );
-        } while (static::getModel()::where('warranty_code', $candidate)->exists());
-
-        return $candidate;
     }
 }

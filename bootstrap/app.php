@@ -21,6 +21,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // Middleware CORS bawaan Laravel 11 — wajib supaya frontend Vercel
         // (domain berbeda) bisa fetch ke API ini tanpa diblok browser.
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+
+        // Supaya spatie/laravel-activitylog tahu "siapa" yang melakukan
+        // aksi lewat mobile app (guard 'api'), bukan cuma lewat Filament
+        // (guard 'web', sudah otomatis ke-detect oleh package-nya).
+        $middleware->api(append: [\App\Http\Middleware\SetActivityLogCauser::class]);
+
+        // Ganti middleware 'auth' bawaan dengan versi yang tidak pernah
+        // coba redirect ke route('login') — lihat App\Http\Middleware\
+        // Authenticate untuk alasannya (project ini API-only).
+        $middleware->alias(['auth' => \App\Http\Middleware\Authenticate::class]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Kirim semua exception yang lolos ke Sentry (error tracking).

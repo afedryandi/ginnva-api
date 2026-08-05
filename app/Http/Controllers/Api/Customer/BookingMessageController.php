@@ -5,8 +5,9 @@ namespace App\Http\Controllers\Api\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingMessage;
+use App\Models\CustomerGalleryPhoto;
+use App\Models\StoreReview;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class BookingMessageController extends Controller
 {
@@ -23,16 +24,24 @@ class BookingMessageController extends Controller
             ->firstOrFail();
 
         // Nested eager-load supaya chatDisplayLabel() (butuh nama toko
-        // utk regional_admin) tidak N+1 per pesan.
-        $messages = $booking->messages()->with('senderUser.store:id,name')->get();
+        // utk staff toko) tidak N+1 per pesan.
+        $messages = $booking->messages()->with(['senderUser.store:id,name', 'photos'])->get();
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'current_stage'   => $booking->current_stage,
-                'stages'          => BookingMessage::STAGES,
-                'messages'        => $messages->map(fn (BookingMessage $m) => $this->transform($m)),
-                'store'           => $booking->store,
+                'current_stage'     => $booking->current_stage,
+                'secondary_stage'   => $booking->secondary_stage,
+                'product_kaca_film' => $booking->product_kaca_film,
+                'product_ppf'       => $booking->product_ppf,
+                'stages'            => BookingMessage::allStages(),
+                'product_stages'    => BookingMessage::PRODUCT_STAGES,
+                'shared_stages'     => BookingMessage::SHARED_STAGES,
+                'messages'          => $messages->map(fn (BookingMessage $m) => $this->transform($m)),
+                'store'             => $booking->store,
+                // Supaya mobile app tahu kapan tampilkan banner
+                // "beri review" — sekali sudah direview, jangan tampil lagi.
+                'has_review'        => StoreReview::where('booking_id', $booking->id)->exists(),
             ],
         ]);
     }
@@ -40,17 +49,27 @@ class BookingMessageController extends Controller
     /**
      * GET /api/customer/my-gallery
      *
-     * Galeri pemasangan PERSONAL — beda dari galeri publik (/api/case-studies)
-     * yang isinya kurasi admin untuk showcase umum. Ini murni foto yang
-     * benar-benar dikirim admin toko ke booking milik customer yang login,
-     * dikelompokkan per booking (booking tidak menyimpan data kendaraan
-     * spesifik, jadi konteksnya pakai jenis layanan + toko + tanggal).
+     * Gabungan 2 sumber foto:
+     * 1. Galeri PERSONAL per-booking — auto-terbentuk dari foto yang
+     *    dikirim admin toko lewat chat booking (BookingMessage.photo_path).
+     * 2. Galeri "showcase" — di-upload staff langsung dari Filament lewat
+     *    CustomerGalleryPhotoResource, TIDAK terikat booking tertentu,
+     *    ditandai `is_featured` supaya bisa dipilih tampil di beranda.
+     * Dua-duanya beda dari galeri publik (/api/case-studies) yang isinya
+     * kurasi admin untuk showcase umum, tidak terikat 1 customer.
      */
     public function gallery(Request $request)
     {
-        $bookings = Booking::where('customer_id', $request->user('customer')->id)
+        $customerId = $request->user('customer')->id;
+
+        $bookings = Booking::where('customer_id', $customerId)
             ->with(['store:id,name', 'messages' => function ($q) {
-                $q->whereNotNull('photo_path')->orderBy('created_at');
+                // whereHas photos ATAU masih punya photo_path lama (pesan
+                // sebelum tabel booking_message_photos ada) — lihat catatan
+                // migration-nya.
+                $q->where(fn ($qq) => $qq->whereHas('photos')->orWhereNotNull('photo_path'))
+                    ->with('photos')
+                    ->orderBy('created_at');
             }])
             ->orderByDesc('preferred_date')
             ->get()
@@ -63,13 +82,47 @@ class BookingMessageController extends Controller
             'service_type'   => $b->service_type,
             'store_name'     => $b->store?->name,
             'preferred_date' => $b->preferred_date,
-            'photos'         => $b->messages->map(fn (BookingMessage $m) => [
-                'id'          => $m->id,
-                'url'         => $this->fullImageUrl($m->photo_path),
-                'stage_label' => $m->stage ? (BookingMessage::STAGES[$m->stage] ?? $m->stage) : null,
-                'created_at'  => $m->created_at,
-            ])->values(),
-        ]);
+            // 1 pesan tahap bisa punya beberapa foto — tiap foto jadi
+            // entri galeri sendiri (flatten), bukan dikelompokkan per pesan.
+            'photos'         => $b->messages->flatMap(function (BookingMessage $m) {
+                $stageLabel = $m->stage ? (BookingMessage::allStages()[$m->stage] ?? $m->stage) : null;
+                $photoUrls = $m->photoUrls();
+
+                return collect($photoUrls)->map(fn (string $url, int $i) => [
+                    // Offset per-index supaya id tetap unik walau 1 pesan
+                    // punya beberapa foto (id BookingMessage dipakai berkali-kali).
+                    'id'          => $m->id * 1000 + $i,
+                    'url'         => $url,
+                    'stage_label' => $stageLabel,
+                    'created_at'  => $m->created_at,
+                ]);
+            })->values(),
+        ])->values();
+
+        $showcasePhotos = CustomerGalleryPhoto::where('customer_id', $customerId)
+            ->where('is_featured', true)
+            ->orderBy('sort_order')
+            ->orderByDesc('created_at')
+            ->get();
+
+        if ($showcasePhotos->isNotEmpty()) {
+            $data->push([
+                'booking_id'     => null,
+                'booking_number' => null,
+                'service_type'   => 'Galeri Pilihan',
+                'store_name'     => null,
+                'preferred_date' => null,
+                'photos'         => $showcasePhotos->map(fn (CustomerGalleryPhoto $p) => [
+                    // Offset supaya id-nya tidak bentrok dengan id BookingMessage
+                    // (tabel beda, auto-increment masing-masing mulai dari 1) —
+                    // dipakai beranda untuk urutkan foto terbaru lintas sumber.
+                    'id'          => 1000000000 + $p->id,
+                    'url'         => BookingMessage::fullImageUrl($p->image),
+                    'stage_label' => $p->caption,
+                    'created_at'  => $p->created_at,
+                ])->values(),
+            ]);
+        }
 
         return response()->json(['success' => true, 'data' => $data]);
     }
@@ -97,7 +150,7 @@ class BookingMessageController extends Controller
             'body'               => $request->body,
         ]);
 
-        $message->load('senderUser.store:id,name');
+        $message->load('senderUser.store:id,name', 'photos');
 
         return response()->json([
             'success' => true,
@@ -114,22 +167,9 @@ class BookingMessageController extends Controller
             'type'        => $m->type,
             'body'        => $m->body,
             'stage'       => $m->stage,
-            'stage_label' => $m->stage ? (BookingMessage::STAGES[$m->stage] ?? $m->stage) : null,
-            'photo_url'   => $this->fullImageUrl($m->photo_path),
+            'stage_label' => $m->stage ? (BookingMessage::allStages()[$m->stage] ?? $m->stage) : null,
+            'photo_urls'  => $m->photoUrls(),
             'created_at'  => $m->created_at,
         ];
-    }
-
-    private function fullImageUrl(?string $path): ?string
-    {
-        if (! $path) return null;
-
-        $relative = Storage::url($path);
-
-        if (str_starts_with($relative, 'http://') || str_starts_with($relative, 'https://')) {
-            return $relative;
-        }
-
-        return rtrim(config('app.url'), '/') . '/' . ltrim($relative, '/');
     }
 }

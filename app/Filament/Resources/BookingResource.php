@@ -8,13 +8,17 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ReferralPointService;
+use App\Services\ServiceReminderService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Facades\Excel;
+use RuntimeException;
 
 class BookingResource extends Resource
 {
@@ -22,7 +26,9 @@ class BookingResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
 
-    protected static ?string $navigationGroup = 'Penjualan';
+    protected static ?string $navigationGroup = 'Operasional';
+
+    protected static ?int $navigationSort = 20;
 
     protected static ?string $navigationLabel = 'Booking Instalasi';
 
@@ -37,7 +43,7 @@ class BookingResource extends Resource
         $query = parent::getEloquentQuery();
         $user = auth()->user();
 
-        if ($user && ! $user->hasRole('super_admin')) {
+        if ($user && ! $user->isFullAccess()) {
             $query->where('store_id', $user->store_id);
         }
 
@@ -52,17 +58,20 @@ class BookingResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+        return auth()->user()?->canAccessStaffArea() ?? false;
     }
 
     public static function form(Form $form): Form
     {
-        $isSuperAdmin = auth()->user()?->hasRole('super_admin');
+        $isSuperAdmin = auth()->user()?->isFullAccess();
 
         return $form->schema([
             Forms\Components\Section::make('Sumber Booking')
@@ -128,28 +137,55 @@ class BookingResource extends Resource
                         ->live()
                         ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id)
                         ->disabled(! $isSuperAdmin)
-                        ->afterStateUpdated(fn (Forms\Set $set) => $set('installer_user_id', null)),
+                        ->afterStateUpdated(fn (Forms\Set $set) => $set('installers', [])),
 
-                    Forms\Components\Select::make('installer_user_id')
+                    Forms\Components\Select::make('installers')
                         ->label('Installer Bertugas')
-                        ->helperText('Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app.')
+                        ->relationship('installers', 'name')
+                        ->helperText('Bisa pilih lebih dari 1 installer. Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app.')
                         ->options(fn (Forms\Get $get) => User::where('store_id', $get('store_id'))
                             ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
                             ->pluck('name', 'id')
                         )
+                        ->multiple()
                         ->searchable()
-                        ->nullable()
                         ->disabled(fn (Forms\Get $get) => ! $get('store_id')),
 
+                    // "Jenis Layanan" adalah satu-satunya pemicu — pilih
+                    // "Kaca Film + PPF" langsung kalau booking mencakup
+                    // keduanya. Kedua boolean product_kaca_film/product_ppf
+                    // inilah yang benar-benar dipakai untuk progress tahap
+                    // (Booking::stageColumnFor()), diturunkan otomatis dari
+                    // pilihan ini — tidak ada toggle terpisah lagi.
+                    // Key opsi HARUS persis sama dengan string yang dikirim
+                    // mobile app (lihat SERVICE_TYPES di app/booking/index.tsx)
+                    // — service_type cuma kolom string biasa, jadi kalau
+                    // key-nya beda, value booking dari app tidak match opsi
+                    // manapun dan select tampil kosong.
                     Forms\Components\Select::make('service_type')
                         ->label('Jenis Layanan')
                         ->options([
-                            'Kaca Film Mobil'       => 'Kaca Film Mobil',
-                            'Paint Protection Film' => 'Paint Protection Film (PPF)',
-                            'Konsultasi'            => 'Konsultasi',
-                            'Klaim Garansi'         => 'Klaim Garansi',
-                            'Lainnya'               => 'Lainnya (isi di catatan)',
+                            'Kaca Film (Window Film)'                      => 'Kaca Film (Window Film)',
+                            'Pelindung Cat (PPF)'                          => 'Pelindung Cat (PPF)',
+                            'Kaca Film (Window Film), Pelindung Cat (PPF)' => 'Kaca Film + PPF',
+                            'Konsultasi Produk'                            => 'Konsultasi Produk',
+                            'Klaim Garansi'                                => 'Klaim Garansi',
+                            'Lainnya'                                      => 'Lainnya (isi di catatan)',
                         ])
+                        ->live()
+                        ->afterStateUpdated(function (Forms\Set $set, $state) {
+                            $set('product_kaca_film', in_array($state, ['Kaca Film (Window Film)', 'Kaca Film (Window Film), Pelindung Cat (PPF)'], true));
+                            $set('product_ppf', in_array($state, ['Pelindung Cat (PPF)', 'Kaca Film (Window Film), Pelindung Cat (PPF)'], true));
+                        })
+                        // Booking dari mobile app (source=app) sudah dipilih
+                        // sendiri oleh customer — tampilkan apa adanya, jangan
+                        // bisa diubah staff. Booking walk-in/WhatsApp (staff
+                        // yang input manual) tetap bisa dipilih seperti biasa.
+                        ->disabled(fn (Forms\Get $get) => $get('source') === 'app')
+                        ->dehydrated()
+                        ->helperText(fn (Forms\Get $get) => $get('source') === 'app'
+                            ? 'Dipilih oleh customer lewat mobile app — tidak bisa diubah di sini.'
+                            : null)
                         ->required(),
 
                     Forms\Components\DatePicker::make('preferred_date')
@@ -177,6 +213,17 @@ class BookingResource extends Resource
                         ])
                         ->default('confirmed')
                         ->required(),
+
+                    // Tanggal reminder servis berkala — ditentukan MANUAL oleh
+                    // store manager per booking (interval beda-beda per kasus,
+                    // mis. Kaca Film vs PPF), bukan dihitung otomatis oleh
+                    // sistem. Command terjadwal (SendServiceReminders) yang
+                    // otomatis kirim WhatsApp+Push+Email begitu tanggal ini tiba.
+                    Forms\Components\DatePicker::make('next_service_reminder_at')
+                        ->label('Tanggal Reminder Servis')
+                        ->helperText('Kosongkan kalau belum perlu reminder. Sistem otomatis kirim WhatsApp/Push/Email ke customer pada tanggal ini.')
+                        ->minDate(now())
+                        ->native(false),
                 ]),
         ]);
     }
@@ -231,8 +278,9 @@ class BookingResource extends Resource
                     ->label('Toko')
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('installer.name')
+                Tables\Columns\TextColumn::make('installers.name')
                     ->label('Installer')
+                    ->badge()
                     ->placeholder('Belum ditugaskan')
                     ->toggleable(),
 
@@ -264,6 +312,15 @@ class BookingResource extends Resource
                         'cancelled' => 'Dibatalkan',
                         default     => $state,
                     }),
+
+                Tables\Columns\TextColumn::make('next_service_reminder_at')
+                    ->label('Reminder Servis')
+                    ->date('d M Y')
+                    ->placeholder('—')
+                    ->description(fn ($record) => $record->next_service_reminder_at
+                        ? ($record->service_reminder_sent_at ? 'Sudah terkirim' : 'Belum terkirim')
+                        : null)
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->groups([
                 Tables\Grouping\Group::make('preferred_date')
@@ -292,7 +349,7 @@ class BookingResource extends Resource
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
                     ->relationship('store', 'name')
-                    ->visible(fn () => auth()->user()?->hasRole('super_admin')),
+                    ->visible(fn () => auth()->user()?->isFullAccess()),
 
                 Tables\Filters\Filter::make('upcoming')
                     ->label('Hanya yang akan datang')
@@ -300,8 +357,115 @@ class BookingResource extends Resource
                     ->default(),
             ])
             ->actions([
+                // Nominal transaksi & kode referral partner SENGAJA diproses
+                // bareng di sini (Filament), bukan saat "Selesaikan Booking"
+                // di mobile app lagi — dipisah supaya staff toko fokus ke
+                // operasional instalasi, sementara nominal & poin referral
+                // dicek/diinput belakangan (mis. oleh kasir).
+                Tables\Actions\Action::make('process_referral')
+                    ->label('Proses Referral')
+                    ->icon('heroicon-o-gift')
+                    ->color('warning')
+                    ->visible(fn (Booking $record) => $record->status === 'completed')
+                    ->form([
+                        Forms\Components\TextInput::make('transaction_amount')
+                            ->label('Nominal Transaksi')
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(fn (Booking $record) => $record->transaction_amount)
+                            ->helperText('Dipakai untuk menghitung poin referral (1 poin / Rp10.000).'),
+
+                        Forms\Components\TextInput::make('referral_code')
+                            ->label('Kode Referral Partner')
+                            ->maxLength(20)
+                            // Prioritas: kode yang sudah tersimpan di booking ini
+                            // dulu; kalau belum ada, coba ambil dari penanda
+                            // "Direferensikan Partner" yang admin catat manual di
+                            // akun customer (lihat CustomerResource::setReferralAction())
+                            // — supaya staff tidak perlu ingat/ketik ulang manual.
+                            ->default(fn (Booking $record) => $record->referral_code
+                                ?? $record->customer?->referredByPartner?->referral_code)
+                            ->helperText('Kosongkan & simpan untuk membatalkan/menghapus kode referral yang salah input.'),
+                    ])
+                    ->action(function (Booking $record, array $data) {
+                        $record->update([
+                            'transaction_amount' => $data['transaction_amount'] !== '' ? $data['transaction_amount'] : null,
+                            'referral_code'       => $data['referral_code'] ?: null,
+                        ]);
+
+                        $messages = [];
+                        $service = app(ReferralPointService::class);
+
+                        // 1. Referral Partner (bisnis mitra) — dari kode yang
+                        // diinput manual di form ini.
+                        if ($data['referral_code']) {
+                            try {
+                                $partner = $service->awardForBooking($record->fresh());
+                                if ($partner) {
+                                    $messages[] = "Poin diberikan ke partner {$partner->business_name}.";
+                                }
+                            } catch (RuntimeException $e) {
+                                $messages[] = '⚠️ Partner: ' . $e->getMessage();
+                            }
+                        }
+
+                        // 2. Bonus "ajak teman" antar-customer — independen,
+                        // otomatis dari referred_by_customer_id yang sudah
+                        // tersimpan di akun customer sejak Complete Profile,
+                        // tidak butuh kode diinput ulang di sini.
+                        try {
+                            $referrer = $service->awardForCustomerReferral($record->fresh());
+                            if ($referrer) {
+                                $messages[] = "Bonus ajak teman diberikan ke {$referrer->name}.";
+                            }
+                        } catch (RuntimeException $e) {
+                            $messages[] = '⚠️ Ajak Teman: ' . $e->getMessage();
+                        }
+
+                        Notification::make()
+                            ->title($messages ? implode(' ', $messages) : 'Nominal transaksi disimpan.')
+                            ->success()
+                            ->send();
+                    }),
+
+                // Kirim reminder maintenance/servis (WA+Push+Email) kapan
+                // saja tanpa menunggu tanggal `next_service_reminder_at`
+                // terjadwal — dipakai store manager begitu instalasi
+                // PPF/Kaca Film selesai dan customer perlu diingatkan
+                // jadwal servis berkala. Logic pengiriman sama persis
+                // dengan command terjadwal (lihat ServiceReminderService).
+                Tables\Actions\Action::make('send_maintenance_reminder')
+                    ->label('Kirim Pengingat')
+                    ->icon('heroicon-o-chat-bubble-left-right')
+                    ->color('info')
+                    ->visible(fn (Booking $record) => $record->status === 'completed'
+                        && ($record->customer_id || $record->phone_number))
+                    ->requiresConfirmation()
+                    ->modalHeading('Kirim Pengingat Maintenance')
+                    ->modalDescription(fn (Booking $record) => $record->service_reminder_sent_at
+                        ? 'Pengingat sebelumnya terkirim pada ' . $record->service_reminder_sent_at->format('d M Y H:i') . '. Kirim lagi sekarang?'
+                        : 'Kirim pengingat servis berkala ke customer lewat WhatsApp, Push, dan Email?')
+                    ->action(function (Booking $record) {
+                        $results = app(ServiceReminderService::class)->sendFor($record, force: true);
+                        $sent = array_keys(array_filter($results));
+
+                        $notification = Notification::make()->title($sent
+                            ? 'Pengingat terkirim lewat: ' . implode(', ', $sent)
+                            : 'Pengingat gagal terkirim di semua kanal — cek kontak customer & konfigurasi WhatsApp.');
+
+                        $sent ? $notification->success()->send() : $notification->danger()->send();
+                    }),
+
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                // Booking yang sudah diproses referral (partner_id terisi)
+                // sudah menambah saldo poin Partner yang cash-convertible —
+                // saldo itu TIDAK ikut hilang kalau booking-nya dihapus
+                // (PartnerPointTransaction pakai reference_id lepas, bukan
+                // FK sungguhan), jadi hapus booking bisa menghilangkan
+                // jejak audit tanpa membatalkan saldo. Cuma super_admin/
+                // direksi yang boleh hapus booking.
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('export')
@@ -309,7 +473,7 @@ class BookingResource extends Resource
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
                     ->action(function () {
-                        $storeId = auth()->user()?->hasRole('super_admin')
+                        $storeId = auth()->user()?->isFullAccess()
                             ? null
                             : auth()->user()?->store_id;
 
@@ -321,7 +485,8 @@ class BookingResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => auth()->user()?->isFullAccess()),
                 ]),
             ])
             ->defaultSort('preferred_date');

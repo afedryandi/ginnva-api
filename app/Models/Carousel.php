@@ -11,6 +11,7 @@ class Carousel extends Model
         'subtitle',
         'image',
         'link_url',
+        'audience',
         'is_active',
         'sort_order',
     ];

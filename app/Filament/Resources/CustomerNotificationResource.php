@@ -14,7 +14,7 @@ class CustomerNotificationResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-bell';
 
-    protected static ?string $navigationGroup = 'Notifikasi';
+    protected static ?string $navigationGroup = 'Sistem';
 
     protected static ?string $navigationLabel = 'Riwayat Notifikasi';
 
@@ -22,11 +22,14 @@ class CustomerNotificationResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Riwayat Notifikasi';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 10;
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function canCreate(): bool { return false; }

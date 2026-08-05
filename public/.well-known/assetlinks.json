@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "id.ginnva.shield",
+      "sha256_cert_fingerprints": [
+        "7E:6F:04:6B:02:A8:8E:3B:0E:BF:2C:A0:B6:13:ED:E8:48:2E:16:13:E2:E9:6D:D3:12:05:03:3E:FE:65:B7:CF"
+      ]
+    }
+  }
+]

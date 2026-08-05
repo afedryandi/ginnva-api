@@ -8,10 +8,13 @@ class PartnershipInquiry extends Model
 {
     protected $fillable = [
         'customer_id',
+        'category',
         'applicant_name',
         'phone_number',
         'email',
         'city',
+        'car_brand',
+        'dealer_name',
         'message',
         'status',
         'notes',

@@ -6,9 +6,11 @@ use App\Filament\Resources\FilmProductResource\Pages;
 use App\Models\FilmProduct;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\QueryException;
 
 class FilmProductResource extends Resource
 {
@@ -18,6 +20,8 @@ class FilmProductResource extends Resource
 
     protected static ?string $navigationGroup = 'Master Data';
 
+    protected static ?int $navigationSort = 10;
+
     protected static ?string $navigationLabel = 'Produk Film';
 
     protected static ?string $modelLabel = 'Produk Film';
@@ -26,12 +30,15 @@ class FilmProductResource extends Resource
 
     /**
      * Data master nasional, tidak ber-scope toko — super_admin dan
-     * regional_admin (admin toko) sama-sama lihat & bisa edit semua baris.
+     * staff toko sama-sama lihat & bisa edit semua baris.
      * Dipakai untuk dropdown pilihan produk di form quotation.
      */
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['super_admin', 'regional_admin']) ?? false;
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
     }
 
     public static function form(Form $form): Form
@@ -48,7 +55,7 @@ class FilmProductResource extends Resource
 
                     Forms\Components\TextInput::make('name')
                         ->label('Nama Produk')
-                        ->placeholder('Contoh: Ginnva Ziwei 70')
+                        ->placeholder('Contoh: Ginnva A70')
                         ->required()
                         ->maxLength(255),
 
@@ -56,11 +63,14 @@ class FilmProductResource extends Resource
                         ->label('Tipe Produk')
                         ->options([
                             'window_film' => 'Kaca Film',
-                            'ppf' => 'Paint Protection Film (PPF)',
+                            'ppf'         => 'Paint Protection Film (PPF)',
                         ])
                         ->live()
                         ->required(),
 
+                    // Kaca depan & samping/belakang SELALU produk (seri)
+                    // yang berbeda — tidak ada produk Kaca Film yang sama
+                    // untuk kedua posisi, jadi cuma 2 opsi.
                     Forms\Components\Select::make('position')
                         ->label('Posisi Kaca')
                         ->options([
@@ -104,10 +114,31 @@ class FilmProductResource extends Resource
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'window_film' => 'Kaca Film',
-                        'ppf' => 'PPF',
-                        default => $state,
+                        'ppf'         => 'PPF',
+                        default       => $state,
                     })
                     ->sortable(),
+
+                // Posisi kaca cuma relevan untuk Kaca Film — PPF itu produk
+                // untuk body mobil, bukan kaca, jadi nilai `position`-nya
+                // (sisa default kolom, bukan input asli) tidak boleh
+                // ditampilkan sama sekali supaya tidak membingungkan.
+                Tables\Columns\TextColumn::make('position')
+                    ->label('Posisi Kaca')
+                    ->badge()
+                    ->placeholder('—')
+                    ->formatStateUsing(function (?string $state, FilmProduct $record): string {
+                        if ($record->product_type !== 'window_film') {
+                            return '—';
+                        }
+
+                        return match ($state) {
+                            'front'     => 'Kaca Depan',
+                            'side_rear' => 'Samping & Belakang',
+                            default     => '—',
+                        };
+                    })
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('base_price')
                     ->label('Harga Dasar')
@@ -128,7 +159,7 @@ class FilmProductResource extends Resource
                     ->label('Tipe Produk')
                     ->options([
                         'window_film' => 'Kaca Film',
-                        'ppf' => 'PPF',
+                        'ppf'         => 'PPF',
                     ]),
 
                 Tables\Filters\TernaryFilter::make('is_active')
@@ -136,7 +167,27 @@ class FilmProductResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                // Sekarang scroll_codes.film_product_id restrictOnDelete()
+                // (bukan lagi nullOnDelete) — hapus produk yang masih
+                // dipakai ScrollCode akan ditolak database. Ditangkap di
+                // sini supaya staff dapat pesan yang jelas, bukan error
+                // mentah.
+                Tables\Actions\DeleteAction::make()
+                    ->action(function (FilmProduct $record) {
+                        try {
+                            $record->delete();
+                        } catch (QueryException $e) {
+                            Notification::make()
+                                ->title('Tidak bisa menghapus produk ini')
+                                ->body('Produk ini masih dipakai oleh kode gulungan yang terdaftar. Hapus/pindahkan kode gulungannya dulu, atau nonaktifkan produk ini saja lewat toggle "Aktif".')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Produk dihapus')->success()->send();
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

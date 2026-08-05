@@ -40,7 +40,7 @@ class MessagesRelationManager extends RelationManager
 
             Forms\Components\Select::make('stage')
                 ->label('Tahap')
-                ->options(BookingMessage::STAGES)
+                ->options(BookingMessage::allStages())
                 ->required(fn (Forms\Get $get) => $get('type') === 'stage')
                 ->visible(fn (Forms\Get $get) => $get('type') === 'stage'),
 
@@ -94,7 +94,7 @@ class MessagesRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('stage')
                     ->label('Tahap')
-                    ->formatStateUsing(fn (?string $state): string => $state ? (BookingMessage::STAGES[$state] ?? $state) : '—'),
+                    ->formatStateUsing(fn (?string $state): string => $state ? (BookingMessage::allStages()[$state] ?? $state) : '—'),
 
                 Tables\Columns\ImageColumn::make('photo_path')
                     ->label('Foto')
@@ -116,7 +116,14 @@ class MessagesRelationManager extends RelationManager
                     }),
             ])
             ->actions([
-                Tables\Actions\DeleteAction::make(),
+                // Chat & foto di sini dokumentasi penting (kondisi
+                // kendaraan, riwayat komunikasi) yang relevan untuk
+                // dispute/klaim garansi — Store Manager/staff toko TIDAK
+                // boleh hapus pesan siapa pun (termasuk pesan customer).
+                // Cuma super_admin/direksi untuk kasus khusus (spam, salah
+                // kirim data sensitif, dll).
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->defaultSort('created_at', 'desc');
     }

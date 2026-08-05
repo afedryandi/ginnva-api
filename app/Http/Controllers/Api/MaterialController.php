@@ -19,6 +19,7 @@ class MaterialController extends Controller
             ->get();
 
         return response()->json([
+            'success' => true,
             'data' => $categories->map(fn ($cat) => [
                 'id'        => $cat->id,
                 'name'      => $cat->name,

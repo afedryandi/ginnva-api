@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -30,21 +31,32 @@ class OtpCode extends Model
      * Kode lama yang belum dipakai untuk identifier+channel yang sama
      * dihapus dulu — supaya tidak ada beberapa kode valid sekaligus yang
      * bisa membingungkan (atau disalahgunakan kalau salah satu kebobolan).
+     *
+     * Dibungkus transaction + lockForUpdate supaya atomik: kalau ada 2
+     * request kirim/resend OTP untuk identifier yang sama hampir bersamaan
+     * (mis. retry jaringan di HP), satu request akan menunggu yang lain
+     * selesai dulu — bukan saling menimpa baris satu sama lain, yang bisa
+     * bikin kode yang benar-benar terkirim ke email BEDA dari kode terbaru
+     * yang tersimpan di database (user masukkan kode yang benar tapi tetap
+     * ditolak "salah/kedaluwarsa").
      */
     public static function generateFor(string $identifier, string $channel = 'email'): self
     {
-        static::where('identifier', $identifier)
-            ->where('channel', $channel)
-            ->whereNull('used_at')
-            ->delete();
+        return DB::transaction(function () use ($identifier, $channel) {
+            static::where('identifier', $identifier)
+                ->where('channel', $channel)
+                ->whereNull('used_at')
+                ->lockForUpdate()
+                ->delete();
 
-        return static::create([
-            'identifier' => $identifier,
-            'channel' => $channel,
-            'code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
-            'expires_at' => Carbon::now()->addMinutes(self::EXPIRY_MINUTES),
-            'attempts' => 0,
-        ]);
+            return static::create([
+                'identifier' => $identifier,
+                'channel' => $channel,
+                'code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
+                'expires_at' => Carbon::now()->addMinutes(self::EXPIRY_MINUTES),
+                'attempts' => 0,
+            ]);
+        });
     }
 
     /**

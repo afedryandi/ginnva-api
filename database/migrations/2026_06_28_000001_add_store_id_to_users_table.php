@@ -9,7 +9,7 @@ return new class extends Migration
     /**
      * Menambahkan store_id ke tabel users.
      *
-     * Dipakai untuk men-scope role "regional_admin" (= admin toko/dealer)
+     * Dipakai untuk men-scope role "store_manager" (= admin toko/dealer)
      * ke SATU store tertentu. super_admin tidak butuh kolom ini diisi
      * (akses ke semua data, lihat AdminPanelProvider & Policy).
      */

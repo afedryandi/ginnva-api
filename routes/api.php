@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\CarouselController;
+use App\Http\Controllers\Api\FeaturedProductController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\CaseStudyController;
 use App\Http\Controllers\Api\JobOpeningController;
 use App\Http\Controllers\Api\NewsController;
+use App\Http\Controllers\Api\GiiasPartnerSignupController;
 use App\Http\Controllers\Api\PartnershipInquiryController;
 use App\Http\Controllers\Api\ProductInquiryController;
 use App\Http\Controllers\Api\QuotationController;
@@ -14,9 +16,11 @@ use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\BookingController;
 use App\Http\Controllers\Api\Customer\BookingMessageController;
 use App\Http\Controllers\Api\Customer\MyWarrantyController;
+use App\Http\Controllers\Api\Customer\StoreReviewController;
 use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
 use App\Http\Controllers\Api\Staff\BookingMessageController as StaffBookingMessageController;
+use App\Http\Controllers\Api\Staff\InventoryController as StaffInventoryController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\NotificationController;
@@ -26,6 +30,8 @@ use App\Http\Controllers\Api\VoucherController;
 use App\Http\Controllers\Api\Partner\PartnerController;
 
 Route::get('/carousels', [CarouselController::class, 'index']);
+Route::get('/featured-products', [FeaturedProductController::class, 'index']);
+Route::get('/featured-products/all', [FeaturedProductController::class, 'all']);
 Route::get('/materials', [MaterialController::class, 'index']);
 
 // Layar login terpadu mobile app — deteksi email ini staff atau customer
@@ -36,7 +42,7 @@ Route::prefix('warranty')->group(function () {
     Route::post('/submit', [WarrantyController::class, 'submit'])->middleware('throttle:10,1');
     Route::get('/check', [WarrantyController::class, 'check'])->middleware('throttle:30,1');
     Route::get('/download/{code}', [WarrantyController::class, 'download'])->middleware('throttle:20,1');
-    Route::middleware('auth:customer')->post('/claim', [WarrantyController::class, 'claim']);
+    Route::middleware(['auth:customer', 'throttle:10,1'])->post('/claim', [WarrantyController::class, 'claim']);
 });
 
 Route::prefix('quotation')->group(function () {
@@ -46,8 +52,6 @@ Route::prefix('quotation')->group(function () {
 
 Route::prefix('inquiry')->group(function () {
     Route::post('/submit', [ProductInquiryController::class, 'submit'])->middleware('throttle:5,1');
-    // Index hanya untuk admin — tidak boleh publik
-    Route::middleware('auth:sanctum')->get('/', [ProductInquiryController::class, 'index']);
 });
 
 Route::prefix('stores')->group(function () {
@@ -69,15 +73,22 @@ Route::get('/job-openings', [JobOpeningController::class, 'index']);
 // login (lihat catatan di PartnershipInquiryController).
 Route::post('/partnership/submit', [PartnershipInquiryController::class, 'submit'])->middleware('throttle:5,1');
 
+// "Become a Partner" di halaman /giias — beda dari /partnership/submit di
+// atas: akun Partner + kode referral dibuat LANGSUNG real-time, tidak
+// lewat review admin (lihat catatan di GiiasPartnerSignupController).
+Route::post('/giias/partner-signup', [GiiasPartnerSignupController::class, 'submit'])->middleware('throttle:5,1');
+
+// Dipanggil server-to-server oleh Google Apps Script (lihat catatan di
+// GiiasPartnerSignupController::lookup) — throttle lebih longgar karena
+// tiap submit form klaim customer di /giias yang bawa referral code
+// bakal manggil ini sekali.
+Route::get('/giias/partner-lookup/{code}', [GiiasPartnerSignupController::class, 'lookup'])->middleware('throttle:60,1');
+
 // Chatbot — publik, tidak wajib login
 Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:20,1');
 
 // Katalog reward Partnership Referral — sama untuk partner maupun customer.
 Route::get('/rewards', [RewardController::class, 'index']);
-
-// Voucher promo (mis. "Voucher Rp10jt — 200 pembeli pertama") — publik
-// biar bisa nampilin banner sebelum tahu user login atau tidak.
-Route::get('/vouchers/active', [VoucherController::class, 'active']);
 
 /*
 |--------------------------------------------------------------------------
@@ -96,6 +107,9 @@ Route::prefix('customer')->group(function () {
             Route::get('/me', [CustomerAuthController::class, 'me']);
             Route::put('/profile', [CustomerAuthController::class, 'updateProfile']);
             Route::post('/logout', [CustomerAuthController::class, 'logout']);
+            // Wajib per kebijakan Google Play — lihat catatan di
+            // CustomerAuthController::deleteAccount().
+            Route::delete('/account', [CustomerAuthController::class, 'deleteAccount']);
         });
     });
 
@@ -112,6 +126,11 @@ Route::prefix('customer')->group(function () {
         Route::get('/bookings/{id}/messages', [BookingMessageController::class, 'index']);
         Route::post('/bookings/{id}/messages', [BookingMessageController::class, 'store']);
 
+        // Review internal (hybrid: sentimen + tag + komentar opsional) —
+        // terpisah dari review Google Maps, lihat StoreReviewController.
+        Route::post('/bookings/{id}/review', [StoreReviewController::class, 'store'])
+            ->middleware('throttle:10,1');
+
         // Galeri pemasangan personal — foto dari booking milik customer sendiri
         Route::get('/my-gallery', [BookingMessageController::class, 'gallery']);
 
@@ -120,11 +139,15 @@ Route::prefix('customer')->group(function () {
             ->middleware('throttle:10,1');
         Route::get('/redemptions', [PointController::class, 'redemptions']);
 
-        // Voucher promo — klaim & lihat voucher milik sendiri
-        Route::post('/vouchers/{id}/claim', [VoucherController::class, 'claim'])
-            ->middleware('throttle:5,1');
+        // Voucher fisik yang sudah di-assign staff ke akun ini — read-only,
+        // tidak ada lagi klaim self-service dari app.
         Route::get('/vouchers', [VoucherController::class, 'myVouchers']);
     });
+
+    // Daftar kampanye voucher yang sedang berjalan (section "Promo") — DI
+    // LUAR auth:customer dengan sengaja: customer yang BELUM login pun
+    // boleh lihat promo ini, supaya terdorong datang ke toko.
+    Route::get('/vouchers/available', [VoucherController::class, 'availableVouchers']);
 });
 
 /*
@@ -149,6 +172,20 @@ Route::prefix('staff')->group(function () {
         Route::post('/bookings/{id}/complete', [StaffBookingController::class, 'complete'])
             ->middleware('throttle:20,1');
 
+        // Kirim pengingat maintenance/servis berkala manual (WA+Push+Email) —
+        // lihat ServiceReminderService. Throttle lebih ketat dari aksi lain
+        // karena tiap panggilan langsung mengirim pesan WhatsApp nyata.
+        Route::post('/bookings/{id}/maintenance-reminder', [StaffBookingController::class, 'sendMaintenanceReminder'])
+            ->middleware('throttle:10,1');
+
+        // Assign teknisi & direksi pemantau chat (Store Manager/Direksi
+        // saja — installer tidak boleh mengatur assignment).
+        Route::get('/bookings/{id}/assignable-staff', [StaffBookingController::class, 'assignableStaff']);
+        Route::put('/bookings/{id}/installers', [StaffBookingController::class, 'assignInstallers'])
+            ->middleware('throttle:20,1');
+        Route::put('/bookings/{id}/watchers', [StaffBookingController::class, 'assignWatchers'])
+            ->middleware('throttle:20,1');
+
         Route::get('/bookings/{id}/messages', [StaffBookingMessageController::class, 'index']);
         Route::post('/bookings/{id}/messages', [StaffBookingMessageController::class, 'store']);
 
@@ -157,6 +194,14 @@ Route::prefix('staff')->group(function () {
         // sampai ke HP admin toko, bukan cuma customer.
         Route::post('/notifications/link-token', [NotificationController::class, 'linkTokenStaff'])
             ->middleware('throttle:20,1');
+
+        // Sistem inventaris — scan QR kardus/barang fisik untuk lihat
+        // detail + catat keluar/masuk. Semua role staff (bukan cuma
+        // store_manager/direksi) sengaja boleh akses, karena scan barang
+        // fisik memang tugas siapa saja yang sedang pegang barangnya.
+        Route::get('/inventory/{code}', [StaffInventoryController::class, 'show']);
+        Route::post('/inventory/{code}/movement', [StaffInventoryController::class, 'storeMovement'])
+            ->middleware('throttle:30,1');
     });
 });
 
@@ -172,6 +217,13 @@ Route::prefix('partner')->middleware('auth:api')->group(function () {
     Route::get('/me', [PartnerController::class, 'me']);
     Route::get('/points', [PartnerController::class, 'points']);
     Route::get('/redemptions', [PartnerController::class, 'redemptions']);
+    Route::get('/referrals', [PartnerController::class, 'referrals']);
+    Route::put('/profile', [PartnerController::class, 'updateProfile']);
+    Route::post('/change-password', [PartnerController::class, 'changePassword']);
+    Route::get('/promos', [CarouselController::class, 'partnerPromos']);
+    Route::get('/notifications', [NotificationController::class, 'partnerHistory']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'partnerMarkRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'partnerMarkAllRead']);
     Route::post('/rewards/{id}/redeem', [RewardController::class, 'redeemAsPartner'])
         ->middleware('throttle:10,1');
 });

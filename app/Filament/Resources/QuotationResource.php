@@ -23,18 +23,32 @@ class QuotationResource extends Resource
 
     protected static ?string $navigationGroup = 'Operasional';
 
+    protected static ?int $navigationSort = 10;
+
     protected static ?string $navigationLabel = 'Quotation (Lead)';
 
     protected static ?string $modelLabel = 'Quotation';
 
     protected static ?string $pluralModelLabel = 'Quotation';
 
+    // Sebelumnya tidak ada badge sama sekali di sini — beda dari
+    // PartnershipInquiryResource & ProductInquiryResource yang punya pola
+    // status 'new' identik, keduanya sudah dikasih badge count. Staff jadi
+    // tidak punya sinyal visual kalau ada lead quotation baru yang belum
+    // di-follow-up, padahal field status-nya sudah mendukung.
+    public static function getNavigationBadge(): ?string
+    {
+        $count = static::getModel()::where('status', 'new')->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
         $user = auth()->user();
 
-        if ($user && ! $user->hasRole('super_admin')) {
+        if ($user && ! $user->isFullAccess()) {
             $query->where(function (Builder $q) use ($user) {
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
@@ -46,7 +60,7 @@ class QuotationResource extends Resource
 
     public static function form(Form $form): Form
     {
-        $isSuperAdmin = auth()->user()?->hasRole('super_admin');
+        $isSuperAdmin = auth()->user()?->isFullAccess();
 
         return $form->schema([
 
@@ -208,6 +222,13 @@ class QuotationResource extends Resource
                         'danger'  => 'cancelled',
                     ]),
 
+                Tables\Columns\TextColumn::make('source')
+                    ->label('Sumber')
+                    ->badge()
+                    ->color(fn (string $state) => $state === 'customer' ? 'gray' : 'info')
+                    ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Customer' : 'Input Staff')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Masuk')
                     ->dateTime('d M Y H:i')
@@ -225,7 +246,7 @@ class QuotationResource extends Resource
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
                     ->relationship('store', 'name')
-                    ->visible(fn () => auth()->user()?->hasRole('super_admin')),
+                    ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
@@ -242,9 +263,12 @@ class QuotationResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            \App\Filament\Resources\QuotationResource\RelationManagers\ItemsRelationManager::class,
-        ];
+        // ItemsRelationManager DIHAPUS — duplikat dengan Repeater "Produk
+        // yang Diminati" di form() (baris ~147), sama-sama CRUD ke relasi
+        // `items`. RelationManager cuma muncul di halaman Edit (tidak ada
+        // di Create), sedangkan Repeater tersedia di keduanya, jadi
+        // Repeater yang dipertahankan.
+        return [];
     }
 
     public static function getPages(): array

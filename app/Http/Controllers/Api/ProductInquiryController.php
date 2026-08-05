@@ -49,26 +49,4 @@ class ProductInquiryController extends Controller
             ],
         ], 201);
     }
-
-    /**
-     * GET /api/inquiry
-     *
-     * Untuk admin/dashboard internal melihat daftar inquiry yang masuk.
-     * Disediakan agar konsisten dengan kemungkinan kebutuhan admin panel
-     * (Filament) ke depan; aman dihapus jika belum diperlukan.
-     */
-    public function index(Request $request): JsonResponse
-    {
-        $inquiries = ProductInquiry::query()
-            ->when($request->query('status'), function ($query, $status) {
-                $query->where('status', $status);
-            })
-            ->latest()
-            ->paginate(20);
-
-        return response()->json([
-            'success' => true,
-            'data'    => $inquiries,
-        ]);
-    }
 }

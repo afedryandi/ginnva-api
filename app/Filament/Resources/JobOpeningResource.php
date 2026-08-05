@@ -24,7 +24,10 @@ class JobOpeningResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Lowongan Kerja';
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 50;
+
+    // TIDAK ada canViewAny() di sini SENGAJA — akses sudah di-gate lewat
+    // JobOpeningPolicy (canAccessStaffArea() + hasMenuAccess()).
 
     public static function form(Form $form): Form
     {
