@@ -272,7 +272,7 @@ class WarrantyResource extends Resource
                         )
                         ->searchable()
                         ->live()
-                        ->helperText('Pilih kode gulungan PPF yang digunakan. Kode akan otomatis ditandai terpakai.'),
+                        ->helperText('Pilih kode gulungan PPF yang digunakan. Kode tetap muncul di pilihan untuk mobil berikutnya sampai ditandai habis manual (menu Kode Gulungan → "Tandai Habis").'),
 
                     Forms\Components\Select::make('roll_number_2')
                         ->label('Kode Gulungan Kedua (opsional)')
@@ -280,7 +280,8 @@ class WarrantyResource extends Resource
                         // Sebagian mobil (biasanya bodi besar) tidak cukup
                         // dilapisi 1 gulungan PPF — field ini opsional,
                         // diperlakukan SAMA PERSIS seperti roll_number
-                        // (single-use, langsung 'used' begitu dipakai).
+                        // (dipakai berkali-kali sampai ditandai habis manual,
+                        // lihat WarrantyObserver).
                         ->options(fn (?Warranty $record, Forms\Get $get) => ScrollCode::query()
                             ->whereHas('filmProduct', fn ($q) => $q->where('product_type', 'ppf'))
                             ->where(fn ($q) => $q

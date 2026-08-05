@@ -44,7 +44,11 @@ class ScrollCodeExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
                 'used'        => 'Terpakai',
                 default       => $row->status,
             },
-            $row->warranty_code ?? '—',
+            // Sama seperti kolom di ScrollCodeResource — 1 kode gulungan
+            // bisa dipakai >1 warranty, jadi kolom warranty_code (cuma
+            // simpan pemakai TERAKHIR) tidak cukup, dihitung ulang dari
+            // tabel warranties.
+            $row->warranties()->pluck('warranty_code')->implode(', ') ?: '—',
             $row->allocated_at?->format('d/m/Y H:i') ?? '—',
             $row->used_at?->format('d/m/Y H:i') ?? '—',
             $row->created_at?->format('d/m/Y H:i'),

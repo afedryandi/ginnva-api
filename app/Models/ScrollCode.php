@@ -32,4 +32,22 @@ class ScrollCode extends Model
     {
         return $this->belongsTo(Store::class);
     }
+
+    /**
+     * 1 kode gulungan sekarang bisa dipakai >1 warranty (PPF maupun
+     * Window Film, sejak tidak lagi single-use otomatis) — kolom
+     * warranty_code di tabel ini cuma menyimpan 1 nilai (warranty
+     * TERAKHIR yang memakainya, gampang ketimpa), jadi TIDAK bisa
+     * diandalkan untuk menampilkan semua pemakai. Query langsung ke
+     * tabel warranties lewat 4 kolom roll_number* untuk dapat daftar
+     * lengkapnya.
+     */
+    public function warranties()
+    {
+        return \App\Models\Warranty::query()
+            ->where('roll_number', $this->code)
+            ->orWhere('roll_number_2', $this->code)
+            ->orWhere('roll_number_front', $this->code)
+            ->orWhere('roll_number_side_rear', $this->code);
+    }
 }

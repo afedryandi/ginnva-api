@@ -119,14 +119,34 @@ class ScrollCodeResource extends Resource
                         default       => $state,
                     }),
 
+                // Dihitung langsung dari tabel warranties (bukan cuma
+                // kolom warranty_code di baris ini) — 1 kode gulungan bisa
+                // dipakai >1 warranty sejak tidak lagi otomatis single-use,
+                // jadi kolom warranty_code yang cuma nyimpan 1 nilai akan
+                // ketimpa (nampilkan yang PALING TERAKHIR pakai doang) kalau
+                // tidak dihitung ulang begini.
                 Tables\Columns\TextColumn::make('warranty_code')
                     ->label('No. Garansi')
                     ->placeholder('—')
-                    ->searchable(),
+                    ->getStateUsing(fn (ScrollCode $record) => $record->warranties()->pluck('warranty_code')->implode(', ') ?: null)
+                    ->wrap()
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->orWhereExists(function ($sub) use ($search) {
+                            $sub->selectRaw('1')
+                                ->from('warranties')
+                                ->where('warranties.warranty_code', 'like', "%{$search}%")
+                                ->where(function ($w) {
+                                    $w->whereColumn('warranties.roll_number', 'scroll_codes.code')
+                                        ->orWhereColumn('warranties.roll_number_2', 'scroll_codes.code')
+                                        ->orWhereColumn('warranties.roll_number_front', 'scroll_codes.code')
+                                        ->orWhereColumn('warranties.roll_number_side_rear', 'scroll_codes.code');
+                                });
+                        });
+                    }),
 
-                // Cuma relevan untuk Window Film (1 gulungan dipakai
-                // berkali-kali) — untuk PPF selalu 0/1 karena langsung
-                // 'used' di pemakaian pertama, lihat WarrantyObserver.
+                // Berlaku untuk PPF maupun Window Film — hitung berapa kali
+                // kode ini dipakai, auto-'used' hanya kalau max_usage diisi
+                // dan tercapai. Lihat WarrantyObserver.
                 Tables\Columns\TextColumn::make('usage_count')
                     ->label('Terpakai')
                     ->formatStateUsing(fn (ScrollCode $record) => $record->max_usage
@@ -201,7 +221,7 @@ class ScrollCodeResource extends Resource
 
                         Forms\Components\TextInput::make('max_usage')
                             ->label('Kapasitas Gulungan (opsional)')
-                            ->helperText('Khusus Window Film — 1 gulungan biasanya cukup untuk ±30 mobil. Kosongkan kalau tidak tahu pastinya; nanti tandai manual lewat "Tandai Habis" saat gulungan fisik habis.')
+                            ->helperText('Boleh dikosongkan (berlaku untuk PPF maupun Window Film) — kode akan tetap muncul di pilihan warranty baru sampai ditandai habis manual lewat "Tandai Habis". Isi kalau kamu tahu pasti gulungan ini cuma cukup untuk sekian mobil (mis. Window Film ±30 mobil), supaya otomatis ditandai habis begitu tercapai.')
                             ->numeric()
                             ->minValue(1),
                     ])
