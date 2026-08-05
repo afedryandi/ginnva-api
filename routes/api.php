@@ -167,6 +167,11 @@ Route::prefix('staff')->group(function () {
 
         Route::get('/bookings', [StaffBookingController::class, 'index']);
         Route::get('/bookings/{id}', [StaffBookingController::class, 'show']);
+        // Approve booking pending -> confirmed langsung dari app (Store
+        // Manager/Direksi/Super Admin) — dicek kapasitas slot instalasi
+        // toko, lihat Booking::fullDatesInRange().
+        Route::post('/bookings/{id}/confirm', [StaffBookingController::class, 'confirm'])
+            ->middleware('throttle:20,1');
         // Tandai booking selesai + input kode referral & nominal transaksi
         // (kalau customer datang lewat kode partner) — lihat ReferralPointService.
         Route::post('/bookings/{id}/complete', [StaffBookingController::class, 'complete'])

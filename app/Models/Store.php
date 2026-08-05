@@ -20,12 +20,14 @@ class Store extends Model
         'maps_url',
         'google_place_id',
         'is_active',
+        'install_capacity_per_day',
     ];
 
     protected $casts = [
         'latitude'      => 'float',
         'longitude'     => 'float',
         'is_active'     => 'boolean',
+        'install_capacity_per_day' => 'integer',
         // Array baris {days: string[], open, close, closed} — lihat
         // migration 2026_07_29_084638 & DAY_LABELS di bawah.
         'opening_hours' => 'array',

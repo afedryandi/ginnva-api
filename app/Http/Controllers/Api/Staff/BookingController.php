@@ -8,6 +8,7 @@ use App\Models\Booking;
 use App\Models\User;
 use App\Services\ServiceReminderService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -89,6 +90,69 @@ class BookingController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $booking]);
+    }
+
+    /**
+     * POST /api/staff/bookings/{id}/confirm
+     *
+     * Approve booking dari 'pending' ke 'confirmed' langsung dari mobile
+     * app — sebelumnya cuma bisa lewat Filament (BookingResource), store
+     * manager sekarang bisa approve on the spot dari HP. Dicek kapasitas
+     * slot instalasi toko dulu (Booking::fullDatesInRange()) — SAMA PERSIS
+     * seperti pengecekan di Filament (CreateBooking/EditBooking) — supaya
+     * jalur mobile ini tidak jadi celah buat lolos over-booking tim
+     * instalasi. Installer & partner tidak boleh approve, sama seperti
+     * assignment (lihat authorizeManage()).
+     */
+    public function confirm(Request $request, int $id)
+    {
+        $user = $request->user('api');
+        $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+
+        $request->validate([
+            // Staff boleh sesuaikan lama pengerjaan saat approve (mis. tahu
+            // dari konsultasi customer ternyata butuh lebih/kurang dari
+            // default) — sama seperti field "Lama Pengerjaan" di Filament.
+            'duration_days' => 'sometimes|integer|min:1|max:14',
+        ]);
+
+        return DB::transaction(function () use ($booking, $request) {
+            // Lock row booking-nya — dua staff dobel-tap "Konfirmasi"
+            // nyaris bersamaan (mis. sinyal lemah, tap ulang karena
+            // dikira gagal) tidak boleh dua-duanya lolos cek status
+            // 'pending' sebelum salah satu commit.
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+            if ($locked->status !== 'pending') {
+                abort(422, "Booking ini sudah berstatus \"{$locked->status}\", tidak bisa dikonfirmasi lagi.");
+            }
+
+            $durationDays = $request->filled('duration_days')
+                ? (int) $request->duration_days
+                : $locked->duration_days;
+
+            $fullDates = Booking::fullDatesInRange(
+                $locked->store_id,
+                $locked->preferred_date->copy(),
+                $durationDays,
+                $locked->id,
+            );
+
+            if (! empty($fullDates)) {
+                abort(422, 'Kapasitas instalasi toko sudah penuh di tanggal: ' . implode(', ', $fullDates) . '. Pilih tanggal lain, atau selesaikan/batalkan booking lain yang bentrok dulu.');
+            }
+
+            $locked->update([
+                'status'        => 'confirmed',
+                'duration_days' => $durationDays,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $locked->fresh(),
+                'message' => 'Booking dikonfirmasi.',
+            ]);
+        });
     }
 
     /**

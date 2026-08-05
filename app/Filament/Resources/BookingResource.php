@@ -173,9 +173,21 @@ class BookingResource extends Resource
                             'Lainnya'                                      => 'Lainnya (isi di catatan)',
                         ])
                         ->live()
-                        ->afterStateUpdated(function (Forms\Set $set, $state) {
+                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
+                            $isPpf = in_array($state, ['Pelindung Cat (PPF)', 'Kaca Film (Window Film), Pelindung Cat (PPF)'], true);
+
                             $set('product_kaca_film', in_array($state, ['Kaca Film (Window Film)', 'Kaca Film (Window Film), Pelindung Cat (PPF)'], true));
-                            $set('product_ppf', in_array($state, ['Pelindung Cat (PPF)', 'Kaca Film (Window Film), Pelindung Cat (PPF)'], true));
+                            $set('product_ppf', $isPpf);
+
+                            // Cuma auto-isi default kalau staff belum
+                            // sentuh field durasi manual (kosong ATAU masih
+                            // salah satu nilai default) — supaya ganti
+                            // Jenis Layanan tidak diam-diam menimpa durasi
+                            // yang sudah sengaja diedit staff.
+                            $current = $get('duration_days');
+                            if (! $current || in_array((int) $current, [Booking::DEFAULT_DURATION_DAYS_PPF, Booking::DEFAULT_DURATION_DAYS_DEFAULT], true)) {
+                                $set('duration_days', $isPpf ? Booking::DEFAULT_DURATION_DAYS_PPF : Booking::DEFAULT_DURATION_DAYS_DEFAULT);
+                            }
                         })
                         // Booking dari mobile app (source=app) sudah dipilih
                         // sendiri oleh customer — tampilkan apa adanya, jangan
@@ -191,12 +203,60 @@ class BookingResource extends Resource
                     Forms\Components\DatePicker::make('preferred_date')
                         ->label('Tanggal Diinginkan')
                         ->required()
+                        ->live()
                         ->minDate(fn () => $form->getOperation() === 'create' ? now() : null),
 
                     Forms\Components\TextInput::make('preferred_time')
                         ->label('Jam Diinginkan')
                         ->placeholder('Contoh: 09:00')
                         ->maxLength(50),
+
+                    Forms\Components\TextInput::make('duration_days')
+                        ->label('Lama Pengerjaan (hari)')
+                        ->numeric()
+                        ->minValue(1)
+                        ->maxValue(14)
+                        ->default(Booking::DEFAULT_DURATION_DAYS_DEFAULT)
+                        ->live()
+                        ->required()
+                        ->helperText('Berapa hari mobil ini makan slot instalasi (dipakai cek kapasitas toko). Default PPF 3 hari, lainnya 1 hari — sesuaikan kalau instalasi ini diperkirakan lebih cepat/lama.'),
+
+                    // Live preview sisa slot instalasi per tanggal — dihitung
+                    // dari booking 'confirmed' lain yang tanggal kerjanya
+                    // overlap (lihat Booking::confirmedOverlapCount()).
+                    // Booking 'pending' SENGAJA tidak ikut dihitung di sini
+                    // supaya staff tahu berapa slot BENAR-BENAR tersisa saat
+                    // mau approve — bukan seolah-olah sudah penuh cuma
+                    // karena banyak yang masih menunggu triase.
+                    Forms\Components\Placeholder::make('capacity_preview')
+                        ->label('Sisa Slot Instalasi')
+                        ->columnSpanFull()
+                        ->content(function (Forms\Get $get, ?Booking $record) {
+                            $storeId = $get('store_id');
+                            $dateStr = $get('preferred_date');
+
+                            if (! $storeId || ! $dateStr) {
+                                return 'Pilih toko & tanggal dulu untuk lihat sisa slot.';
+                            }
+
+                            $store = Store::find($storeId);
+                            if (! $store) return '—';
+
+                            $duration = max(1, (int) ($get('duration_days') ?: 1));
+                            $start = \Illuminate\Support\Carbon::parse($dateStr);
+
+                            $lines = [];
+                            for ($i = 0; $i < $duration; $i++) {
+                                $day = $start->copy()->addDays($i);
+                                $used = Booking::confirmedOverlapCount($storeId, $day, $record?->id);
+                                $remaining = max(0, $store->install_capacity_per_day - $used);
+
+                                $lines[] = $day->format('d M Y') . ": {$remaining}/{$store->install_capacity_per_day} slot"
+                                    . ($remaining <= 0 ? ' — PENUH' : '');
+                            }
+
+                            return new \Illuminate\Support\HtmlString(implode('<br>', array_map('e', $lines)));
+                        }),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
@@ -291,7 +351,10 @@ class BookingResource extends Resource
                 Tables\Columns\TextColumn::make('preferred_date')
                     ->label('Tanggal')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->description(fn (Booking $record) => $record->duration_days > 1
+                        ? "{$record->duration_days} hari (s/d {$record->end_date?->format('d M')})"
+                        : null),
 
                 Tables\Columns\TextColumn::make('preferred_time')
                     ->label('Jam')

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -10,6 +11,13 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class Booking extends Model
 {
     use LogsActivity;
+
+    // Default lama pengerjaan (hari) per jenis produk kalau staff tidak
+    // isi manual — dipakai getEffectiveDurationDaysAttribute() &
+    // Booking::booted(). PPF butuh beberapa hari, Kaca Film biasanya
+    // selesai 1 hari.
+    public const DEFAULT_DURATION_DAYS_PPF     = 3;
+    public const DEFAULT_DURATION_DAYS_DEFAULT = 1;
 
     protected $fillable = [
         'booking_number',
@@ -22,6 +30,7 @@ class Booking extends Model
         'product_ppf',
         'preferred_date',
         'preferred_time',
+        'duration_days',
         'notes',
         'source',
         'status',
@@ -40,9 +49,86 @@ class Booking extends Model
         'transaction_amount' => 'decimal:2',
         'product_kaca_film' => 'boolean',
         'product_ppf' => 'boolean',
+        'duration_days' => 'integer',
         'next_service_reminder_at' => 'date',
         'service_reminder_sent_at' => 'datetime',
     ];
+
+    protected $appends = ['end_date'];
+
+    /**
+     * duration_days SELALU diisi Booking::booted() saat dibuat (lihat di
+     * bawah), jadi accessor ini cuma jaring pengaman untuk row lama/edge
+     * case — tidak boleh dipakai untuk query DB (query kapasitas pakai
+     * kolom duration_days langsung, lihat confirmedOverlapCount()).
+     */
+    public function getEffectiveDurationDaysAttribute(): int
+    {
+        return $this->duration_days
+            ?? ($this->product_ppf ? self::DEFAULT_DURATION_DAYS_PPF : self::DEFAULT_DURATION_DAYS_DEFAULT);
+    }
+
+    /**
+     * Tanggal terakhir mobil ini dikerjakan (inklusif) — dipakai buat cek
+     * tumpang tindih kapasitas slot per hari.
+     */
+    public function getEndDateAttribute(): ?Carbon
+    {
+        if (! $this->preferred_date) return null;
+
+        return $this->preferred_date->copy()->addDays($this->effective_duration_days - 1);
+    }
+
+    /**
+     * Berapa booking berstatus 'confirmed' di toko ini yang jadwalnya
+     * menyentuh tanggal $date (rentang preferred_date..end_date-nya
+     * overlap $date) — dasar hitung sisa slot per hari. Cuma booking
+     * 'confirmed' yang dihitung; 'pending' SENGAJA tidak diikutkan supaya
+     * banyak customer boleh ajukan tanggal yang sama sebelum staff
+     * triase & approve sampai maksimal kapasitas (mirip waiting list).
+     *
+     * Dibatasi preferred_date maksimal 30 hari sebelum $date (booking
+     * lebih lama dari itu tidak realistis) supaya tidak scan semua
+     * booking 'confirmed' sepanjang sejarah toko.
+     */
+    public static function confirmedOverlapCount(int $storeId, Carbon $date, ?int $excludeBookingId = null): int
+    {
+        return static::query()
+            ->where('store_id', $storeId)
+            ->where('status', 'confirmed')
+            ->when($excludeBookingId, fn ($q) => $q->where('id', '!=', $excludeBookingId))
+            ->whereDate('preferred_date', '<=', $date)
+            ->whereDate('preferred_date', '>=', $date->copy()->subDays(30))
+            ->get(['id', 'preferred_date', 'duration_days', 'product_ppf'])
+            ->filter(fn (Booking $b) => $b->end_date?->greaterThanOrEqualTo($date))
+            ->count();
+    }
+
+    /**
+     * Cek kapasitas SETIAP hari dalam rentang [$startDate, $startDate +
+     * $durationDays - 1] di toko $storeId — dipakai sebelum booking
+     * di-approve jadi 'confirmed' (BookingResource) supaya tidak mungkin
+     * lolos approve kalau salah satu harinya sudah penuh. Return array
+     * tanggal (Y-m-d) yang SUDAH PENUH; array kosong = seluruh rentang
+     * masih ada slot.
+     */
+    public static function fullDatesInRange(int $storeId, Carbon $startDate, int $durationDays, ?int $excludeBookingId = null): array
+    {
+        $store = Store::find($storeId);
+        $capacity = $store?->install_capacity_per_day ?: 3;
+
+        $fullDates = [];
+
+        for ($i = 0; $i < $durationDays; $i++) {
+            $day = $startDate->copy()->addDays($i);
+
+            if (self::confirmedOverlapCount($storeId, $day, $excludeBookingId) >= $capacity) {
+                $fullDates[] = $day->toDateString();
+            }
+        }
+
+        return $fullDates;
+    }
 
     /**
      * Booking dengan 2 produk (Kaca Film + PPF) punya progress PARALEL —
@@ -113,6 +199,16 @@ class Booking extends Model
         static::creating(function (Booking $booking) {
             if (empty($booking->booking_number)) {
                 $booking->booking_number = static::generateBookingNumber();
+            }
+
+            // duration_days SELALU diisi eksplisit di sini (bukan cuma
+            // fallback di accessor) supaya query kapasitas
+            // (confirmedOverlapCount) bisa langsung pakai kolomnya tanpa
+            // perlu tahu product_ppf row lain satu-satu.
+            if (empty($booking->duration_days)) {
+                $booking->duration_days = $booking->product_ppf
+                    ? self::DEFAULT_DURATION_DAYS_PPF
+                    : self::DEFAULT_DURATION_DAYS_DEFAULT;
             }
         });
     }

@@ -77,6 +77,14 @@ class StoreResource extends Resource
                         ->tel()
                         ->maxLength(255),
 
+                    Forms\Components\TextInput::make('install_capacity_per_day')
+                        ->label('Kapasitas Instalasi / Hari')
+                        ->helperText('Berapa mobil yang bisa dikerjakan toko ini per hari — biasanya sama dengan jumlah tim instalasi. Dipakai untuk membatasi booking yang boleh dikonfirmasi di tanggal yang sama.')
+                        ->numeric()
+                        ->minValue(1)
+                        ->default(3)
+                        ->required(),
+
                     Forms\Components\Repeater::make('opening_hours')
                         ->label('Jam Operasional')
                         ->columnSpanFull()
