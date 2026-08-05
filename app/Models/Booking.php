@@ -107,22 +107,23 @@ class Booking extends Model
     /**
      * Cek kapasitas SETIAP hari dalam rentang [$startDate, $startDate +
      * $durationDays - 1] di toko $storeId — dipakai sebelum booking
-     * di-approve jadi 'confirmed' (BookingResource) supaya tidak mungkin
-     * lolos approve kalau salah satu harinya sudah penuh. Return array
+     * di-approve jadi 'confirmed' (BookingResource maupun endpoint mobile
+     * /confirm) supaya tidak mungkin lolos approve kalau salah satu
+     * harinya sudah penuh. $capacityPerDay SENGAJA bukan setting tetap
+     * per toko — staff yang input manual tiap kali approve (lihat form
+     * Booking di Filament & payload POST .../confirm), supaya fleksibel
+     * kalau kapasitas real hari itu beda dari biasanya. Return array
      * tanggal (Y-m-d) yang SUDAH PENUH; array kosong = seluruh rentang
      * masih ada slot.
      */
-    public static function fullDatesInRange(int $storeId, Carbon $startDate, int $durationDays, ?int $excludeBookingId = null): array
+    public static function fullDatesInRange(int $storeId, Carbon $startDate, int $durationDays, int $capacityPerDay, ?int $excludeBookingId = null): array
     {
-        $store = Store::find($storeId);
-        $capacity = $store?->install_capacity_per_day ?: 3;
-
         $fullDates = [];
 
         for ($i = 0; $i < $durationDays; $i++) {
             $day = $startDate->copy()->addDays($i);
 
-            if (self::confirmedOverlapCount($storeId, $day, $excludeBookingId) >= $capacity) {
+            if (self::confirmedOverlapCount($storeId, $day, $excludeBookingId) >= $capacityPerDay) {
                 $fullDates[] = $day->toDateString();
             }
         }

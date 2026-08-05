@@ -77,9 +77,14 @@ class StoreResource extends Resource
                         ->tel()
                         ->maxLength(255),
 
+                    // Cuma DEFAULT yang jadi patokan awal di form approve
+                    // booking (Filament & mobile) — staff tetap bisa ubah
+                    // angkanya sesaat kalau kapasitas hari itu beda dari
+                    // biasanya (mis. 1 installer izin), tanpa perlu ubah
+                    // setting ini. Lihat BookingResource::form().
                     Forms\Components\TextInput::make('install_capacity_per_day')
-                        ->label('Kapasitas Instalasi / Hari')
-                        ->helperText('Berapa mobil yang bisa dikerjakan toko ini per hari — biasanya sama dengan jumlah tim instalasi. Dipakai untuk membatasi booking yang boleh dikonfirmasi di tanggal yang sama.')
+                        ->label('Kapasitas Instalasi / Hari (Default)')
+                        ->helperText('Berapa mobil yang biasanya bisa dikerjakan toko ini per hari — jadi nilai awal saat staff approve booking, tapi tetap bisa diubah sesaat per booking kalau kondisinya beda.')
                         ->numeric()
                         ->minValue(1)
                         ->default(3)

@@ -137,7 +137,14 @@ class BookingResource extends Resource
                         ->live()
                         ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id)
                         ->disabled(! $isSuperAdmin)
-                        ->afterStateUpdated(fn (Forms\Set $set) => $set('installers', [])),
+                        ->afterStateUpdated(function (Forms\Set $set, $state) {
+                            $set('installers', []);
+                            // Isi ulang kapasitas dari default toko yang
+                            // baru dipilih — ganti toko berarti konteksnya
+                            // beda total, jadi angka lama (dari toko
+                            // sebelumnya) tidak relevan lagi.
+                            $set('capacity_per_day', Store::find($state)?->install_capacity_per_day ?? 3);
+                        }),
 
                     Forms\Components\Select::make('installers')
                         ->label('Installer Bertugas')
@@ -219,7 +226,25 @@ class BookingResource extends Resource
                         ->default(Booking::DEFAULT_DURATION_DAYS_DEFAULT)
                         ->live()
                         ->required()
-                        ->helperText('Berapa hari mobil ini makan slot instalasi (dipakai cek kapasitas toko). Default PPF 3 hari, lainnya 1 hari — sesuaikan kalau instalasi ini diperkirakan lebih cepat/lama.'),
+                        ->helperText('Berapa hari mobil ini makan slot instalasi (dipakai cek kapasitas). Default PPF 3 hari, lainnya 1 hari — sesuaikan kalau instalasi ini diperkirakan lebih cepat/lama.'),
+
+                    // Default-nya diambil dari setting toko
+                    // (install_capacity_per_day, lihat StoreResource), tapi
+                    // field ini SENDIRI tidak disimpan ke database — staff
+                    // boleh ubah sesaat kalau kapasitas hari itu beda dari
+                    // biasanya (mis. 1 installer izin) TANPA mengubah
+                    // setting toko permanen. Lihat
+                    // CreateBooking::mutateFormDataBeforeCreate()/
+                    // EditBooking::mutateFormDataBeforeSave() (dibuang dari
+                    // $data sebelum sampai ke Booking::create()/update()).
+                    Forms\Components\TextInput::make('capacity_per_day')
+                        ->label('Kapasitas Instalasi / Hari')
+                        ->numeric()
+                        ->minValue(1)
+                        ->default(fn (Forms\Get $get) => Store::find($get('store_id'))?->install_capacity_per_day ?? 3)
+                        ->live()
+                        ->required()
+                        ->helperText('Default dari setting toko — bisa diubah sesaat kalau kapasitas hari ini beda (tidak mengubah setting toko).'),
 
                     // Live preview sisa slot instalasi per tanggal — dihitung
                     // dari booking 'confirmed' lain yang tanggal kerjanya
@@ -239,9 +264,7 @@ class BookingResource extends Resource
                                 return 'Pilih toko & tanggal dulu untuk lihat sisa slot.';
                             }
 
-                            $store = Store::find($storeId);
-                            if (! $store) return '—';
-
+                            $capacity = max(1, (int) ($get('capacity_per_day') ?: 3));
                             $duration = max(1, (int) ($get('duration_days') ?: 1));
                             $start = \Illuminate\Support\Carbon::parse($dateStr);
 
@@ -249,9 +272,9 @@ class BookingResource extends Resource
                             for ($i = 0; $i < $duration; $i++) {
                                 $day = $start->copy()->addDays($i);
                                 $used = Booking::confirmedOverlapCount($storeId, $day, $record?->id);
-                                $remaining = max(0, $store->install_capacity_per_day - $used);
+                                $remaining = max(0, $capacity - $used);
 
-                                $lines[] = $day->format('d M Y') . ": {$remaining}/{$store->install_capacity_per_day} slot"
+                                $lines[] = $day->format('d M Y') . ": {$remaining}/{$capacity} slot"
                                     . ($remaining <= 0 ? ' — PENUH' : '');
                             }
 

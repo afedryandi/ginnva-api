@@ -76,7 +76,10 @@ class BookingController extends Controller
 
         $booking = Booking::with([
             'customer:id,name,phone_number',
-            'store:id,name',
+            // install_capacity_per_day diikutkan supaya mobile app bisa
+            // pre-fill default kapasitas saat approve (lihat modal
+            // "Konfirmasi Booking" — nilainya tetap bisa diedit staff).
+            'store:id,name,install_capacity_per_day',
             'installers:id,name',
             'watchers:id,name',
         ])->findOrFail($id);
@@ -113,7 +116,13 @@ class BookingController extends Controller
             // Staff boleh sesuaikan lama pengerjaan saat approve (mis. tahu
             // dari konsultasi customer ternyata butuh lebih/kurang dari
             // default) — sama seperti field "Lama Pengerjaan" di Filament.
-            'duration_days' => 'sometimes|integer|min:1|max:14',
+            'duration_days'   => 'sometimes|integer|min:1|max:14',
+            // Kapasitas BUKAN setting tetap per toko — staff input manual
+            // tiap approve (sama seperti field "Kapasitas Instalasi / Hari"
+            // di Filament), supaya fleksibel kalau kapasitas real hari itu
+            // beda dari biasanya. Wajib diisi (tidak ada default tersimpan
+            // di mana pun untuk diambil).
+            'capacity_per_day' => 'required|integer|min:1',
         ]);
 
         return DB::transaction(function () use ($booking, $request) {
@@ -135,6 +144,7 @@ class BookingController extends Controller
                 $locked->store_id,
                 $locked->preferred_date->copy(),
                 $durationDays,
+                (int) $request->capacity_per_day,
                 $locked->id,
             );
 

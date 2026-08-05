@@ -13,9 +13,24 @@ class CreateBooking extends CreateRecord
 {
     protected static string $resource = BookingResource::class;
 
+    // capacity_per_day BUKAN kolom di tabel bookings — ditangkap di sini
+    // dari mutateFormDataBeforeCreate() (bukan ->dehydrated(false), lihat
+    // komentar di field-nya di BookingResource::form()) supaya masih bisa
+    // dipakai di beforeCreate() SETELAH dibuang dari $data yang dikirim
+    // ke Booking::create().
+    private int $capacityPerDay = 3;
+
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');
+    }
+
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $this->capacityPerDay = max(1, (int) ($data['capacity_per_day'] ?? 3));
+        unset($data['capacity_per_day']);
+
+        return $data;
     }
 
     /**
@@ -36,6 +51,7 @@ class CreateBooking extends CreateRecord
             (int) $this->data['store_id'],
             Carbon::parse($this->data['preferred_date']),
             max(1, (int) ($this->data['duration_days'] ?? 1)),
+            $this->capacityPerDay,
         );
 
         if (empty($fullDates)) {
