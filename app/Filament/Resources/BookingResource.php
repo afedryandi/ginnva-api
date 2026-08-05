@@ -266,16 +266,42 @@ class BookingResource extends Resource
 
                             $capacity = max(1, (int) ($get('capacity_per_day') ?: 3));
                             $duration = max(1, (int) ($get('duration_days') ?: 1));
-                            $start = \Illuminate\Support\Carbon::parse($dateStr);
+                            $store = Store::find($storeId);
+                            $day = \Illuminate\Support\Carbon::parse($dateStr);
 
+                            // Hari libur toko dilewati, tidak dihitung
+                            // sebagai hari kerja — sama seperti
+                            // Booking::fullDatesInRange() yang benar-benar
+                            // menegakkan ini saat approve.
                             $lines = [];
-                            for ($i = 0; $i < $duration; $i++) {
-                                $day = $start->copy()->addDays($i);
+                            $counted = 0;
+                            $daysScanned = 0;
+
+                            // Batas 90 hari kalender — jaring pengaman
+                            // kalau data Jam Operasional toko salah isi
+                            // (mis. semua hari ditandai libur), supaya
+                            // Placeholder ini tidak nge-hang halaman admin.
+                            while ($counted < $duration && $daysScanned < 90) {
+                                $daysScanned++;
+
+                                if ($store?->isClosedOn($day)) {
+                                    $lines[] = $day->format('d M Y') . ': Toko libur';
+                                    $day = $day->copy()->addDay();
+                                    continue;
+                                }
+
+                                $counted++;
                                 $used = Booking::confirmedOverlapCount($storeId, $day, $record?->id);
                                 $remaining = max(0, $capacity - $used);
 
                                 $lines[] = $day->format('d M Y') . ": {$remaining}/{$capacity} slot"
                                     . ($remaining <= 0 ? ' — PENUH' : '');
+
+                                $day = $day->copy()->addDay();
+                            }
+
+                            if ($counted < $duration) {
+                                $lines[] = 'Toko ini sepertinya tutup terus-menerus — cek lagi Jam Operasional toko di menu Toko.';
                             }
 
                             return new \Illuminate\Support\HtmlString(implode('<br>', array_map('e', $lines)));

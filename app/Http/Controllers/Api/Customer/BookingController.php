@@ -78,13 +78,8 @@ class BookingController extends Controller
         // yang belum tahu fitur ini) tidak bisa lolos booking di hari
         // toko libur.
         $store = Store::find($request->store_id);
-        $dayCode = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][Carbon::parse($request->preferred_date)->dayOfWeek];
-        $isClosedDay = collect($store?->opening_hours ?? [])
-            ->filter(fn ($row) => ! empty($row['closed']))
-            ->flatMap(fn ($row) => $row['days'] ?? [])
-            ->contains($dayCode);
 
-        if ($isClosedDay) {
+        if ($store?->isClosedOn(Carbon::parse($request->preferred_date))) {
             return response()->json([
                 'success' => false,
                 'message' => 'Toko tutup pada hari yang dipilih. Silakan pilih tanggal lain.',
