@@ -26,6 +26,8 @@ class InventoryStatsOverview extends BaseWidget
     // request tambahan sama sekali.
     protected static bool $isLazy = false;
 
+    protected static ?string $pollingInterval = null;
+
     protected function getStats(): array
     {
         $materialValue = RawMaterial::query()

@@ -52,6 +52,10 @@ class MaterialsNeedingAttentionWidget extends BaseWidget
                     })
                     ->color('danger'),
             ])
-            ->paginated(false);
+            ->paginated(false)
+            // Matikan auto-refresh berkala — request Livewire otomatis
+            // tiap beberapa detik ini yang ternyata ikut gagal 419 juga
+            // (lihat catatan $isLazy di atas).
+            ->poll(null);
     }
 }

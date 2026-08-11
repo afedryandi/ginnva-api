@@ -51,6 +51,7 @@ class ProblemAssetsWidget extends BaseWidget
                     ->label('Lokasi')
                     ->placeholder('Kantor Pusat'),
             ])
-            ->paginated(false);
+            ->paginated(false)
+            ->poll(null);
     }
 }
