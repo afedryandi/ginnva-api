@@ -41,11 +41,10 @@ class InventoryDashboard extends Page
 
     public function getWidgets(): array
     {
-        // SEMENTARA dikosongkan untuk diagnosa 419 — lihat percakapan.
-        // Kalau halaman kosong ini berhasil dibuka tanpa 419, berarti
-        // masalahnya ada di salah satu widget; kalau tetap 419, berarti
-        // masalahnya di Page/view-nya sendiri.
-        return [];
+        // SEMENTARA cuma 1 widget untuk diagnosa 419 — lihat percakapan.
+        return [
+            InventoryStatsOverview::class,
+        ];
     }
 
     public function getColumns(): int|array
