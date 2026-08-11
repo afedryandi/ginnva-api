@@ -170,7 +170,13 @@ Route::prefix('staff')->group(function () {
         // Approve booking pending -> confirmed langsung dari app (Store
         // Manager/Direksi/Super Admin) — dicek kapasitas slot instalasi
         // toko, lihat Booking::fullDatesInRange().
+        // Preview tanggal kerja + slot terpakai per tanggal, dasar buat
+        // form input kapasitas per tanggal di app sebelum approve.
+        Route::get('/bookings/{id}/capacity-preview', [StaffBookingController::class, 'capacityPreview']);
         Route::post('/bookings/{id}/confirm', [StaffBookingController::class, 'confirm'])
+            ->middleware('throttle:20,1');
+        // Batalkan booking (pending/confirmed) langsung dari app.
+        Route::post('/bookings/{id}/cancel', [StaffBookingController::class, 'cancel'])
             ->middleware('throttle:20,1');
         // Tandai booking selesai + input kode referral & nominal transaksi
         // (kalau customer datang lewat kode partner) — lihat ReferralPointService.
@@ -201,9 +207,10 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:20,1');
 
         // Sistem inventaris — scan QR kardus/barang fisik untuk lihat
-        // detail + catat keluar/masuk. Semua role staff (bukan cuma
-        // store_manager/direksi) sengaja boleh akses, karena scan barang
-        // fisik memang tugas siapa saja yang sedang pegang barangnya.
+        // detail + catat keluar/masuk. Dibatasi ke staff yang akun
+        // Filament-nya dicentang akses menu "Barang" (lihat
+        // InventoryController::authorizeScan()) — diatur dari checklist
+        // "Akses Menu" di form User, bukan role hardcode.
         Route::get('/inventory/{code}', [StaffInventoryController::class, 'show']);
         Route::post('/inventory/{code}/movement', [StaffInventoryController::class, 'storeMovement'])
             ->middleware('throttle:30,1');

@@ -111,6 +111,43 @@ class Booking extends Model
     }
 
     /**
+     * SAMA seperti workingDatesInRange(), tapi hari libur toko IKUT
+     * disertakan (ditandai closed=true) — murni untuk TAMPILAN, supaya
+     * staff tahu kenapa ada lompatan tanggal (mis. 08 → 10 karena 09
+     * libur), bukan dikira sistem salah hitung. TIDAK dipakai untuk
+     * validasi kapasitas (itu tetap lewat workingDatesInRange()/
+     * fullDatesInRange() — kolom kapasitas cuma ada untuk hari kerja).
+     *
+     * Return ['complete' => bool, 'dates' => [['date' => Y-m-d, 'closed' => bool], ...]].
+     * 'complete' false berarti kena batas 90 hari kalender sebelum
+     * $durationDays hari kerja tercapai (data Jam Operasional toko
+     * kemungkinan salah isi, mis. semua hari ditandai libur).
+     */
+    public static function calendarWalkWithClosedDays(int $storeId, Carbon $startDate, int $durationDays): array
+    {
+        $store = Store::find($storeId);
+        $dates = [];
+        $day = $startDate->copy();
+        $counted = 0;
+        $daysScanned = 0;
+
+        while ($counted < $durationDays && $daysScanned < 90) {
+            $daysScanned++;
+            $closed = (bool) $store?->isClosedOn($day);
+
+            $dates[] = ['date' => $day->toDateString(), 'closed' => $closed];
+
+            if (! $closed) {
+                $counted++;
+            }
+
+            $day->addDay();
+        }
+
+        return ['complete' => $counted >= $durationDays, 'dates' => $dates];
+    }
+
+    /**
      * Berapa booking berstatus 'confirmed' di toko ini yang jadwalnya
      * menyentuh tanggal $date (rentang preferred_date..end_date-nya
      * overlap $date, hari libur toko sudah dilewati saat hitung end_date
@@ -144,29 +181,24 @@ class Booking extends Model
     }
 
     /**
-     * Cek kapasitas SETIAP HARI KERJA (hari libur toko dilewati, tidak
-     * pernah dianggap "penuh"/"kosong" karena memang tidak ada pengerjaan)
+     * Daftar tanggal (Y-m-d) HARI KERJA saja (hari libur toko dilewati)
      * dalam rentang $durationDays hari kerja mulai $startDate di toko
-     * $storeId — dipakai sebelum booking di-approve jadi 'confirmed'
-     * (BookingResource maupun endpoint mobile /confirm) supaya tidak
-     * mungkin lolos approve kalau salah satu harinya sudah penuh.
-     * $capacityPerDay SENGAJA bukan setting tetap per toko — staff yang
-     * input manual tiap kali approve (lihat form Booking di Filament &
-     * payload POST .../confirm), supaya fleksibel kalau kapasitas real
-     * hari itu beda dari biasanya. Return array tanggal (Y-m-d) yang
-     * SUDAH PENUH; array kosong = seluruh rentang masih ada slot.
+     * $storeId — dasar untuk minta staff isi kapasitas PER TANGGAL (tim
+     * instalasi bisa beda-beda tiap hari, mis. 1 tim masih ngerjain mobil
+     * dari hari sebelumnya atau izin) dan untuk preview "Sisa Slot
+     * Instalasi". Dipakai Filament (BookingResource) dan endpoint mobile
+     * GET .../capacity-preview.
      */
-    public static function fullDatesInRange(int $storeId, Carbon $startDate, int $durationDays, int $capacityPerDay, ?int $excludeBookingId = null): array
+    public static function workingDatesInRange(int $storeId, Carbon $startDate, int $durationDays): array
     {
         $store = Store::find($storeId);
-        $fullDates = [];
+        $dates = [];
         $day = $startDate->copy();
-        $counted = 0;
         $daysScanned = 0;
 
-        // Batas 90 hari kalender — jaring pengaman yang sama seperti
-        // nthWorkingDay() kalau data jam operasional toko salah isi.
-        while ($counted < $durationDays && $daysScanned < 90) {
+        // Batas 90 hari kalender — jaring pengaman kalau data Jam
+        // Operasional toko salah isi (mis. ke-7 hari ditandai libur).
+        while (count($dates) < $durationDays && $daysScanned < 90) {
             $daysScanned++;
 
             if ($store?->isClosedOn($day)) {
@@ -174,17 +206,46 @@ class Booking extends Model
                 continue;
             }
 
-            $counted++;
-
-            if (self::confirmedOverlapCount($storeId, $day, $excludeBookingId) >= $capacityPerDay) {
-                $fullDates[] = $day->toDateString();
-            }
-
+            $dates[] = $day->toDateString();
             $day->addDay();
         }
 
-        if ($counted < $durationDays) {
+        if (count($dates) < $durationDays) {
             throw new \RuntimeException("Toko \"{$store?->name}\" sepertinya tutup terus-menerus (>90 hari) — cek lagi Jam Operasional toko ini.");
+        }
+
+        return $dates;
+    }
+
+    /**
+     * Cek kapasitas SETIAP HARI KERJA dalam rentang $durationDays hari
+     * kerja mulai $startDate di toko $storeId — dipakai sebelum booking
+     * di-approve jadi 'confirmed' (BookingResource maupun endpoint mobile
+     * /confirm) supaya tidak mungkin lolos approve kalau salah satu
+     * harinya sudah penuh.
+     *
+     * $capacityByDate = [tanggal Y-m-d => kapasitas hari itu] — SENGAJA
+     * per tanggal (bukan 1 angka global) karena kapasitas tim instalasi
+     * riil bisa beda tiap hari (mis. 1 tim masih ngerjain mobil dari hari
+     * sebelumnya, atau izin). Staff input manual tiap kali approve (lihat
+     * form Booking di Filament & payload POST .../confirm) — TIDAK
+     * pernah jadi setting tetap tersimpan. Tanggal yang tidak ada di
+     * $capacityByDate fallback ke $defaultCapacity.
+     *
+     * Return array tanggal (Y-m-d) yang SUDAH PENUH; array kosong =
+     * seluruh rentang masih ada slot.
+     */
+    public static function fullDatesInRange(int $storeId, Carbon $startDate, int $durationDays, array $capacityByDate, int $defaultCapacity = 3, ?int $excludeBookingId = null): array
+    {
+        $fullDates = [];
+
+        foreach (self::workingDatesInRange($storeId, $startDate, $durationDays) as $dateStr) {
+            $capacity = max(1, (int) ($capacityByDate[$dateStr] ?? $defaultCapacity));
+            $day = Carbon::parse($dateStr);
+
+            if (self::confirmedOverlapCount($storeId, $day, $excludeBookingId) >= $capacity) {
+                $fullDates[] = $dateStr;
+            }
         }
 
         return $fullDates;

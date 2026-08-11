@@ -18,6 +18,7 @@ class InventoryItem extends Model
         'code',
         'name',
         'category',
+        'scroll_code_id',
         'status',
         'notes',
         'created_by',
@@ -31,6 +32,16 @@ class InventoryItem extends Model
     public function movements(): HasMany
     {
         return $this->hasMany(InventoryMovement::class)->latest();
+    }
+
+    /**
+     * Opsional — hanya terisi kalau barangnya PPF/window film dan sudah
+     * dikaitkan ke kode gulungan tertentu (lihat ScrollCode::inventoryItem()
+     * untuk sisi baliknya).
+     */
+    public function scrollCode(): BelongsTo
+    {
+        return $this->belongsTo(ScrollCode::class);
     }
 
     /**
@@ -73,6 +84,21 @@ class InventoryItem extends Model
             }
 
             $item->update(['status' => $type === 'in' ? 'in_stock' : 'out']);
+
+            // Barang PPF/window film yang punya kode gulungan terkait:
+            // status kodenya ikut sinkron otomatis, supaya menu Kode
+            // Gulungan tidak perlu diurus manual terpisah. "used" tidak
+            // pernah ditimpa di sini — itu cuma berubah lewat pemakaian
+            // warranty sungguhan.
+            if ($item->scroll_code_id) {
+                $scrollCode = ScrollCode::find($item->scroll_code_id);
+
+                if ($scrollCode?->status === 'unallocated' && $type === 'out') {
+                    $scrollCode->update(['status' => 'allocated', 'allocated_at' => now()]);
+                } elseif ($scrollCode?->status === 'allocated' && $type === 'in') {
+                    $scrollCode->update(['status' => 'unallocated', 'allocated_at' => null]);
+                }
+            }
 
             $movement = $item->movements()->create([
                 'type' => $type,

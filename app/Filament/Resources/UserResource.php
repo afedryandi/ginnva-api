@@ -74,6 +74,7 @@ class UserResource extends Resource
                 'CustomerResource' => 'Akun Customer',
                 'PartnershipInquiryResource' => 'Pengajuan Kemitraan',
                 'ProductInquiryResource' => 'Inquiry Produk',
+                'PointTransactionResource' => 'Riwayat Poin Customer',
             ],
             'Operasional' => [
                 'QuotationResource' => 'Quotation (Lead)',
@@ -81,6 +82,15 @@ class UserResource extends Resource
                 'BlockedDateResource' => 'Tanggal Tidak Tersedia',
                 'TechnicianResource' => 'Teknisi',
                 'WarrantyResource' => 'Garansi',
+                'StoreReviewResource' => 'Review Toko',
+            ],
+            'Inventaris' => [
+                'InventoryDashboard' => 'Dashboard Inventaris',
+                'InventoryItemResource' => 'Produk PPF/WF',
+                'InventoryMovementResource' => 'Riwayat Keluar/Masuk',
+                'RawMaterialResource' => 'Bahan Baku',
+                'RawMaterialMovementResource' => 'Riwayat Bahan Baku',
+                'AssetResource' => 'Aset',
             ],
             'Konten' => [
                 'CaseStudyResource' => 'Galeri Pemasangan',
@@ -90,6 +100,7 @@ class UserResource extends Resource
                 'FeaturedProductResource' => 'Seri Produk (Beranda)',
                 'JobOpeningResource' => 'Lowongan Kerja',
                 'MaterialResource' => 'Materi Download',
+                'MaterialCategoryResource' => 'Kategori Materi',
             ],
             'Master Data' => [
                 'FilmProductResource' => 'Produk Film',
@@ -107,6 +118,7 @@ class UserResource extends Resource
                 'VoucherResource' => 'Voucher Promo',
                 'RewardResource' => 'Katalog Reward',
                 'RewardRedemptionResource' => 'Klaim Reward',
+                'PartnerPointTransactionResource' => 'Riwayat Poin Partner',
             ],
         ];
     }
@@ -196,6 +208,10 @@ class UserResource extends Resource
                     Forms\Components\Select::make('roles')
                         ->label('Role')
                         ->relationship('roles', 'name')
+                        // "partner" sengaja tidak ditawarkan di sini — akun
+                        // mitra referral dibuat & dikelola lewat menu Partner
+                        // (PartnerResource), bukan dari menu User internal ini.
+                        ->options(fn () => \Spatie\Permission\Models\Role::where('name', '!=', 'partner')->pluck('name', 'id'))
                         ->multiple()
                         ->preload()
                         // Bikin role baru langsung dari sini kalau divisinya
@@ -347,11 +363,15 @@ class UserResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        // Tidak perlu scope tambahan — canViewAny() sudah memastikan
-        // hanya super_admin yang bisa sampai ke titik ini, jadi semua
-        // user boleh terlihat (tidak ada konsep "user milik toko lain
-        // yang harus disembunyikan" di sini).
-        return parent::getEloquentQuery();
+        // User dengan role "partner" (mitra referral, akun dibuat massal
+        // lewat form GIIAS/signup) SENGAJA disembunyikan dari sini — dulu
+        // mereka bercampur dengan user internal (staff/direksi) di satu
+        // list yang sama, padahal jumlahnya jauh lebih banyak dan profil
+        // lengkapnya (nama bisnis, referral code, poin) sudah ada
+        // tersendiri di menu Partner (PartnerResource). Menu "User" ini
+        // sekarang khusus akun internal perusahaan.
+        return parent::getEloquentQuery()
+            ->whereDoesntHave('roles', fn (Builder $q) => $q->where('name', 'partner'));
     }
 
     public static function getPages(): array

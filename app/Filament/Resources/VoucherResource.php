@@ -37,6 +37,21 @@ class VoucherResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * Voucher adalah kampanye promo company-wide (tidak terikat satu
+     * toko) — create/edit dibatasi super_admin/direksi saja supaya
+     * store_manager tidak bisa mengubah kampanye milik toko lain.
+     */
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    public static function canEdit($record): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

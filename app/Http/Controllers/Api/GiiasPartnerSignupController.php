@@ -7,6 +7,8 @@ use App\Models\Partner;
 use App\Models\PartnershipInquiry;
 use App\Models\User;
 use App\Services\QrCodeService;
+use App\Services\WhatsAppService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -40,7 +42,11 @@ class GiiasPartnerSignupController extends Controller
         $validator = Validator::make($request->all(), [
             'name'        => 'required|string|max:255',
             'phone'       => 'required|string|max:30',
-            'email'       => 'required|email|max:255',
+            // Email OPSIONAL — kebanyakan sales daftar cuma kasih nama +
+            // WA saat di lapangan GIIAS, tidak sempat/mau kasih email.
+            // Nomor WA yang sekarang jadi identitas utama dedupe (lihat
+            // di bawah), bukan email lagi.
+            'email'       => 'nullable|email|max:255',
             'car_brand'   => 'required|string|max:255',
             'dealer_name' => 'nullable|string|max:255',
         ]);
@@ -53,12 +59,24 @@ class GiiasPartnerSignupController extends Controller
             ], 422);
         }
 
-        $email = $request->email;
+        $email = $request->email; // boleh null
 
-        // Idempoten — kalau email ini sudah pernah daftar jadi partner
-        // (mis. submit dobel karena refresh halaman), kembalikan kode
-        // referral yang sudah ada, bukan bikin akun baru/kena error unique.
-        $existingPartner = Partner::whereHas('user', fn ($q) => $q->where('email', $email))->first();
+        // Normalisasi ke format 62xxx — tanpa ini, "08123..." dan
+        // "+62 812-3..." dianggap 2 nomor beda walau orangnya sama, dan
+        // dedupe di bawah gagal mendeteksi submit dobel.
+        $phone = WhatsAppService::normalizePhoneNumber($request->phone);
+
+        // Idempoten — dedupe utama sekarang lewat NOMOR WA (data yang
+        // paling reliable diisi), email cuma dicek tambahan kalau memang
+        // diisi. Mencegah submit dobel (mis. refresh halaman) bikin akun
+        // partner baru/duplikat. Lapisan terakhir kalau 2 request nyaris
+        // bersamaan lolos cek ini juga (race) ada di UNIQUE index kolom
+        // phone — ditangkap lewat QueryException di bawah, bukan
+        // dibiarkan jadi error 500 mentah.
+        $existingPartner = Partner::where('phone', $phone)->first();
+        if (! $existingPartner && $email) {
+            $existingPartner = Partner::whereHas('user', fn ($q) => $q->where('email', $email))->first();
+        }
         if ($existingPartner) {
             $link = $this->buildReferralLink($existingPartner->referral_code);
 
@@ -75,7 +93,8 @@ class GiiasPartnerSignupController extends Controller
 
         // Email sudah dipakai akun lain (staff/customer/dst) yang bukan
         // partner — tidak bisa dipakai ulang karena users.email unique.
-        if (User::where('email', $email)->exists()) {
+        // Cuma relevan kalau sales memang isi email.
+        if ($email && User::where('email', $email)->exists()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Email ini sudah terdaftar di sistem Ginnva. Gunakan email lain.',
@@ -87,29 +106,67 @@ class GiiasPartnerSignupController extends Controller
             ? "{$request->name} - {$request->dealer_name}"
             : $request->name;
 
-        $partner = DB::transaction(function () use ($request, $email, $businessName) {
-            $partner = Partner::createAccount([
-                'business_name' => $businessName,
-                'email'         => $email,
-                'password'      => Str::random(20),
-                'phone'         => $request->phone,
-                'status'        => 'active',
-            ]);
+        // users.email WAJIB terisi & unique di level database (dipakai
+        // login) — kalau sales tidak kasih email, akun tetap perlu 1
+        // nilai unik di kolom itu. Login lewat akun ini belum relevan
+        // sekarang (app partner belum rilis, lihat komentar class di
+        // atas), jadi placeholder ini aman — begitu app partner rilis,
+        // alur "Lupa Password"-nya butuh email ASLI, itu akan jadi
+        // masalah operasional terpisah (partner tanpa email perlu
+        // dihubungi manual untuk lengkapi datanya).
+        $accountEmail = $email ?: $this->generatePlaceholderEmail($phone);
 
-            PartnershipInquiry::create([
-                'category'       => 'sales',
-                'applicant_name' => $request->name,
-                'phone_number'   => $request->phone,
-                'email'          => $email,
-                'car_brand'      => $request->car_brand,
-                'dealer_name'    => $request->dealer_name,
-                'status'         => 'deal',
-                'partner_id'     => $partner->id,
-                'notes'          => 'Dibuat otomatis lewat form Become a Partner di halaman /giias.',
-            ]);
+        try {
+            $partner = DB::transaction(function () use ($request, $phone, $accountEmail, $email, $businessName) {
+                $partner = Partner::createAccount([
+                    'business_name' => $businessName,
+                    'email'         => $accountEmail,
+                    'password'      => Str::random(20),
+                    'phone'         => $phone,
+                    'status'        => 'active',
+                ]);
 
-            return $partner;
-        });
+                PartnershipInquiry::create([
+                    'category'       => 'sales',
+                    'applicant_name' => $request->name,
+                    'phone_number'   => $phone,
+                    // Simpan email ASLI (bisa null) di sini — BUKAN
+                    // $accountEmail — supaya admin tidak lihat placeholder
+                    // palsu di catatan pengajuan.
+                    'email'          => $email,
+                    'car_brand'      => $request->car_brand,
+                    'dealer_name'    => $request->dealer_name,
+                    'status'         => 'deal',
+                    'partner_id'     => $partner->id,
+                    'notes'          => 'Dibuat otomatis lewat form Become a Partner di halaman /giias.',
+                ]);
+
+                return $partner;
+            });
+        } catch (QueryException $e) {
+            // UNIQUE index kolom phone menangkap race yang lolos cek
+            // exists() di atas (2 submit nyaris bersamaan) — nomor WA-nya
+            // PASTI sudah terdaftar (baru saja dibuat request lain),
+            // kembalikan kode referral yang sudah ada alih-alih error 500
+            // mentah ke customer.
+            $racedPartner = Partner::where('phone', $phone)->first();
+
+            if (! $racedPartner) {
+                throw $e; // bukan soal race phone — biar tetap kelihatan sebagai error asli
+            }
+
+            $link = $this->buildReferralLink($racedPartner->referral_code);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Anda sudah terdaftar sebagai partner sebelumnya.',
+                'data' => [
+                    'referral_code' => $racedPartner->referral_code,
+                    'referral_link' => $link,
+                    'qr_data_uri'   => QrCodeService::generateDataUri($link, 400),
+                ],
+            ], 200);
+        }
 
         $link = $this->buildReferralLink($partner->referral_code);
 
@@ -175,5 +232,22 @@ class GiiasPartnerSignupController extends Controller
         $base = config('app.frontend_url', 'https://ginnva.id');
 
         return rtrim($base, '/') . '/giias?ref=' . $code;
+    }
+
+    /**
+     * Placeholder unik untuk users.email saat sales tidak isi email —
+     * domain "no-reply.ginnva.id" dipakai supaya gampang dikenali di
+     * Filament/database mana yang akun beneran vs placeholder (lihat
+     * juga PartnerResource yang kasih tanda visual untuk pola ini).
+     */
+    private function generatePlaceholderEmail(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?: 'x';
+
+        do {
+            $candidate = "sales-{$digits}-" . Str::lower(Str::random(4)) . '@no-reply.ginnva.id';
+        } while (User::where('email', $candidate)->exists());
+
+        return $candidate;
     }
 }

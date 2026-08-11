@@ -266,6 +266,10 @@ class ScrollCodeResource extends Resource
                         }
                     }),
 
+                // Import massal DIPINDAH ke menu Barang (InventoryItemResource)
+                // — supaya kode gulungan hasil import juga otomatis tercatat
+                // sebagai unit fisik di Inventaris (dapat kode/QR sendiri),
+                // bukan cuma masuk ke tabel scroll_codes tanpa jejak stok.
 
                 // Export Excel
                 Tables\Actions\Action::make('export')

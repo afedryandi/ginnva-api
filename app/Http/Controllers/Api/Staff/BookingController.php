@@ -96,6 +96,55 @@ class BookingController extends Controller
     }
 
     /**
+     * GET /api/staff/bookings/{id}/capacity-preview?duration_days=3
+     *
+     * Daftar tanggal (TERMASUK hari libur, ditandai closed=true) untuk
+     * rentang lama pengerjaan tertentu — hari libur cuma ditampilkan
+     * sebagai konteks (kenapa ada lompatan tanggal), tidak ikut divalidasi
+     * kapasitas. Tanggal kerja disertai berapa slot sudah terpakai
+     * (booking 'confirmed' lain) dan kapasitas default toko — dipakai
+     * mobile app buat render 1 input kapasitas PER TANGGAL sebelum
+     * approve (tim instalasi bisa beda jumlah tiap hari, mis. 1 tim masih
+     * ngerjain mobil dari hari sebelumnya).
+     */
+    public function capacityPreview(Request $request, int $id)
+    {
+        $user = $request->user('api');
+        $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+
+        $request->validate([
+            'duration_days' => 'sometimes|integer|min:1|max:14',
+        ]);
+
+        $durationDays = $request->filled('duration_days')
+            ? (int) $request->duration_days
+            : ($booking->duration_days ?? $booking->effective_duration_days);
+
+        $defaultCapacity = $booking->store?->install_capacity_per_day ?: 3;
+
+        $walk = Booking::calendarWalkWithClosedDays($booking->store_id, $booking->preferred_date->copy(), $durationDays);
+
+        $dates = collect($walk['dates'])->map(function (array $row) use ($booking, $defaultCapacity) {
+            if ($row['closed']) {
+                return ['date' => $row['date'], 'closed' => true];
+            }
+
+            return [
+                'date'             => $row['date'],
+                'closed'           => false,
+                'used'             => Booking::confirmedOverlapCount($booking->store_id, \Illuminate\Support\Carbon::parse($row['date']), $booking->id),
+                'default_capacity' => $defaultCapacity,
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $dates,
+            'meta'    => ['complete' => $walk['complete']],
+        ]);
+    }
+
+    /**
      * POST /api/staff/bookings/{id}/confirm
      *
      * Approve booking dari 'pending' ke 'confirmed' langsung dari mobile
@@ -117,12 +166,13 @@ class BookingController extends Controller
             // dari konsultasi customer ternyata butuh lebih/kurang dari
             // default) — sama seperti field "Lama Pengerjaan" di Filament.
             'duration_days'   => 'sometimes|integer|min:1|max:14',
-            // Kapasitas BUKAN setting tetap per toko — staff input manual
-            // tiap approve (sama seperti field "Kapasitas Instalasi / Hari"
-            // di Filament), supaya fleksibel kalau kapasitas real hari itu
-            // beda dari biasanya. Wajib diisi (tidak ada default tersimpan
-            // di mana pun untuk diambil).
-            'capacity_per_day' => 'required|integer|min:1',
+            // Kapasitas PER TANGGAL (tim instalasi bisa beda-beda jumlahnya
+            // tiap hari) — bukan 1 angka global lagi. Staff input manual
+            // tiap approve (sama seperti Filament), TIDAK pernah jadi
+            // setting tetap tersimpan.
+            'capacities'            => 'required|array|min:1',
+            'capacities.*.date'     => 'required|date',
+            'capacities.*.capacity' => 'required|integer|min:1',
         ]);
 
         return DB::transaction(function () use ($booking, $request) {
@@ -140,12 +190,16 @@ class BookingController extends Controller
                 ? (int) $request->duration_days
                 : $locked->duration_days;
 
+            $capacityByDate = collect($request->capacities)
+                ->mapWithKeys(fn (array $row) => [\Illuminate\Support\Carbon::parse($row['date'])->toDateString() => (int) $row['capacity']])
+                ->all();
+
             $fullDates = Booking::fullDatesInRange(
                 $locked->store_id,
                 $locked->preferred_date->copy(),
                 $durationDays,
-                (int) $request->capacity_per_day,
-                $locked->id,
+                $capacityByDate,
+                excludeBookingId: $locked->id,
             );
 
             if (! empty($fullDates)) {
@@ -161,6 +215,53 @@ class BookingController extends Controller
                 'success' => true,
                 'data'    => $locked->fresh(),
                 'message' => 'Booking dikonfirmasi.',
+            ]);
+        });
+    }
+
+    /**
+     * POST /api/staff/bookings/{id}/cancel
+     *
+     * Batalkan booking dari mobile app — sebelumnya cuma bisa lewat
+     * Filament, staff toko harus buka admin panel dari browser buat
+     * urusan operasional yang sebenarnya sering terjadi (customer minta
+     * reschedule total, salah input). Bisa dari status 'pending' maupun
+     * 'confirmed' — booking 'confirmed' yang dibatalkan otomatis melepas
+     * slot kapasitasnya (Booking::confirmedOverlapCount() cuma hitung
+     * status 'confirmed', jadi begitu status berubah slot langsung
+     * kebuka lagi tanpa perlu proses tambahan). Installer & partner
+     * tidak boleh, sama seperti assignment (lihat authorizeManage()).
+     */
+    public function cancel(Request $request, int $id)
+    {
+        $user = $request->user('api');
+        $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+
+        $request->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        return DB::transaction(function () use ($booking, $request) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+            if (in_array($locked->status, ['completed', 'cancelled'], true)) {
+                abort(422, "Booking ini sudah berstatus \"{$locked->status}\", tidak bisa dibatalkan.");
+            }
+
+            $notes = $locked->notes;
+            if ($request->filled('reason')) {
+                $notes = trim(($notes ? $notes . "\n\n" : '') . "Dibatalkan: {$request->reason}");
+            }
+
+            $locked->update([
+                'status' => 'cancelled',
+                'notes'  => $notes,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $locked->fresh(),
+                'message' => 'Booking dibatalkan.',
             ]);
         });
     }

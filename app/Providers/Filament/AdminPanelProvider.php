@@ -40,6 +40,7 @@ class AdminPanelProvider extends PanelProvider
             ->navigationGroups([
                 'Penjualan',
                 'Operasional',
+                'Inventaris',
                 'Partnership Referral',
                 'Konten',
                 'Master Data',

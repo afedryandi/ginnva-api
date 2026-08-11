@@ -118,7 +118,15 @@ class PartnerResource extends Resource
 
                 Tables\Columns\TextColumn::make('user.email')
                     ->label('Email')
-                    ->searchable(),
+                    ->searchable()
+                    // Partner yang daftar sendiri lewat /giias tanpa isi
+                    // email dapat placeholder otomatis (lihat
+                    // GiiasPartnerSignupController::generatePlaceholderEmail())
+                    // supaya admin tidak salah kira itu email asli
+                    // partner-nya.
+                    ->description(fn ($record) => str_ends_with((string) $record->user?->email, '@no-reply.ginnva.id')
+                        ? 'Email otomatis — sales belum isi email asli'
+                        : null),
 
                 Tables\Columns\TextColumn::make('referral_code')
                     ->label('Kode Referral')

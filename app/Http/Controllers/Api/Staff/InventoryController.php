@@ -10,6 +10,21 @@ use Illuminate\Support\Facades\Validator;
 class InventoryController extends Controller
 {
     /**
+     * Cuma staff yang di akun Filament-nya dicentang akses menu "Barang"
+     * (InventoryItemResource) yang boleh scan — SENGAJA dicek lewat
+     * hasMenuAccess() yang sama dengan yang dipakai Filament, bukan role
+     * hardcode, supaya admin cukup atur 1 tempat (checklist "Akses Menu"
+     * di form User) untuk keduanya sekaligus.
+     */
+    private function authorizeScan(Request $request): bool
+    {
+        $user = $request->user('api');
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(\App\Filament\Resources\InventoryItemResource::class);
+    }
+
+    /**
      * GET /api/staff/inventory/{code}
      *
      * Dipanggil begitu staff selesai scan QR di app mobile — cari barang
@@ -17,8 +32,15 @@ class InventoryController extends Controller
      * riwayat keluar-masuk terakhir (20 baris) supaya staff bisa lihat
      * konteks sebelum mencatat transaksi baru.
      */
-    public function show(string $code)
+    public function show(Request $request, string $code)
     {
+        if (! $this->authorizeScan($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses ke menu Inventaris.',
+            ], 403);
+        }
+
         $item = InventoryItem::where('code', $code)
             ->with(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)])
             ->first();
@@ -47,6 +69,13 @@ class InventoryController extends Controller
      */
     public function storeMovement(Request $request, string $code)
     {
+        if (! $this->authorizeScan($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses ke menu Inventaris.',
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'type' => 'required|in:in,out',
             'note' => 'nullable|string|max:500',

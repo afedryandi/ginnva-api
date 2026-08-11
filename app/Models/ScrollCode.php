@@ -34,6 +34,16 @@ class ScrollCode extends Model
     }
 
     /**
+     * Sisi balik InventoryItem::scrollCode() — unit fisik gudang (kardus/
+     * gulungan) yang dikaitkan ke kode ini, kalau sudah pernah didaftarkan
+     * lewat menu Barang.
+     */
+    public function inventoryItem()
+    {
+        return $this->hasOne(InventoryItem::class);
+    }
+
+    /**
      * 1 kode gulungan sekarang bisa dipakai >1 warranty (PPF maupun
      * Window Film, sejak tidak lagi single-use otomatis) — kolom
      * warranty_code di tabel ini cuma menyimpan 1 nilai (warranty

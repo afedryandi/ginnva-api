@@ -63,4 +63,47 @@ class BookingObserver
             );
         }
     }
+
+    /**
+     * Customer SEBELUMNYA tidak pernah diberi tahu sama sekali begitu
+     * booking-nya di-approve/dibatalkan — cuma tahu kalau buka app manual,
+     * atau kebetulan staff sudah mulai kirim pesan tahap pertama (yang
+     * baru memicu notif lewat BookingMessageObserver). Sekarang perubahan
+     * status itu sendiri yang memicu notif, terlepas dari ada pesan chat
+     * atau tidak. Cuma peduli booking dari app (customer_id terisi) —
+     * booking walk-in/WA manual tanpa akun customer tidak punya siapa pun
+     * untuk dikirimi notif.
+     */
+    public function updated(Booking $booking): void
+    {
+        if (! $booking->wasChanged('status') || ! $booking->customer_id) {
+            return;
+        }
+
+        $tanggal = $booking->preferred_date?->format('d M Y');
+
+        match ($booking->status) {
+            'confirmed' => $this->push->sendToCustomer(
+                $booking->customer_id,
+                'Booking Dikonfirmasi',
+                "Booking #{$booking->booking_number} Anda sudah dikonfirmasi toko untuk tanggal {$tanggal}.",
+                [
+                    'type'       => 'booking_confirmed',
+                    'booking_id' => $booking->id,
+                    'route'      => "/booking/{$booking->id}/chat",
+                ]
+            ),
+            'cancelled' => $this->push->sendToCustomer(
+                $booking->customer_id,
+                'Booking Dibatalkan',
+                "Booking #{$booking->booking_number} Anda ({$tanggal}) telah dibatalkan. Hubungi toko untuk info lebih lanjut.",
+                [
+                    'type'       => 'booking_cancelled',
+                    'booking_id' => $booking->id,
+                    'route'      => "/booking/{$booking->id}/chat",
+                ]
+            ),
+            default => null,
+        };
+    }
 }

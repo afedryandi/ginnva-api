@@ -29,6 +29,18 @@ class StoreReviewResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Review Toko';
 
+    // SEBELUMNYA tidak ada override sama sekali — jadi semua staff yang
+    // login panel bisa buka menu ini walau tidak dicentang di "Akses
+    // Menu"-nya. Ditambahkan supaya konsisten dengan resource lain yang
+    // dibatasi lewat menu_access.
+    public static function canViewAny(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
     public static function canCreate(): bool
     {
         return false;

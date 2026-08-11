@@ -25,20 +25,23 @@ class CreateBooking extends CreateRecord
      * beforeCreate(), yang ternyata TIDAK bisa diandalkan mencerminkan
      * submit terbaru (bug: validasi selalu ke-skip diam-diam, booking
      * 'confirmed' yang bentrok kapasitas tetap lolos tersimpan tanpa
-     * pernah ditolak). capacity_per_day juga ditangkap & dibuang di sini
-     * sekalian karena bukan kolom di tabel bookings.
+     * pernah ditolak). capacities (kapasitas per tanggal) juga ditangkap
+     * & dibuang di sini sekalian karena bukan kolom di tabel bookings.
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $capacityPerDay = max(1, (int) ($data['capacity_per_day'] ?? 3));
-        unset($data['capacity_per_day']);
+        $capacityByDate = collect($data['capacities'] ?? [])
+            ->filter(fn ($row) => ! empty($row['date']))
+            ->mapWithKeys(fn ($row) => [Carbon::parse($row['date'])->toDateString() => max(1, (int) ($row['capacity'] ?? 1))])
+            ->all();
+        unset($data['capacities']);
 
         if (($data['status'] ?? null) === 'confirmed') {
             $fullDates = Booking::fullDatesInRange(
                 (int) $data['store_id'],
                 Carbon::parse($data['preferred_date']),
                 max(1, (int) ($data['duration_days'] ?? 1)),
-                $capacityPerDay,
+                $capacityByDate,
             );
 
             if (! empty($fullDates)) {
@@ -54,5 +57,20 @@ class CreateBooking extends CreateRecord
         }
 
         return $data;
+    }
+
+    /**
+     * Booking baru, jadi SEMUA watcher yang dipilih staff di form pasti
+     * "baru" (tidak ada watcher lama yang perlu di-diff) — kirim email
+     * pemberitahuan ke semuanya, sama seperti assign lewat app staff.
+     * afterCreate() dijamin jalan SETELAH Filament sinkron relasi
+     * many-to-many (installers/watchers), jadi $this->record->watchers()
+     * di sini sudah mencerminkan pilihan staff yang baru disimpan.
+     */
+    protected function afterCreate(): void
+    {
+        $watcherIds = $this->record->watchers()->pluck('users.id')->all();
+
+        BookingResource::notifyNewWatchers($this->record, $watcherIds, auth()->user()?->name ?? 'Admin');
     }
 }
