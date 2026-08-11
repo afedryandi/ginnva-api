@@ -19,6 +19,13 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
  */
 class InventoryStatsOverview extends BaseWidget
 {
+    // Widget di Filament v3 default-nya "lazy" — isinya diambil lewat
+    // request Livewire terpisah SETELAH halaman utama tampil. Request
+    // susulan otomatis itu yang diduga jadi biang 419 (lihat percakapan
+    // debug) — dimatikan supaya widget langsung ikut di HTML awal, tanpa
+    // request tambahan sama sekali.
+    protected static bool $isLazy = false;
+
     protected function getStats(): array
     {
         $materialValue = RawMaterial::query()
