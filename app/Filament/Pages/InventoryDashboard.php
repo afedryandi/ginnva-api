@@ -41,9 +41,10 @@ class InventoryDashboard extends Page
 
     public function getWidgets(): array
     {
-        // SEMENTARA cuma 1 widget untuk diagnosa 419 — lihat percakapan.
         return [
             InventoryStatsOverview::class,
+            MaterialsNeedingAttentionWidget::class,
+            ProblemAssetsWidget::class,
         ];
     }
 

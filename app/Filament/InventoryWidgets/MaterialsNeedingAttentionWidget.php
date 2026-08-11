@@ -13,6 +13,10 @@ class MaterialsNeedingAttentionWidget extends BaseWidget
 
     protected int|string|array $columnSpan = 'full';
 
+    // Lihat catatan di InventoryStatsOverview — lazy load default Filament
+    // menyebabkan request Livewire susulan yang gagal 419.
+    protected static bool $isLazy = false;
+
     public function table(Table $table): Table
     {
         return $table
