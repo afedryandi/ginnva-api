@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
 use App\Http\Controllers\Api\Staff\BookingMessageController as StaffBookingMessageController;
 use App\Http\Controllers\Api\Staff\InventoryController as StaffInventoryController;
+use App\Http\Controllers\Api\Staff\AssetController as StaffAssetController;
+use App\Http\Controllers\Api\Staff\RawMaterialController as StaffRawMaterialController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\NotificationController;
@@ -213,6 +215,20 @@ Route::prefix('staff')->group(function () {
         // "Akses Menu" di form User, bukan role hardcode.
         Route::get('/inventory/{code}', [StaffInventoryController::class, 'show']);
         Route::post('/inventory/{code}/movement', [StaffInventoryController::class, 'storeMovement'])
+            ->middleware('throttle:30,1');
+
+        // Aset — scan QR sama seperti Barang, dibatasi ke staff yang
+        // akun Filament-nya dicentang akses menu "Aset".
+        Route::get('/assets/{code}', [StaffAssetController::class, 'show']);
+        Route::post('/assets/{code}/update', [StaffAssetController::class, 'update'])
+            ->middleware('throttle:30,1');
+
+        // Bahan Baku — TIDAK ada kode fisik per unit (beda dari Barang &
+        // Aset), jadi dicari lewat nama, bukan scan QR. Dibatasi ke staff
+        // yang akun Filament-nya dicentang akses menu "Bahan Baku".
+        Route::get('/materials', [StaffRawMaterialController::class, 'index']);
+        Route::get('/materials/{id}', [StaffRawMaterialController::class, 'show']);
+        Route::post('/materials/{id}/movement', [StaffRawMaterialController::class, 'storeMovement'])
             ->middleware('throttle:30,1');
     });
 });
