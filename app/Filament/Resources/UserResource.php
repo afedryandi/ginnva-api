@@ -90,7 +90,9 @@ class UserResource extends Resource
                 'InventoryMovementResource' => 'Riwayat Keluar/Masuk',
                 'RawMaterialResource' => 'Bahan Baku',
                 'RawMaterialMovementResource' => 'Riwayat Bahan Baku',
-                'AssetResource' => 'Aset',
+                'AssetResource' => 'Aset Tetap',
+                'ConsumableItemResource' => 'Barang Habis Pakai',
+                'ConsumableItemMovementResource' => 'Riwayat Barang Habis Pakai',
             ],
             'Konten' => [
                 'CaseStudyResource' => 'Galeri Pemasangan',

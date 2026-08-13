@@ -2,6 +2,7 @@
 
 namespace App\Filament\InventoryWidgets;
 
+use App\Filament\Resources\AssetResource;
 use App\Models\Asset;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -17,10 +18,31 @@ class ProblemAssetsWidget extends BaseWidget
     // menyebabkan request Livewire susulan yang gagal 419.
     protected static bool $isLazy = false;
 
+    // Sama alasannya dengan MaterialsNeedingAttentionWidget — jangan
+    // tampilkan sama sekali kalau tidak punya akses menu Aset.
+    public static function canView(): bool
+    {
+        $user = auth()->user();
+
+        return ($user?->isFullAccess() ?? false)
+            || ($user?->hasMenuAccess(AssetResource::class) ?? false);
+    }
+
     public function table(Table $table): Table
     {
         return $table
-            ->query(Asset::query()->whereIn('status', ['rusak', 'diperbaiki', 'hilang']))
+            // AssetResource::getEloquentQuery() sudah scope ke toko sendiri
+            // untuk non-full-access, tapi widget ini query Asset::query()
+            // langsung (bukan lewat resource), jadi scope-nya diulang di
+            // sini juga — kalau tidak, store_manager bisa lihat aset
+            // bermasalah milik toko lain lewat dashboard walau tidak bisa
+            // lewat menu Aset itu sendiri.
+            ->query(Asset::query()
+                ->whereIn('status', ['rusak', 'diperbaiki', 'hilang'])
+                ->when(
+                    ! (auth()->user()?->isFullAccess() ?? false),
+                    fn ($query) => $query->where('store_id', auth()->user()?->store_id)
+                ))
             ->columns([
                 Tables\Columns\TextColumn::make('asset_tag')
                     ->label('Kode')

@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\Staff\BookingMessageController as StaffBookingMessa
 use App\Http\Controllers\Api\Staff\InventoryController as StaffInventoryController;
 use App\Http\Controllers\Api\Staff\AssetController as StaffAssetController;
 use App\Http\Controllers\Api\Staff\RawMaterialController as StaffRawMaterialController;
+use App\Http\Controllers\Api\Staff\ConsumableItemController as StaffConsumableItemController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\NotificationController;
@@ -216,6 +217,8 @@ Route::prefix('staff')->group(function () {
         Route::get('/inventory/{code}', [StaffInventoryController::class, 'show']);
         Route::post('/inventory/{code}/movement', [StaffInventoryController::class, 'storeMovement'])
             ->middleware('throttle:30,1');
+        Route::post('/inventory/{code}/mark-scroll-code-used', [StaffInventoryController::class, 'markScrollCodeUsed'])
+            ->middleware('throttle:30,1');
 
         // Aset — scan QR sama seperti Barang, dibatasi ke staff yang
         // akun Filament-nya dicentang akses menu "Aset".
@@ -229,6 +232,13 @@ Route::prefix('staff')->group(function () {
         Route::get('/materials', [StaffRawMaterialController::class, 'index']);
         Route::get('/materials/{id}', [StaffRawMaterialController::class, 'show']);
         Route::post('/materials/{id}/movement', [StaffRawMaterialController::class, 'storeMovement'])
+            ->middleware('throttle:30,1');
+
+        // Barang Habis Pakai — sama pola dengan Bahan Baku (tidak ada
+        // kode fisik per unit, dicari lewat nama/kode, bukan scan QR).
+        Route::get('/consumables', [StaffConsumableItemController::class, 'index']);
+        Route::get('/consumables/{id}', [StaffConsumableItemController::class, 'show']);
+        Route::post('/consumables/{id}/movement', [StaffConsumableItemController::class, 'storeMovement'])
             ->middleware('throttle:30,1');
     });
 });

@@ -163,6 +163,59 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
             || in_array($basename, $this->menu_access, true);
     }
 
+    /**
+     * Dipakai app mobile staff untuk memutuskan halaman awal setelah
+     * login (lihat AuthController::transform()) — installer SELALU true
+     * di sini walau canAccessStaffArea()-nya false (installer tidak
+     * punya akses panel Filament sama sekali), karena mereka tetap perlu
+     * lihat booking yang di-assign ke diri sendiri lewat mobile app.
+     */
+    public function hasBookingAccess(): bool
+    {
+        if ($this->hasRole('installer')) {
+            return true;
+        }
+
+        return $this->canAccessStaffArea()
+            && $this->hasMenuAccess(\App\Filament\Resources\BookingResource::class);
+    }
+
+    /**
+     * Sama tujuannya dengan hasBookingAccess() — true kalau akun ini
+     * dicentang akses ke SALAH SATU menu inventaris (Barang/Bahan
+     * Baku/Aset) di Filament. Dipakai buat putuskan apakah staff diarahkan
+     * ke hub Inventaris sama sekali; untuk filter menu MANA yang
+     * ditampilkan di dalam hub itu, pakai 3 method granular di bawah.
+     */
+    public function hasInventoryAccess(): bool
+    {
+        return $this->hasPpfWfAccess() || $this->hasMaterialAccess() || $this->hasAssetAccess() || $this->hasConsumableAccess();
+    }
+
+    public function hasPpfWfAccess(): bool
+    {
+        return $this->canAccessStaffArea()
+            && $this->hasMenuAccess(\App\Filament\Resources\InventoryItemResource::class);
+    }
+
+    public function hasMaterialAccess(): bool
+    {
+        return $this->canAccessStaffArea()
+            && $this->hasMenuAccess(\App\Filament\Resources\RawMaterialResource::class);
+    }
+
+    public function hasAssetAccess(): bool
+    {
+        return $this->canAccessStaffArea()
+            && $this->hasMenuAccess(\App\Filament\Resources\AssetResource::class);
+    }
+
+    public function hasConsumableAccess(): bool
+    {
+        return $this->canAccessStaffArea()
+            && $this->hasMenuAccess(\App\Filament\Resources\ConsumableItemResource::class);
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         // SENGAJA tidak masukkan 'password' walau di-hash — jangan pernah

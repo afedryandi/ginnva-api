@@ -24,6 +24,18 @@ class AssetController extends Controller
     }
 
     /**
+     * Sama dengan scope AssetResource::getEloquentQuery() di Filament —
+     * non-full-access cuma boleh lihat/ubah aset milik tokonya sendiri.
+     * Dicek TERPISAH dari authorizeScan() (yang cuma cek akses menu)
+     * supaya staff toko A tidak bisa scan/ubah aset toko B walau
+     * sama-sama punya akses menu Aset.
+     */
+    private function belongsToUserScope($user, Asset $asset): bool
+    {
+        return $user->isFullAccess() || $asset->store_id === $user->store_id;
+    }
+
+    /**
      * GET /api/staff/assets/{code}
      *
      * Scan QR aset — cari berdasarkan asset_tag, kembalikan detail +
@@ -42,7 +54,7 @@ class AssetController extends Controller
             ->with(['assignee:id,name', 'store:id,name'])
             ->first();
 
-        if (! $asset) {
+        if (! $asset || ! $this->belongsToUserScope($request->user('api'), $asset)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Aset dengan kode ini tidak ditemukan.',
@@ -89,17 +101,27 @@ class AssetController extends Controller
         }
 
         $asset = Asset::where('asset_tag', $code)->first();
+        $user = $request->user('api');
 
-        if (! $asset) {
+        if (! $asset || ! $this->belongsToUserScope($user, $asset)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Aset dengan kode ini tidak ditemukan.',
             ], 404);
         }
 
+        // Pindah toko (store_id) SENGAJA dibatasi full-access saja —
+        // sama seperti field "Lokasi (Toko)" yang dikunci di form
+        // Filament untuk non-full-access, supaya staff toko tidak bisa
+        // "melepas" aset dari scope tokonya sendiri lewat mobile.
+        $storeId = $asset->store_id;
+        if ($user->isFullAccess() && $request->filled('store_id')) {
+            $storeId = $request->store_id;
+        }
+
         $asset->update([
             'status' => $request->status,
-            'store_id' => $request->filled('store_id') ? $request->store_id : $asset->store_id,
+            'store_id' => $storeId,
             'notes' => $request->filled('notes') ? $request->notes : $asset->notes,
         ]);
 

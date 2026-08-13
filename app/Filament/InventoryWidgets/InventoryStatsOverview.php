@@ -30,15 +30,24 @@ class InventoryStatsOverview extends BaseWidget
 
     protected function getStats(): array
     {
+        $user = auth()->user();
+        $isFullAccess = $user?->isFullAccess() ?? false;
+
+        // Bahan Baku & Produk PPF/WF memang company-wide (gudang pusat,
+        // tidak ber-scope ke 1 toko) — TIDAK di-filter store_id, beda
+        // dari Aset yang sekarang per-toko (lihat AssetResource).
         $materialValue = RawMaterial::query()
             ->whereNotNull('unit_cost')
             ->get(['current_stock', 'unit_cost'])
             ->sum(fn (RawMaterial $m) => (float) $m->current_stock * (float) $m->unit_cost);
 
-        $assetValue = Asset::query()
+        $assetValueQuery = Asset::query()
             ->whereNotNull('purchase_cost')
-            ->where('status', '!=', 'dijual')
-            ->sum('purchase_cost');
+            ->where('status', '!=', 'dijual');
+        if (! $isFullAccess) {
+            $assetValueQuery->where('store_id', $user?->store_id);
+        }
+        $assetValue = $assetValueQuery->sum('purchase_cost');
 
         $lowStockCount = RawMaterial::query()
             ->whereNotNull('reorder_point')
@@ -50,50 +59,74 @@ class InventoryStatsOverview extends BaseWidget
             ->whereDate('expiry_date', '<=', now()->addDays(30))
             ->count();
 
-        $problemAssetCount = Asset::query()
-            ->whereIn('status', ['rusak', 'diperbaiki', 'hilang'])
-            ->count();
+        $problemAssetQuery = Asset::query()->whereIn('status', ['rusak', 'diperbaiki', 'hilang']);
+        if (! $isFullAccess) {
+            $problemAssetQuery->where('store_id', $user?->store_id);
+        }
+        $problemAssetCount = $problemAssetQuery->count();
 
         $readyStockCount = InventoryItem::query()
             ->where('status', 'in_stock')
             ->count();
 
-        return [
-            Stat::make('Produk PPF/WF Ready Stock', $readyStockCount)
+        // Kartu cuma ditampilkan kalau user punya akses ke menu terkait —
+        // full-access selalu lihat semua. Tanpa ini, staff yang dicentang
+        // akses "Dashboard Inventaris" tapi TIDAK dicentang akses ke
+        // salah satu menu (mis. Aset) akan tetap lihat kartunya, lalu
+        // begitu diklik kena 403 karena sebenarnya tidak boleh buka
+        // menunya.
+        $canViewInventoryItems = $isFullAccess || ($user?->hasMenuAccess(InventoryItemResource::class) ?? false);
+        $canViewRawMaterials = $isFullAccess || ($user?->hasMenuAccess(RawMaterialResource::class) ?? false);
+        $canViewAssets = $isFullAccess || ($user?->hasMenuAccess(AssetResource::class) ?? false);
+
+        $stats = [];
+
+        if ($canViewInventoryItems) {
+            $stats[] = Stat::make('Produk PPF/WF Ready Stock', $readyStockCount)
                 ->description('Unit fisik berstatus "Ada Stok"')
                 ->descriptionIcon('heroicon-m-cube')
                 ->color('success')
-                ->url(InventoryItemResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'in_stock']]])),
+                ->url(InventoryItemResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'in_stock']]]));
+        }
 
-            Stat::make('Nilai Stok Bahan Baku', 'Rp ' . number_format($materialValue, 0, ',', '.'))
+        if ($canViewRawMaterials) {
+            $stats[] = Stat::make('Nilai Stok Bahan Baku', 'Rp ' . number_format($materialValue, 0, ',', '.'))
                 ->description('Total current stock × harga per satuan')
                 ->descriptionIcon('heroicon-m-beaker')
                 ->color('info')
-                ->url(RawMaterialResource::getUrl('index')),
+                ->url(RawMaterialResource::getUrl('index'));
+        }
 
-            Stat::make('Nilai Aset', 'Rp ' . number_format($assetValue, 0, ',', '.'))
-                ->description('Total harga beli aset yang belum dijual')
+        if ($canViewAssets) {
+            $stats[] = Stat::make('Nilai Aset', 'Rp ' . number_format($assetValue, 0, ',', '.'))
+                ->description($isFullAccess ? 'Total harga beli aset yang belum dijual' : 'Total harga beli aset toko ini yang belum dijual')
                 ->descriptionIcon('heroicon-m-wrench-screwdriver')
                 ->color('info')
-                ->url(AssetResource::getUrl('index')),
+                ->url(AssetResource::getUrl('index'));
+        }
 
-            Stat::make('Bahan Baku Menipis', $lowStockCount)
+        if ($canViewRawMaterials) {
+            $stats[] = Stat::make('Bahan Baku Menipis', $lowStockCount)
                 ->description('Stok ≤ ambang stok menipis')
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
                 ->color($lowStockCount > 0 ? 'danger' : 'success')
-                ->url(RawMaterialResource::getUrl('index')),
+                ->url(RawMaterialResource::getUrl('index'));
 
-            Stat::make('Bahan Baku Kedaluwarsa/Mendekati', $nearExpiryCount)
+            $stats[] = Stat::make('Bahan Baku Kedaluwarsa/Mendekati', $nearExpiryCount)
                 ->description('Kedaluwarsa dalam 30 hari ke depan atau sudah lewat')
                 ->descriptionIcon('heroicon-m-clock')
                 ->color($nearExpiryCount > 0 ? 'danger' : 'success')
-                ->url(RawMaterialResource::getUrl('index')),
+                ->url(RawMaterialResource::getUrl('index'));
+        }
 
-            Stat::make('Aset Bermasalah', $problemAssetCount)
-                ->description('Status Rusak/Diperbaiki/Hilang')
+        if ($canViewAssets) {
+            $stats[] = Stat::make('Aset Bermasalah', $problemAssetCount)
+                ->description($isFullAccess ? 'Status Rusak/Diperbaiki/Hilang' : 'Status Rusak/Diperbaiki/Hilang di toko ini')
                 ->descriptionIcon('heroicon-m-wrench')
                 ->color($problemAssetCount > 0 ? 'warning' : 'success')
-                ->url(AssetResource::getUrl('index')),
-        ];
+                ->url(AssetResource::getUrl('index'));
+        }
+
+        return $stats;
     }
 }

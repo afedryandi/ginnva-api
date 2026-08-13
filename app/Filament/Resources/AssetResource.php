@@ -7,12 +7,17 @@ use App\Filament\Resources\AssetResource\Pages;
 use App\Models\Asset;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\QrCodeService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -26,11 +31,11 @@ class AssetResource extends Resource
 
     protected static ?int $navigationSort = 50;
 
-    protected static ?string $navigationLabel = 'Aset';
+    protected static ?string $navigationLabel = 'Aset Tetap';
 
-    protected static ?string $modelLabel = 'Aset';
+    protected static ?string $modelLabel = 'Aset Tetap';
 
-    protected static ?string $pluralModelLabel = 'Aset';
+    protected static ?string $pluralModelLabel = 'Aset Tetap';
 
     public static function canViewAny(): bool
     {
@@ -43,6 +48,25 @@ class AssetResource extends Resource
     public static function canDelete($record): bool
     {
         return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    /**
+     * store_manager (admin toko) cuma lihat aset milik tokonya sendiri —
+     * pola sama persis dengan TechnicianResource/StoreReviewResource.
+     * Aset dengan store_id NULL ("Kantor Pusat / belum ditentukan") jadi
+     * TIDAK ikut kelihatan untuk non-full-access — itu memang aset
+     * pusat, bukan milik toko mana pun.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+
+        if ($user && ! $user->isFullAccess()) {
+            $query->where('store_id', $user->store_id);
+        }
+
+        return $query;
     }
 
     public static function form(Form $form): Form
@@ -90,7 +114,15 @@ class AssetResource extends Resource
                         ->label('Lokasi (Toko)')
                         ->options(fn () => Store::pluck('name', 'id'))
                         ->searchable()
-                        ->placeholder('Kantor Pusat / belum ditentukan'),
+                        ->placeholder('Kantor Pusat / belum ditentukan')
+                        // store_manager cuma boleh assign ke tokonya sendiri —
+                        // kalau field-nya cuma disembunyikan (bukan dikunci),
+                        // getEloquentQuery() akan langsung "menyembunyikan"
+                        // aset itu dari pandangannya begitu disimpan, karena
+                        // lolos dari scope tokonya sendiri.
+                        ->disabled(fn () => ! (auth()->user()?->isFullAccess() ?? false))
+                        ->dehydrated(fn () => auth()->user()?->isFullAccess() ?? false)
+                        ->default(fn () => auth()->user()?->isFullAccess() ? null : auth()->user()?->store_id),
 
                     Forms\Components\DatePicker::make('purchase_date')
                         ->label('Tanggal Beli'),
@@ -220,14 +252,51 @@ class AssetResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+
+                Tables\Actions\Action::make('download_qr')
+                    ->label('Unduh QR')
+                    ->icon('heroicon-o-qr-code')
+                    ->color('gray')
+                    ->action(fn (Asset $record) => static::downloadQrPdf(new Collection([$record]))),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('download_qr_bulk')
+                        ->label('Unduh QR (PDF Massal)')
+                        ->icon('heroicon-o-qr-code')
+                        ->action(fn (Collection $records) => static::downloadQrPdf($records))
+                        ->deselectRecordsAfterCompletion(),
+
                     Tables\Actions\DeleteBulkAction::make()
                         ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    /**
+     * QR berisi KODE POLOS asset_tag (mis. "ASSET-A1B2C3D4"), sama pola
+     * dengan InventoryItemResource::downloadQrPdf() — app mobile staff
+     * scan langsung query GET /api/staff/assets/{code}.
+     */
+    private static function downloadQrPdf(Collection $items)
+    {
+        $rows = SupportCollection::make($items)->map(function (Asset $item) {
+            return [
+                'name' => $item->name,
+                'meta' => $item->category,
+                'code' => $item->asset_tag,
+                'qr'   => QrCodeService::generateDataUri($item->asset_tag, 260),
+            ];
+        });
+
+        $pdf = Pdf::loadView('pdf.asset_qr_batch', ['items' => $rows])->setPaper('a4', 'portrait');
+
+        $filename = $items->count() === 1
+            ? "QR-Aset-{$items->first()->asset_tag}.pdf"
+            : 'QR-Aset-Batch-' . now()->format('Ymd-His') . '.pdf';
+
+        return response()->streamDownload(fn () => print($pdf->output()), $filename);
     }
 
     /**

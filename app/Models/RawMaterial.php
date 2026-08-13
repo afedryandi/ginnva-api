@@ -15,6 +15,7 @@ class RawMaterial extends Model
 
     protected $fillable = [
         'name',
+        'code',
         'category',
         'unit',
         'current_stock',
@@ -141,7 +142,7 @@ class RawMaterial extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'category', 'unit', 'current_stock', 'reorder_point', 'unit_cost', 'expiry_date', 'notes'])
+            ->logOnly(['name', 'code', 'category', 'unit', 'current_stock', 'reorder_point', 'unit_cost', 'expiry_date', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('raw_material')

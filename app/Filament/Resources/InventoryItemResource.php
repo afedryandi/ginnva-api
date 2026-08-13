@@ -18,6 +18,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -43,6 +44,13 @@ class InventoryItemResource extends Resource
 
         return $user?->canAccessStaffArea()
             && $user->hasMenuAccess(static::class);
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        // Eager-load scrollCode — dipakai kolom "Kode Gulungan" DAN
+        // visibility tombol "Tandai Habis", hindari N+1 per baris.
+        return parent::getEloquentQuery()->with('scrollCode');
     }
 
     public static function form(Form $form): Form
@@ -154,9 +162,17 @@ class InventoryItemResource extends Resource
                         'success' => 'in_stock',
                         'danger' => 'out',
                     ])
+                    // "Sudah Keluar" — BUKAN "Habis". Status ini cuma
+                    // berarti barangnya sudah keluar dari gudang, TIDAK
+                    // berarti materialnya sudah habis terpakai — 1
+                    // gulungan PPF (±15m)/Window Film (±30m) bisa dipakai
+                    // untuk banyak mobil setelah keluar gudang. "Habis"
+                    // yang sebenarnya (materialnya sudah tidak cukup lagi)
+                    // ditandai lewat status Kode Gulungan ("Terpakai"),
+                    // bukan status barang ini.
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'in_stock' => 'Ada Stok',
-                        'out' => 'Habis',
+                        'out' => 'Sudah Keluar',
                         default => $state,
                     }),
 
@@ -171,7 +187,7 @@ class InventoryItemResource extends Resource
                     ->label('Status')
                     ->options([
                         'in_stock' => 'Ada Stok',
-                        'out' => 'Habis',
+                        'out' => 'Sudah Keluar',
                     ]),
                 Tables\Filters\SelectFilter::make('category')
                     ->label('Kategori')
@@ -226,6 +242,28 @@ class InventoryItemResource extends Resource
                     ->icon('heroicon-o-qr-code')
                     ->color('gray')
                     ->action(fn (InventoryItem $record) => static::downloadQrPdf(new Collection([$record]))),
+
+                // Duplikat dari "Tandai Habis" di menu Kode Gulungan —
+                // ditambahkan di sini juga supaya staff yang kerja dari
+                // Produk PPF/WF tidak perlu pindah menu. Tetap ada di
+                // Kode Gulungan untuk yang terbiasa kerja dari situ.
+                Tables\Actions\Action::make('mark_scroll_code_used')
+                    ->label('Tandai Habis')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (InventoryItem $record) => $record->scrollCode?->status === 'allocated')
+                    ->requiresConfirmation()
+                    ->modalDescription('Tandai kode gulungan barang ini sebagai habis? Kode ini tidak akan muncul lagi di pilihan saat input garansi baru.')
+                    ->action(function (InventoryItem $record) {
+                        DB::transaction(function () use ($record) {
+                            $scrollCode = ScrollCode::where('id', $record->scroll_code_id)->lockForUpdate()->first();
+                            if (! $scrollCode || $scrollCode->status !== 'allocated') return;
+
+                            $scrollCode->update(['status' => 'used', 'used_at' => now()]);
+                        });
+
+                        Notification::make()->title('Kode gulungan ditandai habis')->success()->send();
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -382,11 +420,14 @@ class InventoryItemResource extends Resource
      */
     private static function downloadQrPdf(Collection $items)
     {
+        $items->loadMissing('scrollCode');
+
         $rows = SupportCollection::make($items)->map(function (InventoryItem $item) {
             return [
                 'name' => $item->name,
                 'meta' => $item->category,
                 'code' => $item->code,
+                'scroll_code' => $item->scrollCode?->code,
                 'qr'   => QrCodeService::generateDataUri($item->code, 260),
             ];
         });

@@ -2,10 +2,9 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>QR Inventaris - Ginnva</title>
+    <title>QR Aset Tetap - Ginnva</title>
     <style>
-        {{-- Layout tabel, sama pola dengan giias_qr_batch.blade.php —
-             DomPDF paling stabil dengan tabel dibanding flex/grid. --}}
+        {{-- Layout sama persis dengan inventory_qr_batch.blade.php --}}
         @page { margin: 12mm 10mm; }
         body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111; margin: 0; padding: 0; }
         * { box-sizing: border-box; }
@@ -26,7 +25,7 @@
 </head>
 <body>
 
-<div class="page-title">GINNVA — QR Barang Inventaris</div>
+<div class="page-title">GINNVA — QR Aset Tetap</div>
 
 <table class="grid" cellspacing="0" cellpadding="0">
     @foreach ($items->chunk(2) as $row)
@@ -41,9 +40,6 @@
                             <div class="meta">{{ $item['meta'] }}</div>
                         @endif
                         <div class="code">{{ $item['code'] }}</div>
-                        @if(!empty($item['scroll_code']))
-                            <div class="meta">Kode Gulungan: {{ $item['scroll_code'] }}</div>
-                        @endif
                         <div class="caption">SCAN DENGAN APP STAFF GINNVA</div>
                     </div>
                 </td>

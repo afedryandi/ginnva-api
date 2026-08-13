@@ -3,43 +3,39 @@
 namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
-use App\Models\RawMaterial;
+use App\Models\ConsumableItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
-class RawMaterialController extends Controller
+/**
+ * Sama persis pola RawMaterialController — Barang Habis Pakai TIDAK
+ * punya kode fisik per unit, jadi dicari lewat nama/kode, bukan scan QR.
+ */
+class ConsumableItemController extends Controller
 {
-    /**
-     * Sama pola dengan InventoryController::authorizeScan() — dicek
-     * lewat "Akses Menu" akun Filament staff (menu Bahan Baku).
-     */
     private function authorizeAccess(Request $request): bool
     {
         $user = $request->user('api');
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(\App\Filament\Resources\RawMaterialResource::class);
+            && $user->hasMenuAccess(\App\Filament\Resources\ConsumableItemResource::class);
     }
 
     /**
-     * GET /api/staff/materials?search=...
-     *
-     * Bahan baku TIDAK punya kode fisik per unit (beda dari Barang/Aset
-     * yang bisa di-scan QR) — jadi di app dicari lewat nama, bukan scan.
-     * Dibatasi 20 hasil per pencarian, cukup untuk daftar pilih di app.
+     * GET /api/staff/consumables?search=...
      */
     public function index(Request $request)
     {
         if (! $this->authorizeAccess($request)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Bahan Baku.',
+                'message' => 'Akun ini tidak punya akses ke menu Barang Habis Pakai.',
             ], 403);
         }
 
         $search = trim((string) $request->query('search', ''));
 
-        $materials = RawMaterial::query()
+        $items = ConsumableItem::query()
             ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%"))
             ->orderBy('name')
@@ -48,49 +44,46 @@ class RawMaterialController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $materials,
+            'data' => $items,
         ]);
     }
 
     /**
-     * GET /api/staff/materials/{id}
+     * GET /api/staff/consumables/{id}
      */
     public function show(Request $request, int $id)
     {
         if (! $this->authorizeAccess($request)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Bahan Baku.',
+                'message' => 'Akun ini tidak punya akses ke menu Barang Habis Pakai.',
             ], 403);
         }
 
-        $material = RawMaterial::with(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)])->find($id);
+        $item = ConsumableItem::with(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)])->find($id);
 
-        if (! $material) {
+        if (! $item) {
             return response()->json([
                 'success' => false,
-                'message' => 'Bahan baku tidak ditemukan.',
+                'message' => 'Barang tidak ditemukan.',
             ], 404);
         }
 
         return response()->json([
             'success' => true,
-            'data' => $material,
+            'data' => $item,
         ]);
     }
 
     /**
-     * POST /api/staff/materials/{id}/movement
-     *
-     * Catat masuk/keluar — BEDA dari inventory (Barang), di sini WAJIB
-     * ada jumlah karena bahan baku dilacak per kuantitas, bukan per unit.
+     * POST /api/staff/consumables/{id}/movement
      */
     public function storeMovement(Request $request, int $id)
     {
         if (! $this->authorizeAccess($request)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Bahan Baku.',
+                'message' => 'Akun ini tidak punya akses ke menu Barang Habis Pakai.',
             ], 403);
         }
 
@@ -108,17 +101,17 @@ class RawMaterialController extends Controller
             ], 422);
         }
 
-        $material = RawMaterial::find($id);
+        $item = ConsumableItem::find($id);
 
-        if (! $material) {
+        if (! $item) {
             return response()->json([
                 'success' => false,
-                'message' => 'Bahan baku tidak ditemukan.',
+                'message' => 'Barang tidak ditemukan.',
             ], 404);
         }
 
         try {
-            $material->recordMovement($request->type, (float) $request->quantity, $request->user('api')->id, $request->note);
+            $item->recordMovement($request->type, (float) $request->quantity, $request->user('api')->id, $request->note);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
@@ -126,18 +119,10 @@ class RawMaterialController extends Controller
             ], 422);
         }
 
-        // ->fresh() saja tidak ikut memuat relasi movements (lihat
-        // perbaikan sama di InventoryController::storeMovement()) — app
-        // saat ini fetch ulang setelah sukses jadi belum sampai crash,
-        // tapi disamakan di sini juga supaya konsisten & aman kalau nanti
-        // app dipakai langsung dari respons ini.
-        $material = $material->fresh();
-        $material->load(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)]);
-
         return response()->json([
             'success' => true,
-            'message' => $request->type === 'in' ? 'Bahan masuk berhasil dicatat.' : 'Bahan keluar berhasil dicatat.',
-            'data' => $material,
+            'message' => $request->type === 'in' ? 'Barang masuk berhasil dicatat.' : 'Barang keluar berhasil dicatat.',
+            'data' => $item->fresh()->load(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)]),
         ]);
     }
 }

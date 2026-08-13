@@ -8,27 +8,26 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class RawMaterialImportTemplateExport implements FromArray, WithHeadings, ShouldAutoSize, WithStyles
+class ConsumableItemImportTemplateExport implements FromArray, WithHeadings, ShouldAutoSize, WithStyles
 {
     public function array(): array
     {
         return [
-            ['Adhesive Premium', 'ADH-001', 'Adhesive', 'liter', 50, 10, 150000, '2027-06-30', 'Contoh — hapus baris ini sebelum upload'],
-            ['Backing Paper', '', 'Packaging', 'meter', 200, 30, '', '', 'Kode/Tanggal Kedaluwarsa/Harga boleh dikosongkan'],
+            ['Lakban Kertas 2 Inch', 'LKB-001', 'Lakban', 'roll', 40, 10, 15000, 'Contoh — hapus baris ini sebelum upload'],
+            ['Isi Cutter Besar', '', 'Alat Potong', 'pcs', 100, 20, '', 'Kode & Harga boleh dikosongkan'],
         ];
     }
 
     public function headings(): array
     {
         return [
-            'Nama Bahan',
+            'Nama Barang',
             'Kode Barang',
             'Kategori',
             'Satuan',
             'Stok Awal',
             'Ambang Stok Menipis',
             'Harga per Satuan',
-            'Tanggal Kedaluwarsa (YYYY-MM-DD)',
             'Catatan',
         ];
     }

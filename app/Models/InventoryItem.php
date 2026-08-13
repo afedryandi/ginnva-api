@@ -70,10 +70,17 @@ class InventoryItem extends Model
      *
      * @throws \InvalidArgumentException kalau transisi status tidak masuk akal
      *         (mis. "catat masuk" untuk barang yang sudah in_stock).
+     *
+     * @param int|null $storeId Toko tujuan — cuma dipakai kalau barangnya
+     *        punya kode gulungan terkait DAN $type === 'out'. Untuk staff
+     *        biasa ini SELALU toko staff itu sendiri (lihat
+     *        StaffInventoryController::storeMovement()), jadi tidak perlu
+     *        dipilih manual — cuma full-access yang isi ini manual karena
+     *        tidak terikat 1 toko.
      */
-    public function recordMovement(string $type, ?int $userId, ?string $note = null): InventoryMovement
+    public function recordMovement(string $type, ?int $userId, ?string $note = null, ?int $storeId = null): InventoryMovement
     {
-        return DB::transaction(function () use ($type, $userId, $note) {
+        return DB::transaction(function () use ($type, $userId, $note, $storeId) {
             $item = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
             if ($type === 'in' && $item->status === 'in_stock') {
@@ -86,17 +93,18 @@ class InventoryItem extends Model
             $item->update(['status' => $type === 'in' ? 'in_stock' : 'out']);
 
             // Barang PPF/window film yang punya kode gulungan terkait:
-            // status kodenya ikut sinkron otomatis, supaya menu Kode
-            // Gulungan tidak perlu diurus manual terpisah. "used" tidak
-            // pernah ditimpa di sini — itu cuma berubah lewat pemakaian
-            // warranty sungguhan.
+            // status DAN toko kodenya ikut sinkron otomatis, supaya menu
+            // Kode Gulungan tidak perlu diurus manual terpisah lagi untuk
+            // kasus per-barang (tetap dipakai buat pra-alokasi massal).
+            // "used" tidak pernah ditimpa di sini — itu cuma berubah lewat
+            // pemakaian warranty sungguhan / tombol "Tandai Habis".
             if ($item->scroll_code_id) {
                 $scrollCode = ScrollCode::find($item->scroll_code_id);
 
                 if ($scrollCode?->status === 'unallocated' && $type === 'out') {
-                    $scrollCode->update(['status' => 'allocated', 'allocated_at' => now()]);
+                    $scrollCode->update(['status' => 'allocated', 'allocated_at' => now(), 'store_id' => $storeId]);
                 } elseif ($scrollCode?->status === 'allocated' && $type === 'in') {
-                    $scrollCode->update(['status' => 'unallocated', 'allocated_at' => null]);
+                    $scrollCode->update(['status' => 'unallocated', 'allocated_at' => null, 'store_id' => null]);
                 }
             }
 
@@ -115,7 +123,7 @@ class InventoryItem extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'category', 'status', 'notes'])
+            ->logOnly(['name', 'category', 'status', 'scroll_code_id', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('inventory_item')

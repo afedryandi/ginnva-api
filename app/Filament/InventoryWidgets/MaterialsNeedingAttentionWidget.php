@@ -2,6 +2,7 @@
 
 namespace App\Filament\InventoryWidgets;
 
+use App\Filament\Resources\RawMaterialResource;
 use App\Models\RawMaterial;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -16,6 +17,18 @@ class MaterialsNeedingAttentionWidget extends BaseWidget
     // Lihat catatan di InventoryStatsOverview — lazy load default Filament
     // menyebabkan request Livewire susulan yang gagal 419.
     protected static bool $isLazy = false;
+
+    // Jangan tampilkan sama sekali kalau user tidak punya akses menu
+    // Bahan Baku — sama alasannya dengan filter kartu statistik di
+    // InventoryStatsOverview, supaya tidak bocor data yang sebenarnya
+    // tidak boleh dia lihat.
+    public static function canView(): bool
+    {
+        $user = auth()->user();
+
+        return ($user?->isFullAccess() ?? false)
+            || ($user?->hasMenuAccess(RawMaterialResource::class) ?? false);
+    }
 
     public function table(Table $table): Table
     {

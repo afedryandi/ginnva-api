@@ -174,6 +174,18 @@ class AuthController extends Controller
             'email'    => $user->email,
             'role'     => $user->getRoleNames()->first(),
             'store_id' => $user->store_id,
+            // Dipakai app buat putuskan halaman awal setelah login —
+            // lihat User::hasBookingAccess()/hasInventoryAccess().
+            'has_booking_access'   => $user->hasBookingAccess(),
+            'has_inventory_access' => $user->hasInventoryAccess(),
+            // Granular per-submenu — dipakai buat filter menu MANA yang
+            // ditampilkan di hub Inventaris/menu kubus, supaya staff yang
+            // cuma dicentang akses sebagian tidak lihat menu yang bakal
+            // ditolak (403) begitu dibuka.
+            'has_ppf_wf_access'    => $user->hasPpfWfAccess(),
+            'has_material_access'  => $user->hasMaterialAccess(),
+            'has_asset_access'     => $user->hasAssetAccess(),
+            'has_consumable_access' => $user->hasConsumableAccess(),
         ];
     }
 }

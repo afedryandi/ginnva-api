@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources;
 
-use App\Exports\RawMaterialImportTemplateExport;
-use App\Filament\Resources\RawMaterialResource\Pages;
-use App\Filament\Resources\RawMaterialResource\RelationManagers\MovementsRelationManager;
-use App\Models\RawMaterial;
+use App\Exports\ConsumableItemImportTemplateExport;
+use App\Filament\Resources\ConsumableItemResource\Pages;
+use App\Filament\Resources\ConsumableItemResource\RelationManagers\MovementsRelationManager;
+use App\Models\ConsumableItem;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -15,21 +15,29 @@ use Filament\Tables\Table;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
-class RawMaterialResource extends Resource
+/**
+ * Barang Habis Pakai (lakban, lap, cutter, isi cutter, dll) — perlengkapan
+ * operasional yang terpakai habis, BEDA dari Aset Tetap (individual,
+ * biasanya ber-QR, tidak "habis") dan Bahan Baku (khusus material
+ * produksi PPF/WF). Strukturnya SENGAJA mirror RawMaterialResource
+ * (stok kuantitas, Catat Stok, Sesuaikan Stok/opname) karena kelakuannya
+ * memang identik.
+ */
+class ConsumableItemResource extends Resource
 {
-    protected static ?string $model = RawMaterial::class;
+    protected static ?string $model = ConsumableItem::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-beaker';
+    protected static ?string $navigationIcon = 'heroicon-o-cube-transparent';
 
     protected static ?string $navigationGroup = 'Inventaris';
 
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 60;
 
-    protected static ?string $navigationLabel = 'Bahan Baku';
+    protected static ?string $navigationLabel = 'Barang Habis Pakai';
 
-    protected static ?string $modelLabel = 'Bahan Baku';
+    protected static ?string $modelLabel = 'Barang Habis Pakai';
 
-    protected static ?string $pluralModelLabel = 'Bahan Baku';
+    protected static ?string $pluralModelLabel = 'Barang Habis Pakai';
 
     public static function canViewAny(): bool
     {
@@ -42,11 +50,11 @@ class RawMaterialResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Detail Bahan Baku')
+            Forms\Components\Section::make('Detail Barang')
                 ->columns(2)
                 ->schema([
                     Forms\Components\TextInput::make('name')
-                        ->label('Nama Bahan')
+                        ->label('Nama Barang')
                         ->required()
                         ->maxLength(255),
 
@@ -55,18 +63,18 @@ class RawMaterialResource extends Resource
                         ->maxLength(50)
                         ->unique(ignoreRecord: true)
                         ->placeholder('Kode internal yang sudah ada, mis. dari sistem lama')
-                        ->helperText('Opsional — isi kalau bahan ini sudah punya kode barang sendiri.'),
+                        ->helperText('Opsional — isi kalau barang ini sudah punya kode barang sendiri.'),
 
                     Forms\Components\TextInput::make('category')
                         ->label('Kategori')
                         ->maxLength(255)
-                        ->placeholder('Mis. Adhesive, Backing Paper, Packaging'),
+                        ->placeholder('Mis. Lakban, Alat Potong, Kebersihan'),
 
                     Forms\Components\TextInput::make('unit')
                         ->label('Satuan')
                         ->required()
                         ->maxLength(20)
-                        ->placeholder('Mis. liter, meter, kg, pcs, roll'),
+                        ->placeholder('Mis. pcs, roll, box, lusin'),
 
                     Forms\Components\TextInput::make('unit_cost')
                         ->label('Harga per Satuan')
@@ -79,17 +87,13 @@ class RawMaterialResource extends Resource
                         ->numeric()
                         ->helperText('Opsional — barang ditandai "Stok Menipis" kalau current stock ≤ angka ini.'),
 
-                    Forms\Components\DatePicker::make('expiry_date')
-                        ->label('Tanggal Kedaluwarsa')
-                        ->helperText('Opsional — kosongkan kalau bahan ini tidak punya masa pakai.'),
-
                     Forms\Components\TextInput::make('current_stock')
                         ->label('Stok Saat Ini')
                         ->numeric()
                         ->default(0)
-                        ->disabled(fn (?RawMaterial $record) => $record !== null)
-                        ->dehydrated(fn (?RawMaterial $record) => $record === null)
-                        ->helperText(fn (?RawMaterial $record) => $record === null
+                        ->disabled(fn (?ConsumableItem $record) => $record !== null)
+                        ->dehydrated(fn (?ConsumableItem $record) => $record === null)
+                        ->helperText(fn (?ConsumableItem $record) => $record === null
                             ? 'Stok awal saat pertama kali didaftarkan.'
                             : 'Stok cuma bisa diubah lewat tombol "Catat Stok" di daftar — supaya selalu ada riwayatnya, tidak diedit langsung di sini.'),
 
@@ -114,7 +118,7 @@ class RawMaterialResource extends Resource
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('name')
-                    ->label('Nama Bahan')
+                    ->label('Nama Barang')
                     ->searchable()
                     ->sortable(),
 
@@ -127,14 +131,14 @@ class RawMaterialResource extends Resource
                     ->label('Stok')
                     ->numeric(decimalPlaces: 2)
                     ->sortable()
-                    ->formatStateUsing(fn (RawMaterial $record) => number_format((float) $record->current_stock, 2) . ' ' . $record->unit)
+                    ->formatStateUsing(fn (ConsumableItem $record) => number_format((float) $record->current_stock, 2) . ' ' . $record->unit)
                     ->badge()
-                    ->color(fn (RawMaterial $record) => $record->isLowStock() ? 'danger' : 'success'),
+                    ->color(fn (ConsumableItem $record) => $record->isLowStock() ? 'danger' : 'success'),
 
                 Tables\Columns\TextColumn::make('reorder_point')
                     ->label('Ambang Menipis')
                     ->placeholder('—')
-                    ->formatStateUsing(fn ($state, RawMaterial $record) => $state !== null ? number_format((float) $state, 2) . ' ' . $record->unit : null)
+                    ->formatStateUsing(fn ($state, ConsumableItem $record) => $state !== null ? number_format((float) $state, 2) . ' ' . $record->unit : null)
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('unit_cost')
@@ -142,18 +146,6 @@ class RawMaterialResource extends Resource
                     ->money('IDR')
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
-
-                Tables\Columns\TextColumn::make('expiry_date')
-                    ->label('Kedaluwarsa')
-                    ->date('d M Y')
-                    ->placeholder('—')
-                    ->badge()
-                    ->color(fn (RawMaterial $record) => match (true) {
-                        $record->isExpired() => 'danger',
-                        $record->isNearExpiry() => 'warning',
-                        default => 'gray',
-                    })
-                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Diperbarui')
@@ -164,7 +156,7 @@ class RawMaterialResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('category')
                     ->label('Kategori')
-                    ->options(fn () => RawMaterial::query()
+                    ->options(fn () => ConsumableItem::query()
                         ->whereNotNull('category')
                         ->distinct()
                         ->pluck('category', 'category')
@@ -174,11 +166,6 @@ class RawMaterialResource extends Resource
                     ->label('Stok Menipis')
                     ->query(fn ($query) => $query->whereNotNull('reorder_point')
                         ->whereColumn('current_stock', '<=', 'reorder_point')),
-
-                Tables\Filters\Filter::make('near_expiry')
-                    ->label('Mendekati/Sudah Kedaluwarsa')
-                    ->query(fn ($query) => $query->whereNotNull('expiry_date')
-                        ->whereDate('expiry_date', '<=', now()->addDays(30))),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('download_template')
@@ -187,8 +174,8 @@ class RawMaterialResource extends Resource
                     ->color('gray')
                     ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
                     ->action(fn () => Excel::download(
-                        new RawMaterialImportTemplateExport(),
-                        'Template-Import-Bahan-Baku.xlsx'
+                        new ConsumableItemImportTemplateExport(),
+                        'Template-Import-Barang-Habis-Pakai.xlsx'
                     )),
 
                 Tables\Actions\Action::make('import')
@@ -201,7 +188,7 @@ class RawMaterialResource extends Resource
                             ->label('File Excel')
                             ->required()
                             ->disk('local')
-                            ->directory('raw-material-imports')
+                            ->directory('consumable-item-imports')
                             ->visibility('private')
                             ->acceptedFileTypes([
                                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -210,7 +197,7 @@ class RawMaterialResource extends Resource
                             ])
                             ->helperText('Pakai format dari tombol "Download Template". Baris pertama (header) otomatis dilewati. Stok Awal otomatis dicatat sebagai riwayat "Masuk" supaya tetap ada jejaknya.'),
                     ])
-                    ->action(fn (array $data) => static::importMaterials($data['file']))
+                    ->action(fn (array $data) => static::importItems($data['file']))
                     ->modalSubmitActionLabel('Import'),
             ])
             ->actions([
@@ -226,14 +213,14 @@ class RawMaterialResource extends Resource
                             ->numeric()
                             ->required()
                             ->minValue(0)
-                            ->suffix(fn (RawMaterial $record) => $record->unit)
-                            ->helperText(fn (RawMaterial $record) => 'Stok di sistem saat ini: ' . number_format((float) $record->current_stock, 2) . ' ' . $record->unit . '. Isi jumlah hasil hitung fisik yang SEBENARNYA — selisihnya dihitung otomatis.'),
+                            ->suffix(fn (ConsumableItem $record) => $record->unit)
+                            ->helperText(fn (ConsumableItem $record) => 'Stok di sistem saat ini: ' . number_format((float) $record->current_stock, 2) . ' ' . $record->unit . '. Isi jumlah hasil hitung fisik yang SEBENARNYA — selisihnya dihitung otomatis.'),
 
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan')
-                            ->placeholder('Mis. hasil stock opname bulanan, alasan selisih (tumpah/rusak/salah catat)'),
+                            ->placeholder('Mis. hasil stock opname bulanan, alasan selisih'),
                     ])
-                    ->action(function (RawMaterial $record, array $data) {
+                    ->action(function (ConsumableItem $record, array $data) {
                         $movement = $record->adjustStock((float) $data['actual_quantity'], auth()->id(), $data['note'] ?? null);
 
                         if ($movement === null) {
@@ -269,13 +256,13 @@ class RawMaterialResource extends Resource
                             ->numeric()
                             ->required()
                             ->minValue(0.01)
-                            ->suffix(fn (RawMaterial $record) => $record->unit),
+                            ->suffix(fn (ConsumableItem $record) => $record->unit),
 
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan')
-                            ->placeholder('Mis. nomor PO, nama supplier, dipakai untuk booking apa'),
+                            ->placeholder('Mis. dipakai untuk booking apa, alasan keluar'),
                     ])
-                    ->action(function (RawMaterial $record, array $data) {
+                    ->action(function (ConsumableItem $record, array $data) {
                         try {
                             $record->recordMovement($data['type'], (float) $data['quantity'], auth()->id(), $data['note'] ?? null);
                         } catch (\InvalidArgumentException $e) {
@@ -301,13 +288,11 @@ class RawMaterialResource extends Resource
     }
 
     /**
-     * Baris pertama (header) dilewati. Kolom: Nama Bahan, Kategori,
-     * Satuan, Stok Awal, Ambang Stok Menipis, Harga per Satuan, Tanggal
-     * Kedaluwarsa, Catatan. Stok awal > 0 otomatis dicatat sebagai
-     * movement 'in' (bukan cuma di-set langsung ke current_stock) supaya
-     * ada jejak riwayatnya sejak awal.
+     * Baris pertama (header) dilewati. Kolom: Nama Barang, Kode Barang,
+     * Kategori, Satuan, Stok Awal, Ambang Stok Menipis, Harga per Satuan,
+     * Catatan.
      */
-    private static function importMaterials(string $uploadedPath): void
+    private static function importItems(string $uploadedPath): void
     {
         $fullPath = Storage::disk('local')->path($uploadedPath);
 
@@ -349,16 +334,11 @@ class RawMaterialResource extends Resource
             $initialStock = isset($row[4]) && $row[4] !== '' ? (float) $row[4] : 0.0;
             $reorderPoint = isset($row[5]) && $row[5] !== '' ? (float) $row[5] : null;
             $unitCost = isset($row[6]) && $row[6] !== '' ? (float) $row[6] : null;
-            $expiryDate = isset($row[7]) && $row[7] !== '' ? static::normalizeImportedDate($row[7]) : null;
-            $notes = isset($row[8]) ? trim((string) $row[8]) : '';
+            $notes = isset($row[7]) ? trim((string) $row[7]) : '';
 
-            // Kode barang punya UNIQUE constraint — kalau bentrok (sudah
-            // ada di database, atau duplikat dalam file itu sendiri),
-            // bahan tetap didaftarkan TANPA kode (bukan gagal total),
-            // supaya admin tinggal isi manual belakangan.
             $useCode = null;
             if ($code !== '') {
-                if (isset($seenCodesInFile[$code]) || RawMaterial::where('code', $code)->exists()) {
+                if (isset($seenCodesInFile[$code]) || ConsumableItem::where('code', $code)->exists()) {
                     $codeConflicts++;
                 } else {
                     $seenCodesInFile[$code] = true;
@@ -366,7 +346,7 @@ class RawMaterialResource extends Resource
                 }
             }
 
-            $material = RawMaterial::create([
+            $item = ConsumableItem::create([
                 'name' => $name,
                 'code' => $useCode,
                 'category' => $category ?: null,
@@ -374,21 +354,20 @@ class RawMaterialResource extends Resource
                 'current_stock' => 0,
                 'reorder_point' => $reorderPoint,
                 'unit_cost' => $unitCost,
-                'expiry_date' => $expiryDate,
                 'notes' => $notes ?: null,
                 'created_by' => auth()->id(),
             ]);
 
             if ($initialStock > 0) {
-                $material->recordMovement('in', $initialStock, auth()->id(), 'Stok awal dari import Excel.');
+                $item->recordMovement('in', $initialStock, auth()->id(), 'Stok awal dari import Excel.');
             }
 
             $createdCount++;
         }
 
-        $bodyLines = ["{$createdCount} bahan baku berhasil didaftarkan."];
-        if ($invalidCount > 0) $bodyLines[] = "{$invalidCount} baris dilewati (Nama Bahan/Satuan kosong).";
-        if ($codeConflicts > 0) $bodyLines[] = "{$codeConflicts} kode barang dilewati (sudah dipakai bahan lain / duplikat dalam file) — bahan tetap didaftarkan tanpa kode.";
+        $bodyLines = ["{$createdCount} barang berhasil didaftarkan."];
+        if ($invalidCount > 0) $bodyLines[] = "{$invalidCount} baris dilewati (Nama Barang/Satuan kosong).";
+        if ($codeConflicts > 0) $bodyLines[] = "{$codeConflicts} kode barang dilewati (sudah dipakai barang lain / duplikat dalam file) — barang tetap didaftarkan tanpa kode.";
 
         Notification::make()
             ->title('Import selesai')
@@ -396,23 +375,6 @@ class RawMaterialResource extends Resource
             ->color($createdCount > 0 ? 'success' : 'warning')
             ->persistent()
             ->send();
-    }
-
-    private static function normalizeImportedDate(mixed $raw): ?string
-    {
-        if (is_numeric($raw)) {
-            try {
-                return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $raw)->format('Y-m-d');
-            } catch (\Throwable) {
-                return null;
-            }
-        }
-
-        try {
-            return \Carbon\Carbon::parse((string) $raw)->format('Y-m-d');
-        } catch (\Throwable) {
-            return null;
-        }
     }
 
     public static function getRelations(): array
@@ -425,9 +387,9 @@ class RawMaterialResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListRawMaterials::route('/'),
-            'create' => Pages\CreateRawMaterial::route('/create'),
-            'edit'   => Pages\EditRawMaterial::route('/{record}/edit'),
+            'index'  => Pages\ListConsumableItems::route('/'),
+            'create' => Pages\CreateConsumableItem::route('/create'),
+            'edit'   => Pages\EditConsumableItem::route('/{record}/edit'),
         ];
     }
 }
