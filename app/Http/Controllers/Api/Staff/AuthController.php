@@ -186,6 +186,7 @@ class AuthController extends Controller
             'has_material_access'  => $user->hasMaterialAccess(),
             'has_asset_access'     => $user->hasAssetAccess(),
             'has_consumable_access' => $user->hasConsumableAccess(),
+            'has_material_memo_access' => $user->hasMaterialMemoAccess(),
         ];
     }
 }

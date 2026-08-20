@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\Staff\InventoryController as StaffInventoryControll
 use App\Http\Controllers\Api\Staff\AssetController as StaffAssetController;
 use App\Http\Controllers\Api\Staff\RawMaterialController as StaffRawMaterialController;
 use App\Http\Controllers\Api\Staff\ConsumableItemController as StaffConsumableItemController;
+use App\Http\Controllers\Api\Staff\MaterialMemoController as StaffMaterialMemoController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\NotificationController;
@@ -256,6 +257,20 @@ Route::prefix('staff')->group(function () {
         Route::post('/consumables/{id}/movement', [StaffConsumableItemController::class, 'storeMovement'])
             ->middleware('throttle:30,1');
         Route::post('/consumables/{id}/adjust', [StaffConsumableItemController::class, 'adjustStock'])
+            ->middleware('throttle:30,1');
+
+        // Memo Pengambilan/Pengembalian Barang — 1 memo per instalasi,
+        // gabungkan pencatatan keluar-masuk Bahan Baku, Barang Habis
+        // Pakai, dan pemakaian meter PPF/WF jadi satu form (bukan buka
+        // menu satu-satu). Dibatasi ke staff yang akun Filament-nya
+        // dicentang akses menu "Memo Pengambilan/Pengembalian".
+        Route::get('/memos', [StaffMaterialMemoController::class, 'index']);
+        Route::post('/memos', [StaffMaterialMemoController::class, 'store'])
+            ->middleware('throttle:30,1');
+        Route::get('/memos/{id}', [StaffMaterialMemoController::class, 'show']);
+        Route::post('/memos/{id}/items', [StaffMaterialMemoController::class, 'addItem'])
+            ->middleware('throttle:30,1');
+        Route::post('/memos/{id}/items/{itemId}/return', [StaffMaterialMemoController::class, 'returnItem'])
             ->middleware('throttle:30,1');
     });
 });

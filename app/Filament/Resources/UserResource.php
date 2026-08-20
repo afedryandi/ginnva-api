@@ -93,6 +93,7 @@ class UserResource extends Resource
                 'AssetResource' => 'Aset Tetap',
                 'ConsumableItemResource' => 'Barang Habis Pakai',
                 'ConsumableItemMovementResource' => 'Riwayat Barang Habis Pakai',
+                'MaterialMemoResource' => 'Memo Pengambilan/Pengembalian',
             ],
             'Konten' => [
                 'CaseStudyResource' => 'Galeri Pemasangan',

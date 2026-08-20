@@ -216,6 +216,12 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
             && $this->hasMenuAccess(\App\Filament\Resources\ConsumableItemResource::class);
     }
 
+    public function hasMaterialMemoAccess(): bool
+    {
+        return $this->canAccessStaffArea()
+            && $this->hasMenuAccess(\App\Filament\Resources\MaterialMemoResource::class);
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         // SENGAJA tidak masukkan 'password' walau di-hash — jangan pernah
