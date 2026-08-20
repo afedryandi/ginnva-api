@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Exports\RawMaterialImportTemplateExport;
 use App\Filament\Resources\RawMaterialResource\Pages;
+use App\Filament\Resources\RawMaterialResource\RelationManagers\BatchesRelationManager;
 use App\Filament\Resources\RawMaterialResource\RelationManagers\MovementsRelationManager;
 use App\Models\RawMaterial;
 use Filament\Forms;
@@ -68,6 +69,17 @@ class RawMaterialResource extends Resource
                         ->maxLength(20)
                         ->placeholder('Mis. liter, meter, kg, pcs, roll'),
 
+                    Forms\Components\DatePicker::make('received_date')
+                        ->label('Tanggal Masuk')
+                        ->native(false)
+                        ->displayFormat('d M Y')
+                        ->default(now())
+                        ->maxDate(now())
+                        ->required()
+                        ->helperText(fn (?RawMaterial $record) => $record !== null && $record->received_date === null
+                            ? 'Data lama belum punya tanggal ini — isi tanggal perkiraan (boleh hari ini kalau tidak tahu pastinya).'
+                            : null),
+
                     Forms\Components\TextInput::make('unit_cost')
                         ->label('Harga per Satuan')
                         ->numeric()
@@ -83,14 +95,29 @@ class RawMaterialResource extends Resource
                         ->label('Tanggal Kedaluwarsa')
                         ->helperText('Opsional — kosongkan kalau bahan ini tidak punya masa pakai.'),
 
+                    // Cuma muncul saat CREATE — sama pola dengan
+                    // container_count di action "Catat Stok" (lihat
+                    // RawMaterialResource::table()), supaya stok awal JUGA
+                    // kebagi jadi batch per botol/wadah (bukan cuma angka
+                    // current_stock polos tanpa batch, yang bikin "Botol/
+                    // Wadah Tersisa" nongol 0 padahal stoknya ada).
+                    Forms\Components\TextInput::make('container_count')
+                        ->label('Jumlah Botol/Wadah Awal')
+                        ->numeric()
+                        ->integer()
+                        ->default(1)
+                        ->minValue(1)
+                        ->visible(fn (?RawMaterial $record) => $record === null)
+                        ->helperText('Isi 1 kalau cuma 1 botol/wadah/tong. Kosongkan/isi 0 di "Stok Awal" kalau belum ada stok fisik sama sekali.'),
+
                     Forms\Components\TextInput::make('current_stock')
-                        ->label('Stok Saat Ini')
+                        ->label(fn (?RawMaterial $record) => $record === null ? 'Stok Awal (Total, Semua Botol/Wadah)' : 'Stok Saat Ini')
                         ->numeric()
                         ->default(0)
                         ->disabled(fn (?RawMaterial $record) => $record !== null)
                         ->dehydrated(fn (?RawMaterial $record) => $record === null)
                         ->helperText(fn (?RawMaterial $record) => $record === null
-                            ? 'Stok awal saat pertama kali didaftarkan.'
+                            ? 'Otomatis dibagi rata ke tiap botol/wadah di atas, dan tercatat sebagai batch (bukan cuma angka polos) — supaya bisa dipantau sisa per botolnya sejak awal.'
                             : 'Stok cuma bisa diubah lewat tombol "Catat Stok" di daftar — supaya selalu ada riwayatnya, tidak diedit langsung di sini.'),
 
                     Forms\Components\Textarea::make('notes')
@@ -98,6 +125,16 @@ class RawMaterialResource extends Resource
                         ->columnSpanFull(),
                 ]),
         ]);
+    }
+
+    /**
+     * withCount botol/wadah aktif (batch sisa > 0) supaya kolom "Botol
+     * Tersisa" tidak query per baris (N+1) di tabel utama.
+     */
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()
+            ->withCount(['batches as active_batches_count' => fn ($q) => $q->where('quantity', '>', 0)]);
     }
 
     public static function table(Table $table): Table
@@ -123,13 +160,30 @@ class RawMaterialResource extends Resource
                     ->placeholder('—')
                     ->searchable(),
 
+                Tables\Columns\TextColumn::make('received_date')
+                    ->label('Tanggal Masuk')
+                    ->date('d M Y')
+                    ->placeholder('—')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('current_stock')
-                    ->label('Stok')
+                    ->label('Stok (Total)')
                     ->numeric(decimalPlaces: 2)
                     ->sortable()
                     ->formatStateUsing(fn (RawMaterial $record) => number_format((float) $record->current_stock, 2) . ' ' . $record->unit)
                     ->badge()
                     ->color(fn (RawMaterial $record) => $record->isLowStock() ? 'danger' : 'success'),
+
+                // Terpisah dari "Stok (Total)" di atas — ini jumlah botol/
+                // wadah fisik yang masih ada isinya (dihitung dari batch,
+                // lihat RawMaterial::batches()), BUKAN satuan liter/gram.
+                Tables\Columns\TextColumn::make('active_batches_count')
+                    ->label('Botol/Wadah Tersisa')
+                    ->badge()
+                    ->color('info')
+                    ->formatStateUsing(fn ($state) => $state . ' botol/wadah')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('reorder_point')
                     ->label('Ambang Menipis')
@@ -264,12 +318,59 @@ class RawMaterialResource extends Resource
                             ->required()
                             ->live(),
 
+                        // Cuma relevan untuk "Masuk" — 1 nama bahan bisa
+                        // datang dalam banyak botol/wadah sekaligus (mis.
+                        // beli 2 botol @5 liter). Tiap botol/wadah jadi 1
+                        // batch TERPISAH (bukan digabung jadi 1 angka
+                        // besar), supaya sisa tiap botol bisa dipantau
+                        // sendiri-sendiri lewat tab "Sisa Batch (FIFO)".
+                        Forms\Components\TextInput::make('container_count')
+                            ->label('Jumlah Botol/Wadah')
+                            ->numeric()
+                            ->integer()
+                            ->default(1)
+                            ->minValue(1)
+                            ->required(fn (Forms\Get $get) => $get('type') === 'in')
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in')
+                            ->live()
+                            ->helperText('Isi 1 kalau cuma 1 botol/wadah/tong.'),
+
                         Forms\Components\TextInput::make('quantity')
-                            ->label('Jumlah')
+                            ->label(fn (Forms\Get $get) => $get('type') === 'in' ? 'Jumlah Total (Semua Botol/Wadah)' : 'Jumlah')
                             ->numeric()
                             ->required()
                             ->minValue(0.01)
-                            ->suffix(fn (RawMaterial $record) => $record->unit),
+                            ->suffix(fn (RawMaterial $record) => $record->unit)
+                            ->live()
+                            ->helperText(function (Forms\Get $get) {
+                                if ($get('type') !== 'in') return null;
+
+                                $count = (int) ($get('container_count') ?: 1);
+                                $qty = (float) ($get('quantity') ?: 0);
+                                if ($count <= 1 || $qty <= 0) return null;
+
+                                return 'Otomatis dibagi rata: ±' . number_format($qty / $count, 2) . ' per botol/wadah.';
+                            }),
+
+                        // Setiap "Masuk" jadi batch terpisah per botol/
+                        // wadah (lihat container_count di atas) — dipakai
+                        // untuk konsumsi FIFO saat "Keluar" nanti. Tidak
+                        // relevan untuk "Keluar" makanya disembunyikan.
+                        Forms\Components\DatePicker::make('received_date')
+                            ->label('Tanggal Masuk Batch Ini')
+                            ->native(false)
+                            ->displayFormat('d M Y')
+                            ->default(now())
+                            ->maxDate(now())
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in')
+                            ->required(fn (Forms\Get $get) => $get('type') === 'in'),
+
+                        Forms\Components\DatePicker::make('expiry_date')
+                            ->label('Tanggal Kedaluwarsa Batch Ini')
+                            ->native(false)
+                            ->displayFormat('d M Y')
+                            ->helperText('Opsional — kosongkan kalau batch ini tidak punya masa pakai.')
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in'),
 
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan')
@@ -277,7 +378,15 @@ class RawMaterialResource extends Resource
                     ])
                     ->action(function (RawMaterial $record, array $data) {
                         try {
-                            $record->recordMovement($data['type'], (float) $data['quantity'], auth()->id(), $data['note'] ?? null);
+                            $record->recordMovement(
+                                $data['type'],
+                                (float) $data['quantity'],
+                                auth()->id(),
+                                $data['note'] ?? null,
+                                $data['received_date'] ?? null,
+                                $data['expiry_date'] ?? null,
+                                (int) ($data['container_count'] ?? 1),
+                            );
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()
                                 ->title('Tidak bisa mencatat stok')
@@ -349,8 +458,9 @@ class RawMaterialResource extends Resource
             $initialStock = isset($row[4]) && $row[4] !== '' ? (float) $row[4] : 0.0;
             $reorderPoint = isset($row[5]) && $row[5] !== '' ? (float) $row[5] : null;
             $unitCost = isset($row[6]) && $row[6] !== '' ? (float) $row[6] : null;
-            $expiryDate = isset($row[7]) && $row[7] !== '' ? static::normalizeImportedDate($row[7]) : null;
-            $notes = isset($row[8]) ? trim((string) $row[8]) : '';
+            $receivedDate = static::normalizeImportedDate($row[7] ?? null) ?? now()->toDateString();
+            $expiryDate = static::normalizeImportedDate($row[8] ?? null);
+            $notes = isset($row[9]) ? trim((string) $row[9]) : '';
 
             // Kode barang punya UNIQUE constraint — kalau bentrok (sudah
             // ada di database, atau duplikat dalam file itu sendiri),
@@ -370,6 +480,7 @@ class RawMaterialResource extends Resource
                 'name' => $name,
                 'code' => $useCode,
                 'category' => $category ?: null,
+                'received_date' => $receivedDate,
                 'unit' => $unit,
                 'current_stock' => 0,
                 'reorder_point' => $reorderPoint,
@@ -380,7 +491,7 @@ class RawMaterialResource extends Resource
             ]);
 
             if ($initialStock > 0) {
-                $material->recordMovement('in', $initialStock, auth()->id(), 'Stok awal dari import Excel.');
+                $material->recordMovement('in', $initialStock, auth()->id(), 'Stok awal dari import Excel.', $receivedDate, $expiryDate);
             }
 
             $createdCount++;
@@ -398,8 +509,20 @@ class RawMaterialResource extends Resource
             ->send();
     }
 
+    /**
+     * Format kolom tanggal di template adalah DD/MM/YYYY (sama dengan
+     * tampilan UI) — di-parse eksplisit dengan format itu, BUKAN
+     * Carbon::parse()/strtotime() yang ambigu untuk tanggal bertitik dua
+     * (mis. "05/06/2027" bisa terbaca 5 Juni atau 6 Mei tergantung
+     * locale). Excel bisa juga mengembalikan cell bertipe Date sebagai
+     * serial number.
+     */
     private static function normalizeImportedDate(mixed $raw): ?string
     {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
         if (is_numeric($raw)) {
             try {
                 return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $raw)->format('Y-m-d');
@@ -408,16 +531,15 @@ class RawMaterialResource extends Resource
             }
         }
 
-        try {
-            return \Carbon\Carbon::parse((string) $raw)->format('Y-m-d');
-        } catch (\Throwable) {
-            return null;
-        }
+        $date = \DateTime::createFromFormat('d/m/Y', trim((string) $raw));
+
+        return $date instanceof \DateTime ? $date->format('Y-m-d') : null;
     }
 
     public static function getRelations(): array
     {
         return [
+            BatchesRelationManager::class,
             MovementsRelationManager::class,
         ];
     }

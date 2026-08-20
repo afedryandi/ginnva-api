@@ -13,8 +13,8 @@ class RawMaterialImportTemplateExport implements FromArray, WithHeadings, Should
     public function array(): array
     {
         return [
-            ['Adhesive Premium', 'ADH-001', 'Adhesive', 'liter', 50, 10, 150000, '2027-06-30', 'Contoh — hapus baris ini sebelum upload'],
-            ['Backing Paper', '', 'Packaging', 'meter', 200, 30, '', '', 'Kode/Tanggal Kedaluwarsa/Harga boleh dikosongkan'],
+            ['Adhesive Premium', 'ADH-001', 'Adhesive', 'liter', 50, 10, 150000, '14/08/2026', '30/06/2027', 'Contoh — hapus baris ini sebelum upload'],
+            ['Backing Paper', '', 'Packaging', 'meter', 200, 30, '', '', '', 'Kode/Tanggal/Harga boleh dikosongkan'],
         ];
     }
 
@@ -28,7 +28,8 @@ class RawMaterialImportTemplateExport implements FromArray, WithHeadings, Should
             'Stok Awal',
             'Ambang Stok Menipis',
             'Harga per Satuan',
-            'Tanggal Kedaluwarsa (YYYY-MM-DD)',
+            'Tanggal Masuk',
+            'Tanggal Kedaluwarsa',
             'Catatan',
         ];
     }

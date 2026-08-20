@@ -13,8 +13,8 @@ class ConsumableItemImportTemplateExport implements FromArray, WithHeadings, Sho
     public function array(): array
     {
         return [
-            ['Lakban Kertas 2 Inch', 'LKB-001', 'Lakban', 'roll', 40, 10, 15000, 'Contoh — hapus baris ini sebelum upload'],
-            ['Isi Cutter Besar', '', 'Alat Potong', 'pcs', 100, 20, '', 'Kode & Harga boleh dikosongkan'],
+            ['Lakban Kertas 2 Inch', 'LKB-001', 'Lakban', 'roll', 40, 10, 15000, '14/08/2026', 'Contoh — hapus baris ini sebelum upload'],
+            ['Isi Cutter Besar', '', 'Alat Potong', 'pcs', 100, 20, '', '', 'Kode & Harga boleh dikosongkan'],
         ];
     }
 
@@ -28,6 +28,7 @@ class ConsumableItemImportTemplateExport implements FromArray, WithHeadings, Sho
             'Stok Awal',
             'Ambang Stok Menipis',
             'Harga per Satuan',
+            'Tanggal Masuk',
             'Catatan',
         ];
     }

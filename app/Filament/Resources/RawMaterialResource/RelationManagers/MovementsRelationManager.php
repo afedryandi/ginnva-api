@@ -43,7 +43,11 @@ class MovementsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('quantity')
                     ->label('Jumlah')
-                    ->formatStateUsing(fn ($state, $record) => ($state > 0 && $record->type === 'adjustment' ? '+' : '') . number_format((float) $state, 2) . ' ' . $record->rawMaterial->unit),
+                    // Satuan dari owner record (RawMaterial induk), bukan
+                    // $record->rawMaterial->unit — semua baris di tabel
+                    // ini pasti induknya SAMA, akses relasi per baris cuma
+                    // bikin N+1 tanpa guna (sama fix seperti BatchesRelationManager).
+                    ->formatStateUsing(fn ($state, $record) => ($state > 0 && $record->type === 'adjustment' ? '+' : '') . number_format((float) $state, 2) . ' ' . $this->getOwnerRecord()->unit),
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Dicatat Oleh')

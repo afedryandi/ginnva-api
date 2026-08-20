@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class ScrollCode extends Model
 {
@@ -13,14 +14,18 @@ class ScrollCode extends Model
         'status',
         'usage_count',
         'max_usage',
+        'total_length_meters',
+        'remaining_length_meters',
         'allocated_at',
         'used_at',
         'warranty_code',
     ];
 
     protected $casts = [
-        'allocated_at' => 'datetime',
-        'used_at'      => 'datetime',
+        'total_length_meters'     => 'decimal:2',
+        'remaining_length_meters' => 'decimal:2',
+        'allocated_at'            => 'datetime',
+        'used_at'                 => 'datetime',
     ];
 
     public function filmProduct()
@@ -59,5 +64,68 @@ class ScrollCode extends Model
             ->orWhere('roll_number_2', $this->code)
             ->orWhere('roll_number_front', $this->code)
             ->orWhere('roll_number_side_rear', $this->code);
+    }
+
+    /**
+     * Riwayat tiap kejadian "Catat Pemakaian" — beda dari usage_count
+     * (cuma angka kumulatif tanpa jejak per kejadian/catatan).
+     */
+    public function usages()
+    {
+        return $this->hasMany(ScrollCodeUsage::class)->latest();
+    }
+
+    /**
+     * Catat pemakaian sekian meter dari gulungan ini — dipanggil dari
+     * Filament (ScrollCodeResource/InventoryItemResource) maupun app
+     * mobile (staff scan barang, "Catat Pemakaian"). usage_count ikut
+     * naik (dipakai gabungan dengan hitungan mobil di WarrantyObserver),
+     * dan status otomatis 'used' begitu sisa mencapai 0 — TIDAK perlu
+     * "Tandai Habis" manual lagi kalau total_length_meters diisi. Setiap
+     * pemakaian JUGA dicatat sebagai 1 baris riwayat (scroll_code_usages)
+     * lengkap dengan catatan opsional, supaya bisa dilihat lagi nanti
+     * dipakai untuk apa/mobil mana.
+     *
+     * @throws \InvalidArgumentException kalau meter yang diminta melebihi sisa,
+     *         atau gulungan ini belum punya total_length_meters (tidak bisa
+     *         dilacak per meter).
+     */
+    public function recordUsage(float $meters, ?int $userId = null, ?string $note = null): void
+    {
+        if ($meters <= 0) {
+            throw new \InvalidArgumentException('Jumlah meter harus lebih besar dari 0.');
+        }
+
+        DB::transaction(function () use ($meters, $userId, $note) {
+            $scrollCode = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+
+            if ($scrollCode->remaining_length_meters === null) {
+                throw new \InvalidArgumentException('Gulungan ini belum punya data Total Panjang — isi dulu lewat menu Kode Gulungan atau Produk PPF/WF.');
+            }
+
+            if ($meters > (float) $scrollCode->remaining_length_meters) {
+                // Framing "tidak cukup — sisa X" disamakan dengan
+                // RawMaterial::recordMovement()/ConsumableItem::recordMovement()
+                // untuk validasi kuantitas kurang yang setara.
+                throw new \InvalidArgumentException("Meter tidak cukup — sisa panjang gulungan cuma {$scrollCode->remaining_length_meters} meter.");
+            }
+
+            $remaining = round((float) $scrollCode->remaining_length_meters - $meters, 2);
+
+            $scrollCode->update([
+                'remaining_length_meters' => $remaining,
+                'usage_count' => $scrollCode->usage_count + 1,
+                'status' => $remaining <= 0 ? 'used' : $scrollCode->status,
+                'used_at' => $remaining <= 0 ? now() : $scrollCode->used_at,
+            ]);
+
+            $scrollCode->usages()->create([
+                'meters' => $meters,
+                'note' => $note,
+                'user_id' => $userId,
+            ]);
+
+            $this->setRawAttributes($scrollCode->getAttributes());
+        });
     }
 }

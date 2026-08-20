@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Exports\InventoryItemImportTemplateExport;
 use App\Filament\Resources\InventoryItemResource\Pages;
 use App\Filament\Resources\InventoryItemResource\RelationManagers\MovementsRelationManager;
+use App\Filament\Resources\InventoryItemResource\RelationManagers\ScrollCodeUsagesRelationManager;
 use App\Models\FilmProduct;
 use App\Models\InventoryItem;
 use App\Models\ScrollCode;
@@ -72,6 +73,17 @@ class InventoryItemResource extends Resource
                         ])
                         ->required(),
 
+                    Forms\Components\DatePicker::make('received_date')
+                        ->label('Tanggal Masuk')
+                        ->native(false)
+                        ->displayFormat('d M Y')
+                        ->default(now())
+                        ->maxDate(now())
+                        ->required()
+                        ->helperText(fn (?InventoryItem $record) => $record !== null && $record->received_date === null
+                            ? 'Data lama belum punya tanggal ini — isi tanggal perkiraan (boleh hari ini kalau tidak tahu pastinya).'
+                            : null),
+
                     Forms\Components\TextInput::make('code')
                         ->label('Kode / QR')
                         ->disabled()
@@ -106,17 +118,36 @@ class InventoryItemResource extends Resource
                                 ->label('Produk Film')
                                 ->options(fn () => FilmProduct::pluck('name', 'id'))
                                 ->required()
-                                ->searchable(),
+                                ->searchable()
+                                // Isi otomatis Total Panjang begitu produk
+                                // dipilih — standar PPF 15m, Window Film
+                                // 30m, tetap bisa diedit manual.
+                                ->live()
+                                ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                    $product = $state ? FilmProduct::find($state) : null;
+                                    if ($product) {
+                                        $set('total_length_meters', $product->product_type === 'ppf' ? 15 : 30);
+                                    }
+                                }),
 
                             Forms\Components\TextInput::make('code')
                                 ->label('Kode Gulungan')
                                 ->required()
                                 ->unique(table: 'scroll_codes', column: 'code')
                                 ->helperText('Kode fisik yang tercetak di gulungan.'),
+
+                            Forms\Components\TextInput::make('total_length_meters')
+                                ->label('Total Panjang (meter)')
+                                ->helperText('Terisi otomatis dari produk yang dipilih (PPF 15m, Window Film 30m) — ubah manual kalau gulungan ini beda, mis. sisa tabungan dari gulungan lain.')
+                                ->numeric()
+                                ->required()
+                                ->minValue(0.01),
                         ])
                         ->createOptionUsing(fn (array $data) => ScrollCode::create([
                             'code' => $data['code'],
                             'film_product_id' => $data['film_product_id'],
+                            'total_length_meters' => $data['total_length_meters'] ?? null,
+                            'remaining_length_meters' => $data['total_length_meters'] ?? null,
                             'status' => 'unallocated',
                         ])->id)
                         ->helperText('Cari kode yang sudah ada, atau buat baru langsung dari sini kalau belum terdaftar.'),
@@ -154,7 +185,34 @@ class InventoryItemResource extends Resource
                     ->label('Kode Gulungan')
                     ->placeholder('—')
                     ->searchable()
+                    ->toggleable()
+                    // Klik langsung ke halaman detail Kode Gulungan (tab
+                    // Riwayat Pemakaian dst) — sebelumnya cuma teks, staff
+                    // harus cari manual sendiri di menu Kode Gulungan.
+                    ->url(fn (InventoryItem $record) => $record->scroll_code_id
+                        ? ScrollCodeResource::getUrl('view', ['record' => $record->scroll_code_id])
+                        : null)
+                    ->color(fn (InventoryItem $record) => $record->scroll_code_id ? 'primary' : null),
+
+                Tables\Columns\TextColumn::make('scrollCode.remaining_length_meters')
+                    ->label('Sisa Panjang')
+                    ->placeholder('—')
+                    ->formatStateUsing(fn ($state, InventoryItem $record) => $record->scrollCode?->total_length_meters !== null
+                        ? number_format((float) $state, 2) . ' / ' . number_format((float) $record->scrollCode->total_length_meters, 2) . ' m'
+                        : null)
+                    // Sama gaya dengan kolom yang sama di ScrollCodeResource
+                    // — sebelumnya teks polos di sini, badge di sana.
+                    ->badge()
+                    ->color(fn (InventoryItem $record) => $record->scrollCode?->total_length_meters !== null && (float) $record->scrollCode->remaining_length_meters <= 0
+                        ? 'danger'
+                        : 'info')
                     ->toggleable(),
+
+                Tables\Columns\TextColumn::make('received_date')
+                    ->label('Tanggal Masuk')
+                    ->date('d M Y')
+                    ->placeholder('—')
+                    ->sortable(),
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
@@ -242,6 +300,45 @@ class InventoryItemResource extends Resource
                     ->icon('heroicon-o-qr-code')
                     ->color('gray')
                     ->action(fn (InventoryItem $record) => static::downloadQrPdf(new Collection([$record]))),
+
+                // Duplikat dari "Catat Pemakaian" di menu Kode Gulungan —
+                // sama alasannya dengan "Tandai Habis" di bawah, supaya
+                // staff yang kerja dari Produk PPF/WF tidak perlu pindah
+                // menu untuk catat berapa meter dipakai.
+                Tables\Actions\Action::make('record_scroll_code_usage')
+                    ->label('Catat Pemakaian')
+                    ->icon('heroicon-o-scissors')
+                    ->color('warning')
+                    ->visible(fn (InventoryItem $record) => $record->scrollCode?->total_length_meters !== null
+                        && $record->scrollCode->status !== 'used')
+                    ->form([
+                        Forms\Components\TextInput::make('meters')
+                            ->label('Meter Dipakai')
+                            ->numeric()
+                            ->required()
+                            ->minValue(0.01)
+                            ->suffix('meter')
+                            ->helperText(fn (InventoryItem $record) => 'Sisa saat ini: ' . number_format((float) $record->scrollCode->remaining_length_meters, 2) . ' meter.'),
+
+                        Forms\Components\Textarea::make('note')
+                            ->label('Catatan (opsional)')
+                            ->placeholder('Mis. dipakai untuk mobil apa, no. polisi, nama customer'),
+                    ])
+                    ->action(function (InventoryItem $record, array $data) {
+                        try {
+                            $record->scrollCode->recordUsage((float) $data['meters'], auth()->id(), $data['note'] ?? null);
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()
+                                ->title('Tidak bisa mencatat pemakaian')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Pemakaian dicatat')->success()->send();
+                    }),
 
                 // Duplikat dari "Tandai Habis" di menu Kode Gulungan —
                 // ditambahkan di sini juga supaya staff yang kerja dari
@@ -331,7 +428,8 @@ class InventoryItemResource extends Resource
             $category = isset($row[1]) ? trim((string) $row[1]) : '';
             $modelCode = isset($row[2]) ? trim((string) $row[2]) : '';
             $scrollCodeValue = static::normalizeImportedScrollCode($row[3] ?? null);
-            $notes = isset($row[4]) ? trim((string) $row[4]) : '';
+            $receivedDate = static::normalizeImportedDate($row[4] ?? null) ?? now()->toDateString();
+            $notes = isset($row[5]) ? trim((string) $row[5]) : '';
 
             $scrollCodeId = null;
 
@@ -355,9 +453,13 @@ class InventoryItemResource extends Resource
                         $product = $productCache[$modelCode];
 
                         if ($product) {
+                            $defaultLength = $product->product_type === 'ppf' ? 15 : 30;
+
                             $scrollCodeId = ScrollCode::create([
                                 'code' => $scrollCodeValue,
                                 'film_product_id' => $product->id,
+                                'total_length_meters' => $defaultLength,
+                                'remaining_length_meters' => $defaultLength,
                                 'status' => 'unallocated',
                             ])->id;
                         } else {
@@ -371,6 +473,7 @@ class InventoryItemResource extends Resource
                 'code' => InventoryItem::generateCode(),
                 'name' => $name,
                 'category' => $category ?: null,
+                'received_date' => $receivedDate,
                 'scroll_code_id' => $scrollCodeId,
                 'status' => 'in_stock',
                 'notes' => $notes ?: null,
@@ -413,6 +516,31 @@ class InventoryItemResource extends Resource
     }
 
     /**
+     * Parse tanggal dari import Excel/CSV — format kolom di template
+     * DD/MM/YYYY (sama dengan tampilan di UI), tapi Excel bisa juga
+     * mengembalikan cell bertipe Date sebagai serial number float. Null
+     * kalau kosong/tidak valid.
+     */
+    private static function normalizeImportedDate(mixed $raw): ?string
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        if (is_float($raw) || is_int($raw)) {
+            try {
+                return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($raw)->format('Y-m-d');
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        $date = \DateTime::createFromFormat('d/m/Y', trim((string) $raw));
+
+        return $date instanceof \DateTime ? $date->format('Y-m-d') : null;
+    }
+
+    /**
      * QR berisi KODE POLOS (mis. "INV-A1B2C3D4"), bukan URL — beda dari
      * QR referral GIIAS. App mobile staff yang scan langsung query
      * GET /api/staff/inventory/{code} pakai isi QR-nya, tidak perlu buka
@@ -445,6 +573,7 @@ class InventoryItemResource extends Resource
     {
         return [
             MovementsRelationManager::class,
+            ScrollCodeUsagesRelationManager::class,
         ];
     }
 

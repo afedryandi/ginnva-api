@@ -76,6 +76,17 @@ class ConsumableItemResource extends Resource
                         ->maxLength(20)
                         ->placeholder('Mis. pcs, roll, box, lusin'),
 
+                    Forms\Components\DatePicker::make('received_date')
+                        ->label('Tanggal Masuk')
+                        ->native(false)
+                        ->displayFormat('d M Y')
+                        ->default(now())
+                        ->maxDate(now())
+                        ->required()
+                        ->helperText(fn (?ConsumableItem $record) => $record !== null && $record->received_date === null
+                            ? 'Data lama belum punya tanggal ini — isi tanggal perkiraan (boleh hari ini kalau tidak tahu pastinya).'
+                            : null),
+
                     Forms\Components\TextInput::make('unit_cost')
                         ->label('Harga per Satuan')
                         ->numeric()
@@ -87,14 +98,17 @@ class ConsumableItemResource extends Resource
                         ->numeric()
                         ->helperText('Opsional — barang ditandai "Stok Menipis" kalau current stock ≤ angka ini.'),
 
+                    // Label switch (Stok Awal <-> Stok Saat Ini) disamakan
+                    // dengan RawMaterialResource — sebelumnya di sini
+                    // selalu "Stok Saat Ini" walau lagi di form Create.
                     Forms\Components\TextInput::make('current_stock')
-                        ->label('Stok Saat Ini')
+                        ->label(fn (?ConsumableItem $record) => $record === null ? 'Stok Awal' : 'Stok Saat Ini')
                         ->numeric()
                         ->default(0)
                         ->disabled(fn (?ConsumableItem $record) => $record !== null)
                         ->dehydrated(fn (?ConsumableItem $record) => $record === null)
                         ->helperText(fn (?ConsumableItem $record) => $record === null
-                            ? 'Stok awal saat pertama kali didaftarkan.'
+                            ? 'Stok awal saat pertama kali didaftarkan — otomatis tercatat sebagai riwayat "Masuk".'
                             : 'Stok cuma bisa diubah lewat tombol "Catat Stok" di daftar — supaya selalu ada riwayatnya, tidak diedit langsung di sini.'),
 
                     Forms\Components\Textarea::make('notes')
@@ -126,6 +140,13 @@ class ConsumableItemResource extends Resource
                     ->label('Kategori')
                     ->placeholder('—')
                     ->searchable(),
+
+                Tables\Columns\TextColumn::make('received_date')
+                    ->label('Tanggal Masuk')
+                    ->date('d M Y')
+                    ->placeholder('—')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('current_stock')
                     ->label('Stok')
@@ -334,7 +355,8 @@ class ConsumableItemResource extends Resource
             $initialStock = isset($row[4]) && $row[4] !== '' ? (float) $row[4] : 0.0;
             $reorderPoint = isset($row[5]) && $row[5] !== '' ? (float) $row[5] : null;
             $unitCost = isset($row[6]) && $row[6] !== '' ? (float) $row[6] : null;
-            $notes = isset($row[7]) ? trim((string) $row[7]) : '';
+            $receivedDate = static::normalizeImportedDate($row[7] ?? null) ?? now()->toDateString();
+            $notes = isset($row[8]) ? trim((string) $row[8]) : '';
 
             $useCode = null;
             if ($code !== '') {
@@ -350,6 +372,7 @@ class ConsumableItemResource extends Resource
                 'name' => $name,
                 'code' => $useCode,
                 'category' => $category ?: null,
+                'received_date' => $receivedDate,
                 'unit' => $unit,
                 'current_stock' => 0,
                 'reorder_point' => $reorderPoint,
@@ -375,6 +398,29 @@ class ConsumableItemResource extends Resource
             ->color($createdCount > 0 ? 'success' : 'warning')
             ->persistent()
             ->send();
+    }
+
+    /**
+     * Format kolom tanggal di template adalah DD/MM/YYYY — lihat catatan
+     * lengkap di RawMaterialResource::normalizeImportedDate().
+     */
+    private static function normalizeImportedDate(mixed $raw): ?string
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        if (is_numeric($raw)) {
+            try {
+                return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $raw)->format('Y-m-d');
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        $date = \DateTime::createFromFormat('d/m/Y', trim((string) $raw));
+
+        return $date instanceof \DateTime ? $date->format('Y-m-d') : null;
     }
 
     public static function getRelations(): array

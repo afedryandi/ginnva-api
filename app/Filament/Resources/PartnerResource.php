@@ -103,6 +103,25 @@ class PartnerResource extends Resource
                         ])
                         ->required()
                         ->default('active'),
+
+                    Forms\Components\Select::make('type')
+                        ->label('Tipe Partner')
+                        ->options([
+                            'partner'    => 'Partner (Sales/Dealer)',
+                            'influencer' => 'Influencer',
+                            'komunitas'  => 'Komunitas',
+                        ])
+                        ->required()
+                        ->default('partner'),
+
+                    Forms\Components\Select::make('source')
+                        ->label('Sumber Pendaftaran')
+                        ->options([
+                            'giias'   => 'GIIAS',
+                            'partner' => 'Landing Page Umum (/partner)',
+                        ])
+                        ->placeholder('Dibuat manual admin')
+                        ->helperText('Menentukan link mana yang dipakai saat "Unduh QR". Kosongkan kalau partner ini tidak daftar lewat salah satu landing page (mis. influencer/komunitas yang direkrut langsung) — QR yang di-generate tetap akan pakai link /partner (landing page umum) sebagai default, bukan dikosongkan.'),
                 ]),
         ]);
     }
@@ -135,6 +154,34 @@ class PartnerResource extends Resource
                     ->copyable()
                     ->copyMessage('Kode referral disalin'),
 
+                Tables\Columns\BadgeColumn::make('type')
+                    ->label('Tipe')
+                    ->colors([
+                        'gray'    => 'partner',
+                        'warning' => 'influencer',
+                        'success' => 'komunitas',
+                    ])
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'partner'    => 'Partner',
+                        'influencer' => 'Influencer',
+                        'komunitas'  => 'Komunitas',
+                        default      => $state,
+                    })
+                    ->toggleable(),
+
+                Tables\Columns\BadgeColumn::make('source')
+                    ->label('Sumber')
+                    ->colors([
+                        'gray'    => 'giias',
+                        'primary' => 'partner',
+                    ])
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'giias'   => 'GIIAS',
+                        'partner' => 'Landing Page Umum',
+                        default   => 'Manual',
+                    })
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('points_balance')
                     ->label('Saldo Poin')
                     ->numeric()
@@ -165,6 +212,19 @@ class PartnerResource extends Resource
                         'active'   => 'Aktif',
                         'inactive' => 'Nonaktif',
                     ]),
+                Tables\Filters\SelectFilter::make('type')
+                    ->label('Tipe')
+                    ->options([
+                        'partner'    => 'Partner',
+                        'influencer' => 'Influencer',
+                        'komunitas'  => 'Komunitas',
+                    ]),
+                Tables\Filters\SelectFilter::make('source')
+                    ->label('Sumber')
+                    ->options([
+                        'giias'   => 'GIIAS',
+                        'partner' => 'Landing Page Umum',
+                    ]),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -189,24 +249,42 @@ class PartnerResource extends Resource
 
     /**
      * Dipakai bareng oleh aksi unduh QR single (1 partner) dan bulk
-     * (banyak partner sekaligus) — supaya sales GIIAS punya kartu QR
-     * fisik/digital yang bisa langsung di-scan customer ke link
-     * referral mereka masing-masing (https://ginnva.id/giias?ref=KODE),
+     * (banyak partner sekaligus) — kartu QR fisik/digital yang bisa
+     * langsung di-scan customer ke link referral mereka masing-masing,
      * tanpa perlu tool QR generator eksternal.
+     *
+     * Link-nya WAJIB dibedakan pakai kolom source ('giias' -> /giias,
+     * selain itu -> /partner) — SEBELUMNYA hardcode /giias untuk semua
+     * partner, jadi salah arah untuk yang daftar lewat /partner (baru
+     * ada sejak landing page umum dibuat).
      */
     private static function downloadQrPdf(Collection $partners)
     {
         $baseUrl = rtrim(config('app.frontend_url', 'https://ginnva.id'), '/');
 
         $items = SupportCollection::make($partners)->map(function (Partner $partner) use ($baseUrl) {
-            $link = "{$baseUrl}/giias?ref={$partner->referral_code}";
+            $path = $partner->source === 'giias' ? '/giias' : '/partner';
+            $link = "{$baseUrl}{$path}?ref={$partner->referral_code}";
 
             return [
-                'name' => $partner->business_name,
-                'meta' => $partner->phone,
-                'code' => $partner->referral_code,
-                'link' => $link,
-                'qr'   => QrCodeService::generateDataUri($link, 260),
+                'name'  => $partner->business_name,
+                'meta'  => $partner->phone,
+                'code'  => $partner->referral_code,
+                'link'  => $link,
+                // Dipakai template buat caption per kartu — batch bisa
+                // campur partner GIIAS & landing page umum sekaligus,
+                // jadi tidak bisa 1 judul statis untuk semua kartu. Untuk
+                // source kosong (partner dibuat manual, mis. influencer/
+                // komunitas), caption SENGAJA tidak mengklaim "landing
+                // page partner" secara pasti — linknya tetap /partner,
+                // tapi captionnya jujur bahwa ini fallback, bukan asal
+                // pendaftaran yang sebenarnya.
+                'label' => match ($partner->source) {
+                    'giias' => 'LANDING PAGE GIIAS',
+                    'partner' => 'LANDING PAGE PARTNER',
+                    default => 'LINK REFERRAL ANDA',
+                },
+                'qr'    => QrCodeService::generateDataUri($link, 260),
             ];
         });
 

@@ -20,6 +20,8 @@ class Partner extends Model
         'phone',
         'referral_code',
         'status',
+        'source',
+        'type',
         'points_balance',
     ];
 
@@ -76,6 +78,12 @@ class Partner extends Model
             'business_name' => $data['business_name'],
             'phone'         => $data['phone'] ?? null,
             'status'        => $data['status'] ?? 'active',
+            // Nullable dengan sengaja kalau tidak dikirim (mis. dibuat
+            // manual admin lewat PartnerResource\Pages\CreatePartner
+            // tanpa isi field ini) — beda dari 2 controller signup
+            // (Giias/PartnerSignupController) yang SELALU isi eksplisit.
+            'source'        => $data['source'] ?? null,
+            'type'          => $data['type'] ?? 'partner',
             'referral_code' => self::generateReferralCode(),
         ]);
     }
@@ -83,7 +91,7 @@ class Partner extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['business_name', 'phone', 'status', 'points_balance'])
+            ->logOnly(['business_name', 'phone', 'status', 'source', 'type', 'points_balance'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('partner')

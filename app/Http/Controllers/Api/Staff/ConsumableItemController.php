@@ -119,9 +119,63 @@ class ConsumableItemController extends Controller
             ], 422);
         }
 
+        // ->fresh() SAJA tidak ikut memuat relasi movements — sama gotcha
+        // dengan InventoryController::storeMovement()/RawMaterialController::storeMovement(),
+        // makanya ->load() dipanggil lagi setelahnya di sini.
         return response()->json([
             'success' => true,
             'message' => $request->type === 'in' ? 'Barang masuk berhasil dicatat.' : 'Barang keluar berhasil dicatat.',
+            'data' => $item->fresh()->load(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)]),
+        ]);
+    }
+
+    /**
+     * POST /api/staff/consumables/{id}/adjust
+     *
+     * Stock opname — staff input hasil hitung fisik SEBENARNYA, sistem
+     * yang hitung selisihnya sendiri (lihat ConsumableItem::adjustStock()).
+     * Sebelumnya cuma ada di Filament, staff yang opname langsung di
+     * lapangan lewat HP harus hitung selisihnya sendiri manual pakai
+     * "Catat Masuk/Keluar" biasa — fitur ini menghilangkan langkah itu.
+     */
+    public function adjustStock(Request $request, int $id)
+    {
+        if (! $this->authorizeAccess($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses ke menu Barang Habis Pakai.',
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'actual_quantity' => 'required|numeric|min:0',
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $item = ConsumableItem::find($id);
+
+        if (! $item) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Barang tidak ditemukan.',
+            ], 404);
+        }
+
+        $movement = $item->adjustStock((float) $request->actual_quantity, $request->user('api')->id, $request->note);
+
+        return response()->json([
+            'success' => true,
+            'message' => $movement === null
+                ? 'Hasil hitung fisik sama dengan stok di sistem — tidak ada penyesuaian yang dicatat.'
+                : 'Stok disesuaikan (selisih ' . ($movement->quantity > 0 ? '+' : '') . $movement->quantity . ' ' . $item->unit . ').',
             'data' => $item->fresh()->load(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)]),
         ]);
     }

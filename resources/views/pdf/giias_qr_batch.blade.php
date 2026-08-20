@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>QR Referral GIIAS - Ginnva</title>
+    <title>QR Referral Partner - Ginnva</title>
     <style>
         {{-- Layout tabel (bukan flex/grid) — DomPDF paling stabil dengan
              tabel, sama seperti pola di warranty_card.blade.php. 2 kolom
@@ -29,7 +29,7 @@
 </head>
 <body>
 
-<div class="page-title">GINNVA — QR Referral Sales GIIAS</div>
+<div class="page-title">GINNVA — QR Referral Partner</div>
 
 <table class="grid" cellspacing="0" cellpadding="0">
     @foreach ($items->chunk(2) as $row)
@@ -45,7 +45,7 @@
                         @endif
                         <div class="code">{{ $item['code'] }}</div>
                         <div class="link">{{ $item['link'] }}</div>
-                        <div class="caption">SCAN UNTUK BUKA LANDING PAGE GIIAS</div>
+                        <div class="caption">SCAN UNTUK BUKA {{ $item['label'] ?? 'LANDING PAGE' }}</div>
                     </div>
                 </td>
             @endforeach

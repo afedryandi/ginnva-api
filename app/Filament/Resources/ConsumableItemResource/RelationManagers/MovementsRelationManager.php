@@ -38,7 +38,9 @@ class MovementsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('quantity')
                     ->label('Jumlah')
-                    ->formatStateUsing(fn ($state, $record) => ($state > 0 && $record->type === 'adjustment' ? '+' : '') . number_format((float) $state, 2) . ' ' . $record->consumableItem->unit),
+                    // Satuan dari owner record — lihat catatan sama di
+                    // RawMaterialResource\RelationManagers\MovementsRelationManager.
+                    ->formatStateUsing(fn ($state, $record) => ($state > 0 && $record->type === 'adjustment' ? '+' : '') . number_format((float) $state, 2) . ' ' . $this->getOwnerRecord()->unit),
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Dicatat Oleh')

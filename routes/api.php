@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CaseStudyController;
 use App\Http\Controllers\Api\JobOpeningController;
 use App\Http\Controllers\Api\NewsController;
 use App\Http\Controllers\Api\GiiasPartnerSignupController;
+use App\Http\Controllers\Api\PartnerSignupController;
 use App\Http\Controllers\Api\PartnershipInquiryController;
 use App\Http\Controllers\Api\ProductInquiryController;
 use App\Http\Controllers\Api\QuotationController;
@@ -86,6 +87,12 @@ Route::post('/giias/partner-signup', [GiiasPartnerSignupController::class, 'subm
 // tiap submit form klaim customer di /giias yang bawa referral code
 // bakal manggil ini sekali.
 Route::get('/giias/partner-lookup/{code}', [GiiasPartnerSignupController::class, 'lookup'])->middleware('throttle:60,1');
+
+// Landing page umum /partner — kembaran /giias di atas tapi TIDAK
+// terikat 1 event, link referral yang dihasilkan mengarah ke /partner
+// (bukan /giias). Lihat catatan lengkap di PartnerSignupController.
+Route::post('/partner-signup', [PartnerSignupController::class, 'submit'])->middleware('throttle:5,1');
+Route::get('/partner-lookup/{code}', [PartnerSignupController::class, 'lookup'])->middleware('throttle:60,1');
 
 // Chatbot — publik, tidak wajib login
 Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:20,1');
@@ -214,14 +221,20 @@ Route::prefix('staff')->group(function () {
         // Filament-nya dicentang akses menu "Barang" (lihat
         // InventoryController::authorizeScan()) — diatur dari checklist
         // "Akses Menu" di form User, bukan role hardcode.
+        // Pencarian manual (nama/kode) — buat staff yang belum bisa scan
+        // QR langsung di tempat (mis. mencatat dari jarak jauh).
+        Route::get('/inventory', [StaffInventoryController::class, 'index']);
         Route::get('/inventory/{code}', [StaffInventoryController::class, 'show']);
         Route::post('/inventory/{code}/movement', [StaffInventoryController::class, 'storeMovement'])
             ->middleware('throttle:30,1');
         Route::post('/inventory/{code}/mark-scroll-code-used', [StaffInventoryController::class, 'markScrollCodeUsed'])
             ->middleware('throttle:30,1');
+        Route::post('/inventory/{code}/record-usage', [StaffInventoryController::class, 'recordUsage'])
+            ->middleware('throttle:30,1');
 
         // Aset — scan QR sama seperti Barang, dibatasi ke staff yang
         // akun Filament-nya dicentang akses menu "Aset".
+        Route::get('/assets', [StaffAssetController::class, 'index']);
         Route::get('/assets/{code}', [StaffAssetController::class, 'show']);
         Route::post('/assets/{code}/update', [StaffAssetController::class, 'update'])
             ->middleware('throttle:30,1');
@@ -233,12 +246,16 @@ Route::prefix('staff')->group(function () {
         Route::get('/materials/{id}', [StaffRawMaterialController::class, 'show']);
         Route::post('/materials/{id}/movement', [StaffRawMaterialController::class, 'storeMovement'])
             ->middleware('throttle:30,1');
+        Route::post('/materials/{id}/adjust', [StaffRawMaterialController::class, 'adjustStock'])
+            ->middleware('throttle:30,1');
 
         // Barang Habis Pakai — sama pola dengan Bahan Baku (tidak ada
         // kode fisik per unit, dicari lewat nama/kode, bukan scan QR).
         Route::get('/consumables', [StaffConsumableItemController::class, 'index']);
         Route::get('/consumables/{id}', [StaffConsumableItemController::class, 'show']);
         Route::post('/consumables/{id}/movement', [StaffConsumableItemController::class, 'storeMovement'])
+            ->middleware('throttle:30,1');
+        Route::post('/consumables/{id}/adjust', [StaffConsumableItemController::class, 'adjustStock'])
             ->middleware('throttle:30,1');
     });
 });

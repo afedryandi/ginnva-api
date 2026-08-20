@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget;
 use App\Filament\InventoryWidgets\InventoryStatsOverview;
 use App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget;
 use App\Filament\InventoryWidgets\ProblemAssetsWidget;
@@ -44,6 +45,7 @@ class InventoryDashboard extends Page
         return [
             InventoryStatsOverview::class,
             MaterialsNeedingAttentionWidget::class,
+            ConsumablesNeedingAttentionWidget::class,
             ProblemAssetsWidget::class,
         ];
     }

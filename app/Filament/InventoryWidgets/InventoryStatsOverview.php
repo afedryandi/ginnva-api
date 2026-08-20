@@ -3,9 +3,11 @@
 namespace App\Filament\InventoryWidgets;
 
 use App\Filament\Resources\AssetResource;
+use App\Filament\Resources\ConsumableItemResource;
 use App\Filament\Resources\InventoryItemResource;
 use App\Filament\Resources\RawMaterialResource;
 use App\Models\Asset;
+use App\Models\ConsumableItem;
 use App\Models\InventoryItem;
 use App\Models\RawMaterial;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
@@ -54,6 +56,17 @@ class InventoryStatsOverview extends BaseWidget
             ->whereColumn('current_stock', '<=', 'reorder_point')
             ->count();
 
+        // Barang Habis Pakai company-wide, sama seperti Bahan Baku (bukan per-toko).
+        $consumableValue = ConsumableItem::query()
+            ->whereNotNull('unit_cost')
+            ->get(['current_stock', 'unit_cost'])
+            ->sum(fn (ConsumableItem $c) => (float) $c->current_stock * (float) $c->unit_cost);
+
+        $consumableLowStockCount = ConsumableItem::query()
+            ->whereNotNull('reorder_point')
+            ->whereColumn('current_stock', '<=', 'reorder_point')
+            ->count();
+
         $nearExpiryCount = RawMaterial::query()
             ->whereNotNull('expiry_date')
             ->whereDate('expiry_date', '<=', now()->addDays(30))
@@ -78,6 +91,7 @@ class InventoryStatsOverview extends BaseWidget
         $canViewInventoryItems = $isFullAccess || ($user?->hasMenuAccess(InventoryItemResource::class) ?? false);
         $canViewRawMaterials = $isFullAccess || ($user?->hasMenuAccess(RawMaterialResource::class) ?? false);
         $canViewAssets = $isFullAccess || ($user?->hasMenuAccess(AssetResource::class) ?? false);
+        $canViewConsumables = $isFullAccess || ($user?->hasMenuAccess(ConsumableItemResource::class) ?? false);
 
         $stats = [];
 
@@ -95,6 +109,14 @@ class InventoryStatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-beaker')
                 ->color('info')
                 ->url(RawMaterialResource::getUrl('index'));
+        }
+
+        if ($canViewConsumables) {
+            $stats[] = Stat::make('Nilai Stok Barang Habis Pakai', 'Rp ' . number_format($consumableValue, 0, ',', '.'))
+                ->description('Total current stock × harga per satuan')
+                ->descriptionIcon('heroicon-m-archive-box')
+                ->color('info')
+                ->url(ConsumableItemResource::getUrl('index'));
         }
 
         if ($canViewAssets) {
@@ -117,6 +139,14 @@ class InventoryStatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-clock')
                 ->color($nearExpiryCount > 0 ? 'danger' : 'success')
                 ->url(RawMaterialResource::getUrl('index'));
+        }
+
+        if ($canViewConsumables) {
+            $stats[] = Stat::make('Barang Habis Pakai Menipis', $consumableLowStockCount)
+                ->description('Stok ≤ ambang stok menipis')
+                ->descriptionIcon('heroicon-m-exclamation-triangle')
+                ->color($consumableLowStockCount > 0 ? 'danger' : 'success')
+                ->url(ConsumableItemResource::getUrl('index'));
         }
 
         if ($canViewAssets) {

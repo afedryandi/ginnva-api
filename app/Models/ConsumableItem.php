@@ -23,6 +23,7 @@ class ConsumableItem extends Model
         'name',
         'code',
         'category',
+        'received_date',
         'unit',
         'current_stock',
         'reorder_point',
@@ -35,6 +36,7 @@ class ConsumableItem extends Model
         'current_stock' => 'decimal:2',
         'reorder_point' => 'decimal:2',
         'unit_cost'     => 'decimal:2',
+        'received_date' => 'date',
     ];
 
     public function creator(): BelongsTo
@@ -120,7 +122,7 @@ class ConsumableItem extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'code', 'category', 'unit', 'current_stock', 'reorder_point', 'unit_cost', 'notes'])
+            ->logOnly(['name', 'code', 'category', 'received_date', 'unit', 'current_stock', 'reorder_point', 'unit_cost', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('consumable_item')

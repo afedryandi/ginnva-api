@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
@@ -18,10 +19,15 @@ class InventoryItem extends Model
         'code',
         'name',
         'category',
+        'received_date',
         'scroll_code_id',
         'status',
         'notes',
         'created_by',
+    ];
+
+    protected $casts = [
+        'received_date' => 'date',
     ];
 
     public function creator(): BelongsTo
@@ -42,6 +48,28 @@ class InventoryItem extends Model
     public function scrollCode(): BelongsTo
     {
         return $this->belongsTo(ScrollCode::class);
+    }
+
+    /**
+     * Riwayat "Catat Pemakaian" (meter) dari kode gulungan terkait barang
+     * ini — ditampilkan di InventoryItemResource supaya staff yang kerja
+     * dari Produk PPF/WF tidak perlu pindah ke menu Kode Gulungan untuk
+     * lihat riwayatnya. hasManyThrough() TIDAK bisa dipakai apa adanya di
+     * sini karena arah relasinya kebalik dari asumsi normalnya (biasanya
+     * "through" yang punya FK ke parent, di sini PARENT (InventoryItem)
+     * yang punya FK ke "through" lewat kolom scroll_code_id) — makanya
+     * firstKey/localKey ditukar posisi dari default.
+     */
+    public function scrollCodeUsages(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            ScrollCodeUsage::class,
+            ScrollCode::class,
+            'id',              // firstKey: kolom di scroll_codes yang dicocokkan ke localKey
+            'scroll_code_id',  // secondKey: FK di scroll_code_usages yang mengarah ke scroll_codes
+            'scroll_code_id',  // localKey: kolom di inventory_items yang mengarah ke scroll_codes.id
+            'id'               // secondLocalKey: primary key scroll_codes
+        );
     }
 
     /**
@@ -123,7 +151,7 @@ class InventoryItem extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'category', 'status', 'scroll_code_id', 'notes'])
+            ->logOnly(['name', 'category', 'received_date', 'status', 'scroll_code_id', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('inventory_item')

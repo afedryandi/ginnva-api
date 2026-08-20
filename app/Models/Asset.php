@@ -16,6 +16,7 @@ class Asset extends Model
         'asset_tag',
         'name',
         'category',
+        'received_date',
         'status',
         'assigned_to',
         'store_id',
@@ -26,6 +27,7 @@ class Asset extends Model
     ];
 
     protected $casts = [
+        'received_date' => 'date',
         'purchase_date' => 'date',
         'purchase_cost' => 'decimal:2',
     ];
@@ -67,7 +69,7 @@ class Asset extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'category', 'status', 'assigned_to', 'store_id', 'purchase_date', 'purchase_cost', 'notes'])
+            ->logOnly(['name', 'category', 'received_date', 'status', 'assigned_to', 'store_id', 'purchase_date', 'purchase_cost', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('asset')

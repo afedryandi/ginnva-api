@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\ScrollCode;
+use App\Models\Warranty;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
@@ -13,8 +14,36 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class ScrollCodeExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
 {
+    /**
+     * Kode gulungan -> daftar warranty_code yang memakainya. Dihitung
+     * SEKALI di query() (bukan per baris di map()) — sebelumnya
+     * $row->warranties()->pluck(...) dipanggil ulang untuk SETIAP baris
+     * karena warranties() bukan relasi Eloquent asli (jadi tidak bisa
+     * di-eager-load via with()), bikin 1 query tambahan per baris untuk
+     * export yang isinya ribuan kode.
+     */
+    private array $warrantyCodesByRollNumber = [];
+
     public function query(): Builder
     {
+        $codes = ScrollCode::pluck('code');
+
+        $this->warrantyCodesByRollNumber = Warranty::query()
+            ->where(fn ($q) => $q->whereIn('roll_number', $codes)
+                ->orWhereIn('roll_number_2', $codes)
+                ->orWhereIn('roll_number_front', $codes)
+                ->orWhereIn('roll_number_side_rear', $codes))
+            ->get(['warranty_code', 'roll_number', 'roll_number_2', 'roll_number_front', 'roll_number_side_rear'])
+            ->reduce(function (array $carry, Warranty $w) {
+                foreach ([$w->roll_number, $w->roll_number_2, $w->roll_number_front, $w->roll_number_side_rear] as $rollNumber) {
+                    if ($rollNumber !== null) {
+                        $carry[$rollNumber][] = $w->warranty_code;
+                    }
+                }
+
+                return $carry;
+            }, []);
+
         return ScrollCode::with(['filmProduct', 'store'])->orderBy('created_at', 'desc');
     }
 
@@ -44,11 +73,7 @@ class ScrollCodeExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
                 'used'        => 'Terpakai',
                 default       => $row->status,
             },
-            // Sama seperti kolom di ScrollCodeResource — 1 kode gulungan
-            // bisa dipakai >1 warranty, jadi kolom warranty_code (cuma
-            // simpan pemakai TERAKHIR) tidak cukup, dihitung ulang dari
-            // tabel warranties.
-            $row->warranties()->pluck('warranty_code')->implode(', ') ?: '—',
+            implode(', ', $this->warrantyCodesByRollNumber[$row->code] ?? []) ?: '—',
             $row->allocated_at?->format('d/m/Y H:i') ?? '—',
             $row->used_at?->format('d/m/Y H:i') ?? '—',
             $row->created_at?->format('d/m/Y H:i'),

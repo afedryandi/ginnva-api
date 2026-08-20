@@ -28,6 +28,42 @@ class InventoryController extends Controller
     }
 
     /**
+     * GET /api/staff/inventory?search=...
+     *
+     * Alternatif untuk staff yang belum bisa scan QR langsung di tempat
+     * (mis. mencatat dari jarak jauh) — cari lewat nama/kode barang ATAU
+     * kode gulungan terkait (mis. staff cuma pegang catatan kode
+     * gulungan, bukan kode kardus), lalu pilih dari hasilnya.
+     * Company-wide (tidak di-scope per toko), sama seperti
+     * InventoryItemResource di Filament.
+     */
+    public function index(Request $request)
+    {
+        if (! $this->authorizeScan($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses ke menu Inventaris.',
+            ], 403);
+        }
+
+        $search = trim((string) $request->query('search', ''));
+
+        $items = InventoryItem::query()
+            ->with('scrollCode:id,code')
+            ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
+                ->orWhere('code', 'like', "%{$search}%")
+                ->orWhereHas('scrollCode', fn ($sq) => $sq->where('code', 'like', "%{$search}%")))
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'code', 'name', 'category', 'status', 'scroll_code_id']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $items,
+        ]);
+    }
+
+    /**
      * GET /api/staff/inventory/{code}
      *
      * Dipanggil begitu staff selesai scan QR di app mobile — cari barang
@@ -50,6 +86,7 @@ class InventoryController extends Controller
                 'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
                 'scrollCode.filmProduct',
                 'scrollCode.store:id,name',
+                'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
             ])
             ->first();
 
@@ -154,11 +191,79 @@ class InventoryController extends Controller
             'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
             'scrollCode.filmProduct',
             'scrollCode.store:id,name',
+            'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
         ]);
 
         return response()->json([
             'success' => true,
             'message' => $request->type === 'in' ? 'Barang masuk berhasil dicatat.' : 'Barang keluar berhasil dicatat.',
+            'data' => $item,
+        ]);
+    }
+
+    /**
+     * POST /api/staff/inventory/{code}/record-usage
+     *
+     * Catat berapa meter dipakai dari kode gulungan terkait barang ini —
+     * dipakai staff yang sedang pasang PPF/WF ke mobil. Cuma bisa kalau
+     * kode gulungannya sudah punya Total Panjang (diisi admin lewat
+     * Filament, lihat ScrollCode::recordUsage()).
+     */
+    public function recordUsage(Request $request, string $code)
+    {
+        if (! $this->authorizeScan($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses ke menu Inventaris.',
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'meters' => 'required|numeric|min:0.01',
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $item = InventoryItem::where('code', $code)->first();
+
+        if (! $item || ! $item->scroll_code_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Barang ini tidak punya kode gulungan terkait.',
+            ], 404);
+        }
+
+        $scrollCode = ScrollCode::find($item->scroll_code_id);
+
+        try {
+            $scrollCode->recordUsage((float) $request->meters, $request->user('api')->id, $request->note);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
+        // Sama seperti storeMovement()/markScrollCodeUsed() — movements
+        // WAJIB ikut di-reload di sini juga, kalau tidak, app mobile
+        // crash karena item.movements.length dipanggil atas undefined.
+        $item->load([
+            'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'scrollCode.filmProduct',
+            'scrollCode.store:id,name',
+            'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pemakaian berhasil dicatat.',
             'data' => $item,
         ]);
     }
@@ -202,7 +307,12 @@ class InventoryController extends Controller
             return false;
         });
 
-        $item->load(['scrollCode.filmProduct', 'scrollCode.store:id,name']);
+        $item->load([
+            'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'scrollCode.filmProduct',
+            'scrollCode.store:id,name',
+            'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
+        ]);
 
         if (! $wasMarked) {
             return response()->json([

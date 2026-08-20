@@ -36,6 +36,39 @@ class AssetController extends Controller
     }
 
     /**
+     * GET /api/staff/assets?search=...
+     *
+     * Alternatif untuk staff yang belum bisa scan QR langsung di tempat
+     * — cari lewat nama/kode aset. Non-full-access cuma lihat aset
+     * tokonya sendiri, sama seperti scope di AssetResource::getEloquentQuery().
+     */
+    public function index(Request $request)
+    {
+        if (! $this->authorizeScan($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses ke menu Aset.',
+            ], 403);
+        }
+
+        $user = $request->user('api');
+        $search = trim((string) $request->query('search', ''));
+
+        $assets = Asset::query()
+            ->when(! $user->isFullAccess(), fn ($q) => $q->where('store_id', $user->store_id))
+            ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
+                ->orWhere('asset_tag', 'like', "%{$search}%"))
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'asset_tag', 'name', 'category', 'status']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $assets,
+        ]);
+    }
+
+    /**
      * GET /api/staff/assets/{code}
      *
      * Scan QR aset — cari berdasarkan asset_tag, kembalikan detail +
@@ -122,7 +155,11 @@ class AssetController extends Controller
         $asset->update([
             'status' => $request->status,
             'store_id' => $storeId,
-            'notes' => $request->filled('notes') ? $request->notes : $asset->notes,
+            // has(), BUKAN filled() — filled() juga false kalau staff
+            // sengaja kirim string kosong untuk MENGOSONGKAN catatan,
+            // jadi catatan lama tidak akan pernah bisa dihapus dari app,
+            // cuma bisa ditambah/diganti (kosongkan cuma bisa dari Filament).
+            'notes' => $request->has('notes') ? $request->notes : $asset->notes,
         ]);
 
         return response()->json([

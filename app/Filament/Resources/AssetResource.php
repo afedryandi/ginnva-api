@@ -124,8 +124,21 @@ class AssetResource extends Resource
                         ->dehydrated(fn () => auth()->user()?->isFullAccess() ?? false)
                         ->default(fn () => auth()->user()?->isFullAccess() ? null : auth()->user()?->store_id),
 
+                    Forms\Components\DatePicker::make('received_date')
+                        ->label('Tanggal Masuk')
+                        ->native(false)
+                        ->displayFormat('d M Y')
+                        ->default(now())
+                        ->maxDate(now())
+                        ->required()
+                        ->helperText(fn (?Asset $record) => $record !== null && $record->received_date === null
+                            ? 'Data lama belum punya tanggal ini — isi tanggal perkiraan (boleh hari ini kalau tidak tahu pastinya).'
+                            : null),
+
                     Forms\Components\DatePicker::make('purchase_date')
-                        ->label('Tanggal Beli'),
+                        ->label('Tanggal Beli')
+                        ->native(false)
+                        ->displayFormat('d M Y'),
 
                     Forms\Components\TextInput::make('purchase_cost')
                         ->label('Harga Beli')
@@ -187,6 +200,13 @@ class AssetResource extends Resource
                     ->label('Lokasi')
                     ->placeholder('Kantor Pusat')
                     ->searchable(),
+
+                Tables\Columns\TextColumn::make('received_date')
+                    ->label('Tanggal Masuk')
+                    ->date('d M Y')
+                    ->placeholder('—')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('purchase_date')
                     ->label('Tanggal Beli')
@@ -369,9 +389,10 @@ class AssetResource extends Resource
                 if ($storeId === null) $unmatchedStores++;
             }
 
-            $purchaseDate = isset($row[5]) && $row[5] !== '' ? static::normalizeImportedDate($row[5]) : null;
-            $purchaseCost = isset($row[6]) && $row[6] !== '' ? (float) $row[6] : null;
-            $notes = isset($row[7]) ? trim((string) $row[7]) : '';
+            $receivedDate = static::normalizeImportedDate($row[5] ?? null) ?? now()->toDateString();
+            $purchaseDate = static::normalizeImportedDate($row[6] ?? null);
+            $purchaseCost = isset($row[7]) && $row[7] !== '' ? (float) $row[7] : null;
+            $notes = isset($row[8]) ? trim((string) $row[8]) : '';
 
             Asset::create([
                 'asset_tag' => Asset::generateAssetTag(),
@@ -380,6 +401,7 @@ class AssetResource extends Resource
                 'status' => $status,
                 'assigned_to' => $assignedTo,
                 'store_id' => $storeId,
+                'received_date' => $receivedDate,
                 'purchase_date' => $purchaseDate,
                 'purchase_cost' => $purchaseCost,
                 'notes' => $notes ?: null,
@@ -401,8 +423,16 @@ class AssetResource extends Resource
             ->send();
     }
 
+    /**
+     * Format kolom tanggal di template adalah DD/MM/YYYY — lihat catatan
+     * lengkap di RawMaterialResource::normalizeImportedDate().
+     */
     private static function normalizeImportedDate(mixed $raw): ?string
     {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
         if (is_numeric($raw)) {
             try {
                 return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $raw)->format('Y-m-d');
@@ -411,11 +441,9 @@ class AssetResource extends Resource
             }
         }
 
-        try {
-            return \Carbon\Carbon::parse((string) $raw)->format('Y-m-d');
-        } catch (\Throwable) {
-            return null;
-        }
+        $date = \DateTime::createFromFormat('d/m/Y', trim((string) $raw));
+
+        return $date instanceof \DateTime ? $date->format('Y-m-d') : null;
     }
 
     public static function getPages(): array
