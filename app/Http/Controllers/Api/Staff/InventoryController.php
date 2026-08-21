@@ -49,7 +49,7 @@ class InventoryController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $items = InventoryItem::query()
-            ->with('scrollCode:id,code')
+            ->with('scrollCode:id,code,remaining_length_meters')
             ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%")
                 ->orWhereHas('scrollCode', fn ($sq) => $sq->where('code', 'like', "%{$search}%")))
