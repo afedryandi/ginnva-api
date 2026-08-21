@@ -269,6 +269,10 @@ class MaterialMemoController extends Controller
 
         return DB::transaction(function () use ($scrollCode, $item, $memo, $meters, $userId, $note, $conditionNotes) {
             $scrollCode->recordUsage($meters, $userId, $note);
+            // recordUsage() tidak return baris riwayatnya — ambil yang baru
+            // saja (masih di transaction yang sama) supaya bisa dikoreksi
+            // lewat updateItem() nanti kalau ternyata salah input.
+            $usage = $scrollCode->usages()->latest('id')->first();
 
             return MaterialMemoItem::create([
                 'material_memo_id' => $memo->id,
@@ -277,6 +281,7 @@ class MaterialMemoController extends Controller
                 'item_name' => $item->name . ' (' . $scrollCode->code . ')',
                 'unit' => 'meter',
                 'meters_used' => $meters,
+                'scroll_code_usage_id' => $usage?->id,
                 'condition_notes' => $conditionNotes,
             ]);
         });
@@ -361,5 +366,151 @@ class MaterialMemoController extends Controller
             'message' => 'Pengembalian berhasil dicatat.',
             'data' => $memo,
         ]);
+    }
+
+    /**
+     * PATCH /api/staff/memos/{id}/items/{itemId}
+     *
+     * Koreksi jumlah 1 baris yang salah input — BUKAN ganti barangnya
+     * (kalau salah pilih barang, tidak ada jalan lain selain hapus/tambah
+     * ulang, fitur itu belum ada). Cuma selisihnya yang disesuaikan ke
+     * stok/sisa meter gulungan, bukan menimpa polos.
+     *
+     * Bahan Baku/Barang Habis Pakai: ditolak kalau qty_returned sudah
+     * pernah diisi — pengembaliannya sudah dihitung dari angka lama,
+     * mengubah qty_taken sesudahnya bikin datanya tidak konsisten.
+     */
+    public function updateItem(Request $request, int $id, int $itemId)
+    {
+        if (! $this->authorizeAccess($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses ke menu Memo.',
+            ], 403);
+        }
+
+        $memo = MaterialMemo::find($id);
+
+        if (! $memo) {
+            return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
+        }
+
+        $memoItem = MaterialMemoItem::where('material_memo_id', $memo->id)->find($itemId);
+
+        if (! $memoItem) {
+            return response()->json(['success' => false, 'message' => 'Baris barang tidak ditemukan.'], 404);
+        }
+
+        $userId = $request->user('api')->id;
+        $note = "Memo {$memo->memo_number} — koreksi jumlah";
+
+        try {
+            if ($memoItem->item_type === 'inventory_item') {
+                $this->updateInventoryItemQty($request, $memoItem, $note);
+            } else {
+                $this->updateMaterialItemQty($request, $memoItem, $userId, $note);
+            }
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Jumlah berhasil dikoreksi.',
+            'data' => $memo,
+        ]);
+    }
+
+    private function updateMaterialItemQty(Request $request, MaterialMemoItem $memoItem, int $userId, string $note): void
+    {
+        if ($memoItem->qty_returned !== null) {
+            throw new \InvalidArgumentException('Baris ini sudah ada pengembaliannya — tidak bisa diedit lagi. Kalau memang salah, hubungi admin.');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'qty_taken' => 'required|numeric|min:0.01',
+        ]);
+
+        if ($validator->fails()) {
+            throw new \InvalidArgumentException('Jumlah yang dikirim tidak valid.');
+        }
+
+        $material = $memoItem->resolveItem();
+
+        if (! $material) {
+            throw new \InvalidArgumentException('Barang aslinya sudah tidak ada di sistem.');
+        }
+
+        $newQty = (float) $request->qty_taken;
+        $delta = round($newQty - (float) $memoItem->qty_taken, 2);
+
+        if ($delta === 0.0) {
+            return;
+        }
+
+        DB::transaction(function () use ($material, $memoItem, $newQty, $delta, $userId, $note) {
+            if ($delta > 0) {
+                $material->recordMovement('out', $delta, $userId, $note);
+            } else {
+                $material->recordMovement('in', abs($delta), $userId, $note);
+            }
+
+            $memoItem->update(['qty_taken' => $newQty]);
+        });
+    }
+
+    private function updateInventoryItemQty(Request $request, MaterialMemoItem $memoItem, string $note): void
+    {
+        $validator = Validator::make($request->all(), [
+            'meters_used' => 'required|numeric|min:0.01',
+        ]);
+
+        if ($validator->fails()) {
+            throw new \InvalidArgumentException('Jumlah yang dikirim tidak valid.');
+        }
+
+        $scrollCodeId = InventoryItem::find($memoItem->item_id)?->scroll_code_id;
+        $scrollCode = $scrollCodeId ? \App\Models\ScrollCode::find($scrollCodeId) : null;
+
+        if (! $scrollCode) {
+            throw new \InvalidArgumentException('Kode gulungan aslinya sudah tidak ada di sistem.');
+        }
+
+        $newMeters = (float) $request->meters_used;
+        $oldMeters = (float) $memoItem->meters_used;
+        $delta = round($newMeters - $oldMeters, 2);
+
+        if ($delta === 0.0) {
+            return;
+        }
+
+        DB::transaction(function () use ($scrollCode, $memoItem, $newMeters, $delta, $note) {
+            $locked = \App\Models\ScrollCode::where('id', $scrollCode->id)->lockForUpdate()->firstOrFail();
+
+            if ($delta > (float) $locked->remaining_length_meters) {
+                throw new \InvalidArgumentException("Meter tidak cukup — sisa panjang gulungan cuma {$locked->remaining_length_meters} meter.");
+            }
+
+            $remaining = round((float) $locked->remaining_length_meters - $delta, 2);
+            $remaining = min($remaining, (float) $locked->total_length_meters);
+
+            $locked->update([
+                'remaining_length_meters' => $remaining,
+                // Kalau koreksi bikin sisa jadi >0 lagi, buka lagi statusnya
+                // (asumsi 'used' sebelumnya memang gara-gara pemakaian INI —
+                // wajar untuk kasus koreksi salah input yang baru saja terjadi).
+                'status' => $remaining <= 0 ? 'used' : ($locked->status === 'used' ? 'allocated' : $locked->status),
+                'used_at' => $remaining <= 0 ? ($locked->used_at ?? now()) : null,
+            ]);
+
+            if ($memoItem->scroll_code_usage_id) {
+                \App\Models\ScrollCodeUsage::where('id', $memoItem->scroll_code_usage_id)
+                    ->update(['meters' => $newMeters, 'note' => $note]);
+            }
+
+            $memoItem->update(['meters_used' => $newMeters]);
+        });
     }
 }

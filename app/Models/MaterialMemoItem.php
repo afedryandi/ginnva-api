@@ -17,6 +17,7 @@ class MaterialMemoItem extends Model
         'qty_returned',
         'qty_used',
         'meters_used',
+        'scroll_code_usage_id',
         'condition_notes',
     ];
 

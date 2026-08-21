@@ -272,6 +272,8 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:30,1');
         Route::post('/memos/{id}/items/{itemId}/return', [StaffMaterialMemoController::class, 'returnItem'])
             ->middleware('throttle:30,1');
+        Route::patch('/memos/{id}/items/{itemId}', [StaffMaterialMemoController::class, 'updateItem'])
+            ->middleware('throttle:30,1');
     });
 });
 
