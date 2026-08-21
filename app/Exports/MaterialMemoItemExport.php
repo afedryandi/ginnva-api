@@ -41,9 +41,9 @@ class MaterialMemoItemExport implements FromQuery, WithHeadings, WithMapping, Sh
     public function headings(): array
     {
         return [
-            'No Memo', 'Tanggal', 'Toko', 'Kendaraan', 'SPK No', 'Dibuat Oleh',
-            'Jenis Barang', 'Nama Barang', 'Diambil', 'Dikembalikan', 'Terpakai',
-            'Meter Dipakai', 'Keterangan/Kondisi',
+            'No Memo', 'Tanggal Memo Dibuat', 'Tanggal Barang Diambil', 'Toko',
+            'Kendaraan', 'SPK No', 'Dibuat Oleh', 'Jenis Barang', 'Nama Barang',
+            'Diambil', 'Dikembalikan', 'Terpakai', 'Meter Dipakai', 'Keterangan/Kondisi',
         ];
     }
 
@@ -54,6 +54,10 @@ class MaterialMemoItemExport implements FromQuery, WithHeadings, WithMapping, Sh
         return [
             $memo?->memo_number ?? '—',
             $memo?->created_at?->format('d/m/Y H:i') ?? '—',
+            // Beda dari tanggal memo dibuat kalau barang ini ditambahkan
+            // belakangan (mis. staff balik lagi ke memo yang sama besoknya
+            // buat catat barang tambahan) — bukan sekadar duplikat kolom.
+            $item->created_at?->format('d/m/Y H:i') ?? '—',
             $memo?->store?->name ?? '—',
             $memo?->vehicle_info ?? '—',
             $memo?->spk_number ?? '—',
