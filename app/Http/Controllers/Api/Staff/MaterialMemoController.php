@@ -513,4 +513,101 @@ class MaterialMemoController extends Controller
             $memoItem->update(['meters_used' => $newMeters]);
         });
     }
+
+    /**
+     * DELETE /api/staff/memos/{id}/items/{itemId}
+     *
+     * Buat kasus salah pilih barang dari awal (bukan cuma salah angka —
+     * itu pakai updateItem()). Stok/sisa meter yang sudah terpakai
+     * dikembalikan penuh, baru barisnya dihapus.
+     */
+    public function destroyItem(Request $request, int $id, int $itemId)
+    {
+        if (! $this->authorizeAccess($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses ke menu Memo.',
+            ], 403);
+        }
+
+        $memo = MaterialMemo::find($id);
+
+        if (! $memo) {
+            return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
+        }
+
+        $memoItem = MaterialMemoItem::where('material_memo_id', $memo->id)->find($itemId);
+
+        if (! $memoItem) {
+            return response()->json(['success' => false, 'message' => 'Baris barang tidak ditemukan.'], 404);
+        }
+
+        $userId = $request->user('api')->id;
+        $note = "Memo {$memo->memo_number} — baris dihapus";
+
+        if ($memoItem->item_type === 'inventory_item') {
+            $this->reverseInventoryItem($memoItem, $note);
+        } else {
+            $this->reverseMaterialItem($memoItem, $userId, $note);
+        }
+
+        $memoItem->delete();
+
+        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Barang berhasil dihapus dari memo.',
+            'data' => $memo,
+        ]);
+    }
+
+    private function reverseMaterialItem(MaterialMemoItem $memoItem, int $userId, string $note): void
+    {
+        $material = $memoItem->resolveItem();
+
+        if (! $material) {
+            return;
+        }
+
+        // Kalau sudah ada pengembalian, yang masih "keluar" dari stok cuma
+        // qty_used (qty_taken - qty_returned) — qty_returned-nya sendiri
+        // sudah balik ke stok lewat returnItem(), jangan dikembalikan dobel.
+        $stillOut = $memoItem->qty_returned !== null
+            ? (float) $memoItem->qty_used
+            : (float) $memoItem->qty_taken;
+
+        if ($stillOut > 0) {
+            $material->recordMovement('in', $stillOut, $userId, $note);
+        }
+    }
+
+    private function reverseInventoryItem(MaterialMemoItem $memoItem, string $note): void
+    {
+        $scrollCodeId = InventoryItem::find($memoItem->item_id)?->scroll_code_id;
+        $scrollCode = $scrollCodeId ? \App\Models\ScrollCode::find($scrollCodeId) : null;
+
+        if (! $scrollCode) {
+            return;
+        }
+
+        DB::transaction(function () use ($scrollCode, $memoItem, $note) {
+            $locked = \App\Models\ScrollCode::where('id', $scrollCode->id)->lockForUpdate()->firstOrFail();
+            $meters = (float) $memoItem->meters_used;
+            $remaining = min(
+                round((float) $locked->remaining_length_meters + $meters, 2),
+                (float) $locked->total_length_meters
+            );
+
+            $locked->update([
+                'remaining_length_meters' => $remaining,
+                'status' => $remaining > 0 && $locked->status === 'used' ? 'allocated' : $locked->status,
+                'used_at' => $remaining > 0 && $locked->status === 'used' ? null : $locked->used_at,
+            ]);
+
+            if ($memoItem->scroll_code_usage_id) {
+                \App\Models\ScrollCodeUsage::where('id', $memoItem->scroll_code_usage_id)->delete();
+            }
+        });
+    }
 }
