@@ -74,6 +74,9 @@ class ItemsRelationManager extends RelationManager
                     ->label('Keterangan/Kondisi')
                     ->placeholder('—')
                     ->limit(30),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Waktu Diambil')
+                    ->dateTime('d M Y H:i'),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('add_item')
