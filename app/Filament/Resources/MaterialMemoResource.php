@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Exports\MaterialMemoItemExport;
 use App\Filament\Resources\MaterialMemoResource\Pages;
 use App\Filament\Resources\MaterialMemoResource\RelationManagers\ItemsRelationManager;
 use App\Models\MaterialMemo;
@@ -12,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Facades\Excel;
 
 class MaterialMemoResource extends Resource
 {
@@ -114,6 +116,24 @@ class MaterialMemoResource extends Resource
                     ->options(fn () => Store::pluck('name', 'id')),
             ])
             ->defaultSort('created_at', 'desc')
+            ->headerActions([
+                // 1 baris = 1 barang di 1 memo (bukan 1 baris = 1 memo) —
+                // supaya bisa langsung dipakai buat laporan pemakaian bahan,
+                // bukan cuma daftar memo tanpa rincian isinya.
+                Tables\Actions\Action::make('export')
+                    ->label('Export Excel')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('success')
+                    ->action(function () {
+                        $user = auth()->user();
+                        $storeId = $user->isFullAccess() ? null : $user->store_id;
+
+                        return Excel::download(
+                            new MaterialMemoItemExport($storeId),
+                            'memo-pengambilan-pengembalian-' . now()->format('Ymd') . '.xlsx'
+                        );
+                    }),
+            ])
             ->actions([
                 Tables\Actions\EditAction::make(),
             ]);
