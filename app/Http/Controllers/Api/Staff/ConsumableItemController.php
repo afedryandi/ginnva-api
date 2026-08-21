@@ -39,7 +39,7 @@ class ConsumableItemController extends Controller
             ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%"))
             ->orderBy('name')
-            ->limit(20)
+            ->limit(30)
             ->get(['id', 'name', 'code', 'category', 'unit', 'current_stock', 'reorder_point']);
 
         return response()->json([

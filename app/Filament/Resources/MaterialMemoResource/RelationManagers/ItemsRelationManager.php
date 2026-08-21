@@ -6,13 +6,12 @@ use App\Models\ConsumableItem;
 use App\Models\InventoryItem;
 use App\Models\MaterialMemoItem;
 use App\Models\RawMaterial;
-use App\Models\ScrollCode;
+use App\Services\MaterialMemoStockService;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
 
 class ItemsRelationManager extends RelationManager
 {
@@ -23,9 +22,11 @@ class ItemsRelationManager extends RelationManager
     /**
      * Baris di sini TIDAK boleh diedit/dihapus lewat form biasa —
      * insert/update-nya SELALU lewat action custom di bawah (add_item /
-     * return_item) supaya selalu dibarengi pencatatan pergerakan stok
-     * yang benar. isReadOnly() cuma matikan Create/Edit/Delete bawaan,
-     * action custom tetap jalan.
+     * return_item / edit_qty / delete_item) supaya selalu dibarengi
+     * pencatatan pergerakan stok yang benar, lewat MaterialMemoStockService
+     * yang SAMA PERSIS dipakai app mobile — bukan salinan logika sendiri.
+     * isReadOnly() cuma matikan Create/Edit/Delete bawaan, action custom
+     * tetap jalan.
      */
     public function isReadOnly(): bool
     {
@@ -151,36 +152,35 @@ class ItemsRelationManager extends RelationManager
                     ])
                     ->action(function (array $data) {
                         $memo = $this->getOwnerRecord();
-                        $note = "Memo {$memo->memo_number}" . ($data['condition_notes'] ? " — {$data['condition_notes']}" : '');
+                        $userId = auth()->id();
+                        $conditionNotes = $data['condition_notes'] ?? null;
 
                         try {
-                            DB::transaction(function () use ($data, $memo, $note) {
-                                match ($data['item_type']) {
-                                    'raw_material' => $this->createMaterialRow(
-                                        RawMaterial::findOrFail($data['raw_material_id']),
-                                        'raw_material',
-                                        $memo,
-                                        (float) $data['qty_taken'],
-                                        $note,
-                                        $data['condition_notes'] ?? null,
-                                    ),
-                                    'consumable_item' => $this->createMaterialRow(
-                                        ConsumableItem::findOrFail($data['consumable_item_id']),
-                                        'consumable_item',
-                                        $memo,
-                                        (float) $data['qty_taken'],
-                                        $note,
-                                        $data['condition_notes'] ?? null,
-                                    ),
-                                    'inventory_item' => $this->createInventoryRow(
-                                        InventoryItem::findOrFail($data['inventory_item_id']),
-                                        $memo,
-                                        (float) $data['meters_used'],
-                                        $note,
-                                        $data['condition_notes'] ?? null,
-                                    ),
-                                };
-                            });
+                            match ($data['item_type']) {
+                                'raw_material' => MaterialMemoStockService::addMaterial(
+                                    RawMaterial::findOrFail($data['raw_material_id']),
+                                    'raw_material',
+                                    $memo,
+                                    (float) $data['qty_taken'],
+                                    $userId,
+                                    $conditionNotes,
+                                ),
+                                'consumable_item' => MaterialMemoStockService::addMaterial(
+                                    ConsumableItem::findOrFail($data['consumable_item_id']),
+                                    'consumable_item',
+                                    $memo,
+                                    (float) $data['qty_taken'],
+                                    $userId,
+                                    $conditionNotes,
+                                ),
+                                'inventory_item' => MaterialMemoStockService::addInventory(
+                                    InventoryItem::findOrFail($data['inventory_item_id']),
+                                    $memo,
+                                    (float) $data['meters_used'],
+                                    $userId,
+                                    $conditionNotes,
+                                ),
+                            };
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()
                                 ->title('Tidak bisa menambah barang')
@@ -207,69 +207,51 @@ class ItemsRelationManager extends RelationManager
                             ->maxValue((float) $record->qty_taken),
                     ])
                     ->action(function (MaterialMemoItem $record, array $data) {
-                        $material = $record->resolveItem();
-
-                        if (! $material) {
-                            Notification::make()
-                                ->title('Barang aslinya sudah tidak ada di sistem')
-                                ->danger()
-                                ->send();
-
-                            return;
+                        try {
+                            MaterialMemoStockService::returnMaterial(
+                                $record, (float) $data['qty_returned'], auth()->id(), $this->getOwnerRecord()
+                            );
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()->title('Tidak bisa mencatat pengembalian')->body($e->getMessage())->danger()->send();
                         }
+                    }),
 
-                        $qtyReturned = (float) $data['qty_returned'];
-                        $memo = $this->getOwnerRecord();
-
-                        DB::transaction(function () use ($material, $record, $qtyReturned, $memo) {
-                            if ($qtyReturned > 0) {
-                                $material->recordMovement('in', $qtyReturned, auth()->id(), "Memo {$memo->memo_number} — pengembalian");
+                Tables\Actions\Action::make('edit_qty')
+                    ->label('Koreksi Jumlah')
+                    ->icon('heroicon-o-pencil')
+                    ->color('warning')
+                    ->visible(fn (MaterialMemoItem $record) => $record->item_type === 'inventory_item' || $record->qty_returned === null)
+                    ->form(fn (MaterialMemoItem $record) => [
+                        Forms\Components\TextInput::make('qty')
+                            ->label($record->item_type === 'inventory_item' ? 'Meter Dipakai (koreksi)' : 'Jumlah Diambil (koreksi)')
+                            ->default($record->item_type === 'inventory_item' ? $record->meters_used : $record->qty_taken)
+                            ->numeric()
+                            ->required()
+                            ->minValue(0.01),
+                    ])
+                    ->action(function (MaterialMemoItem $record, array $data) {
+                        try {
+                            if ($record->item_type === 'inventory_item') {
+                                MaterialMemoStockService::updateInventoryQty($record, (float) $data['qty'], $this->getOwnerRecord());
+                            } else {
+                                MaterialMemoStockService::updateMaterialQty($record, (float) $data['qty'], auth()->id(), $this->getOwnerRecord());
                             }
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()->title('Tidak bisa mengoreksi jumlah')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
 
-                            $record->update([
-                                'qty_returned' => $qtyReturned,
-                                'qty_used' => $record->qty_taken - $qtyReturned,
-                            ]);
-                        });
+                Tables\Actions\Action::make('delete_item')
+                    ->label('Hapus')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Hapus Barang Ini?')
+                    ->modalDescription('Stok/sisa meter yang masih tercatat keluar akan dikembalikan, baru barisnya dihapus.')
+                    ->action(function (MaterialMemoItem $record) {
+                        MaterialMemoStockService::reverseItem($record, auth()->id(), $this->getOwnerRecord());
+                        $record->delete();
                     }),
             ]);
-    }
-
-    /**
-     * @param  RawMaterial|ConsumableItem  $material
-     */
-    private function createMaterialRow($material, string $itemType, $memo, float $qtyTaken, string $note, ?string $conditionNotes): void
-    {
-        $material->recordMovement('out', $qtyTaken, auth()->id(), $note);
-
-        MaterialMemoItem::create([
-            'material_memo_id' => $memo->id,
-            'item_type' => $itemType,
-            'item_id' => $material->id,
-            'item_name' => $material->name,
-            'unit' => $material->unit,
-            'qty_taken' => $qtyTaken,
-            'condition_notes' => $conditionNotes,
-        ]);
-    }
-
-    private function createInventoryRow(InventoryItem $item, $memo, float $meters, string $note, ?string $conditionNotes): void
-    {
-        if (! $item->scroll_code_id) {
-            throw new \InvalidArgumentException('Barang ini tidak punya kode gulungan terkait.');
-        }
-
-        $scrollCode = ScrollCode::findOrFail($item->scroll_code_id);
-        $scrollCode->recordUsage($meters, auth()->id(), $note);
-
-        MaterialMemoItem::create([
-            'material_memo_id' => $memo->id,
-            'item_type' => 'inventory_item',
-            'item_id' => $item->id,
-            'item_name' => $item->name . ' (' . $scrollCode->code . ')',
-            'unit' => 'meter',
-            'meters_used' => $meters,
-            'condition_notes' => $conditionNotes,
-        ]);
     }
 }

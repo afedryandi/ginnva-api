@@ -8,6 +8,8 @@ use App\Models\InventoryItem;
 use App\Models\MaterialMemo;
 use App\Models\MaterialMemoItem;
 use App\Models\RawMaterial;
+use App\Services\MaterialMemoStockService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -27,32 +29,60 @@ class MaterialMemoController extends Controller
     }
 
     /**
+     * Sama pola authorizeAccess() TAPI tambah cek toko — staff biasa cuma
+     * boleh sentuh memo TOKONYA SENDIRI. Sebelumnya cek ini cuma ada di
+     * index(), semua endpoint lain (show/addItem/returnItem/updateItem/
+     * destroyItem) bisa disentuh staff toko lain asal tahu/tebak ID-nya —
+     * lubang kebocoran data lintas toko.
+     */
+    private function authorizeMemoAccess(Request $request, MaterialMemo $memo): bool
+    {
+        if (! $this->authorizeAccess($request)) {
+            return false;
+        }
+
+        $user = $request->user('api');
+
+        return $user->isFullAccess() || $memo->store_id === $user->store_id;
+    }
+
+    private function forbiddenResponse()
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Akun ini tidak punya akses ke menu Memo.',
+        ], 403);
+    }
+
+    /**
      * GET /api/staff/memos
      *
      * Company-wide untuk full-access, tapi staff biasa cuma lihat memo
      * toko sendiri — sama pola dengan storeId di InventoryController.
+     * Dipaginasi lewat offset (bukan cuma limit polos) supaya toko yang
+     * memo-nya sudah banyak (>50) tetap bisa buka yang lebih lama.
      */
     public function index(Request $request)
     {
         if (! $this->authorizeAccess($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Memo.',
-            ], 403);
+            return $this->forbiddenResponse();
         }
 
         $user = $request->user('api');
         $storeId = $user->isFullAccess() ? $request->query('store_id') : $user->store_id;
+        $offset = max(0, (int) $request->query('offset', 0));
+        $perPage = 50;
 
-        $memos = MaterialMemo::query()
+        $query = MaterialMemo::query()
             ->with(['creator:id,name', 'store:id,name'])
             ->withCount('items')
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->orderByDesc('created_at')
-            ->limit(50)
-            ->get();
+            ->orderByDesc('created_at');
 
-        return response()->json(['success' => true, 'data' => $memos]);
+        $memos = (clone $query)->offset($offset)->limit($perPage)->get();
+        $hasMore = (clone $query)->offset($offset + $perPage)->limit(1)->exists();
+
+        return response()->json(['success' => true, 'data' => $memos, 'has_more' => $hasMore]);
     }
 
     /**
@@ -65,10 +95,7 @@ class MaterialMemoController extends Controller
     public function store(Request $request)
     {
         if (! $this->authorizeAccess($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Memo.',
-            ], 403);
+            return $this->forbiddenResponse();
         }
 
         $user = $request->user('api');
@@ -100,16 +127,32 @@ class MaterialMemoController extends Controller
             ], 422);
         }
 
-        $memo = DB::transaction(function () use ($request, $user, $storeId) {
-            return MaterialMemo::create([
-                'memo_number' => MaterialMemo::generateMemoNumber(),
-                'store_id' => $storeId,
-                'vehicle_info' => $request->vehicle_info,
-                'spk_number' => $request->spk_number,
-                'notes' => $request->notes,
-                'created_by' => $user->id,
-            ]);
-        });
+        // generateMemoNumber() hitung-lalu-format tidak aman kalau 2
+        // request nyaris bersamaan menghasilkan nomor yang sama persis —
+        // constraint unique di DB bakal menolak salah satunya dengan
+        // QueryException mentah. Coba ulang beberapa kali dengan nomor
+        // baru daripada 500 error ke user.
+        $attempts = 0;
+        while (true) {
+            $attempts++;
+            try {
+                $memo = DB::transaction(function () use ($request, $user, $storeId) {
+                    return MaterialMemo::create([
+                        'memo_number' => MaterialMemo::generateMemoNumber(),
+                        'store_id' => $storeId,
+                        'vehicle_info' => $request->vehicle_info,
+                        'spk_number' => $request->spk_number,
+                        'notes' => $request->notes,
+                        'created_by' => $user->id,
+                    ]);
+                });
+                break;
+            } catch (QueryException $e) {
+                if ($attempts >= 3 || ! str_contains($e->getMessage(), 'memo_number')) {
+                    throw $e;
+                }
+            }
+        }
 
         $memo->load(['creator:id,name', 'store:id,name', 'items']);
 
@@ -125,20 +168,93 @@ class MaterialMemoController extends Controller
      */
     public function show(Request $request, int $id)
     {
-        if (! $this->authorizeAccess($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Memo.',
-            ], 403);
-        }
-
         $memo = MaterialMemo::with(['creator:id,name', 'store:id,name', 'items'])->find($id);
 
         if (! $memo) {
             return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
         }
 
+        if (! $this->authorizeMemoAccess($request, $memo)) {
+            return $this->forbiddenResponse();
+        }
+
         return response()->json(['success' => true, 'data' => $memo]);
+    }
+
+    /**
+     * PATCH /api/staff/memos/{id}
+     *
+     * Koreksi info kendaraan/SPK/catatan setelah memo dibuat — sebelumnya
+     * cuma bisa lewat Filament, staff lapangan mentok kalau salah ketik.
+     */
+    public function update(Request $request, int $id)
+    {
+        $memo = MaterialMemo::find($id);
+
+        if (! $memo) {
+            return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
+        }
+
+        if (! $this->authorizeMemoAccess($request, $memo)) {
+            return $this->forbiddenResponse();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'vehicle_info' => 'nullable|string|max:255',
+            'spk_number' => 'nullable|string|max:100',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $memo->update($validator->validated());
+        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Info memo berhasil diperbarui.',
+            'data' => $memo,
+        ]);
+    }
+
+    /**
+     * DELETE /api/staff/memos/{id}
+     *
+     * Hapus memo UTUH — semua barisnya dibalik dulu lewat
+     * MaterialMemoStockService (stok/sisa meter dikembalikan penuh),
+     * baru memonya (dan baris-barisnya, lewat cascade) dihapus. Beda
+     * dari DeleteAction bawaan Filament yang sebelumnya cascade-delete
+     * langsung tanpa lewat pembalikan ini sama sekali.
+     */
+    public function destroy(Request $request, int $id)
+    {
+        $memo = MaterialMemo::with('items')->find($id);
+
+        if (! $memo) {
+            return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
+        }
+
+        if (! $this->authorizeMemoAccess($request, $memo)) {
+            return $this->forbiddenResponse();
+        }
+
+        $userId = $request->user('api')->id;
+
+        DB::transaction(function () use ($memo, $userId) {
+            MaterialMemoStockService::reverseAllItems($memo, $userId);
+            $memo->delete();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Memo berhasil dihapus, stok/sisa meter yang sudah terpakai dikembalikan.',
+        ]);
     }
 
     /**
@@ -153,17 +269,14 @@ class MaterialMemoController extends Controller
      */
     public function addItem(Request $request, int $id)
     {
-        if (! $this->authorizeAccess($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Memo.',
-            ], 403);
-        }
-
         $memo = MaterialMemo::find($id);
 
         if (! $memo) {
             return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
+        }
+
+        if (! $this->authorizeMemoAccess($request, $memo)) {
+            return $this->forbiddenResponse();
         }
 
         $validator = Validator::make($request->all(), [
@@ -183,43 +296,23 @@ class MaterialMemoController extends Controller
         }
 
         $userId = $request->user('api')->id;
-        $note = "Memo {$memo->memo_number}" . ($request->condition_notes ? " — {$request->condition_notes}" : '');
 
         try {
-            $memoItem = match ($request->item_type) {
-                'raw_material' => $this->addMaterialItem(
-                    RawMaterial::find($request->item_id),
-                    'raw_material',
-                    $memo,
-                    (float) $request->qty_taken,
-                    $userId,
-                    $note,
-                    $request->condition_notes
-                ),
-                'consumable_item' => $this->addMaterialItem(
-                    ConsumableItem::find($request->item_id),
-                    'consumable_item',
-                    $memo,
-                    (float) $request->qty_taken,
-                    $userId,
-                    $note,
-                    $request->condition_notes
-                ),
-                'inventory_item' => $this->addInventoryItem(
-                    InventoryItem::find($request->item_id),
-                    $memo,
-                    (float) $request->meters_used,
-                    $userId,
-                    $note,
-                    $request->condition_notes
-                ),
+            match ($request->item_type) {
+                'raw_material' => $this->requireMaterial(RawMaterial::find($request->item_id), fn ($material) => MaterialMemoStockService::addMaterial(
+                    $material, 'raw_material', $memo, (float) $request->qty_taken, $userId, $request->condition_notes
+                )),
+                'consumable_item' => $this->requireMaterial(ConsumableItem::find($request->item_id), fn ($material) => MaterialMemoStockService::addMaterial(
+                    $material, 'consumable_item', $memo, (float) $request->qty_taken, $userId, $request->condition_notes
+                )),
+                'inventory_item' => $this->requireMaterial(InventoryItem::find($request->item_id), fn ($item) => MaterialMemoStockService::addInventory(
+                    $item, $memo, (float) $request->meters_used, $userId, $request->condition_notes
+                )),
             };
         } catch (\InvalidArgumentException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-
-        if ($memoItem instanceof \Illuminate\Http\JsonResponse) {
-            return $memoItem;
+        } catch (\DomainException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 404);
         }
 
         $memo->load(['creator:id,name', 'store:id,name', 'items']);
@@ -232,82 +325,32 @@ class MaterialMemoController extends Controller
     }
 
     /**
-     * @param  RawMaterial|ConsumableItem|null  $material
+     * @template T
+     * @param  T|null  $model
+     * @param  callable(T): mixed  $callback
      */
-    private function addMaterialItem($material, string $itemType, MaterialMemo $memo, float $qtyTaken, int $userId, string $note, ?string $conditionNotes)
+    private function requireMaterial($model, callable $callback)
     {
-        if (! $material) {
-            return response()->json(['success' => false, 'message' => 'Barang tidak ditemukan.'], 404);
+        if (! $model) {
+            throw new \DomainException('Barang tidak ditemukan.');
         }
 
-        return DB::transaction(function () use ($material, $itemType, $memo, $qtyTaken, $userId, $note, $conditionNotes) {
-            $material->recordMovement('out', $qtyTaken, $userId, $note);
-
-            return MaterialMemoItem::create([
-                'material_memo_id' => $memo->id,
-                'item_type' => $itemType,
-                'item_id' => $material->id,
-                'item_name' => $material->name,
-                'unit' => $material->unit,
-                'qty_taken' => $qtyTaken,
-                'condition_notes' => $conditionNotes,
-            ]);
-        });
-    }
-
-    private function addInventoryItem(?InventoryItem $item, MaterialMemo $memo, float $meters, int $userId, string $note, ?string $conditionNotes)
-    {
-        if (! $item) {
-            return response()->json(['success' => false, 'message' => 'Barang tidak ditemukan.'], 404);
-        }
-
-        if (! $item->scroll_code_id) {
-            return response()->json(['success' => false, 'message' => 'Barang ini tidak punya kode gulungan terkait.'], 422);
-        }
-
-        $scrollCode = \App\Models\ScrollCode::find($item->scroll_code_id);
-
-        return DB::transaction(function () use ($scrollCode, $item, $memo, $meters, $userId, $note, $conditionNotes) {
-            $scrollCode->recordUsage($meters, $userId, $note);
-            // recordUsage() tidak return baris riwayatnya — ambil yang baru
-            // saja (masih di transaction yang sama) supaya bisa dikoreksi
-            // lewat updateItem() nanti kalau ternyata salah input.
-            $usage = $scrollCode->usages()->latest('id')->first();
-
-            return MaterialMemoItem::create([
-                'material_memo_id' => $memo->id,
-                'item_type' => 'inventory_item',
-                'item_id' => $item->id,
-                'item_name' => $item->name . ' (' . $scrollCode->code . ')',
-                'unit' => 'meter',
-                'meters_used' => $meters,
-                'scroll_code_usage_id' => $usage?->id,
-                'condition_notes' => $conditionNotes,
-            ]);
-        });
+        return $callback($model);
     }
 
     /**
      * POST /api/staff/memos/{id}/items/{itemId}/return
-     *
-     * Isi jumlah dikembalikan untuk 1 baris Bahan Baku/Barang Habis Pakai
-     * — cuma boleh sekali per baris (belum pernah diisi sebelumnya).
-     * Sisa terpakai (qty_used) dihitung otomatis, dan sisa yang balik ke
-     * stok dicatat lewat recordMovement('in', ...).
      */
     public function returnItem(Request $request, int $id, int $itemId)
     {
-        if (! $this->authorizeAccess($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Memo.',
-            ], 403);
-        }
-
         $memo = MaterialMemo::find($id);
 
         if (! $memo) {
             return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
+        }
+
+        if (! $this->authorizeMemoAccess($request, $memo)) {
+            return $this->forbiddenResponse();
         }
 
         $memoItem = MaterialMemoItem::where('material_memo_id', $memo->id)->find($itemId);
@@ -316,18 +359,8 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => 'Baris barang tidak ditemukan.'], 404);
         }
 
-        if (! in_array($memoItem->item_type, ['raw_material', 'consumable_item'], true)) {
-            return response()->json(['success' => false, 'message' => 'Jenis barang ini tidak punya alur pengembalian.'], 422);
-        }
-
-        if ($memoItem->qty_returned !== null) {
-            return response()->json(['success' => false, 'message' => 'Pengembalian untuk baris ini sudah pernah dicatat.'], 422);
-        }
-
         $validator = Validator::make($request->all(), [
-            // 0 diperbolehkan — artinya semua yang diambil habis terpakai,
-            // tidak ada yang balik ke stok.
-            'qty_returned' => ['required', 'numeric', 'min:0', 'max:' . $memoItem->qty_taken],
+            'qty_returned' => ['required', 'numeric', 'min:0'],
         ]);
 
         if ($validator->fails()) {
@@ -338,26 +371,11 @@ class MaterialMemoController extends Controller
             ], 422);
         }
 
-        $material = $memoItem->resolveItem();
-
-        if (! $material) {
-            return response()->json(['success' => false, 'message' => 'Barang aslinya sudah tidak ada di sistem.'], 404);
+        try {
+            MaterialMemoStockService::returnMaterial($memoItem, (float) $request->qty_returned, $request->user('api')->id, $memo);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
-
-        $qtyReturned = (float) $request->qty_returned;
-        $userId = $request->user('api')->id;
-        $note = "Memo {$memo->memo_number} — pengembalian";
-
-        DB::transaction(function () use ($material, $memoItem, $qtyReturned, $userId, $note) {
-            if ($qtyReturned > 0) {
-                $material->recordMovement('in', $qtyReturned, $userId, $note);
-            }
-
-            $memoItem->update([
-                'qty_returned' => $qtyReturned,
-                'qty_used' => $memoItem->qty_taken - $qtyReturned,
-            ]);
-        });
 
         $memo->load(['creator:id,name', 'store:id,name', 'items']);
 
@@ -372,27 +390,20 @@ class MaterialMemoController extends Controller
      * PATCH /api/staff/memos/{id}/items/{itemId}
      *
      * Koreksi jumlah 1 baris yang salah input — BUKAN ganti barangnya
-     * (kalau salah pilih barang, tidak ada jalan lain selain hapus/tambah
-     * ulang, fitur itu belum ada). Cuma selisihnya yang disesuaikan ke
-     * stok/sisa meter gulungan, bukan menimpa polos.
-     *
-     * Bahan Baku/Barang Habis Pakai: ditolak kalau qty_returned sudah
-     * pernah diisi — pengembaliannya sudah dihitung dari angka lama,
-     * mengubah qty_taken sesudahnya bikin datanya tidak konsisten.
+     * (kalau salah pilih barang, hapus baris lewat destroyItem() lalu
+     * tambah ulang). Cuma selisihnya yang disesuaikan ke stok/sisa meter
+     * gulungan, bukan menimpa polos.
      */
     public function updateItem(Request $request, int $id, int $itemId)
     {
-        if (! $this->authorizeAccess($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Memo.',
-            ], 403);
-        }
-
         $memo = MaterialMemo::find($id);
 
         if (! $memo) {
             return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
+        }
+
+        if (! $this->authorizeMemoAccess($request, $memo)) {
+            return $this->forbiddenResponse();
         }
 
         $memoItem = MaterialMemoItem::where('material_memo_id', $memo->id)->find($itemId);
@@ -401,14 +412,25 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => 'Baris barang tidak ditemukan.'], 404);
         }
 
-        $userId = $request->user('api')->id;
-        $note = "Memo {$memo->memo_number} — koreksi jumlah";
+        $isInventory = $memoItem->item_type === 'inventory_item';
+        $validator = Validator::make($request->all(), [
+            'qty_taken' => $isInventory ? 'nullable' : 'required|numeric|min:0.01',
+            'meters_used' => $isInventory ? 'required|numeric|min:0.01' : 'nullable',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
         try {
-            if ($memoItem->item_type === 'inventory_item') {
-                $this->updateInventoryItemQty($request, $memoItem, $note);
+            if ($isInventory) {
+                MaterialMemoStockService::updateInventoryQty($memoItem, (float) $request->meters_used, $memo);
             } else {
-                $this->updateMaterialItemQty($request, $memoItem, $userId, $note);
+                MaterialMemoStockService::updateMaterialQty($memoItem, (float) $request->qty_taken, $request->user('api')->id, $memo);
             }
         } catch (\InvalidArgumentException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
@@ -423,97 +445,6 @@ class MaterialMemoController extends Controller
         ]);
     }
 
-    private function updateMaterialItemQty(Request $request, MaterialMemoItem $memoItem, int $userId, string $note): void
-    {
-        if ($memoItem->qty_returned !== null) {
-            throw new \InvalidArgumentException('Baris ini sudah ada pengembaliannya — tidak bisa diedit lagi. Kalau memang salah, hubungi admin.');
-        }
-
-        $validator = Validator::make($request->all(), [
-            'qty_taken' => 'required|numeric|min:0.01',
-        ]);
-
-        if ($validator->fails()) {
-            throw new \InvalidArgumentException('Jumlah yang dikirim tidak valid.');
-        }
-
-        $material = $memoItem->resolveItem();
-
-        if (! $material) {
-            throw new \InvalidArgumentException('Barang aslinya sudah tidak ada di sistem.');
-        }
-
-        $newQty = (float) $request->qty_taken;
-        $delta = round($newQty - (float) $memoItem->qty_taken, 2);
-
-        if ($delta === 0.0) {
-            return;
-        }
-
-        DB::transaction(function () use ($material, $memoItem, $newQty, $delta, $userId, $note) {
-            if ($delta > 0) {
-                $material->recordMovement('out', $delta, $userId, $note);
-            } else {
-                $material->recordMovement('in', abs($delta), $userId, $note);
-            }
-
-            $memoItem->update(['qty_taken' => $newQty]);
-        });
-    }
-
-    private function updateInventoryItemQty(Request $request, MaterialMemoItem $memoItem, string $note): void
-    {
-        $validator = Validator::make($request->all(), [
-            'meters_used' => 'required|numeric|min:0.01',
-        ]);
-
-        if ($validator->fails()) {
-            throw new \InvalidArgumentException('Jumlah yang dikirim tidak valid.');
-        }
-
-        $scrollCodeId = InventoryItem::find($memoItem->item_id)?->scroll_code_id;
-        $scrollCode = $scrollCodeId ? \App\Models\ScrollCode::find($scrollCodeId) : null;
-
-        if (! $scrollCode) {
-            throw new \InvalidArgumentException('Kode gulungan aslinya sudah tidak ada di sistem.');
-        }
-
-        $newMeters = (float) $request->meters_used;
-        $oldMeters = (float) $memoItem->meters_used;
-        $delta = round($newMeters - $oldMeters, 2);
-
-        if ($delta === 0.0) {
-            return;
-        }
-
-        DB::transaction(function () use ($scrollCode, $memoItem, $newMeters, $delta, $note) {
-            $locked = \App\Models\ScrollCode::where('id', $scrollCode->id)->lockForUpdate()->firstOrFail();
-
-            if ($delta > (float) $locked->remaining_length_meters) {
-                throw new \InvalidArgumentException("Meter tidak cukup — sisa panjang gulungan cuma {$locked->remaining_length_meters} meter.");
-            }
-
-            $remaining = round((float) $locked->remaining_length_meters - $delta, 2);
-            $remaining = min($remaining, (float) $locked->total_length_meters);
-
-            $locked->update([
-                'remaining_length_meters' => $remaining,
-                // Kalau koreksi bikin sisa jadi >0 lagi, buka lagi statusnya
-                // (asumsi 'used' sebelumnya memang gara-gara pemakaian INI —
-                // wajar untuk kasus koreksi salah input yang baru saja terjadi).
-                'status' => $remaining <= 0 ? 'used' : ($locked->status === 'used' ? 'allocated' : $locked->status),
-                'used_at' => $remaining <= 0 ? ($locked->used_at ?? now()) : null,
-            ]);
-
-            if ($memoItem->scroll_code_usage_id) {
-                \App\Models\ScrollCodeUsage::where('id', $memoItem->scroll_code_usage_id)
-                    ->update(['meters' => $newMeters, 'note' => $note]);
-            }
-
-            $memoItem->update(['meters_used' => $newMeters]);
-        });
-    }
-
     /**
      * DELETE /api/staff/memos/{id}/items/{itemId}
      *
@@ -523,17 +454,14 @@ class MaterialMemoController extends Controller
      */
     public function destroyItem(Request $request, int $id, int $itemId)
     {
-        if (! $this->authorizeAccess($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Memo.',
-            ], 403);
-        }
-
         $memo = MaterialMemo::find($id);
 
         if (! $memo) {
             return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
+        }
+
+        if (! $this->authorizeMemoAccess($request, $memo)) {
+            return $this->forbiddenResponse();
         }
 
         $memoItem = MaterialMemoItem::where('material_memo_id', $memo->id)->find($itemId);
@@ -542,15 +470,7 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => 'Baris barang tidak ditemukan.'], 404);
         }
 
-        $userId = $request->user('api')->id;
-        $note = "Memo {$memo->memo_number} — baris dihapus";
-
-        if ($memoItem->item_type === 'inventory_item') {
-            $this->reverseInventoryItem($memoItem, $note);
-        } else {
-            $this->reverseMaterialItem($memoItem, $userId, $note);
-        }
-
+        MaterialMemoStockService::reverseItem($memoItem, $request->user('api')->id, $memo);
         $memoItem->delete();
 
         $memo->load(['creator:id,name', 'store:id,name', 'items']);
@@ -560,54 +480,5 @@ class MaterialMemoController extends Controller
             'message' => 'Barang berhasil dihapus dari memo.',
             'data' => $memo,
         ]);
-    }
-
-    private function reverseMaterialItem(MaterialMemoItem $memoItem, int $userId, string $note): void
-    {
-        $material = $memoItem->resolveItem();
-
-        if (! $material) {
-            return;
-        }
-
-        // Kalau sudah ada pengembalian, yang masih "keluar" dari stok cuma
-        // qty_used (qty_taken - qty_returned) — qty_returned-nya sendiri
-        // sudah balik ke stok lewat returnItem(), jangan dikembalikan dobel.
-        $stillOut = $memoItem->qty_returned !== null
-            ? (float) $memoItem->qty_used
-            : (float) $memoItem->qty_taken;
-
-        if ($stillOut > 0) {
-            $material->recordMovement('in', $stillOut, $userId, $note);
-        }
-    }
-
-    private function reverseInventoryItem(MaterialMemoItem $memoItem, string $note): void
-    {
-        $scrollCodeId = InventoryItem::find($memoItem->item_id)?->scroll_code_id;
-        $scrollCode = $scrollCodeId ? \App\Models\ScrollCode::find($scrollCodeId) : null;
-
-        if (! $scrollCode) {
-            return;
-        }
-
-        DB::transaction(function () use ($scrollCode, $memoItem, $note) {
-            $locked = \App\Models\ScrollCode::where('id', $scrollCode->id)->lockForUpdate()->firstOrFail();
-            $meters = (float) $memoItem->meters_used;
-            $remaining = min(
-                round((float) $locked->remaining_length_meters + $meters, 2),
-                (float) $locked->total_length_meters
-            );
-
-            $locked->update([
-                'remaining_length_meters' => $remaining,
-                'status' => $remaining > 0 && $locked->status === 'used' ? 'allocated' : $locked->status,
-                'used_at' => $remaining > 0 && $locked->status === 'used' ? null : $locked->used_at,
-            ]);
-
-            if ($memoItem->scroll_code_usage_id) {
-                \App\Models\ScrollCodeUsage::where('id', $memoItem->scroll_code_usage_id)->delete();
-            }
-        });
     }
 }

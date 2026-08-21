@@ -48,7 +48,7 @@ class RawMaterialController extends Controller
             ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%"))
             ->orderBy('name')
-            ->limit(20)
+            ->limit(30)
             ->get();
 
         return response()->json([

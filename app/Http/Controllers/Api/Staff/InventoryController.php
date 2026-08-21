@@ -54,7 +54,7 @@ class InventoryController extends Controller
                 ->orWhere('code', 'like', "%{$search}%")
                 ->orWhereHas('scrollCode', fn ($sq) => $sq->where('code', 'like', "%{$search}%")))
             ->orderBy('name')
-            ->limit(20)
+            ->limit(30)
             ->get(['id', 'code', 'name', 'category', 'status', 'scroll_code_id']);
 
         return response()->json([

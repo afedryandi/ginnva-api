@@ -268,6 +268,10 @@ Route::prefix('staff')->group(function () {
         Route::post('/memos', [StaffMaterialMemoController::class, 'store'])
             ->middleware('throttle:30,1');
         Route::get('/memos/{id}', [StaffMaterialMemoController::class, 'show']);
+        Route::patch('/memos/{id}', [StaffMaterialMemoController::class, 'update'])
+            ->middleware('throttle:30,1');
+        Route::delete('/memos/{id}', [StaffMaterialMemoController::class, 'destroy'])
+            ->middleware('throttle:30,1');
         Route::post('/memos/{id}/items', [StaffMaterialMemoController::class, 'addItem'])
             ->middleware('throttle:30,1');
         Route::post('/memos/{id}/items/{itemId}/return', [StaffMaterialMemoController::class, 'returnItem'])
