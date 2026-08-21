@@ -81,38 +81,24 @@ class RawMaterial extends Model
      * transaction + row lock supaya 2 staff yang input barengan tidak
      * saling menimpa saldo.
      *
-     * Setiap "masuk" JUGA bikin 1 batch baru (mis. 1 tong/drum baru
-     * datang) — supaya beberapa batch bahan yang sama bisa dilacak
-     * terpisah (tanggal masuk/kedaluwarsa beda-beda). Setiap "keluar"
-     * mengonsumsi batch FIFO (received_date paling lama duluan) lewat
-     * consumeBatchesFifo() — current_stock TETAP jadi sumber kebenaran
-     * utama untuk validasi & tampilan, batch cuma pelacakan tambahan.
+     * Setiap "masuk" JUGA bikin 1 batch baru (1 kejadian Catat Stok = 1
+     * batch, TIDAK dipecah lagi per botol/wadah — sempat begitu, tapi
+     * kerumitannya tidak sepadan) — supaya beberapa batch bahan yang sama
+     * bisa dilacak terpisah kalau tanggal masuk/kedaluwarsanya beda-beda.
+     * Setiap "keluar" mengonsumsi batch FIFO (received_date paling lama
+     * duluan) lewat consumeBatchesFifo() — current_stock TETAP jadi
+     * sumber kebenaran utama untuk validasi & tampilan, batch cuma
+     * pelacakan tambahan.
      *
      * @throws \InvalidArgumentException kalau stok keluar melebihi stok yang tersedia.
      */
-    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?string $receivedDate = null, ?string $expiryDate = null, int $containerCount = 1): RawMaterialMovement
+    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?string $receivedDate = null, ?string $expiryDate = null): RawMaterialMovement
     {
         if ($quantity <= 0) {
             throw new \InvalidArgumentException('Jumlah harus lebih besar dari 0.');
         }
 
-        if ($containerCount < 1) {
-            throw new \InvalidArgumentException('Jumlah botol/wadah minimal 1.');
-        }
-
-        // Dibagi dalam satuan "sen" (1/100) pakai bilangan bulat — round()
-        // biasa per botol lalu sisa ditumpuk ke botol terakhir BISA
-        // menghasilkan quantity 0 atau malah NEGATIF kalau containerCount
-        // terlalu besar dibanding quantity (mis. quantity=1, 200 botol —
-        // pembulatan per botol ke atas bikin total kebablasan, sisa untuk
-        // botol terakhir jadi minus). Guard ini menolak kombinasi yang
-        // tidak bisa dibagi rata minimal 0.01 per botol.
-        $totalCents = (int) round($quantity * 100);
-        if ($type === 'in' && $containerCount > $totalCents) {
-            throw new \InvalidArgumentException("Jumlah botol/wadah ({$containerCount}) terlalu banyak untuk jumlah total {$quantity} — minimal 0.01 per botol.");
-        }
-
-        return DB::transaction(function () use ($type, $quantity, $userId, $note, $receivedDate, $expiryDate, $containerCount, $totalCents) {
+        return DB::transaction(function () use ($type, $quantity, $userId, $note, $receivedDate, $expiryDate) {
             $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
             if ($type === 'out' && $material->current_stock < $quantity) {
@@ -120,24 +106,12 @@ class RawMaterial extends Model
             }
 
             if ($type === 'in') {
-                // 1 batch = 1 botol fisik, supaya bisa dipantau sisa per
-                // botolnya sendiri-sendiri (bukan cuma total gabungan).
-                // Sisa pembagian (dalam sen) ditebar +1 ke botol PALING
-                // AWAL, bukan ditumpuk semua ke botol terakhir — supaya
-                // tidak ada satu botol pun yang bisa jadi 0/negatif.
-                $baseCents = intdiv($totalCents, $containerCount);
-                $remainderCents = $totalCents % $containerCount;
-
-                for ($i = 0; $i < $containerCount; $i++) {
-                    $containerCents = $baseCents + ($i < $remainderCents ? 1 : 0);
-
-                    $material->batches()->create([
-                        'quantity' => $containerCents / 100,
-                        'received_date' => $receivedDate ?? now()->toDateString(),
-                        'expiry_date' => $expiryDate,
-                        'created_by' => $userId,
-                    ]);
-                }
+                $material->batches()->create([
+                    'quantity' => $quantity,
+                    'received_date' => $receivedDate ?? now()->toDateString(),
+                    'expiry_date' => $expiryDate,
+                    'created_by' => $userId,
+                ]);
             } else {
                 static::consumeBatchesFifo($material, $quantity);
             }

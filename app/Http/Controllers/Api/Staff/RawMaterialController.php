@@ -39,12 +39,8 @@ class RawMaterialController extends Controller
 
         $search = trim((string) $request->query('search', ''));
 
-        // withCount HARUS dipasang sebelum select kolom eksplisit —
-        // ->get($columns) menimpa seluruh select query (termasuk subquery
-        // count dari withCount) kalau dipanggil belakangan.
         $materials = RawMaterial::query()
             ->select(['id', 'name', 'code', 'category', 'unit', 'current_stock', 'reorder_point'])
-            ->withCount(['batches as active_batches_count' => fn ($q) => $q->where('quantity', '>', 0)])
             ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%"))
             ->orderBy('name')
@@ -72,9 +68,7 @@ class RawMaterialController extends Controller
         $material = RawMaterial::with([
             'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
             'batches' => fn ($q) => $q->where('quantity', '>', 0),
-        ])
-            ->withCount(['batches as active_batches_count' => fn ($q) => $q->where('quantity', '>', 0)])
-            ->find($id);
+        ])->find($id);
 
         if (! $material) {
             return response()->json([
@@ -113,11 +107,6 @@ class RawMaterialController extends Controller
             // hari ini, tanpa kedaluwarsa) untuk staff yang catat cepat.
             'received_date' => 'nullable|date|before_or_equal:today',
             'expiry_date' => 'nullable|date',
-            // 1 nama bahan bisa datang banyak botol/wadah sekaligus —
-            // quantity dibagi rata jadi $container_count batch terpisah
-            // (lihat RawMaterial::recordMovement()). Default 1 kalau
-            // tidak dikirim.
-            'container_count' => 'nullable|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -145,7 +134,6 @@ class RawMaterialController extends Controller
                 $request->note,
                 $request->received_date,
                 $request->expiry_date,
-                (int) ($request->container_count ?? 1),
             );
         } catch (\InvalidArgumentException $e) {
             return response()->json([
@@ -164,7 +152,6 @@ class RawMaterialController extends Controller
             'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
             'batches' => fn ($q) => $q->where('quantity', '>', 0),
         ]);
-        $material->loadCount(['batches as active_batches_count' => fn ($q) => $q->where('quantity', '>', 0)]);
 
         return response()->json([
             'success' => true,
@@ -219,7 +206,6 @@ class RawMaterialController extends Controller
             'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
             'batches' => fn ($q) => $q->where('quantity', '>', 0),
         ]);
-        $material->loadCount(['batches as active_batches_count' => fn ($q) => $q->where('quantity', '>', 0)]);
 
         return response()->json([
             'success' => true,

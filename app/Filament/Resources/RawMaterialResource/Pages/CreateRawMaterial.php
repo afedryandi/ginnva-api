@@ -11,24 +11,18 @@ class CreateRawMaterial extends CreateRecord
 
     private float $initialStock = 0;
 
-    private int $initialContainerCount = 1;
-
     /**
-     * Stok awal & jumlah botol/wadah TIDAK langsung disimpan ke kolom
-     * current_stock di sini — ditampung dulu, lalu dicatat lewat
-     * RawMaterial::recordMovement() di afterCreate() supaya otomatis
-     * kebagi jadi batch per botol/wadah (sama seperti "Catat Stok"),
-     * bukan cuma angka current_stock polos tanpa batch pendukung.
+     * Stok awal TIDAK langsung disimpan ke kolom current_stock di sini —
+     * ditampung dulu, lalu dicatat lewat RawMaterial::recordMovement() di
+     * afterCreate() supaya otomatis tercatat sebagai 1 batch (sama seperti
+     * "Catat Stok"), bukan cuma angka current_stock polos tanpa jejak.
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['created_by'] = auth()->id();
 
         $this->initialStock = (float) ($data['current_stock'] ?? 0);
-        $this->initialContainerCount = max(1, (int) ($data['container_count'] ?? 1));
-
         $data['current_stock'] = 0;
-        unset($data['container_count']);
 
         return $data;
     }
@@ -46,7 +40,6 @@ class CreateRawMaterial extends CreateRecord
             'Stok awal saat pendaftaran.',
             $this->record->received_date?->toDateString(),
             $this->record->expiry_date?->toDateString(),
-            $this->initialContainerCount,
         );
     }
 }
