@@ -447,9 +447,16 @@ class BookingResource extends Resource
                 ->columns(2)
                 ->schema([
                     TextEntry::make('service_type')->label('Jenis Layanan'),
+                    // BUG (500 error): ->date('d M Y') dipakai BARENGAN
+                    // dengan ->state() yang sudah mengembalikan string
+                    // terformat sendiri — Filament coba Carbon::parse()
+                    // ULANG string yang sudah diformat (mis. "27 Aug 2025
+                    // (3 hari, s/d 30 Aug 2025)"), gagal parse, throw
+                    // exception. Cukup salah satu: ->state() saja karena
+                    // sudah memformat manual. Ditemukan & diperbaiki
+                    // 2026-08-27 setelah laporan 500 di /admin/bookings/{id}.
                     TextEntry::make('preferred_date')
                         ->label('Tanggal Diinginkan')
-                        ->date('d M Y')
                         ->state(fn (Booking $record) => $record->duration_days > 1
                             ? $record->preferred_date->format('d M Y') . " ({$record->duration_days} hari, s/d " . $record->end_date?->format('d M Y') . ')'
                             : $record->preferred_date?->format('d M Y')),
