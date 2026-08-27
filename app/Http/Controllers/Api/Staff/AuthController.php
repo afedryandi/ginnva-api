@@ -177,6 +177,7 @@ class AuthController extends Controller
             // Dipakai app buat putuskan halaman awal setelah login —
             // lihat User::hasBookingAccess()/hasInventoryAccess().
             'has_booking_access'   => $user->hasBookingAccess(),
+            'has_quotation_access' => $user->hasQuotationAccess(),
             'has_inventory_access' => $user->hasInventoryAccess(),
             // Granular per-submenu — dipakai buat filter menu MANA yang
             // ditampilkan di hub Inventaris/menu kubus, supaya staff yang
@@ -186,6 +187,7 @@ class AuthController extends Controller
             'has_material_access'  => $user->hasMaterialAccess(),
             'has_asset_access'     => $user->hasAssetAccess(),
             'has_consumable_access' => $user->hasConsumableAccess(),
+            'has_material_memo_access' => $user->hasMaterialMemoAccess(),
         ];
     }
 }

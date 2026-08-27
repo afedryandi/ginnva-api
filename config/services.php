@@ -45,8 +45,10 @@ return [
     // Asisten AI (ChatController) — sempat dicoba pindah ke Gemini API,
     // tapi project Google Cloud yang dipakai ternyata butuh billing
     // aktif (bukan gratis seperti seharusnya untuk kasus ini), jadi
-    // dikembalikan ke Groq dengan model lebih kecil (llama-3.1-8b-instant)
-    // supaya limit token-per-menit free tier-nya lebih longgar.
+    // dikembalikan ke Groq dengan model lebih kecil supaya limit
+    // token-per-menit free tier-nya lebih longgar (awalnya
+    // llama-3.1-8b-instant, dipensiunkan Groq per 2026-08-19, diganti
+    // openai/gpt-oss-20b — lihat ChatController::send()).
     'groq' => [
         'api_key' => env('GROQ_API_KEY'),
     ],

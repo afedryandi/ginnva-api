@@ -18,7 +18,7 @@ class MaterialResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-folder-arrow-down';
 
-    protected static ?string $navigationGroup = 'Konten';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
     protected static ?string $navigationLabel = 'Materi Download';
 
@@ -26,7 +26,7 @@ class MaterialResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Materi Download';
 
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 45;
 
     public static function canViewAny(): bool
     {

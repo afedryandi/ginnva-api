@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CaseStudyController;
 use App\Http\Controllers\Api\JobOpeningController;
 use App\Http\Controllers\Api\NewsController;
 use App\Http\Controllers\Api\GiiasPartnerSignupController;
+use App\Http\Controllers\Api\PartnerSignupController;
 use App\Http\Controllers\Api\PartnershipInquiryController;
 use App\Http\Controllers\Api\ProductInquiryController;
 use App\Http\Controllers\Api\QuotationController;
@@ -19,11 +20,15 @@ use App\Http\Controllers\Api\Customer\MyWarrantyController;
 use App\Http\Controllers\Api\Customer\StoreReviewController;
 use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
+use App\Http\Controllers\Api\Staff\QuotationController as StaffQuotationController;
 use App\Http\Controllers\Api\Staff\BookingMessageController as StaffBookingMessageController;
 use App\Http\Controllers\Api\Staff\InventoryController as StaffInventoryController;
 use App\Http\Controllers\Api\Staff\AssetController as StaffAssetController;
 use App\Http\Controllers\Api\Staff\RawMaterialController as StaffRawMaterialController;
 use App\Http\Controllers\Api\Staff\ConsumableItemController as StaffConsumableItemController;
+use App\Http\Controllers\Api\Staff\MaterialMemoController as StaffMaterialMemoController;
+use App\Http\Controllers\Api\Staff\AttendanceController as StaffAttendanceController;
+use App\Http\Controllers\Api\Staff\PayrollController as StaffPayrollController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\NotificationController;
@@ -86,6 +91,12 @@ Route::post('/giias/partner-signup', [GiiasPartnerSignupController::class, 'subm
 // tiap submit form klaim customer di /giias yang bawa referral code
 // bakal manggil ini sekali.
 Route::get('/giias/partner-lookup/{code}', [GiiasPartnerSignupController::class, 'lookup'])->middleware('throttle:60,1');
+
+// Landing page umum /partner — kembaran /giias di atas tapi TIDAK
+// terikat 1 event, link referral yang dihasilkan mengarah ke /partner
+// (bukan /giias). Lihat catatan lengkap di PartnerSignupController.
+Route::post('/partner-signup', [PartnerSignupController::class, 'submit'])->middleware('throttle:5,1');
+Route::get('/partner-lookup/{code}', [PartnerSignupController::class, 'lookup'])->middleware('throttle:60,1');
 
 // Chatbot — publik, tidak wajib login
 Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:20,1');
@@ -168,6 +179,13 @@ Route::prefix('staff')->group(function () {
         Route::get('/auth/me', [StaffAuthController::class, 'me']);
         Route::post('/auth/logout', [StaffAuthController::class, 'logout']);
 
+        // Lead Quotation — SEBELUMNYA tidak ada visibilitas mobile sama
+        // sekali, lihat audit modul Quotation 2026-08-27.
+        Route::get('/quotations', [StaffQuotationController::class, 'index']);
+        Route::get('/quotations/{id}', [StaffQuotationController::class, 'show']);
+        Route::patch('/quotations/{id}/status', [StaffQuotationController::class, 'updateStatus'])
+            ->middleware('throttle:20,1');
+
         Route::get('/bookings', [StaffBookingController::class, 'index']);
         Route::get('/bookings/{id}', [StaffBookingController::class, 'show']);
         // Approve booking pending -> confirmed langsung dari app (Store
@@ -209,19 +227,47 @@ Route::prefix('staff')->group(function () {
         Route::post('/notifications/link-token', [NotificationController::class, 'linkTokenStaff'])
             ->middleware('throttle:20,1');
 
+        // Absensi mandiri — SENGAJA tidak dibatasi hasMenuAccess() seperti
+        // fitur lain, absen kewajiban dasar semua staff (lihat catatan di
+        // AttendanceController). Entri manual/dinas luar untuk staff LAIN
+        // tetap lewat Filament (AttendanceResource), bukan di sini.
+        Route::get('/attendance/today', [StaffAttendanceController::class, 'today']);
+        Route::post('/attendance/clock-in', [StaffAttendanceController::class, 'clockIn'])
+            ->middleware('throttle:10,1');
+        Route::post('/attendance/clock-out', [StaffAttendanceController::class, 'clockOut'])
+            ->middleware('throttle:10,1');
+        Route::get('/attendance/history', [StaffAttendanceController::class, 'history']);
+
+        Route::get('/leave-requests', [StaffAttendanceController::class, 'leaveRequestsIndex']);
+        Route::post('/leave-requests', [StaffAttendanceController::class, 'leaveRequestsStore'])
+            ->middleware('throttle:10,1');
+        Route::post('/leave-requests/{id}/cancel', [StaffAttendanceController::class, 'leaveRequestsCancel'])
+            ->middleware('throttle:20,1');
+
+        // Slip gaji mandiri — sama pola dengan Absensi/Izin, tidak
+        // dibatasi hasMenuAccess() (lihat catatan PayrollController).
+        Route::get('/payroll', [StaffPayrollController::class, 'index']);
+
         // Sistem inventaris — scan QR kardus/barang fisik untuk lihat
         // detail + catat keluar/masuk. Dibatasi ke staff yang akun
         // Filament-nya dicentang akses menu "Barang" (lihat
         // InventoryController::authorizeScan()) — diatur dari checklist
         // "Akses Menu" di form User, bukan role hardcode.
+        // Pencarian manual (nama/kode) — buat staff yang belum bisa scan
+        // QR langsung di tempat (mis. mencatat dari jarak jauh).
+        Route::get('/inventory', [StaffInventoryController::class, 'index']);
         Route::get('/inventory/{code}', [StaffInventoryController::class, 'show']);
+        Route::get('/inventory/{code}/movements', [StaffInventoryController::class, 'movements']);
         Route::post('/inventory/{code}/movement', [StaffInventoryController::class, 'storeMovement'])
             ->middleware('throttle:30,1');
         Route::post('/inventory/{code}/mark-scroll-code-used', [StaffInventoryController::class, 'markScrollCodeUsed'])
             ->middleware('throttle:30,1');
+        Route::post('/inventory/{code}/record-usage', [StaffInventoryController::class, 'recordUsage'])
+            ->middleware('throttle:30,1');
 
         // Aset — scan QR sama seperti Barang, dibatasi ke staff yang
         // akun Filament-nya dicentang akses menu "Aset".
+        Route::get('/assets', [StaffAssetController::class, 'index']);
         Route::get('/assets/{code}', [StaffAssetController::class, 'show']);
         Route::post('/assets/{code}/update', [StaffAssetController::class, 'update'])
             ->middleware('throttle:30,1');
@@ -231,14 +277,42 @@ Route::prefix('staff')->group(function () {
         // yang akun Filament-nya dicentang akses menu "Bahan Baku".
         Route::get('/materials', [StaffRawMaterialController::class, 'index']);
         Route::get('/materials/{id}', [StaffRawMaterialController::class, 'show']);
+        Route::get('/materials/{id}/movements', [StaffRawMaterialController::class, 'movements']);
         Route::post('/materials/{id}/movement', [StaffRawMaterialController::class, 'storeMovement'])
+            ->middleware('throttle:30,1');
+        Route::post('/materials/{id}/adjust', [StaffRawMaterialController::class, 'adjustStock'])
             ->middleware('throttle:30,1');
 
         // Barang Habis Pakai — sama pola dengan Bahan Baku (tidak ada
         // kode fisik per unit, dicari lewat nama/kode, bukan scan QR).
         Route::get('/consumables', [StaffConsumableItemController::class, 'index']);
         Route::get('/consumables/{id}', [StaffConsumableItemController::class, 'show']);
+        Route::get('/consumables/{id}/movements', [StaffConsumableItemController::class, 'movements']);
         Route::post('/consumables/{id}/movement', [StaffConsumableItemController::class, 'storeMovement'])
+            ->middleware('throttle:30,1');
+        Route::post('/consumables/{id}/adjust', [StaffConsumableItemController::class, 'adjustStock'])
+            ->middleware('throttle:30,1');
+
+        // Memo Pengambilan/Pengembalian Barang — 1 memo per instalasi,
+        // gabungkan pencatatan keluar-masuk Bahan Baku, Barang Habis
+        // Pakai, dan pemakaian meter PPF/WF jadi satu form (bukan buka
+        // menu satu-satu). Dibatasi ke staff yang akun Filament-nya
+        // dicentang akses menu "Memo Pengambilan/Pengembalian".
+        Route::get('/memos', [StaffMaterialMemoController::class, 'index']);
+        Route::post('/memos', [StaffMaterialMemoController::class, 'store'])
+            ->middleware('throttle:30,1');
+        Route::get('/memos/{id}', [StaffMaterialMemoController::class, 'show']);
+        Route::patch('/memos/{id}', [StaffMaterialMemoController::class, 'update'])
+            ->middleware('throttle:30,1');
+        Route::delete('/memos/{id}', [StaffMaterialMemoController::class, 'destroy'])
+            ->middleware('throttle:30,1');
+        Route::post('/memos/{id}/items', [StaffMaterialMemoController::class, 'addItem'])
+            ->middleware('throttle:30,1');
+        Route::post('/memos/{id}/items/{itemId}/return', [StaffMaterialMemoController::class, 'returnItem'])
+            ->middleware('throttle:30,1');
+        Route::patch('/memos/{id}/items/{itemId}', [StaffMaterialMemoController::class, 'updateItem'])
+            ->middleware('throttle:30,1');
+        Route::delete('/memos/{id}/items/{itemId}', [StaffMaterialMemoController::class, 'destroyItem'])
             ->middleware('throttle:30,1');
     });
 });

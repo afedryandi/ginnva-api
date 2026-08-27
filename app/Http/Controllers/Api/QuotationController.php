@@ -90,6 +90,28 @@ class QuotationController extends Controller
             ], 422);
         }
 
+        // customer_email TIDAK diverifikasi kepemilikannya (form ini
+        // sengaja tanpa OTP supaya funnel lead tetap 1-langkah) — siapa
+        // pun bisa mengetik email orang lain, dan sistem otomatis kirim
+        // email atas nama Ginnva ke situ (QuotationReceivedMail).
+        // Throttle per-IP (route, 5/menit) tidak menutup celah ini kalau
+        // penyerang ganti-ganti IP dalam waktu lebih lama — batas
+        // TAMBAHAN per alamat email ini yang benar-benar membatasi berapa
+        // kali 1 alamat bisa "dibombardir", terlepas dari IP pengirimnya.
+        // Verifikasi kepemilikan email penuh (OTP) sengaja TIDAK
+        // dikerjakan di sini — itu perubahan UX besar ke funnel lead yang
+        // sengaja dibuat serendah mungkin gesekannya, keputusan terpisah.
+        $recentToSameEmail = Quotation::where('customer_email', $request->customer_email)
+            ->where('created_at', '>=', now()->subHours(24))
+            ->count();
+
+        if ($recentToSameEmail >= 3) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sudah ada beberapa permintaan penawaran ke email ini dalam 24 jam terakhir. Hubungi toko langsung kalau perlu bantuan lebih cepat.',
+            ], 429);
+        }
+
         $quotation = DB::transaction(function () use ($request) {
             $quotationNumber = $this->generateQuotationNumber();
 

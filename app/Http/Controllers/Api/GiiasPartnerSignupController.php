@@ -124,10 +124,16 @@ class GiiasPartnerSignupController extends Controller
                     'password'      => Str::random(20),
                     'phone'         => $phone,
                     'status'        => 'active',
+                    'source'        => 'giias',
+                    'type'          => 'partner',
                 ]);
 
                 PartnershipInquiry::create([
                     'category'       => 'sales',
+                    // Bedain dari pengajuan yang masuk lewat /partner
+                    // (landing page umum, lihat PartnerSignupController)
+                    // — keduanya sama-sama category='sales'.
+                    'source'         => 'giias',
                     'applicant_name' => $request->name,
                     'phone_number'   => $phone,
                     // Simpan email ASLI (bisa null) di sini — BUKAN

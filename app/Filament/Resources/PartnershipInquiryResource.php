@@ -69,7 +69,7 @@ class PartnershipInquiryResource extends Resource
                     Forms\Components\TextInput::make('category')
                         ->label('Kategori')
                         ->formatStateUsing(fn (?string $state): string => match ($state) {
-                            'sales' => 'Sales GIIAS',
+                            'sales' => 'Sales / Referral',
                             'franchise' => 'Franchise',
                             default => $state ?? '-',
                         })
@@ -139,9 +139,26 @@ class PartnershipInquiryResource extends Resource
                     ])
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'franchise' => 'Franchise',
-                        'sales' => 'Sales GIIAS',
+                        'sales' => 'Sales / Referral',
                         default => $state,
                     }),
+
+                // Bedain pengajuan "sales" yang masuk dari /giias vs dari
+                // /partner (landing page umum) — keduanya category='sales'
+                // sama-sama, cuma beda sumbernya.
+                Tables\Columns\BadgeColumn::make('source')
+                    ->label('Sumber')
+                    ->colors([
+                        'gray' => 'giias',
+                        'success' => 'partner',
+                    ])
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'giias' => 'GIIAS',
+                        'partner' => 'Landing Page Umum',
+                        default => '—',
+                    })
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('applicant_name')
                     ->label('Nama Pemohon')
@@ -202,7 +219,13 @@ class PartnershipInquiryResource extends Resource
                     ->label('Kategori')
                     ->options([
                         'franchise' => 'Franchise',
-                        'sales' => 'Sales GIIAS',
+                        'sales' => 'Sales / Referral',
+                    ]),
+                Tables\Filters\SelectFilter::make('source')
+                    ->label('Sumber')
+                    ->options([
+                        'giias' => 'GIIAS',
+                        'partner' => 'Landing Page Umum',
                     ]),
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
@@ -252,7 +275,12 @@ class PartnershipInquiryResource extends Resource
                         // tersimpan, jadi tanpa transaction ada celah re-klik
                         // bikin akun duplikat kalau langkah kedua gagal).
                         $partner = DB::transaction(function () use ($record, $data) {
-                            $partner = Partner::createAccount($data);
+                            // Ikutkan source dari pengajuannya (giias/partner/
+                            // null kalau franchise) supaya partner hasil
+                            // konversi manual ini juga tetap kebagian
+                            // label yang benar, bukan cuma partner yang
+                            // daftar sendiri lewat form real-time.
+                            $partner = Partner::createAccount([...$data, 'source' => $record->source]);
                             $record->update(['partner_id' => $partner->id]);
 
                             return $partner;

@@ -6,7 +6,9 @@ use App\Exports\InventoryMovementExport;
 use App\Filament\Resources\InventoryMovementResource\Pages;
 use App\Models\InventoryItem;
 use App\Models\InventoryMovement;
+use App\Models\Store;
 use App\Models\User;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -61,7 +63,7 @@ class InventoryMovementResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with(['inventoryItem', 'user']);
+        return parent::getEloquentQuery()->with(['inventoryItem', 'user', 'destinationStore']);
     }
 
     public static function table(Table $table): Table
@@ -94,8 +96,23 @@ class InventoryMovementResource extends Resource
                     ->colors([
                         'success' => 'in',
                         'danger'  => 'out',
+                        'gray'    => 'correction',
                     ])
-                    ->formatStateUsing(fn (string $state): string => $state === 'in' ? 'Masuk' : 'Keluar'),
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'in' => 'Masuk',
+                        'out' => 'Keluar',
+                        'correction' => 'Koreksi',
+                        default => $state,
+                    }),
+
+                // Diisi otomatis dari toko akun staff yang scan (atau
+                // dipilih manual oleh full-access) — bukan lagi cuma
+                // catatan teks bebas, lihat migration
+                // add_destination_store_id_to_inventory_movements.
+                Tables\Columns\TextColumn::make('destinationStore.name')
+                    ->label('Toko Tujuan')
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Dicatat Oleh')
@@ -111,7 +128,11 @@ class InventoryMovementResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('type')
                     ->label('Jenis')
-                    ->options(['in' => 'Masuk', 'out' => 'Keluar']),
+                    ->options(['in' => 'Masuk', 'out' => 'Keluar', 'correction' => 'Koreksi']),
+
+                Tables\Filters\SelectFilter::make('destination_store_id')
+                    ->label('Toko Tujuan')
+                    ->options(fn () => Store::pluck('name', 'id')),
 
                 Tables\Filters\SelectFilter::make('user_id')
                     ->label('Dicatat Oleh')
@@ -143,14 +164,44 @@ class InventoryMovementResource extends Resource
                     ),
             ])
             ->headerActions([
+                // Pakai getFilteredTableQuery() (bukan query polos) supaya
+                // export ikut filter yang sedang aktif di layar (jenis,
+                // dicatat oleh, kategori, rentang tanggal) — lihat catatan
+                // di InventoryMovementExport.
                 Tables\Actions\Action::make('export')
                     ->label('Export Excel')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
-                    ->action(fn () => Excel::download(
-                        new InventoryMovementExport(),
+                    ->action(fn ($livewire) => Excel::download(
+                        new InventoryMovementExport($livewire->getFilteredTableQuery()),
                         'riwayat-inventaris-' . now()->format('Ymd') . '.xlsx'
                     )),
+            ])
+            ->actions([
+                // Sama pola dengan MovementsRelationManager (per-barang) —
+                // cuma bisa membatalkan kejadian PALING TERAKHIR untuk
+                // barang terkait, terbatas full-access.
+                Tables\Actions\Action::make('reverse')
+                    ->label('Batalkan')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('danger')
+                    ->visible(fn (InventoryMovement $record) => auth()->user()?->isFullAccess()
+                        && $record->type !== 'correction'
+                        && $record->inventoryItem !== null
+                        && ! $record->inventoryItem->movements()->where('id', '>', $record->id)->exists())
+                    ->requiresConfirmation()
+                    ->modalDescription('Batalkan pencatatan ini? Status barang akan dikembalikan ke sebelumnya, dan baris "Koreksi" baru akan ditambahkan sebagai jejaknya. Cuma bisa untuk kejadian paling terakhir barang ini.')
+                    ->action(function (InventoryMovement $record) {
+                        try {
+                            $record->inventoryItem->reverseLastMovement($record, auth()->id());
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()->title('Tidak bisa membatalkan')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Pencatatan dibatalkan')->success()->send();
+                    }),
             ])
             ->defaultSort('created_at', 'desc');
     }

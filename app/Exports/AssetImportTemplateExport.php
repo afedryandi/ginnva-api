@@ -13,8 +13,8 @@ class AssetImportTemplateExport implements FromArray, WithHeadings, ShouldAutoSi
     public function array(): array
     {
         return [
-            ['Laptop Dell Latitude', 'Elektronik', 'aktif', 'Budi Santoso', 'Ginnva Kelapa Gading', '2025-01-15', 12000000, 'Contoh — hapus baris ini sebelum upload'],
-            ['Mesin Cutting Plotter', 'Mesin', 'aktif', '', 'Ginnva Kelapa Gading', '', '', 'Dipegang Oleh & Tanggal/Harga boleh dikosongkan'],
+            ['Laptop Dell Latitude', 'Elektronik', 'aktif', 'Budi Santoso', 'Ginnva Kelapa Gading', '14/08/2026', '15/01/2025', 12000000, 'Contoh — hapus baris ini sebelum upload'],
+            ['Mesin Cutting Plotter', 'Mesin', 'aktif', '', 'Ginnva Kelapa Gading', '', '', '', 'Dipegang Oleh & Tanggal/Harga boleh dikosongkan'],
         ];
     }
 
@@ -26,7 +26,8 @@ class AssetImportTemplateExport implements FromArray, WithHeadings, ShouldAutoSi
             'Status (aktif/diperbaiki/rusak/dijual/hilang)',
             'Dipegang Oleh (nama user, persis)',
             'Lokasi (nama toko, persis)',
-            'Tanggal Beli (YYYY-MM-DD)',
+            'Tanggal Masuk',
+            'Tanggal Beli',
             'Harga Beli',
             'Catatan',
         ];

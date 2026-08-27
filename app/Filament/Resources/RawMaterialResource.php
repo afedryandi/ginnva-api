@@ -4,6 +4,8 @@ namespace App\Filament\Resources;
 
 use App\Exports\RawMaterialImportTemplateExport;
 use App\Filament\Resources\RawMaterialResource\Pages;
+use App\Filament\Resources\RawMaterialResource\RelationManagers\ActivityLogRelationManager;
+use App\Filament\Resources\RawMaterialResource\RelationManagers\BatchesRelationManager;
 use App\Filament\Resources\RawMaterialResource\RelationManagers\MovementsRelationManager;
 use App\Models\RawMaterial;
 use Filament\Forms;
@@ -68,6 +70,23 @@ class RawMaterialResource extends Resource
                         ->maxLength(20)
                         ->placeholder('Mis. liter, meter, kg, pcs, roll'),
 
+                    // BUKAN "Tanggal Masuk Batch Ini" di "Catat Stok" —
+                    // field itu yang benar-benar menentukan urutan FIFO.
+                    // Ini cuma tanggal pendaftaran bahan ke sistem (sekali
+                    // saat dibuat), TIDAK ikut sinkron begitu ada batch
+                    // baru — sengaja dilabeli beda supaya admin tidak
+                    // salah paham keduanya adalah field yang sama.
+                    Forms\Components\DatePicker::make('received_date')
+                        ->label('Tanggal Pendaftaran')
+                        ->native(false)
+                        ->displayFormat('d M Y')
+                        ->default(now())
+                        ->maxDate(now())
+                        ->required()
+                        ->helperText(fn (?RawMaterial $record) => $record !== null && $record->received_date === null
+                            ? 'Data lama belum punya tanggal ini — isi tanggal perkiraan (boleh hari ini kalau tidak tahu pastinya).'
+                            : 'Cuma catatan kapan bahan ini didaftarkan ke sistem — BUKAN tanggal batch, tidak dipakai untuk urutan FIFO. Tanggal masuk tiap batch diisi terpisah lewat "Catat Stok".'),
+
                     Forms\Components\TextInput::make('unit_cost')
                         ->label('Harga per Satuan')
                         ->numeric()
@@ -84,13 +103,13 @@ class RawMaterialResource extends Resource
                         ->helperText('Opsional — kosongkan kalau bahan ini tidak punya masa pakai.'),
 
                     Forms\Components\TextInput::make('current_stock')
-                        ->label('Stok Saat Ini')
+                        ->label(fn (?RawMaterial $record) => $record === null ? 'Stok Awal' : 'Stok Saat Ini')
                         ->numeric()
                         ->default(0)
                         ->disabled(fn (?RawMaterial $record) => $record !== null)
                         ->dehydrated(fn (?RawMaterial $record) => $record === null)
                         ->helperText(fn (?RawMaterial $record) => $record === null
-                            ? 'Stok awal saat pertama kali didaftarkan.'
+                            ? 'Kosongkan/isi 0 kalau belum ada stok fisik sama sekali — otomatis tercatat sebagai 1 batch (dengan tanggal masuk di atas) supaya ada jejaknya sejak awal.'
                             : 'Stok cuma bisa diubah lewat tombol "Catat Stok" di daftar — supaya selalu ada riwayatnya, tidak diedit langsung di sini.'),
 
                     Forms\Components\Textarea::make('notes')
@@ -123,8 +142,15 @@ class RawMaterialResource extends Resource
                     ->placeholder('—')
                     ->searchable(),
 
+                Tables\Columns\TextColumn::make('received_date')
+                    ->label('Tanggal Pendaftaran')
+                    ->date('d M Y')
+                    ->placeholder('—')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('current_stock')
-                    ->label('Stok')
+                    ->label('Stok (Total)')
                     ->numeric(decimalPlaces: 2)
                     ->sortable()
                     ->formatStateUsing(fn (RawMaterial $record) => number_format((float) $record->current_stock, 2) . ' ' . $record->unit)
@@ -143,8 +169,15 @@ class RawMaterialResource extends Resource
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('expiry_date')
+                // BUKAN kolom expiry_date mentah — itu cuma snapshot saat
+                // pendaftaran (lihat catatan RawMaterial::earliestActiveExpiryDate()),
+                // tidak ikut sinkron begitu ada batch ke-2 dst dengan
+                // tanggal beda. Dihitung dari batch yang MASIH ADA
+                // stoknya, paling awal kedaluwarsa — konsisten dengan
+                // isExpired()/isNearExpiry() dan dengan tab "Riwayat Batch".
+                Tables\Columns\TextColumn::make('earliest_expiry')
                     ->label('Kedaluwarsa')
+                    ->getStateUsing(fn (RawMaterial $record) => $record->earliestActiveExpiryDate())
                     ->date('d M Y')
                     ->placeholder('—')
                     ->badge()
@@ -152,8 +185,7 @@ class RawMaterialResource extends Resource
                         $record->isExpired() => 'danger',
                         $record->isNearExpiry() => 'warning',
                         default => 'gray',
-                    })
-                    ->sortable(),
+                    }),
 
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Diperbarui')
@@ -177,8 +209,17 @@ class RawMaterialResource extends Resource
 
                 Tables\Filters\Filter::make('near_expiry')
                     ->label('Mendekati/Sudah Kedaluwarsa')
-                    ->query(fn ($query) => $query->whereNotNull('expiry_date')
-                        ->whereDate('expiry_date', '<=', now()->addDays(30))),
+                    // Sama dengan kolom "Kedaluwarsa" di atas — cek batch
+                    // yang masih ada stoknya, BUKAN kolom expiry_date induk.
+                    ->query(fn ($query) => $query->whereHas('batches', fn ($q) => $q
+                        ->where('quantity', '>', 0)
+                        ->whereNotNull('expiry_date')
+                        ->whereDate('expiry_date', '<=', now()->addDays(30)))),
+
+                Tables\Filters\Filter::make('dead_stock')
+                    ->label('Tidak Bergerak (' . RawMaterial::DEAD_STOCK_DAYS . '+ hari)')
+                    ->query(fn ($query) => $query->where('current_stock', '>', 0)
+                        ->where('updated_at', '<', now()->subDays(RawMaterial::DEAD_STOCK_DAYS))),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('download_template')
@@ -271,13 +312,54 @@ class RawMaterialResource extends Resource
                             ->minValue(0.01)
                             ->suffix(fn (RawMaterial $record) => $record->unit),
 
+                        // Setiap "Masuk" jadi 1 batch baru (tanggal masuk +
+                        // kedaluwarsa sendiri) — dipakai untuk konsumsi FIFO
+                        // saat "Keluar" nanti. Tidak relevan untuk "Keluar"
+                        // makanya disembunyikan.
+                        Forms\Components\DatePicker::make('received_date')
+                            ->label('Tanggal Masuk Batch Ini')
+                            ->native(false)
+                            ->displayFormat('d M Y')
+                            ->default(now())
+                            ->maxDate(now())
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in')
+                            ->required(fn (Forms\Get $get) => $get('type') === 'in'),
+
+                        Forms\Components\DatePicker::make('expiry_date')
+                            ->label('Tanggal Kedaluwarsa Batch Ini')
+                            ->native(false)
+                            ->displayFormat('d M Y')
+                            ->helperText('Opsional — kosongkan kalau batch ini tidak punya masa pakai.')
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in'),
+
+                        // Per-batch, bukan cuma 1 harga rata-rata di
+                        // raw_materials.unit_cost — supaya nilai stok bisa
+                        // dihitung dari harga beli batch itu sendiri kalau
+                        // harganya berubah antar pembelian.
+                        Forms\Components\TextInput::make('unit_cost')
+                            ->label('Harga per Satuan Batch Ini')
+                            ->numeric()
+                            ->prefix('Rp')
+                            ->minValue(0)
+                            ->default(fn (RawMaterial $record) => $record->unit_cost)
+                            ->helperText('Opsional — kosongkan untuk pakai harga terakhir tersimpan. Untuk estimasi nilai stok di Dashboard Inventaris.')
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in'),
+
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan')
                             ->placeholder('Mis. nomor PO, nama supplier, dipakai untuk booking apa'),
                     ])
                     ->action(function (RawMaterial $record, array $data) {
                         try {
-                            $record->recordMovement($data['type'], (float) $data['quantity'], auth()->id(), $data['note'] ?? null);
+                            $record->recordMovement(
+                                $data['type'],
+                                (float) $data['quantity'],
+                                auth()->id(),
+                                $data['note'] ?? null,
+                                $data['received_date'] ?? null,
+                                $data['expiry_date'] ?? null,
+                                isset($data['unit_cost']) && $data['unit_cost'] !== '' ? (float) $data['unit_cost'] : null,
+                            );
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()
                                 ->title('Tidak bisa mencatat stok')
@@ -349,8 +431,9 @@ class RawMaterialResource extends Resource
             $initialStock = isset($row[4]) && $row[4] !== '' ? (float) $row[4] : 0.0;
             $reorderPoint = isset($row[5]) && $row[5] !== '' ? (float) $row[5] : null;
             $unitCost = isset($row[6]) && $row[6] !== '' ? (float) $row[6] : null;
-            $expiryDate = isset($row[7]) && $row[7] !== '' ? static::normalizeImportedDate($row[7]) : null;
-            $notes = isset($row[8]) ? trim((string) $row[8]) : '';
+            $receivedDate = static::normalizeImportedDate($row[7] ?? null) ?? now()->toDateString();
+            $expiryDate = static::normalizeImportedDate($row[8] ?? null);
+            $notes = isset($row[9]) ? trim((string) $row[9]) : '';
 
             // Kode barang punya UNIQUE constraint — kalau bentrok (sudah
             // ada di database, atau duplikat dalam file itu sendiri),
@@ -370,6 +453,7 @@ class RawMaterialResource extends Resource
                 'name' => $name,
                 'code' => $useCode,
                 'category' => $category ?: null,
+                'received_date' => $receivedDate,
                 'unit' => $unit,
                 'current_stock' => 0,
                 'reorder_point' => $reorderPoint,
@@ -380,7 +464,7 @@ class RawMaterialResource extends Resource
             ]);
 
             if ($initialStock > 0) {
-                $material->recordMovement('in', $initialStock, auth()->id(), 'Stok awal dari import Excel.');
+                $material->recordMovement('in', $initialStock, auth()->id(), 'Stok awal dari import Excel.', $receivedDate, $expiryDate);
             }
 
             $createdCount++;
@@ -398,8 +482,20 @@ class RawMaterialResource extends Resource
             ->send();
     }
 
+    /**
+     * Format kolom tanggal di template adalah DD/MM/YYYY (sama dengan
+     * tampilan UI) — di-parse eksplisit dengan format itu, BUKAN
+     * Carbon::parse()/strtotime() yang ambigu untuk tanggal bertitik dua
+     * (mis. "05/06/2027" bisa terbaca 5 Juni atau 6 Mei tergantung
+     * locale). Excel bisa juga mengembalikan cell bertipe Date sebagai
+     * serial number.
+     */
     private static function normalizeImportedDate(mixed $raw): ?string
     {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
         if (is_numeric($raw)) {
             try {
                 return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $raw)->format('Y-m-d');
@@ -408,17 +504,17 @@ class RawMaterialResource extends Resource
             }
         }
 
-        try {
-            return \Carbon\Carbon::parse((string) $raw)->format('Y-m-d');
-        } catch (\Throwable) {
-            return null;
-        }
+        $date = \DateTime::createFromFormat('d/m/Y', trim((string) $raw));
+
+        return $date instanceof \DateTime ? $date->format('Y-m-d') : null;
     }
 
     public static function getRelations(): array
     {
         return [
+            BatchesRelationManager::class,
             MovementsRelationManager::class,
+            ActivityLogRelationManager::class,
         ];
     }
 

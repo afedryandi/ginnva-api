@@ -19,8 +19,8 @@ class InventoryItemImportTemplateExport implements FromArray, WithHeadings, Shou
     public function array(): array
     {
         return [
-            ['PPF Black Crystal M8M', 'PPF', 'M8M', '260518020101001', 'Contoh — hapus baris ini sebelum upload'],
-            ['Window Film Bi-silver H70', 'Window Film', 'H70', '', 'Kode Gulungan boleh dikosongkan kalau belum tahu kodenya'],
+            ['PPF Black Crystal M8M', 'PPF', 'M8M', '260518020101001', '14/08/2026', 'Contoh — hapus baris ini sebelum upload'],
+            ['Window Film Bi-silver H70', 'Window Film', 'H70', '', '', 'Kode Gulungan boleh dikosongkan kalau belum tahu kodenya'],
         ];
     }
 
@@ -31,6 +31,7 @@ class InventoryItemImportTemplateExport implements FromArray, WithHeadings, Shou
             'Kategori (PPF / Window Film)',
             'Kode Model Produk Film',
             'Kode Gulungan',
+            'Tanggal Masuk',
             'Catatan',
         ];
     }

@@ -13,17 +13,30 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class InventoryMovementExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
 {
+    /**
+     * Opsional — kalau diisi (dari filter tabel Filament yang sedang
+     * aktif), export cuma ambil baris yang cocok filter itu. SEBELUMNYA
+     * export selalu ambil SEMUA baris tanpa peduli filter yang admin
+     * pilih di layar (jenis, dicatat oleh, kategori, rentang tanggal) —
+     * admin yang filter "Keluar bulan ini" lalu export akan dapat dump
+     * penuh, bukan laporan yang sedang mereka lihat.
+     */
+    public function __construct(private ?Builder $query = null)
+    {
+    }
+
     public function query(): Builder
     {
-        return InventoryMovement::with(['inventoryItem', 'user'])
-            ->orderBy('created_at', 'desc');
+        return ($this->query ?? InventoryMovement::query())
+            ->with(['inventoryItem', 'user', 'destinationStore'])
+            ->reorder('created_at', 'desc');
     }
 
     public function headings(): array
     {
         return [
             'Waktu', 'Kode Barang', 'Nama Barang', 'Kategori',
-            'Jenis', 'Dicatat Oleh', 'Catatan',
+            'Jenis', 'Toko Tujuan', 'Dicatat Oleh', 'Catatan',
         ];
     }
 
@@ -34,7 +47,13 @@ class InventoryMovementExport implements FromQuery, WithHeadings, WithMapping, S
             $movement->inventoryItem?->code ?? '—',
             $movement->inventoryItem?->name ?? '— (barang sudah dihapus)',
             $movement->inventoryItem?->category ?? '—',
-            $movement->type === 'in' ? 'Masuk' : 'Keluar',
+            match ($movement->type) {
+                'in' => 'Masuk',
+                'out' => 'Keluar',
+                'correction' => 'Koreksi',
+                default => $movement->type,
+            },
+            $movement->destinationStore?->name ?? '—',
             $movement->user?->name ?? '—',
             $movement->note,
         ];

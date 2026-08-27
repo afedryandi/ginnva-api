@@ -9,6 +9,7 @@ class PartnershipInquiry extends Model
     protected $fillable = [
         'customer_id',
         'category',
+        'source',
         'applicant_name',
         'phone_number',
         'email',

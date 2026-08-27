@@ -16,6 +16,25 @@ class QuotationObserver
     }
 
     /**
+     * contacted_at diisi OTOMATIS begitu status pertama kali berganti
+     * dari 'new' — satu titik logika (event Eloquent), jadi berlaku sama
+     * persis lewat Filament (EditQuotation) MAUPUN mobile app staff
+     * (StaffQuotationController::updateStatus()), tidak perlu diulang di
+     * 2 tempat. TIDAK ditimpa lagi kalau status berubah-ubah lagi setelah
+     * itu — contacted_at mewakili "kapan PERTAMA kali direspons", bukan
+     * "terakhir diubah".
+     */
+    public function updating(Quotation $quotation): void
+    {
+        if ($quotation->isDirty('status')
+            && $quotation->getOriginal('status') === 'new'
+            && $quotation->status !== 'new'
+            && ! $quotation->contacted_at) {
+            $quotation->contacted_at = now();
+        }
+    }
+
+    /**
      * Kirim notifikasi email + push ke staff toko (role apa pun SELAIN
      * installer/partner — role divisi seperti Store Manager, dst) yang
      * terkait saat ada quotation (lead sales) baru masuk dari mobile app.
@@ -55,14 +74,15 @@ class QuotationObserver
         }
 
         if ($quotation->store_id) {
-            // SENGAJA tidak ada 'route' — belum ada layar detail Quotation
-            // di mobile app staff (dikelola lewat Filament), jadi tap
-            // notifikasi ini cukup buka app tanpa deep link.
+            // 'route' sekarang ADA — layar detail Quotation staff sudah
+            // dibangun (app/staff/quotations/[id].tsx), lihat audit modul
+            // Quotation 2026-08-27. Sebelumnya notifikasi ini sengaja
+            // tanpa deep link karena layarnya belum ada sama sekali.
             $this->push->sendToStoreStaff(
                 $quotation->store_id,
                 'Lead Baru',
                 "Permintaan penawaran baru dari {$quotation->customer_name}.",
-                ['type' => 'quotation_new', 'quotation_id' => $quotation->id]
+                ['type' => 'quotation_new', 'quotation_id' => $quotation->id, 'route' => "/staff/quotations/{$quotation->id}"]
             );
         }
     }

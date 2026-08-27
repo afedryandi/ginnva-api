@@ -81,8 +81,8 @@ class ActivityResource extends Resource
                     ->label('Modul')
                     ->colors([
                         'info'    => 'booking',
-                        'success' => 'partner',
-                        'warning' => 'voucher_claim',
+                        'success' => ['partner', 'raw_material'],
+                        'warning' => ['voucher_claim', 'consumable_item'],
                         'gray'    => 'user',
                         'danger'  => ['warranty', 'role'],
                         'primary' => ['reward_redemption', 'customer_gallery_photo'],
@@ -96,6 +96,12 @@ class ActivityResource extends Resource
                         'reward_redemption'      => 'Klaim Reward',
                         'role'                   => 'Role / Divisi',
                         'customer_gallery_photo' => 'Galeri Customer',
+                        'raw_material'           => 'Bahan Baku',
+                        'consumable_item'        => 'Barang Habis Pakai',
+                        'inventory_item'         => 'Produk PPF/WF',
+                        'scroll_code'            => 'Kode Gulungan',
+                        'asset'                  => 'Aset Tetap',
+                        'material_memo_item'     => 'Memo Pengambilan/Pengembalian',
                         default                  => $state ?? '—',
                     }),
 
@@ -131,6 +137,12 @@ class ActivityResource extends Resource
                         'reward_redemption' => 'Klaim Reward',
                         'role'              => 'Role / Divisi',
                         'customer_gallery_photo' => 'Galeri Customer',
+                        'raw_material'      => 'Bahan Baku',
+                        'consumable_item'   => 'Barang Habis Pakai',
+                        'inventory_item'    => 'Produk PPF/WF',
+                        'scroll_code'       => 'Kode Gulungan',
+                        'asset'             => 'Aset Tetap',
+                        'material_memo_item' => 'Memo Pengambilan/Pengembalian',
                     ]),
                 // BUKAN pakai ->relationship('causer', 'name') — 'causer' itu
                 // relasi polymorphic (morphTo), helper relationship() Filament

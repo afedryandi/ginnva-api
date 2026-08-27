@@ -21,6 +21,9 @@ class Store extends Model
         'google_place_id',
         'is_active',
         'install_capacity_per_day',
+        'attendance_radius_meters',
+        'late_tolerance_minutes',
+        'late_deduction_amount',
     ];
 
     protected $casts = [
@@ -28,6 +31,9 @@ class Store extends Model
         'longitude'     => 'float',
         'is_active'     => 'boolean',
         'install_capacity_per_day' => 'integer',
+        'attendance_radius_meters' => 'integer',
+        'late_tolerance_minutes'   => 'integer',
+        'late_deduction_amount'    => 'decimal:2',
         // Array baris {days: string[], open, close, closed} — lihat
         // migration 2026_07_29_084638 & DAY_LABELS di bawah.
         'opening_hours' => 'array',
@@ -206,6 +212,67 @@ class Store extends Model
         }
 
         return $this->blockedDates->contains(fn (BlockedDate $b) => $b->date->isSameDay($date));
+    }
+
+    /**
+     * Jam buka toko (format "HH:MM") di hari $date, atau null kalau toko
+     * tutup/tidak ada jadwal untuk hari itu — dipakai Attendance sebagai
+     * acuan "jam masuk yang diharapkan" untuk hitung telat. TIDAK
+     * membedakan shift per karyawan, cuma per toko (cukup untuk Fase 1).
+     */
+    public function openingTimeOn(\Illuminate\Support\Carbon $date): ?string
+    {
+        if ($this->isClosedOn($date)) {
+            return null;
+        }
+
+        $dayCode = strtolower($date->format('D'));
+
+        $row = collect($this->opening_hours ?? [])
+            ->first(fn ($row) => empty($row['closed']) && in_array($dayCode, $row['days'] ?? []));
+
+        return $row['open'] ?? null;
+    }
+
+    /**
+     * Sama seperti openingTimeOn() tapi untuk jam TUTUP — dipakai
+     * Attendance buat hitung pulang cepat (early_leave_minutes).
+     */
+    public function closingTimeOn(\Illuminate\Support\Carbon $date): ?string
+    {
+        if ($this->isClosedOn($date)) {
+            return null;
+        }
+
+        $dayCode = strtolower($date->format('D'));
+
+        $row = collect($this->opening_hours ?? [])
+            ->first(fn ($row) => empty($row['closed']) && in_array($dayCode, $row['days'] ?? []));
+
+        return $row['close'] ?? null;
+    }
+
+    /**
+     * Jarak (meter) dari titik $lat/$lng ke toko ini — Haversine, cukup
+     * akurat untuk cek "absen dari dekat toko" (bukan navigasi presisi
+     * tinggi). Null kalau toko belum punya koordinat tersimpan (tidak bisa
+     * dinilai jaraknya sama sekali, BUKAN dianggap 0 meter).
+     */
+    public function distanceMetersTo(float $lat, float $lng): ?float
+    {
+        if ($this->latitude === null || $this->longitude === null) {
+            return null;
+        }
+
+        $earthRadiusMeters = 6371000;
+
+        $latDelta = deg2rad($lat - $this->latitude);
+        $lngDelta = deg2rad($lng - $this->longitude);
+
+        $a = sin($latDelta / 2) ** 2
+            + cos(deg2rad($this->latitude)) * cos(deg2rad($lat)) * sin($lngDelta / 2) ** 2;
+
+        return $earthRadiusMeters * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     public function blockedDates()

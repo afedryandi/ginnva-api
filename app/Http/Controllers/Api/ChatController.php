@@ -22,7 +22,7 @@ class ChatController extends Controller
     {
         // Dipangkas signifikan (dari ~8300 token jadi jauh lebih ringkas) —
         // versi lengkap sebelumnya membuat SATU request saja sudah
-        // melebihi limit gratis Groq utk llama-3.1-8b-instant (6000 TPM),
+        // melebihi limit gratis Groq utk model kecil (6000 TPM),
         // sebelum pesan user maupun riwayat chat ditambahkan sama sekali.
         // Fakta inti (garansi, kontak, prosedur) tetap dipertahankan;
         // yang dipangkas: narasi & pengulangan (mis. "Verifikasi garansi"
@@ -152,11 +152,14 @@ PROMPT;
                 'Authorization' => 'Bearer ' . $apiKey,
                 'Content-Type'  => 'application/json',
             ])->timeout(30)->post('https://api.groq.com/openai/v1/chat/completions', [
-                // Model kecil (8B, bukan 70B) — limit token-per-menit
-                // free-tier Groq jauh lebih longgar untuk model ini,
-                // supaya tidak gampang kena rate limit seperti sebelumnya
-                // dengan llama-3.3-70b-versatile.
-                'model'       => 'llama-3.1-8b-instant',
+                // Groq mempensiunkan seluruh lineup Llama kecil (termasuk
+                // llama-3.1-8b-instant yang dipakai sebelumnya — mulai
+                // 404 "model_not_found" per 2026-08-19, cek
+                // console.groq.com/docs/models). Model production
+                // tercepat/termurah sekarang openai/gpt-oss-20b, jadi
+                // dipakai sebagai penggantinya (niat awal sama: model
+                // kecil supaya limit token-per-menit free-tier longgar).
+                'model'       => 'openai/gpt-oss-20b',
                 'max_tokens'  => 1024,
                 'messages'    => $groqMessages,
                 'temperature' => 0.7,

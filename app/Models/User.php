@@ -20,6 +20,10 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     protected $fillable = [
         'name',
         'email',
+        'phone',
+        'join_date',
+        'base_salary',
+        'contract_end_date',
         'password',
         'store_id',
         'menu_access',
@@ -34,6 +38,9 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'menu_access' => 'array',
+        'join_date' => 'date',
+        'base_salary' => 'decimal:2',
+        'contract_end_date' => 'date',
     ];
 
     public function getJWTIdentifier()
@@ -104,6 +111,41 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     public function partner()
     {
         return $this->hasOne(Partner::class);
+    }
+
+    /**
+     * Data roster teknisi (level sertifikasi) yang ditautkan ke akun ini —
+     * lihat TechnicianResource "Akun Installer". Opsional; banyak
+     * installer belum punya baris Technician yang tertaut.
+     */
+    public function technician()
+    {
+        return $this->hasOne(Technician::class);
+    }
+
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    public function leaveRequests()
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
+
+    public function payrolls()
+    {
+        return $this->hasMany(Payroll::class);
+    }
+
+    public function warningLetters()
+    {
+        return $this->hasMany(WarningLetter::class);
+    }
+
+    public function contractExtensions()
+    {
+        return $this->hasMany(ContractExtension::class)->latest();
     }
 
     /**
@@ -181,6 +223,20 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     }
 
     /**
+     * Dipakai app mobile staff buat putuskan apakah ikon "Lead Quotation"
+     * ditampilkan — SEBELUMNYA fitur ini tidak ada visibilitas mobile sama
+     * sekali (cuma bisa dikelola lewat Filament), lihat audit modul
+     * Quotation 2026-08-27. Installer TIDAK diikutkan (beda dari
+     * hasBookingAccess()) — installer memang tidak pernah menangani lead
+     * penjualan, cuma booking yang sudah di-assign ke dirinya.
+     */
+    public function hasQuotationAccess(): bool
+    {
+        return $this->canAccessStaffArea()
+            && $this->hasMenuAccess(\App\Filament\Resources\QuotationResource::class);
+    }
+
+    /**
      * Sama tujuannya dengan hasBookingAccess() — true kalau akun ini
      * dicentang akses ke SALAH SATU menu inventaris (Barang/Bahan
      * Baku/Aset) di Filament. Dipakai buat putuskan apakah staff diarahkan
@@ -189,7 +245,13 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
      */
     public function hasInventoryAccess(): bool
     {
-        return $this->hasPpfWfAccess() || $this->hasMaterialAccess() || $this->hasAssetAccess() || $this->hasConsumableAccess();
+        // SEBELUMNYA hasMaterialMemoAccess() tidak disertakan — staff yang
+        // CUMA diberi akses menu Memo (tanpa PPF/WF, Bahan Baku, Aset,
+        // atau Barang Habis Pakai) tidak akan lihat tombol kubus ke hub
+        // Inventaris sama sekali, walau backend sebenarnya mengizinkan
+        // mereka membuka menu Memo begitu sampai di sana.
+        return $this->hasPpfWfAccess() || $this->hasMaterialAccess() || $this->hasAssetAccess()
+            || $this->hasConsumableAccess() || $this->hasMaterialMemoAccess();
     }
 
     public function hasPpfWfAccess(): bool
@@ -214,6 +276,12 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     {
         return $this->canAccessStaffArea()
             && $this->hasMenuAccess(\App\Filament\Resources\ConsumableItemResource::class);
+    }
+
+    public function hasMaterialMemoAccess(): bool
+    {
+        return $this->canAccessStaffArea()
+            && $this->hasMenuAccess(\App\Filament\Resources\MaterialMemoResource::class);
     }
 
     public function getActivitylogOptions(): LogOptions

@@ -21,7 +21,7 @@ class QuotationResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
 
-    protected static ?string $navigationGroup = 'Operasional';
+    protected static ?string $navigationGroup = 'Booking';
 
     protected static ?int $navigationSort = 10;
 
@@ -108,11 +108,19 @@ class QuotationResource extends Resource
                     Forms\Components\TextInput::make('customer_phone')
                         ->label('No. Telepon / WhatsApp')
                         ->tel()
+                        // Disamakan dengan validasi API publik
+                        // (QuotationController::submit()) yang mewajibkan
+                        // keduanya — sebelumnya form admin di sini
+                        // membolehkan lead tanpa telepon/email sama sekali,
+                        // padahal keduanya dipakai untuk follow-up (WA call
+                        // & konfirmasi email).
+                        ->required()
                         ->maxLength(255),
 
                     Forms\Components\TextInput::make('customer_email')
                         ->label('Email')
                         ->email()
+                        ->required()
                         ->maxLength(255),
 
                     Forms\Components\TextInput::make('license_plate')
@@ -233,6 +241,18 @@ class QuotationResource extends Resource
                     ->label('Masuk')
                     ->dateTime('d M Y H:i')
                     ->sortable(),
+
+                // SLA follow-up — isi otomatis begitu status pertama kali
+                // berubah dari 'new' (lihat QuotationObserver::updating()),
+                // bukan field yang diisi manual.
+                Tables\Columns\TextColumn::make('contacted_at')
+                    ->label('Direspons Setelah')
+                    ->state(fn (Quotation $record) => $record->contacted_at
+                        ? $record->created_at->diffForHumans($record->contacted_at, syntax: \Carbon\CarbonInterface::DIFF_ABSOLUTE)
+                        : null)
+                    ->placeholder('Belum direspons')
+                    ->color(fn (Quotation $record) => ! $record->contacted_at && $record->created_at->lt(now()->subHours(24)) ? 'danger' : null)
+                    ->toggleable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
