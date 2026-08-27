@@ -26,7 +26,7 @@ class MaterialResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Materi Download';
 
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 45;
 
     public static function canViewAny(): bool
     {
