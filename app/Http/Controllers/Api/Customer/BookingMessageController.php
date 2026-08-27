@@ -27,6 +27,14 @@ class BookingMessageController extends Controller
         // utk staff toko) tidak N+1 per pesan.
         $messages = $booking->messages()->with(['senderUser.store:id,name', 'photos'])->get();
 
+        // SEBELUMNYA cuma boolean has_review — mobile app cuma bisa
+        // sembunyikan banner "beri review", tidak bisa tampilkan ringkasan
+        // ulasan yang sudah dikirim (sentimen apa, kapan) untuk dilihat
+        // ulang customer. Dikirim sebagai objek lengkap (null kalau belum
+        // ada review sama sekali). Lihat audit modul Review Toko
+        // 2026-08-27.
+        $review = StoreReview::where('booking_id', $booking->id)->first();
+
         return response()->json([
             'success' => true,
             'data'    => [
@@ -39,9 +47,14 @@ class BookingMessageController extends Controller
                 'shared_stages'     => BookingMessage::SHARED_STAGES,
                 'messages'          => $messages->map(fn (BookingMessage $m) => $this->transform($m)),
                 'store'             => $booking->store,
-                // Supaya mobile app tahu kapan tampilkan banner
-                // "beri review" — sekali sudah direview, jangan tampil lagi.
-                'has_review'        => StoreReview::where('booking_id', $booking->id)->exists(),
+                // Dipertahankan untuk kompatibilitas kalau ada versi app
+                // lama yang masih baca field ini langsung.
+                'has_review'        => $review !== null,
+                'review'            => $review ? [
+                    'sentiment'  => $review->sentiment,
+                    'comment'    => $review->comment,
+                    'created_at' => $review->created_at,
+                ] : null,
             ],
         ]);
     }

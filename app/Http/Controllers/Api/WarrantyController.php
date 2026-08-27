@@ -13,10 +13,66 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use App\Mail\WarrantyRegisteredMail;
 
 class WarrantyController extends Controller
 {
+    // SEBELUMNYA cuma throttle per-menit biasa (30/menit untuk check,
+    // 20/menit untuk download) — warranty_code cuma 5 digit acak (GNV-
+    // PPF-XXXXX, ruang kandidat 100.000 kombinasi), jadi script yang sabar
+    // (distribusi lewat banyak IP/proxy, atau nunggu antar menit) tetap
+    // bisa menyapu seluruh ruang kode dalam waktu wajar walau tiap IP
+    // dibatasi. Counter TERPISAH ini melacak PERCOBAAN GAGAL per IP
+    // (bukan semua request) — pencarian legit oleh pemilik asli nyaris
+    // tidak pernah gagal berkali-kali, jadi ini tidak mengganggu mereka,
+    // tapi menghentikan scan berbasis tebak-tebakan jauh lebih cepat
+    // daripada throttle per-menit biasa. Lihat audit modul Garansi
+    // 2026-08-27.
+    private const MAX_FAILED_LOOKUPS = 15;
+    private const FAILED_LOOKUP_DECAY_SECONDS = 600; // 10 menit
+
+    private function failedLookupKey(Request $request): string
+    {
+        return 'warranty-failed-lookup:' . $request->ip();
+    }
+
+    private function tooManyFailedLookups(Request $request): bool
+    {
+        return RateLimiter::tooManyAttempts($this->failedLookupKey($request), self::MAX_FAILED_LOOKUPS);
+    }
+
+    private function registerFailedLookup(Request $request): void
+    {
+        RateLimiter::hit($this->failedLookupKey($request), self::FAILED_LOOKUP_DECAY_SECONDS);
+    }
+
+    /**
+     * Mask nama supaya tidak sepenuhnya identifiable — kata pertama utuh,
+     * sisanya jadi inisial+titik. "Budi Santoso" -> "Budi S.".
+     */
+    private function maskName(string $name): string
+    {
+        $parts = preg_split('/\s+/', trim($name));
+        if (count($parts) <= 1) return $parts[0] ?? $name;
+
+        $rest = array_slice($parts, 1);
+        $maskedRest = array_map(fn ($p) => mb_substr($p, 0, 1) . '.', $rest);
+
+        return $parts[0] . ' ' . implode(' ', $maskedRest);
+    }
+
+    /**
+     * Mask plat nomor — 2 karakter awal & akhir tetap kelihatan, tengah
+     * ditutup. "B 1234 XYZ" -> "B •••• XYZ".
+     */
+    private function maskPlate(string $plate): string
+    {
+        $clean = trim($plate);
+        if (mb_strlen($clean) <= 4) return $clean;
+
+        return mb_substr($clean, 0, 2) . ' •••• ' . mb_substr($clean, -3);
+    }
     // POST /api/warranty/submit
     public function submit(Request $request)
     {
@@ -110,16 +166,38 @@ class WarrantyController extends Controller
             ], 422);
         }
 
+        if ($this->tooManyFailedLookups($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terlalu banyak percobaan pencarian gagal dari perangkat ini. Coba lagi dalam beberapa menit.',
+            ], 429);
+        }
+
         // Sesuai kebijakan garansi resmi Ginnva (tercantum di halaman
         // produk & materi resmi lain): verifikasi mandiri bisa pakai salah
         // satu dari nomor ponsel, plat nomor, VIN, atau kode garansi.
-        $warranty = Warranty::where('warranty_code', $code)
-            ->orWhere('car_plate', $code)
-            ->orWhere('vin', $code)
-            ->orWhere('phone_number', $code)
-            ->first();
+        // Dicek TERPISAH (bukan orWhere digabung) supaya tahu PERSIS field
+        // mana yang match — dipakai untuk masking di bawah (lihat
+        // $matchedViaPublicIdentifier).
+        $warranty = Warranty::where('warranty_code', $code)->first()
+            ?? Warranty::where('car_plate', $code)->first()
+            ?? Warranty::where('vin', $code)->first();
+
+        // warranty_code/car_plate/vin adalah identifier yang secara FISIK
+        // tertera di mobil/sertifikat — wajar diketahui publik yang
+        // memang di depan mobilnya. phone_number BUKAN identifier fisik
+        // seperti itu — seseorang bisa mencoba nomor telepon acak/hasil
+        // leak untuk cek apakah nomor itu terdaftar dan dapat data
+        // lengkap pemiliknya (correlation attack). Match lewat phone_number
+        // SENGAJA dianggap kurang terpercaya, datanya di-mask di bawah.
+        $matchedViaPublicIdentifier = (bool) $warranty;
+        if (! $warranty) {
+            $warranty = Warranty::where('phone_number', $code)->first();
+        }
 
         if (!$warranty) {
+            $this->registerFailedLookup($request);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Nomor garansi, plat nomor, VIN, atau nomor ponsel tidak ditemukan.',
@@ -130,10 +208,38 @@ class WarrantyController extends Controller
         // maupun kode gulungan (roll_number*) yang dipakai bergantian
         // banyak mobil (lihat Warranty::booted()/WarrantyObserver untuk
         // alasan roll_number sengaja TIDAK publik). product_category, vin,
-        // & installation_position AMAN ditambahkan — data ini sama persis
-        // dengan yang sudah bisa diakses siapa pun lewat PDF E-Warranty
-        // publik (download(), di bawah), jadi bukan exposure baru, cuma
-        // menyamakan apa yang tampil di halaman cek vs di PDF-nya.
+        // & installation_position AMAN ditambahkan (untuk match via
+        // identifier publik) — data ini sama persis dengan yang sudah bisa
+        // diakses siapa pun lewat PDF E-Warranty publik (download(), di
+        // bawah), jadi bukan exposure baru, cuma menyamakan apa yang
+        // tampil di halaman cek vs di PDF-nya.
+        //
+        // Match lewat NOMOR TELEPON dapat versi MASKED — termasuk
+        // warranty_code-nya sendiri, supaya hasil tebak-nomor-telepon
+        // tidak bisa langsung dipakai buka /warranty/download/{code} dan
+        // dapat PDF lengkap juga (itu akan membuat masking di sini
+        // percuma). Lihat audit modul Garansi 2026-08-27.
+        if (! $matchedViaPublicIdentifier) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id'                => $warranty->id,
+                    'warranty_code'     => 'GNV-••••• (hubungi toko untuk kode lengkap)',
+                    'customer_name'     => $this->maskName($warranty->customer_name),
+                    'car_plate'         => $this->maskPlate($warranty->car_plate),
+                    'car_type'          => $warranty->car_type,
+                    'product_series'    => $warranty->product_series,
+                    'installation_date' => $warranty->installation_date,
+                    'expiry_date'       => $warranty->expiry_date,
+                    'dealer_name'       => $warranty->dealer_name,
+                    'status'            => $warranty->status,
+                    'review_status'     => $warranty->review_status,
+                    'has_owner'         => $warranty->customer_id !== null,
+                    'masked'            => true,
+                ],
+            ], 200);
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -153,6 +259,7 @@ class WarrantyController extends Controller
                 'status'                        => $warranty->status,
                 'review_status'                 => $warranty->review_status,
                 'has_owner'                     => $warranty->customer_id !== null,
+                'masked'                        => false,
             ],
         ], 200);
     }
@@ -219,9 +326,21 @@ class WarrantyController extends Controller
     }
 
     // GET /api/warranty/download/{code}
-    public function download($code)
+    public function download(Request $request, $code)
     {
-        $warranty = Warranty::where('warranty_code', $code)->firstOrFail();
+        if ($this->tooManyFailedLookups($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terlalu banyak percobaan pencarian gagal dari perangkat ini. Coba lagi dalam beberapa menit.',
+            ], 429);
+        }
+
+        $warranty = Warranty::where('warranty_code', $code)->first();
+
+        if (! $warranty) {
+            $this->registerFailedLookup($request);
+            abort(404);
+        }
 
         // E-warranty resmi hanya bisa diunduh setelah QA Certificate
         // disetujui oleh super_admin. Sebelum itu, dokumen belum sah.

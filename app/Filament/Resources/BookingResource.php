@@ -170,11 +170,38 @@ class BookingResource extends Resource
                     Forms\Components\Select::make('installers')
                         ->label('Installer Bertugas')
                         ->relationship('installers', 'name')
-                        ->helperText('Bisa pilih lebih dari 1 installer. Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app.')
-                        ->options(fn (Forms\Get $get) => User::where('store_id', $get('store_id'))
-                            ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
-                            ->pluck('name', 'id')
-                        )
+                        ->helperText('Bisa pilih lebih dari 1 installer. Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app. Installer berstatus "Menunggu Review"/"Nonaktif" di roster Teknisi tidak muncul di sini.')
+                        // SEBELUMNYA cuma nama polos — roster Teknisi
+                        // (level sertifikasi) yang staff isi tidak pernah
+                        // muncul di titik keputusan penugasan yang
+                        // sebenarnya (padahal migration user_id ditulis
+                        // justru dengan tujuan itu). Sekarang: (a) level
+                        // ditampilkan sebagai label tambahan, (b) installer
+                        // yang statusnya 'pending_review'/'inactive' di
+                        // roster tidak ikut muncul sebagai pilihan —
+                        // installer TANPA baris Technician sama sekali
+                        // tetap muncul apa adanya (roster ini optional,
+                        // tidak semua installer wajib terdaftar). Lihat
+                        // audit modul Teknisi 2026-08-27.
+                        ->options(function (Forms\Get $get) {
+                            $levelLabels = [
+                                'intermediate' => 'Intermediate',
+                                'advanced'     => 'Advanced',
+                                'mentor'       => 'Mentor',
+                            ];
+
+                            return User::where('store_id', $get('store_id'))
+                                ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
+                                ->with('technician')
+                                ->get()
+                                ->reject(fn (User $u) => $u->technician
+                                    && in_array($u->technician->status, ['pending_review', 'inactive'], true))
+                                ->mapWithKeys(fn (User $u) => [
+                                    $u->id => $u->technician?->level
+                                        ? "{$u->name} ({$levelLabels[$u->technician->level]})"
+                                        : $u->name,
+                                ]);
+                        })
                         ->multiple()
                         ->searchable()
                         ->disabled(fn (Forms\Get $get) => ! $get('store_id')),

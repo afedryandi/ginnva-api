@@ -5,10 +5,25 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class WarrantyClaim extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
+
+    // SEBELUMNYA tidak ada audit trail sama sekali untuk perubahan status
+    // klaim (pending -> pass/reject) — cuma field reviewed_by/reviewed_at
+    // di record itu sendiri, yang bisa tertimpa kalau direview ulang.
+    // Sama pola dengan Warranty (yang sudah pakai LogsActivity). Lihat
+    // audit modul Garansi 2026-08-27.
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['status', 'category', 'rejection_reason', 'reviewed_by'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
+    }
 
     protected $fillable = [
         'claim_number',

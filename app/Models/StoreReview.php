@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class StoreReview extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'booking_id',
         'customer_id',
@@ -15,7 +19,20 @@ class StoreReview extends Model
         'comment',
         'followed_up_at',
         'followed_up_by',
+        'follow_up_note',
     ];
+
+    // SEBELUMNYA tidak ada audit trail — perubahan followed_up_at/
+    // followed_up_by cuma bisa dilihat dari kolom itu sendiri, tidak ada
+    // histori kalau di-unmark/diubah staff lain. Sama pola dengan
+    // Warranty/WarrantyClaim. Lihat audit modul Review Toko 2026-08-27.
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['followed_up_at', 'followed_up_by', 'follow_up_note'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
+    }
 
     protected $casts = [
         'tags'           => 'array',

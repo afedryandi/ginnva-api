@@ -63,7 +63,10 @@ class StoreReviewResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        // Eager-load — tabel menampilkan 3 relasi (store/customer/booking)
+        // per baris, tanpa ini N+1 query tiap halaman list. Lihat audit
+        // modul Review Toko 2026-08-27.
+        $query = parent::getEloquentQuery()->with(['store', 'customer', 'booking', 'followedUpBy']);
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -130,6 +133,23 @@ class StoreReviewResource extends Resource
                         ->label('Komentar')
                         ->columnSpanFull()
                         ->content(fn (?StoreReview $record) => $record?->comment ?: '—'),
+
+                    // Ditampilkan supaya catatan yang diisi lewat aksi
+                    // "Tandai Ditindaklanjuti" tidak jadi data terkubur —
+                    // tanpa ini, isian follow_up_note tidak pernah terlihat
+                    // lagi di mana pun. Lihat audit modul Review Toko
+                    // 2026-08-27.
+                    Forms\Components\Placeholder::make('follow_up_summary')
+                        ->label('Tindak Lanjut')
+                        ->columnSpanFull()
+                        ->visible(fn (?StoreReview $record) => $record?->followed_up_at !== null)
+                        ->content(fn (?StoreReview $record) => $record
+                            ? new \Illuminate\Support\HtmlString(
+                                'Ditindaklanjuti oleh ' . e($record->followedUpBy?->name ?? '—')
+                                . ' pada ' . $record->followed_up_at->format('d M Y H:i') . '<br>'
+                                . e($record->follow_up_note ?: '(tanpa catatan)')
+                            )
+                            : '—'),
                 ]),
         ]);
     }
@@ -209,17 +229,28 @@ class StoreReviewResource extends Resource
             ->actions([
                 // Cuma relevan untuk review negatif — supaya store manager
                 // tahu keluhan mana yang sudah/belum ditangani.
+                // SEBELUMNYA cuma requiresConfirmation() tanpa input apa
+                // pun — jejak "apa yang sebenarnya dilakukan" untuk
+                // follow-up hilang, cuma ada timestamp & siapa yang
+                // menandai. Sekarang wajib isi catatan singkat. Lihat
+                // audit modul Review Toko 2026-08-27.
                 Tables\Actions\Action::make('mark_followed_up')
                     ->label('Tandai Ditindaklanjuti')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->visible(fn (StoreReview $record) => $record->sentiment === 'negative' && ! $record->followed_up_at)
-                    ->requiresConfirmation()
-                    ->modalDescription('Tandai review ini sudah ditindaklanjuti (sudah dihubungi/diselesaikan)?')
-                    ->action(function (StoreReview $record) {
+                    ->form([
+                        Forms\Components\Textarea::make('follow_up_note')
+                            ->label('Catatan Tindak Lanjut')
+                            ->placeholder('Contoh: Sudah dihubungi via WhatsApp, customer diberi kompensasi jasa ulang.')
+                            ->required()
+                            ->maxLength(1000),
+                    ])
+                    ->action(function (StoreReview $record, array $data) {
                         $record->update([
                             'followed_up_at' => now(),
                             'followed_up_by' => auth()->id(),
+                            'follow_up_note' => $data['follow_up_note'],
                         ]);
 
                         Notification::make()

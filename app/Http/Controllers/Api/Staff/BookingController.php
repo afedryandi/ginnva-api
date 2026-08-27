@@ -369,10 +369,26 @@ class BookingController extends Controller
         $user = $request->user('api');
         $booking = $this->authorizeManage($user, Booking::findOrFail($id));
 
+        // Installer yang statusnya 'pending_review'/'inactive' di roster
+        // Teknisi tidak ikut ditampilkan sebagai pilihan — SAMA PERSIS
+        // dengan gating di BookingResource (Filament), supaya jalur mobile
+        // ini tidak jadi celah buat menugaskan installer yang belum lulus
+        // review/nonaktif. Installer TANPA baris Technician sama sekali
+        // tetap muncul apa adanya (roster ini optional). Lihat audit
+        // modul Teknisi 2026-08-27.
         $installers = User::where('store_id', $booking->store_id)
             ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
+            ->with('technician:id,user_id,level,status')
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name'])
+            ->reject(fn (User $u) => $u->technician
+                && in_array($u->technician->status, ['pending_review', 'inactive'], true))
+            ->map(fn (User $u) => [
+                'id'    => $u->id,
+                'name'  => $u->name,
+                'level' => $u->technician?->level,
+            ])
+            ->values();
 
         $direksi = User::whereHas('roles', fn ($q) => $q->where('name', 'direksi'))
             ->orderBy('name')
@@ -409,13 +425,20 @@ class BookingController extends Controller
         // payload-nya sebenarnya valid.
         $installerIds = array_values(array_unique($request->installer_user_ids));
 
+        // Sebelumnya cuma dicek store+role — installer yang statusnya
+        // 'pending_review'/'inactive' di roster Teknisi tetap lolos kalau
+        // ID-nya dikirim langsung ke endpoint ini (mem-bypass picker
+        // mobile yang sudah menyembunyikannya). Ditegakkan lagi di sini,
+        // sama seperti assignableStaff(). Lihat audit modul Teknisi
+        // 2026-08-27.
         $validCount = User::whereIn('id', $installerIds)
             ->where('store_id', $booking->store_id)
             ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
+            ->whereDoesntHave('technician', fn ($q) => $q->whereIn('status', ['pending_review', 'inactive']))
             ->count();
 
         if ($validCount !== count($installerIds)) {
-            abort(422, 'Semua installer harus berasal dari toko ini.');
+            abort(422, 'Semua installer harus berasal dari toko ini dan berstatus aktif di roster Teknisi.');
         }
 
         // Dibungkus transaction + row-lock — SEBELUMNYA dua request paralel

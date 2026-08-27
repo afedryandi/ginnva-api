@@ -7,6 +7,8 @@ use App\Models\Technician;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -77,7 +79,16 @@ class TechnicianResource extends Resource
                             ->pluck('name', 'id')
                         )
                         ->searchable()
-                        ->preload(),
+                        ->preload()
+                        // SEBELUMNYA 1 akun installer bisa tertaut ke lebih
+                        // dari 1 baris Technician tanpa ditolak — level
+                        // sertifikasi jadi ambigu (User::technician() pakai
+                        // hasOne, cuma ambil baris pertama kalau ada
+                        // duplikat). Lihat audit modul Teknisi 2026-08-27.
+                        ->unique(ignoreRecord: true)
+                        ->validationMessages([
+                            'unique' => 'Akun installer ini sudah tertaut ke baris Teknisi lain.',
+                        ]),
 
                     Forms\Components\TextInput::make('phone')
                         ->label('No. Telepon / HP')
@@ -110,6 +121,48 @@ class TechnicianResource extends Resource
                         ->label('Catatan')
                         ->columnSpanFull(),
                 ]),
+        ]);
+    }
+
+    /**
+     * SEBELUMNYA tidak ada halaman View sama sekali — sama gap dengan
+     * Booking sebelum diperbaiki (dampaknya lebih rendah di sini karena
+     * form Edit-nya sudah ringkas, tapi tetap dibetulkan untuk
+     * konsistensi pola). Lihat audit modul Teknisi 2026-08-27.
+     */
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            TextEntry::make('name')->label('Nama Teknisi'),
+            TextEntry::make('store.name')->label('Toko'),
+            TextEntry::make('user.name')->label('Akun Installer')->placeholder('Belum terhubung'),
+            TextEntry::make('phone')->label('No. Telepon / HP')->placeholder('—'),
+            TextEntry::make('level')
+                ->label('Level Sertifikasi')
+                ->badge()
+                ->formatStateUsing(fn (string $state) => match ($state) {
+                    'intermediate' => 'Intermediate',
+                    'advanced'     => 'Advanced',
+                    'mentor'       => 'Mentor',
+                    default        => $state,
+                }),
+            TextEntry::make('status')
+                ->label('Status')
+                ->badge()
+                ->formatStateUsing(fn (string $state) => match ($state) {
+                    'pending_review' => 'Menunggu Review',
+                    'active'         => 'Aktif',
+                    'inactive'       => 'Nonaktif',
+                    default          => $state,
+                })
+                ->color(fn (string $state) => match ($state) {
+                    'pending_review' => 'warning',
+                    'active'         => 'success',
+                    'inactive'       => 'danger',
+                    default          => 'gray',
+                }),
+            TextEntry::make('notes')->label('Catatan')->placeholder('—')->columnSpanFull(),
+            TextEntry::make('created_at')->label('Ditambahkan')->dateTime('d M Y H:i'),
         ]);
     }
 
@@ -203,6 +256,7 @@ class TechnicianResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (Technician $record) => $record->update(['status' => 'active'])),
 
+                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
@@ -228,6 +282,7 @@ class TechnicianResource extends Resource
         return [
             'index'  => Pages\ListTechnicians::route('/'),
             'create' => Pages\CreateTechnician::route('/create'),
+            'view'   => Pages\ViewTechnician::route('/{record}'),
             'edit'   => Pages\EditTechnician::route('/{record}/edit'),
         ];
     }

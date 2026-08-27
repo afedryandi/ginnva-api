@@ -2,15 +2,23 @@
 
 namespace App\Observers;
 
+use App\Mail\WarrantyRegisteredMail;
 use App\Models\Customer;
 use App\Models\PointTransaction;
 use App\Models\ScrollCode;
 use App\Models\Warranty;
+use App\Services\PushNotificationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class WarrantyObserver
 {
     const POINTS_PER_APPROVAL = 100;
+
+    public function __construct(private PushNotificationService $push)
+    {
+    }
 
     /**
      * Naikkan usage_count kode gulungan yang dipakai warranty ini.
@@ -38,6 +46,65 @@ class WarrantyObserver
         // Tandai scroll code baru kalau ada perubahan field roll_number
         if ($warranty->wasChanged(['roll_number', 'roll_number_2', 'roll_number_front', 'roll_number_side_rear'])) {
             $this->markScrollCodesUsed($warranty);
+        }
+
+        // SEBELUMNYA tidak ada notifikasi apa pun (push/email) saat status
+        // review garansi berubah — customer harus buka app sendiri dan cek
+        // manual untuk tahu garansinya di-approve/reject. Push notif
+        // ditembak untuk KEDUA transisi (approved & rejected), tapi cuma
+        // kalau warranty sudah tertaut ke akun (customer_id ada) — guest
+        // yang belum klaim akun tidak punya kanal untuk dikirimi apa pun
+        // dari sini. Lihat audit modul Garansi 2026-08-27.
+        // Approved: sama seperti kondisi pemberian poin di bawah — dipicu
+        // baik saat review_status BARU jadi approved (customer sudah ada),
+        // MAUPUN saat customer_id BARU dipasang ke warranty yang SUDAH
+        // approved sebelumnya (2 urutan kerja staff yang mungkin, lihat
+        // catatan di blok poin). Rejected tidak butuh kondisi kedua itu —
+        // warranty yang ditolak tidak pernah baru dapat customer_id setelahnya.
+        $justApproved = ($warranty->wasChanged('review_status') || $warranty->wasChanged('customer_id'))
+            && $warranty->review_status === 'approved'
+            && $warranty->customer_id !== null;
+        $justRejected = $warranty->wasChanged('review_status')
+            && $warranty->review_status === 'rejected'
+            && $warranty->customer_id !== null;
+
+        if ($justApproved || $justRejected) {
+            if ($justApproved) {
+                $this->push->sendToCustomer(
+                    $warranty->customer_id,
+                    'Garansi Disetujui',
+                    "Garansi {$warranty->warranty_code} Anda sudah disetujui dan sertifikat E-Warranty bisa diunduh.",
+                    ['type' => 'warranty_approved', 'route' => "/account/warranty-detail?id={$warranty->id}"]
+                );
+
+                // Email "Garansi Terdaftar" — SEBELUMNYA kelas Mailable +
+                // view lengkap tersedia tapi tidak pernah dipanggil di
+                // mana pun (dead code). Dikirim di titik APPROVED (bukan
+                // saat submit mentah) karena warranty_code final baru
+                // pasti terisi di titik ini (lihat Warranty::booted()).
+                // Cuma untuk warranty yang tertaut akun DAN akun itu
+                // punya email — banyak customer daftar cuma pakai nomor
+                // HP (OTP WhatsApp), jadi email opsional.
+                if ($warranty->customer?->email) {
+                    try {
+                        Mail::to($warranty->customer->email)->send(new WarrantyRegisteredMail($warranty));
+                    } catch (\Exception $e) {
+                        Log::error('Gagal mengirim email registrasi garansi', [
+                            'warranty_id' => $warranty->id,
+                            'error'       => $e->getMessage(),
+                        ]);
+                    }
+                }
+            } elseif ($justRejected) {
+                $this->push->sendToCustomer(
+                    $warranty->customer_id,
+                    'Garansi Ditolak',
+                    $warranty->rejection_reason
+                        ? "Pengajuan garansi Anda ditolak: {$warranty->rejection_reason}"
+                        : 'Pengajuan garansi Anda ditolak. Silakan hubungi toko untuk informasi lebih lanjut.',
+                    ['type' => 'warranty_rejected', 'route' => "/account/warranty-detail?id={$warranty->id}"]
+                );
+            }
         }
 
         // Proses kalau REVIEW_STATUS baru jadi 'approved' (dengan customer

@@ -33,3 +33,7 @@ Schedule::command('attendance:mark-absences')->dailyAt('01:00');
 // Alert lead Quotation yang masih 'New' lebih dari 24 jam — lihat
 // App\Console\Commands\NotifyStaleQuotations.
 Schedule::command('quotations:notify-stale')->dailyAt('08:00');
+
+// Alert garansi yang akan berakhir (bell staff + push customer H-30/H-7) —
+// lihat App\Console\Commands\NotifyExpiringWarranties.
+Schedule::command('warranty:notify-expiring')->dailyAt('08:00');

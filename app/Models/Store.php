@@ -39,6 +39,23 @@ class Store extends Model
         'opening_hours' => 'array',
     ];
 
+    /**
+     * Persentase review internal bersentimen positif — null kalau belum
+     * ada review sama sekali (beda dari 0%, supaya UI bisa tampilkan
+     * "Belum ada ulasan" bukannya "0% positif" yang terkesan buruk).
+     * reviews_count/positive_reviews_count di-update oleh
+     * StoreReviewObserver, BUKAN dihitung ulang tiap request. Lihat audit
+     * modul Review Toko 2026-08-27.
+     */
+    public function getPositiveRatePercentAttribute(): ?int
+    {
+        if ($this->reviews_count <= 0) {
+            return null;
+        }
+
+        return (int) round(($this->positive_reviews_count / $this->reviews_count) * 100);
+    }
+
     // Urutan & label hari (kode day dipakai di kolom opening_hours,
     // sekaligus dipakai buat expand ke schema.org openingHoursSpecification
     // di StoreController). Kode 2-huruf (mo/tu/we/...) sesuai standar
@@ -178,7 +195,7 @@ class Store extends Model
             ->all();
     }
 
-    protected $appends = ['opening_hours_summary', 'opening_hours_lines', 'opening_hours_schema'];
+    protected $appends = ['opening_hours_summary', 'opening_hours_lines', 'opening_hours_schema', 'positive_rate_percent'];
 
     /**
      * Toko tutup di tanggal $date? Dipakai validasi booking customer

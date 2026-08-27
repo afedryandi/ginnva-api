@@ -471,7 +471,14 @@ class WarrantyResource extends Resource
                     ->colors([
                         'success' => 'active',
                         'danger'  => fn ($state) => in_array($state, ['expired', 'rejected']),
-                        'warning' => fn ($state) => in_array($state, ['pending', 'pending_review']),
+                        // 'pending' DIHAPUS dari sini — kolom mentah `status`
+                        // di database cuma pernah diisi 'active' (lihat
+                        // WarrantyController::submit()), tidak ada alur
+                        // manapun yang set 'pending', dan accessor
+                        // getStatusAttribute() juga tidak pernah
+                        // mengembalikannya. Opsi ini mubazir/tidak pernah
+                        // ke-trigger. Lihat audit modul Garansi 2026-08-27.
+                        'warning' => 'pending_review',
                     ]),
 
                 Tables\Columns\TextColumn::make('expiry_date')
@@ -482,9 +489,19 @@ class WarrantyResource extends Resource
                         ? "+{$record->extension_years} thn diperpanjang"
                         : null),
 
+                // Highlight kuning kalau sisa hari sedikit — SEBELUMNYA
+                // tidak ada penekanan visual apa pun, staff harus baca
+                // angkanya satu-satu buat triase mana yang mendesak. Cuma
+                // untuk garansi yang benar-benar aktif (approved & belum
+                // lewat expiry) — 'pending_review'/'rejected'/'expired'
+                // tidak relevan diberi warning "akan habis". Lihat audit
+                // modul Garansi 2026-08-27.
                 Tables\Columns\TextColumn::make('remaining_days')
                     ->label('Sisa Hari')
-                    ->sortable(false),
+                    ->sortable(false)
+                    ->color(fn ($record) => $record->status === 'active' && $record->remaining_days <= 30
+                        ? 'warning'
+                        : null),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Diajukan')
@@ -546,9 +563,13 @@ class WarrantyResource extends Resource
                     ->options([
                         'active'         => 'Active',
                         'expired'        => 'Expired',
-                        'pending'        => 'Pending',
                         'pending_review' => 'Pending Review',
                         'rejected'       => 'Rejected',
+                        // 'pending' DIHAPUS — kolom mentah `status` di
+                        // database tidak pernah diisi nilai itu di alur
+                        // manapun, opsi ini mubazir/tidak pernah
+                        // menghasilkan baris. Lihat audit modul Garansi
+                        // 2026-08-27.
                     ])
                     ->query(function (Builder $query, array $data) {
                         $value = $data['value'] ?? null;
@@ -561,12 +582,21 @@ class WarrantyResource extends Resource
                             'active'         => $query->where('review_status', 'approved')
                                 ->where('status', 'active')
                                 ->whereDate('expiry_date', '>=', now()),
-                            'pending'        => $query->where('review_status', 'approved')
-                                ->where('status', 'pending')
-                                ->whereDate('expiry_date', '>=', now()),
                             default          => $query,
                         };
                     }),
+
+                // Quick-filter triase — SEBELUMNYA staff harus filter
+                // "Active" lalu urutkan manual by "Berakhir" untuk cari
+                // yang mendesak. Sama pola dengan filter "upcoming" di
+                // BookingResource/BlockedDateResource. Lihat audit modul
+                // Garansi 2026-08-27.
+                Tables\Filters\Filter::make('expiring_soon')
+                    ->label('Akan Berakhir (30 Hari)')
+                    ->query(fn (Builder $query) => $query
+                        ->where('review_status', 'approved')
+                        ->whereDate('expiry_date', '>=', now())
+                        ->whereDate('expiry_date', '<=', now()->addDays(30))),
 
                 Tables\Filters\SelectFilter::make('product_category')
                     ->label('Kategori Produk')
