@@ -23,7 +23,7 @@ class MaterialCategoryResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-folder';
 
-    protected static ?string $navigationGroup = 'Konten';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
     protected static ?string $navigationLabel = 'Kategori Materi';
 
@@ -31,7 +31,7 @@ class MaterialCategoryResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Kategori Materi';
 
-    protected static ?int $navigationSort = 39;
+    protected static ?int $navigationSort = 35;
 
     public static function canViewAny(): bool
     {

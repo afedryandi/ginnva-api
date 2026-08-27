@@ -17,14 +17,4 @@ class ViewQuotation extends ViewRecord
             Actions\DeleteAction::make(),
         ];
     }
-
-    protected function mutateFormDataBeforeFill(array $data): array
-    {
-        if (! empty($data['vehicle_id'])) {
-            $vehicle = \App\Models\Vehicle::find($data['vehicle_id']);
-            $data['vehicle_brand'] = $vehicle?->brand;
-        }
-
-        return $data;
-    }
 }

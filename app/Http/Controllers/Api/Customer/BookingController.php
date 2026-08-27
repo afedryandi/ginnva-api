@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Store;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class BookingController extends Controller
@@ -89,5 +90,45 @@ class BookingController extends Controller
             'message' => 'Booking berhasil diajukan. Toko akan menghubungi Anda untuk konfirmasi.',
             'data' => $booking,
         ], 201);
+    }
+
+    /**
+     * POST /api/customer/bookings/{id}/cancel
+     * Batalkan booking milik sendiri — SEBELUMNYA tidak ada sama sekali,
+     * customer terpaksa hubungi toko manual untuk batal. Lihat audit
+     * modul Booking 2026-08-27.
+     *
+     * SENGAJA dibatasi ke status 'pending' saja — booking yang sudah
+     * 'confirmed' berarti toko sudah mengalokasikan slot kapasitas
+     * instalasi untuk tanggal itu (lihat Booking::fullDatesInRange()),
+     * jadi pembatalan sepihak dari customer di titik ini bisa
+     * menyebabkan toko kehilangan info kenapa slot tiba-tiba kosong.
+     * Untuk booking yang sudah confirmed, customer tetap diarahkan
+     * menghubungi toko langsung (staff yang cancel lewat Filament/app).
+     */
+    public function cancel(Request $request, int $id)
+    {
+        $customer = $request->user('customer');
+        $booking = $customer->bookings()->where('id', $id)->first();
+
+        if (! $booking) {
+            abort(404);
+        }
+
+        return DB::transaction(function () use ($booking) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+            if ($locked->status !== 'pending') {
+                abort(422, "Booking berstatus \"{$locked->status}\" tidak bisa dibatalkan sendiri. Silakan hubungi toko langsung.");
+            }
+
+            $locked->update(['status' => 'cancelled']);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $locked->fresh(),
+                'message' => 'Booking dibatalkan.',
+            ]);
+        });
     }
 }

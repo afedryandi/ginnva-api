@@ -19,9 +19,9 @@ class PartnershipInquiryResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-briefcase';
 
-    protected static ?string $navigationGroup = 'Penjualan';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 55;
 
     protected static ?string $navigationLabel = 'Kemitraan & Sales Referral';
 

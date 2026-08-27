@@ -11,13 +11,19 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\ReferralPointService;
 use App\Services\ServiceReminderService;
+use App\Support\PhoneFormatter;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\Section as InfolistSection;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Maatwebsite\Excel\Facades\Excel;
@@ -29,7 +35,7 @@ class BookingResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
 
-    protected static ?string $navigationGroup = 'Operasional';
+    protected static ?string $navigationGroup = 'Booking';
 
     protected static ?int $navigationSort = 20;
 
@@ -43,7 +49,11 @@ class BookingResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        // Eager-load 'store' — kolom tabel 'preferred_date' memanggil
+        // accessor end_date() yang mengakses $this->store per baris; tanpa
+        // ini tiap baris booking yang tampil di listing memicu 1 query
+        // tambahan (N+1). Lihat audit modul Booking 2026-08-27.
+        $query = parent::getEloquentQuery()->with('store');
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -125,6 +135,13 @@ class BookingResource extends Resource
                     Forms\Components\TextInput::make('phone_number')
                         ->label('No. WhatsApp / Telepon')
                         ->tel()
+                        // Diwajibkan — SEBELUMNYA booking manual (WA/walk-in)
+                        // bisa disimpan tanpa nomor telepon sama sekali,
+                        // padahal pengingat servis berkala (WA reminder,
+                        // lihat ServiceReminderService) butuh nomor ini.
+                        // Tanpa itu, tombol "Kirim Pengingat Maintenance"
+                        // gagal total di kanal WhatsApp untuk booking ini.
+                        ->required(fn (Forms\Get $get) => in_array($get('source'), ['whatsapp', 'walk_in']))
                         ->visible(fn (Forms\Get $get) => in_array($get('source'), ['whatsapp', 'walk_in']))
                         ->maxLength(50),
                 ]),
@@ -339,6 +356,85 @@ class BookingResource extends Resource
                         ->helperText('Kosongkan kalau belum perlu reminder. Sistem otomatis kirim WhatsApp/Push/Email ke customer pada tanggal ini.')
                         ->minDate(now())
                         ->native(false),
+                ]),
+        ]);
+    }
+
+    /**
+     * SEBELUMNYA tidak ada halaman View sama sekali — staff yang cuma mau
+     * LIHAT detail booking (bukan ubah apa pun) tetap harus masuk ke form
+     * Edit penuh, termasuk Repeater kapasitas per tanggal yang bisa
+     * ke-utak-atik tanpa sengaja. Infolist read-only ini memisahkan
+     * "lihat" dari "ubah" — sama pola dengan QuotationResource. Lihat
+     * audit UI/UX Filament Booking 2026-08-27.
+     */
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            InfolistSection::make('Informasi Booking')
+                ->columns(3)
+                ->schema([
+                    TextEntry::make('booking_number')->label('No. Booking'),
+                    TextEntry::make('status')
+                        ->label('Status')
+                        ->badge()
+                        ->formatStateUsing(fn (string $state) => match ($state) {
+                            'pending'   => 'Menunggu',
+                            'confirmed' => 'Dikonfirmasi',
+                            'completed' => 'Selesai',
+                            'cancelled' => 'Dibatalkan',
+                            default     => $state,
+                        })
+                        ->color(fn (string $state) => match ($state) {
+                            'pending'   => 'warning',
+                            'confirmed' => 'info',
+                            'completed' => 'success',
+                            'cancelled' => 'danger',
+                            default     => 'gray',
+                        }),
+                    TextEntry::make('source')
+                        ->label('Asal Booking')
+                        ->formatStateUsing(fn (string $state) => match ($state) {
+                            'app'      => '📱 Mobile App',
+                            'whatsapp' => '💬 WhatsApp',
+                            'walk_in'  => '🚶 Walk-in',
+                            default    => $state,
+                        }),
+                    TextEntry::make('store.name')->label('Toko/Workshop')->placeholder('—'),
+                    TextEntry::make('installers.name')->label('Installer Bertugas')->badge()->placeholder('Belum ditugaskan'),
+                    TextEntry::make('watchers.name')->label('Direksi Pemantau')->badge()->placeholder('—'),
+                ]),
+
+            InfolistSection::make('Data Customer')
+                ->columns(2)
+                ->schema([
+                    TextEntry::make('display_name')
+                        ->label('Nama Customer')
+                        ->state(fn (Booking $record) => $record->customer_name ?? $record->customer?->name ?? $record->customer?->email ?? '—'),
+                    TextEntry::make('phone_number')
+                        ->label('No. Telepon')
+                        ->state(fn (Booking $record) => $record->phone_number ?? $record->customer?->phone_number ?? '—'),
+                ]),
+
+            InfolistSection::make('Detail Booking')
+                ->columns(2)
+                ->schema([
+                    TextEntry::make('service_type')->label('Jenis Layanan'),
+                    TextEntry::make('preferred_date')
+                        ->label('Tanggal Diinginkan')
+                        ->date('d M Y')
+                        ->state(fn (Booking $record) => $record->duration_days > 1
+                            ? $record->preferred_date->format('d M Y') . " ({$record->duration_days} hari, s/d " . $record->end_date?->format('d M Y') . ')'
+                            : $record->preferred_date?->format('d M Y')),
+                    TextEntry::make('preferred_time')->label('Jam Diinginkan')->placeholder('—'),
+                    TextEntry::make('notes')->label('Catatan')->placeholder('—')->columnSpanFull(),
+                    TextEntry::make('next_service_reminder_at')
+                        ->label('Reminder Servis')
+                        ->date('d M Y')
+                        ->placeholder('—')
+                        ->helperText(fn (Booking $record) => $record->next_service_reminder_at
+                            ? ($record->service_reminder_sent_at ? 'Sudah terkirim' : 'Belum terkirim')
+                            : null),
                 ]),
         ]);
     }
@@ -680,6 +776,80 @@ class BookingResource extends Resource
                         $sent ? $notification->success()->send() : $notification->danger()->send();
                     }),
 
+                // Sebelumnya tidak ada cara cepat menghubungi customer dari
+                // Filament sama sekali — staff yang kerja dari desktop
+                // harus copy-paste nomor manual ke WhatsApp Web. Lihat
+                // audit UI/UX Filament Booking 2026-08-27.
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('whatsapp')
+                        ->label('WhatsApp')
+                        ->icon('heroicon-o-chat-bubble-left-right')
+                        ->color('success')
+                        ->visible(fn (Booking $record) => filled($record->phone_number ?? $record->customer?->phone_number))
+                        ->url(fn (Booking $record) => 'https://wa.me/' . PhoneFormatter::toWhatsAppNumber($record->phone_number ?? $record->customer?->phone_number))
+                        ->openUrlInNewTab(),
+                    Tables\Actions\Action::make('call')
+                        ->label('Telepon')
+                        ->icon('heroicon-o-phone')
+                        ->color('info')
+                        ->visible(fn (Booking $record) => filled($record->phone_number ?? $record->customer?->phone_number))
+                        ->url(fn (Booking $record) => 'tel:' . ($record->phone_number ?? $record->customer?->phone_number)),
+                ])
+                    ->label('Hubungi')
+                    ->icon('heroicon-o-phone')
+                    ->color('gray'),
+
+                // Pembatalan TIDAK butuh pengecekan kapasitas sama sekali
+                // (beda dari approve/confirm yang wajib lewat
+                // fullDatesInRange() di CreateBooking/EditBooking) —
+                // aksi ringan ini sengaja TIDAK mengganti alur Edit untuk
+                // approve, cuma untuk cancel. Sama pola dengan
+                // Staff\BookingController::cancel() di mobile: row-locked,
+                // menolak status yang sudah final. Lihat audit UI/UX
+                // Filament Booking 2026-08-27.
+                Tables\Actions\Action::make('quickCancel')
+                    ->label('Batalkan')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn (Booking $record) => in_array($record->status, ['pending', 'confirmed'], true))
+                    ->requiresConfirmation()
+                    ->modalHeading('Batalkan Booking?')
+                    ->modalDescription('Booking ini akan ditandai Dibatalkan. Tindakan ini tidak membatalkan otomatis assignment installer/direksi yang sudah tersimpan.')
+                    ->form([
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Alasan (opsional)')
+                            ->maxLength(500),
+                    ])
+                    ->action(function (Booking $record, array $data) {
+                        $alreadyFinalStatus = DB::transaction(function () use ($record, $data) {
+                            $locked = Booking::where('id', $record->id)->lockForUpdate()->first();
+
+                            if (in_array($locked->status, ['completed', 'cancelled'], true)) {
+                                return $locked->status;
+                            }
+
+                            $notes = $locked->notes;
+                            if (filled($data['reason'] ?? null)) {
+                                $notes = trim(($notes ? $notes . "\n\n" : '') . "Dibatalkan: {$data['reason']}");
+                            }
+
+                            $locked->update(['status' => 'cancelled', 'notes' => $notes]);
+
+                            return null;
+                        });
+
+                        if ($alreadyFinalStatus) {
+                            Notification::make()
+                                ->title("Booking ini sudah berstatus \"{$alreadyFinalStatus}\", tidak bisa dibatalkan lagi.")
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        Notification::make()->title('Booking dibatalkan.')->success()->send();
+                    }),
+
+                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 // Booking yang sudah diproses referral (partner_id terisi)
                 // sudah menambah saldo poin Partner yang cash-convertible —
@@ -728,6 +898,7 @@ class BookingResource extends Resource
         return [
             'index'  => Pages\ListBookings::route('/'),
             'create' => Pages\CreateBooking::route('/create'),
+            'view'   => Pages\ViewBooking::route('/{record}'),
             'edit'   => Pages\EditBooking::route('/{record}/edit'),
         ];
     }

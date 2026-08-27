@@ -9,6 +9,11 @@ use Illuminate\Http\Request;
 
 class BookingMessageController extends Controller
 {
+    // Batas kumulatif jumlah foto progress per booking (lintas semua
+    // pesan) — cukup longgar untuk instalasi multi-hari dengan banyak
+    // sudut foto, tapi mencegah storage abuse dari spam pesan berulang.
+    private const MAX_PHOTOS_PER_BOOKING = 200;
+
     /**
      * GET /api/staff/bookings/{id}/messages
      */
@@ -84,6 +89,18 @@ class BookingMessageController extends Controller
             'photos.*.image' => 'File yang dipilih bukan gambar.',
             'photos.*.max'   => 'Ukuran tiap foto maksimal 10MB. Kompres atau pilih foto lain, lalu coba lagi.',
         ]);
+
+        // Batas kumulatif foto per booking — SEBELUMNYA cuma dibatasi per
+        // pesan (max 10), jadi pesan berulang-ulang tetap bisa menumpuk
+        // ratusan foto tak terbatas per booking (storage abuse). Lihat
+        // audit modul Booking 2026-08-27.
+        $newPhotoCount = $request->hasFile('photos') ? count($request->file('photos')) : 0;
+        if ($newPhotoCount > 0) {
+            $existingCount = BookingMessage::photoCountForBooking($booking->id);
+            if ($existingCount + $newPhotoCount > self::MAX_PHOTOS_PER_BOOKING) {
+                abort(422, 'Booking ini sudah mencapai batas maksimal ' . self::MAX_PHOTOS_PER_BOOKING . ' foto progress. Hapus/kurangi foto lama lewat Filament kalau memang perlu menambah.');
+            }
+        }
 
         $message = $booking->messages()->create([
             'sender_type'    => 'admin',

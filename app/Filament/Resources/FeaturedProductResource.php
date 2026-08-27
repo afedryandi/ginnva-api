@@ -16,7 +16,7 @@ class FeaturedProductResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-star';
 
-    protected static ?string $navigationGroup = 'Konten';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
     protected static ?string $navigationLabel = 'Seri Produk (Beranda)';
 
@@ -24,7 +24,7 @@ class FeaturedProductResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Seri Produk (Beranda)';
 
-    protected static ?int $navigationSort = 11;
+    protected static ?int $navigationSort = 15;
 
     public static function canViewAny(): bool
     {

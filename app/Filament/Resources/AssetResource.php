@@ -4,7 +4,9 @@ namespace App\Filament\Resources;
 
 use App\Exports\AssetImportTemplateExport;
 use App\Filament\Resources\AssetResource\Pages;
+use App\Filament\Resources\AssetResource\RelationManagers\TransfersRelationManager;
 use App\Models\Asset;
+use App\Models\AssetTransfer;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\QrCodeService;
@@ -62,8 +64,8 @@ class AssetResource extends Resource
         $query = parent::getEloquentQuery();
         $user = auth()->user();
 
-        if ($user && ! $user->isFullAccess()) {
-            $query->where('store_id', $user->store_id);
+        if ($user) {
+            $query->visibleTo($user);
         }
 
         return $query;
@@ -153,6 +155,25 @@ class AssetResource extends Resource
                         ->minValue(0)
                         ->prefix('Rp'),
 
+                    Forms\Components\DatePicker::make('next_maintenance_date')
+                        ->label('Jadwal Maintenance Berikutnya')
+                        ->native(false)
+                        ->displayFormat('d M Y')
+                        ->helperText('Opsional — isi kalau aset ini butuh servis/kalibrasi berkala. Admin akan diberi tahu otomatis begitu tanggalnya jatuh tempo.'),
+
+                    Forms\Components\TextInput::make('useful_life_years')
+                        ->label('Umur Ekonomis (tahun)')
+                        ->numeric()
+                        ->minValue(1)
+                        ->helperText('Opsional — untuk hitung estimasi nilai buku saat ini (depresiasi garis lurus). Kosongkan kalau tidak perlu dilacak.'),
+
+                    Forms\Components\TextInput::make('salvage_value')
+                        ->label('Nilai Residu')
+                        ->numeric()
+                        ->minValue(0)
+                        ->prefix('Rp')
+                        ->helperText('Opsional — perkiraan nilai sisa di akhir umur ekonomis (boleh 0).'),
+
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
                         ->columnSpanFull(),
@@ -221,6 +242,20 @@ class AssetResource extends Resource
                     ->date('d M Y')
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('book_value')
+                    ->label('Nilai Buku Saat Ini')
+                    ->state(fn (Asset $record) => $record->currentBookValue())
+                    ->formatStateUsing(fn (?float $state) => $state !== null ? 'Rp ' . number_format($state, 0, ',', '.') : '—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('next_maintenance_date')
+                    ->label('Maintenance Berikutnya')
+                    ->date('d M Y')
+                    ->placeholder('—')
+                    ->badge()
+                    ->color(fn (Asset $record) => $record->next_maintenance_date?->isPast() ? 'danger' : 'gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
@@ -286,6 +321,75 @@ class AssetResource extends Resource
                     ->icon('heroicon-o-qr-code')
                     ->color('gray')
                     ->action(fn (Asset $record) => static::downloadQrPdf(new Collection([$record]))),
+
+                // Jalan RESMI pindah tangan aset — beda dari sekadar edit
+                // field "Dipegang Oleh"/"Lokasi" di form (yang tetap ada,
+                // untuk koreksi data biasa): aksi ini WAJIB isi kondisi
+                // fisik + alasan saat serah terima, dan tercatat sebagai 1
+                // baris utuh di asset_transfers (lihat tab "Riwayat
+                // Kepemilikan"), bukan cuma diff before/after generik di
+                // activity log.
+                Tables\Actions\Action::make('transfer')
+                    ->label('Serah Terima')
+                    ->icon('heroicon-o-arrow-path-rounded-square')
+                    ->color('warning')
+                    ->form([
+                        Forms\Components\Select::make('to_user_id')
+                            ->label('Diserahkan Ke')
+                            ->options(fn () => User::all()
+                                ->filter(fn (User $u) => $u->canAccessStaffArea())
+                                ->pluck('name', 'id'))
+                            ->searchable()
+                            ->placeholder('Tidak berubah / dilepas (tidak ada pemegang)'),
+
+                        Forms\Components\Select::make('to_store_id')
+                            ->label('Pindah Ke Toko')
+                            ->options(fn () => Store::pluck('name', 'id'))
+                            ->searchable()
+                            ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                            ->placeholder('Tidak berubah'),
+
+                        Forms\Components\Select::make('condition_at_transfer')
+                            ->label('Kondisi Fisik Saat Ini')
+                            ->options([
+                                'baik' => 'Baik',
+                                'perlu_perhatian' => 'Perlu Perhatian',
+                                'rusak' => 'Rusak',
+                            ])
+                            ->required(),
+
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Alasan / Keterangan Serah Terima')
+                            ->required()
+                            ->placeholder('Mis. rotasi tugas, pindah cabang, penggantian penanggung jawab'),
+                    ])
+                    ->action(function (Asset $record, array $data) {
+                        $user = auth()->user();
+
+                        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data, $user) {
+                            $locked = Asset::where('id', $record->id)->lockForUpdate()->firstOrFail();
+
+                            $toStoreId = ($user->isFullAccess() && $data['to_store_id']) ? $data['to_store_id'] : $locked->store_id;
+
+                            AssetTransfer::create([
+                                'asset_id' => $locked->id,
+                                'from_user_id' => $locked->assigned_to,
+                                'to_user_id' => $data['to_user_id'] ?? null,
+                                'from_store_id' => $locked->store_id,
+                                'to_store_id' => $toStoreId,
+                                'condition_at_transfer' => $data['condition_at_transfer'],
+                                'reason' => $data['reason'],
+                                'performed_by' => $user->id,
+                            ]);
+
+                            $locked->update([
+                                'assigned_to' => $data['to_user_id'] ?? null,
+                                'store_id' => $toStoreId,
+                            ]);
+                        });
+
+                        Notification::make()->title('Serah terima dicatat')->success()->send();
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -360,8 +464,12 @@ class AssetResource extends Resource
 
         $createdCount = 0;
         $invalidCount = 0;
-        $unmatchedAssignees = 0;
-        $unmatchedStores = 0;
+        // SEBELUMNYA cuma hitung jumlah gagal cocok — admin tidak tahu
+        // NAMA mana yang gagal, harus buka tiap baris hasil import satu-
+        // satu untuk menebak. Sekarang nama yang gagal ditampung supaya
+        // bisa disebutkan langsung di notifikasi akhir.
+        $unmatchedAssigneeNames = [];
+        $unmatchedStoreNames = [];
         $userCache = [];
         $storeCache = [];
 
@@ -390,7 +498,7 @@ class AssetResource extends Resource
                         ?->id;
                 }
                 $assignedTo = $userCache[$assigneeName];
-                if ($assignedTo === null) $unmatchedAssignees++;
+                if ($assignedTo === null) $unmatchedAssigneeNames[$assigneeName] = true;
             }
 
             $storeName = isset($row[4]) ? trim((string) $row[4]) : '';
@@ -400,7 +508,7 @@ class AssetResource extends Resource
                     $storeCache[$storeName] = Store::where('name', $storeName)->first()?->id;
                 }
                 $storeId = $storeCache[$storeName];
-                if ($storeId === null) $unmatchedStores++;
+                if ($storeId === null) $unmatchedStoreNames[$storeName] = true;
             }
 
             $receivedDate = static::normalizeImportedDate($row[5] ?? null) ?? now()->toDateString();
@@ -429,8 +537,12 @@ class AssetResource extends Resource
 
         $bodyLines = ["{$createdCount} aset berhasil didaftarkan."];
         if ($invalidCount > 0) $bodyLines[] = "{$invalidCount} baris dilewati (Nama Aset kosong).";
-        if ($unmatchedAssignees > 0) $bodyLines[] = "{$unmatchedAssignees} nama user di kolom \"Dipegang Oleh\" tidak ditemukan (dikosongkan).";
-        if ($unmatchedStores > 0) $bodyLines[] = "{$unmatchedStores} nama toko di kolom \"Lokasi\" tidak ditemukan (dikosongkan).";
+        if (! empty($unmatchedAssigneeNames)) {
+            $bodyLines[] = 'Nama user tidak ditemukan (dikosongkan): ' . implode(', ', array_keys($unmatchedAssigneeNames)) . '.';
+        }
+        if (! empty($unmatchedStoreNames)) {
+            $bodyLines[] = 'Nama toko tidak ditemukan (dikosongkan): ' . implode(', ', array_keys($unmatchedStoreNames)) . '.';
+        }
 
         Notification::make()
             ->title('Import selesai')
@@ -461,6 +573,13 @@ class AssetResource extends Resource
         $date = \DateTime::createFromFormat('d/m/Y', trim((string) $raw));
 
         return $date instanceof \DateTime ? $date->format('Y-m-d') : null;
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            TransfersRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

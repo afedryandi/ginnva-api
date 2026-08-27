@@ -19,9 +19,9 @@ class VoucherResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-ticket';
 
-    protected static ?string $navigationGroup = 'Partnership Referral';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 80;
 
     protected static ?string $navigationLabel = 'Voucher Promo';
 

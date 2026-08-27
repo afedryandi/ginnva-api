@@ -194,6 +194,21 @@ class BookingController extends Controller
                 ->mapWithKeys(fn (array $row) => [\Illuminate\Support\Carbon::parse($row['date'])->toDateString() => (int) $row['capacity']])
                 ->all();
 
+            // Cross-check jumlah tanggal yang dikirim klien terhadap hari
+            // kerja SEBENARNYA untuk $durationDays ini — SEBELUMNYA kalau
+            // ada tanggal yang hilang dari payload (bug klien lama, race
+            // durasi berubah tapi capacities belum di-reload), tanggal itu
+            // diam-diam fallback ke $defaultCapacity di
+            // fullDatesInRange() alih-alih ditolak, jadi kapasitas
+            // tanggal itu tidak benar-benar dicek sesuai yang staff lihat
+            // di layar. Lihat audit modul Booking 2026-08-27.
+            $expectedDates = Booking::workingDatesInRange($locked->store_id, $locked->preferred_date->copy(), $durationDays);
+            $missingDates = array_diff($expectedDates, array_keys($capacityByDate));
+
+            if (! empty($missingDates)) {
+                abort(422, 'Kapasitas untuk tanggal berikut belum diisi: ' . implode(', ', $missingDates) . '. Muat ulang halaman lalu isi kapasitas semua tanggal kerja sebelum konfirmasi.');
+            }
+
             $fullDates = Booking::fullDatesInRange(
                 $locked->store_id,
                 $locked->preferred_date->copy(),
@@ -403,24 +418,34 @@ class BookingController extends Controller
             abort(422, 'Semua installer harus berasal dari toko ini.');
         }
 
-        $existingIds = $booking->installers()->pluck('users.id')->all();
+        // Dibungkus transaction + row-lock — SEBELUMNYA dua request paralel
+        // sync installer (mis. dobel-tap di app dengan sinyal lemah) bisa
+        // saling override tanpa urutan yang pasti, dan baca `$existingIds`
+        // sebelum lock bisa jadi stale sehingga activity log mencatat
+        // "old" yang sudah tidak akurat lagi. Lihat audit modul Booking
+        // 2026-08-27.
+        DB::transaction(function () use ($booking, $installerIds, $user) {
+            Booking::where('id', $booking->id)->lockForUpdate()->first();
 
-        $booking->installers()->sync($installerIds);
+            $existingIds = $booking->installers()->pluck('users.id')->all();
 
-        // Pivot many-to-many tidak tertangkap LogsActivity — dicatat manual,
-        // sama seperti assignWatchers().
-        $existingSorted = collect($existingIds)->sort()->values()->all();
-        $newSorted = collect($installerIds)->sort()->values()->all();
-        if ($existingSorted !== $newSorted) {
-            activity('booking')
-                ->causedBy($user)
-                ->performedOn($booking)
-                ->withProperties([
-                    'old'        => ['installer_ids' => $existingIds],
-                    'attributes' => ['installer_ids' => $installerIds],
-                ])
-                ->log("Installer booking #{$booking->booking_number} diubah");
-        }
+            $booking->installers()->sync($installerIds);
+
+            // Pivot many-to-many tidak tertangkap LogsActivity — dicatat
+            // manual, sama seperti assignWatchers().
+            $existingSorted = collect($existingIds)->sort()->values()->all();
+            $newSorted = collect($installerIds)->sort()->values()->all();
+            if ($existingSorted !== $newSorted) {
+                activity('booking')
+                    ->causedBy($user)
+                    ->performedOn($booking)
+                    ->withProperties([
+                        'old'        => ['installer_ids' => $existingIds],
+                        'attributes' => ['installer_ids' => $installerIds],
+                    ])
+                    ->log("Installer booking #{$booking->booking_number} diubah");
+            }
+        });
 
         return response()->json(['success' => true, 'data' => $booking->fresh(['installers'])]);
     }
@@ -450,27 +475,37 @@ class BookingController extends Controller
             abort(422, 'Semua pemantau harus berasal dari akun Direksi.');
         }
 
-        $existingIds = $booking->watchers()->pluck('users.id')->all();
-        $newIds = array_diff($watcherIds, $existingIds);
+        // Dibungkus transaction + row-lock — sama alasan dengan
+        // assignInstallers() di atas. $newIds dihitung DI DALAM transaction
+        // supaya tidak stale kalau ada request paralel yang lolos duluan.
+        // Lihat audit modul Booking 2026-08-27.
+        $newIds = DB::transaction(function () use ($booking, $watcherIds, $user) {
+            Booking::where('id', $booking->id)->lockForUpdate()->first();
 
-        $booking->watchers()->sync($watcherIds);
+            $existingIds = $booking->watchers()->pluck('users.id')->all();
+            $newIds = array_diff($watcherIds, $existingIds);
 
-        // Pivot many-to-many tidak tertangkap LogsActivity (yang cuma
-        // melacak kolom langsung di tabel booking) — dicatat manual.
-        // Dibandingkan dengan sort() dulu supaya urutan beda tidak dianggap
-        // perubahan kalau isinya sama persis.
-        $existingSorted = collect($existingIds)->sort()->values()->all();
-        $newSorted = collect($watcherIds)->sort()->values()->all();
-        if ($existingSorted !== $newSorted) {
-            activity('booking')
-                ->causedBy($user)
-                ->performedOn($booking)
-                ->withProperties([
-                    'old'        => ['watcher_ids' => $existingIds],
-                    'attributes' => ['watcher_ids' => $watcherIds],
-                ])
-                ->log("Pemantau (direksi) booking #{$booking->booking_number} diubah");
-        }
+            $booking->watchers()->sync($watcherIds);
+
+            // Pivot many-to-many tidak tertangkap LogsActivity (yang cuma
+            // melacak kolom langsung di tabel booking) — dicatat manual.
+            // Dibandingkan dengan sort() dulu supaya urutan beda tidak
+            // dianggap perubahan kalau isinya sama persis.
+            $existingSorted = collect($existingIds)->sort()->values()->all();
+            $newSorted = collect($watcherIds)->sort()->values()->all();
+            if ($existingSorted !== $newSorted) {
+                activity('booking')
+                    ->causedBy($user)
+                    ->performedOn($booking)
+                    ->withProperties([
+                        'old'        => ['watcher_ids' => $existingIds],
+                        'attributes' => ['watcher_ids' => $watcherIds],
+                    ])
+                    ->log("Pemantau (direksi) booking #{$booking->booking_number} diubah");
+            }
+
+            return $newIds;
+        });
 
         if (! empty($newIds)) {
             $newWatchers = User::whereIn('id', $newIds)->get(['id', 'name', 'email']);

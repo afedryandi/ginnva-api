@@ -16,7 +16,7 @@ class JobOpeningResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-briefcase';
 
-    protected static ?string $navigationGroup = 'Konten';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
     protected static ?string $navigationLabel = 'Lowongan Kerja';
 
@@ -24,7 +24,7 @@ class JobOpeningResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Lowongan Kerja';
 
-    protected static ?int $navigationSort = 50;
+    protected static ?int $navigationSort = 45;
 
     // TIDAK ada canViewAny() di sini SENGAJA — akses sudah di-gate lewat
     // JobOpeningPolicy (canAccessStaffArea() + hasMenuAccess()).

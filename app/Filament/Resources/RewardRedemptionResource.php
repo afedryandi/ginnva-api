@@ -22,9 +22,9 @@ class RewardRedemptionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-gift-top';
 
-    protected static ?string $navigationGroup = 'Partnership Referral';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 90;
 
     protected static ?string $navigationLabel = 'Klaim Reward';
 

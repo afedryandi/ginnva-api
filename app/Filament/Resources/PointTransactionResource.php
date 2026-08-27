@@ -25,9 +25,9 @@ class PointTransactionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-star';
 
-    protected static ?string $navigationGroup = 'Penjualan';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
-    protected static ?int $navigationSort = 11;
+    protected static ?int $navigationSort = 65;
 
     protected static ?string $navigationLabel = 'Riwayat Poin Customer';
 

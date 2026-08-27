@@ -134,11 +134,22 @@ Route::prefix('customer')->group(function () {
 
         // 我的预约 — Booking Saya
         Route::get('/bookings', [BookingController::class, 'index']);
-        Route::post('/bookings', [BookingController::class, 'store']);
+        Route::post('/bookings', [BookingController::class, 'store'])
+            ->middleware('throttle:10,1');
+        // Batalkan booking milik sendiri — sebelumnya cuma staff yang bisa
+        // cancel, customer terpaksa hubungi toko manual. Lihat audit modul
+        // Booking 2026-08-27.
+        Route::post('/bookings/{id}/cancel', [BookingController::class, 'cancel'])
+            ->middleware('throttle:10,1');
 
         // Chat + progress tracking per booking (polling, bukan real-time)
         Route::get('/bookings/{id}/messages', [BookingMessageController::class, 'index']);
-        Route::post('/bookings/{id}/messages', [BookingMessageController::class, 'store']);
+        // Throttle ditambahkan — sebelumnya endpoint mutasi publik ini
+        // (dan yang staff di bawah) tidak dibatasi sama sekali, beda dari
+        // pola throttle konsisten di modul lain. Lihat audit modul
+        // Booking 2026-08-27.
+        Route::post('/bookings/{id}/messages', [BookingMessageController::class, 'store'])
+            ->middleware('throttle:20,1');
 
         // Review internal (hybrid: sentimen + tag + komentar opsional) —
         // terpisah dari review Google Maps, lihat StoreReviewController.
@@ -219,7 +230,8 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:20,1');
 
         Route::get('/bookings/{id}/messages', [StaffBookingMessageController::class, 'index']);
-        Route::post('/bookings/{id}/messages', [StaffBookingMessageController::class, 'store']);
+        Route::post('/bookings/{id}/messages', [StaffBookingMessageController::class, 'store'])
+            ->middleware('throttle:20,1');
 
         // Link anonymous token (didaftarkan saat app pertama kali dibuka)
         // ke akun staff yang baru login — supaya push notif booking/chat
