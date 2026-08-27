@@ -10,6 +10,7 @@ class RawMaterialBatch extends Model
     protected $fillable = [
         'raw_material_id',
         'quantity',
+        'unit_cost',
         'received_date',
         'expiry_date',
         'is_adjustment',
@@ -18,6 +19,7 @@ class RawMaterialBatch extends Model
 
     protected $casts = [
         'quantity' => 'decimal:2',
+        'unit_cost' => 'decimal:2',
         'received_date' => 'date',
         'expiry_date' => 'date',
         'is_adjustment' => 'boolean',

@@ -11,12 +11,14 @@ class ConsumableItemMovement extends Model
         'consumable_item_id',
         'type',
         'quantity',
+        'unit_cost',
         'note',
         'user_id',
     ];
 
     protected $casts = [
         'quantity' => 'decimal:2',
+        'unit_cost' => 'decimal:2',
     ];
 
     public function consumableItem(): BelongsTo

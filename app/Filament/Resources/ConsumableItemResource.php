@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Exports\ConsumableItemImportTemplateExport;
 use App\Filament\Resources\ConsumableItemResource\Pages;
+use App\Filament\Resources\ConsumableItemResource\RelationManagers\ActivityLogRelationManager;
 use App\Filament\Resources\ConsumableItemResource\RelationManagers\MovementsRelationManager;
 use App\Models\ConsumableItem;
 use Filament\Forms;
@@ -187,6 +188,11 @@ class ConsumableItemResource extends Resource
                     ->label('Stok Menipis')
                     ->query(fn ($query) => $query->whereNotNull('reorder_point')
                         ->whereColumn('current_stock', '<=', 'reorder_point')),
+
+                Tables\Filters\Filter::make('dead_stock')
+                    ->label('Tidak Bergerak (' . ConsumableItem::DEAD_STOCK_DAYS . '+ hari)')
+                    ->query(fn ($query) => $query->where('current_stock', '>', 0)
+                        ->where('updated_at', '<', now()->subDays(ConsumableItem::DEAD_STOCK_DAYS))),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('download_template')
@@ -279,13 +285,32 @@ class ConsumableItemResource extends Resource
                             ->minValue(0.01)
                             ->suffix(fn (ConsumableItem $record) => $record->unit),
 
+                        // Disalin ke riwayat movement (bukan cuma menimpa
+                        // unit_cost di baris utama) supaya valuasi historis
+                        // bisa direkonstruksi kalau harga beli berubah antar
+                        // pembelian — lihat ConsumableItem::recordMovement().
+                        Forms\Components\TextInput::make('unit_cost')
+                            ->label('Harga per Satuan')
+                            ->numeric()
+                            ->minValue(0)
+                            ->prefix('Rp')
+                            ->default(fn (ConsumableItem $record) => $record->unit_cost)
+                            ->helperText('Opsional — kosongkan untuk pakai harga terakhir tersimpan.')
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in'),
+
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan')
                             ->placeholder('Mis. dipakai untuk booking apa, alasan keluar'),
                     ])
                     ->action(function (ConsumableItem $record, array $data) {
                         try {
-                            $record->recordMovement($data['type'], (float) $data['quantity'], auth()->id(), $data['note'] ?? null);
+                            $record->recordMovement(
+                                $data['type'],
+                                (float) $data['quantity'],
+                                auth()->id(),
+                                $data['note'] ?? null,
+                                isset($data['unit_cost']) && $data['unit_cost'] !== '' ? (float) $data['unit_cost'] : null,
+                            );
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()
                                 ->title('Tidak bisa mencatat stok')
@@ -427,6 +452,7 @@ class ConsumableItemResource extends Resource
     {
         return [
             MovementsRelationManager::class,
+            ActivityLogRelationManager::class,
         ];
     }
 

@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Acknowledgeable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -11,6 +14,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class Asset extends Model
 {
     use LogsActivity;
+    use Acknowledgeable;
 
     protected $fillable = [
         'asset_tag',
@@ -22,6 +26,9 @@ class Asset extends Model
         'store_id',
         'purchase_date',
         'purchase_cost',
+        'useful_life_years',
+        'salvage_value',
+        'next_maintenance_date',
         'notes',
         'created_by',
     ];
@@ -30,6 +37,9 @@ class Asset extends Model
         'received_date' => 'date',
         'purchase_date' => 'date',
         'purchase_cost' => 'decimal:2',
+        'salvage_value' => 'decimal:2',
+        'next_maintenance_date' => 'date',
+        'reviewed_at'   => 'datetime',
     ];
 
     public function assignee(): BelongsTo
@@ -45,6 +55,68 @@ class Asset extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function transfers(): HasMany
+    {
+        return $this->hasMany(AssetTransfer::class)->latest();
+    }
+
+    /**
+     * Satu sumber kebenaran untuk store-scoping — SEBELUMNYA aturan "non-
+     * full-access cuma boleh lihat/ubah aset tokonya sendiri" diimplementasi
+     * ULANG secara manual di 4 tempat terpisah (AssetResource::getEloquentQuery(),
+     * CreateAsset::mutateFormDataBeforeCreate(), AssetController::belongsToUserScope(),
+     * AssetController::update()) — berisiko lupa disinkronkan kalau ada
+     * entry point baru (mis. fitur transfer massal). Semua sekarang
+     * panggil method ini.
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        if ($user->isFullAccess()) {
+            return $query;
+        }
+
+        return $query->where('store_id', $user->store_id);
+    }
+
+    public static function isVisibleTo(User $user, self $asset): bool
+    {
+        return $user->isFullAccess() || $asset->store_id === $user->store_id;
+    }
+
+    /**
+     * Toko default saat aset baru didaftarkan — full-access boleh pilih
+     * bebas (null = belum ditentukan), non-full-access selalu tokonya
+     * sendiri (tidak bisa daftarkan aset "lepas" ke toko lain).
+     */
+    public static function defaultStoreIdFor(User $user): ?int
+    {
+        return $user->isFullAccess() ? null : $user->store_id;
+    }
+
+    /**
+     * Nilai buku saat ini — metode garis lurus (straight-line) sederhana:
+     * (harga beli - nilai residu) dibagi rata sepanjang umur ekonomis,
+     * dikurangkan sesuai tahun yang sudah berjalan sejak tanggal beli,
+     * TIDAK PERNAH turun di bawah nilai residu. Null kalau data yang
+     * dibutuhkan (harga beli, tanggal beli, umur ekonomis) belum lengkap
+     * — supaya tidak menampilkan angka seolah-olah pasti padahal cuma
+     * tebakan dari data kosong.
+     */
+    public function currentBookValue(): ?float
+    {
+        if ($this->purchase_cost === null || $this->purchase_date === null || ! $this->useful_life_years) {
+            return null;
+        }
+
+        $cost = (float) $this->purchase_cost;
+        $salvage = (float) ($this->salvage_value ?? 0);
+        $yearsElapsed = $this->purchase_date->diffInDays(now()) / 365;
+        $annualDepreciation = ($cost - $salvage) / $this->useful_life_years;
+        $value = $cost - ($annualDepreciation * $yearsElapsed);
+
+        return round(max($salvage, min($cost, $value)), 2);
     }
 
     /**

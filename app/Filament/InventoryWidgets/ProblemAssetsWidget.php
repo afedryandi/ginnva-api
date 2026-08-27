@@ -4,6 +4,7 @@ namespace App\Filament\InventoryWidgets;
 
 use App\Filament\Resources\AssetResource;
 use App\Models\Asset;
+use Filament\Notifications\Notification;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
@@ -42,7 +43,13 @@ class ProblemAssetsWidget extends BaseWidget
                 ->when(
                     ! (auth()->user()?->isFullAccess() ?? false),
                     fn ($query) => $query->where('store_id', auth()->user()?->store_id)
-                ))
+                )
+                // Baris yang sudah "Tandai Ditinjau" DAN belum ada
+                // perubahan lagi sejak itu disembunyikan.
+                ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'))
+                // "Hilang" & "Rusak" (danger) lebih mendesak daripada
+                // "Diperbaiki" (warning, sudah dalam proses) — ditaruh duluan.
+                ->orderByRaw("CASE WHEN status IN ('rusak', 'hilang') THEN 0 ELSE 1 END"))
             ->columns([
                 Tables\Columns\TextColumn::make('asset_tag')
                     ->label('Kode')
@@ -72,8 +79,28 @@ class ProblemAssetsWidget extends BaseWidget
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Lokasi')
                     ->placeholder('Kantor Pusat'),
+
+                Tables\Columns\TextColumn::make('updated_at')
+                    ->label('Terakhir Diubah')
+                    ->since()
+                    ->tooltip(fn (Asset $record) => $record->updated_at?->format('d M Y H:i')),
+            ])
+            ->actions([
+                Tables\Actions\Action::make('acknowledge')
+                    ->label('Tandai Ditinjau')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->modalDescription('Sembunyikan baris ini dari "Aset Bermasalah"? Akan muncul lagi otomatis kalau statusnya berubah lagi.')
+                    ->action(function (Asset $record) {
+                        $record->acknowledge(auth()->id());
+                        Notification::make()->title('Ditandai sudah ditinjau')->success()->send();
+                    }),
             ])
             ->paginated(false)
+            ->emptyStateHeading('Tidak ada aset bermasalah')
+            ->emptyStateDescription('Semua aset dalam kondisi baik/tidak sedang bermasalah.')
+            ->emptyStateIcon('heroicon-o-check-circle')
             ->poll(null);
     }
 }

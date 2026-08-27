@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\InventoryItemResource\RelationManagers;
 
+use App\Models\ScrollCode;
+use App\Models\ScrollCodeUsage;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -56,6 +59,24 @@ class ScrollCodeUsagesRelationManager extends RelationManager
                     ->label('Waktu')
                     ->dateTime('d M Y, H:i')
                     ->sortable(),
+            ])
+            ->actions([
+                // Sinkron dengan UsagesRelationManager (ScrollCodeResource)
+                // — lihat catatan lengkap di sana.
+                Tables\Actions\Action::make('reverse')
+                    ->label('Batalkan')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('danger')
+                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                    ->requiresConfirmation()
+                    ->modalDescription('Batalkan baris pemakaian ini? Meternya akan dikembalikan ke sisa panjang gulungan, dan baris ini akan dihapus dari riwayat. Tindakan ini untuk mengoreksi salah input, bukan pembatalan pekerjaan.')
+                    ->action(function (ScrollCodeUsage $record) {
+                        /** @var ScrollCode $scrollCode */
+                        $scrollCode = $record->scrollCode;
+                        $scrollCode->reverseUsage($record);
+
+                        Notification::make()->title('Pemakaian dibatalkan, meter dikembalikan')->success()->send();
+                    }),
             ])
             ->defaultSort('created_at', 'desc')
             ->emptyStateHeading('Belum ada riwayat pemakaian')

@@ -2,14 +2,17 @@
 
 namespace App\Filament\Resources;
 
+use App\Exports\RawMaterialMovementExport;
 use App\Filament\Resources\RawMaterialMovementResource\Pages;
 use App\Models\RawMaterial;
 use App\Models\RawMaterialMovement;
 use App\Models\User;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Laporan/riwayat pergerakan bahan baku LINTAS SEMUA bahan — beda dari
@@ -98,6 +101,15 @@ class RawMaterialMovementResource extends Resource
                     ->label('Jumlah')
                     ->formatStateUsing(fn ($state, RawMaterialMovement $record) => ($state > 0 && $record->type === 'adjustment' ? '+' : '') . number_format((float) $state, 2) . ' ' . ($record->rawMaterial?->unit ?? '')),
 
+                // Harga batch yang tersalin saat "Catat Masuk" — supaya
+                // tidak perlu buka tab Batch terpisah dan cocokkan tanggal
+                // manual untuk tahu harga beli suatu kejadian masuk.
+                Tables\Columns\TextColumn::make('unit_cost')
+                    ->label('Harga/Satuan')
+                    ->money('IDR')
+                    ->placeholder('—')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Dicatat Oleh')
                     ->placeholder('—')
@@ -134,6 +146,63 @@ class RawMaterialMovementResource extends Resource
                         ->when($data['from'], fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
                         ->when($data['until'], fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
                     ),
+            ])
+            ->headerActions([
+                // Ikut filter yang sedang aktif di layar — sama pola
+                // dengan InventoryMovementResource (PPF/WF).
+                Tables\Actions\Action::make('export')
+                    ->label('Export Excel')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('success')
+                    ->action(fn ($livewire) => Excel::download(
+                        new RawMaterialMovementExport($livewire->getFilteredTableQuery()),
+                        'riwayat-bahan-baku-' . now()->format('Ymd') . '.xlsx'
+                    )),
+
+                // Bandingkan current_stock tiap bahan dengan penjumlahan
+                // seluruh riwayat movement-nya dari 0 — mendeteksi drift
+                // kalau ada manipulasi manual DB atau bug lain di masa
+                // depan (recordMovement()/adjustStock() sendiri sudah
+                // dijaga transaction+lock, jadi drift seharusnya tidak
+                // pernah terjadi lewat jalur normal aplikasi).
+                Tables\Actions\Action::make('reconcile')
+                    ->label('Cek Rekonsiliasi')
+                    ->icon('heroicon-o-scale')
+                    ->color('gray')
+                    ->action(function () {
+                        $mismatches = [];
+
+                        RawMaterial::query()->chunkById(100, function ($materials) use (&$mismatches) {
+                            foreach ($materials as $material) {
+                                $computed = (float) $material->movements()
+                                    ->selectRaw("SUM(CASE WHEN type = 'out' THEN -quantity ELSE quantity END) as total")
+                                    ->value('total');
+
+                                $diff = round((float) $material->current_stock - $computed, 2);
+
+                                if (abs($diff) > 0.01) {
+                                    $mismatches[] = "{$material->name}: sistem {$material->current_stock}, seharusnya {$computed} (selisih {$diff})";
+                                }
+                            }
+                        });
+
+                        if (empty($mismatches)) {
+                            Notification::make()
+                                ->title('Rekonsiliasi bersih')
+                                ->body('current_stock semua bahan baku cocok dengan penjumlahan riwayat movement-nya.')
+                                ->success()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title(count($mismatches) . ' bahan baku tidak cocok')
+                            ->body(implode("\n", array_slice($mismatches, 0, 15)) . (count($mismatches) > 15 ? "\n… dan " . (count($mismatches) - 15) . ' lainnya.' : ''))
+                            ->danger()
+                            ->persistent()
+                            ->send();
+                    }),
             ])
             ->defaultSort('created_at', 'desc');
     }

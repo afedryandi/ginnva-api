@@ -208,11 +208,28 @@ class ItemsRelationManager extends RelationManager
                             ->required()
                             ->minValue(0)
                             ->maxValue((float) $record->qty_taken),
+
+                        // Opsional — sistem TIDAK PERNAH tahu harga batch
+                        // asli yang dulu dikonsumsi (movement 'out' tidak
+                        // menyimpan unit_cost), jadi tanpa ini otomatis
+                        // pakai "harga terakhir tersimpan" sebagai
+                        // perkiraan. Isi kalau admin kebetulan tahu harga
+                        // sebenarnya, supaya valuasi stok tidak makin kabur.
+                        Forms\Components\TextInput::make('unit_cost')
+                            ->label('Harga per Satuan (opsional)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->prefix('Rp')
+                            ->helperText('Kosongkan untuk pakai harga terakhir tersimpan.'),
                     ])
                     ->action(function (MaterialMemoItem $record, array $data) {
                         try {
                             MaterialMemoStockService::returnMaterial(
-                                $record, (float) $data['qty_returned'], auth()->id(), $this->getOwnerRecord()
+                                $record,
+                                (float) $data['qty_returned'],
+                                auth()->id(),
+                                $this->getOwnerRecord(),
+                                isset($data['unit_cost']) && $data['unit_cost'] !== '' ? (float) $data['unit_cost'] : null,
                             );
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()->title('Tidak bisa mencatat pengembalian')->body($e->getMessage())->danger()->send();
@@ -231,13 +248,30 @@ class ItemsRelationManager extends RelationManager
                             ->numeric()
                             ->required()
                             ->minValue(0.01),
+
+                        // Cuma relevan kalau koreksi ini TURUN (sebagian
+                        // dikembalikan ke stok) — lihat catatan yang sama
+                        // di aksi "Catat Pengembalian" di atas.
+                        Forms\Components\TextInput::make('unit_cost')
+                            ->label('Harga per Satuan (opsional)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->prefix('Rp')
+                            ->helperText('Kosongkan untuk pakai harga terakhir tersimpan. Cuma relevan kalau koreksi ini menurunkan jumlah (sebagian balik ke stok).')
+                            ->visible(fn () => $record->item_type !== 'inventory_item'),
                     ])
                     ->action(function (MaterialMemoItem $record, array $data) {
                         try {
                             if ($record->item_type === 'inventory_item') {
                                 MaterialMemoStockService::updateInventoryQty($record, (float) $data['qty'], $this->getOwnerRecord());
                             } else {
-                                MaterialMemoStockService::updateMaterialQty($record, (float) $data['qty'], auth()->id(), $this->getOwnerRecord());
+                                MaterialMemoStockService::updateMaterialQty(
+                                    $record,
+                                    (float) $data['qty'],
+                                    auth()->id(),
+                                    $this->getOwnerRecord(),
+                                    isset($data['unit_cost']) && $data['unit_cost'] !== '' ? (float) $data['unit_cost'] : null,
+                                );
                             }
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()->title('Tidak bisa mengoreksi jumlah')->body($e->getMessage())->danger()->send();

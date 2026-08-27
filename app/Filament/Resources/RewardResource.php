@@ -18,9 +18,9 @@ class RewardResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-gift';
 
-    protected static ?string $navigationGroup = 'Partnership Referral';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 85;
 
     protected static ?string $navigationLabel = 'Katalog Reward';
 

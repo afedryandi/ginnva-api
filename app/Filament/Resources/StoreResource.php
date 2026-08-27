@@ -90,6 +90,25 @@ class StoreResource extends Resource
                         ->default(3)
                         ->required(),
 
+                    Forms\Components\TextInput::make('attendance_radius_meters')
+                        ->label('Radius Absen (meter)')
+                        ->helperText('Jarak maksimum dari lokasi toko ini supaya absen dari app dianggap wajar. Kosongkan untuk pakai default sistem (150 m).')
+                        ->numeric()
+                        ->minValue(10),
+
+                    Forms\Components\TextInput::make('late_tolerance_minutes')
+                        ->label('Toleransi Telat / Bulan (menit)')
+                        ->helperText('Total menit telat yang masih ditoleransi dalam 1 bulan sebelum dianggap perlu ditindaklanjuti (potongan gaji dihitung manual di Penggajian). Kosongkan untuk pakai default sistem (15 menit).')
+                        ->numeric()
+                        ->minValue(0),
+
+                    Forms\Components\TextInput::make('late_deduction_amount')
+                        ->label('Potongan per Pelanggaran (Rp)')
+                        ->helperText('Nominal potongan gaji setelah toleransi telat bulanan terlampaui — dipakai sebagai acuan saat hitung Penggajian, belum otomatis memotong gaji.')
+                        ->numeric()
+                        ->prefix('Rp')
+                        ->minValue(0),
+
                     Forms\Components\Repeater::make('opening_hours')
                         ->label('Jam Operasional')
                         ->columnSpanFull()
@@ -221,9 +240,14 @@ class StoreResource extends Resource
             }
         }
 
+        // !3d/!4d (koordinat PIN tempat sebenarnya) dicek DULUAN — @lat,lng
+        // itu cuma posisi kamera/viewport peta saat link dibuat, HAMPIR
+        // SELALU ada di URL Google Maps apa pun, dan bisa meleset ratusan
+        // meter dari pin aslinya (pernah kejadian nyata: toko Ginnva House
+        // selisih ~236m karena pattern @lat,lng ini yang kepilih duluan).
         $patterns = [
-            '/@(-?\d+\.\d+),(-?\d+\.\d+)/',       // .../@-6.2088,106.8456,17z
-            '/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/',    // embed data param
+            '/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/',    // embed data param — koordinat pin sebenarnya
+            '/@(-?\d+\.\d+),(-?\d+\.\d+)/',       // .../@-6.2088,106.8456,17z — fallback: posisi kamera
             '/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/',   // ?q=-6.2088,106.8456
         ];
 

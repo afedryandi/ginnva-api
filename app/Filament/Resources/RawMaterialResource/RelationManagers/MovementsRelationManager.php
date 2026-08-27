@@ -49,6 +49,12 @@ class MovementsRelationManager extends RelationManager
                     // bikin N+1 tanpa guna (sama fix seperti BatchesRelationManager).
                     ->formatStateUsing(fn ($state, $record) => ($state > 0 && $record->type === 'adjustment' ? '+' : '') . number_format((float) $state, 2) . ' ' . $this->getOwnerRecord()->unit),
 
+                Tables\Columns\TextColumn::make('unit_cost')
+                    ->label('Harga/Satuan')
+                    ->money('IDR')
+                    ->placeholder('—')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Dicatat Oleh')
                     ->placeholder('—'),
@@ -63,6 +69,12 @@ class MovementsRelationManager extends RelationManager
                     ->dateTime('d M Y, H:i')
                     ->sortable(),
             ])
-            ->defaultSort('created_at', 'desc');
+            ->defaultSort('created_at', 'desc')
+            // Riwayat ini permanen (tidak bisa diedit/dihapus) — supaya
+            // audit trail tidak bisa dimanipulasi diam-diam. Kalau ada
+            // salah catat, jalan resminya adalah "Sesuaikan Stok" (opname)
+            // di daftar utama, BUKAN mengubah baris ini.
+            ->emptyStateHeading('Belum ada riwayat')
+            ->emptyStateDescription('Riwayat otomatis muncul di sini setiap kali "Catat Stok" dicatat. Baris di sini permanen — kalau ada salah catat, koreksi lewat "Sesuaikan Stok" (opname) di daftar utama, bukan mengubah baris ini.');
     }
 }

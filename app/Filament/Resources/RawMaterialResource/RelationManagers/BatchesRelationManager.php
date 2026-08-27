@@ -56,6 +56,12 @@ class BatchesRelationManager extends RelationManager
                         default => 'gray',
                     }),
 
+                Tables\Columns\TextColumn::make('unit_cost')
+                    ->label('Harga/Satuan')
+                    ->money('IDR')
+                    ->placeholder('—')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Dicatat Oleh')
                     ->placeholder('—'),

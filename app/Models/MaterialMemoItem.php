@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class MaterialMemoItem extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'material_memo_id',
         'item_type',
@@ -46,5 +50,20 @@ class MaterialMemoItem extends Model
             'inventory_item' => InventoryItem::find($this->item_id),
             default => null,
         };
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['qty_taken', 'qty_returned', 'qty_used', 'meters_used', 'condition_notes'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('material_memo_item')
+            ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
+                'created' => "Barang \"{$this->item_name}\" ditambahkan ke memo",
+                'updated' => "Barang \"{$this->item_name}\" di memo diubah",
+                'deleted' => "Barang \"{$this->item_name}\" di memo dihapus",
+                default => "Barang \"{$this->item_name}\" — {$eventName}",
+            });
     }
 }

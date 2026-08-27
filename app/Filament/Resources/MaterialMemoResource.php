@@ -28,7 +28,7 @@ class MaterialMemoResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Memo Pengambilan/Pengembalian';
 
-    protected static ?int $navigationSort = 70;
+    protected static ?int $navigationSort = 80;
 
     public static function canViewAny(): bool
     {

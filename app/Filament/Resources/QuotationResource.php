@@ -9,6 +9,10 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\Section as InfolistSection;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -21,7 +25,7 @@ class QuotationResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
 
-    protected static ?string $navigationGroup = 'Operasional';
+    protected static ?string $navigationGroup = 'Booking';
 
     protected static ?int $navigationSort = 10;
 
@@ -45,7 +49,10 @@ class QuotationResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        // Eager-load 'items.filmProduct' — dipakai kolom "Produk Diminati"
+        // di tabel (lihat audit UI/UX Filament Quotation 2026-08-27),
+        // tanpa ini tiap baris akan N+1.
+        $query = parent::getEloquentQuery()->with('items.filmProduct');
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -57,6 +64,7 @@ class QuotationResource extends Resource
 
         return $query;
     }
+
 
     public static function form(Form $form): Form
     {
@@ -108,11 +116,19 @@ class QuotationResource extends Resource
                     Forms\Components\TextInput::make('customer_phone')
                         ->label('No. Telepon / WhatsApp')
                         ->tel()
+                        // Disamakan dengan validasi API publik
+                        // (QuotationController::submit()) yang mewajibkan
+                        // keduanya — sebelumnya form admin di sini
+                        // membolehkan lead tanpa telepon/email sama sekali,
+                        // padahal keduanya dipakai untuk follow-up (WA call
+                        // & konfirmasi email).
+                        ->required()
                         ->maxLength(255),
 
                     Forms\Components\TextInput::make('customer_email')
                         ->label('Email')
                         ->email()
+                        ->required()
                         ->maxLength(255),
 
                     Forms\Components\TextInput::make('license_plate')
@@ -190,6 +206,82 @@ class QuotationResource extends Resource
         ]);
     }
 
+    /**
+     * SEBELUMNYA tidak ada — ViewQuotation fallback ke form disabled
+     * bawaan Filament (form Edit lengkap tapi semua field non-interaktif),
+     * bukan tampilan read-only yang dirapikan. Infolist khusus ini
+     * mengelompokkan info dengan section yang sama dengan form, tapi
+     * lebih ringkas & enak dibaca untuk sekadar melihat detail lead.
+     * Lihat audit UI/UX Filament Quotation 2026-08-27.
+     */
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            InfolistSection::make('Informasi Quotation')
+                ->columns(3)
+                ->schema([
+                    TextEntry::make('quotation_number')->label('No. Quotation'),
+                    TextEntry::make('status')
+                        ->label('Status Follow-up')
+                        ->badge()
+                        ->formatStateUsing(fn (string $state) => match ($state) {
+                            'new'       => 'New',
+                            'contacted' => 'Contacted',
+                            'closed'    => 'Closed',
+                            'cancelled' => 'Cancelled',
+                            default     => $state,
+                        })
+                        ->color(fn (string $state) => match ($state) {
+                            'new'       => 'info',
+                            'contacted' => 'warning',
+                            'closed'    => 'success',
+                            'cancelled' => 'danger',
+                            default     => 'gray',
+                        }),
+                    TextEntry::make('store.name')->label('Toko/Dealer')->placeholder('—'),
+                    TextEntry::make('created_at')->label('Masuk')->dateTime('d M Y H:i'),
+                    TextEntry::make('contacted_at')
+                        ->label('Direspons Setelah')
+                        ->state(fn (Quotation $record) => $record->contacted_at
+                            ? $record->created_at->diffForHumans($record->contacted_at, syntax: \Carbon\CarbonInterface::DIFF_ABSOLUTE)
+                            : null)
+                        ->placeholder('Belum direspons'),
+                    TextEntry::make('source')
+                        ->label('Sumber')
+                        ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Customer' : 'Input Staff'),
+                ]),
+
+            InfolistSection::make('Data Pelanggan')
+                ->columns(2)
+                ->schema([
+                    TextEntry::make('customer_name')->label('Nama Pelanggan'),
+                    TextEntry::make('customer_phone')->label('No. Telepon / WhatsApp')->placeholder('—'),
+                    TextEntry::make('customer_email')->label('Email')->placeholder('—'),
+                    TextEntry::make('license_plate')->label('Plat Nomor')->placeholder('—'),
+                    TextEntry::make('message')->label('Catatan / Kebutuhan Pelanggan')->placeholder('—')->columnSpanFull(),
+                ]),
+
+            InfolistSection::make('Kendaraan')
+                ->columns(2)
+                ->schema([
+                    TextEntry::make('vehicle.brand')->label('Merek Kendaraan')->placeholder('—'),
+                    TextEntry::make('vehicle.model')->label('Tipe Kendaraan')->placeholder('—'),
+                ]),
+
+            InfolistSection::make('Produk yang Diminati')
+                ->schema([
+                    RepeatableEntry::make('items')
+                        ->label('')
+                        ->schema([
+                            TextEntry::make('filmProduct.name')->label('Produk Film'),
+                            TextEntry::make('quantity')->label('Jumlah'),
+                            TextEntry::make('notes')->label('Keterangan')->placeholder('—'),
+                        ])
+                        ->columns(3),
+                ]),
+        ]);
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -214,6 +306,20 @@ class QuotationResource extends Resource
                     ->placeholder('—')
                     ->toggleable(),
 
+                // Sebelumnya tidak ada sama sekali — staff harus buka
+                // record satu-satu untuk tahu lead ini minat produk apa,
+                // padahal itu info penting untuk triase cepat. Lihat audit
+                // UI/UX Filament Quotation 2026-08-27.
+                Tables\Columns\TextColumn::make('items_summary')
+                    ->label('Produk Diminati')
+                    ->state(fn (Quotation $record) => $record->items
+                        ->map(fn ($item) => $item->filmProduct?->name)
+                        ->filter()
+                        ->join(', ') ?: '—')
+                    ->wrap()
+                    ->limit(60)
+                    ->toggleable(),
+
                 Tables\Columns\BadgeColumn::make('status')
                     ->colors([
                         'info'    => 'new',
@@ -233,6 +339,30 @@ class QuotationResource extends Resource
                     ->label('Masuk')
                     ->dateTime('d M Y H:i')
                     ->sortable(),
+
+                // SLA follow-up — isi otomatis begitu status pertama kali
+                // berubah dari 'new' (lihat QuotationObserver::updating()),
+                // bukan field yang diisi manual.
+                Tables\Columns\TextColumn::make('contacted_at')
+                    ->label('Direspons Setelah')
+                    ->state(fn (Quotation $record) => $record->contacted_at
+                        ? $record->created_at->diffForHumans($record->contacted_at, syntax: \Carbon\CarbonInterface::DIFF_ABSOLUTE)
+                        : null)
+                    ->placeholder('Belum direspons')
+                    ->color(fn (Quotation $record) => ! $record->contacted_at && $record->created_at->lt(now()->subHours(24)) ? 'danger' : null)
+                    ->toggleable(),
+
+                // Sebelumnya cuma terlihat setelah buka form — toggleable
+                // & disembunyikan default (bukan info yang selalu perlu
+                // tampil), tapi bisa dimunculkan kalau staff mau baca
+                // sekilas tanpa buka record. Lihat audit UI/UX Filament
+                // Quotation 2026-08-27.
+                Tables\Columns\TextColumn::make('message')
+                    ->label('Catatan Pelanggan')
+                    ->placeholder('—')
+                    ->limit(60)
+                    ->wrap()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
@@ -249,11 +379,77 @@ class QuotationResource extends Resource
                     ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->actions([
+                // Sebelumnya staff harus buka form Edit penuh cuma untuk
+                // ubah status "New" -> "Contacted" — padahal ini aksi
+                // paling sering dilakukan tiap hari. Modal kecil ini
+                // memicu event Eloquent 'updating' yang sama (lewat
+                // ->update()), jadi contacted_at tetap terisi otomatis
+                // sama seperti lewat form Edit biasa (lihat
+                // QuotationObserver::updating()). Lihat audit UI/UX
+                // Filament Quotation 2026-08-27.
+                Tables\Actions\Action::make('quickStatus')
+                    ->label('Ubah Status')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('gray')
+                    ->form([
+                        Forms\Components\Select::make('status')
+                            ->label('Status Follow-up')
+                            ->options([
+                                'new'       => 'New',
+                                'contacted' => 'Contacted',
+                                'closed'    => 'Closed',
+                                'cancelled' => 'Cancelled',
+                            ])
+                            ->required(),
+                    ])
+                    ->fillForm(fn (Quotation $record) => ['status' => $record->status])
+                    ->action(fn (Quotation $record, array $data) => $record->update(['status' => $data['status']])),
+
+                // Sebelumnya Filament sama sekali tidak punya cara cepat
+                // menghubungi lead — staff yang kerja dari desktop harus
+                // copy-paste nomor manual ke WhatsApp Web. Mobile app
+                // sudah punya ini di layar detail (lihat
+                // app/staff/quotations/[id].tsx). Lihat audit UI/UX
+                // Filament Quotation 2026-08-27.
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('whatsapp')
+                        ->label('WhatsApp')
+                        ->icon('heroicon-o-chat-bubble-left-right')
+                        ->color('success')
+                        ->visible(fn (Quotation $record) => filled($record->customer_phone))
+                        ->url(fn (Quotation $record) => 'https://wa.me/' . \App\Support\PhoneFormatter::toWhatsAppNumber($record->customer_phone))
+                        ->openUrlInNewTab(),
+                    Tables\Actions\Action::make('call')
+                        ->label('Telepon')
+                        ->icon('heroicon-o-phone')
+                        ->color('info')
+                        ->visible(fn (Quotation $record) => filled($record->customer_phone))
+                        ->url(fn (Quotation $record) => 'tel:' . $record->customer_phone),
+                ])
+                    ->label('Hubungi')
+                    ->icon('heroicon-o-phone')
+                    ->color('gray'),
+
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
             ])
+            // Sebelumnya defaultSort('created_at', 'desc') murni — lead
+            // "New" lama bisa terkubur di bawah lead baru yang statusnya
+            // sudah closed, tidak ada dorongan visual untuk prioritaskan
+            // yang overdue (walau sudah ada notifikasi harian
+            // NotifyStaleQuotations). Sekarang: lead 'new' SELALU di atas
+            // (paling lama menunggu di paling atas — paling mendesak),
+            // baru di bawahnya sisanya diurutkan terbaru dulu. Diabaikan
+            // otomatis kalau staff klik header kolom lain untuk sort
+            // manual. Lihat audit UI/UX Filament Quotation 2026-08-27.
+            ->defaultSort(function (Builder $query) {
+                return $query
+                    ->orderByRaw("(status = 'new') desc")
+                    ->orderByRaw("CASE WHEN status = 'new' THEN created_at END ASC")
+                    ->orderByRaw("CASE WHEN status = 'new' THEN NULL ELSE created_at END DESC");
+            })
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()

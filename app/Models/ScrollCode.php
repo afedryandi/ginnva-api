@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class ScrollCode extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'code',
         'film_product_id',
@@ -127,5 +131,61 @@ class ScrollCode extends Model
 
             $this->setRawAttributes($scrollCode->getAttributes());
         });
+    }
+
+    /**
+     * Batalkan/koreksi 1 baris "Catat Pemakaian" yang salah input di
+     * lapangan (mis. staff terburu-buru salah ketik meter) — mengembalikan
+     * meternya ke remaining_length_meters, mengurangi usage_count, lalu
+     * menghapus baris riwayatnya. HANYA dibuka lewat admin (full-access),
+     * bukan staff biasa — koreksi stok fisik harus lewat 1 pintu yang bisa
+     * dipertanggungjawabkan, dicatat di activity log (lihat LogsActivity di
+     * atas) sebagai perubahan pada ScrollCode ini.
+     *
+     * Status yang sudah 'used' cuma dibuka balik ke 'allocated' kalau baris
+     * yang dibatalkan ini TERBUKTI baris pemakaian TERAKHIR (id tertinggi)
+     * — sama pola dengan MaterialMemoStockService::isLatestUsage(), supaya
+     * tidak salah membuka balik gulungan yang sebenarnya sudah habis oleh
+     * pemakaian lain yang lebih baru.
+     */
+    public function reverseUsage(ScrollCodeUsage $usage): void
+    {
+        if ($usage->scroll_code_id !== $this->id) {
+            throw new \InvalidArgumentException('Baris riwayat ini bukan milik kode gulungan ini.');
+        }
+
+        DB::transaction(function () use ($usage) {
+            $scrollCode = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+
+            $isLatest = ! $scrollCode->usages()->where('id', '>', $usage->id)->exists();
+
+            $restored = round((float) $scrollCode->remaining_length_meters + (float) $usage->meters, 2);
+
+            $scrollCode->update([
+                'remaining_length_meters' => $restored,
+                'usage_count' => max(0, $scrollCode->usage_count - 1),
+                'status' => ($scrollCode->status === 'used' && $isLatest) ? 'allocated' : $scrollCode->status,
+                'used_at' => ($scrollCode->status === 'used' && $isLatest) ? null : $scrollCode->used_at,
+            ]);
+
+            $usage->delete();
+
+            $this->setRawAttributes($scrollCode->getAttributes());
+        });
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['status', 'store_id', 'total_length_meters', 'remaining_length_meters', 'max_usage'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('scroll_code')
+            ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
+                'created' => "Kode gulungan \"{$this->code}\" didaftarkan",
+                'updated' => "Kode gulungan \"{$this->code}\" diubah",
+                'deleted' => "Kode gulungan \"{$this->code}\" dihapus",
+                default => "Kode gulungan \"{$this->code}\" — {$eventName}",
+            });
     }
 }

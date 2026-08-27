@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TechnicianResource\Pages;
 use App\Models\Technician;
+use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -17,7 +18,7 @@ class TechnicianResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
 
-    protected static ?string $navigationGroup = 'Operasional';
+    protected static ?string $navigationGroup = 'Booking';
 
     protected static ?string $navigationLabel = 'Teknisi';
 
@@ -25,7 +26,7 @@ class TechnicianResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Teknisi';
 
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 30;
 
     public static function getEloquentQuery(): Builder
     {
@@ -67,6 +68,16 @@ class TechnicianResource extends Resource
                         ->label('Nama Teknisi')
                         ->required()
                         ->maxLength(255),
+
+                    Forms\Components\Select::make('user_id')
+                        ->label('Akun Installer')
+                        ->helperText('Hubungkan ke akun installer supaya level sertifikasi ini terlihat saat menugaskan installer di Booking. Boleh dikosongkan kalau akun login-nya belum dibuat.')
+                        ->options(fn (Forms\Get $get) => User::where('store_id', $get('store_id'))
+                            ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
+                            ->pluck('name', 'id')
+                        )
+                        ->searchable()
+                        ->preload(),
 
                     Forms\Components\TextInput::make('phone')
                         ->label('No. Telepon / HP')
@@ -115,6 +126,11 @@ class TechnicianResource extends Resource
                     ->label('No. Telepon')
                     ->placeholder('—')
                     ->searchable(),
+
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('Akun Installer')
+                    ->placeholder('Belum terhubung')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')

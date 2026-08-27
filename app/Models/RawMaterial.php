@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Acknowledgeable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,6 +13,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class RawMaterial extends Model
 {
     use LogsActivity;
+    use Acknowledgeable;
 
     protected $fillable = [
         'name',
@@ -33,7 +35,25 @@ class RawMaterial extends Model
         'unit_cost'     => 'decimal:2',
         'received_date' => 'date',
         'expiry_date'   => 'date',
+        'reviewed_at'   => 'datetime',
     ];
+
+    /**
+     * "Mati" = punya stok tapi TIDAK ADA pergerakan (masuk/keluar/opname)
+     * dalam 60 hari terakhir — updated_at dipakai sebagai proksi waktu
+     * pergerakan terakhir karena recordMovement()/adjustStock() SELALU
+     * ikut update() baris material ini (current_stock berubah). Ambang 60
+     * hari dipilih sebagai default wajar untuk bahan baku consumable —
+     * sesuaikan lewat konstanta ini kalau kebutuhan bisnisnya beda.
+     */
+    public const DEAD_STOCK_DAYS = 60;
+
+    public function isDeadStock(): bool
+    {
+        return (float) $this->current_stock > 0
+            && $this->updated_at !== null
+            && $this->updated_at->lt(now()->subDays(self::DEAD_STOCK_DAYS));
+    }
 
     public function creator(): BelongsTo
     {
@@ -60,18 +80,45 @@ class RawMaterial extends Model
     }
 
     /**
+     * Kolom expiry_date di TABEL INI cuma snapshot sekali waktu daftar
+     * bahan (dipakai sebagai default batch PERTAMA di CreateRawMaterial,
+     * lihat catatan di sana) — begitu ada batch ke-2 dst dengan tanggal
+     * kedaluwarsa beda-beda, kolom ini TIDAK pernah ikut sinkron. Status
+     * kedaluwarsa yang sebenarnya harus dihitung dari batch yang MASIH
+     * ADA stoknya (quantity > 0), diambil yang paling awal kedaluwarsa —
+     * itu yang PALING MENDESAK dan yang seharusnya menentukan status
+     * bahan ini secara keseluruhan (badge, filter, dashboard), BUKAN
+     * kolom statis di baris material. SEBELUMNYA isNearExpiry()/
+     * isExpired() baca $this->expiry_date langsung — bisa bilang "aman"
+     * padahal ada batch yang sudah lewat kedaluwarsa (atau sebaliknya).
+     */
+    public function earliestActiveExpiryDate(): ?\Illuminate\Support\Carbon
+    {
+        $date = $this->batches()
+            ->where('quantity', '>', 0)
+            ->whereNotNull('expiry_date')
+            ->min('expiry_date');
+
+        return $date ? \Illuminate\Support\Carbon::parse($date) : null;
+    }
+
+    /**
      * "Mendekati" = kedaluwarsa dalam 30 hari ke depan atau sudah lewat —
      * dipakai buat badge peringatan, bukan pemblokiran (staff tetap bisa
      * pakai/keluarkan barangnya, sistem cuma mengingatkan).
      */
     public function isNearExpiry(): bool
     {
-        return $this->expiry_date !== null && $this->expiry_date->lte(now()->addDays(30));
+        $date = $this->earliestActiveExpiryDate();
+
+        return $date !== null && $date->lte(now()->addDays(30));
     }
 
     public function isExpired(): bool
     {
-        return $this->expiry_date !== null && $this->expiry_date->isPast();
+        $date = $this->earliestActiveExpiryDate();
+
+        return $date !== null && $date->isPast();
     }
 
     /**
@@ -92,13 +139,13 @@ class RawMaterial extends Model
      *
      * @throws \InvalidArgumentException kalau stok keluar melebihi stok yang tersedia.
      */
-    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?string $receivedDate = null, ?string $expiryDate = null): RawMaterialMovement
+    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?string $receivedDate = null, ?string $expiryDate = null, ?float $unitCost = null): RawMaterialMovement
     {
         if ($quantity <= 0) {
             throw new \InvalidArgumentException('Jumlah harus lebih besar dari 0.');
         }
 
-        return DB::transaction(function () use ($type, $quantity, $userId, $note, $receivedDate, $expiryDate) {
+        return DB::transaction(function () use ($type, $quantity, $userId, $note, $receivedDate, $expiryDate, $unitCost) {
             $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
             if ($type === 'out' && $material->current_stock < $quantity) {
@@ -108,10 +155,23 @@ class RawMaterial extends Model
             if ($type === 'in') {
                 $material->batches()->create([
                     'quantity' => $quantity,
+                    // Opsional per batch — supaya valuasi stok bisa dihitung
+                    // dari harga beli batch itu SENDIRI, bukan cuma 1 harga
+                    // rata-rata di raw_materials.unit_cost. Kalau kosong,
+                    // dipakai harga terakhir yang tersimpan di material
+                    // sebagai perkiraan (dan sinkron balik di bawah).
+                    'unit_cost' => $unitCost ?? $material->unit_cost,
                     'received_date' => $receivedDate ?? now()->toDateString(),
                     'expiry_date' => $expiryDate,
                     'created_by' => $userId,
                 ]);
+
+                // "Harga terakhir" di material ikut diperbarui kalau admin
+                // isi harga baru saat Catat Stok — dipakai sebagai default
+                // saran harga untuk batch berikutnya.
+                if ($unitCost !== null && $unitCost !== (float) $material->unit_cost) {
+                    $material->update(['unit_cost' => $unitCost]);
+                }
             } else {
                 static::consumeBatchesFifo($material, $quantity);
             }
@@ -125,6 +185,10 @@ class RawMaterial extends Model
             $movement = $material->movements()->create([
                 'type' => $type,
                 'quantity' => $quantity,
+                // Cuma relevan untuk 'in' — salinan harga batch yang baru
+                // dibuat, supaya riwayat pergerakan bisa tampilkan harga
+                // langsung tanpa perlu buka tab Batch terpisah.
+                'unit_cost' => $type === 'in' ? ($unitCost ?? $material->unit_cost) : null,
                 'note' => $note,
                 'user_id' => $userId,
             ]);

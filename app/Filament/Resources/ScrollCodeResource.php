@@ -47,6 +47,22 @@ class ScrollCodeResource extends Resource
         return false;
     }
 
+    /**
+     * Disembunyikan dari sidebar navigasi — staff sekarang cukup lewat 1
+     * menu "Produk PPF/WF" untuk semua urusan PPF/WF (lihat header actions
+     * baru di InventoryItemResource: Tambah Kode, Export, Rekonsiliasi,
+     * dan link "Kelola Kode Gulungan Lanjutan" untuk alokasi massal/isi
+     * panjang standar/hapus kode). Resource ini TETAP aktif (bukan
+     * dihapus) — route/halaman View masih dipakai sebagai link drill-down
+     * dari kolom "Kode Gulungan" di Produk PPF/WF, dan halaman index-nya
+     * masih bisa diakses langsung lewat tombol "Kelola Kode Gulungan
+     * Lanjutan" untuk tugas yang tidak terikat 1 barang tertentu.
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery()->with('inventoryItem:id,scroll_code_id,code');
@@ -69,7 +85,22 @@ class ScrollCodeResource extends Resource
                     Forms\Components\TextInput::make('filmProduct.name')->label('Produk')->disabled(),
                     Forms\Components\TextInput::make('store.name')->label('Toko')->disabled(),
                     Forms\Components\TextInput::make('status')->label('Status')->disabled(),
-                    Forms\Components\TextInput::make('warranty_code')->label('No. Garansi')->disabled(),
+
+                    // BUKAN field 'warranty_code' mentah — kolom itu cuma
+                    // menyimpan warranty TERAKHIR yang memakai kode ini
+                    // (gampang ketimpa, lihat catatan di kolom tabel),
+                    // padahal 1 kode sekarang bisa dipakai >1 warranty.
+                    // Dihitung ulang dari tabel warranties di sini juga
+                    // supaya form detail TIDAK menampilkan angka yang beda
+                    // dari yang ditampilkan tabel listing untuk baris yang
+                    // sama.
+                    Forms\Components\TextInput::make('warranty_codes_display')
+                        ->label('No. Garansi')
+                        ->disabled()
+                        ->dehydrated(false)
+                        ->formatStateUsing(fn (?ScrollCode $record) => $record
+                            ? ($record->warranties()->pluck('warranty_code')->implode(', ') ?: '—')
+                            : '—'),
                 ]),
         ]);
     }
@@ -336,75 +367,67 @@ class ScrollCodeResource extends Resource
                         new ScrollCodeExport(),
                         'scroll-codes-' . now()->format('Ymd') . '.xlsx'
                     )),
+
+                // Bandingkan remaining_length_meters dengan (total_length_meters
+                // - jumlah seluruh riwayat pemakaian) — mendeteksi drift yang
+                // bisa terjadi kalau admin pernah pakai "Edit Panjang" manual
+                // tanpa ikut menyesuaikan/menghapus baris scroll_code_usages
+                // terkait (satu-satunya jalan koreksi sebelum "Batalkan" ada).
+                Tables\Actions\Action::make('reconcile')
+                    ->label('Cek Rekonsiliasi')
+                    ->icon('heroicon-o-scale')
+                    ->color('gray')
+                    ->visible(fn () => auth()->user()?->isFullAccess())
+                    ->action(function () {
+                        $mismatches = [];
+
+                        ScrollCode::query()
+                            ->whereNotNull('total_length_meters')
+                            ->chunkById(100, function ($codes) use (&$mismatches) {
+                                foreach ($codes as $code) {
+                                    $usedTotal = (float) $code->usages()->sum('meters');
+                                    $expectedRemaining = round((float) $code->total_length_meters - $usedTotal, 2);
+                                    $diff = round((float) $code->remaining_length_meters - $expectedRemaining, 2);
+
+                                    if (abs($diff) > 0.01) {
+                                        $mismatches[] = "{$code->code}: sistem {$code->remaining_length_meters}m, seharusnya {$expectedRemaining}m (selisih {$diff}m)";
+                                    }
+                                }
+                            });
+
+                        if (empty($mismatches)) {
+                            Notification::make()
+                                ->title('Rekonsiliasi bersih')
+                                ->body('Sisa panjang semua kode gulungan cocok dengan Total Panjang dikurangi riwayat pemakaian.')
+                                ->success()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title(count($mismatches) . ' kode gulungan tidak cocok')
+                            ->body(implode("\n", array_slice($mismatches, 0, 15)) . (count($mismatches) > 15 ? "\n… dan " . (count($mismatches) - 15) . ' lainnya.' : ''))
+                            ->danger()
+                            ->persistent()
+                            ->send();
+                    }),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
                     ->label('Riwayat')
                     ->icon('heroicon-o-clock'),
 
-                // Catat berapa meter dipakai dari gulungan ini — cuma
-                // muncul kalau total_length_meters pernah diisi (kalau
-                // tidak, sistem tidak tahu berapa sisa awalnya). Otomatis
-                // 'used' begitu sisa mencapai 0, lihat ScrollCode::recordUsage().
-                Tables\Actions\Action::make('record_usage')
-                    ->label('Catat Pemakaian')
-                    ->icon('heroicon-o-scissors')
-                    ->color('warning')
-                    ->visible(fn (ScrollCode $record) => $record->total_length_meters !== null && $record->status !== 'used')
-                    ->form([
-                        Forms\Components\TextInput::make('meters')
-                            ->label('Meter Dipakai')
-                            ->numeric()
-                            ->required()
-                            ->minValue(0.01)
-                            ->suffix('meter')
-                            ->helperText(fn (ScrollCode $record) => 'Sisa saat ini: ' . number_format((float) $record->remaining_length_meters, 2) . ' meter.'),
-
-                        Forms\Components\Textarea::make('note')
-                            ->label('Catatan (opsional)')
-                            ->placeholder('Mis. dipakai untuk mobil apa, no. polisi, nama customer'),
-                    ])
-                    ->action(function (ScrollCode $record, array $data) {
-                        try {
-                            $record->recordUsage((float) $data['meters'], auth()->id(), $data['note'] ?? null);
-                        } catch (\InvalidArgumentException $e) {
-                            Notification::make()
-                                ->title('Tidak bisa mencatat pemakaian')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        Notification::make()->title('Pemakaian dicatat')->success()->send();
-                    }),
-
-                // Untuk Window Film — gulungan dipakai berkali-kali dan
-                // TIDAK otomatis 'used' kecuali max_usage terisi & tercapai
-                // (lihat WarrantyObserver). Staff/admin yang tahu gulungan
-                // fisiknya sudah habis tandai manual lewat sini.
-                Tables\Actions\Action::make('mark_used')
-                    ->label('Tandai Habis')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->visible(fn (ScrollCode $record) => $record->status === 'allocated')
-                    ->requiresConfirmation()
-                    ->modalDescription('Tandai kode gulungan ini sebagai habis? Kode ini tidak akan muncul lagi di pilihan saat input garansi baru.')
-                    ->action(function (ScrollCode $record) {
-                        // Lock + re-cek status di dalam lock — SEBELUMNYA
-                        // langsung update() tanpa lock, bisa balapan dengan
-                        // WarrantyObserver yang otomatis menandai status
-                        // gulungan yang sama saat garansi baru diproses
-                        // hampir bersamaan.
-                        DB::transaction(function () use ($record) {
-                            $locked = ScrollCode::where('id', $record->id)->lockForUpdate()->first();
-                            if (! $locked || $locked->status !== 'allocated') return;
-
-                            $locked->update(['status' => 'used', 'used_at' => now()]);
-                        });
-                    }),
-
+                // "Catat Pemakaian" dan "Tandai Habis" SENGAJA tidak ada di
+                // sini lagi — dulu di-copy-paste identik dari
+                // InventoryItemResource (risiko lupa sinkron kalau salah
+                // satu diubah). Aksi ini konseptualnya milik sistem
+                // Inventaris (barang fisik yang di-scan staff), bukan
+                // Master Data Kode Gulungan — sekarang HANYA ada di menu
+                // Produk PPF/WF. Kode gulungan yang belum dikaitkan ke
+                // barang harus dikaitkan dulu lewat menu Produk PPF/WF
+                // sebelum pemakaiannya bisa dicatat.
+                //
                 // Satu-satunya jalan mengisi/koreksi Total & Sisa Panjang
                 // untuk kode yang statusnya SUDAH allocated/used sebelum
                 // fitur meter ada — bulk action "Isi Total Panjang

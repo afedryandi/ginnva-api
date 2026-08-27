@@ -27,7 +27,7 @@ class WarrantyResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-shield-check';
 
-    protected static ?string $navigationGroup = 'Operasional';
+    protected static ?string $navigationGroup = 'Booking';
 
     protected static ?int $navigationSort = 50;
 

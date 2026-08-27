@@ -39,13 +39,29 @@ class RawMaterialController extends Controller
 
         $search = trim((string) $request->query('search', ''));
 
+        // Batch aktif (quantity>0) ikut di-eager-load supaya staff bisa
+        // lihat status kedaluwarsa langsung dari daftar pencarian — dulu
+        // index() ini sama sekali tidak mengirim info kedaluwarsa, staff
+        // harus buka detail 1-1 untuk tahu. Dihitung dari koleksi yang
+        // sudah dimuat (bukan panggil RawMaterial::earliestActiveExpiryDate()
+        // per baris), supaya tidak N+1 query untuk 30 baris hasil.
         $materials = RawMaterial::query()
             ->select(['id', 'name', 'code', 'category', 'unit', 'current_stock', 'reorder_point'])
+            ->with(['batches' => fn ($q) => $q->where('quantity', '>', 0)->whereNotNull('expiry_date')])
             ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%"))
             ->orderBy('name')
             ->limit(30)
-            ->get();
+            ->get()
+            ->map(function (RawMaterial $m) {
+                $earliest = $m->batches->min('expiry_date');
+
+                $m->setAttribute('nearest_expiry_date', $earliest);
+                $m->setAttribute('is_expired', $earliest !== null && \Illuminate\Support\Carbon::parse($earliest)->isPast());
+                $m->setAttribute('is_near_expiry', $earliest !== null && \Illuminate\Support\Carbon::parse($earliest)->lte(now()->addDays(30)));
+
+                return $m->makeHidden('batches');
+            });
 
         return response()->json([
             'success' => true,
@@ -80,6 +96,53 @@ class RawMaterialController extends Controller
         return response()->json([
             'success' => true,
             'data' => $material,
+            // Dipakai app buat munculkan tombol "Muat Riwayat Lainnya" —
+            // lihat movements() untuk endpoint paginasinya. SEBELUMNYA
+            // modul ini satu-satunya dari 3 modul quantity-based/movement
+            // (Inventory, Consumables, Materials) yang tidak punya
+            // paginasi riwayat di mobile sama sekali.
+            'movements_has_more' => $material->movements()->count() > $material->movements->count(),
+        ]);
+    }
+
+    /**
+     * GET /api/staff/materials/{id}/movements?offset=20
+     *
+     * "Muat Riwayat Lainnya" — sama pola dengan
+     * InventoryController::movements()/ConsumableItemController::movements().
+     */
+    public function movements(Request $request, int $id)
+    {
+        if (! $this->authorizeAccess($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses ke menu Bahan Baku.',
+            ], 403);
+        }
+
+        $material = RawMaterial::find($id);
+
+        if (! $material) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bahan baku tidak ditemukan.',
+            ], 404);
+        }
+
+        $offset = max(0, (int) $request->query('offset', 0));
+        $limit = 20;
+
+        $movements = $material->movements()
+            ->with('user:id,name')
+            ->latest()
+            ->offset($offset)
+            ->limit($limit)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $movements,
+            'has_more' => $material->movements()->count() > $offset + $movements->count(),
         ]);
     }
 
@@ -107,6 +170,9 @@ class RawMaterialController extends Controller
             // hari ini, tanpa kedaluwarsa) untuk staff yang catat cepat.
             'received_date' => 'nullable|date|before_or_equal:today',
             'expiry_date' => 'nullable|date',
+            // Opsional, cuma relevan untuk type=in — harga beli batch ini
+            // sendiri (untuk valuasi stok), lihat RawMaterial::recordMovement().
+            'unit_cost' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -134,6 +200,7 @@ class RawMaterialController extends Controller
                 $request->note,
                 $request->received_date,
                 $request->expiry_date,
+                $request->filled('unit_cost') ? (float) $request->unit_cost : null,
             );
         } catch (\InvalidArgumentException $e) {
             return response()->json([

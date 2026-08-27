@@ -139,12 +139,70 @@ class InventoryItem extends Model
             $movement = $item->movements()->create([
                 'type' => $type,
                 'note' => $note,
+                // Cuma relevan untuk 'out' ("ke toko mana") — 'in' berarti
+                // balik ke gudang pusat, tidak terikat 1 toko tertentu.
+                'destination_store_id' => $type === 'out' ? $storeId : null,
                 'user_id' => $userId,
             ]);
 
             $this->setRawAttributes($item->getAttributes());
 
             return $movement;
+        });
+    }
+
+    /**
+     * Koreksi resmi kalau staff salah scan/salah pilih tipe (mis. maksud
+     * hati "keluar" ke toko A tapi kepencet "masuk", atau salah scan
+     * barang) — SEBELUMNYA satu-satunya jalan cuma catat movement
+     * kebalikannya secara manual, yang menyisakan riwayat 2 baris (1
+     * salah + 1 pembetulan) tanpa keterangan bahwa salah satunya adalah
+     * kesalahan. Ini membatalkan movement TERAKHIR (dan HANYA kalau itu
+     * benar-benar yang terbaru — sama pola dengan ScrollCode::reverseUsage())
+     * lalu mengembalikan status barang ke sebelumnya, TERBATAS full-access
+     * karena mengubah riwayat yang idealnya permanen.
+     *
+     * @throws \InvalidArgumentException kalau movement ini bukan yang
+     *         terbaru, atau movement-nya berhubungan dengan sinkronisasi
+     *         status ScrollCode yang sudah berubah lagi sejak itu.
+     */
+    public function reverseLastMovement(InventoryMovement $movement, ?int $userId): void
+    {
+        if ($movement->inventory_item_id !== $this->id) {
+            throw new \InvalidArgumentException('Baris riwayat ini bukan milik barang ini.');
+        }
+
+        DB::transaction(function () use ($movement, $userId) {
+            $item = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+
+            $isLatest = ! $item->movements()->where('id', '>', $movement->id)->exists();
+            if (! $isLatest) {
+                throw new \InvalidArgumentException('Cuma bisa membatalkan riwayat paling terakhir — sudah ada kejadian lain setelah ini.');
+            }
+
+            // Kembalikan status ke KEBALIKAN dari movement yang dibatalkan
+            // ('in' yang dibatalkan berarti balik ke 'out', dst).
+            $item->update(['status' => $movement->type === 'in' ? 'out' : 'in_stock']);
+
+            if ($item->scroll_code_id) {
+                $scrollCode = ScrollCode::where('id', $item->scroll_code_id)->lockForUpdate()->first();
+
+                if ($scrollCode?->status === 'allocated' && $movement->type === 'out') {
+                    $scrollCode->update(['status' => 'unallocated', 'allocated_at' => null, 'store_id' => null]);
+                } elseif ($scrollCode?->status === 'unallocated' && $movement->type === 'in') {
+                    $scrollCode->update(['status' => 'allocated', 'allocated_at' => now(), 'store_id' => $movement->destination_store_id]);
+                }
+            }
+
+            $movement->delete();
+
+            $item->movements()->create([
+                'type' => 'correction',
+                'note' => 'Koreksi: membatalkan pencatatan "' . ($movement->type === 'in' ? 'Masuk' : 'Keluar') . '" yang salah.',
+                'user_id' => $userId,
+            ]);
+
+            $this->setRawAttributes($item->getAttributes());
         });
     }
 

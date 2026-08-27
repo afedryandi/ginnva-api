@@ -33,16 +33,22 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Red,
             ])
-            // Urutan grup di sidebar — mengikuti alur kerja harian staff
-            // (Penjualan & Operasional dulu, baru konten/master data/sistem
-            // yang lebih jarang disentuh). Tanpa ini Filament menampilkan
-            // grup dalam urutan alfabetis/pendaftaran yang tidak konsisten.
+            // Dirombak jadi per-SISTEM/divisi bisnis (bukan per-fitur lepas
+            // seperti sebelumnya: Penjualan/Konten/Partnership Referral yang
+            // isinya tumpang tindih) — Booking dulu (siklus hidup lead sampai
+            // instalasi selesai), baru Marketing/Konten, Karyawan (dulu
+            // bernama 'Operasional' — DIGANTI karena begitu Absensi/Izin/
+            // Penggajian/Surat Peringatan/Perpanjang Kontrak dibangun,
+            // ISINYA 100% soal karyawan, jadi nama lama sudah tidak akurat),
+            // Inventaris, lalu Master Data & Sistem (data acuan lintas-modul
+            // & hal teknis, sengaja tetap terpisah — tidak cocok dipaksa
+            // masuk ke salah satu sistem bisnis). Keuangan/Financial BELUM
+            // ada modul sama sekali, jadi belum didaftarkan di sini.
             ->navigationGroups([
-                'Penjualan',
-                'Operasional',
+                'Booking',
+                'Marketing/Konten',
+                'Karyawan',
                 'Inventaris',
-                'Partnership Referral',
-                'Konten',
                 'Master Data',
                 'Sistem',
             ])
@@ -55,6 +61,11 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 Widgets\AccountWidget::class,
             ])
+            // Bell icon notifikasi di panel — dipakai alert kedaluwarsa
+            // bahan baku (lihat App\Console\Commands\NotifyExpiringMaterials)
+            // supaya admin tidak perlu buka Dashboard Inventaris manual
+            // tiap hari untuk tahu ada yang perlu ditinjau.
+            ->databaseNotifications()
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

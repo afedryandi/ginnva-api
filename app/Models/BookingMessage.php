@@ -81,6 +81,21 @@ class BookingMessage extends Model
     }
 
     /**
+     * Total foto yang sudah tersimpan untuk SATU booking (lintas semua
+     * pesan) — dipakai untuk batas kumulatif per booking di
+     * Staff/Customer\BookingMessageController::store(), supaya tidak ada
+     * batas per-pesan (max 10 foto) tapi tidak terbatas per-booking kalau
+     * dikirim berulang-ulang. Lihat audit modul Booking 2026-08-27.
+     */
+    public static function photoCountForBooking(int $bookingId): int
+    {
+        return BookingMessagePhoto::whereHas(
+            'bookingMessage',
+            fn ($q) => $q->where('booking_id', $bookingId)
+        )->count();
+    }
+
+    /**
      * Gabungan foto dari tabel booking_message_photos (baru, boleh lebih
      * dari 1) — fallback ke kolom photo_path lama untuk pesan yang
      * terkirim SEBELUM tabel ini ada, supaya histori chat lama tidak

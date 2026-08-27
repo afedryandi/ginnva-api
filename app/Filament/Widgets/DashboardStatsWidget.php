@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\AttendanceResource;
 use App\Filament\Resources\BookingResource;
 use App\Filament\Resources\FilmProductResource;
 use App\Filament\Resources\PartnershipInquiryResource;
@@ -10,6 +11,7 @@ use App\Filament\Resources\QuotationResource;
 use App\Filament\Resources\StoreResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\WarrantyResource;
+use App\Models\Attendance;
 use App\Models\Booking;
 use App\Models\FilmProduct;
 use App\Models\PartnershipInquiry;
@@ -43,58 +45,90 @@ class DashboardStatsWidget extends BaseWidget
         // mati, tapi jadi pintu masuk cepat ke pekerjaan yang perlu
         // ditindaklanjuti (klik "Menunggu Review QA" -> langsung ke daftar
         // garansi yang perlu di-review, dst).
-        $stats = [
-            Stat::make('Garansi Aktif', $this->countActiveWarranties($user, $isSuperAdmin))
+        //
+        // Setiap kartu SEKARANG dibatasi hasMenuAccess() ke resource
+        // terkait — SEBELUMNYA widget ini satu-satunya tempat di seluruh
+        // sistem yang menampilkan angka & link ke SEMUA modul tanpa peduli
+        // menu_access staff, beda dari pola yang konsisten dipakai di
+        // tempat lain (InventoryDashboard, hasBookingAccess(), dst). Staff
+        // yang menu_access-nya tidak mencakup Garansi (mis.) dulu tetap
+        // lihat "Garansi Aktif"/"Menunggu Review QA" dan link yang
+        // kemungkinan 403 kalau diklik.
+        $stats = [];
+
+        if ($user?->hasMenuAccess(WarrantyResource::class) ?? false) {
+            $stats[] = Stat::make('Garansi Aktif', $this->countActiveWarranties($user, $isSuperAdmin))
                 ->description('QA Certificate approved & belum kedaluwarsa')
                 ->descriptionIcon('heroicon-m-shield-check')
                 ->color('success')
                 ->chart($this->dailyTrend(Warranty::class, 'created_at', $user, $isSuperAdmin))
-                ->url(WarrantyResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'active']]])),
+                ->url(WarrantyResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'active']]]));
 
-            Stat::make('Menunggu Review QA', $this->countPendingReview($user, $isSuperAdmin))
+            $stats[] = Stat::make('Menunggu Review QA', $this->countPendingReview($user, $isSuperAdmin))
                 ->description('QA Certificate belum di-approve/reject')
                 ->descriptionIcon('heroicon-m-clock')
                 ->color('warning')
-                ->url(WarrantyResource::getUrl('index', ['tableFilters' => ['review_status' => ['value' => 'pending_review']]])),
+                ->url(WarrantyResource::getUrl('index', ['tableFilters' => ['review_status' => ['value' => 'pending_review']]]));
 
-            Stat::make('Quotation Baru (7 Hari)', $this->countRecentQuotations($user, $isSuperAdmin))
+            $stats[] = Stat::make('Garansi Hampir Kedaluwarsa', $this->countExpiringWarranties($user, $isSuperAdmin))
+                ->description('Garansi berakhir dalam 30 hari ke depan')
+                ->descriptionIcon('heroicon-m-exclamation-triangle')
+                ->color('danger')
+                ->url(WarrantyResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'active']]]));
+        }
+
+        if ($user?->hasMenuAccess(QuotationResource::class) ?? false) {
+            $stats[] = Stat::make('Quotation Baru (7 Hari)', $this->countRecentQuotations($user, $isSuperAdmin))
                 ->description('Permintaan quotation masuk minggu ini')
                 ->descriptionIcon('heroicon-m-document-text')
                 ->color('warning')
                 ->chart($this->dailyTrend(Quotation::class, 'created_at', $user, $isSuperAdmin))
-                ->url(QuotationResource::getUrl('index')),
+                ->url(QuotationResource::getUrl('index'));
+        }
 
-            Stat::make('Inquiry Produk Baru', ProductInquiry::where('status', 'new')->count())
+        if ($user?->hasMenuAccess(ProductInquiryResource::class) ?? false) {
+            $stats[] = Stat::make('Inquiry Produk Baru', ProductInquiry::where('status', 'new')->count())
                 ->description('Pertanyaan ketersediaan produk belum di-follow up')
                 ->descriptionIcon('heroicon-m-question-mark-circle')
                 ->color('info')
-                ->url(ProductInquiryResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'new']]])),
+                ->url(ProductInquiryResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'new']]]));
+        }
 
-            Stat::make('Kemitraan Baru', PartnershipInquiry::where('status', 'new')->count())
+        if ($user?->hasMenuAccess(PartnershipInquiryResource::class) ?? false) {
+            $stats[] = Stat::make('Kemitraan Baru', PartnershipInquiry::where('status', 'new')->count())
                 ->description('Pengajuan dealer/distributor belum ditindaklanjuti')
                 ->descriptionIcon('heroicon-m-briefcase')
                 ->color('warning')
-                ->url(PartnershipInquiryResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'new']]])),
+                ->url(PartnershipInquiryResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'new']]]));
+        }
 
-            Stat::make('Garansi Hampir Kedaluwarsa', $this->countExpiringWarranties($user, $isSuperAdmin))
-                ->description('Garansi berakhir dalam 30 hari ke depan')
-                ->descriptionIcon('heroicon-m-exclamation-triangle')
-                ->color('danger')
-                ->url(WarrantyResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'active']]])),
-
-            Stat::make('Booking Hari Ini', $this->countTodayBookings($user, $isSuperAdmin))
+        if ($user?->hasMenuAccess(BookingResource::class) ?? false) {
+            $stats[] = Stat::make('Booking Hari Ini', $this->countTodayBookings($user, $isSuperAdmin))
                 ->description('Jadwal servis/pemasangan yang masuk hari ini')
                 ->descriptionIcon('heroicon-m-calendar-days')
                 ->color('info')
                 ->chart($this->dailyTrend(Booking::class, 'created_at', $user, $isSuperAdmin))
-                ->url(BookingResource::getUrl('index')),
+                ->url(BookingResource::getUrl('index'));
+        }
 
-            Stat::make('Toko Aktif', Store::where('is_active', true)->count())
+        if ($user?->hasMenuAccess(AttendanceResource::class) ?? false) {
+            [$presentToday, $totalEmployees] = $this->todayAttendanceRatio($user, $isSuperAdmin);
+            $stats[] = Stat::make('Absensi Hari Ini', "{$presentToday} / {$totalEmployees}")
+                ->description($totalEmployees > 0 && $presentToday < $totalEmployees
+                    ? ($totalEmployees - $presentToday) . ' karyawan belum absen'
+                    : 'Semua karyawan sudah absen')
+                ->descriptionIcon('heroicon-m-finger-print')
+                ->color($totalEmployees > 0 && $presentToday < $totalEmployees ? 'warning' : 'success')
+                ->url(AttendanceResource::getUrl('index', ['tableFilters' => ['entry_type' => ['value' => 'clock']]]));
+        }
+
+        if ($user?->hasMenuAccess(StoreResource::class) ?? false) {
+            $stats[] = Stat::make('Toko Aktif', Store::where('is_active', true)->count())
                 ->description('Total toko/dealer yang tampil di web publik')
                 ->descriptionIcon('heroicon-m-building-storefront')
                 ->color('gray')
-                ->url(StoreResource::getUrl('index', ['tableFilters' => ['is_active' => ['value' => '1']]])),
-        ];
+                ->url(StoreResource::getUrl('index', ['tableFilters' => ['is_active' => ['value' => '1']]]));
+        }
 
         // Stat tambahan khusus super_admin (gambaran nasional, tidak
         // relevan untuk admin toko karena tidak ber-scope ke 1 toko).
@@ -210,10 +244,43 @@ class DashboardStatsWidget extends BaseWidget
         return $query->count();
     }
 
+    /**
+     * [hadir_atau_tercatat_hari_ini, total_karyawan] — "tercatat" mencakup
+     * clock/manual/field_duty (Alpha/Izin BELUM ada untuk hari yang masih
+     * berjalan, itu baru dibuat MarkAbsences untuk hari yang sudah lewat).
+     * Partner dikecualikan dari total, sama pola dengan seleksi karyawan
+     * di form AttendanceResource/PurchaseRequestResource dst.
+     */
+    protected function todayAttendanceRatio($user, bool $isSuperAdmin): array
+    {
+        $employeeQuery = User::whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'));
+        if (! $isSuperAdmin) {
+            $employeeQuery->where('store_id', $user->store_id);
+        }
+        $total = $employeeQuery->count();
+
+        $presentQuery = Attendance::where('date', now()->toDateString())
+            ->whereIn('entry_type', ['clock', 'manual', 'field_duty']);
+        if (! $isSuperAdmin) {
+            $presentQuery->where('store_id', $user->store_id);
+        }
+        $present = $presentQuery->count();
+
+        return [$present, $total];
+    }
+
     protected function countTodayBookings($user, bool $isSuperAdmin): int
     {
+        // SEBELUMNYA tidak difilter status — booking yang dibatalkan atau
+        // masih menunggu konfirmasi ikut terhitung sebagai "jadwal hari
+        // ini", padahal deskripsi kartu ini bilang "jadwal servis/
+        // pemasangan yang masuk hari ini" (menyiratkan pekerjaan yang
+        // benar-benar akan terjadi). Disamakan dengan pola yang sudah
+        // dipakai Booking::hasScheduleConflict() — cuma 'confirmed' yang
+        // dianggap slot yang benar-benar terisi.
         $query = Booking::query()
-            ->whereDate('preferred_date', now()->toDateString());
+            ->whereDate('preferred_date', now()->toDateString())
+            ->where('status', 'confirmed');
 
         if (! $isSuperAdmin) {
             $query->where(function ($q) use ($user) {

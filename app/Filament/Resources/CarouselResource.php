@@ -16,7 +16,7 @@ class CarouselResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-photo';
 
-    protected static ?string $navigationGroup = 'Konten';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
     protected static ?string $navigationLabel = 'Banner / Carousel';
 

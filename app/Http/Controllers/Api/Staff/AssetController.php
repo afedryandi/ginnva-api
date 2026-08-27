@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Store;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class AssetController extends Controller
@@ -24,23 +25,16 @@ class AssetController extends Controller
     }
 
     /**
-     * Sama dengan scope AssetResource::getEloquentQuery() di Filament —
-     * non-full-access cuma boleh lihat/ubah aset milik tokonya sendiri.
-     * Dicek TERPISAH dari authorizeScan() (yang cuma cek akses menu)
-     * supaya staff toko A tidak bisa scan/ubah aset toko B walau
-     * sama-sama punya akses menu Aset.
-     */
-    private function belongsToUserScope($user, Asset $asset): bool
-    {
-        return $user->isFullAccess() || $asset->store_id === $user->store_id;
-    }
-
-    /**
-     * GET /api/staff/assets?search=...
+     * GET /api/staff/assets?search=...&assigned_to_me=1
      *
      * Alternatif untuk staff yang belum bisa scan QR langsung di tempat
      * — cari lewat nama/kode aset. Non-full-access cuma lihat aset
-     * tokonya sendiri, sama seperti scope di AssetResource::getEloquentQuery().
+     * tokonya sendiri (Asset::scopeVisibleTo() — satu sumber kebenaran
+     * yang sama dipakai AssetResource::getEloquentQuery()).
+     *
+     * assigned_to_me=1 — dulu tidak ada cara sama sekali bagi staff untuk
+     * lihat "aset apa saja yang jadi tanggung jawab saya" dari app, cuma
+     * bisa scan QR atau cari nama satu-satu.
      */
     public function index(Request $request)
     {
@@ -55,7 +49,8 @@ class AssetController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $assets = Asset::query()
-            ->when(! $user->isFullAccess(), fn ($q) => $q->where('store_id', $user->store_id))
+            ->visibleTo($user)
+            ->when($request->boolean('assigned_to_me'), fn ($q) => $q->where('assigned_to', $user->id))
             ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
                 ->orWhere('asset_tag', 'like', "%{$search}%"))
             ->orderBy('name')
@@ -84,10 +79,20 @@ class AssetController extends Controller
         }
 
         $asset = Asset::where('asset_tag', $code)
-            ->with(['assignee:id,name', 'store:id,name'])
+            ->with([
+                'assignee:id,name',
+                'store:id,name',
+                // Riwayat perubahan (status/toko/catatan) — SEBELUMNYA
+                // modul Aset Tetap satu-satunya layar detail "unit" yang
+                // tidak menampilkan riwayat apapun ke staff, padahal semua
+                // modul lain yang punya aksi ubah state (movement/opname)
+                // menampilkan log riwayatnya. Asset sudah pakai LogsActivity
+                // (lihat Asset::getActivitylogOptions()), tinggal disertakan.
+                'activities' => fn ($q) => $q->with('causer:id,name')->latest()->limit(20),
+            ])
             ->first();
 
-        if (! $asset || ! $this->belongsToUserScope($request->user('api'), $asset)) {
+        if (! $asset || ! Asset::isVisibleTo($request->user('api'), $asset)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Aset dengan kode ini tidak ditemukan.',
@@ -136,36 +141,49 @@ class AssetController extends Controller
         $asset = Asset::where('asset_tag', $code)->first();
         $user = $request->user('api');
 
-        if (! $asset || ! $this->belongsToUserScope($user, $asset)) {
+        if (! $asset || ! Asset::isVisibleTo($user, $asset)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Aset dengan kode ini tidak ditemukan.',
             ], 404);
         }
 
-        // Pindah toko (store_id) SENGAJA dibatasi full-access saja —
-        // sama seperti field "Lokasi (Toko)" yang dikunci di form
-        // Filament untuk non-full-access, supaya staff toko tidak bisa
-        // "melepas" aset dari scope tokonya sendiri lewat mobile.
-        $storeId = $asset->store_id;
-        if ($user->isFullAccess() && $request->filled('store_id')) {
-            $storeId = $request->store_id;
-        }
+        // Lock + re-cek scope di dalam transaction — SEBELUMNYA
+        // update() langsung tanpa lock, jadi 2 staff yang scan aset yang
+        // sama nyaris bersamaan (mis. 1 tandai "rusak", 1 lagi
+        // "diperbaiki") bisa saling menimpa status/toko/catatan satu
+        // sama lain tanpa terdeteksi (last-write-wins diam-diam).
+        DB::transaction(function () use ($asset, $user, $request) {
+            $locked = Asset::where('id', $asset->id)->lockForUpdate()->firstOrFail();
 
-        $asset->update([
-            'status' => $request->status,
-            'store_id' => $storeId,
-            // has(), BUKAN filled() — filled() juga false kalau staff
-            // sengaja kirim string kosong untuk MENGOSONGKAN catatan,
-            // jadi catatan lama tidak akan pernah bisa dihapus dari app,
-            // cuma bisa ditambah/diganti (kosongkan cuma bisa dari Filament).
-            'notes' => $request->has('notes') ? $request->notes : $asset->notes,
-        ]);
+            // Pindah toko (store_id) SENGAJA dibatasi full-access saja —
+            // sama seperti field "Lokasi (Toko)" yang dikunci di form
+            // Filament untuk non-full-access, supaya staff toko tidak bisa
+            // "melepas" aset dari scope tokonya sendiri lewat mobile.
+            $storeId = $locked->store_id;
+            if ($user->isFullAccess() && $request->filled('store_id')) {
+                $storeId = $request->store_id;
+            }
+
+            $locked->update([
+                'status' => $request->status,
+                'store_id' => $storeId,
+                // has(), BUKAN filled() — filled() juga false kalau staff
+                // sengaja kirim string kosong untuk MENGOSONGKAN catatan,
+                // jadi catatan lama tidak akan pernah bisa dihapus dari app,
+                // cuma bisa ditambah/diganti (kosongkan cuma bisa dari Filament).
+                'notes' => $request->has('notes') ? $request->notes : $locked->notes,
+            ]);
+        });
 
         return response()->json([
             'success' => true,
             'message' => 'Aset berhasil diperbarui.',
-            'data' => $asset->fresh(['assignee:id,name', 'store:id,name']),
+            'data' => $asset->fresh()->load([
+                'assignee:id,name',
+                'store:id,name',
+                'activities' => fn ($q) => $q->with('causer:id,name')->latest()->limit(20),
+            ]),
         ]);
     }
 }

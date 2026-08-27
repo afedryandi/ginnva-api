@@ -40,6 +40,7 @@ class CreateRawMaterial extends CreateRecord
             'Stok awal saat pendaftaran.',
             $this->record->received_date?->toDateString(),
             $this->record->expiry_date?->toDateString(),
+            $this->record->unit_cost !== null ? (float) $this->record->unit_cost : null,
         );
     }
 }

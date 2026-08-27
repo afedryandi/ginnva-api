@@ -51,13 +51,24 @@ class ScrollCodeExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
     {
         return [
             'Kode', 'Produk Film', 'Tipe', 'Posisi', 'Toko', 'Status',
-            'No. Garansi', 'Dialokasi Pada', 'Dipakai Pada', 'Dibuat Pada',
+            'No. Garansi', 'Total Panjang (m)', 'Sisa Panjang (m)', 'Terpakai (m)', 'Yield (%)',
+            'Dialokasi Pada', 'Dipakai Pada', 'Dibuat Pada',
         ];
     }
 
     public function map($row): array
     {
         $fp = $row->filmProduct;
+
+        // Yield sederhana: berapa persen panjang gulungan yang sudah
+        // benar-benar terpakai (bukan sisa/waste) — cuma dihitung untuk
+        // kode yang punya data Total Panjang, kode lama tanpa data ini
+        // tetap diekspor tapi kolom yield-nya kosong (bukan 0%, supaya
+        // tidak disalahartikan sebagai "belum terpakai sama sekali").
+        $total = $row->total_length_meters !== null ? (float) $row->total_length_meters : null;
+        $remaining = $row->remaining_length_meters !== null ? (float) $row->remaining_length_meters : null;
+        $used = $total !== null && $remaining !== null ? round($total - $remaining, 2) : null;
+        $yieldPercent = ($total !== null && $total > 0 && $used !== null) ? round(($used / $total) * 100, 1) : null;
 
         return [
             $row->code,
@@ -74,6 +85,10 @@ class ScrollCodeExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
                 default       => $row->status,
             },
             implode(', ', $this->warrantyCodesByRollNumber[$row->code] ?? []) ?: '—',
+            $total ?? '—',
+            $remaining ?? '—',
+            $used ?? '—',
+            $yieldPercent !== null ? $yieldPercent . '%' : '—',
             $row->allocated_at?->format('d/m/Y H:i') ?? '—',
             $row->used_at?->format('d/m/Y H:i') ?? '—',
             $row->created_at?->format('d/m/Y H:i'),

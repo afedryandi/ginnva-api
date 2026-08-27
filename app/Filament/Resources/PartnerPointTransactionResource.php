@@ -27,9 +27,9 @@ class PartnerPointTransactionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-star';
 
-    protected static ?string $navigationGroup = 'Partnership Referral';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
-    protected static ?int $navigationSort = 25;
+    protected static ?int $navigationSort = 75;
 
     protected static ?string $navigationLabel = 'Riwayat Poin Partner';
 

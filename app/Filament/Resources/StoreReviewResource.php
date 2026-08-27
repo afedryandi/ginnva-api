@@ -19,7 +19,7 @@ class StoreReviewResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-chat-bubble-left-right';
 
-    protected static ?string $navigationGroup = 'Operasional';
+    protected static ?string $navigationGroup = 'Booking';
 
     protected static ?int $navigationSort = 55;
 

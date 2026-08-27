@@ -19,7 +19,7 @@ class UserResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
-    protected static ?string $navigationGroup = 'Master Data';
+    protected static ?string $navigationGroup = 'Karyawan';
 
     protected static ?string $navigationLabel = 'User';
 
@@ -27,7 +27,7 @@ class UserResource extends Resource
 
     protected static ?string $pluralModelLabel = 'User';
 
-    protected static ?int $navigationSort = 60;
+    protected static ?int $navigationSort = 10;
 
     /**
      * Resource ini HANYA boleh diakses super_admin. Tidak pakai Policy
@@ -69,14 +69,18 @@ class UserResource extends Resource
      */
     private static function menuAccessOptions(): array
     {
+        // Grup di sini DIRAPIKAN supaya sama persis dengan $navigationGroup
+        // resource masing-masing (lihat AdminPanelProvider::navigationGroups())
+        // — SEBELUMNYA masih pakai nama grup lama (Penjualan, Konten,
+        // Partnership Referral) yang sudah tidak dipakai lagi di sidebar,
+        // jadi form "Akses Menu" ini menampilkan section yang tidak nyambung
+        // dengan struktur menu yang benar-benar staff lihat. Key 'Karyawan'
+        // di sini SENGAJA cuma isi Absensi/Izin/Surat Peringatan/Perpanjang
+        // Kontrak (User & Role resource di grup navigasi yang sama TETAP
+        // super_admin-only lewat canViewAny() masing-masing, tidak pernah
+        // muncul di sini apapun menu_access-nya).
         return [
-            'Penjualan' => [
-                'CustomerResource' => 'Akun Customer',
-                'PartnershipInquiryResource' => 'Pengajuan Kemitraan',
-                'ProductInquiryResource' => 'Inquiry Produk',
-                'PointTransactionResource' => 'Riwayat Poin Customer',
-            ],
-            'Operasional' => [
+            'Booking' => [
                 'QuotationResource' => 'Quotation (Lead)',
                 'BookingResource' => 'Booking Instalasi',
                 'BlockedDateResource' => 'Tanggal Tidak Tersedia',
@@ -94,8 +98,22 @@ class UserResource extends Resource
                 'ConsumableItemResource' => 'Barang Habis Pakai',
                 'ConsumableItemMovementResource' => 'Riwayat Barang Habis Pakai',
                 'MaterialMemoResource' => 'Memo Pengambilan/Pengembalian',
+                'PurchaseRequestResource' => 'Permohonan Pembelian',
             ],
-            'Konten' => [
+            'Karyawan' => [
+                'AttendanceResource' => 'Absensi Karyawan',
+                'LeaveRequestResource' => 'Izin & Cuti',
+                'WarningLetterResource' => 'Surat Peringatan',
+                'ContractExtensionResource' => 'Perpanjang Kontrak',
+                // PayrollResource SENGAJA tidak dimasukkan di sini — lihat
+                // komentar di PayrollResource::canViewAny(), selalu
+                // isFullAccess-only, tidak pernah lewat menu_access.
+            ],
+            'Marketing/Konten' => [
+                'CustomerResource' => 'Akun Customer',
+                'PointTransactionResource' => 'Riwayat Poin Customer',
+                'PartnershipInquiryResource' => 'Pengajuan Kemitraan',
+                'ProductInquiryResource' => 'Inquiry Produk',
                 'CaseStudyResource' => 'Galeri Pemasangan',
                 'CustomerGalleryPhotoResource' => 'Galeri Customer',
                 'NewsResource' => 'News / Berita',
@@ -104,6 +122,11 @@ class UserResource extends Resource
                 'JobOpeningResource' => 'Lowongan Kerja',
                 'MaterialResource' => 'Materi Download',
                 'MaterialCategoryResource' => 'Kategori Materi',
+                'PartnerResource' => 'Partner',
+                'VoucherResource' => 'Voucher Promo',
+                'RewardResource' => 'Katalog Reward',
+                'RewardRedemptionResource' => 'Klaim Reward',
+                'PartnerPointTransactionResource' => 'Riwayat Poin Partner',
             ],
             'Master Data' => [
                 'FilmProductResource' => 'Produk Film',
@@ -115,13 +138,6 @@ class UserResource extends Resource
             'Sistem' => [
                 'CustomerNotificationResource' => 'Riwayat Notifikasi',
                 'SendNotification' => 'Kirim Notifikasi',
-            ],
-            'Partnership Referral' => [
-                'PartnerResource' => 'Partner',
-                'VoucherResource' => 'Voucher Promo',
-                'RewardResource' => 'Katalog Reward',
-                'RewardRedemptionResource' => 'Klaim Reward',
-                'PartnerPointTransactionResource' => 'Riwayat Poin Partner',
             ],
         ];
     }
@@ -207,6 +223,26 @@ class UserResource extends Resource
                         ->required()
                         ->unique(ignoreRecord: true)
                         ->maxLength(255),
+
+                    Forms\Components\TextInput::make('phone')
+                        ->label('No. HP')
+                        ->tel()
+                        ->maxLength(255),
+
+                    Forms\Components\DatePicker::make('join_date')
+                        ->label('Tanggal Mulai Kerja')
+                        ->maxDate(today()),
+
+                    Forms\Components\TextInput::make('base_salary')
+                        ->label('Gaji Pokok')
+                        ->helperText('Dipakai sebagai dasar hitung Penggajian bulanan.')
+                        ->numeric()
+                        ->prefix('Rp')
+                        ->minValue(0),
+
+                    Forms\Components\DatePicker::make('contract_end_date')
+                        ->label('Tanggal Berakhir Kontrak')
+                        ->helperText('Isi di sini untuk kontrak PERTAMA kali. Perpanjangan berikutnya dicatat lewat menu "Perpanjang Kontrak" supaya riwayatnya tersimpan, bukan diedit langsung di sini.'),
 
                     Forms\Components\Select::make('roles')
                         ->label('Role')

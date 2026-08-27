@@ -17,7 +17,7 @@ class NewsResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-newspaper';
 
-    protected static ?string $navigationGroup = 'Konten';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
     protected static ?int $navigationSort = 20;
 

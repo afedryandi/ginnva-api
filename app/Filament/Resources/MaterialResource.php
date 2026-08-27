@@ -18,7 +18,7 @@ class MaterialResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-folder-arrow-down';
 
-    protected static ?string $navigationGroup = 'Konten';
+    protected static ?string $navigationGroup = 'Marketing/Konten';
 
     protected static ?string $navigationLabel = 'Materi Download';
 

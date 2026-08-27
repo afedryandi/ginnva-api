@@ -80,9 +80,19 @@ class MaterialMemoStockService
     }
 
     /**
+     * @param  float|null  $unitCost  Opsional — harga per satuan yang
+     *         BENAR untuk barang yang dikembalikan ini. Kalau tidak
+     *         diisi, RawMaterial::recordMovement()/ConsumableItem::recordMovement()
+     *         otomatis pakai "harga terakhir tersimpan" sebagai perkiraan
+     *         (lihat catatan di kedua method itu) — TIDAK ada cara sistem
+     *         tahu harga batch asli yang dulu dikonsumsi saat pengambilan
+     *         (movement 'out' tidak pernah menyimpan unit_cost), jadi
+     *         parameter ini murni supaya admin yang KEBETULAN tahu harga
+     *         sebenarnya bisa isi manual, bukan solusi otomatis.
+     *
      * @throws \InvalidArgumentException
      */
-    public static function returnMaterial(MaterialMemoItem $memoItem, float $qtyReturned, int $userId, MaterialMemo $memo): void
+    public static function returnMaterial(MaterialMemoItem $memoItem, float $qtyReturned, int $userId, MaterialMemo $memo, ?float $unitCost = null): void
     {
         if (! in_array($memoItem->item_type, ['raw_material', 'consumable_item'], true)) {
             throw new \InvalidArgumentException('Jenis barang ini tidak punya alur pengembalian.');
@@ -102,7 +112,7 @@ class MaterialMemoStockService
             throw new \InvalidArgumentException('Barang aslinya sudah tidak ada di sistem.');
         }
 
-        DB::transaction(function () use ($material, $memoItem, $qtyReturned, $userId, $memo) {
+        DB::transaction(function () use ($material, $memoItem, $qtyReturned, $userId, $memo, $unitCost) {
             // Lock baris memo item supaya 2 aksi "kembalikan" yang nyaris
             // bersamaan pada baris yang sama tidak bisa dobel-dobel lolos
             // dari pengecekan qty_returned !== null di atas.
@@ -113,7 +123,12 @@ class MaterialMemoStockService
             }
 
             if ($qtyReturned > 0) {
-                $material->recordMovement('in', $qtyReturned, $userId, self::buildNote($memo, 'pengembalian'));
+                // Named argument SENGAJA dipakai — RawMaterial::recordMovement()
+                // dan ConsumableItem::recordMovement() punya $unitCost di
+                // POSISI BERBEDA (ke-7 vs ke-5), lewat posisi biasa bisa
+                // salah masuk ke parameter lain (mis. jadi $receivedDate
+                // di RawMaterial) karena $material union type keduanya.
+                $material->recordMovement('in', $qtyReturned, $userId, self::buildNote($memo, 'pengembalian'), unitCost: $unitCost);
             }
 
             $locked->update([
@@ -126,7 +141,7 @@ class MaterialMemoStockService
     /**
      * @throws \InvalidArgumentException
      */
-    public static function updateMaterialQty(MaterialMemoItem $memoItem, float $newQty, int $userId, MaterialMemo $memo): void
+    public static function updateMaterialQty(MaterialMemoItem $memoItem, float $newQty, int $userId, MaterialMemo $memo, ?float $unitCost = null): void
     {
         if ($newQty <= 0) {
             throw new \InvalidArgumentException('Jumlah harus lebih besar dari 0.');
@@ -138,7 +153,7 @@ class MaterialMemoStockService
             throw new \InvalidArgumentException('Barang aslinya sudah tidak ada di sistem.');
         }
 
-        DB::transaction(function () use ($material, $memoItem, $newQty, $userId, $memo) {
+        DB::transaction(function () use ($material, $memoItem, $newQty, $userId, $memo, $unitCost) {
             $locked = MaterialMemoItem::where('id', $memoItem->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->qty_returned !== null) {
@@ -156,7 +171,8 @@ class MaterialMemoStockService
             if ($delta > 0) {
                 $material->recordMovement('out', $delta, $userId, $note);
             } else {
-                $material->recordMovement('in', abs($delta), $userId, $note);
+                // Named argument — lihat catatan di returnMaterial().
+                $material->recordMovement('in', abs($delta), $userId, $note, unitCost: $unitCost);
             }
 
             $locked->update(['qty_taken' => $newQty]);
@@ -264,6 +280,26 @@ class MaterialMemoStockService
             return;
         }
 
+        // Lewat ScrollCode::reverseUsage() — method KANONIK yang juga
+        // mengurangi usage_count (SEBELUMNYA method ini duplikat logika
+        // manual dari sebelum reverseUsage() ada, dan TIDAK PERNAH
+        // menyentuh usage_count sama sekali, jadi tiap baris memo PPF/WF
+        // yang dihapus bikin usage_count ScrollCode makin menyimpang dari
+        // jumlah riwayat pemakaian yang sebenarnya masih ada).
+        if ($memoItem->scroll_code_usage_id) {
+            $usage = ScrollCodeUsage::find($memoItem->scroll_code_usage_id);
+
+            if ($usage) {
+                $scrollCode->reverseUsage($usage);
+
+                return;
+            }
+        }
+
+        // Fallback untuk baris memo LAMA yang dibuat sebelum kolom
+        // scroll_code_usage_id ada (tidak ada baris usage utuh untuk
+        // dikaitkan) — usage_count TIDAK bisa dikoreksi di jalur ini
+        // karena tidak ada baris usage yang menunjukkan kontribusinya.
         DB::transaction(function () use ($scrollCode, $memoItem) {
             $locked = ScrollCode::where('id', $scrollCode->id)->lockForUpdate()->firstOrFail();
             $meters = (float) $memoItem->meters_used;
@@ -271,8 +307,6 @@ class MaterialMemoStockService
                 round((float) $locked->remaining_length_meters + $meters, 2),
                 (float) $locked->total_length_meters
             );
-            // Sama seperti updateInventoryQty(): status 'used' cuma dibuka
-            // lagi kalau baris yang dihapus ini pemakaian PALING TERAKHIR.
             $wasUsedByThis = $locked->status === 'used' && self::isLatestUsage($locked->id, $memoItem->scroll_code_usage_id);
 
             $locked->update([
@@ -280,10 +314,6 @@ class MaterialMemoStockService
                 'status' => $remaining > 0 && $wasUsedByThis ? 'allocated' : $locked->status,
                 'used_at' => $remaining > 0 && $wasUsedByThis ? null : $locked->used_at,
             ]);
-
-            if ($memoItem->scroll_code_usage_id) {
-                ScrollCodeUsage::where('id', $memoItem->scroll_code_usage_id)->delete();
-            }
         });
     }
 

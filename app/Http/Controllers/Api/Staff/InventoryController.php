@@ -28,6 +28,23 @@ class InventoryController extends Controller
     }
 
     /**
+     * Barang (kardus fisik) sendiri company-wide, tapi begitu kode
+     * gulungan terkaitnya SUDAH dialokasi/dipakai oleh 1 toko
+     * (scroll_code.store_id terisi), staff toko LAIN tidak boleh
+     * mencatat pemakaian/menandai habis kode itu lewat scan mobile —
+     * dulu tidak ada pengecekan ini sama sekali (cuma cek akses menu),
+     * sama pola dengan InventoryItemResource::canActOnScrollCode().
+     */
+    private function canActOnScrollCode(?ScrollCode $scrollCode, $user): bool
+    {
+        if (! $scrollCode || $scrollCode->store_id === null) {
+            return true;
+        }
+
+        return ($user?->isFullAccess() ?? false) || $scrollCode->store_id === $user?->store_id;
+    }
+
+    /**
      * GET /api/staff/inventory?search=...
      *
      * Alternatif untuk staff yang belum bisa scan QR langsung di tempat
@@ -83,7 +100,7 @@ class InventoryController extends Controller
 
         $item = InventoryItem::where('code', $code)
             ->with([
-                'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
+                'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name'])->limit(20),
                 'scrollCode.filmProduct',
                 'scrollCode.store:id,name',
                 'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
@@ -107,6 +124,53 @@ class InventoryController extends Controller
             // keluar. Staff biasa tidak butuh ini (toko-nya otomatis dari
             // akun sendiri, lihat storeMovement()).
             'stores' => $user->isFullAccess() ? Store::orderBy('name')->get(['id', 'name']) : [],
+            // Dipakai app buat munculkan tombol "Muat Riwayat Lainnya" —
+            // lihat movements() untuk endpoint paginasinya.
+            'movements_has_more' => $item->movements()->count() > $item->movements->count(),
+        ]);
+    }
+
+    /**
+     * GET /api/staff/inventory/{code}/movements?offset=20
+     *
+     * "Muat Riwayat Lainnya" — show()/storeMovement() cuma kirim 20 baris
+     * pertama supaya respons awal ringan; endpoint ini yang dipanggil
+     * mobile kalau staff mau lihat riwayat lebih lama dari itu.
+     * SEBELUMNYA tidak ada jalan sama sekali untuk melihat riwayat di
+     * luar 20 baris terakhir dari app — cuma bisa lewat Filament.
+     */
+    public function movements(Request $request, string $code)
+    {
+        if (! $this->authorizeScan($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses ke menu Inventaris.',
+            ], 403);
+        }
+
+        $item = InventoryItem::where('code', $code)->first(['id']);
+
+        if (! $item) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Barang dengan kode ini tidak ditemukan.',
+            ], 404);
+        }
+
+        $offset = max(0, (int) $request->query('offset', 0));
+        $limit = 20;
+
+        $movements = $item->movements()
+            ->with(['user:id,name', 'destinationStore:id,name'])
+            ->latest()
+            ->offset($offset)
+            ->limit($limit)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $movements,
+            'has_more' => $item->movements()->count() > $offset + $movements->count(),
         ]);
     }
 
@@ -119,12 +183,17 @@ class InventoryController extends Controller
      * "masuk" untuk barang yang sudah in_stock) divalidasi di
      * InventoryItem::recordMovement().
      *
-     * Toko tujuan (untuk sinkron Kode Gulungan) diambil OTOMATIS dari
-     * store_id akun staff yang scan — tidak perlu pilih manual. Cuma
-     * full-access (super_admin/direksi, tidak terikat 1 toko) yang wajib
-     * kirim store_id manual saat scan KELUAR barang yang punya kode
-     * gulungan; kalau tidak dikirim, request ditolak (bukan dibiarkan
-     * kosong diam-diam) supaya datanya tetap lengkap.
+     * Toko tujuan diambil OTOMATIS dari store_id akun staff yang scan —
+     * tidak perlu pilih manual, dan sekarang SELALU dicatat terstruktur
+     * di kolom destination_store_id (bukan cuma dipakai buat sinkron
+     * status Kode Gulungan) — lihat InventoryItem::recordMovement().
+     * Cuma full-access (super_admin/direksi, tidak terikat 1 toko) yang
+     * wajib kirim store_id manual saat scan KELUAR APAPUN (bukan cuma
+     * yang punya kode gulungan lagi — SEBELUMNYA cuma diwajibkan untuk
+     * barang berkode gulungan, jadi barang PPF/WF polos yang di-scan
+     * keluar oleh full-access tidak pernah tercatat tujuannya); kalau
+     * tidak dikirim, request ditolak (bukan dibiarkan kosong diam-diam)
+     * supaya datanya tetap lengkap.
      */
     public function storeMovement(Request $request, string $code)
     {
@@ -163,13 +232,12 @@ class InventoryController extends Controller
 
         if (
             $request->type === 'out'
-            && $item->scroll_code_id
             && $user->isFullAccess()
             && ! $request->filled('store_id')
         ) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pilih toko tujuan dulu — barang ini punya kode gulungan yang perlu dialokasikan.',
+                'message' => 'Pilih toko tujuan dulu.',
             ], 422);
         }
 
@@ -188,7 +256,7 @@ class InventoryController extends Controller
         // tidak ikut dikirim, item.movements.length di app crash.
         $item = $item->fresh();
         $item->load([
-            'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name'])->limit(20),
             'scrollCode.filmProduct',
             'scrollCode.store:id,name',
             'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
@@ -241,9 +309,17 @@ class InventoryController extends Controller
         }
 
         $scrollCode = ScrollCode::find($item->scroll_code_id);
+        $user = $request->user('api');
+
+        if (! $this->canActOnScrollCode($scrollCode, $user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode gulungan ini teralokasi ke toko lain.',
+            ], 403);
+        }
 
         try {
-            $scrollCode->recordUsage((float) $request->meters, $request->user('api')->id, $request->note);
+            $scrollCode->recordUsage((float) $request->meters, $user->id, $request->note);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
@@ -255,7 +331,7 @@ class InventoryController extends Controller
         // WAJIB ikut di-reload di sini juga, kalau tidak, app mobile
         // crash karena item.movements.length dipanggil atas undefined.
         $item->load([
-            'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name'])->limit(20),
             'scrollCode.filmProduct',
             'scrollCode.store:id,name',
             'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
@@ -295,6 +371,13 @@ class InventoryController extends Controller
             ], 404);
         }
 
+        if (! $this->canActOnScrollCode($item->scrollCode, $request->user('api'))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode gulungan ini teralokasi ke toko lain.',
+            ], 403);
+        }
+
         $wasMarked = DB::transaction(function () use ($item) {
             $scrollCode = ScrollCode::where('id', $item->scroll_code_id)->lockForUpdate()->first();
 
@@ -308,7 +391,7 @@ class InventoryController extends Controller
         });
 
         $item->load([
-            'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name'])->limit(20),
             'scrollCode.filmProduct',
             'scrollCode.store:id,name',
             'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
