@@ -105,6 +105,15 @@ class QuotationController extends Controller
 
         $quotation->update(['status' => $request->status]);
 
+        // SEBELUMNYA relasi (items/vehicle/store) tidak di-eager-load di
+        // sini — beda dari show(). Field yang tidak di-load tidak muncul
+        // SAMA SEKALI di JSON (bukan array kosong), jadi mobile app yang
+        // langsung pakai response ini untuk setQuotation() bikin
+        // `quotation.items` jadi undefined dan crash saat render (mis.
+        // `.items.length`). Disamakan dengan show() supaya bentuk respons
+        // konsisten di kedua endpoint. Ditemukan & diperbaiki 2026-08-27.
+        $quotation->load(['vehicle', 'store:id,name', 'items.filmProduct:id,name']);
+
         return response()->json(['success' => true, 'data' => $quotation]);
     }
 }
