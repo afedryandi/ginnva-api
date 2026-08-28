@@ -53,6 +53,26 @@ class QuotationResource extends Resource
         // di tabel (lihat audit UI/UX Filament Quotation 2026-08-27),
         // tanpa ini tiap baris akan N+1.
         $query = parent::getEloquentQuery()->with('items.filmProduct');
+
+        // Kolom sort virtual — SEBELUMNYA pakai ->defaultSort(Closure),
+        // TERNYATA tidak didukung Filament v3 di sini (diam-diam
+        // diabaikan, bukan error — baru ketahuan dari screenshot staff
+        // yang urutannya ternyata cuma created_at desc polos, plus ada
+        // ->defaultSort('created_at','desc') duplikat yang menimpa).
+        // Pendekatan ini pasti jalan karena cuma pakai
+        // ->defaultSort('sort_priority') dengan 1 kolom+1 arah biasa,
+        // API yang sudah confirmed didukung. Lead 'new' dapat rentang
+        // angka lebih kecil dari SEMUA status lain (selalu di atas kalau
+        // sort ASC), dan di dalam masing-masing grup diurutkan sesuai
+        // arah yang diinginkan lewat pembalikan angka. Lihat audit UI/UX
+        // Filament Quotation 2026-08-27 (perbaikan susulan).
+        $query->addSelect(\Illuminate\Support\Facades\DB::raw("
+            CASE WHEN quotations.status = 'new'
+                THEN UNIX_TIMESTAMP(quotations.created_at)
+                ELSE 10000000000 + (9999999999 - UNIX_TIMESTAMP(quotations.created_at))
+            END as sort_priority
+        "));
+
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -435,28 +455,25 @@ class QuotationResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
             ])
-            // Sebelumnya defaultSort('created_at', 'desc') murni — lead
-            // "New" lama bisa terkubur di bawah lead baru yang statusnya
-            // sudah closed, tidak ada dorongan visual untuk prioritaskan
-            // yang overdue (walau sudah ada notifikasi harian
-            // NotifyStaleQuotations). Sekarang: lead 'new' SELALU di atas
-            // (paling lama menunggu di paling atas — paling mendesak),
-            // baru di bawahnya sisanya diurutkan terbaru dulu. Diabaikan
-            // otomatis kalau staff klik header kolom lain untuk sort
-            // manual. Lihat audit UI/UX Filament Quotation 2026-08-27.
-            ->defaultSort(function (Builder $query) {
-                return $query
-                    ->orderByRaw("(status = 'new') desc")
-                    ->orderByRaw("CASE WHEN status = 'new' THEN created_at END ASC")
-                    ->orderByRaw("CASE WHEN status = 'new' THEN NULL ELSE created_at END DESC");
-            })
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
                         ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
                 ]),
             ])
-            ->defaultSort('created_at', 'desc');
+            // Sebelumnya defaultSort('created_at', 'desc') murni — lead
+            // "New" lama bisa terkubur di bawah lead baru yang statusnya
+            // sudah closed, tidak ada dorongan visual untuk prioritaskan
+            // yang overdue (walau sudah ada notifikasi harian
+            // NotifyStaleQuotations). 'sort_priority' dihitung di
+            // getEloquentQuery() — lead 'new' SELALU di atas (paling
+            // lama menunggu di paling atas — paling mendesak), baru di
+            // bawahnya sisanya diurutkan terbaru dulu. Diabaikan
+            // otomatis kalau staff klik header kolom lain untuk sort
+            // manual. Lihat audit UI/UX Filament Quotation 2026-08-27
+            // (perbaikan susulan — versi Closure sebelumnya ternyata
+            // tidak didukung).
+            ->defaultSort('sort_priority');
     }
 
     public static function getRelations(): array
