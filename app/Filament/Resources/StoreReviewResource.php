@@ -191,7 +191,20 @@ class StoreReviewResource extends Resource
 
                 Tables\Columns\TextColumn::make('tags')
                     ->label('Aspek')
-                    ->formatStateUsing(fn (?array $state) => collect($state ?? [])
+                    // SEBELUMNYA formatStateUsing(fn (?array $state) => ...) —
+                    // Filament ternyata memanggil formatStateUsing() SEKALI PER
+                    // ITEM kalau state kolomnya array (bukan sekali dengan array
+                    // utuh), jadi closure yang mengharapkan ?array malah dikasih
+                    // string satu-satu ('pelayanan_ramah', dst) → TypeError 500
+                    // ("Argument #1 ($state) must be of type ?array, string
+                    // given"). Data tags di DB sendiri sudah benar (dikonfirmasi
+                    // tinker: semua baris casted_type=array) — bug murni di cara
+                    // Filament merender array state via formatStateUsing().
+                    // Pakai ->state() untuk override total jadi string yang
+                    // sudah jadi (pola sama dengan Placeholder 'tags' di form()
+                    // pada file ini yang sudah lebih dulu benar pakai
+                    // $record?->tags langsung). Ditemukan & diperbaiki 2026-08-28.
+                    ->state(fn (StoreReview $record) => collect($record->tags ?? [])
                         ->map(fn ($tag) => StoreReview::TAGS[$tag] ?? $tag)
                         ->implode(', ') ?: '—')
                     ->wrap()
