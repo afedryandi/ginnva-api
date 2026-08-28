@@ -169,41 +169,49 @@ class BookingResource extends Resource
 
                     Forms\Components\Select::make('installers')
                         ->label('Installer Bertugas')
-                        ->relationship('installers', 'name')
-                        ->helperText('Bisa pilih lebih dari 1 installer. Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app. Installer berstatus "Menunggu Review"/"Nonaktif" di roster Teknisi tidak muncul di sini.')
-                        // SEBELUMNYA cuma nama polos — roster Teknisi
-                        // (level sertifikasi) yang staff isi tidak pernah
-                        // muncul di titik keputusan penugasan yang
-                        // sebenarnya (padahal migration user_id ditulis
-                        // justru dengan tujuan itu). Sekarang: (a) level
-                        // ditampilkan sebagai label tambahan, (b) installer
-                        // yang statusnya 'pending_review'/'inactive' di
-                        // roster tidak ikut muncul sebagai pilihan —
-                        // installer TANPA baris Technician sama sekali
-                        // tetap muncul apa adanya (roster ini optional,
-                        // tidak semua installer wajib terdaftar). Lihat
-                        // audit modul Teknisi 2026-08-27.
-                        ->options(function (Forms\Get $get) {
+                        // SEBELUMNYA ->relationship('installers','name')
+                        // digabung ->options() custom terpisah — TERNYATA
+                        // cacat: ->options() cuma dipakai untuk daftar
+                        // pilihan AWAL (sebelum diketik), sedangkan
+                        // pencarian-sambil-ketik DAN label untuk installer
+                        // yang sudah tertaut balik pakai jalur
+                        // ->relationship() MENTAH (query ke tabel `users`
+                        // TANPA filter role/toko/status Teknisi sama
+                        // sekali) — staff bisa cari & pilih direksi/
+                        // partner, bahkan installer toko lain. Dikonfirmasi
+                        // dari laporan user 2026-08-28 (screenshot: opsi
+                        // sampai ke direksi/partner, dan installer toko
+                        // lain kelihatan).
+                        //
+                        // Fix yang benar: modifyQueryUsing() DI DALAM
+                        // relationship() — satu query yang sama dipakai
+                        // konsisten untuk pilihan awal, pencarian, MAUPUN
+                        // resolusi label installer yang sudah tertaut,
+                        // tidak ada jalur kedua yang lolos filter.
+                        ->relationship(
+                            name: 'installers',
+                            titleAttribute: 'name',
+                            modifyQueryUsing: fn (Builder $query, Forms\Get $get) => $query
+                                ->where('store_id', $get('store_id'))
+                                ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
+                                ->whereDoesntHave('technician', fn ($q) => $q->whereIn('status', ['pending_review', 'inactive']))
+                                ->with('technician'),
+                        )
+                        ->getOptionLabelFromRecordUsing(function (User $record) {
                             $levelLabels = [
                                 'intermediate' => 'Intermediate',
                                 'advanced'     => 'Advanced',
                                 'mentor'       => 'Mentor',
                             ];
 
-                            return User::where('store_id', $get('store_id'))
-                                ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
-                                ->with('technician')
-                                ->get()
-                                ->reject(fn (User $u) => $u->technician
-                                    && in_array($u->technician->status, ['pending_review', 'inactive'], true))
-                                ->mapWithKeys(fn (User $u) => [
-                                    $u->id => $u->technician?->level
-                                        ? "{$u->name} ({$levelLabels[$u->technician->level]})"
-                                        : $u->name,
-                                ]);
+                            return $record->technician?->level
+                                ? "{$record->name} ({$levelLabels[$record->technician->level]})"
+                                : $record->name;
                         })
+                        ->helperText('Bisa pilih lebih dari 1 installer. Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app. Installer dari toko lain, atau berstatus "Menunggu Review"/"Nonaktif" di roster Teknisi, tidak muncul di sini.')
                         ->multiple()
                         ->searchable()
+                        ->preload()
                         ->disabled(fn (Forms\Get $get) => ! $get('store_id')),
 
                     // SEBELUMNYA cuma bisa diatur dari app staff (tombol
