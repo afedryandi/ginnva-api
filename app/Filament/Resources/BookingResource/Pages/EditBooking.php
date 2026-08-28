@@ -13,6 +13,29 @@ class EditBooking extends EditRecord
 {
     protected static string $resource = BookingResource::class;
 
+    /**
+     * SEBELUMNYA Repeater 'capacities' kosong sama sekali begitu halaman
+     * Edit dibuka — ->default() Filament TERNYATA cuma jalan untuk form
+     * Create, tidak pernah dipanggil untuk record yang sudah ada. Baris
+     * baru muncul kalau staff (tidak sengaja) sentuh field Tanggal/
+     * Durasi (memicu afterStateUpdated). Kalau staff langsung ubah
+     * Status ke Confirmed & Simpan tanpa sentuh itu, validasi cross-check
+     * di mutateFormDataBeforeSave() (BENAR) menolak submit karena
+     * kapasitas kosong — tapi staff bingung karena kolomnya memang tidak
+     * pernah terisi. Isi manual di sini begitu form dibuka. Ditemukan &
+     * diperbaiki 2026-08-28.
+     */
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        $data['capacities'] = BookingResource::computeCapacityRows(
+            $data['store_id'] ?? null,
+            $data['preferred_date'] ?? null,
+            $data['duration_days'] ?? null,
+        );
+
+        return $data;
+    }
+
     // Watcher (direksi) SEBELUM disimpan — ditangkap di
     // mutateFormDataBeforeSave() (dipanggil SEBELUM Filament sinkron
     // relasi many-to-many) supaya afterSave() bisa diff "siapa yang

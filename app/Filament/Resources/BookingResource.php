@@ -481,9 +481,28 @@ class BookingResource extends Resource
      */
     private static function defaultCapacityRows(Forms\Get $get): array
     {
-        $storeId = $get('store_id');
-        $dateStr = $get('preferred_date');
-        $duration = max(1, (int) ($get('duration_days') ?: 1));
+        return static::computeCapacityRows($get('store_id'), $get('preferred_date'), $get('duration_days'));
+    }
+
+    /**
+     * Diekstrak dari defaultCapacityRows() supaya bisa dipanggil dengan
+     * nilai mentah (bukan cuma dari runtime form Forms\Get) — dipakai
+     * dari EditBooking::mutateFormDataBeforeFill() untuk isi Repeater
+     * SAAT HALAMAN DIBUKA, bukan cuma lewat ->default() (yang TERNYATA
+     * cuma jalan di form Create, TIDAK PERNAH dipanggil Filament untuk
+     * form Edit record yang sudah ada) atau nunggu staff sentuh field
+     * lain dulu (afterStateUpdated). SEBELUMNYA staff buka booking untuk
+     * di-approve, Repeater kapasitas kosong sama sekali sampai staff
+     * tidak sengaja sentuh field Tanggal/Durasi — kalau staff langsung
+     * ubah Status ke Confirmed & Simpan tanpa sadar itu, validasi
+     * cross-check (lihat CreateBooking/EditBooking) menolak submit
+     * (BENAR, itu memang harus ditolak kalau kosong) tapi staff jadi
+     * bingung "isi di mana" karena kolomnya memang tidak pernah muncul.
+     * Ditemukan & diperbaiki 2026-08-28.
+     */
+    public static function computeCapacityRows($storeId, $dateStr, $duration): array
+    {
+        $duration = max(1, (int) ($duration ?: 1));
 
         if (! $storeId || ! $dateStr) {
             return [];
