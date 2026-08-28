@@ -27,10 +27,18 @@ class EditBooking extends EditRecord
      */
     protected function mutateFormDataBeforeFill(array $data): array
     {
+        // BUG SUSULAN: ambil preferred_date dari $data['preferred_date']
+        // (array mentah hasil serialisasi) bikin tanggalnya geser mundur
+        // 1 hari — beda dari Placeholder "Rentang Tanggal Pengerjaan" yang
+        // ambil dari state form live ($get()), bukan dari array ini. Ambil
+        // langsung dari $this->record (Carbon yang sudah pasti benar,
+        // ->toDateString() menghindari ambiguitas timezone) supaya sama
+        // persis dengan yang dipakai Placeholder. Ditemukan & diperbaiki
+        // 2026-08-28.
         $data['capacities'] = BookingResource::computeCapacityRows(
-            $data['store_id'] ?? null,
-            $data['preferred_date'] ?? null,
-            $data['duration_days'] ?? null,
+            $this->record->store_id,
+            $this->record->preferred_date?->toDateString(),
+            $this->record->duration_days,
         );
 
         return $data;
