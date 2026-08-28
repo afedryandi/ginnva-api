@@ -138,8 +138,34 @@ class PushNotificationService
                         }
                     }
                 } else {
-                    $failed += count($chunk);
-                    Log::error('[Expo Push] HTTP error: ' . $response->body());
+                    // SEBELUMNYA 1 token "asing" (dari project/akun Expo
+                    // yang beda — mis. token lama dari build dev di akun
+                    // personal sebelum project ini resmi di bawah org
+                    // itsupportginnvas-team, lihat app.json "owner")
+                    // bikin SELURUH batch gagal terkirim (Expo menolak
+                    // whole request kalau ada campuran experience ID),
+                    // jadi staff LAIN yang tokennya valid pun ikut tidak
+                    // dapat notifikasi. Kalau ini penyebabnya, retry
+                    // token-per-token supaya token asing itu saja yang
+                    // gagal, bukan semuanya. Ditemukan & diperbaiki
+                    // 2026-08-27 dari laporan notifikasi Quotation tidak
+                    // sampai.
+                    $errorCode = collect($response->json('errors') ?? [])
+                        ->pluck('code')
+                        ->first();
+
+                    if ($errorCode === 'PUSH_TOO_MANY_EXPERIENCE_IDS' && count($chunk) > 1) {
+                        Log::warning('[Expo Push] Batch berisi token dari project Expo berbeda — retry satu-satu.', ['tokens' => $chunk]);
+
+                        foreach ($chunk as $singleToken) {
+                            $single = $this->pushToTokens([$singleToken], $title, $body, $data);
+                            $sent += $single['sent'];
+                            $failed += $single['failed'];
+                        }
+                    } else {
+                        $failed += count($chunk);
+                        Log::error('[Expo Push] HTTP error: ' . $response->body());
+                    }
                 }
             } catch (\Exception $e) {
                 $failed += count($chunk);

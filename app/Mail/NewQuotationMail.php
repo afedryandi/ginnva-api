@@ -38,7 +38,13 @@ class NewQuotationMail extends Mailable
                 'vehicleLabel'    => $vehicleLabel ?: '-',
                 'licensePlate'    => $q->license_plate,
                 'products'        => $productNames ?: '-',
-                'message'         => $q->message,
+                // BUKAN 'message' — Laravel SELALU inject variabel $message
+                // (object Illuminate\Mail\Message) ke tiap view mail secara
+                // otomatis, menimpa key 'message' apa pun yang dikirim lewat
+                // ->with(). Itu penyebab error
+                // "htmlspecialchars(): ... Illuminate\Mail\Message given"
+                // di log. Ditemukan & diperbaiki 2026-08-27.
+                'customerNote'    => $q->message,
             ]);
     }
 }
