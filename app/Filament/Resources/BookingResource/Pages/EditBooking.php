@@ -43,10 +43,37 @@ class EditBooking extends EditRecord
         unset($data['capacities']);
 
         if (($data['status'] ?? null) === 'confirmed') {
+            $durationDays = max(1, (int) ($data['duration_days'] ?? 1));
+
+            // SEBELUMNYA kalau Repeater 'capacities' kosong/tidak lengkap
+            // untuk sebagian tanggal (mis. race Livewire saat form pertama
+            // dibuka, sebelum store_id/preferred_date ter-hidrasi), sistem
+            // DIAM-DIAM fallback ke kapasitas default 3 di
+            // fullDatesInRange() alih-alih menolak — jadi approve bisa
+            // lolos padahal kapasitas sebenarnya sudah penuh (dikonfirmasi
+            // bug nyata: 3 booking confirmed lolos di toko berkapasitas 1).
+            // Cross-check yang sama dengan endpoint mobile
+            // Staff\BookingController::confirm() — SEBELUMNYA cuma ada di
+            // situ, lupa ditambahkan di sini juga. Lihat audit modul
+            // Booking, perbaikan susulan 2026-08-28.
+            $expectedDates = Booking::workingDatesInRange((int) $data['store_id'], Carbon::parse($data['preferred_date']), $durationDays);
+            $missingDates = array_diff($expectedDates, array_keys($capacityByDate));
+
+            if (! empty($missingDates)) {
+                Notification::make()
+                    ->title('Kapasitas belum lengkap')
+                    ->body('Kapasitas untuk tanggal berikut belum terisi: ' . implode(', ', $missingDates) . '. Muat ulang halaman lalu isi kapasitas semua tanggal kerja sebelum konfirmasi.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                throw new Halt();
+            }
+
             $fullDates = Booking::fullDatesInRange(
                 (int) $data['store_id'],
                 Carbon::parse($data['preferred_date']),
-                max(1, (int) ($data['duration_days'] ?? 1)),
+                $durationDays,
                 $capacityByDate,
                 excludeBookingId: $this->record->id,
             );

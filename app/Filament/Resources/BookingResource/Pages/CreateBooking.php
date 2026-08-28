@@ -37,10 +37,28 @@ class CreateBooking extends CreateRecord
         unset($data['capacities']);
 
         if (($data['status'] ?? null) === 'confirmed') {
+            $durationDays = max(1, (int) ($data['duration_days'] ?? 1));
+
+            // Sama pengaman dengan EditBooking — lihat komentar di sana
+            // untuk penjelasan bug yang ditutup ini.
+            $expectedDates = Booking::workingDatesInRange((int) $data['store_id'], Carbon::parse($data['preferred_date']), $durationDays);
+            $missingDates = array_diff($expectedDates, array_keys($capacityByDate));
+
+            if (! empty($missingDates)) {
+                Notification::make()
+                    ->title('Kapasitas belum lengkap')
+                    ->body('Kapasitas untuk tanggal berikut belum terisi: ' . implode(', ', $missingDates) . '. Muat ulang halaman lalu isi kapasitas semua tanggal kerja sebelum konfirmasi.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                throw new Halt();
+            }
+
             $fullDates = Booking::fullDatesInRange(
                 (int) $data['store_id'],
                 Carbon::parse($data['preferred_date']),
-                max(1, (int) ($data['duration_days'] ?? 1)),
+                $durationDays,
                 $capacityByDate,
             );
 
