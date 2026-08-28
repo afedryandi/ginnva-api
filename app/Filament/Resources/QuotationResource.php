@@ -66,7 +66,17 @@ class QuotationResource extends Resource
         // sort ASC), dan di dalam masing-masing grup diurutkan sesuai
         // arah yang diinginkan lewat pembalikan angka. Lihat audit UI/UX
         // Filament Quotation 2026-08-27 (perbaikan susulan).
-        $query->addSelect(\Illuminate\Support\Facades\DB::raw("
+        //
+        // BUG SUSULAN (500 di /admin/quotations): addSelect() TANPA
+        // select('*') eksplisit dulu TIDAK otomatis include '*' —
+        // ->columns null di-cast (array) jadi [] kosong, bukan ['*'].
+        // Akibatnya SELURUH kolom (termasuk `id`) hilang dari hasil
+        // query, cuma tersisa sort_priority sendirian — Filament gagal
+        // bikin link "View" karena record->getKey() kosong ("Missing
+        // parameter: record"). select('quotations.*') dulu secara
+        // eksplisit sebelum addSelect() menutup celah ini. Ditemukan &
+        // diperbaiki 2026-08-28.
+        $query->select('quotations.*')->addSelect(\Illuminate\Support\Facades\DB::raw("
             CASE WHEN quotations.status = 'new'
                 THEN UNIX_TIMESTAMP(quotations.created_at)
                 ELSE 10000000000 + (9999999999 - UNIX_TIMESTAMP(quotations.created_at))
