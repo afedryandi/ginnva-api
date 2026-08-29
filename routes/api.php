@@ -134,8 +134,13 @@ Route::prefix('customer')->group(function () {
 
         // 我的预约 — Booking Saya
         Route::get('/bookings', [BookingController::class, 'index']);
+        // Pakai limiter custom 'customer-booking-submit' (didaftarkan di
+        // AppServiceProvider::boot()), BUKAN throttle:10,1 bawaan --
+        // throttle:10,1 key berdasarkan guard DEFAULT ('api'/staff), yang
+        // selalu null untuk request customer, jadi diam-diam jadi
+        // per-IP bukan per-akun. Lihat komentar di AppServiceProvider.
         Route::post('/bookings', [BookingController::class, 'store'])
-            ->middleware('throttle:10,1');
+            ->middleware('throttle:customer-booking-submit');
         // Batalkan booking milik sendiri — sebelumnya cuma staff yang bisa
         // cancel, customer terpaksa hubungi toko manual. Lihat audit modul
         // Booking 2026-08-27.
