@@ -389,10 +389,34 @@ class BookingResource extends Resource
                     Forms\Components\DatePicker::make('next_service_reminder_at')
                         ->label('Tanggal Reminder Servis')
                         ->helperText('Kosongkan kalau belum perlu reminder. Sistem otomatis kirim WhatsApp/Push/Email ke customer pada tanggal ini.')
-                        ->minDate(now())
+                        // SEBELUMNYA ->minDate(now()) divalidasi ULANG setiap
+                        // kali form disimpan, termasuk saat staff sama sekali
+                        // tidak menyentuh field ini. Begitu tanggal reminder
+                        // yang sudah tersimpan lewat dari hari ini, SELURUH
+                        // form gagal disimpan (bug: staff tidak bisa edit
+                        // field lain sama sekali). minDate cuma masuk akal
+                        // untuk mencegah staff MENGATUR tanggal baru ke masa
+                        // lalu — kalau nilainya tidak diubah (tetap sama
+                        // dengan yang di DB), jangan divalidasi ulang.
+                        // Ditemukan & diperbaiki 2026-08-29.
+                        ->minDate(fn (?Booking $record, Forms\Get $get) => optional($record)
+                            ->next_service_reminder_at?->toDateString() === $get('next_service_reminder_at')
+                            ? null
+                            : now())
                         ->native(false),
                 ]),
-        ]);
+        ])
+            // SEBELUMNYA booking yang statusnya sudah 'completed'/'cancelled'
+            // (final, tidak bisa dibatalkan lagi — lihat guard action
+            // 'cancel' baris ~888) TETAP bisa diedit bebas dari sini: field
+            // Status, tanggal, installer, dll semua masih terbuka. Cuma
+            // action "batalkan" yang punya guard, halaman Edit biasa tidak.
+            // ->disabled() di level Form mem-cascade ke SEMUA komponen anak
+            // (dokumentasi Filament v3: "Disabling parts of your form"),
+            // jadi seluruh form otomatis read-only begitu record final —
+            // tombol Simpan juga disembunyikan, lihat EditBooking::
+            // getFormActions(). Ditemukan & diperbaiki 2026-08-29.
+            ->disabled(fn (?Booking $record) => in_array($record?->status, ['completed', 'cancelled'], true));
     }
 
     /**

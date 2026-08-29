@@ -14,6 +14,24 @@ class EditBooking extends EditRecord
     protected static string $resource = BookingResource::class;
 
     /**
+     * Form sudah ->disabled() total di BookingResource::form() begitu
+     * status booking 'completed'/'cancelled', tapi tombol Simpan sendiri
+     * tidak otomatis ikut hilang — sembunyikan juga di sini supaya tidak
+     * ada tombol aktif yang percuma (submit form yang semua fieldnya
+     * disabled tetap kirim data lama, jadi secara teknis tidak merusak,
+     * tapi membingungkan kalau tombolnya masih terlihat bisa diklik).
+     * Ditemukan & diperbaiki 2026-08-29.
+     */
+    protected function getFormActions(): array
+    {
+        if (in_array($this->record->status, ['completed', 'cancelled'], true)) {
+            return [];
+        }
+
+        return parent::getFormActions();
+    }
+
+    /**
      * SEBELUMNYA Repeater 'capacities' kosong sama sekali begitu halaman
      * Edit dibuka — ->default() Filament TERNYATA cuma jalan untuk form
      * Create, tidak pernah dipanggil untuk record yang sudah ada. Baris
