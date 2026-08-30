@@ -73,7 +73,17 @@ class QuotationController extends Controller
         try {
             $request->validate([
                 'vehicle_id'      => 'required|exists:vehicles,id',
-                'store_id'        => 'required|exists:stores,id',
+                // SEBELUMNYA 'required' -- form quote di website
+                // (ginnva-web/app/quote/QuoteForm.tsx) TIDAK PERNAH
+                // mengirim store_id sama sekali (GET /api/quotation/options
+                // juga tidak menyediakan daftar toko untuk dipilih), jadi
+                // SETIAP submit dari web pasti gagal 422. Sistem sendiri
+                // sudah dirancang menerima lead tanpa toko -- lihat
+                // Staff\QuotationController::index() yang eksplisit
+                // menangani 'orWhereNull(store_id)' untuk "lead lama yang
+                // store_id-nya masih null". Staff assign toko belakangan
+                // saat follow-up. Ditemukan & diperbaiki 2026-08-29.
+                'store_id'        => 'nullable|exists:stores,id',
                 'customer_name'   => 'required|string|max:255',
                 'customer_email'  => 'required|email|max:255',
                 'customer_phone'  => 'required|string|max:30',
