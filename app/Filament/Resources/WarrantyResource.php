@@ -228,11 +228,23 @@ class WarrantyResource extends Resource
 
                     Forms\Components\DatePicker::make('installation_date')
                         ->label('Tanggal Pasang')
+                        ->live()
                         ->required(),
 
+                    // SEBELUMNYA tidak ada validasi sama sekali yang
+                    // mengaitkan expiry_date ke installation_date — beda
+                    // dari endpoint API publik (WarrantyController::
+                    // submit()) yang sudah punya 'after:installation_date'.
+                    // Staff bisa simpan Tanggal Berakhir yang lebih awal
+                    // dari Tanggal Pasang tanpa ditolak. Ditemukan lewat
+                    // testing manual 2026-08-31.
                     Forms\Components\DatePicker::make('expiry_date')
                         ->label('Tanggal Berakhir')
-                        ->required(),
+                        ->required()
+                        ->after('installation_date')
+                        ->validationMessages([
+                            'after' => 'Tanggal Berakhir harus setelah Tanggal Pasang.',
+                        ]),
                 ]),
 
             // Field kondisional berdasarkan kategori produk — supaya
