@@ -51,8 +51,15 @@ class CreateBlockedDate extends CreateRecord
         $end = $rawEnd ? Carbon::parse($rawEnd) : $start->copy();
 
         if ($end->lt($start)) {
+            // Key HARUS 'data.date_end', bukan 'date_end' polos — field
+            // Filament terikat ke state Livewire di path 'data.{field}'.
+            // Key mentah tersimpan di error bag tapi tidak ada elemen di
+            // halaman yang @error() ke situ, jadi pesannya HILANG TOTAL
+            // (submit ditolak diam-diam, staff cuma lihat form tidak
+            // berubah tanpa notifikasi apa pun). Ditemukan & diperbaiki
+            // 2026-08-29 lewat testing manual.
             throw ValidationException::withMessages([
-                'date_end' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
+                'data.date_end' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
             ]);
         }
 
@@ -74,8 +81,10 @@ class CreateBlockedDate extends CreateRecord
             ->all();
 
         if (! empty($existing)) {
+            // Sama seperti di atas — key HARUS 'data.date', bukan 'date'
+            // polos, kalau tidak pesan ini hilang total tanpa notifikasi.
             throw ValidationException::withMessages([
-                'date' => 'Tanggal berikut sudah diblokir untuk toko ini: ' . implode(', ', $existing),
+                'data.date' => 'Tanggal berikut sudah diblokir untuk toko ini: ' . implode(', ', $existing),
             ]);
         }
 
