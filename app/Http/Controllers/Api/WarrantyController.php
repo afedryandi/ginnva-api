@@ -198,12 +198,22 @@ class WarrantyController extends Controller
         // Sesuai kebijakan garansi resmi Ginnva (tercantum di halaman
         // produk & materi resmi lain): verifikasi mandiri bisa pakai salah
         // satu dari nomor ponsel, plat nomor, VIN, atau kode garansi.
-        // Dicek TERPISAH (bukan orWhere digabung) supaya tahu PERSIS field
-        // mana yang match — dipakai untuk masking di bawah (lihat
-        // $matchedViaPublicIdentifier).
-        $warranty = Warranty::where('warranty_code', $code)->first()
-            ?? Warranty::where('car_plate', $code)->first()
-            ?? Warranty::where('vin', $code)->first();
+        //
+        // SEBELUMNYA pakai ->first() (1 warranty saja) — tidak menangani
+        // kasus 1 mobil punya LEBIH DARI 1 garansi (mis. PPF + Window
+        // Film terdaftar terpisah untuk mobil yang sama, plat/VIN/nomor
+        // HP-nya identik). Cek pakai plat/VIN/HP cuma menampilkan 1
+        // garansi (yang pertama di DB), garansi satunya tidak pernah
+        // terlihat sama sekali dari pencarian itu — padahal keduanya
+        // valid & seharusnya sama-sama ditemukan. Sekarang pakai ->get()
+        // (bisa >1) supaya SEMUA garansi yang cocok dikembalikan
+        // sekaligus. Cek via warranty_code sendiri tetap selalu 1 hasil
+        // (kodenya unik per garansi). Ditemukan lewat testing manual
+        // 2026-08-31.
+        $warranties = Warranty::where('warranty_code', $code)
+            ->orWhere('car_plate', $code)
+            ->orWhere('vin', $code)
+            ->get();
 
         // warranty_code/car_plate/vin adalah identifier yang secara FISIK
         // tertera di mobil/sertifikat — wajar diketahui publik yang
@@ -212,12 +222,12 @@ class WarrantyController extends Controller
         // leak untuk cek apakah nomor itu terdaftar dan dapat data
         // lengkap pemiliknya (correlation attack). Match lewat phone_number
         // SENGAJA dianggap kurang terpercaya, datanya di-mask di bawah.
-        $matchedViaPublicIdentifier = (bool) $warranty;
-        if (! $warranty) {
-            $warranty = Warranty::where('phone_number', $code)->first();
+        $matchedViaPublicIdentifier = $warranties->isNotEmpty();
+        if ($warranties->isEmpty()) {
+            $warranties = Warranty::where('phone_number', $code)->get();
         }
 
-        if (!$warranty) {
+        if ($warranties->isEmpty()) {
             $this->registerFailedLookup($request);
 
             return response()->json([
@@ -241,16 +251,16 @@ class WarrantyController extends Controller
         // tidak bisa langsung dipakai buka /warranty/download/{code} dan
         // dapat PDF lengkap juga (itu akan membuat masking di sini
         // percuma). Lihat audit modul Garansi 2026-08-27.
-        if (! $matchedViaPublicIdentifier) {
-            return response()->json([
-                'success' => true,
-                'data' => [
+        $transform = function (Warranty $warranty) use ($matchedViaPublicIdentifier) {
+            if (! $matchedViaPublicIdentifier) {
+                return [
                     'id'                => $warranty->id,
                     'warranty_code'     => 'GNV-••••• (hubungi toko untuk kode lengkap)',
                     'customer_name'     => $this->maskName($warranty->customer_name),
                     'car_plate'         => $this->maskPlate($warranty->car_plate),
                     'car_type'          => $warranty->car_type,
                     'product_series'    => $warranty->product_series,
+                    'product_category'  => $warranty->product_category,
                     // ->format('Y-m-d') WAJIB, bukan pass Carbon instance
                     // mentah -- Carbon implements JsonSerializable, dan
                     // default jsonSerialize()-nya konversi lewat UTC
@@ -269,13 +279,10 @@ class WarrantyController extends Controller
                     'review_status'     => $warranty->review_status,
                     'has_owner'         => $warranty->customer_id !== null,
                     'masked'            => true,
-                ],
-            ], 200);
-        }
+                ];
+            }
 
-        return response()->json([
-            'success' => true,
-            'data' => [
+            return [
                 'id'                            => $warranty->id,
                 'warranty_code'                 => $warranty->warranty_code,
                 'customer_name'                 => $warranty->customer_name,
@@ -296,7 +303,18 @@ class WarrantyController extends Controller
                 'review_status'                 => $warranty->review_status,
                 'has_owner'                     => $warranty->customer_id !== null,
                 'masked'                        => false,
-            ],
+            ];
+        };
+
+        return response()->json([
+            'success' => true,
+            // SEBELUMNYA object tunggal ('data' => [...1 warranty...]),
+            // sekarang SELALU array (walau cuma 1 hasil) supaya frontend
+            // konsisten satu bentuk untuk semua kasus, tidak perlu cek
+            // "array atau object" — lihat WarrantyForm.tsx (web) &
+            // app/warranty/check.tsx (mobile) yang disesuaikan mengikuti
+            // perubahan ini.
+            'data' => $warranties->map($transform)->values(),
         ], 200);
     }
 
