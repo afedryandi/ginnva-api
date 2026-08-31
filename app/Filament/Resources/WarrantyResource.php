@@ -216,7 +216,15 @@ class WarrantyResource extends Resource
                         ->searchable()
                         ->preload()
                         ->visible($isSuperAdmin)
-                        ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id),
+                        ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id)
+                        // ->live() WAJIB — dropdown Kode Gulungan di bawah
+                        // (Detail Instalasi) baca $get('store_id') untuk
+                        // filter per toko (lihat perbaikan di sana). Tanpa
+                        // ->live(), ganti Toko oleh super_admin tidak
+                        // memicu refresh pilihan kode gulungan sampai ada
+                        // interaksi live lain. Ditemukan lewat testing
+                        // manual 2026-08-31.
+                        ->live(),
 
                     Forms\Components\DatePicker::make('installation_date')
                         ->label('Tanggal Pasang')
@@ -261,7 +269,15 @@ class WarrantyResource extends Resource
                         // Kode yang sudah kepilih di roll_number_2 dikecualikan
                         // supaya staff tidak bisa pilih gulungan yang sama
                         // persis 2x untuk 1 mobil.
+                        // SEBELUMNYA tidak difilter store_id sama sekali —
+                        // staff toko A bisa pilih kode gulungan yang
+                        // dialokasikan ke toko B (barang fisiknya belum
+                        // tentu ada di toko A). Difilter ke toko yang sama
+                        // dengan field 'store_id' di atas, sama pola dengan
+                        // Booking::installers/Teknisi. Ditemukan lewat
+                        // testing manual 2026-08-31.
                         ->options(fn (?Warranty $record, Forms\Get $get) => ScrollCode::query()
+                            ->when($get('store_id'), fn ($q, $storeId) => $q->where('store_id', $storeId))
                             ->whereHas('filmProduct', fn ($q) => $q->where('product_type', 'ppf'))
                             ->where(fn ($q) => $q
                                 ->where('status', 'allocated')
@@ -282,7 +298,9 @@ class WarrantyResource extends Resource
                         // diperlakukan SAMA PERSIS seperti roll_number
                         // (dipakai berkali-kali sampai ditandai habis manual,
                         // lihat WarrantyObserver).
+                        // Sama seperti roll_number di atas — difilter store_id.
                         ->options(fn (?Warranty $record, Forms\Get $get) => ScrollCode::query()
+                            ->when($get('store_id'), fn ($q, $storeId) => $q->where('store_id', $storeId))
                             ->whereHas('filmProduct', fn ($q) => $q->where('product_type', 'ppf'))
                             ->where(fn ($q) => $q
                                 ->where('status', 'allocated')
@@ -317,7 +335,10 @@ class WarrantyResource extends Resource
                         // Kaca depan & samping/belakang selalu produk (seri)
                         // berbeda — tidak ada produk yang dipakai di
                         // keduanya, jadi tidak perlu whereIn('all').
-                        ->options(fn (?Warranty $record) => ScrollCode::query()
+                        // Difilter store_id juga — sama alasan dengan
+                        // roll_number (PPF) di atas.
+                        ->options(fn (?Warranty $record, Forms\Get $get) => ScrollCode::query()
+                            ->when($get('store_id'), fn ($q, $storeId) => $q->where('store_id', $storeId))
                             ->whereHas('filmProduct', fn ($q) => $q
                                 ->where('product_type', 'window_film')
                                 ->where('position', 'front'))
@@ -341,7 +362,10 @@ class WarrantyResource extends Resource
                         // Difilter product_type='window_film' + posisi
                         // 'side_rear' — sama seperti dropdown kaca depan
                         // di atas.
-                        ->options(fn (?Warranty $record) => ScrollCode::query()
+                        // Difilter store_id juga — sama alasan dengan
+                        // roll_number (PPF) di atas.
+                        ->options(fn (?Warranty $record, Forms\Get $get) => ScrollCode::query()
+                            ->when($get('store_id'), fn ($q, $storeId) => $q->where('store_id', $storeId))
                             ->whereHas('filmProduct', fn ($q) => $q
                                 ->where('product_type', 'window_film')
                                 ->where('position', 'side_rear'))
