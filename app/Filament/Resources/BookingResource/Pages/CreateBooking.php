@@ -30,6 +30,19 @@ class CreateBooking extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        // Field store_id di form ->disabled() untuk non-super-admin (cuma
+        // lihat, tidak bisa ganti toko) — field disabled() di Filament
+        // TIDAK ikut ter-submit kecuali eksplisit dehydrated(true). Tanpa
+        // pengaman ini, $data['store_id'] tidak ada sama sekali saat Store
+        // Manager submit, bikin "Undefined array key store_id" crash 500
+        // begitu status confirmed (baris di bawah butuh store_id). Pola
+        // sama dengan CreateBlockedDate::mutateFormDataBeforeCreate().
+        // Ditemukan lewat testing manual live 2026-08-31.
+        $user = auth()->user();
+        if ($user && ! $user->isFullAccess()) {
+            $data['store_id'] = $user->store_id;
+        }
+
         $capacityByDate = collect($data['capacities'] ?? [])
             ->filter(fn ($row) => ! empty($row['date']))
             ->mapWithKeys(fn ($row) => [Carbon::parse($row['date'])->toDateString() => max(1, (int) ($row['capacity'] ?? 1))])

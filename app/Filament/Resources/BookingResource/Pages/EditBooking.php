@@ -83,6 +83,20 @@ class EditBooking extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        // Field store_id di form ->disabled() untuk non-super-admin —
+        // TIDAK ikut ter-submit kecuali eksplisit dehydrated(true), jadi
+        // $data['store_id'] tidak ada sama sekali saat Store Manager
+        // menyimpan (crash "Undefined array key store_id" begitu status
+        // confirmed, baris di bawah butuh nilainya). Kembalikan dari
+        // $this->record (toko booking ini sendiri, bukan bisa diubah
+        // Store Manager) — sama pola dengan CreateBooking::
+        // mutateFormDataBeforeCreate(). Ditemukan lewat testing manual
+        // live 2026-08-31.
+        $user = auth()->user();
+        if ($user && ! $user->isFullAccess()) {
+            $data['store_id'] = $this->record->store_id;
+        }
+
         $this->existingWatcherIds = $this->record->watchers()->pluck('users.id')->all();
 
         $capacityByDate = collect($data['capacities'] ?? [])
