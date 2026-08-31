@@ -47,7 +47,18 @@ Route::get('/materials', [MaterialController::class, 'index']);
 Route::post('/auth/detect-role', [StaffAuthController::class, 'detectRole'])->middleware('throttle:20,1');
 
 Route::prefix('warranty')->group(function () {
-    Route::post('/submit', [WarrantyController::class, 'submit'])->middleware('throttle:10,1');
+    // SEBELUMNYA endpoint ini publik total (tanpa auth apa pun) --
+    // siapa saja (termasuk bukan staff) bisa daftar garansi lewat form
+    // publik di ginnva-web ATAU langsung panggil API ini. Per keputusan
+    // bisnis: daftar garansi HANYA boleh dilakukan staff (Store Manager
+    // atau super_admin/direksi) lewat Filament -- customer/guest cuma
+    // boleh CEK garansi publik (tetap terbuka di bawah), tidak boleh
+    // bikin garansi sendiri. Sekarang wajib login staff (guard 'api',
+    // sama dengan Filament) + permission 'warranty.manage' -- persis
+    // policy WarrantyPolicy::create() yang sudah dipakai Filament, jadi
+    // aturan "siapa boleh daftar garansi" cuma 1 sumber kebenaran.
+    // Ditemukan lewat testing manual 2026-08-31.
+    Route::middleware(['auth:api', 'throttle:10,1'])->post('/submit', [WarrantyController::class, 'submit']);
     Route::get('/check', [WarrantyController::class, 'check'])->middleware('throttle:30,1');
     Route::get('/download/{code}', [WarrantyController::class, 'download'])->middleware('throttle:20,1');
     Route::middleware(['auth:customer', 'throttle:10,1'])->post('/claim', [WarrantyController::class, 'claim']);

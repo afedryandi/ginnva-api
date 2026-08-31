@@ -74,8 +74,26 @@ class WarrantyController extends Controller
         return mb_substr($clean, 0, 2) . ' •••• ' . mb_substr($clean, -3);
     }
     // POST /api/warranty/submit
+    //
+    // SEBELUMNYA endpoint ini publik total. Per keputusan bisnis: daftar
+    // garansi HANYA boleh staff (Store Manager/super_admin/direksi) --
+    // customer/guest cuma boleh CEK garansi (check()/download() di bawah
+    // TETAP publik, itu tidak berubah), tidak boleh bikin garansi
+    // sendiri. Route sudah wajib auth:api (guard staff), tapi permission
+    // 'warranty.manage' dicek ULANG di sini juga (defense in depth) --
+    // sama persis dengan WarrantyPolicy::create() yang dipakai Filament,
+    // supaya staff berperan lain (mis. installer, kalau suatu saat
+    // punya guard 'api' juga) tidak bisa daftar garansi cuma karena
+    // lolos login staff. Ditemukan lewat testing manual 2026-08-31.
     public function submit(Request $request)
     {
+        if (! $request->user('api')?->can('warranty.manage')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini tidak punya akses untuk mendaftarkan garansi.',
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'customer_name'     => 'required|string|max:255',
             'phone_number'      => 'required|string|max:30',
@@ -102,14 +120,18 @@ class WarrantyController extends Controller
         // sampai saat itu — lihat Warranty::booted() untuk logic auto-
         // generate-nya.
 
-        // Endpoint ini SENGAJA tetap publik (tidak wajib login) — guest
-        // tanpa akun tetap bisa daftar garansi seperti biasa. Tapi kalau
-        // request menyertakan Bearer token customer yang valid, warranty
-        // ini otomatis terhubung ke akun itu supaya muncul di "Garansi
-        // Saya" (我的质保) di mobile app. parseToken() dibungkus try-catch
-        // karena token bisa saja tidak ada sama sekali, kedaluwarsa, atau
-        // tidak valid — semua kondisi itu HARUS tetap lanjut sebagai guest,
-        // bukan menggagalkan submission warranty.
+        // SEBELUMNYA blok ini auto-link warranty ke akun customer kalau
+        // request menyertakan Bearer token customer yang valid -- masuk
+        // akal SAAT endpoint ini publik (customer bisa daftar sendiri
+        // sambil login). Sekarang endpoint ini staff-only (lihat guard
+        // 'api' di route + cek permission di atas), jadi requester
+        // SELALU staff, tidak pernah bawa token customer -- blok ini
+        // otomatis jadi no-op ($customerId selalu null di sini). Sengaja
+        // TIDAK dihapus (harmless, try-catch sudah aman) supaya kalau
+        // nanti staff diberi opsi "hubungkan ke akun customer yang sudah
+        // ada" saat input di Filament, mekanismenya tinggal disambung ke
+        // sini lagi. Customer tetap bisa hubungkan warranty ke akunnya
+        // sendiri belakangan lewat endpoint terpisah /warranty/claim.
         $customerId = null;
         try {
             $customer = JWTAuth::setToken(JWTAuth::getToken())->authenticate();
