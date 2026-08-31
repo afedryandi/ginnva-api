@@ -133,7 +133,19 @@ class UserResource extends Resource
                 'VehicleResource' => 'Kendaraan',
                 'StoreResource' => 'Toko/Dealer',
                 'ScrollCodeResource' => 'Kode Gulungan',
-                'PriceRuleResource' => 'Koefisien Harga',
+                // PriceRuleResource SENGAJA tidak dimasukkan di sini --
+                // resource-nya sendiri hidden total dari sidebar
+                // (shouldRegisterNavigation() false, lihat komentarnya:
+                // kalkulasi harga belum diimplementasikan di quotation
+                // flow). Beda dari ScrollCodeResource yang juga hidden
+                // tapi tetap punya jalur akses sah (drill-down dari menu
+                // Barang), grant "Koefisien Harga" di sini tidak
+                // mengarah ke mana pun di UI -- staff yang di-grant harus
+                // tahu & ketik URL manual, opsi mati yang cuma
+                // membingungkan admin saat assign role. Kembalikan baris
+                // ini kalau fitur harga otomatis sudah siap & resource-nya
+                // dibuka lagi ke navigasi. Ditemukan & diperbaiki
+                // 2026-08-29, audit modul Koefisien Harga.
             ],
             'Sistem' => [
                 'CustomerNotificationResource' => 'Riwayat Notifikasi',
