@@ -165,7 +165,50 @@ class VehicleResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    // SEBELUMNYA DeleteBulkAction::make() bawaan — beda
+                    // dari DeleteAction satuan di atas yang sudah
+                    // menangkap QueryException dengan pesan ramah, bulk
+                    // delete TIDAK punya proteksi sama sekali. Kalau 1
+                    // saja dari baris terpilih masih direferensikan
+                    // quotation (onDelete('restrict')), staff dapat error
+                    // mentah alih-alih pesan jelas. Custom action ini
+                    // proses satu-satu supaya baris yang AMAN tetap
+                    // terhapus, baris yang masih dipakai dilewati dengan
+                    // laporan jumlahnya. Ditemukan & diperbaiki 2026-08-29,
+                    // audit modul Kendaraan.
+                    Tables\Actions\BulkAction::make('delete')
+                        ->label('Hapus')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->action(function (\Illuminate\Support\Collection $records) {
+                            $deleted = 0;
+                            $blocked = 0;
+
+                            foreach ($records as $record) {
+                                try {
+                                    $record->delete();
+                                    $deleted++;
+                                } catch (QueryException $e) {
+                                    $blocked++;
+                                }
+                            }
+
+                            if ($blocked > 0) {
+                                Notification::make()
+                                    ->title($deleted > 0
+                                        ? "{$deleted} kendaraan dihapus, {$blocked} tidak bisa dihapus"
+                                        : 'Tidak ada kendaraan yang bisa dihapus')
+                                    ->body("{$blocked} kendaraan masih dipakai oleh quotation yang terdaftar, dilewati.")
+                                    ->warning()
+                                    ->send();
+
+                                return;
+                            }
+
+                            Notification::make()->title("{$deleted} kendaraan dihapus")->success()->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
                 ]),
             ])
             ->defaultSort('brand')

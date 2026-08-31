@@ -31,9 +31,7 @@ class StoreResource extends Resource
 
     /**
      * Bikin toko/cabang baru adalah keputusan bisnis level super_admin
-     * (ekspansi lokasi), bukan wewenang Store Manager — beda dari
-     * Edit (mereka boleh kelola profil toko sendiri: jam operasional,
-     * alamat, dst, lihat getEloquentQuery()).
+     * (ekspansi lokasi), bukan wewenang Store Manager.
      */
     public static function canCreate(): bool
     {
@@ -42,7 +40,14 @@ class StoreResource extends Resource
 
     /**
      * store_manager (admin toko) hanya melihat toko miliknya sendiri di
-     * list. super_admin lihat semua toko.
+     * list — READ-ONLY. Edit/Hapus master data toko (termasuk jam
+     * operasional, alamat, radius absen, toleransi telat, potongan gaji,
+     * dst) sengaja dikunci cuma untuk super_admin/direksi — lihat
+     * StorePolicy::update(), yang TIDAK punya pengecualian kepemilikan
+     * toko (beda dari view()). Keputusan bisnis 2026-08-29: mencegah
+     * conflict of interest kalau Store Manager bisa longgarkan radius
+     * absen atau kurangi potongan gaji miliknya sendiri. super_admin
+     * lihat semua toko.
      */
     public static function getEloquentQuery(): Builder
     {

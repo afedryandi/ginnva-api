@@ -86,6 +86,14 @@ class FilmProductResource extends Resource
                         ->helperText('Referensi internal sales. Tidak ditampilkan ke customer — kalkulasi quotation memakai base_price × coefficient(vehicle_size, car_part).')
                         ->numeric()
                         ->prefix('Rp')
+                        // SEBELUMNYA tidak ada minValue() -- field harga
+                        // bisa tersimpan 0 atau negatif tanpa ditolak
+                        // validasi, tidak konsisten dengan field nominal
+                        // lain di sistem (mis. StoreResource::
+                        // late_deduction_amount yang sudah pakai
+                        // ->minValue(0)). Ditemukan & diperbaiki
+                        // 2026-08-29, audit modul Produk Film.
+                        ->minValue(0)
                         ->required(),
 
                     Forms\Components\Toggle::make('is_active')
@@ -191,7 +199,51 @@ class FilmProductResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    // SEBELUMNYA DeleteBulkAction::make() bawaan — beda
+                    // dari DeleteAction satuan di atas yang sudah
+                    // menangkap QueryException dengan pesan ramah, bulk
+                    // delete TIDAK punya proteksi sama sekali. Kalau 1
+                    // saja dari baris terpilih masih direferensikan
+                    // ScrollCode (restrictOnDelete), staff dapat error
+                    // mentah alih-alih pesan jelas. Custom action ini
+                    // proses satu-satu supaya baris yang AMAN tetap
+                    // terhapus, baris yang masih dipakai dilewati dengan
+                    // laporan jumlahnya (pola sama dengan perbaikan
+                    // VehicleResource). Ditemukan & diperbaiki
+                    // 2026-08-29, audit modul Produk Film.
+                    Tables\Actions\BulkAction::make('delete')
+                        ->label('Hapus')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->action(function (\Illuminate\Support\Collection $records) {
+                            $deleted = 0;
+                            $blocked = 0;
+
+                            foreach ($records as $record) {
+                                try {
+                                    $record->delete();
+                                    $deleted++;
+                                } catch (QueryException $e) {
+                                    $blocked++;
+                                }
+                            }
+
+                            if ($blocked > 0) {
+                                Notification::make()
+                                    ->title($deleted > 0
+                                        ? "{$deleted} produk dihapus, {$blocked} tidak bisa dihapus"
+                                        : 'Tidak ada produk yang bisa dihapus')
+                                    ->body("{$blocked} produk masih dipakai oleh kode gulungan yang terdaftar, dilewati. Nonaktifkan lewat toggle \"Aktif\" saja kalau perlu.")
+                                    ->warning()
+                                    ->send();
+
+                                return;
+                            }
+
+                            Notification::make()->title("{$deleted} produk dihapus")->success()->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
                 ]),
             ])
             ->defaultSort('name');
