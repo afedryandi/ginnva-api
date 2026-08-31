@@ -251,8 +251,19 @@ class WarrantyController extends Controller
                     'car_plate'         => $this->maskPlate($warranty->car_plate),
                     'car_type'          => $warranty->car_type,
                     'product_series'    => $warranty->product_series,
-                    'installation_date' => $warranty->installation_date,
-                    'expiry_date'       => $warranty->expiry_date,
+                    // ->format('Y-m-d') WAJIB, bukan pass Carbon instance
+                    // mentah -- Carbon implements JsonSerializable, dan
+                    // default jsonSerialize()-nya konversi lewat UTC
+                    // berdasarkan APP_TIMEZONE server. Untuk field
+                    // TANGGAL MURNI (bukan datetime, tidak ada makna jam)
+                    // ini menggeser tanggalnya mundur 1 hari kalau
+                    // APP_TIMEZONE bukan UTC (mis. Asia/Jakarta) --
+                    // dikonfirmasi lewat testing manual: Filament (render
+                    // server-side, tidak lewat JSON) tampil benar, mobile
+                    // app (baca dari sini) tampil mundur 1 hari. Ditemukan
+                    // & diperbaiki 2026-08-31.
+                    'installation_date' => optional($warranty->installation_date)->format('Y-m-d'),
+                    'expiry_date'       => optional($warranty->expiry_date)->format('Y-m-d'),
                     'dealer_name'       => $warranty->dealer_name,
                     'status'            => $warranty->status,
                     'review_status'     => $warranty->review_status,
@@ -275,8 +286,11 @@ class WarrantyController extends Controller
                 'vin'                           => $warranty->vin,
                 'installation_position'         => $warranty->installation_position,
                 'installation_position_detail'  => $warranty->installation_position_detail,
-                'installation_date'             => $warranty->installation_date,
-                'expiry_date'                   => $warranty->expiry_date,
+                // Sama seperti di atas -- ->format('Y-m-d') mencegah
+                // pergeseran tanggal akibat konversi UTC saat JSON
+                // serialize.
+                'installation_date'             => optional($warranty->installation_date)->format('Y-m-d'),
+                'expiry_date'                   => optional($warranty->expiry_date)->format('Y-m-d'),
                 'dealer_name'                   => $warranty->dealer_name,
                 'status'                        => $warranty->status,
                 'review_status'                 => $warranty->review_status,

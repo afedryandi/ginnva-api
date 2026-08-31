@@ -68,8 +68,17 @@ class MyWarrantyController extends Controller
             'product_series'    => $w->product_series,
             'product_category'  => $w->product_category,
             'dealer_name'       => $w->dealer_name,
-            'installation_date' => $w->installation_date,
-            'expiry_date'       => $w->expiry_date,
+            // ->format('Y-m-d') WAJIB, bukan pass Carbon instance mentah
+            // -- default JSON serialization Carbon konversi lewat UTC
+            // berdasarkan APP_TIMEZONE server, menggeser tanggal MURNI
+            // (bukan datetime) ini mundur 1 hari kalau timezone server
+            // bukan UTC. Dikonfirmasi lewat testing manual: Filament
+            // tampil benar (render server-side, tidak lewat JSON), mobile
+            // app (baca dari sini) tampil mundur 1 hari. Sama pola dengan
+            // fix di WarrantyController::check(). Ditemukan & diperbaiki
+            // 2026-08-31.
+            'installation_date' => optional($w->installation_date)->format('Y-m-d'),
+            'expiry_date'       => optional($w->expiry_date)->format('Y-m-d'),
             'status'            => $w->status,
             'remaining_days'    => $w->remaining_days,
             'review_status'     => $w->review_status,
