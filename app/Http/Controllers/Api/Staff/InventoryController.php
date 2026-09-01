@@ -74,9 +74,31 @@ class InventoryController extends Controller
             ->limit(30)
             ->get(['id', 'code', 'name', 'category', 'status', 'scroll_code_id']);
 
+        // SEBELUMNYA staff yang cari kode gulungan yang SUDAH terdaftar
+        // tapi BELUM pernah dikaitkan ke barang fisik apa pun akan selalu
+        // dapat hasil kosong tanpa penjelasan sama sekali ("Tidak ada
+        // barang ditemukan.") -- padahal query di atas cuma mencari di
+        // tabel InventoryItem, jadi kode yang belum punya barang terkait
+        // memang mustahil ketemu lewat jalur ini. Staff tidak tahu apakah
+        // kodenya salah ketik atau memang belum dikaitkan. Cek terpisah
+        // di sini (cuma kalau hasil kosong, supaya tidak nge-query ekstra
+        // percuma tiap kali) untuk kasih hint yang benar. Ditemukan lewat
+        // testing manual 2026-09-01.
+        $hint = null;
+        if ($items->isEmpty() && $search !== '') {
+            $orphanScrollCode = ScrollCode::where('code', $search)
+                ->whereDoesntHave('inventoryItem')
+                ->first();
+
+            if ($orphanScrollCode) {
+                $hint = "Kode gulungan \"{$orphanScrollCode->code}\" sudah terdaftar tapi belum dikaitkan ke barang fisik. Kaitkan dulu lewat menu Produk PPF/WF di Filament sebelum pemakaiannya bisa dicatat.";
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data' => $items,
+            'hint' => $hint,
         ]);
     }
 
