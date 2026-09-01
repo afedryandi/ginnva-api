@@ -554,6 +554,15 @@ class WarrantyResource extends Resource
                 // karena ketentuan pemerintah. Hanya super_admin yang bisa
                 // export, karena ini data sensitif (info pelanggan
                 // lengkap) yang dikirim ke pihak luar.
+                // Pakai getFilteredTableQuery() (bukan query polos) supaya
+                // export ikut filter yang sedang aktif di layar (Toko,
+                // Status Review QA, Kategori Produk, pencarian) — SEBELUMNYA
+                // WarrantyExport bikin query independen sendiri, admin
+                // filter ke 1 toko lalu export tetap dapat data SEMUA
+                // toko. Rentang tanggal dari form ini ditambahkan DI ATAS
+                // query yang sudah terfilter itu (bukan menggantikannya).
+                // Lihat catatan di WarrantyExport. Ditemukan & diperbaiki
+                // 2026-08-31.
                 Tables\Actions\Action::make('exportExcel')
                     ->label('Export ke Excel')
                     ->icon('heroicon-o-arrow-down-tray')
@@ -568,13 +577,14 @@ class WarrantyResource extends Resource
                             ->label('Sampai Tanggal (opsional)')
                             ->helperText('Kosongkan untuk export sampai data terbaru.'),
                     ])
-                    ->action(function (array $data) {
+                    ->action(function (array $data, $livewire) {
                         $filename = 'warranty-export-' . now()->format('Ymd-His') . '.xlsx';
 
-                        return Excel::download(
-                            new WarrantyExport($data['start_date'] ?? null, $data['end_date'] ?? null),
-                            $filename
-                        );
+                        $query = $livewire->getFilteredTableQuery()
+                            ->when($data['start_date'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+                            ->when($data['end_date'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
+
+                        return Excel::download(new WarrantyExport($query), $filename);
                     }),
             ])
             ->filters([

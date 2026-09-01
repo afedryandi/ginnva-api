@@ -3,8 +3,8 @@
 namespace App\Exports;
 
 use App\Models\Warranty;
-use Illuminate\Support\Collection;
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
@@ -19,29 +19,26 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
  * SyncWarrantyToChina yang sebelumnya mencoba kirim lewat API (sekarang
  * sudah tidak dipakai).
  *
- * Bisa dipanggil dengan rentang tanggal opsional (untuk export mingguan/
- * bulanan), atau tanpa filter untuk export semua data.
+ * SEBELUMNYA implements FromCollection dengan query independen sendiri
+ * (cuma difilter tanggal) — sama sekali tidak peduli filter tabel
+ * Filament yang sedang aktif (Toko, Status Review QA, Kategori Produk,
+ * pencarian). Admin filter ke "Toko A" di layar lalu export, tetap
+ * dapat data SEMUA toko. Diganti ke FromQuery + terima Builder dari
+ * $livewire->getFilteredTableQuery() (pola sama dengan
+ * InventoryMovementExport/RawMaterialMovementExport/
+ * ConsumableItemMovementExport yang sudah lebih dulu benar), supaya
+ * export selalu konsisten dengan apa yang sedang dilihat admin di
+ * layar. Ditemukan lewat testing manual 2026-08-31.
  */
-class WarrantyExport implements FromCollection, WithHeadings, WithMapping, WithStyles
+class WarrantyExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 {
-    public function __construct(
-        protected ?string $startDate = null,
-        protected ?string $endDate = null,
-    ) {}
+    public function __construct(private ?Builder $query = null) {}
 
-    public function collection(): Collection
+    public function query(): Builder
     {
-        $query = Warranty::query()->with('store')->orderBy('created_at');
-
-        if ($this->startDate) {
-            $query->whereDate('created_at', '>=', $this->startDate);
-        }
-
-        if ($this->endDate) {
-            $query->whereDate('created_at', '<=', $this->endDate);
-        }
-
-        return $query->get();
+        return ($this->query ?? Warranty::query())
+            ->with('store')
+            ->reorder('created_at');
     }
 
     public function headings(): array
