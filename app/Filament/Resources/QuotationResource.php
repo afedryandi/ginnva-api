@@ -187,13 +187,26 @@ class QuotationResource extends Resource
                         ->required()
                         ->dehydrated(false),  // tidak disimpan ke DB
 
+                    // SEBELUMNYA label opsi cuma "{model} (Size {size})" —
+                    // tidak menyertakan Varian sama sekali. Kalau ada >1
+                    // varian untuk model yang sama (mis. "City Test 1.5 RS
+                    // CVT" & "City Test 1.5 S MT", dua-duanya size M),
+                    // keduanya tampil IDENTIK di dropdown ("City Test (Size
+                    // M)" dua kali) — staff tidak bisa bedakan mana yang
+                    // mana sama sekali. Varian ditambahkan ke label kalau
+                    // ada. Ditemukan lewat testing manual 2026-09-01.
                     Forms\Components\Select::make('vehicle_id')
                         ->label('Tipe Kendaraan')
                         ->options(fn (Get $get) => Vehicle::query()
                             ->where('brand', $get('vehicle_brand'))
                             ->orderBy('model')
+                            ->orderBy('variant')
                             ->get()
-                            ->mapWithKeys(fn ($v) => [$v->id => "{$v->model} (Size {$v->size_category})"])
+                            ->mapWithKeys(fn ($v) => [
+                                $v->id => $v->variant
+                                    ? "{$v->model} — {$v->variant} (Size {$v->size_category})"
+                                    : "{$v->model} (Size {$v->size_category})",
+                            ])
                         )
                         ->disabled(fn (Get $get) => blank($get('vehicle_brand')))
                         ->live()
