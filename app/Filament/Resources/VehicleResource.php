@@ -61,11 +61,18 @@ class VehicleResource extends Resource
 
                     // unique() di sini scoped ke brand+model lewat
                     // modifyRuleUsing — beda dari constraint database
-                    // (unique(['brand','model','variant']) di migration),
-                    // validasi Laravel ini BENAR menangkap kasus variant
-                    // kosong (whereNull otomatis kalau value-nya null),
-                    // yang justru tidak tertutup oleh unique index MySQL
-                    // biasa (dua NULL dianggap tidak sama).
+                    // (unique(['brand','model','variant']) di migration).
+                    // PENTING: rule ini cuma jalan kalau variant TERISI —
+                    // Laravel Validator melewati SEMUA rule non-required
+                    // (termasuk unique) untuk field ->nullable() yang
+                    // nilainya kosong, jadi kasus varian kosong TIDAK
+                    // tertangkap di sini sama sekali (dikonfirmasi lewat
+                    // testing manual live, 2 kendaraan Merek+Tipe sama
+                    // dengan varian sama-sama kosong lolos dobel).
+                    // Ditutup di CreateVehicle/EditVehicle::
+                    // mutateFormDataBeforeCreate/Save() sebagai jaring
+                    // pengaman terakhir yang tidak kena skip-validator
+                    // ini. Ditemukan & diperbaiki 2026-09-01.
                     Forms\Components\TextInput::make('variant')
                         ->label('Varian')
                         ->placeholder('Contoh: 1.5 RS CVT, 2.5 G AT')
