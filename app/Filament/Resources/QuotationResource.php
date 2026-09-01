@@ -304,11 +304,18 @@ class QuotationResource extends Resource
                     TextEntry::make('message')->label('Catatan / Kebutuhan Pelanggan')->placeholder('—')->columnSpanFull(),
                 ]),
 
+            // SEBELUMNYA Varian tidak ditampilkan sama sekali di sini —
+            // staff yang buka detail quotation tidak bisa tahu varian
+            // spesifik apa yang diminati customer (mis. "1.5 RS CVT" vs
+            // "1.5 S MT" untuk model yang sama), padahal datanya ada di
+            // vehicle_id yang tersimpan. Ditemukan lewat testing manual
+            // 2026-09-01.
             InfolistSection::make('Kendaraan')
-                ->columns(2)
+                ->columns(3)
                 ->schema([
                     TextEntry::make('vehicle.brand')->label('Merek Kendaraan')->placeholder('—'),
                     TextEntry::make('vehicle.model')->label('Tipe Kendaraan')->placeholder('—'),
+                    TextEntry::make('vehicle.variant')->label('Varian')->placeholder('—'),
                 ]),
 
             InfolistSection::make('Produk yang Diminati')
@@ -338,10 +345,14 @@ class QuotationResource extends Resource
                     ->label('Pelanggan')
                     ->searchable(),
 
+                // SEBELUMNYA Varian tidak ikut ditampilkan di sini juga —
+                // sama gap-nya dengan infolist View. Ditemukan lewat
+                // testing manual 2026-09-01.
                 Tables\Columns\TextColumn::make('vehicle.model')
                     ->label('Kendaraan')
                     ->formatStateUsing(fn ($record) => $record->vehicle
                         ? "{$record->vehicle->brand} {$record->vehicle->model}"
+                            . ($record->vehicle->variant ? " — {$record->vehicle->variant}" : '')
                         : '—'),
 
                 Tables\Columns\TextColumn::make('store.name')
