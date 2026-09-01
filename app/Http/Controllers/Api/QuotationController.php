@@ -81,8 +81,15 @@ class QuotationController extends Controller
             'data' => [
                 'brands'   => $brands,
                 'vehicles' => $vehicles,
+                // 'position' ditambahkan -- SEBELUMNYA tidak dikirim sama
+                // sekali, jadi frontend (web/mobile) tidak bisa bedakan
+                // otomatis produk Kaca Film "Kaca Depan" vs "Kaca Samping
+                // & Belakang" kalau admin kebetulan kasih Nama Produk yang
+                // sama persis untuk keduanya (mengandalkan admin ketik
+                // manual "(Depan)"/"(Samping)" di nama, bukan sistematis).
+                // Ditemukan lewat testing manual 2026-09-01.
                 'products' => FilmProduct::where('is_active', true)
-                    ->select('id', 'name', 'product_type')
+                    ->select('id', 'name', 'product_type', 'position')
                     ->orderBy('product_type')
                     ->get(),
             ],
