@@ -23,10 +23,12 @@ use Spatie\Permission\Models\Role;
  * - Aksesnya ke tiap menu diatur lewat "Akses Menu" di form User (per akun),
  *   BUKAN dari role ini — role di sini cuma label/pengelompokan.
  *
- * Role 'super_admin' & 'direksi' SENGAJA tidak bisa dihapus/diedit dari
- * sini (lihat canEdit/canDelete) — dua role itu selalu berarti "akses
- * penuh" di seluruh sistem (lihat User::isFullAccess()), mengubah nama
- * atau menghapusnya akan merusak logic itu.
+ * Role 'super_admin', 'direksi', 'installer', 'partner' & 'store_manager'
+ * SENGAJA tidak bisa dihapus/diedit dari sini (lihat canEdit/canDelete) —
+ * kelima nama ini di-hardcode sebagai string literal di tempat lain
+ * (User::isFullAccess()/NO_PANEL_ROLES, & pengecekan wajib-isi-Toko di
+ * UserResource::form()), jadi mengubah namanya akan diam-diam merusak
+ * logic itu tanpa ada peringatan apa pun ke admin yang me-rename.
  */
 class RoleResource extends Resource
 {
@@ -44,7 +46,7 @@ class RoleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Role / Divisi';
 
-    private const PROTECTED_ROLES = ['super_admin', 'direksi', 'installer', 'partner'];
+    private const PROTECTED_ROLES = ['super_admin', 'direksi', 'installer', 'partner', 'store_manager'];
 
     public static function canViewAny(): bool
     {
