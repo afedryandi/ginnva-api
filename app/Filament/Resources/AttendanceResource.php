@@ -251,12 +251,27 @@ class AttendanceResource extends Resource
                         'leave'      => 'Izin/Cuti',
                     ]),
 
+                // Kondisi "perlu ditinjau" di sini HARUS persis sama dengan
+                // kondisi ->visible() tombol aksi "Tandai Ditinjau" di bawah
+                // (telat/pulang-cepat/alpha/di-luar-radius) — sebelumnya
+                // outside_radius TIDAK ikut di filter ini (cuma ada di
+                // tombol aksi), jadi baris yang CUMA di luar radius (tidak
+                // telat/pulang-cepat/alpha) tombolnya tetap muncul tapi
+                // tidak pernah ikut ter-filter di sini, bisa terlewat dari
+                // radar admin yang menyisir pakai filter ini. Ditemukan
+                // dari testing live checklist Absensi Karyawan.
                 Tables\Filters\Filter::make('needs_review')
                     ->label('Perlu Ditinjau')
                     ->query(fn (Builder $query) => $query
                         ->where(fn ($q) => $q->where('late_minutes', '>', 0)
                             ->orWhere('early_leave_minutes', '>', 0)
-                            ->orWhere('entry_type', 'alpha'))
+                            ->orWhere('entry_type', 'alpha')
+                            ->orWhere(fn ($q2) => $q2
+                                ->whereNotNull('clock_in_distance_meters')
+                                ->whereHas('store', fn (Builder $q3) => $q3->whereRaw(
+                                    'attendances.clock_in_distance_meters > COALESCE(stores.attendance_radius_meters, ?)',
+                                    [Attendance::DEFAULT_RADIUS_METERS]
+                                ))))
                         ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'))
                     ),
 
