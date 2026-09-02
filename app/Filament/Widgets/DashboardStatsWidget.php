@@ -119,7 +119,13 @@ class DashboardStatsWidget extends BaseWidget
                     : 'Semua karyawan sudah absen')
                 ->descriptionIcon('heroicon-m-finger-print')
                 ->color($totalEmployees > 0 && $presentToday < $totalEmployees ? 'warning' : 'success')
-                ->url(AttendanceResource::getUrl('index', ['tableFilters' => ['entry_type' => ['value' => 'clock']]]));
+                // SEBELUMNYA link ke sini pakai filter entry_type=clock —
+                // itu daftar yang SUDAH absen, kebalikan dari makna kartu
+                // "N karyawan belum absen" ini. Sekarang ke halaman List
+                // polos, yang di atasnya sudah ada widget "Belum Absen
+                // Hari Ini" (lihat NotCheckedInTodayWidget) — jawaban
+                // sebenarnya dari pertanyaan kartu ini.
+                ->url(AttendanceResource::getUrl('index'));
         }
 
         if ($user?->hasMenuAccess(StoreResource::class) ?? false) {
@@ -253,7 +259,13 @@ class DashboardStatsWidget extends BaseWidget
      */
     protected function todayAttendanceRatio($user, bool $isSuperAdmin): array
     {
-        $employeeQuery = User::whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'));
+        // is_active=false (resign/dinonaktifkan) DIKECUALIKAN dari total —
+        // tanpa ini, karyawan yang sudah keluar tapi belum dihapus tetap
+        // menggelembungkan angka "belum absen" padahal memang tidak akan
+        // pernah absen lagi. Pola sama dengan MarkAbsences/PayrollResource/
+        // NotifyExpiringContracts.
+        $employeeQuery = User::where('is_active', true)
+            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'));
         if (! $isSuperAdmin) {
             $employeeQuery->where('store_id', $user->store_id);
         }
