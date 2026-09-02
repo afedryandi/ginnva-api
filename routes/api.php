@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\Staff\MaterialMemoController as StaffMaterialMemoCo
 use App\Http\Controllers\Api\Staff\AttendanceController as StaffAttendanceController;
 use App\Http\Controllers\Api\Staff\PayrollController as StaffPayrollController;
 use App\Http\Controllers\Api\Staff\WarningLetterController as StaffWarningLetterController;
+use App\Http\Controllers\Api\Staff\PurchaseRequestController as StaffPurchaseRequestController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\NotificationController;
@@ -347,6 +348,14 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:30,1');
         Route::delete('/memos/{id}/items/{itemId}', [StaffMaterialMemoController::class, 'destroyItem'])
             ->middleware('throttle:30,1');
+
+        // Permohonan Pembelian mandiri — ajukan & lihat status sendiri,
+        // dibatasi hasMenuAccess() (grup Inventaris, lihat catatan
+        // PurchaseRequestController). Approve/Reject/Fulfill TETAP cuma
+        // lewat Filament, tidak ada jalur mobile untuk itu.
+        Route::get('/purchase-requests', [StaffPurchaseRequestController::class, 'index']);
+        Route::post('/purchase-requests', [StaffPurchaseRequestController::class, 'store'])
+            ->middleware('throttle:20,1');
     });
 });
 

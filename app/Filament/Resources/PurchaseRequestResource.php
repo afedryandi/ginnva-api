@@ -7,6 +7,7 @@ use App\Models\ConsumableItem;
 use App\Models\PurchaseRequest;
 use App\Models\RawMaterial;
 use App\Models\Store;
+use App\Services\PushNotificationService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -210,6 +211,15 @@ class PurchaseRequestResource extends Resource
                             'reviewed_by' => auth()->id(),
                             'reviewed_at' => now(),
                         ]);
+
+                        if ($record->requested_by) {
+                            app(PushNotificationService::class)->sendToUsers(
+                                [$record->requested_by],
+                                'Permohonan Pembelian Disetujui',
+                                "Permohonan {$record->request_number} ({$record->item_name}) disetujui."
+                            );
+                        }
+
                         Notification::make()->title('Permohonan disetujui')->success()->send();
                     }),
 
@@ -232,6 +242,15 @@ class PurchaseRequestResource extends Resource
                             'reviewed_at' => now(),
                             'review_note' => $data['review_note'],
                         ]);
+
+                        if ($record->requested_by) {
+                            app(PushNotificationService::class)->sendToUsers(
+                                [$record->requested_by],
+                                'Permohonan Pembelian Ditolak',
+                                "Permohonan {$record->request_number} ({$record->item_name}) ditolak: {$data['review_note']}"
+                            );
+                        }
+
                         Notification::make()->title('Permohonan ditolak')->warning()->send();
                     }),
 
@@ -247,10 +266,20 @@ class PurchaseRequestResource extends Resource
                         && (auth()->user()?->isFullAccess() || auth()->id() === $record->requested_by))
                     ->requiresConfirmation()
                     ->modalDescription('Pastikan barang sudah dicatat masuk lewat "Catat Stok" sebelum menandai ini terpenuhi.')
-                    ->action(fn (PurchaseRequest $record) => $record->update([
-                        'status'       => 'fulfilled',
-                        'fulfilled_at' => now(),
-                    ])),
+                    ->action(function (PurchaseRequest $record) {
+                        $record->update([
+                            'status'       => 'fulfilled',
+                            'fulfilled_at' => now(),
+                        ]);
+
+                        if ($record->requested_by) {
+                            app(PushNotificationService::class)->sendToUsers(
+                                [$record->requested_by],
+                                'Permohonan Pembelian Terpenuhi',
+                                "Permohonan {$record->request_number} ({$record->item_name}) sudah terpenuhi, barang sudah tersedia."
+                            );
+                        }
+                    }),
 
                 Tables\Actions\EditAction::make()
                     ->visible(fn (PurchaseRequest $record) => $record->status === 'pending'),

@@ -275,7 +275,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         // Inventaris sama sekali, walau backend sebenarnya mengizinkan
         // mereka membuka menu Memo begitu sampai di sana.
         return $this->hasPpfWfAccess() || $this->hasMaterialAccess() || $this->hasAssetAccess()
-            || $this->hasConsumableAccess() || $this->hasMaterialMemoAccess();
+            || $this->hasConsumableAccess() || $this->hasMaterialMemoAccess() || $this->hasPurchaseRequestAccess();
     }
 
     public function hasPpfWfAccess(): bool
@@ -306,6 +306,12 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     {
         return $this->canAccessStaffArea()
             && $this->hasMenuAccess(\App\Filament\Resources\MaterialMemoResource::class);
+    }
+
+    public function hasPurchaseRequestAccess(): bool
+    {
+        return $this->canAccessStaffArea()
+            && $this->hasMenuAccess(\App\Filament\Resources\PurchaseRequestResource::class);
     }
 
     public function getActivitylogOptions(): LogOptions
