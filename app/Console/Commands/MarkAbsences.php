@@ -18,6 +18,14 @@ use Illuminate\Support\Carbon;
  * - Tidak ada -> entry_type 'alpha' (mangkir tanpa keterangan).
  * Karyawan yang SUDAH punya baris hari itu (clock/manual/field_duty)
  * dilewati — command ini cuma mengisi yang kosong, tidak pernah menimpa.
+ *
+ * Karyawan yang dilewati SAMA SEKALI (tidak dibuatkan baris apa pun):
+ * - is_active = false (resign/dinonaktifkan admin, lihat UserResource
+ *   "Nonaktifkan") — kalau tidak dicek, mantan karyawan akan terus
+ *   ditandai Alpha setiap hari selamanya walau sudah tidak bekerja.
+ * - join_date > $yesterday (belum mulai kerja pada tanggal yang
+ *   diproses) — kalau tidak dicek, karyawan baru bisa langsung kena
+ *   Alpha untuk hari-hari sebelum tanggal mulai kerjanya.
  */
 class MarkAbsences extends Command
 {
@@ -37,6 +45,8 @@ class MarkAbsences extends Command
             }
 
             $employees = User::where('store_id', $store->id)
+                ->where('is_active', true)
+                ->where(fn ($q) => $q->whereNull('join_date')->orWhereDate('join_date', '<=', $yesterday))
                 ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
                 ->get();
 
