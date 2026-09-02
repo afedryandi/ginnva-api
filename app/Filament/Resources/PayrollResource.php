@@ -160,8 +160,17 @@ class PayrollResource extends Resource
                     ->action(function (array $data) {
                         $month = Carbon::parse($data['month']);
 
+                        // is_active=false (resign/dinonaktifkan, lihat
+                        // UserResource "Nonaktifkan") DIKELUARKAN TOTAL di
+                        // sini, bukan cuma dilaporkan seperti missingSalary/
+                        // missingStore — MarkAbsences juga sudah melewati
+                        // karyawan nonaktif (tidak membuat baris Alpha untuk
+                        // mereka), jadi kalau tetap ikut di-generate di sini
+                        // mereka akan dianggap kerja penuh sebulan (alpha_days
+                        // = 0) padahal sudah tidak bekerja sama sekali.
                         $storeQuery = User::query()
                             ->when($data['store_id'] ?? null, fn ($q) => $q->where('store_id', $data['store_id']))
+                            ->where('is_active', true)
                             ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'));
 
                         // Dipisah 2 query (bukan langsung whereNotNull di
@@ -185,10 +194,17 @@ class PayrollResource extends Resource
                             }
                         }
 
+                        $inactiveCount = User::query()
+                            ->when($data['store_id'] ?? null, fn ($q) => $q->where('store_id', $data['store_id']))
+                            ->where('is_active', false)
+                            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
+                            ->count();
+
                         $bodyLines = ["{$generated} karyawan berhasil digenerate."];
                         if ($skippedPaid > 0) $bodyLines[] = "{$skippedPaid} dilewati (sudah ditandai dibayar).";
                         if ($missingSalary->isNotEmpty()) $bodyLines[] = 'Belum ada Gaji Pokok: ' . $missingSalary->implode(', ') . '.';
                         if ($missingStore->isNotEmpty()) $bodyLines[] = 'Belum terhubung toko: ' . $missingStore->implode(', ') . '.';
+                        if ($inactiveCount > 0) $bodyLines[] = "{$inactiveCount} karyawan nonaktif dilewati (tidak digenerate).";
 
                         $hasWarning = $missingSalary->isNotEmpty() || $missingStore->isNotEmpty();
                         $notification = Notification::make()->title('Payroll digenerate')->body(implode(' ', $bodyLines));
