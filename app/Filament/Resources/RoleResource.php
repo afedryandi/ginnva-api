@@ -75,8 +75,14 @@ class RoleResource extends Resource
                 ->unique(ignoreRecord: true)
                 ->helperText('Pakai huruf kecil & underscore, contoh: finance, hrd, warehouse_staff. Nama ini yang muncul di dropdown Role saat bikin akun User.')
                 ->regex('/^[a-z_]+$/')
+                // Tanpa pesan custom, rule 'unique' bawaan Laravel tampil
+                // dalam Bahasa Inggris ("The name has already been
+                // taken.") — APP_LOCALE=id tapi tidak ada lang/id/
+                // level aplikasi sama sekali, cuma fallback ke vendor 'en'.
+                // Ditemukan dari testing live checklist Role/Divisi.
                 ->validationMessages([
                     'regex' => 'Hanya huruf kecil dan underscore, tanpa spasi (mis. "warehouse_staff").',
+                    'unique' => 'Nama role ini sudah digunakan, pakai nama lain.',
                 ]),
 
             Forms\Components\Hidden::make('guard_name')

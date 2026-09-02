@@ -294,11 +294,29 @@ class UserResource extends Resource
                                 ->regex('/^[a-z_]+$/')
                                 ->validationMessages([
                                     'regex' => 'Huruf kecil & underscore saja, contoh: warehouse_staff.',
+                                    'unique' => 'Nama role ini sudah digunakan, pakai nama lain.',
                                 ])
                                 ->helperText('Contoh: hrd, warehouse_staff, sales_admin.'),
                             Forms\Components\Hidden::make('guard_name')->default('web'),
                         ])
-                        ->createOptionUsing(fn (array $data) => \Spatie\Permission\Models\Role::create($data)->getKey())
+                        // Jalur cepat ini TIDAK lewat halaman CreateRole sama
+                        // sekali (Role::create() langsung), jadi
+                        // CreateRole::afterCreate() yang mencatat Activity
+                        // Log tidak pernah terpicu untuk role yang dibuat
+                        // dari sini — dicatat manual di closure ini supaya
+                        // konsisten dengan role yang dibuat lewat menu
+                        // Role/Divisi. Ditemukan dari testing live checklist
+                        // Role/Divisi.
+                        ->createOptionUsing(function (array $data) {
+                            $role = \Spatie\Permission\Models\Role::create($data);
+
+                            activity('role')
+                                ->causedBy(auth()->user())
+                                ->performedOn($role)
+                                ->log("Role \"{$role->name}\" dibuat");
+
+                            return $role->getKey();
+                        })
                         ->live()
                         ->required()
                         ->helperText('super_admin/direksi: akses penuh. store_manager & installer: wajib pilih Toko di bawah (installer tidak bisa login ke panel ini, hanya via mobile app).'),
