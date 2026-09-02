@@ -345,6 +345,15 @@ class UserResource extends Resource
                         ->dehydrated(fn ($state) => filled($state))
                         ->minLength(8)
                         ->same('passwordConfirmation')
+                        // Default Laravel untuk rule 'same' cuma separuh
+                        // diterjemahkan Filament ("The password field must
+                        // match konfirmasi Password" — dua bahasa
+                        // tercampur), pesan sendiri di sini biar konsisten
+                        // Indonesia semua. Ditemukan saat testing live
+                        // checklist User, dilaporkan pengguna.
+                        ->validationMessages([
+                            'same' => 'Password dan Konfirmasi Password harus sama persis.',
+                        ])
                         ->live(debounce: 500)
                         ->helperText(fn (string $context) => $context === 'edit'
                             ? 'Kosongkan kalau tidak mau mengubah password.'
