@@ -14,6 +14,13 @@ use Illuminate\Console\Command;
  * ContractExtensionResource, contract_end_date otomatis berubah dan baris
  * itu keluar sendiri dari jendela 30 hari ini, jadi tidak perlu tracking
  * "sudah ditinjau" terpisah.
+ *
+ * is_active=false (resign/dinonaktifkan) DIKECUALIKAN dari kandidat
+ * kontrak berakhir — tanpa ini, karyawan yang sudah keluar tapi
+ * contract_end_date lamanya kebetulan jatuh dalam 30 hari ke depan akan
+ * terus memicu notifikasi ke semua admin setiap hari selamanya, padahal
+ * tidak relevan lagi. Lihat pola sama di MarkAbsences & generate payroll
+ * bulanan (PayrollResource).
  */
 class NotifyExpiringContracts extends Command
 {
@@ -24,6 +31,7 @@ class NotifyExpiringContracts extends Command
     public function handle(): int
     {
         $expiringUsers = User::query()
+            ->where('is_active', true)
             ->whereNotNull('contract_end_date')
             ->whereDate('contract_end_date', '>=', now())
             ->whereDate('contract_end_date', '<=', now()->addDays(30))
@@ -36,7 +44,7 @@ class NotifyExpiringContracts extends Command
 
         $names = $expiringUsers->map(fn (User $u) => "{$u->name} ({$u->contract_end_date->format('d M Y')})")->implode(', ');
 
-        $recipients = User::all()->filter(fn (User $user) => $user->isFullAccess()
+        $recipients = User::where('is_active', true)->get()->filter(fn (User $user) => $user->isFullAccess()
             || $user->hasMenuAccess(ContractExtensionResource::class));
 
         foreach ($recipients as $recipient) {
