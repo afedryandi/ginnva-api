@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\Staff\ConsumableItemController as StaffConsumableIt
 use App\Http\Controllers\Api\Staff\MaterialMemoController as StaffMaterialMemoController;
 use App\Http\Controllers\Api\Staff\AttendanceController as StaffAttendanceController;
 use App\Http\Controllers\Api\Staff\PayrollController as StaffPayrollController;
+use App\Http\Controllers\Api\Staff\WarningLetterController as StaffWarningLetterController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\NotificationController;
@@ -275,6 +276,10 @@ Route::prefix('staff')->group(function () {
         // Slip gaji mandiri — sama pola dengan Absensi/Izin, tidak
         // dibatasi hasMenuAccess() (lihat catatan PayrollController).
         Route::get('/payroll', [StaffPayrollController::class, 'index']);
+
+        // Riwayat Surat Peringatan mandiri — sama pola, read-only (lihat
+        // catatan WarningLetterController).
+        Route::get('/warning-letters', [StaffWarningLetterController::class, 'index']);
 
         // Sistem inventaris — scan QR kardus/barang fisik untuk lihat
         // detail + catat keluar/masuk. Dibatasi ke staff yang akun

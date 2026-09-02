@@ -49,6 +49,20 @@ class WarningLetterResource extends Resource
         return $query;
     }
 
+    /**
+     * Store manager/staff biasa cuma boleh MENERBITKAN SP baru — sekali
+     * sudah terbit, cuma full-access yang boleh koreksi (level/alasan/
+     * tanggal). Sebelum ini SIAPA PUN dengan akses menu bisa mengedit SP
+     * yang sudah terbit kapan saja tanpa pengaman apa pun (beda dari
+     * AttendanceResource yang mengunci koreksi baris sensitif untuk
+     * non-full-access) — dokumen disipliner seperti ini butuh jejak yang
+     * tidak gampang diutak-atik pihak yang menerbitkannya sendiri.
+     */
+    public static function canEdit($record): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         $isSuperAdmin = auth()->user()?->isFullAccess();
