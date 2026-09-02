@@ -60,6 +60,18 @@ class AuthController extends Controller
             return response()->json(['success' => false, 'message' => 'Email atau password salah.'], 401);
         }
 
+        // Akun staff yang dinonaktifkan admin (User::is_active, lihat menu
+        // "User" -> aksi "Nonaktifkan") tidak boleh login ke mobile app —
+        // gate yang sama juga berlaku di canAccessPanel() untuk sisi
+        // Filament, diduplikasi di sini karena guard 'api' tidak lewat
+        // canAccessPanel() sama sekali.
+        if (! $user->is_active) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun Anda sudah dinonaktifkan. Hubungi admin jika ini keliru.',
+            ], 403);
+        }
+
         // Partner yang dinonaktifkan admin (Partner::status) sebelumnya
         // masih bisa login & dapat token baru — status cuma ditegakkan
         // saat earning poin referral (lihat ReferralPointService), bukan

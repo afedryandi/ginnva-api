@@ -54,8 +54,15 @@ class UserResource extends Resource
     {
         // User tidak boleh hapus akun miliknya sendiri lewat panel ini,
         // supaya tidak ada super_admin yang tidak sengaja terkunci keluar.
+        // Hapus PERMANEN juga ditutup begitu akun sudah punya riwayat HR
+        // (absensi/cuti/gaji/SP/kontrak) — semua tabel itu cascadeOnDelete
+        // ke users.id, jadi hard delete di titik ini akan memusnahkan
+        // riwayat payroll/absensi yang wajib tetap ada untuk kebutuhan
+        // pajak/BPJS/audit. Gunakan aksi "Nonaktifkan" di tabel, bukan
+        // hapus, begitu karyawan sudah pernah tercatat.
         return auth()->user()?->isFullAccess()
-            && auth()->id() !== $record->id;
+            && auth()->id() !== $record->id
+            && ! $record->hasHrHistory();
     }
 
     /**
@@ -245,6 +252,16 @@ class UserResource extends Resource
                         ->label('Tanggal Mulai Kerja')
                         ->maxDate(today()),
 
+                    Forms\Components\Toggle::make('is_active')
+                        ->label('Akun Aktif')
+                        ->default(true)
+                        ->helperText('Matikan untuk mencabut akses login (panel & mobile app) tanpa menghapus akun & riwayatnya — dipakai saat karyawan resign/cuti panjang. Beda dari Hapus: data absensi/gaji/SP tetap tersimpan utuh.')
+                        // Karyawan tidak boleh menonaktifkan akunnya
+                        // sendiri lewat form ini — kalau butuh, super
+                        // admin lain yang harus melakukannya.
+                        ->disabled(fn (?User $record) => $record && auth()->id() === $record->id)
+                        ->dehydrated(),
+
                     Forms\Components\TextInput::make('base_salary')
                         ->label('Gaji Pokok')
                         ->helperText('Dipakai sebagai dasar hitung Penggajian bulanan.')
@@ -386,6 +403,14 @@ class UserResource extends Resource
                     ->placeholder('—')
                     ->sortable(),
 
+                Tables\Columns\IconColumn::make('is_active')
+                    ->label('Status')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-x-circle')
+                    ->trueColor('success')
+                    ->falseColor('danger'),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Dibuat')
                     ->dateTime('d M Y')
@@ -399,14 +424,80 @@ class UserResource extends Resource
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
                     ->options(fn () => Store::pluck('name', 'id')),
+
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Status Akun')
+                    ->trueLabel('Aktif')
+                    ->falseLabel('Nonaktif'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+
+                // Ganti utama untuk "keluarkan karyawan dari sistem" —
+                // toggle is_active, TIDAK menyentuh baris/relasi apa pun,
+                // jadi aman dipakai kapan saja tanpa risiko kehilangan
+                // riwayat (beda dari Hapus di bawah).
+                Tables\Actions\Action::make('toggleActive')
+                    ->label(fn (User $record) => $record->is_active ? 'Nonaktifkan' : 'Aktifkan')
+                    ->icon(fn (User $record) => $record->is_active ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
+                    ->color(fn (User $record) => $record->is_active ? 'danger' : 'success')
+                    ->requiresConfirmation()
+                    ->modalDescription(fn (User $record) => $record->is_active
+                        ? "Akun \"{$record->name}\" tidak akan bisa login (panel & mobile app) sampai diaktifkan lagi. Semua riwayat absensi/cuti/gaji/SP tetap tersimpan."
+                        : "Akun \"{$record->name}\" akan bisa login kembali.")
+                    ->visible(fn (User $record) => auth()->id() !== $record->id)
+                    ->action(function (User $record) {
+                        $record->update(['is_active' => ! $record->is_active]);
+
+                        \Filament\Notifications\Notification::make()
+                            ->title($record->is_active ? 'Akun diaktifkan' : 'Akun dinonaktifkan')
+                            ->success()
+                            ->send();
+                    }),
+
+                Tables\Actions\DeleteAction::make()
+                    ->modalDescription(fn (User $record) => $record->hasHrHistory()
+                        ? 'Akun ini sudah punya riwayat HR (absensi/cuti/gaji/SP/kontrak) — tidak bisa dihapus permanen. Gunakan "Nonaktifkan" untuk mencabut akses tanpa kehilangan riwayat.'
+                        : 'Yakin hapus akun ini? Tindakan ini tidak bisa dibatalkan.'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    // Bulk hapus custom: setiap baris dicek hasHrHistory()
+                    // & error FK per-baris ditangkap satu-satu (pola sama
+                    // dengan VehicleResource/FilmProductResource) — bukan
+                    // DeleteBulkAction polos yang bisa cascade riwayat HR
+                    // tanpa peringatan atau berhenti total kalau 1 baris
+                    // gagal.
+                    Tables\Actions\BulkAction::make('delete')
+                        ->label('Hapus')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalDescription('Akun dengan riwayat HR (absensi/cuti/gaji/SP/kontrak) akan DILEWATI, bukan dihapus — nonaktifkan akun itu satu-satu lewat aksi "Nonaktifkan".')
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                            $deleted = 0;
+                            $blocked = 0;
+
+                            foreach ($records as $record) {
+                                if (auth()->id() === $record->id || $record->hasHrHistory()) {
+                                    $blocked++;
+                                    continue;
+                                }
+
+                                try {
+                                    $record->delete();
+                                    $deleted++;
+                                } catch (\Illuminate\Database\QueryException $e) {
+                                    $blocked++;
+                                }
+                            }
+
+                            \Filament\Notifications\Notification::make()
+                                ->title("{$deleted} akun dihapus" . ($blocked > 0 ? ", {$blocked} dilewati (punya riwayat HR/terkunci)" : ''))
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
                 ]),
             ])
             ->defaultSort('name');

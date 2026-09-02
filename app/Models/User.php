@@ -27,6 +27,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'password',
         'store_id',
         'menu_access',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -41,6 +42,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'join_date' => 'date',
         'base_salary' => 'decimal:2',
         'contract_end_date' => 'date',
+        'is_active' => 'boolean',
     ];
 
     public function getJWTIdentifier()
@@ -96,11 +98,33 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     }
 
     /**
-     * Gate masuk ke Filament admin panel.
+     * Gate masuk ke Filament admin panel. Akun yang dinonaktifkan
+     * (is_active = false, lihat UserResource "Nonaktifkan") tidak boleh
+     * login ke panel maupun mobile app — lihat juga pengecekan yang sama
+     * di Staff\AuthController::login() untuk sisi mobile (guard 'api'
+     * tidak lewat canAccessPanel() sama sekali, jadi gate ini SENGAJA
+     * diduplikasi di kedua tempat, bukan bug).
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->canAccessStaffArea();
+        return $this->is_active && $this->canAccessStaffArea();
+    }
+
+    /**
+     * Punya riwayat HR (absensi/cuti/gaji/SP/perpanjangan kontrak) yang
+     * akan MUSNAH PERMANEN kalau akun ini di-hard-delete (semua tabel
+     * itu cascadeOnDelete ke users.id). Dipakai UserResource untuk
+     * menutup jalur hapus permanen & mengarahkan ke "Nonaktifkan" saja
+     * begitu riwayatnya sudah ada — supaya data payroll/absensi untuk
+     * kebutuhan pajak/BPJS/audit tidak pernah hilang tanpa sengaja.
+     */
+    public function hasHrHistory(): bool
+    {
+        return $this->attendances()->exists()
+            || $this->leaveRequests()->exists()
+            || $this->payrolls()->exists()
+            || $this->warningLetters()->exists()
+            || $this->contractExtensions()->exists();
     }
 
     public function store()
