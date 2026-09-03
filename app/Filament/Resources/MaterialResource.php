@@ -172,7 +172,15 @@ class MaterialResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('material_category_id')
+            // SEBELUMNYA tidak ada cara sama sekali bagi admin mengatur
+            // sort_order — kolomnya aktif dipakai query publik
+            // (MaterialController::index() -> orderBy('sort_order')),
+            // tapi selalu bernilai 0 (default kolom) karena tidak pernah
+            // diisi form/tabel manapun. Filter Kategori di atas dipakai
+            // dulu supaya drag-reorder ini masuk akal (urutan cuma
+            // relevan DALAM 1 kategori, lihat CreateMaterial).
+            ->defaultSort('sort_order')
+            ->reorderable('sort_order')
             ->groups([
                 Tables\Grouping\Group::make('category.name')
                     ->label('Kategori')
