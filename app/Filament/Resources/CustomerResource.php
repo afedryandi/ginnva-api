@@ -248,7 +248,6 @@ class CustomerResource extends Resource
                         ? '(Akun Dihapus)'
                         : ($state ?? '—'))
                     ->color(fn (Customer $record) => $record->deleted_at ? 'gray' : null)
-                    ->italic(fn (Customer $record) => (bool) $record->deleted_at)
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('email')
