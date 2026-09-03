@@ -103,9 +103,31 @@ class NewsResource extends Resource
                     ->searchable()
                     ->limit(50),
 
-                Tables\Columns\IconColumn::make('is_published')
-                    ->label('Published')
-                    ->boolean(),
+                // SEBELUMNYA cuma IconColumn boolean is_published — admin
+                // bisa salah kira artikel sudah tayang ke publik padahal
+                // masih terjadwal masa depan (API publik NewsController
+                // sudah benar menyembunyikannya sampai published_at
+                // terlewati, tapi tabel ini tidak pernah membedakannya
+                // secara visual, cuma kelihatan kalau baca kolom tanggal
+                // dengan teliti). Ditemukan saat audit modul Marketing > Berita.
+                Tables\Columns\BadgeColumn::make('status_tayang')
+                    ->label('Status')
+                    ->getStateUsing(function (News $record): string {
+                        if (! $record->is_published) return 'draft';
+                        if ($record->published_at && $record->published_at->isFuture()) return 'scheduled';
+                        return 'live';
+                    })
+                    ->colors([
+                        'gray'    => 'draft',
+                        'warning' => 'scheduled',
+                        'success' => 'live',
+                    ])
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'draft'     => 'Draft',
+                        'scheduled' => 'Terjadwal',
+                        'live'      => 'Tayang',
+                        default     => $state,
+                    }),
 
                 Tables\Columns\TextColumn::make('published_at')
                     ->label('Tanggal Publish')
