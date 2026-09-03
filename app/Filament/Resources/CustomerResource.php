@@ -156,6 +156,9 @@ class CustomerResource extends Resource
             ->label('Set Referral')
             ->icon('heroicon-o-user-plus')
             ->color('gray')
+            // Akun yang sudah dihapus/dianonimkan tidak relevan lagi
+            // diberi/diubah referral.
+            ->visible(fn (Customer $record) => ! $record->deleted_at)
             ->form(fn (Customer $record): array => static::referralFormSchema($record))
             ->fillForm(fn (Customer $record): array => static::referralFillForm($record))
             ->action(fn (Customer $record, array $data) => static::saveReferral($record, $data));
@@ -231,9 +234,21 @@ class CustomerResource extends Resource
     {
         return $table
             ->columns([
+                // SEBELUMNYA akun yang dihapus sendiri oleh customer (lihat
+                // Api\Customer\AuthController::deleteAccount() — PII
+                // dianonimkan, baris TIDAK dihapus, deleted_at diisi
+                // sebagai penanda) tidak dibedakan sama sekali di tabel
+                // ini — cuma tampil "—" polos di semua kolom, tidak ada
+                // cara admin tahu itu akun yang sengaja dihapus vs data
+                // yang memang belum lengkap. Ditemukan saat audit modul
+                // Marketing > Akun Customer.
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama')
-                    ->placeholder('—')
+                    ->formatStateUsing(fn (?string $state, Customer $record) => $record->deleted_at
+                        ? '(Akun Dihapus)'
+                        : ($state ?? '—'))
+                    ->color(fn (Customer $record) => $record->deleted_at ? 'gray' : null)
+                    ->italic(fn (Customer $record) => (bool) $record->deleted_at)
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('email')
@@ -278,6 +293,17 @@ class CustomerResource extends Resource
                     ->label('Daftar Pada')
                     ->dateTime('d M Y')
                     ->sortable(),
+            ])
+            ->filters([
+                Tables\Filters\TernaryFilter::make('deleted_at')
+                    ->label('Status Akun')
+                    ->placeholder('Semua')
+                    ->trueLabel('Akun Dihapus')
+                    ->falseLabel('Aktif')
+                    ->queries(
+                        true: fn (Builder $query) => $query->whereNotNull('deleted_at'),
+                        false: fn (Builder $query) => $query->whereNull('deleted_at'),
+                    ),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('export')
