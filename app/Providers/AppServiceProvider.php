@@ -4,12 +4,14 @@ namespace App\Providers;
 
 use App\Models\Booking;
 use App\Models\BookingMessage;
+use App\Models\ProductInquiry;
 use App\Models\Quotation;
 use App\Models\RewardRedemption;
 use App\Models\StoreReview;
 use App\Models\Warranty;
 use App\Observers\BookingMessageObserver;
 use App\Observers\BookingObserver;
+use App\Observers\ProductInquiryObserver;
 use App\Observers\QuotationObserver;
 use App\Observers\RewardRedemptionObserver;
 use App\Observers\StoreReviewObserver;
@@ -44,6 +46,7 @@ class AppServiceProvider extends ServiceProvider
         Quotation::observe(QuotationObserver::class);
         RewardRedemption::observe(RewardRedemptionObserver::class);
         StoreReview::observe(StoreReviewObserver::class);
+        ProductInquiry::observe(ProductInquiryObserver::class);
 
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
