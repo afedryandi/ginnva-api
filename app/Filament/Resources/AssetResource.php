@@ -53,6 +53,37 @@ class AssetResource extends Resource
     }
 
     /**
+     * SEBELUMNYA cuma canDelete() yang di-override di sini — canCreate()/
+     * canEdit()/canDeleteAny() masih ikut default Resource (Gate::allows()
+     * tanpa AssetPolicy terdaftar, selalu FALSE untuk siapa pun). Tombol
+     * "New", "Edit", dan hapus massal (DeleteBulkAction, sudah ada guard
+     * ->visible(isFullAccess()) eksplisit) semuanya hilang. Sama bug class
+     * dengan InventoryItemResource/RawMaterialResource (audit sebelumnya).
+     * canCreate()/canEdit() dibiarkan seluas canViewAny() — EditAction
+     * tidak punya ->visible() tambahan apa pun di kode aslinya.
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    /**
      * store_manager (admin toko) cuma lihat aset milik tokonya sendiri —
      * pola sama persis dengan TechnicianResource/StoreReviewResource.
      * Aset dengan store_id NULL ("Kantor Pusat / belum ditentukan") jadi
