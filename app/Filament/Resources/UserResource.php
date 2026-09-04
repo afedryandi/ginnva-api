@@ -156,6 +156,7 @@ class UserResource extends Resource
             ],
             'Sistem' => [
                 'CustomerNotificationResource' => 'Riwayat Notifikasi',
+                'PartnerNotificationResource' => 'Riwayat Notifikasi Partner',
                 'SendNotification' => 'Kirim Notifikasi',
             ],
         ];

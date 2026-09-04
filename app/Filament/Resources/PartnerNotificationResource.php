@@ -2,27 +2,35 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\CustomerNotificationResource\Pages;
-use App\Models\CustomerNotification;
+use App\Filament\Resources\PartnerNotificationResource\Pages;
+use App\Models\PartnerNotification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class CustomerNotificationResource extends Resource
+/**
+ * Mirror CustomerNotificationResource ('Riwayat Notifikasi') — admin bisa
+ * KIRIM notifikasi ke Partner lewat Filament\Pages\SendNotification, tapi
+ * SEBELUMNYA tidak ada cara sama sekali meninjau riwayat yang sudah
+ * terkirim ke Partner (kebalikan dari gap yang ditemukan di audit Klaim
+ * Reward, di sana Partner yang sudah punya riwayat & Customer belum).
+ * Ditemukan & dibangun saat audit modul Sistem > Riwayat Notifikasi.
+ */
+class PartnerNotificationResource extends Resource
 {
-    protected static ?string $model = CustomerNotification::class;
+    protected static ?string $model = PartnerNotification::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-bell';
 
     protected static ?string $navigationGroup = 'Sistem';
 
-    protected static ?string $navigationLabel = 'Riwayat Notifikasi';
+    protected static ?string $navigationLabel = 'Riwayat Notifikasi Partner';
 
-    protected static ?string $modelLabel = 'Notifikasi';
+    protected static ?string $modelLabel = 'Notifikasi Partner';
 
-    protected static ?string $pluralModelLabel = 'Riwayat Notifikasi';
+    protected static ?string $pluralModelLabel = 'Riwayat Notifikasi Partner';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 11;
 
     public static function canViewAny(): bool
     {
@@ -36,14 +44,6 @@ class CustomerNotificationResource extends Resource
     public static function canEdit($record): bool { return false; }
     public static function canDelete($record): bool { return false; }
 
-    /**
-     * SEBELUMNYA tidak ada override di sini dan tidak ada
-     * CustomerNotificationPolicy terdaftar — canView() bawaan Resource
-     * selalu FALSE untuk siapa pun tanpa policy (default-deny Laravel).
-     * Akibatnya tombol "View" (ikon mata) tidak pernah muncul — sama bug
-     * class yang berulang kali ditemukan di audit-audit sebelumnya
-     * (PointTransactionResource, PartnerPointTransactionResource, dst).
-     */
     public static function canView($record): bool
     {
         $user = auth()->user();
@@ -70,18 +70,18 @@ class CustomerNotificationResource extends Resource
 
                 Tables\Columns\TextColumn::make('target')
                     ->label('Target')
-                    ->state(function (CustomerNotification $record): string {
-                        if ($record->customer_id === null) {
-                            return 'Broadcast (semua user)';
+                    ->state(function (PartnerNotification $record): string {
+                        if ($record->partner_id === null) {
+                            return 'Broadcast (semua partner)';
                         }
-                        return $record->customer?->name ?? "Customer #{$record->customer_id}";
+                        return $record->partner?->business_name ?? "Partner #{$record->partner_id}";
                     })
                     ->badge()
-                    ->color(fn (CustomerNotification $record) => $record->customer_id === null ? 'info' : 'gray'),
+                    ->color(fn (PartnerNotification $record) => $record->partner_id === null ? 'info' : 'gray'),
 
                 Tables\Columns\TextColumn::make('data')
                     ->label('Deep Link')
-                    ->state(function (CustomerNotification $record): string {
+                    ->state(function (PartnerNotification $record): string {
                         return $record->data['route'] ?? '-';
                     })
                     ->color('gray')
@@ -96,11 +96,11 @@ class CustomerNotificationResource extends Resource
             ->filters([
                 Tables\Filters\Filter::make('broadcast')
                     ->label('Broadcast saja')
-                    ->query(fn ($query) => $query->whereNull('customer_id')),
+                    ->query(fn ($query) => $query->whereNull('partner_id')),
 
                 Tables\Filters\Filter::make('targeted')
                     ->label('Targeted saja')
-                    ->query(fn ($query) => $query->whereNotNull('customer_id')),
+                    ->query(fn ($query) => $query->whereNotNull('partner_id')),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
@@ -118,7 +118,7 @@ class CustomerNotificationResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCustomerNotifications::route('/'),
+            'index' => Pages\ListPartnerNotifications::route('/'),
         ];
     }
 }
