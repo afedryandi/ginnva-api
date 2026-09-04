@@ -11,13 +11,20 @@ use Filament\Tables;
 use Filament\Tables\Table;
 
 /**
- * Read-only murni — ini ledger poin customer (earn/spend dari booking,
- * bonus "ajak teman" antar-customer, reward redemption, dst). Tidak ada
- * create/edit/delete sama sekali: setiap baris SELALU dibuat otomatis
- * oleh sistem (ReferralPointService, WarrantyObserver, RewardController)
- * sebagai jejak audit — kalau admin bisa edit manual, ledger-nya jadi
- * tidak bisa dipercaya lagi sebagai bukti berapa poin yang sebenarnya
- * pernah diberikan/dipakai.
+ * Ledger poin customer (earn/spend dari booking, bonus "ajak teman"
+ * antar-customer, reward redemption, registrasi garansi, dst). Baris
+ * yang SUDAH tersimpan tidak bisa diedit/dihapus SAMA SEKALI (sama
+ * filosofi dengan PartnerPointTransactionResource — kalau salah input,
+ * catat transaksi KOREKSI baru, bukan mengubah histori, supaya ledger
+ * tetap bisa dipercaya sebagai bukti).
+ *
+ * SEBELUMNYA create() juga false total (murni read-only) — tidak ada
+ * jalur sama sekali untuk kasus customer service (mis. "maaf atas
+ * ketidaknyamanan, bonus 50 poin") atau koreksi data poin yang salah,
+ * admin harus utak-atik database langsung. Sekarang full-access bisa
+ * catat entri manual (reference_type='manual'), sama pola dengan
+ * PartnerPointTransactionResource. Ditemukan & dibangun saat audit
+ * modul Marketing > Riwayat Poin Customer.
  */
 class PointTransactionResource extends Resource
 {
@@ -45,7 +52,7 @@ class PointTransactionResource extends Resource
 
     public static function canCreate(): bool
     {
-        return false;
+        return auth()->user()?->isFullAccess() ?? false;
     }
 
     public static function canEdit($record): bool
@@ -61,42 +68,34 @@ class PointTransactionResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Detail Transaksi')
-                ->columns(2)
-                ->schema([
-                    Forms\Components\Placeholder::make('customer.name')
-                        ->label('Customer')
-                        ->content(fn (?PointTransaction $record) => $record?->customer?->name ?? '—'),
+            Forms\Components\Select::make('customer_id')
+                ->label('Customer')
+                ->relationship('customer', 'name')
+                ->getOptionLabelFromRecordUsing(fn ($record) => trim(($record->name ?? 'Tanpa Nama') . ' — ' . ($record->phone_number ?? $record->email ?? '')))
+                ->searchable(['name', 'phone_number', 'email'])
+                ->preload()
+                ->required(),
 
-                    Forms\Components\Placeholder::make('type')
-                        ->label('Tipe')
-                        ->content(fn (?PointTransaction $record) => $record?->type === 'earn' ? 'Dapat Poin' : 'Pakai Poin'),
+            Forms\Components\Select::make('type')
+                ->label('Tipe')
+                ->options([
+                    'earn'  => 'Dapat Poin (+)',
+                    'spend' => 'Pakai Poin (-)',
+                ])
+                ->required()
+                ->live(),
 
-                    Forms\Components\Placeholder::make('points')
-                        ->label('Jumlah Poin')
-                        ->content(fn (?PointTransaction $record) => $record?->points),
+            Forms\Components\TextInput::make('points')
+                ->label('Jumlah Poin')
+                ->numeric()
+                ->minValue(1)
+                ->required(),
 
-                    Forms\Components\Placeholder::make('reference_type')
-                        ->label('Sumber')
-                        ->content(fn (?PointTransaction $record) => match ($record?->reference_type) {
-                            'booking'                    => 'Booking (transaksi toko)',
-                            'customer_referral'          => 'Bonus Ajak Teman',
-                            'warranty'                   => 'Registrasi Garansi',
-                            'reward_redemption'          => 'Tukar Reward',
-                            'reward_redemption_refund'   => 'Refund Pembatalan Reward',
-                            'reward_redemption_reversal' => 'Pembatalan Reward Dibatalkan',
-                            default                      => $record?->reference_type ?? '—',
-                        }),
-
-                    Forms\Components\Placeholder::make('description')
-                        ->label('Deskripsi')
-                        ->columnSpanFull()
-                        ->content(fn (?PointTransaction $record) => $record?->description ?? '—'),
-
-                    Forms\Components\Placeholder::make('created_at')
-                        ->label('Tanggal')
-                        ->content(fn (?PointTransaction $record) => $record?->created_at?->format('d M Y H:i')),
-                ]),
+            Forms\Components\Textarea::make('description')
+                ->label('Keterangan')
+                ->placeholder('Wajib diisi — jelaskan alasan poin ini diberikan/dikurangi, supaya bisa ditelusuri nanti.')
+                ->required()
+                ->columnSpanFull(),
         ]);
     }
 
@@ -173,8 +172,9 @@ class PointTransactionResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListPointTransactions::route('/'),
-            'view'  => Pages\ViewPointTransaction::route('/{record}'),
+            'index'  => Pages\ListPointTransactions::route('/'),
+            'create' => Pages\CreatePointTransaction::route('/create'),
+            'view'   => Pages\ViewPointTransaction::route('/{record}'),
         ];
     }
 }
