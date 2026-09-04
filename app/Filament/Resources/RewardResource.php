@@ -36,6 +36,42 @@ class RewardResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada override sama sekali di sini dan tidak ada
+     * RewardPolicy terdaftar — canCreate()/canEdit()/canDelete() bawaan
+     * Resource selalu FALSE untuk siapa pun tanpa policy (default-deny
+     * Laravel). Akibatnya tombol "New", "Edit", DAN "Hapus" tidak pernah
+     * muncul — admin sama sekali tidak bisa kelola katalog reward lewat
+     * Filament. Sama bug class dengan Partner/Voucher/PointTransaction
+     * yang ditemukan di audit-audit sebelumnya. Dibiarkan seluas
+     * canViewAny() (bukan isFullAccess()) karena kelola katalog reward
+     * adalah tugas rutin staff yang sudah diberi akses menu ini, sama
+     * seperti resource katalog lain (Berita, Galeri, dst).
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

@@ -34,6 +34,39 @@ class CarouselResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada override sama sekali di sini dan tidak ada
+     * CarouselPolicy terdaftar — canCreate()/canEdit()/canDelete() bawaan
+     * Resource selalu FALSE untuk siapa pun tanpa policy (default-deny
+     * Laravel). Akibatnya tombol "New", "Edit", DAN "Hapus" tidak pernah
+     * muncul — admin sama sekali tidak bisa kelola Banner/Carousel lewat
+     * Filament. Ditemukan saat audit modul Marketing > Katalog Reward
+     * (sama bug class yang berulang di beberapa Resource lain sesi ini).
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

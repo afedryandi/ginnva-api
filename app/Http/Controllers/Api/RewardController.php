@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\ResolvesPublicFileUrl;
 use App\Http\Controllers\Controller;
 use App\Models\Reward;
 use App\Services\RewardRedemptionService;
@@ -10,6 +11,8 @@ use RuntimeException;
 
 class RewardController extends Controller
 {
+    use ResolvesPublicFileUrl;
+
     /**
      * GET /api/rewards
      * Katalog reward — sama untuk partner maupun customer, publik (tidak
@@ -30,9 +33,15 @@ class RewardController extends Controller
                 'description'     => $r->description,
                 // Kolom `image` di DB cuma path relatif (disk 'public',
                 // mis. "rewards/abc123.png") — wajib di-convert jadi URL
-                // lengkap di sini, sama seperti CarouselController,
-                // karena mobile app langsung pakai field ini sebagai URI.
-                'image'           => $r->image ? asset('storage/' . $r->image) : null,
+                // lengkap di sini karena mobile app langsung pakai field
+                // ini sebagai URI. SEBELUMNYA pakai asset('storage/...')
+                // manual — bekerja untuk disk lokal, tapi menyimpang dari
+                // ResolvesPublicFileUrl (satu-satunya sumber kebenaran
+                // yang sudah dipakai NewsController/CaseStudyController/
+                // MaterialController) yang juga aman kalau disk-nya
+                // pindah ke S3/CDN di masa depan (Storage::url() sudah
+                // full URL, tidak di-double-prefix).
+                'image'           => $this->fullImageUrl($r->image),
                 'points_cost'     => $r->points_cost,
                 'stock'           => $r->stock,
             ]),

@@ -45,6 +45,26 @@ class RewardRedemptionResource extends Resource
         return false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada override di sini dan tidak ada
+     * RewardRedemptionPolicy terdaftar — canEdit() bawaan Resource selalu
+     * FALSE untuk siapa pun tanpa policy (default-deny Laravel). Ini
+     * KRITIS karena mengubah status (pending -> fulfilled/cancelled)
+     * ADALAH satu-satunya tugas admin di resource ini (lihat komentar
+     * class di atas) — tanpa fix ini, admin sama sekali tidak bisa
+     * memproses klaim reward yang masuk, dan refund/reversal otomatis di
+     * RewardRedemptionObserver (poin & stok) tidak akan pernah
+     * ter-trigger. Sama bug class dengan Partner/Voucher/PointTransaction
+     * yang ditemukan di audit-audit sebelumnya.
+     */
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
