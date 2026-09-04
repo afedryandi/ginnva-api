@@ -47,6 +47,48 @@ class InventoryItemResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada override sama sekali di sini dan tidak ada
+     * InventoryItemPolicy terdaftar — canCreate()/canEdit()/canDelete()/
+     * canDeleteAny() bawaan Resource selalu FALSE untuk siapa pun tanpa
+     * policy (default-deny Laravel). Akibatnya tombol "New", "Edit", DAN
+     * "Hapus" (single maupun bulk) tidak pernah muncul — admin sama
+     * sekali tidak bisa kelola Produk PPF/WF lewat Filament. Sama bug
+     * class yang berulang di banyak audit sebelumnya.
+     *
+     * canCreate()/canEdit() dibiarkan seluas canViewAny() — EditAction di
+     * table() sebelumnya memang tidak punya ->visible() tambahan apa pun,
+     * beda dari DeleteAction/DeleteBulkAction yang SUDAH eksplisit
+     * ->visible(isFullAccess()) di kedua halaman (lihat EditInventoryItem
+     * & bulkActions() di table()) — canDelete()/canDeleteAny() dibatasi
+     * isFullAccess() supaya konsisten dengan guard yang sudah ada itu.
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
         // Eager-load scrollCode — dipakai kolom "Kode Gulungan" DAN

@@ -41,6 +41,47 @@ class RawMaterialResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada override sama sekali di sini dan tidak ada
+     * RawMaterialPolicy terdaftar — canCreate()/canEdit()/canDelete()/
+     * canDeleteAny() bawaan Resource selalu FALSE untuk siapa pun tanpa
+     * policy (default-deny Laravel). Akibatnya tombol "New", "Edit", DAN
+     * "Hapus" (single maupun bulk) tidak pernah muncul — sama bug class
+     * dengan InventoryItemResource (audit sebelumnya).
+     *
+     * canCreate()/canEdit() dibiarkan seluas canViewAny() — EditAction di
+     * table() tidak punya ->visible() tambahan apa pun, beda dari
+     * DeleteAction/DeleteBulkAction yang SUDAH eksplisit
+     * ->visible(isFullAccess()) (lihat EditRawMaterial & bulkActions() di
+     * table()) — canDelete()/canDeleteAny() dibatasi isFullAccess() supaya
+     * konsisten dengan guard yang sudah ada itu.
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

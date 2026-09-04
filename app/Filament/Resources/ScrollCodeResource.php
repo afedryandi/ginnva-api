@@ -48,6 +48,36 @@ class ScrollCodeResource extends Resource
     }
 
     /**
+     * SEBELUMNYA tidak ada override di sini dan tidak ada ScrollCodePolicy
+     * terdaftar — canView() bawaan Resource selalu FALSE untuk siapa pun
+     * tanpa policy (default-deny Laravel). ViewAction (label "Riwayat") di
+     * table() jadi tidak pernah muncul, DAN halaman getPages()['view']
+     * (drill-down dari kolom "Kode Gulungan" di Produk PPF/WF) 403 kalau
+     * diakses langsung — sama bug class yang berulang di banyak audit
+     * sebelumnya. Dibiarkan seluas canViewAny().
+     */
+    public static function canView($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    /**
+     * DeleteAction per-baris di table() SUDAH punya ->visible(isFullAccess
+     * && status==='unallocated') eksplisit, tapi tanpa canDelete()
+     * di-override, auto-wire authorize()-nya (default false tanpa policy)
+     * tetap menyembunyikan tombolnya terlepas dari ->visible(). Guard
+     * yang sama diulang di sini supaya konsisten dengan intent yang
+     * sudah ada.
+     */
+    public static function canDelete($record): bool
+    {
+        return (auth()->user()?->isFullAccess() ?? false) && $record->status === 'unallocated';
+    }
+
+    /**
      * Disembunyikan dari sidebar navigasi — staff sekarang cukup lewat 1
      * menu "Produk PPF/WF" untuk semua urusan PPF/WF (lihat header actions
      * baru di InventoryItemResource: Tambah Kode, Export, Rekonsiliasi,
