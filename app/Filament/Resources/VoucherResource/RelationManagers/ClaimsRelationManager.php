@@ -29,6 +29,23 @@ class ClaimsRelationManager extends RelationManager
 
     protected static ?string $modelLabel = 'Kode Voucher';
 
+    /**
+     * SEBELUMNYA tidak ada override di sini dan tidak ada VoucherClaimPolicy
+     * terdaftar — canDelete() bawaan RelationManager ($this->can('delete',
+     * $record) -> Gate::allows()) selalu FALSE untuk siapa pun tanpa
+     * policy (default-deny Laravel). Akibatnya tombol "Hapus" di tabel ini
+     * (row-lock claimed_count-nya sudah benar) TIDAK PERNAH MUNCUL — sama
+     * bug class dengan VoucherResource::canDelete() di atasnya, dan
+     * beberapa Resource lain yang ditemukan di audit-audit sebelumnya.
+     * Dibiarkan mengikuti isFullAccess() saja, konsisten dengan
+     * VoucherResource::canEdit() yang membatasi halaman Edit (tempat
+     * RelationManager ini muncul) ke full-access saja.
+     */
+    protected function canDelete($record): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public function table(Table $table): Table
     {
         return $table

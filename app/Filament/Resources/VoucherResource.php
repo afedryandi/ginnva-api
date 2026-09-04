@@ -52,6 +52,25 @@ class VoucherResource extends Resource
         return auth()->user()?->isFullAccess() ?? false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada override di sini dan tidak ada VoucherPolicy
+     * terdaftar — canDelete() bawaan Resource (Gate::allows('delete',
+     * $record)) selalu FALSE untuk siapa pun tanpa policy (default-deny
+     * Laravel). Akibatnya tombol "Hapus" di tabel (yang sudah dirancang
+     * rapi dengan pengecekan claimed_count === 0 di ->visible()) TIDAK
+     * PERNAH MUNCUL untuk siapa pun, bahkan untuk voucher baru yang belum
+     * ada klaimnya sama sekali — sama bug class dengan PartnerResource/
+     * PartnerPointTransactionResource/PointTransactionResource yang
+     * ditemukan di audit-audit sebelumnya. Guard claimed_count di sini
+     * SENGAJA didobelkan dengan ->visible() di table() — defense in
+     * depth, konsisten dengan try-catch QueryException di action() untuk
+     * request yang dimanipulasi.
+     */
+    public static function canDelete($record): bool
+    {
+        return (auth()->user()?->isFullAccess() ?? false) && $record->claimed_count === 0;
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
