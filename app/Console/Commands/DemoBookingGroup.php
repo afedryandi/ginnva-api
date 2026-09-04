@@ -187,7 +187,12 @@ class DemoBookingGroup extends Command
                     'preferred_time' => ['09:00 - 11:00', '11:00 - 13:00', '13:00 - 15:00'][array_rand(['09:00 - 11:00', '11:00 - 13:00', '13:00 - 15:00'])],
                     'duration_days' => $wantsPpf ? Booking::DEFAULT_DURATION_DAYS_PPF : Booking::DEFAULT_DURATION_DAYS_DEFAULT,
                     'notes' => 'Data dummy untuk demo/testing.',
-                    'source' => 'staff',
+                    // 'walk_in' — bookings.source cuma terima app/whatsapp/
+                    // walk_in (BEDA dari quotations.source yang terima
+                    // customer/staff, lihat BookingResource.php baris ~93-99).
+                    // 'walk_in' paling pas untuk booking demo yang diinput
+                    // manual oleh admin/staff toko.
+                    'source' => 'walk_in',
                     'status' => $status,
                     'current_stage' => $currentStage,
                 ]);
