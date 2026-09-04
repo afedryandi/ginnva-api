@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\WarrantyResource;
 use App\Models\Warranty;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
@@ -11,6 +12,20 @@ class WarrantyTrendChart extends ChartWidget
     protected static ?string $heading = 'Tren Pengajuan Garansi';
 
     protected static ?int $sort = 2;
+
+    /**
+     * SEBELUMNYA tidak ada canView() sama sekali di sini — beda dari
+     * DashboardStatsWidget yang SUDAH dibatasi hasMenuAccess() untuk tiap
+     * kartu (lihat komentar di sana: dulu widget itu satu-satunya tempat
+     * yang menampilkan data lintas modul tanpa peduli menu_access staff).
+     * Chart ini luput dari perbaikan yang sama — staff yang menu_access-
+     * nya TIDAK mencakup Garansi tetap melihat tren volume pengajuan
+     * garansi (data yang seharusnya tidak boleh dia akses) di Dashboard.
+     */
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasMenuAccess(WarrantyResource::class) ?? false;
+    }
 
     /**
      * store_manager (admin toko) hanya lihat tren tokonya sendiri,

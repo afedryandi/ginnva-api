@@ -33,6 +33,26 @@ class NotCheckedInTodayWidget extends BaseWidget
 
     protected static bool $isLazy = false;
 
+    /**
+     * SEBELUMNYA tidak ada override di sini — widget ini ada di folder
+     * app/Filament/Widgets yang di-auto-discover PANEL-WIDE
+     * (AdminPanelProvider::discoverWidgets()), dan Dashboard bawaan
+     * Filament (Filament\Pages\Dashboard::getWidgets()) mengembalikan
+     * SEMUA widget yang terdaftar di panel, bukan cuma yang eksplisit
+     * ditaruh di getHeaderWidgets() suatu halaman. Padahal komentar class
+     * di atas jelas menyatakan widget ini SENGAJA "ditaruh di halaman
+     * List Absensi Karyawan (bukan dashboard utama) ... tanpa nambah
+     * widget baru di dashboard yang sudah padat" — tanpa canView() ini,
+     * widget tetap ikut nongol di Dashboard utama juga (dobel dengan
+     * penempatan di ListAttendances), bertentangan dengan niat yang
+     * sudah ditulis. Dibatasi cuma tampil di halaman List Absensi
+     * Karyawan lewat nama route-nya.
+     */
+    public static function canView(): bool
+    {
+        return request()->routeIs('filament.admin.resources.attendances.index');
+    }
+
     public function table(Table $table): Table
     {
         $isFullAccess = auth()->user()?->isFullAccess() ?? false;

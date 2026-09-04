@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\QuotationResource;
 use App\Models\Quotation;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
@@ -11,6 +12,18 @@ class QuotationTrendChart extends ChartWidget
     protected static ?string $heading = 'Tren Quotation';
 
     protected static ?int $sort = 4;
+
+    /**
+     * Sama temuan dengan WarrantyTrendChart — sebelumnya tidak ada
+     * canView() sama sekali, jadi staff yang menu_access-nya TIDAK
+     * mencakup Quotation tetap melihat tren volume quotation masuk di
+     * Dashboard, tidak konsisten dengan DashboardStatsWidget yang sudah
+     * dibatasi hasMenuAccess() per kartu.
+     */
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasMenuAccess(QuotationResource::class) ?? false;
+    }
 
     protected function getFilters(): ?array
     {
