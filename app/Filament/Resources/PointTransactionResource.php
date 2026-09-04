@@ -65,6 +65,26 @@ class PointTransactionResource extends Resource
         return false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada override di sini dan tidak ada
+     * PointTransactionPolicy terdaftar — canView() bawaan Resource
+     * (Gate::allows('view', $record)) selalu FALSE untuk siapa pun tanpa
+     * policy (default-deny Laravel). Akibatnya tombol "View" (ikon mata)
+     * di tabel tidak pernah muncul, dan halaman detail 403 kalau diakses
+     * langsung — sama bug class dengan yang ditemukan di
+     * PartnerPointTransactionResource (audit modul Marketing > Riwayat
+     * Poin Partner). Dibiarkan seluas canViewAny(), bukan isFullAccess(),
+     * karena melihat detail baris yang sudah tampil di tabel bukan
+     * tindakan lebih sensitif dari melihat tabelnya sendiri.
+     */
+    public static function canView($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
