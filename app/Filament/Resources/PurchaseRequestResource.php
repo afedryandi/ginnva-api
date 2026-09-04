@@ -40,6 +40,46 @@ class PurchaseRequestResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada override sama sekali di sini dan tidak ada
+     * PurchaseRequestPolicy terdaftar — canCreate()/canEdit()/canDelete()
+     * bawaan Resource selalu FALSE untuk siapa pun tanpa policy
+     * (default-deny Laravel). Sama bug class dengan Resource lain di
+     * modul Inventaris (audit-audit sebelumnya). Akibatnya CreateAction,
+     * EditAction (sudah ada guard ->visible(status==='pending')), dan
+     * DeleteAction (sudah ada guard ->visible(isFullAccess() &&
+     * status==='pending')) semuanya tidak pernah muncul. Aksi
+     * approve/reject/fulfill AMAN dari bug ini — semuanya Action custom
+     * yang di-gate manual lewat ->visible() inline, bukan lewat
+     * canEdit()/canDelete() bawaan Filament.
+     *
+     * canCreate()/canEdit() dibiarkan seluas canViewAny() — tidak ada
+     * ->visible() tambahan untuk Create, dan guard status di EditAction
+     * sudah cukup sebagai pembatas sendiri. canDelete() dibatasi
+     * isFullAccess() (menyamai guard ->visible() yang SUDAH ada eksplisit
+     * di DeleteAction).
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
