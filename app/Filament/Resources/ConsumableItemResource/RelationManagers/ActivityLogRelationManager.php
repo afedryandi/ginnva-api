@@ -28,6 +28,21 @@ class ActivityLogRelationManager extends RelationManager
         return true;
     }
 
+    /**
+     * isReadOnly() di atas menutup create/edit/delete/detach, TAPI TIDAK
+     * ViewAction — itu digerbangi terpisah lewat canView() bawaan
+     * RelationManager ($this->can('view', $record)), yang selalu FALSE
+     * tanpa ActivityPolicy (tidak ada, dan memang tidak akan dibuat —
+     * lihat Spatie\Activitylog\Models\Activity, model pihak ketiga).
+     * Tanpa override ini tombol "View" tidak pernah muncul di tab ini.
+     * Aman selalu true — akses ke tab ini sendiri sudah digerbangi oleh
+     * canView()/canEdit() ConsumableItemResource induknya.
+     */
+    protected function canView($record): bool
+    {
+        return true;
+    }
+
     public function table(Table $table): Table
     {
         return $table

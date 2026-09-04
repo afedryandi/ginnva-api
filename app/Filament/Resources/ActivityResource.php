@@ -57,6 +57,23 @@ class ActivityResource extends Resource
         return false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada override di sini dan tidak ada ActivityPolicy
+     * terdaftar — canView() bawaan Resource selalu FALSE untuk siapa pun
+     * tanpa policy (default-deny Laravel). Akibatnya tombol "View" (ikon
+     * mata) tidak pernah muncul, DAN halaman /admin/activities/{record}
+     * (getPages() punya route 'view' sendiri, bukan modal) 403 kalau
+     * diakses langsung — satu-satunya cara melihat detail lengkap 1 baris
+     * audit trail (properties.old/attributes) sama sekali tidak bisa
+     * diakses. Sama bug class yang berulang di audit-audit sebelumnya.
+     * Dibiarkan seluas canViewAny() (isFullAccess()), konsisten dengan
+     * pembatasan resource ini yang memang khusus super_admin/direksi.
+     */
+    public static function canView($record): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([]);
