@@ -43,14 +43,13 @@ class KaryawanStatsWidget extends BaseWidget
         // relevan untuk admin toko karena tidak ber-scope ke 1 toko).
         if ($isSuperAdmin) {
             // SEBELUMNYA User::count() polos — tabel users dipakai bareng
-            // untuk staff/admin, installer, DAN partner (lihat
-            // User::NO_PANEL_ROLES), jadi angka "Total User Admin" ikut
-            // menghitung akun partner/installer yang sebenarnya bukan
-            // karyawan Ginnva. Dikecualikan lewat NO_PANEL_ROLES yang
-            // sama supaya konsisten dengan definisi "boleh masuk panel
-            // Filament" (canAccessStaffArea()) di tempat lain.
-            $stats[] = Stat::make('Total User Admin', User::whereDoesntHave('roles', fn ($q) => $q->whereIn('name', User::NO_PANEL_ROLES))->count())
-                ->description('Semua akun staff/admin Ginnva (tidak termasuk installer/partner)')
+            // untuk staff/admin, installer, DAN partner. Installer TETAP
+            // dihitung (teknisi lapangan, karyawan Ginnva sungguhan) —
+            // cuma partner (mitra referral eksternal, bukan karyawan)
+            // yang dikecualikan, sama pola dengan
+            // KaryawanStatsWidget::todayAttendanceRatio() di atas.
+            $stats[] = Stat::make('Total User Admin', User::whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))->count())
+                ->description('Semua akun staff/admin & teknisi Ginnva (tidak termasuk partner)')
                 ->descriptionIcon('heroicon-m-users')
                 ->color('gray')
                 ->url(UserResource::getUrl('index'));
