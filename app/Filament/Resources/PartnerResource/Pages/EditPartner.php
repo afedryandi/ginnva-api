@@ -15,7 +15,10 @@ class EditPartner extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            Actions\DeleteAction::make()
+                ->modalDescription(fn (Partner $record) => $record->hasHistory()
+                    ? 'Partner ini sudah punya riwayat poin dan/atau booking referral — tidak bisa dihapus permanen. Gunakan "Nonaktifkan" (ubah Status) untuk mencabut akses tanpa kehilangan riwayat.'
+                    : 'Yakin hapus partner ini? Tindakan ini tidak bisa dibatalkan.'),
         ];
     }
 

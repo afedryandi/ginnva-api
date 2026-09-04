@@ -38,6 +38,52 @@ class PartnerResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada override sama sekali di sini, dan tidak ada
+     * PartnerPolicy terdaftar — Gate::allows('create'/'delete', Partner)
+     * dari Filament (canCreate()/canDelete() bawaan Resource) selalu
+     * FALSE untuk siapa pun tanpa policy/ability terdaftar (default-deny
+     * Laravel), jadi tombol "New Partner" tidak pernah muncul dan
+     * /admin/partners/create 403 untuk SEMUA orang termasuk super_admin —
+     * admin sama sekali tidak bisa buat Partner manual lewat Filament.
+     * Ditemukan & diperbaiki saat audit modul Marketing > Partner.
+     */
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    /**
+     * Sama filosofi dengan UserResource::canDelete() (lihat
+     * User::hasHrHistory()) — hard delete ditutup begitu partner sudah
+     * punya riwayat (ledger poin dan/atau booking referral), karena
+     * partner_point_transactions cascadeOnDelete dan bookings.partner_id
+     * di-null-kan, memusnahkan histori referral/poin yang jadi bukti
+     * komisi. Gunakan "Nonaktifkan" (status) untuk partner yang sudah
+     * pernah tercatat.
+     */
+    public static function canDelete($record): bool
+    {
+        return (auth()->user()?->isFullAccess() ?? false) && ! $record->hasHistory();
+    }
+
+    /**
+     * Sama gap-nya dengan canCreate()/canDelete() di atas — tanpa override
+     * ini tombol "Edit" di tabel juga tidak pernah muncul untuk siapa pun.
+     * Dibiarkan seluas canViewAny() (bukan dibatasi isFullAccess() seperti
+     * Create/Delete) karena mengubah data partner (telepon, status aktif/
+     * nonaktif, reset password) adalah tugas rutin staff yang memang sudah
+     * diberi akses menu ini, bukan tindakan sensitif seperti bikin akun
+     * login baru atau hapus permanen.
+     */
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

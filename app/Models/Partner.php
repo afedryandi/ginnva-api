@@ -45,6 +45,20 @@ class Partner extends Model
     }
 
     /**
+     * Punya riwayat transaksi (ledger poin dan/atau booking referral) yang
+     * akan MUSNAH PERMANEN kalau partner ini di-hard-delete — semua baris
+     * partner_point_transactions cascadeOnDelete ke partners.id, dan
+     * bookings.partner_id di-null-kan (atribusi referral hilang). Dipakai
+     * PartnerResource untuk menutup jalur hapus permanen begitu riwayatnya
+     * sudah ada — sama filosofi dengan User::hasHrHistory(), gunakan
+     * "Nonaktifkan" (status) begitu partner sudah pernah tercatat.
+     */
+    public function hasHistory(): bool
+    {
+        return $this->pointTransactions()->exists() || $this->bookings()->exists();
+    }
+
+    /**
      * Generate kode referral unik — dipakai saat partner baru dibuat di
      * Filament. Format: 8 karakter huruf besar+angka, mudah diucapkan/
      * diketik manual oleh partner ke kenalannya.
