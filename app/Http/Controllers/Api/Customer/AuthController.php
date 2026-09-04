@@ -199,9 +199,27 @@ class AuthController extends Controller
 
     /**
      * POST /api/customer/auth/logout
+     *
+     * `push_token` OPSIONAL — dikirim mobile app buat unlink device_tokens
+     * device ini dari akun yang logout. SEBELUMNYA tidak pernah di-unlink
+     * sama sekali: di HP pribadi tidak masalah (token ke-overwrite otomatis
+     * saat login berikutnya), tapi di HP BERSAMA/demo unit toko, customer
+     * lain yang belum login di device yang sama tetap bisa menerima
+     * notifikasi bertarget milik akun yang sudah logout. Di-scope ke
+     * customer_id milik akun ini sendiri (bukan hapus baris token
+     * berdasarkan token saja) supaya tidak bisa dipakai untuk unlink token
+     * customer lain kalau ada yang kirim token asing.
      */
     public function logout(Request $request)
     {
+        $customer = $request->user('customer');
+
+        if ($request->filled('push_token')) {
+            DeviceToken::where('token', $request->push_token)
+                ->where('customer_id', $customer->id)
+                ->update(['customer_id' => null]);
+        }
+
         JWTAuth::invalidate(JWTAuth::getToken());
 
         return response()->json([

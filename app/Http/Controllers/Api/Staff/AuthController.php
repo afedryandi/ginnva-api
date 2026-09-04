@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
 use App\Mail\OtpMail;
+use App\Models\DeviceToken;
 use App\Models\OtpCode;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -98,8 +99,22 @@ class AuthController extends Controller
         return response()->json(['success' => true, 'user' => $this->transform($request->user('api'))]);
     }
 
+    /**
+     * `push_token` OPSIONAL — sama pola dengan Customer\AuthController::
+     * logout(), unlink device_tokens device ini dari akun staff/partner
+     * yang logout, supaya di HP bersama/demo unit toko tidak ada
+     * notifikasi bertarget yang nyasar ke akun yang sudah logout.
+     */
     public function logout(Request $request)
     {
+        $user = $request->user('api');
+
+        if ($request->filled('push_token') && $user) {
+            DeviceToken::where('token', $request->push_token)
+                ->where('user_id', $user->id)
+                ->update(['user_id' => null]);
+        }
+
         Auth::guard('api')->logout();
 
         return response()->json(['success' => true, 'message' => 'Logout berhasil.']);

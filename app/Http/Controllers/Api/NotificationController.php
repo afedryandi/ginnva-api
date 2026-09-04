@@ -410,7 +410,17 @@ class NotificationController extends Controller
             'data'           => 'nullable|array',
         ]);
 
-        $query = DeviceToken::query();
+        // SEBELUMNYA broadcast ("kirim ke semua pengguna") tidak difilter
+        // sama sekali — device_tokens adalah tabel GABUNGAN (customer_id
+        // untuk Customer, user_id untuk staff/Partner, lihat migrasi
+        // 2026_xx add_user_id_to_device_tokens). Tanpa whereNotNull di
+        // sini, broadcast Customer ikut mem-push ke HP staff & Partner
+        // juga — notifikasi marketing untuk Customer (mis. "Promo 20%")
+        // nyasar ke akun internal. sendPartner() di bawah sudah benar
+        // (whereIn('user_id', ...) eksplisit); endpoint ini sekarang
+        // dikunci whereNotNull('customer_id') supaya selalu customer-only,
+        // baik targeted maupun broadcast.
+        $query = DeviceToken::query()->whereNotNull('customer_id');
 
         if (! empty($request->customer_ids)) {
             $query->whereIn('customer_id', $request->customer_ids);
