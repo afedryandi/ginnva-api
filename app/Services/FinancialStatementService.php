@@ -7,8 +7,9 @@ use App\Models\JournalEntryLine;
 use Illuminate\Support\Carbon;
 
 /**
- * Neraca Saldo & Laporan Laba Rugi — DIHITUNG dari Jurnal Umum (journal_
- * entries + journal_entry_lines) yang statusnya 'posted' SAJA. Jurnal
+ * Neraca Saldo, Laporan Laba Rugi & Buku Besar — DIHITUNG dari Jurnal
+ * Umum (journal_entries + journal_entry_lines) yang statusnya 'posted'
+ * SAJA. Jurnal
  * 'draft' TIDAK ikut dihitung — draft berarti belum final/masih bisa
  * berubah, memasukkannya ke laporan resmi akan bikin angka tidak stabil.
  *
@@ -150,6 +151,76 @@ class FinancialStatementService
             'laba_operasional' => $labaOperasional,
             'laba_sebelum_pajak' => $labaSebelumPajak,
             'laba_bersih' => $labaBersih,
+        ];
+    }
+
+    /**
+     * Buku Besar — rincian TIAP baris jurnal yang menyentuh 1 akun dalam
+     * rentang tanggal, dengan saldo berjalan (running balance) per baris
+     * — pelengkap Neraca Saldo yang cuma kasih 1 angka akhir per akun.
+     * saldo_awal dihitung dari SEMUA jurnal posted SEBELUM $from (bukan
+     * dari nol), supaya saldo berjalan di baris pertama periode tetap
+     * nyambung dengan riwayat sebelumnya, bukan seolah-olah akun ini
+     * baru mulai dipakai di $from.
+     *
+     * @return array{account: ChartOfAccount, opening_balance: float, rows: Collection, closing_balance: float, total_debit: float, total_credit: float}
+     */
+    public function generalLedger(ChartOfAccount $account, Carbon $from, Carbon $to, ?int $storeId = null): array
+    {
+        $opening = JournalEntryLine::query()
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+            ->where('journal_entries.status', 'posted')
+            ->where('journal_entry_lines.chart_of_account_id', $account->id)
+            ->whereDate('journal_entries.entry_date', '<', $from->toDateString())
+            ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
+            ->selectRaw('SUM(journal_entry_lines.debit) as debit, SUM(journal_entry_lines.credit) as credit')
+            ->first();
+
+        $openingDebit = (float) ($opening->debit ?? 0);
+        $openingCredit = (float) ($opening->credit ?? 0);
+        $openingBalance = $account->isDebitNormal() ? $openingDebit - $openingCredit : $openingCredit - $openingDebit;
+
+        $lines = JournalEntryLine::query()
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+            ->where('journal_entries.status', 'posted')
+            ->where('journal_entry_lines.chart_of_account_id', $account->id)
+            ->whereBetween('journal_entries.entry_date', [$from->toDateString(), $to->toDateString()])
+            ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
+            ->orderBy('journal_entries.entry_date')
+            ->orderBy('journal_entries.id')
+            ->get([
+                'journal_entry_lines.debit',
+                'journal_entry_lines.credit',
+                'journal_entry_lines.description as line_description',
+                'journal_entries.entry_number',
+                'journal_entries.entry_date',
+                'journal_entries.description as entry_description',
+            ]);
+
+        $running = $openingBalance;
+        $rows = $lines->map(function ($line) use (&$running, $account) {
+            $debit = (float) $line->debit;
+            $credit = (float) $line->credit;
+            $delta = $account->isDebitNormal() ? $debit - $credit : $credit - $debit;
+            $running += $delta;
+
+            return [
+                'entry_date' => Carbon::parse($line->entry_date),
+                'entry_number' => $line->entry_number,
+                'description' => $line->line_description ?: $line->entry_description,
+                'debit' => $debit,
+                'credit' => $credit,
+                'running_balance' => $running,
+            ];
+        });
+
+        return [
+            'account' => $account,
+            'opening_balance' => $openingBalance,
+            'rows' => $rows,
+            'closing_balance' => $running,
+            'total_debit' => (float) $rows->sum('debit'),
+            'total_credit' => (float) $rows->sum('credit'),
         ];
     }
 }
