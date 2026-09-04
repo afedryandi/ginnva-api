@@ -120,6 +120,14 @@ class UserResource extends Resource
                 'FinanceCategoryResource' => 'Kategori Keuangan',
                 'FinanceTransactionResource' => 'Transaksi Keuangan',
                 'FinanceReport' => 'Laporan Keuangan',
+                // ChartOfAccountResource & JournalEntryResource SENGAJA
+                // tidak dimasukkan di sini — sama pola dengan
+                // PayrollResource, selalu isFullAccess()-only (lihat
+                // canViewAny() masing-masing), tidak pernah lewat
+                // menu_access. Struktur akun & jurnal berpasangan adalah
+                // keputusan akuntansi yang mempengaruhi laporan seluruh
+                // perusahaan, bukan operasional harian yang cocok
+                // didelegasikan ke store_manager.
             ],
             'Marketing/Konten' => [
                 'CustomerResource' => 'Akun Customer',
