@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             VehicleSeeder::class,
             FilmProductSeeder::class,
             RolePermissionSeeder::class,
+            ChartOfAccountSeeder::class,
         ]);
     }
 }
