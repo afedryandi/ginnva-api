@@ -116,6 +116,11 @@ class UserResource extends Resource
                 // komentar di PayrollResource::canViewAny(), selalu
                 // isFullAccess-only, tidak pernah lewat menu_access.
             ],
+            'Keuangan' => [
+                'FinanceCategoryResource' => 'Kategori Keuangan',
+                'FinanceTransactionResource' => 'Transaksi Keuangan',
+                'FinanceReport' => 'Laporan Keuangan',
+            ],
             'Marketing/Konten' => [
                 'CustomerResource' => 'Akun Customer',
                 'PointTransactionResource' => 'Riwayat Poin Customer',

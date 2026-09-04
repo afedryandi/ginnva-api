@@ -40,15 +40,17 @@ class AdminPanelProvider extends PanelProvider
             // bernama 'Operasional' — DIGANTI karena begitu Absensi/Izin/
             // Penggajian/Surat Peringatan/Perpanjang Kontrak dibangun,
             // ISINYA 100% soal karyawan, jadi nama lama sudah tidak akurat),
-            // Inventaris, lalu Master Data & Sistem (data acuan lintas-modul
-            // & hal teknis, sengaja tetap terpisah — tidak cocok dipaksa
-            // masuk ke salah satu sistem bisnis). Keuangan/Financial BELUM
-            // ada modul sama sekali, jadi belum didaftarkan di sini.
+            // Inventaris, Keuangan (pencatatan pemasukan/pengeluaran
+            // sederhana — BUKAN double-entry bookkeeping, lihat komentar
+            // FinanceTransactionResource), lalu Master Data & Sistem (data
+            // acuan lintas-modul & hal teknis, sengaja tetap terpisah —
+            // tidak cocok dipaksa masuk ke salah satu sistem bisnis).
             ->navigationGroups([
                 'Booking',
                 'Marketing/Konten',
                 'Karyawan',
                 'Inventaris',
+                'Keuangan',
                 'Master Data',
                 'Sistem',
             ])
