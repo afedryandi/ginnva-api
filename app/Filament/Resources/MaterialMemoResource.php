@@ -38,6 +38,37 @@ class MaterialMemoResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada override sama sekali di sini dan tidak ada
+     * MaterialMemoPolicy terdaftar — canCreate()/canEdit() bawaan
+     * Resource selalu FALSE untuk siapa pun tanpa policy (default-deny
+     * Laravel). Sama bug class dengan Resource lain di modul Inventaris
+     * (audit-audit sebelumnya). Akibatnya CreateAction & EditAction
+     * (tombol "New"/"Edit") tidak pernah muncul, DAN halaman Edit 403
+     * kalau diakses langsung — termasuk tombol "Hapus" custom di
+     * EditMaterialMemo (yang membalik stok dulu via
+     * MaterialMemoStockService sebelum benar-benar menghapus) jadi ikut
+     * tidak terjangkau sama sekali walau tombolnya sendiri tidak
+     * memakai DeleteAction bawaan Filament (tidak kena canDelete()).
+     * Dibiarkan seluas canViewAny() — tidak ada ->visible() tambahan
+     * apa pun di kode aslinya untuk Create/Edit/Hapus resource ini.
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
