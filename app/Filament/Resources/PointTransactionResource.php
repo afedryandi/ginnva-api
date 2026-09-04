@@ -131,6 +131,7 @@ class PointTransactionResource extends Resource
                         'reward_redemption'          => 'Tukar Reward',
                         'reward_redemption_refund'   => 'Refund Reward',
                         'reward_redemption_reversal' => 'Reward Dibatalkan Ulang',
+                        'manual'                     => 'Entri Manual Admin',
                         default                      => $state ?? '—',
                     })
                     ->badge(),
@@ -161,6 +162,7 @@ class PointTransactionResource extends Resource
                         'reward_redemption'          => 'Tukar Reward',
                         'reward_redemption_refund'   => 'Refund Reward',
                         'reward_redemption_reversal' => 'Reward Dibatalkan Ulang',
+                        'manual'                     => 'Entri Manual Admin',
                     ]),
             ])
             ->actions([
