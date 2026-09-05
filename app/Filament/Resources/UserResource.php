@@ -121,6 +121,7 @@ class UserResource extends Resource
                 'FinanceTransactionResource' => 'Transaksi Keuangan',
                 'FinanceReport' => 'Laporan Keuangan',
                 'PayableResource' => 'Hutang Usaha',
+                'ReceivableResource' => 'Piutang Usaha',
                 // ChartOfAccountResource & JournalEntryResource SENGAJA
                 // tidak dimasukkan di sini — sama pola dengan
                 // PayrollResource, selalu isFullAccess()-only (lihat

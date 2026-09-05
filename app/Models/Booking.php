@@ -40,6 +40,7 @@ class Booking extends Model
         'service_reminder_sent_at',
         'referral_code',
         'transaction_amount',
+        'amount_received',
         'partner_id',
         'voucher_claim_id',
         'journal_entry_id',
@@ -48,6 +49,7 @@ class Booking extends Model
     protected $casts = [
         'preferred_date' => 'date',
         'transaction_amount' => 'decimal:2',
+        'amount_received' => 'decimal:2',
         'product_kaca_film' => 'boolean',
         'product_ppf' => 'boolean',
         'duration_days' => 'integer',

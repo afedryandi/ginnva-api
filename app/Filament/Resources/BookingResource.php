@@ -778,8 +778,25 @@ class BookingResource extends Resource
                             ->label('Nominal Transaksi')
                             ->numeric()
                             ->minValue(0)
+                            ->live()
                             ->default(fn (Booking $record) => $record->transaction_amount)
                             ->helperText('Dipakai untuk menghitung poin referral (1 poin / Rp10.000).'),
+
+                        // Dipisah dari transaction_amount supaya penjualan
+                        // dengan termin (belum lunas di tempat) bisa
+                        // tercatat sebagai Piutang Usaha — lihat
+                        // BookingPostingService. Default SAMA dengan
+                        // transaction_amount (lunas penuh) kalau kasir
+                        // tidak sengaja mengubahnya.
+                        Forms\Components\TextInput::make('amount_received')
+                            ->label('Nominal Diterima (Tunai)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->live()
+                            ->default(fn (Booking $record) => $record->amount_received ?? $record->transaction_amount)
+                            ->helperText(fn (Forms\Get $get) => ((float) ($get('transaction_amount') ?? 0)) > ((float) ($get('amount_received') ?? 0))
+                                ? 'Selisihnya akan dicatat sebagai Piutang Usaha (belum lunas).'
+                                : 'Kosongkan/samakan dengan Nominal Transaksi kalau customer sudah lunas penuh.'),
 
                         Forms\Components\TextInput::make('referral_code')
                             ->label('Kode Referral Partner')
@@ -808,6 +825,7 @@ class BookingResource extends Resource
                             DB::transaction(function () use ($record, $data) {
                                 $record->update([
                                     'transaction_amount' => $data['transaction_amount'] !== '' ? $data['transaction_amount'] : null,
+                                    'amount_received'     => $data['amount_received'] !== '' ? $data['amount_received'] : null,
                                     'referral_code'       => $data['referral_code'] ?: null,
                                 ]);
 
