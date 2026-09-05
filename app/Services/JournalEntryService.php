@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\AccountingPeriod;
 use App\Models\ChartOfAccount;
 use App\Models\JournalEntry;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -14,6 +16,11 @@ use RuntimeException;
  * total debit = total kredit, akun harus postable & aktif) SEMUANYA di
  * sini, supaya tidak mungkin ada jurnal tidak balance lolos ke DB lewat
  * jalur mana pun (Filament sekarang, integrasi otomatis Fase 3 nanti).
+ *
+ * Juga menegakkan Tutup Periode — assertPeriodOpen() dipanggil di
+ * create()/update()/post()/reverse(), menolak jurnal apa pun dengan
+ * tanggal yang jatuh di bulan yang sudah ditutup (lihat AccountingPeriod
+ * & AccountingPeriodService).
  */
 class JournalEntryService
 {
@@ -28,6 +35,7 @@ class JournalEntryService
      */
     public function create(array $header, array $lines): JournalEntry
     {
+        $this->assertPeriodOpen($header['entry_date']);
         $lines = $this->validateLines($lines);
 
         return DB::transaction(function () use ($header, $lines) {
@@ -58,6 +66,7 @@ class JournalEntryService
             throw new RuntimeException('Jurnal yang sudah diposting terkunci — tidak bisa diedit langsung. Buat jurnal pembalik kalau perlu koreksi.');
         }
 
+        $this->assertPeriodOpen($header['entry_date']);
         $lines = $this->validateLines($lines);
 
         return DB::transaction(function () use ($entry, $header, $lines) {
@@ -84,6 +93,12 @@ class JournalEntryService
         if (! $entry->isDraft()) {
             throw new RuntimeException('Cuma jurnal berstatus Draft yang bisa diposting.');
         }
+
+        // Draft-nya sendiri bisa saja dibuat SEBELUM periode ditutup —
+        // dicek ULANG di sini (bukan cuma saat create()) supaya draft
+        // lama yang tanggalnya jatuh di periode yang belakangan ditutup
+        // tidak bisa diam-diam lolos diposting setelahnya.
+        $this->assertPeriodOpen($entry->entry_date->toDateString());
 
         if (! $entry->isBalanced()) {
             throw new RuntimeException('Jurnal ini tidak balance — total debit dan kredit harus sama sebelum diposting.');
@@ -116,6 +131,11 @@ class JournalEntryService
         if ($entry->reversal()->exists()) {
             throw new RuntimeException('Jurnal ini sudah pernah dibalik sebelumnya.');
         }
+
+        // Jurnal pembalik SELALU bertanggal hari ini (bukan tanggal
+        // jurnal asli, lihat di bawah) — tetap dicek jaga-jaga kalau
+        // periode BULAN INI ternyata sudah ditutup duluan.
+        $this->assertPeriodOpen(now()->toDateString());
 
         return DB::transaction(function () use ($entry, $userId, $note) {
             $description = "Pembalik jurnal {$entry->entry_number}" . ($note ? " — {$note}" : '');
@@ -205,6 +225,18 @@ class JournalEntryService
         }
 
         return $normalized;
+    }
+
+    /**
+     * @throws RuntimeException kalau periode bulan dari $date sudah ditutup (lihat AccountingPeriod).
+     */
+    private function assertPeriodOpen(string $date): void
+    {
+        $parsed = Carbon::parse($date);
+
+        if (AccountingPeriod::isClosedFor($parsed)) {
+            throw new RuntimeException('Periode ' . $parsed->translatedFormat('F Y') . ' sudah ditutup — tidak bisa membuat, mengubah, atau memposting jurnal dengan tanggal di bulan ini. Buka kembali periodenya dulu lewat menu Tutup Periode kalau memang perlu.');
+        }
     }
 
     public static function generateEntryNumber(): string
