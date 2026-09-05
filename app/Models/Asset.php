@@ -28,6 +28,8 @@ class Asset extends Model
         'purchase_cost',
         'useful_life_years',
         'salvage_value',
+        'chart_of_account_id',
+        'accumulated_depreciation_account_id',
         'next_maintenance_date',
         'notes',
         'created_by',
@@ -45,6 +47,22 @@ class Asset extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /**
+     * 2 akun Bagan Akun untuk penyusutan otomatis — lihat
+     * DepreciationPostingService & migration add_depreciation_accounts_
+     * to_assets_table untuk penjelasan kenapa 2 kolom terpisah (bukan
+     * di-derive dari Asset::category yang teks bebas).
+     */
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'chart_of_account_id');
+    }
+
+    public function accumulatedDepreciationAccount(): BelongsTo
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'accumulated_depreciation_account_id');
     }
 
     public function store(): BelongsTo

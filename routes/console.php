@@ -37,3 +37,8 @@ Schedule::command('quotations:notify-stale')->dailyAt('08:00');
 // Alert garansi yang akan berakhir (bell staff + push customer H-30/H-7) —
 // lihat App\Console\Commands\NotifyExpiringWarranties.
 Schedule::command('warranty:notify-expiring')->dailyAt('08:00');
+
+// Posting Beban Penyusutan Aset Tetap otomatis untuk BULAN LALU —
+// tanggal 1 supaya bulan yang disusutkan sudah selesai penuh. Lihat
+// App\Console\Commands\PostAssetDepreciation.
+Schedule::command('assets:post-depreciation')->monthlyOn(1, '02:00');

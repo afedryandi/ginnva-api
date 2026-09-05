@@ -205,6 +205,27 @@ class AssetResource extends Resource
                         ->prefix('Rp')
                         ->helperText('Opsional — perkiraan nilai sisa di akhir umur ekonomis (boleh 0).'),
 
+                    // 2 akun Bagan Akun untuk penyusutan otomatis bulanan
+                    // (lihat DepreciationPostingService) — opsi dibatasi
+                    // ke akun anak "1200 Aset Tetap" saja, supaya admin
+                    // tidak salah pilih akun dari kelompok lain.
+                    Forms\Components\Select::make('chart_of_account_id')
+                        ->label('Akun Aset (Bagan Akun)')
+                        ->options(fn () => \App\Models\ChartOfAccount::whereHas('parent', fn ($q) => $q->where('code', '1200'))
+                            ->orderBy('code')
+                            ->get()
+                            ->mapWithKeys(fn ($a) => [$a->id => $a->display_name]))
+                        ->searchable()
+                        ->helperText('Opsional — isi bersama "Akun Akumulasi Penyusutan" supaya aset ini ikut disusutkan otomatis tiap bulan.'),
+
+                    Forms\Components\Select::make('accumulated_depreciation_account_id')
+                        ->label('Akun Akumulasi Penyusutan')
+                        ->options(fn () => \App\Models\ChartOfAccount::whereHas('parent', fn ($q) => $q->where('code', '1200'))
+                            ->orderBy('code')
+                            ->get()
+                            ->mapWithKeys(fn ($a) => [$a->id => $a->display_name]))
+                        ->searchable(),
+
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
                         ->columnSpanFull(),
