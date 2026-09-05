@@ -9,6 +9,7 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\BookingPostingService;
 use App\Services\ReferralPointService;
 use App\Services\ServiceReminderService;
 use App\Support\PhoneFormatter;
@@ -793,12 +794,35 @@ class BookingResource extends Resource
                             ->helperText('Kosongkan & simpan untuk membatalkan/menghapus kode referral yang salah input.'),
                     ])
                     ->action(function (Booking $record, array $data) {
-                        $record->update([
-                            'transaction_amount' => $data['transaction_amount'] !== '' ? $data['transaction_amount'] : null,
-                            'referral_code'       => $data['referral_code'] ?: null,
-                        ]);
-
                         $messages = [];
+
+                        // Nominal transaksi & jurnal Pendapatan-nya dibungkus
+                        // 1 DB transaction — lihat BookingPostingService
+                        // untuk asumsi penyederhanaan (kas penuh, split
+                        // 50/50 kalau produk PPF+Kaca Film sekaligus).
+                        // Kalau posting gagal (akun belum ada, periode
+                        // ditutup), nominal transaksinya JUGA tidak ikut
+                        // tersimpan — supaya tidak ada nominal "yatim"
+                        // tanpa jurnal di baliknya.
+                        try {
+                            DB::transaction(function () use ($record, $data) {
+                                $record->update([
+                                    'transaction_amount' => $data['transaction_amount'] !== '' ? $data['transaction_amount'] : null,
+                                    'referral_code'       => $data['referral_code'] ?: null,
+                                ]);
+
+                                app(BookingPostingService::class)->sync($record->refresh());
+                            });
+                        } catch (RuntimeException $e) {
+                            Notification::make()
+                                ->title('Nominal transaksi tidak bisa disimpan')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
                         $service = app(ReferralPointService::class);
 
                         // 1. Referral Partner (bisnis mitra) — dari kode yang

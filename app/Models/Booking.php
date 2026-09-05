@@ -42,6 +42,7 @@ class Booking extends Model
         'transaction_amount',
         'partner_id',
         'voucher_claim_id',
+        'journal_entry_id',
     ];
 
     protected $casts = [
@@ -313,6 +314,15 @@ class Booking extends Model
     public function voucherClaim()
     {
         return $this->belongsTo(VoucherClaim::class);
+    }
+
+    /**
+     * Jurnal Pendapatan yang otomatis dibuat/diperbarui saat
+     * transaction_amount diisi/diubah — lihat BookingPostingService.
+     */
+    public function journalEntry()
+    {
+        return $this->belongsTo(JournalEntry::class);
     }
 
     protected static function booted(): void
