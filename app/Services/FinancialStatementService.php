@@ -7,7 +7,7 @@ use App\Models\JournalEntryLine;
 use Illuminate\Support\Carbon;
 
 /**
- * Neraca Saldo, Laporan Laba Rugi & Buku Besar — DIHITUNG dari Jurnal
+ * Neraca Saldo, Laporan Laba Rugi, Buku Besar & Neraca — DIHITUNG dari Jurnal
  * Umum (journal_entries + journal_entry_lines) yang statusnya 'posted'
  * SAJA. Jurnal
  * 'draft' TIDAK ikut dihitung — draft berarti belum final/masih bisa
@@ -221,6 +221,60 @@ class FinancialStatementService
             'closing_balance' => $running,
             'total_debit' => (float) $rows->sum('debit'),
             'total_credit' => (float) $rows->sum('credit'),
+        ];
+    }
+
+    /**
+     * Neraca (Balance Sheet) per tanggal cutoff — Aset = Kewajiban +
+     * Modal. Dibangun DI ATAS trialBalance() (kumulatif per akun s.d.
+     * $asOf), tinggal dikelompokkan ulang per klasifikasi Aset/
+     * Kewajiban/Modal — TIDAK query ulang dari nol.
+     *
+     * "Laba (Rugi) Tahun Berjalan" DIHITUNG on-the-fly lewat
+     * incomeStatement() dari awal tahun kalender s.d. $asOf, BUKAN
+     * dibaca dari akun 3900 (akun itu is_postable=false, sengaja tidak
+     * pernah diisi jurnal langsung — lihat ChartOfAccountSeeder) —
+     * karena belum ada mekanisme "Tutup Periode" yang memindahkan laba
+     * tahun berjalan ke Laba Ditahan (3200) secara resmi. Tanpa baris
+     * on-the-fly ini, Neraca TIDAK AKAN PERNAH balance selama tahun
+     * berjalan (Aset akan selalu lebih besar dari Kewajiban+Modal
+     * sebesar laba yang belum "dipindahkan" — atau sebaliknya kalau
+     * rugi), padahal itu bukan tanda ada yang salah, cuma karena
+     * closing entry belum ada.
+     *
+     * @return array{as_of: Carbon, aset: array, kewajiban: array, modal: array, total_kewajiban_modal: float, is_balanced: bool}
+     */
+    public function balanceSheet(Carbon $asOf, ?int $storeId = null): array
+    {
+        $trial = $this->trialBalance($asOf, $storeId);
+        $rows = $trial['rows'];
+
+        $aset = $rows->filter(fn ($r) => $r['account']->type === 'aset')->values();
+        $kewajiban = $rows->filter(fn ($r) => $r['account']->type === 'kewajiban')->values();
+        $modal = $rows->filter(fn ($r) => $r['account']->type === 'modal')->values();
+
+        $totalAset = (float) $aset->sum('balance');
+        $totalKewajiban = (float) $kewajiban->sum('balance');
+        $totalModalPosted = (float) $modal->sum('balance');
+
+        $fiscalYearStart = Carbon::create($asOf->year, 1, 1);
+        $labaTahunBerjalan = $this->incomeStatement($fiscalYearStart, $asOf, $storeId)['laba_bersih'];
+
+        $totalModal = $totalModalPosted + $labaTahunBerjalan;
+        $totalKewajibanModal = $totalKewajiban + $totalModal;
+
+        return [
+            'as_of' => $asOf,
+            'aset' => ['rows' => $aset, 'total' => $totalAset],
+            'kewajiban' => ['rows' => $kewajiban, 'total' => $totalKewajiban],
+            'modal' => [
+                'rows' => $modal,
+                'total_posted' => $totalModalPosted,
+                'laba_tahun_berjalan' => $labaTahunBerjalan,
+                'total' => $totalModal,
+            ],
+            'total_kewajiban_modal' => $totalKewajibanModal,
+            'is_balanced' => round($totalAset, 2) === round($totalKewajibanModal, 2),
         ];
     }
 }
