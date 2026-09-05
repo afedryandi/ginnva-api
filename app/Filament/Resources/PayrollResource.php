@@ -6,6 +6,7 @@ use App\Filament\Resources\PayrollResource\Pages;
 use App\Models\Payroll;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\PayrollPostingService;
 use App\Services\PushNotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Forms;
@@ -14,6 +15,8 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class PayrollResource extends Resource
 {
@@ -113,6 +116,12 @@ class PayrollResource extends Resource
                         'paid'  => 'Sudah Dibayar',
                         default => $state,
                     }),
+
+                Tables\Columns\TextColumn::make('journalEntry.entry_number')
+                    ->label('No. Jurnal')
+                    ->placeholder('—')
+                    ->fontFamily('mono')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
@@ -226,11 +235,33 @@ class PayrollResource extends Resource
                     ->requiresConfirmation()
                     ->modalDescription('Pastikan gaji sudah benar-benar ditransfer sebelum menandai ini — status ini mengunci baris payroll dari generate ulang.')
                     ->action(function (Payroll $record) {
-                        $record->update([
-                            'status'   => 'paid',
-                            'paid_by'  => auth()->id(),
-                            'paid_at'  => now(),
-                        ]);
+                        // Ditandai dibayar SEKALIGUS diposting otomatis ke
+                        // Jurnal Umum (PayrollPostingService), dibungkus 1
+                        // DB transaction — kalau posting gagal (mis. akun
+                        // Bagan Akun yang dibutuhkan belum ada, atau
+                        // periode sudah ditutup), status payroll juga TIDAK
+                        // ikut berubah jadi 'paid', supaya tidak ada
+                        // payroll yang ditandai dibayar tanpa jurnal.
+                        try {
+                            DB::transaction(function () use ($record) {
+                                $record->update([
+                                    'status'   => 'paid',
+                                    'paid_by'  => auth()->id(),
+                                    'paid_at'  => now(),
+                                ]);
+
+                                $entry = app(PayrollPostingService::class)->post($record->refresh());
+                                $record->update(['journal_entry_id' => $entry->id]);
+                            });
+                        } catch (RuntimeException $e) {
+                            Notification::make()
+                                ->title('Gagal menandai payroll dibayar')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
 
                         app(PushNotificationService::class)->sendToUsers(
                             [$record->user_id],

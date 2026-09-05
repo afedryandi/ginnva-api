@@ -30,6 +30,7 @@ class Payroll extends Model
         'status',
         'paid_by',
         'paid_at',
+        'journal_entry_id',
     ];
 
     protected $casts = [
@@ -60,6 +61,15 @@ class Payroll extends Model
     public function payer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'paid_by');
+    }
+
+    /**
+     * Jurnal Umum yang otomatis dibuat saat payroll ini ditandai
+     * "Dibayar" — lihat PayrollPostingService. Null untuk baris 'draft'.
+     */
+    public function journalEntry(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class);
     }
 
     /**
