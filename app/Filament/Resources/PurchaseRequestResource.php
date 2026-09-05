@@ -8,6 +8,7 @@ use App\Models\ConsumableItem;
 use App\Models\PurchaseRequest;
 use App\Models\RawMaterial;
 use App\Models\Store;
+use App\Services\PayableService;
 use App\Services\PurchaseRequestPostingService;
 use App\Services\PushNotificationService;
 use Filament\Forms;
@@ -328,6 +329,16 @@ class PurchaseRequestResource extends Resource
                             ->prefix('Rp')
                             ->helperText('Dipakai untuk mencatat jurnal Persediaan/Aset otomatis (Kredit Hutang Usaha).'),
 
+                        Forms\Components\TextInput::make('supplier_name')
+                            ->label('Nama Supplier')
+                            ->required()
+                            ->maxLength(255)
+                            ->helperText('Dipakai untuk mencatat tagihan ini di menu Hutang Usaha.'),
+
+                        Forms\Components\DatePicker::make('due_date')
+                            ->label('Jatuh Tempo (opsional)')
+                            ->native(false),
+
                         Forms\Components\Select::make('chart_of_account_id')
                             ->label('Akun Aset Tetap Tujuan')
                             ->visible(fn (PurchaseRequest $record) => $record->item_type === 'asset')
@@ -357,6 +368,23 @@ class PurchaseRequestResource extends Resource
                                 );
 
                                 $record->update(['journal_entry_id' => $entry->id]);
+
+                                // Payable dicatat menautkan ke jurnal yang
+                                // BARU SAJA dibuat di atas — TIDAK bikin
+                                // jurnal baru lagi (lihat komentar
+                                // PayableService::create() vs
+                                // createWithJournal()), supaya saldo 2110
+                                // tidak dobel tercatat.
+                                app(PayableService::class)->create([
+                                    'supplier_name' => $data['supplier_name'],
+                                    'store_id' => $record->store_id,
+                                    'source_type' => 'purchase_request',
+                                    'source_id' => $record->id,
+                                    'amount' => $data['actual_cost'],
+                                    'due_date' => $data['due_date'] ?? null,
+                                    'journal_entry_id' => $entry->id,
+                                    'created_by' => auth()->id(),
+                                ]);
                             });
                         } catch (RuntimeException $e) {
                             Notification::make()
