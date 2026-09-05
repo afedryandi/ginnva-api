@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\FinanceCategoryResource\Pages;
+use App\Models\ChartOfAccount;
 use App\Models\FinanceCategory;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -73,7 +74,28 @@ class FinanceCategoryResource extends Resource
                     'in' => 'Pemasukan',
                     'out' => 'Pengeluaran',
                 ])
-                ->required(),
+                ->required()
+                ->live()
+                ->afterStateUpdated(fn (Forms\Set $set) => $set('chart_of_account_id', null)),
+
+            // Menghubungkan kategori ini ke akun Bagan Akun — dipakai
+            // FinanceTransactionPostingService supaya transaksi dengan
+            // kategori ini otomatis diposting ke Jurnal Umum. Nullable
+            // dengan sengaja (kategori LAMA belum tentu terhubung) —
+            // transaksi baru dengan kategori yang belum dihubungkan
+            // akan ditolak dengan pesan jelas, bukan gagal diam-diam.
+            Forms\Components\Select::make('chart_of_account_id')
+                ->label('Akun Bagan Akun')
+                ->options(fn (Forms\Get $get) => ChartOfAccount::where('is_postable', true)
+                    ->where('is_active', true)
+                    ->whereIn('type', $get('type') === 'in'
+                        ? ['pendapatan', 'pendapatan_lain']
+                        : ['beban_pokok', 'beban_operasional', 'beban_lain', 'pajak'])
+                    ->orderBy('code')
+                    ->get()
+                    ->mapWithKeys(fn (ChartOfAccount $a) => [$a->id => $a->display_name]))
+                ->searchable()
+                ->helperText('Wajib diisi supaya transaksi kategori ini bisa otomatis tercatat di Jurnal Umum.'),
 
             Forms\Components\TextInput::make('sort_order')
                 ->label('Urutan Tampil')
@@ -113,6 +135,12 @@ class FinanceCategoryResource extends Resource
                 Tables\Columns\TextColumn::make('sort_order')
                     ->label('Urutan')
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('account.display_name')
+                    ->label('Akun Bagan Akun')
+                    ->placeholder('Belum dihubungkan')
+                    ->color(fn (FinanceCategory $record) => $record->chart_of_account_id ? null : 'danger')
+                    ->toggleable(),
 
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Aktif')

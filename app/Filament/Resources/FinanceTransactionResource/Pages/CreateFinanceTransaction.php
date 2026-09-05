@@ -4,7 +4,13 @@ namespace App\Filament\Resources\FinanceTransactionResource\Pages;
 
 use App\Filament\Resources\FinanceTransactionResource;
 use App\Models\FinanceCategory;
+use App\Models\FinanceTransaction;
+use App\Services\FinanceTransactionPostingService;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class CreateFinanceTransaction extends CreateRecord
 {
@@ -32,5 +38,35 @@ class CreateFinanceTransaction extends CreateRecord
         }
 
         return $data;
+    }
+
+    /**
+     * Fase 3 — transaksi ini SEKALIGUS diposting otomatis ke Jurnal
+     * Umum (lihat FinanceTransactionPostingService), dibungkus 1 DB
+     * transaction supaya kalau posting gagal (mis. kategori belum
+     * dihubungkan ke Bagan Akun, atau periode sudah ditutup), Transaksi
+     * Keuangan-nya juga TIDAK ikut tersimpan — staff langsung tahu ada
+     * masalah, bukan dapat transaksi "yatim" tanpa jurnal di baliknya.
+     */
+    protected function handleRecordCreation(array $data): Model
+    {
+        return DB::transaction(function () use ($data) {
+            $transaction = FinanceTransaction::create($data);
+
+            try {
+                $entry = app(FinanceTransactionPostingService::class)->post($transaction);
+                $transaction->update(['journal_entry_id' => $entry->id]);
+            } catch (RuntimeException $e) {
+                Notification::make()
+                    ->title('Transaksi tidak bisa disimpan')
+                    ->body($e->getMessage())
+                    ->danger()
+                    ->send();
+
+                $this->halt();
+            }
+
+            return $transaction;
+        });
     }
 }

@@ -6,12 +6,16 @@ use App\Filament\Resources\FinanceTransactionResource\Pages;
 use App\Models\FinanceCategory;
 use App\Models\FinanceTransaction;
 use App\Models\Store;
+use App\Services\FinanceTransactionPostingService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 /**
  * Transaksi Keuangan — 1 resource gabungan Pemasukan+Pengeluaran (BUKAN
@@ -217,6 +221,13 @@ class FinanceTransactionResource extends Resource
                     ->label('Dicatat Oleh')
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('journalEntry.entry_number')
+                    ->label('No. Jurnal')
+                    ->placeholder('Belum terposting')
+                    ->color(fn (FinanceTransaction $record) => $record->journal_entry_id ? null : 'danger')
+                    ->fontFamily('mono')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('type')
@@ -244,11 +255,51 @@ class FinanceTransactionResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+
+                // Jurnal Umum yang sudah posted TIDAK IKUT terhapus
+                // (integritas riwayat pembukuan) — dibalik dulu lewat
+                // FinanceTransactionPostingService::reverseExisting()
+                // sebelum baris transaksinya sendiri dihapus. Sama pola
+                // dengan EditFinanceTransaction's header DeleteAction.
+                Tables\Actions\DeleteAction::make()
+                    ->action(function (FinanceTransaction $record) {
+                        try {
+                            DB::transaction(function () use ($record) {
+                                app(FinanceTransactionPostingService::class)->reverseExisting($record);
+                                $record->delete();
+                            });
+
+                            Notification::make()->title('Transaksi dihapus')->success()->send();
+                        } catch (RuntimeException $e) {
+                            Notification::make()
+                                ->title('Gagal menghapus transaksi')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\DeleteBulkAction::make()
-                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
+                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                    ->action(function (\Illuminate\Support\Collection $records) {
+                        try {
+                            DB::transaction(function () use ($records) {
+                                foreach ($records as $record) {
+                                    app(FinanceTransactionPostingService::class)->reverseExisting($record);
+                                    $record->delete();
+                                }
+                            });
+
+                            Notification::make()->title('Transaksi terpilih dihapus')->success()->send();
+                        } catch (RuntimeException $e) {
+                            Notification::make()
+                                ->title('Gagal menghapus sebagian/semua transaksi')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
             ])
             ->defaultSort('transaction_date', 'desc');
     }

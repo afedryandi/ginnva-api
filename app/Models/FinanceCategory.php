@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FinanceCategory extends Model
@@ -10,6 +11,7 @@ class FinanceCategory extends Model
     protected $fillable = [
         'name',
         'type',
+        'chart_of_account_id',
         'sort_order',
         'is_active',
     ];
@@ -21,6 +23,16 @@ class FinanceCategory extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(FinanceTransaction::class);
+    }
+
+    /**
+     * Akun Bagan Akun yang didebit/dikredit saat transaksi kategori ini
+     * diposting otomatis ke Jurnal Umum — lihat
+     * FinanceTransactionPostingService.
+     */
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'chart_of_account_id');
     }
 
     /**

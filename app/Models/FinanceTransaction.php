@@ -21,6 +21,7 @@ class FinanceTransaction extends Model
         'description',
         'receipt',
         'created_by',
+        'journal_entry_id',
     ];
 
     protected $casts = [
@@ -31,6 +32,17 @@ class FinanceTransaction extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(FinanceCategory::class, 'finance_category_id');
+    }
+
+    /**
+     * Jurnal Umum yang otomatis dibuat dari transaksi ini — lihat
+     * FinanceTransactionPostingService. Null kalau transaksi ini dibuat
+     * sebelum Fase 3 (integrasi otomatis) ada, sampai transaksinya
+     * di-edit ulang (memicu backfill).
+     */
+    public function journalEntry(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class);
     }
 
     public function store(): BelongsTo
