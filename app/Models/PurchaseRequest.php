@@ -20,6 +20,7 @@ class PurchaseRequest extends Model
         'item_name',
         'unit',
         'quantity',
+        'actual_cost',
         'reason',
         'status',
         'requested_by',
@@ -27,10 +28,12 @@ class PurchaseRequest extends Model
         'reviewed_at',
         'review_note',
         'fulfilled_at',
+        'journal_entry_id',
     ];
 
     protected $casts = [
         'quantity'     => 'decimal:2',
+        'actual_cost'  => 'decimal:2',
         'reviewed_at'  => 'datetime',
         'fulfilled_at' => 'datetime',
     ];
@@ -38,6 +41,15 @@ class PurchaseRequest extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    /**
+     * Jurnal Persediaan/Aset yang otomatis dibuat saat permohonan ini
+     * ditandai "Terpenuhi" — lihat PurchaseRequestPostingService.
+     */
+    public function journalEntry(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class);
     }
 
     public function requester(): BelongsTo

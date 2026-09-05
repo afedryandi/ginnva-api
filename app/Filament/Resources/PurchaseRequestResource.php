@@ -3,10 +3,12 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PurchaseRequestResource\Pages;
+use App\Models\ChartOfAccount;
 use App\Models\ConsumableItem;
 use App\Models\PurchaseRequest;
 use App\Models\RawMaterial;
 use App\Models\Store;
+use App\Services\PurchaseRequestPostingService;
 use App\Services\PushNotificationService;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -15,6 +17,8 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class PurchaseRequestResource extends Resource
 {
@@ -204,6 +208,12 @@ class PurchaseRequestResource extends Resource
                         default    => $state,
                     }),
 
+                Tables\Columns\TextColumn::make('actual_cost')
+                    ->label('Biaya Aktual')
+                    ->money('IDR', locale: 'id')
+                    ->placeholder('—')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('requester.name')
                     ->label('Diajukan Oleh')
                     ->placeholder('—'),
@@ -304,13 +314,59 @@ class PurchaseRequestResource extends Resource
                     ->color('gray')
                     ->visible(fn (PurchaseRequest $record) => $record->status === 'approved'
                         && (auth()->user()?->isFullAccess() || auth()->id() === $record->requested_by))
+                    ->form([
+                        // actual_cost BARU diisi di sini (bukan saat
+                        // permohonan diajukan) — harga aktual baru pasti
+                        // setelah barang benar-benar dibeli, dipakai
+                        // PurchaseRequestPostingService untuk jurnal
+                        // Persediaan/Aset otomatis.
+                        Forms\Components\TextInput::make('actual_cost')
+                            ->label('Total Biaya Aktual')
+                            ->numeric()
+                            ->required()
+                            ->minValue(0.01)
+                            ->prefix('Rp')
+                            ->helperText('Dipakai untuk mencatat jurnal Persediaan/Aset otomatis (Kredit Hutang Usaha).'),
+
+                        Forms\Components\Select::make('chart_of_account_id')
+                            ->label('Akun Aset Tetap Tujuan')
+                            ->visible(fn (PurchaseRequest $record) => $record->item_type === 'asset')
+                            ->required(fn (PurchaseRequest $record) => $record->item_type === 'asset')
+                            ->options(fn () => ChartOfAccount::whereHas('parent', fn ($q) => $q->where('code', '1200'))
+                                ->orderBy('code')
+                                ->get()
+                                ->mapWithKeys(fn (ChartOfAccount $a) => [$a->id => $a->display_name]))
+                            ->searchable()
+                            ->helperText('Permohonan jenis "Aset Baru" belum punya baris Aset tersendiri — pilih akun Aset Tetap yang sesuai secara manual.'),
+                    ])
                     ->requiresConfirmation()
                     ->modalDescription('Pastikan barang sudah dicatat masuk lewat "Catat Stok" sebelum menandai ini terpenuhi.')
-                    ->action(function (PurchaseRequest $record) {
-                        $record->update([
-                            'status'       => 'fulfilled',
-                            'fulfilled_at' => now(),
-                        ]);
+                    ->action(function (PurchaseRequest $record, array $data) {
+                        try {
+                            DB::transaction(function () use ($record, $data) {
+                                $record->update([
+                                    'status'       => 'fulfilled',
+                                    'fulfilled_at' => now(),
+                                    'actual_cost'  => $data['actual_cost'],
+                                ]);
+
+                                $entry = app(PurchaseRequestPostingService::class)->post(
+                                    $record->refresh(),
+                                    (float) $data['actual_cost'],
+                                    $data['chart_of_account_id'] ?? null
+                                );
+
+                                $record->update(['journal_entry_id' => $entry->id]);
+                            });
+                        } catch (RuntimeException $e) {
+                            Notification::make()
+                                ->title('Gagal menandai terpenuhi')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
 
                         if ($record->requested_by) {
                             app(PushNotificationService::class)->sendToUsers(
@@ -319,6 +375,8 @@ class PurchaseRequestResource extends Resource
                                 "Permohonan {$record->request_number} ({$record->item_name}) sudah terpenuhi, barang sudah tersedia."
                             );
                         }
+
+                        Notification::make()->title('Permohonan ditandai terpenuhi')->success()->send();
                     }),
 
                 Tables\Actions\EditAction::make()
