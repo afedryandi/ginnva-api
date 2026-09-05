@@ -16,12 +16,15 @@ class ChartOfAccount extends Model
         'parent_id',
         'is_postable',
         'is_active',
+        'is_cash',
+        'cash_flow_category',
         'description',
     ];
 
     protected $casts = [
         'is_postable' => 'boolean',
         'is_active' => 'boolean',
+        'is_cash' => 'boolean',
     ];
 
     /**

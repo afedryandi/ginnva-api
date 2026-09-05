@@ -3,15 +3,16 @@
 namespace App\Services;
 
 use App\Models\ChartOfAccount;
+use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use Illuminate\Support\Carbon;
 
 /**
- * Neraca Saldo, Laporan Laba Rugi, Buku Besar & Neraca — DIHITUNG dari Jurnal
- * Umum (journal_entries + journal_entry_lines) yang statusnya 'posted'
- * SAJA. Jurnal
- * 'draft' TIDAK ikut dihitung — draft berarti belum final/masih bisa
- * berubah, memasukkannya ke laporan resmi akan bikin angka tidak stabil.
+ * Neraca Saldo, Laporan Laba Rugi, Buku Besar, Neraca & Laporan Arus Kas
+ * — DIHITUNG dari Jurnal Umum (journal_entries + journal_entry_lines)
+ * yang statusnya 'posted' SAJA. Jurnal 'draft' TIDAK ikut dihitung —
+ * draft berarti belum final/masih bisa berubah, memasukkannya ke
+ * laporan resmi akan bikin angka tidak stabil.
  *
  * CATATAN PENTING: laporan ini bersumber dari Jurnal Umum (Fase 2),
  * BUKAN dari Transaksi Keuangan (Fase 1, finance_transactions) — dua
@@ -276,5 +277,122 @@ class FinancialStatementService
             'total_kewajiban_modal' => $totalKewajibanModal,
             'is_balanced' => round($totalAset, 2) === round($totalKewajibanModal, 2),
         ];
+    }
+
+    /**
+     * Laporan Arus Kas — METODE LANGSUNG (direct method), bukan tidak
+     * langsung (indirect, yang mulai dari laba bersih lalu koreksi
+     * non-kas). Dipilih langsung karena sudah ada jurnal per-transaksi
+     * yang eksplisit menyentuh akun kas (ChartOfAccount::is_cash) —
+     * tinggal dibaca & diklasifikasi, tidak perlu rekonsiliasi mundur
+     * dari laba yang lebih rawan salah untuk sistem sekecil ini.
+     *
+     * Klasifikasi per JURNAL (bukan per baris) — untuk 1 jurnal yang
+     * menyentuh akun kas, kategori Operasional/Investasi/Pendanaan-nya
+     * diambil dari akun NON-KAS dengan nominal TERBESAR di jurnal yang
+     * sama (ChartOfAccount::cash_flow_category). Ini penyederhanaan
+     * SADAR — jurnal yang benar-benar mencampur >1 kategori dalam 1
+     * baris (jarang terjadi kalau input jurnal per kejadian, bukan
+     * digabung-gabung) akan diklasifikasi ikut yang porsinya terbesar,
+     * bukan dipecah proporsional.
+     *
+     * Jurnal yang SEMUA baris non-kas-nya juga akun kas (transfer antar
+     * rekening kas yang sama-sama is_cash, mis. setor tunai ke bank)
+     * DILEWATI — pindah uang antar 2 akun yang sama-sama dihitung "kas"
+     * di sini tidak mengubah TOTAL kas, jadi tidak relevan ditampilkan.
+     *
+     * @return array{sections: array<string, array{label: string, rows: Collection, total: float}>, opening_cash: float, net_change: float, closing_cash: float, closing_cash_actual: float, is_reconciled: bool}
+     */
+    public function cashFlowStatement(Carbon $from, Carbon $to, ?int $storeId = null): array
+    {
+        $cashAccountIds = ChartOfAccount::where('is_cash', true)->pluck('id');
+
+        $entries = JournalEntry::query()
+            ->where('status', 'posted')
+            ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->whereHas('lines', fn ($q) => $q->whereIn('chart_of_account_id', $cashAccountIds))
+            ->with('lines.account')
+            ->orderBy('entry_date')
+            ->orderBy('id')
+            ->get();
+
+        $labels = [
+            'operasional' => 'Arus Kas dari Aktivitas Operasional',
+            'investasi' => 'Arus Kas dari Aktivitas Investasi',
+            'pendanaan' => 'Arus Kas dari Aktivitas Pendanaan',
+        ];
+
+        $buckets = ['operasional' => collect(), 'investasi' => collect(), 'pendanaan' => collect()];
+
+        foreach ($entries as $entry) {
+            $cashLines = $entry->lines->filter(fn ($l) => $cashAccountIds->contains($l->chart_of_account_id));
+            $cashDelta = (float) $cashLines->sum(fn ($l) => (float) $l->debit - (float) $l->credit);
+
+            if (abs($cashDelta) < 0.01) {
+                continue;
+            }
+
+            $nonCashLines = $entry->lines->reject(fn ($l) => $cashAccountIds->contains($l->chart_of_account_id));
+            if ($nonCashLines->isEmpty()) {
+                continue;
+            }
+
+            $primary = $nonCashLines->sortByDesc(fn ($l) => max((float) $l->debit, (float) $l->credit))->first();
+            $category = $primary->account->cash_flow_category ?? 'operasional';
+
+            $buckets[$category]->push([
+                'entry_date' => $entry->entry_date,
+                'entry_number' => $entry->entry_number,
+                'description' => $entry->description,
+                'amount' => $cashDelta,
+            ]);
+        }
+
+        $sections = [];
+        foreach ($buckets as $key => $rows) {
+            $sections[$key] = [
+                'label' => $labels[$key],
+                'rows' => $rows->values(),
+                'total' => (float) $rows->sum('amount'),
+            ];
+        }
+
+        $netChange = array_sum(array_map(fn ($s) => $s['total'], $sections));
+        $openingCash = $this->cashBalanceAsOf($from->copy()->subDay(), $storeId);
+        $closingCash = $openingCash + $netChange;
+        $closingCashActual = $this->cashBalanceAsOf($to, $storeId);
+
+        return [
+            'sections' => $sections,
+            'opening_cash' => $openingCash,
+            'net_change' => $netChange,
+            'closing_cash' => $closingCash,
+            // Dihitung ULANG langsung dari saldo akun kas (bukan cuma
+            // opening+netChange) — jaring pengaman untuk membuktikan
+            // klasifikasi di atas tidak "membocorkan"/menduplikasi kas,
+            // seharusnya SELALU sama dengan closing_cash.
+            'closing_cash_actual' => $closingCashActual,
+            'is_reconciled' => round($closingCash, 2) === round($closingCashActual, 2),
+        ];
+    }
+
+    /**
+     * Saldo gabungan semua akun is_cash=true per tanggal cutoff —
+     * dipakai sebagai saldo awal/akhir Laporan Arus Kas DAN sebagai
+     * rekonsiliasi silang (is_reconciled) di atas.
+     */
+    private function cashBalanceAsOf(Carbon $asOf, ?int $storeId = null): float
+    {
+        $cashAccountIds = ChartOfAccount::where('is_cash', true)->pluck('id');
+
+        return (float) JournalEntryLine::query()
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+            ->whereIn('journal_entry_lines.chart_of_account_id', $cashAccountIds)
+            ->where('journal_entries.status', 'posted')
+            ->whereDate('journal_entries.entry_date', '<=', $asOf->toDateString())
+            ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
+            ->selectRaw('COALESCE(SUM(journal_entry_lines.debit - journal_entry_lines.credit), 0) as balance')
+            ->value('balance');
     }
 }
