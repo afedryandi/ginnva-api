@@ -41,6 +41,43 @@ class FilmProductResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA cuma canViewAny() yang ada, dan tidak ada
+     * FilmProductPolicy terdaftar — Gate default-deny bikin CreateAction,
+     * EditAction, dan DeleteAction (row) TIDAK PERNAH muncul untuk siapa
+     * pun, termasuk super_admin — bertentangan LANGSUNG dengan komentar
+     * canViewAny() di atas ("staff toko sama-sama lihat & bisa edit semua
+     * baris"). LEBIH PARAH: bulk action "Hapus" di bawah itu custom
+     * BulkAction (bukan DeleteBulkAction bawaan Filament), jadi TIDAK
+     * ikut auto-wired ke Gate sama sekali — staff mana pun yang punya
+     * akses lihat menu ini SELALU bisa mass-delete data master Produk
+     * Film lewat situ, walau tombol Delete satuan tidak pernah muncul.
+     * Disamakan seluas canViewAny() (persis niat desain yang sudah
+     * didokumentasikan), sekaligus menutup celah privilege-escalation
+     * di bulk delete tadi — orang yang SEBELUMNYA sudah bisa bulk-delete
+     * tetap bisa (breadth sama persis), tapi sekarang row Delete/Edit/
+     * Create ikut konsisten muncul untuk mereka juga.
+     */
+    public static function canCreate(): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canEdit($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDelete($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -215,6 +252,13 @@ class FilmProductResource extends Resource
                         ->label('Hapus')
                         ->icon('heroicon-o-trash')
                         ->color('danger')
+                        // BulkAction custom TIDAK auto-wired ke Gate
+                        // (beda dari DeleteBulkAction bawaan) — ->visible()
+                        // eksplisit di sini supaya tetap tunduk ke
+                        // canDeleteAny(), bukan cuma mengandalkan
+                        // canViewAny() (lihat catatan di canDeleteAny() di
+                        // atas). Ditemukan & diperbaiki 2026-09-07.
+                        ->visible(fn () => static::canDeleteAny())
                         ->requiresConfirmation()
                         ->action(function (\Illuminate\Support\Collection $records) {
                             $deleted = 0;
