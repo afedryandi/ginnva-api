@@ -90,6 +90,29 @@ class BookingMessageController extends Controller
             'photos.*.max'   => 'Ukuran tiap foto maksimal 10MB. Kompres atau pilih foto lain, lalu coba lagi.',
         ]);
 
+        // "Quality Check" cuma boleh ditandai kalau track produk yang
+        // BENERAN dipesan booking ini sudah sama-sama sampai tahap
+        // terakhirnya sendiri — SEBELUMNYA tidak divalidasi sama sekali
+        // di sini (cuma dicegah dari sisi UI mobile, yang sendirinya
+        // ternyata juga tidak mengecek ini sampai audit chat & foto
+        // tahap booking 2026-09-07 menemukannya). Tanpa ini, panggilan
+        // API langsung (atau bug UI lain di masa depan) bisa menandai QC
+        // — dan berujung "Selesai" — padahal salah satu produk (mis. PPF
+        // di booking Kaca Film+PPF) belum benar-benar selesai dikerjakan.
+        if ($request->type === 'stage' && $request->stage === 'qc') {
+            $kacaFilmLastStage = array_key_last(BookingMessage::PRODUCT_STAGES['kaca_film']);
+            $ppfLastStage = array_key_last(BookingMessage::PRODUCT_STAGES['ppf']);
+            $bothProducts = $booking->product_kaca_film && $booking->product_ppf;
+
+            $kacaFilmDone = ! $booking->product_kaca_film || $booking->current_stage === $kacaFilmLastStage;
+            $ppfDone = ! $booking->product_ppf
+                || ($bothProducts ? $booking->secondary_stage === $ppfLastStage : $booking->current_stage === $ppfLastStage);
+
+            if (! $kacaFilmDone || ! $ppfDone) {
+                abort(422, 'Quality Check belum bisa ditandai — semua produk yang dipesan (Kaca Film/PPF) harus sama-sama sampai tahap terakhirnya dulu.');
+            }
+        }
+
         // Batas kumulatif foto per booking — SEBELUMNYA cuma dibatasi per
         // pesan (max 10), jadi pesan berulang-ulang tetap bisa menumpuk
         // ratusan foto tak terbatas per booking (storage abuse). Lihat
