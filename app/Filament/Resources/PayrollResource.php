@@ -50,6 +50,27 @@ class PayrollResource extends Resource
         return false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada canDelete()/canDeleteAny() sama sekali, dan
+     * tidak ada PayrollPolicy terdaftar — Gate default-deny bikin
+     * DeleteAction (->visible() sudah ada, status draft saja) TIDAK
+     * PERNAH muncul untuk siapa pun, termasuk isFullAccess() — padahal
+     * baris payroll draft yang salah generate (mis. double generate,
+     * atau baru sadar base_salary keliru sebelum ditandai dibayar) perlu
+     * bisa dihapus & digenerate ulang. Disamakan persis dengan guard
+     * ->visible() yang sudah ada (status draft) + breadth canViewAny()
+     * (isFullAccess() saja).
+     */
+    public static function canDelete($record): bool
+    {
+        return (auth()->user()?->isFullAccess() ?? false) && $record->status === 'draft';
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public static function table(Table $table): Table
     {
         return $table
