@@ -122,12 +122,13 @@ class UserResource extends Resource
                 'FinanceReport' => 'Laporan Keuangan',
                 'PayableResource' => 'Hutang Usaha',
                 'ReceivableResource' => 'Piutang Usaha',
-                // ChartOfAccountResource & JournalEntryResource SENGAJA
-                // tidak dimasukkan di sini — sama pola dengan
-                // PayrollResource, selalu isFullAccess()-only (lihat
-                // canViewAny() masing-masing), tidak pernah lewat
-                // menu_access. Struktur akun & jurnal berpasangan adalah
-                // keputusan akuntansi yang mempengaruhi laporan seluruh
+                // ChartOfAccountResource, JournalEntryResource &
+                // BankStatementLineResource SENGAJA tidak dimasukkan di
+                // sini — sama pola dengan PayrollResource, selalu
+                // isFullAccess()-only (lihat canViewAny() masing-masing),
+                // tidak pernah lewat menu_access. Struktur akun, jurnal
+                // berpasangan, & rekonsiliasi bank adalah keputusan
+                // akuntansi yang mempengaruhi laporan seluruh
                 // perusahaan, bukan operasional harian yang cocok
                 // didelegasikan ke store_manager.
             ],
