@@ -83,6 +83,52 @@ class BookingResource extends Resource
         return auth()->user()?->canAccessStaffArea() ?? false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada canView()/canEdit()/canDelete()/canDeleteAny()
+     * sama sekali di sini, dan tidak ada BookingPolicy terdaftar —
+     * ViewAction/EditAction bawaan Filament otomatis terikat ke
+     * canView()/canEdit(), yang tanpa Policy & tanpa override SELALU
+     * FALSE untuk siapa pun (default-deny Laravel Gate, lihat audit
+     * bug class yang sama di resource-resource lain sebelumnya).
+     * Akibatnya tombol Lihat & Edit di tabel Booking — Resource paling
+     * inti di seluruh sistem — TIDAK PERNAH muncul sama sekali untuk
+     * SIAPA PUN, termasuk super_admin. DeleteAction/DeleteBulkAction
+     * SUDAH punya ->visible(isFullAccess()) eksplisit di table(), tapi
+     * itu TIDAK CUKUP — Filament tetap AND-kan dengan canDelete()/
+     * canDeleteAny() bawaan yang defaultnya false, jadi tombol hapus
+     * pun ikut tidak pernah muncul walau ->visible()-nya true.
+     * canView()/canEdit() dibiarkan seluas canViewAny() (tidak ada
+     * pembatasan tambahan yang pernah diniatkan untuk edit secara
+     * spesifik), canDelete()/canDeleteAny() disamakan dengan guard
+     * ->visible() yang SUDAH ada eksplisit di DeleteAction/
+     * DeleteBulkAction (isFullAccess() saja).
+     */
+    public static function canView($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         $isSuperAdmin = auth()->user()?->isFullAccess();

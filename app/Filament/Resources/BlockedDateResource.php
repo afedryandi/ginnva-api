@@ -37,6 +37,50 @@ class BlockedDateResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada canCreate()/canEdit()/canDelete()/
+     * canDeleteAny() sama sekali, dan tidak ada BlockedDatePolicy
+     * terdaftar — Gate default-deny (tanpa Policy = false untuk siapa
+     * pun) bikin CreateAction, EditAction (implisit lewat halaman
+     * create), dan DeleteAction/DeleteBulkAction (TIDAK ADA ->visible()
+     * guard tambahan di table(), jadi memang tidak pernah diniatkan
+     * dibatasi lebih sempit dari canViewAny()) semuanya tidak pernah
+     * muncul untuk siapa pun. Dibiarkan seluas canViewAny() supaya
+     * konsisten dengan store-scoping yang sudah dijaga getEloquentQuery()
+     * di bawah.
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();

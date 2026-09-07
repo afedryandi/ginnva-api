@@ -50,6 +50,57 @@ class TechnicianResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada canCreate()/canView()/canEdit()/canDelete()/
+     * canDeleteAny() sama sekali, dan tidak ada TechnicianPolicy
+     * terdaftar — Gate default-deny bikin CreateAction, ViewAction,
+     * EditAction, DeleteAction/DeleteBulkAction (TIDAK ADA ->visible()
+     * guard tambahan di table(), jadi memang tidak pernah diniatkan
+     * dibatasi lebih sempit dari canViewAny()) semuanya tidak pernah
+     * muncul untuk siapa pun — termasuk super_admin. Resource ini
+     * langsung memengaruhi roster installer yang dipakai alur assignment
+     * Booking (mobile & Filament), jadi dampaknya cukup luas.
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canView($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
