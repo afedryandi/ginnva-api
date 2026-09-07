@@ -45,6 +45,33 @@ class ContractExtensionResource extends Resource
         return false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada canCreate()/canDelete() sama sekali, dan tidak
+     * ada ContractExtensionPolicy terdaftar — Gate default-deny bikin
+     * CreateAction (halaman "Catat Perpanjangan") dan DeleteAction
+     * (->visible() sudah ada, isFullAccess saja) TIDAK PERNAH muncul
+     * untuk siapa pun, termasuk super_admin. canCreate() dibiarkan seluas
+     * canViewAny(), canDelete() disamakan persis dengan guard ->visible()
+     * yang sudah ada di DeleteAction.
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();

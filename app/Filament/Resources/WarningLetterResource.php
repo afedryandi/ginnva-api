@@ -63,6 +63,34 @@ class WarningLetterResource extends Resource
         return auth()->user()?->isFullAccess() ?? false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada canCreate()/canDelete() sama sekali, dan tidak
+     * ada WarningLetterPolicy terdaftar — Gate default-deny bikin
+     * CreateAction (halaman "Terbitkan SP") dan DeleteAction (->visible()
+     * sudah ada, isFullAccess saja) TIDAK PERNAH muncul untuk siapa pun,
+     * termasuk super_admin. canCreate() dibiarkan seluas canViewAny()
+     * (siapa saja dengan akses menu boleh MENERBITKAN SP baru, sesuai
+     * komentar di canEdit() di atas), canDelete() disamakan persis dengan
+     * guard ->visible() yang sudah ada di DeleteAction.
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->isFullAccess() ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         $isSuperAdmin = auth()->user()?->isFullAccess();

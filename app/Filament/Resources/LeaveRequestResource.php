@@ -40,6 +40,40 @@ class LeaveRequestResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada canCreate()/canEdit()/canDelete() sama
+     * sekali, dan tidak ada LeaveRequestPolicy terdaftar — Gate default-
+     * deny bikin CreateAction, EditAction (->visible() sudah ada, status
+     * pending saja), dan DeleteAction (->visible() sudah ada, isFullAccess
+     * + pending) TIDAK PERNAH muncul untuk siapa pun, termasuk super_admin
+     * — sama bug class dengan AttendanceResource. Dibiarkan seluas
+     * canViewAny() untuk Create/Edit (guard status='pending' yang sudah
+     * ada di ->visible() DeleteAction/EditAction cukup sebagai pembatas
+     * tambahan), canDelete() disamakan persis dengan guard ->visible()
+     * yang sudah ada.
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return (auth()->user()?->isFullAccess() ?? false)
+            && $record->status === 'pending';
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();

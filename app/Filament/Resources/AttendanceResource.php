@@ -39,6 +39,43 @@ class AttendanceResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada canCreate()/canEdit()/canDelete() sama
+     * sekali, dan tidak ada AttendancePolicy terdaftar — Gate default-
+     * deny bikin tombol "Entri Manual" (CreateAction, FITUR INTI untuk
+     * skenario device/wifi absen mati yang diminta eksplisit oleh
+     * stakeholder) dan EditAction TIDAK PERNAH muncul untuk SIAPA PUN,
+     * termasuk super_admin — bertentangan langsung dengan komentar
+     * EditAction di table() di bawah ("Edit SELALU boleh dibuka").
+     * canCreate()/canEdit() dibiarkan seluas canViewAny() — form/page
+     * Create & field-field form() sendiri yang sudah menjaga store-
+     * scoping & field mana yang boleh diubah non-full-access (lihat
+     * mutateFormDataBeforeCreate() & ->disabled() per field). canDelete()
+     * disamakan persis dengan guard ->visible() yang sudah ada di
+     * DeleteAction (isFullAccess() DAN bukan baris 'clock').
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return (auth()->user()?->isFullAccess() ?? false)
+            && $record->entry_type !== 'clock';
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
