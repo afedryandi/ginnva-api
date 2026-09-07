@@ -267,15 +267,30 @@ class BookingResource extends Resource
                     // tugaskan pemantau. Daftar direksi tidak terikat toko
                     // (direksi bisa pantau booking toko mana pun), beda
                     // dari installers yang difilter per toko.
+                    //
+                    // SEBELUMNYA ->relationship('watchers','name') digabung
+                    // ->options() custom terpisah — CACAT YANG SAMA PERSIS
+                    // dengan installers di atas (lihat catatan panjangnya):
+                    // ->options() cuma dipakai untuk pilihan AWAL, pencarian-
+                    // sambil-ketik & resolusi label watcher yang sudah
+                    // tertaut balik pakai jalur ->relationship() MENTAH
+                    // (query ke `users` TANPA filter role 'direksi' sama
+                    // sekali) — staff bisa cari & pilih installer/partner
+                    // sebagai "Direksi Pemantau". Fix sama: modifyQueryUsing()
+                    // di dalam relationship(), bukan ->options() terpisah.
+                    // Ditemukan saat audit susulan modul Booking 2026-09-07.
                     Forms\Components\Select::make('watchers')
                         ->label('Direksi Pemantau')
-                        ->relationship('watchers', 'name')
-                        ->helperText('Direksi yang ditugaskan memantau booking ini — notifikasi chat (push & email) cuma dikirim ke direksi yang dipilih di sini, bukan semua direksi.')
-                        ->options(fn () => User::whereHas('roles', fn ($q) => $q->where('name', 'direksi'))
-                            ->pluck('name', 'id')
+                        ->relationship(
+                            name: 'watchers',
+                            titleAttribute: 'name',
+                            modifyQueryUsing: fn (Builder $query) => $query
+                                ->whereHas('roles', fn ($q) => $q->where('name', 'direksi')),
                         )
+                        ->helperText('Direksi yang ditugaskan memantau booking ini — notifikasi chat (push & email) cuma dikirim ke direksi yang dipilih di sini, bukan semua direksi.')
                         ->multiple()
-                        ->searchable(),
+                        ->searchable()
+                        ->preload(),
 
                     // "Jenis Layanan" adalah satu-satunya pemicu — pilih
                     // "Kaca Film + PPF" langsung kalau booking mencakup
