@@ -22,11 +22,6 @@ class TechnicianResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
-    // Kategori di sidebar cluster Booking -- dipisah dari 'Penjualan'
-    // (SalesResource), diminta 2026-09-08, sama pola dengan Master Data/
-    // Sistem di dalam cluster Lainnya.
-    protected static ?string $navigationGroup = 'Booking';
-
     protected static ?string $navigationLabel = 'Teknisi';
 
     protected static ?string $modelLabel = 'Teknisi';

@@ -23,6 +23,10 @@ use Illuminate\Database\Eloquent\Builder;
  * di sini — sama pola dengan ActivityResource yang murni read-only),
  * koreksi nominal transaksi TETAP lewat "Proses Referral" di
  * BookingResource, bukan dari sini.
+ *
+ * SEBELUMNYA jadi sub-kategori sidebar di dalam cluster Booking (supaya
+ * tidak menambah lebar top-nav) — diminta 2026-09-08 (permintaan
+ * susulan) untuk jadi TAB TOP-NAV SENDIRI, dipindah ke PenjualanCluster.
  */
 class SalesResource extends Resource
 {
@@ -30,14 +34,9 @@ class SalesResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-banknotes';
 
-    protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
 
-    // Kategori sidebar TERPISAH dari 'Booking' (bukan digabung rata) --
-    // diminta 2026-09-08, sama pola dengan Master Data/Sistem di dalam
-    // cluster Lainnya.
-    protected static ?string $navigationGroup = 'Penjualan';
-
-    protected static ?int $navigationSort = 25;
+    protected static ?int $navigationSort = 10;
 
     protected static ?string $navigationLabel = 'Penjualan';
 
