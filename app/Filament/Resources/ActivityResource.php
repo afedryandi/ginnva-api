@@ -25,7 +25,7 @@ class ActivityResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clock';
 
-    protected static ?string $cluster = \App\Filament\Clusters\SistemCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\LainnyaCluster::class;
 
     protected static ?int $navigationSort = 20;
 

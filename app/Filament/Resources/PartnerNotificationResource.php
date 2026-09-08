@@ -22,7 +22,7 @@ class PartnerNotificationResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-bell';
 
-    protected static ?string $cluster = \App\Filament\Clusters\SistemCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\LainnyaCluster::class;
 
     protected static ?string $navigationLabel = 'Riwayat Notifikasi Partner';
 
