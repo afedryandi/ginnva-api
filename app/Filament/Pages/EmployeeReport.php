@@ -23,6 +23,10 @@ use Illuminate\Support\Carbon;
  * DIBATASI isFullAccess() SAJA — sama filosofi ketat dengan
  * PayrollResource (gaji_bersih ikut ditampilkan di sini, data paling
  * sensitif di seluruh sistem).
+ *
+ * SEBELUMNYA di cluster Karyawan — dipindah ke PenjualanCluster
+ * (diminta 2026-09-08, permintaan susulan) supaya SEMUA laporan ngumpul
+ * di 1 tab Penjualan, tidak tercecer ke cluster lain.
  */
 class EmployeeReport extends Page implements HasForms
 {
@@ -30,13 +34,13 @@ class EmployeeReport extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
-    protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
 
     protected static ?string $navigationLabel = 'Laporan Karyawan';
 
     protected static ?string $title = 'Laporan Karyawan';
 
-    protected static ?int $navigationSort = 25;
+    protected static ?int $navigationSort = 30;
 
     protected static string $view = 'filament.pages.employee-report';
 

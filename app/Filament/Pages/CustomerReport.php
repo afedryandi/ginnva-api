@@ -22,6 +22,10 @@ use Illuminate\Support\Carbon;
  * beda ketik antar kunjungan), jadi sengaja tidak dipaksa masuk supaya
  * tidak menyesatkan (under-count "repeat" itu lebih aman daripada
  * over-count karena salah cocokkan nama).
+ *
+ * SEBELUMNYA di cluster Marketing/Konten — dipindah ke PenjualanCluster
+ * (diminta 2026-09-08, permintaan susulan) supaya SEMUA laporan ngumpul
+ * di 1 tab Penjualan, tidak tercecer ke cluster lain.
  */
 class CustomerReport extends Page implements HasForms
 {
@@ -29,13 +33,13 @@ class CustomerReport extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
 
-    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
 
     protected static ?string $navigationLabel = 'Laporan Pelanggan';
 
     protected static ?string $title = 'Laporan Pelanggan';
 
-    protected static ?int $navigationSort = 15;
+    protected static ?int $navigationSort = 25;
 
     protected static string $view = 'filament.pages.customer-report';
 
