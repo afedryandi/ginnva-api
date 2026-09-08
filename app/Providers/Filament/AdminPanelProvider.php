@@ -82,34 +82,32 @@ class AdminPanelProvider extends PanelProvider
             // kontras. Filament tidak punya method resmi untuk ini (bukan
             // bagian dari ->colors()), jadi lewat CSS override manual via
             // render hook — TIDAK butuh build step Vite/npm, cukup inline
-            // <style> di <head>. Kelas .fi-topbar & .fi-topbar-item ADALAH
-            // nama kelas asli Filament v3 (dikonfirmasi dari dokumentasi/
-            // komunitas Filament, BUKAN tebakan) — kalau versi Filament
-            // berubah struktur kelasnya di masa depan, override ini perlu
-            // disesuaikan ulang.
+            // <style> di <head>. .fi-topbar dikonfirmasi dari dokumentasi
+            // Filament v3. SEBELUMNYA coba tebak nama kelas detail per-item
+            // (.fi-topbar-item, .fi-active dkk) — TERNYATA salah tebak,
+            // teks jadi TIDAK KELIHAT SAMA SEKALI (warna teks asli gelap
+            // tetap kepakai di atas background merah baru, bukan ketiban
+            // override). Diganti ke selector universal `.fi-topbar *`
+            // (semua elemen turunan topbar, apa pun nama kelasnya) supaya
+            // tidak bergantung tebakan struktur internal Filament lagi —
+            // beda "aktif vs tidak aktif" dibedakan lewat opacity yang
+            // Filament sendiri sudah terapkan by default (bukan dari CSS
+            // ini). Ditemukan & diperbaiki 2026-09-08 dari laporan
+            // pengguna ("teks topbar tidak kelihat sama sekali").
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn () => Blade::render(<<<'BLADE'
                     <style>
                         .fi-topbar {
-                            background-color: #ED1651;
-                            border-bottom: none;
+                            background-color: #ED1651 !important;
+                            border-bottom: none !important;
                         }
-                        .fi-topbar-item-label,
-                        .fi-topbar-item-icon,
-                        .fi-topbar nav a,
-                        .fi-topbar .fi-icon-btn svg,
-                        .fi-topbar .fi-avatar {
+                        .fi-topbar *:not(input):not(.fi-badge) {
                             color: #ffffff !important;
                         }
-                        .fi-topbar-item.fi-active .fi-topbar-item-label,
-                        .fi-topbar-item.fi-active .fi-topbar-item-icon {
+                        .fi-topbar svg {
                             color: #ffffff !important;
-                            opacity: 1;
-                        }
-                        .fi-topbar-item:not(.fi-active) .fi-topbar-item-label,
-                        .fi-topbar-item:not(.fi-active) .fi-topbar-item-icon {
-                            color: rgba(255, 255, 255, 0.75) !important;
+                            stroke: currentColor;
                         }
                     </style>
                     BLADE
