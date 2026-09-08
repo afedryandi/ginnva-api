@@ -33,6 +33,11 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Red,
             ])
+            // Navigasi horizontal di atas (bukan sidebar kiri) — diminta
+            // 2026-09-08, referensi tata letak Majoo (grup menu jadi
+            // dropdown sejajar di top bar). navigationGroups() di bawah
+            // otomatis jadi dropdown-nya, tidak perlu diubah.
+            ->topNavigation()
             // Dirombak jadi per-SISTEM/divisi bisnis (bukan per-fitur lepas
             // seperti sebelumnya: Penjualan/Konten/Partnership Referral yang
             // isinya tumpang tindih) — Booking dulu (siklus hidup lead sampai
