@@ -24,6 +24,11 @@ class PartnerNotificationResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\LainnyaCluster::class;
 
+    // Kategori di sidebar cluster 'Lainnya' -- diminta 2026-09-08, supaya
+    // gabungan Master Data + Sistem tetap terlihat terpisah kategorinya
+    // walau top-nav-nya sudah jadi 1 tab.
+    protected static ?string $navigationGroup = 'Sistem';
+
     protected static ?string $navigationLabel = 'Riwayat Notifikasi Partner';
 
     protected static ?string $modelLabel = 'Notifikasi Partner';

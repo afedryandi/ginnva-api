@@ -45,6 +45,17 @@ class AdminPanelProvider extends PanelProvider
             // perannya (grouping sekarang berbasis kelas $cluster per
             // resource/page, bukan string navigationGroup lagi).
             ->topNavigation()
+            // Master Data & Sistem digabung jadi 1 tab top-nav "Lainnya"
+            // (LainnyaCluster, supaya top-nav tidak terlalu lebar), TAPI
+            // di sidebar cluster itu tetap dikategorikan terpisah lewat
+            // $navigationGroup di masing-masing resource (VehicleResource
+            // dkk = 'Master Data', ActivityResource dkk = 'Sistem') —
+            // array ini yang menentukan urutan & label 2 kategori itu di
+            // sidebar. Diminta 2026-09-08.
+            ->navigationGroups([
+                'Master Data',
+                'Sistem',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->discoverClusters(in: app_path('Filament/Clusters'), for: 'App\\Filament\\Clusters')

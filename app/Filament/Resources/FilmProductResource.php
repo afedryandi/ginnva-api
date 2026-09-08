@@ -20,6 +20,11 @@ class FilmProductResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\LainnyaCluster::class;
 
+    // Kategori di sidebar cluster 'Lainnya' -- diminta 2026-09-08, supaya
+    // gabungan Master Data + Sistem tetap terlihat terpisah kategorinya
+    // walau top-nav-nya sudah jadi 1 tab.
+    protected static ?string $navigationGroup = 'Master Data';
+
     protected static ?int $navigationSort = 10;
 
     protected static ?string $navigationLabel = 'Produk Film';
