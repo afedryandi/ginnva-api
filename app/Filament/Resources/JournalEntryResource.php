@@ -37,7 +37,7 @@ class JournalEntryResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-scale';
 
-    protected static ?string $navigationGroup = 'Keuangan';
+    protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
     protected static ?string $navigationLabel = 'Jurnal Umum';
 

@@ -16,7 +16,7 @@ class PriceRuleResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calculator';
 
-    protected static ?string $navigationGroup = 'Master Data';
+    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
 
     protected static ?string $navigationLabel = 'Koefisien Harga';
 

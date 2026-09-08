@@ -28,7 +28,7 @@ class ClosePeriodPage extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-lock-closed';
 
-    protected static ?string $navigationGroup = 'Keuangan';
+    protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
     protected static ?string $navigationLabel = 'Tutup Periode';
 

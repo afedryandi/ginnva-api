@@ -24,7 +24,7 @@ class FinanceCategoryResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-tag';
 
-    protected static ?string $navigationGroup = 'Keuangan';
+    protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
     protected static ?string $navigationLabel = 'Kategori Keuangan';
 

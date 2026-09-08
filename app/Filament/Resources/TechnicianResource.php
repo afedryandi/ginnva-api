@@ -20,7 +20,7 @@ class TechnicianResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
 
-    protected static ?string $navigationGroup = 'Booking';
+    protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
     protected static ?string $navigationLabel = 'Teknisi';
 

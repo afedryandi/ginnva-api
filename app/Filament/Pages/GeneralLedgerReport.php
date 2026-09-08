@@ -26,7 +26,7 @@ class GeneralLedgerReport extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
 
-    protected static ?string $navigationGroup = 'Keuangan';
+    protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
     protected static ?string $navigationLabel = 'Buku Besar';
 

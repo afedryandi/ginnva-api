@@ -24,7 +24,7 @@ class CustomerGalleryPhotoResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-sparkles';
 
-    protected static ?string $navigationGroup = 'Marketing/Konten';
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     protected static ?int $navigationSort = 30;
 

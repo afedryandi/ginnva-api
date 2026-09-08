@@ -14,7 +14,7 @@ class CustomerNotificationResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-bell';
 
-    protected static ?string $navigationGroup = 'Sistem';
+    protected static ?string $cluster = \App\Filament\Clusters\SistemCluster::class;
 
     protected static ?string $navigationLabel = 'Riwayat Notifikasi';
 

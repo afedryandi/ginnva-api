@@ -30,7 +30,7 @@ class ConsumableItemResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-cube-transparent';
 
-    protected static ?string $navigationGroup = 'Inventaris';
+    protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
     protected static ?int $navigationSort = 60;
 

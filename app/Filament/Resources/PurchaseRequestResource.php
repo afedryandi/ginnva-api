@@ -27,7 +27,7 @@ class PurchaseRequestResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
 
-    protected static ?string $navigationGroup = 'Inventaris';
+    protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
     protected static ?string $navigationLabel = 'Permohonan Pembelian';
 

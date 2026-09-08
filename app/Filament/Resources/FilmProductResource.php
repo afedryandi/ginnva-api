@@ -18,7 +18,7 @@ class FilmProductResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-swatch';
 
-    protected static ?string $navigationGroup = 'Master Data';
+    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
 
     protected static ?int $navigationSort = 10;
 

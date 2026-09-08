@@ -24,7 +24,7 @@ class TrialBalanceReport extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-calculator';
 
-    protected static ?string $navigationGroup = 'Keuangan';
+    protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
     protected static ?string $navigationLabel = 'Neraca Saldo';
 

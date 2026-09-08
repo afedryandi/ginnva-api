@@ -25,7 +25,7 @@ class QuotationResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
 
-    protected static ?string $navigationGroup = 'Booking';
+    protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
     protected static ?int $navigationSort = 10;
 

@@ -25,7 +25,7 @@ class InventoryDashboard extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
 
-    protected static ?string $navigationGroup = 'Inventaris';
+    protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
     protected static ?int $navigationSort = 1;
 

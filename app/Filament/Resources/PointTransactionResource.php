@@ -32,7 +32,7 @@ class PointTransactionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-star';
 
-    protected static ?string $navigationGroup = 'Marketing/Konten';
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     protected static ?int $navigationSort = 65;
 

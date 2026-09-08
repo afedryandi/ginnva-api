@@ -22,7 +22,7 @@ class RewardRedemptionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-gift-top';
 
-    protected static ?string $navigationGroup = 'Marketing/Konten';
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     protected static ?int $navigationSort = 90;
 

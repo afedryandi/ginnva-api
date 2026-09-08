@@ -25,7 +25,7 @@ class ScrollCodeResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-qr-code';
 
-    protected static ?string $navigationGroup = 'Master Data';
+    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
     protected static ?string $navigationLabel = 'Kode Gulungan';
 
     protected static ?string $modelLabel = 'Kode Gulungan';

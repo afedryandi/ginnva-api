@@ -19,7 +19,7 @@ class UserResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
-    protected static ?string $navigationGroup = 'Karyawan';
+    protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
     protected static ?string $navigationLabel = 'User';
 

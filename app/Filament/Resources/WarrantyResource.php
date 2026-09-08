@@ -27,7 +27,7 @@ class WarrantyResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-shield-check';
 
-    protected static ?string $navigationGroup = 'Booking';
+    protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
     protected static ?int $navigationSort = 50;
 

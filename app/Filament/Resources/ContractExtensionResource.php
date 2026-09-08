@@ -18,7 +18,7 @@ class ContractExtensionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-document-check';
 
-    protected static ?string $navigationGroup = 'Karyawan';
+    protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
     protected static ?string $navigationLabel = 'Perpanjang Kontrak';
 

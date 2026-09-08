@@ -25,7 +25,7 @@ class SendNotification extends Page implements HasForms
 
     protected static ?string $navigationIcon  = 'heroicon-o-bell';
     protected static ?string $navigationLabel = 'Kirim Notifikasi';
-    protected static ?string $navigationGroup = 'Sistem';
+    protected static ?string $cluster = \App\Filament\Clusters\SistemCluster::class;
     protected static ?int    $navigationSort  = 5;
     protected static string  $view            = 'filament.pages.send-notification';
 

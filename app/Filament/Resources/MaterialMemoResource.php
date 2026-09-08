@@ -21,7 +21,7 @@ class MaterialMemoResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
-    protected static ?string $navigationGroup = 'Inventaris';
+    protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
     protected static ?string $navigationLabel = 'Memo Pengambilan/Pengembalian';
 
     protected static ?string $modelLabel = 'Memo Pengambilan/Pengembalian';

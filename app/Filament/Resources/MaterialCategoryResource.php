@@ -23,7 +23,7 @@ class MaterialCategoryResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-folder';
 
-    protected static ?string $navigationGroup = 'Marketing/Konten';
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     protected static ?string $navigationLabel = 'Kategori Materi';
 

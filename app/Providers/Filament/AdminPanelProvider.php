@@ -33,34 +33,21 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Red,
             ])
-            // Navigasi horizontal di atas (bukan sidebar kiri) — diminta
-            // 2026-09-08, referensi tata letak Majoo (grup menu jadi
-            // dropdown sejajar di top bar). navigationGroups() di bawah
-            // otomatis jadi dropdown-nya, tidak perlu diubah.
+            // Navigasi horizontal di atas — diminta 2026-09-08, referensi
+            // tata letak Majoo, TAPI bukan dropdown: tiap grup (dulu
+            // navigationGroup per resource, sekarang Cluster, lihat
+            // app/Filament/Clusters/) jadi 1 item klik di top bar. Klik
+            // masuk ke cluster-nya menampilkan sub-navigasi di sidebar kiri
+            // berisi resource/page di dalamnya (Quotation, Booking
+            // Instalasi, dst) — persis pola "klik Karyawan di atas, submenu
+            // muncul di kiri" yang diminta, bukan dropdown gantung.
+            // navigationGroups() TIDAK dipakai lagi — Cluster menggantikan
+            // perannya (grouping sekarang berbasis kelas $cluster per
+            // resource/page, bukan string navigationGroup lagi).
             ->topNavigation()
-            // Dirombak jadi per-SISTEM/divisi bisnis (bukan per-fitur lepas
-            // seperti sebelumnya: Penjualan/Konten/Partnership Referral yang
-            // isinya tumpang tindih) — Booking dulu (siklus hidup lead sampai
-            // instalasi selesai), baru Marketing/Konten, Karyawan (dulu
-            // bernama 'Operasional' — DIGANTI karena begitu Absensi/Izin/
-            // Penggajian/Surat Peringatan/Perpanjang Kontrak dibangun,
-            // ISINYA 100% soal karyawan, jadi nama lama sudah tidak akurat),
-            // Inventaris, Keuangan (pencatatan pemasukan/pengeluaran
-            // sederhana — BUKAN double-entry bookkeeping, lihat komentar
-            // FinanceTransactionResource), lalu Master Data & Sistem (data
-            // acuan lintas-modul & hal teknis, sengaja tetap terpisah —
-            // tidak cocok dipaksa masuk ke salah satu sistem bisnis).
-            ->navigationGroups([
-                'Booking',
-                'Marketing/Konten',
-                'Karyawan',
-                'Inventaris',
-                'Keuangan',
-                'Master Data',
-                'Sistem',
-            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
+            ->discoverClusters(in: app_path('Filament/Clusters'), for: 'App\\Filament\\Clusters')
             ->pages([
                 Pages\Dashboard::class,
             ])
