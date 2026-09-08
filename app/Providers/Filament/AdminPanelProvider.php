@@ -10,12 +10,14 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -72,6 +74,47 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 Widgets\AccountWidget::class,
             ])
+            // ->colors(['primary' => ...]) di atas CUMA mewarnai elemen
+            // aktif (teks/ikon tab yang lagi dibuka, tombol, badge) — itu
+            // memang cara kerja bawaan Filament, background topbar tetap
+            // putih. Diminta 2026-09-08: background strip topbar (bukan
+            // cuma teksnya) jadi merah brand solid, teks/ikon putih supaya
+            // kontras. Filament tidak punya method resmi untuk ini (bukan
+            // bagian dari ->colors()), jadi lewat CSS override manual via
+            // render hook — TIDAK butuh build step Vite/npm, cukup inline
+            // <style> di <head>. Kelas .fi-topbar & .fi-topbar-item ADALAH
+            // nama kelas asli Filament v3 (dikonfirmasi dari dokumentasi/
+            // komunitas Filament, BUKAN tebakan) — kalau versi Filament
+            // berubah struktur kelasnya di masa depan, override ini perlu
+            // disesuaikan ulang.
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                fn () => Blade::render(<<<'BLADE'
+                    <style>
+                        .fi-topbar {
+                            background-color: #ED1651;
+                            border-bottom: none;
+                        }
+                        .fi-topbar-item-label,
+                        .fi-topbar-item-icon,
+                        .fi-topbar nav a,
+                        .fi-topbar .fi-icon-btn svg,
+                        .fi-topbar .fi-avatar {
+                            color: #ffffff !important;
+                        }
+                        .fi-topbar-item.fi-active .fi-topbar-item-label,
+                        .fi-topbar-item.fi-active .fi-topbar-item-icon {
+                            color: #ffffff !important;
+                            opacity: 1;
+                        }
+                        .fi-topbar-item:not(.fi-active) .fi-topbar-item-label,
+                        .fi-topbar-item:not(.fi-active) .fi-topbar-item-icon {
+                            color: rgba(255, 255, 255, 0.75) !important;
+                        }
+                    </style>
+                    BLADE
+                )
+            )
             // Bell icon notifikasi di panel — dipakai alert kedaluwarsa
             // bahan baku (lihat App\Console\Commands\NotifyExpiringMaterials)
             // supaya admin tidak perlu buka Dashboard Inventaris manual
