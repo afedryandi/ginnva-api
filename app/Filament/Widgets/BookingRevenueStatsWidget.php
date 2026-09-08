@@ -56,6 +56,8 @@ class BookingRevenueStatsWidget extends BaseWidget
         $monthCount = $this->countBetween($monthStart, $monthEnd, $user, $isSuperAdmin);
         $avgThisMonth = $monthCount > 0 ? $monthRevenue / $monthCount : 0;
 
+        [$receivedThisMonth, $outstandingThisMonth] = $this->receivedAndOutstandingBetween($monthStart, $monthEnd, $user, $isSuperAdmin);
+
         return [
             Stat::make('Pendapatan Hari Ini', $this->formatRupiah($todayRevenue))
                 ->description($this->changeDescription($todayRevenue, $yesterdayRevenue, 'dari kemarin'))
@@ -73,6 +75,26 @@ class BookingRevenueStatsWidget extends BaseWidget
                 ->description("{$monthCount} booking tercatat bulan ini")
                 ->descriptionIcon('heroicon-m-calculator')
                 ->color('gray'),
+
+            // Split "Sudah Diterima" vs "Piutang" — referensi "Penjualan
+            // Terbayar"/"Penjualan Belum Dibayar" Majoo, diminta
+            // 2026-09-08. Datanya SUDAH ADA (Booking::amount_received),
+            // cuma belum pernah disorot di dashboard — penting supaya
+            // piutang yang menumpuk kelihatan tanpa harus buka Penjualan
+            // satu-satu. amount_received NULL dianggap lunas penuh (lihat
+            // BookingPostingService, DEFAULT-nya SAMA), jadi piutang di
+            // sini cuma dari booking yang eksplisit belum lunas semua.
+            Stat::make('Sudah Diterima (Bulan Ini)', $this->formatRupiah($receivedThisMonth))
+                ->description('Dari Pendapatan Bulan Ini di atas')
+                ->descriptionIcon('heroicon-m-check-circle')
+                ->color('success')
+                ->url(BookingResource::getUrl('index')),
+
+            Stat::make('Piutang (Bulan Ini)', $this->formatRupiah($outstandingThisMonth))
+                ->description($outstandingThisMonth > 0 ? 'Belum lunas penuh — perlu ditagih' : 'Semua booking bulan ini lunas')
+                ->descriptionIcon($outstandingThisMonth > 0 ? 'heroicon-m-exclamation-triangle' : 'heroicon-m-check-circle')
+                ->color($outstandingThisMonth > 0 ? 'danger' : 'gray')
+                ->url(BookingResource::getUrl('index')),
         ];
     }
 
@@ -110,6 +132,42 @@ class BookingRevenueStatsWidget extends BaseWidget
         }
 
         return $query->count();
+    }
+
+    /**
+     * @return array{0: float, 1: float} [diterima, piutang]
+     *
+     * Dihitung di PHP (bukan SQL SUM/COALESCE) — jumlah baris per bulan
+     * kecil, dan ini menghindari duplikasi asumsi "NULL = lunas penuh"
+     * antara sini & BookingPostingService/SalesResource kalau logikanya
+     * berubah nanti (satu tempat PHP, bukan expression SQL terpisah yang
+     * gampang lupa disinkronkan).
+     */
+    private function receivedAndOutstandingBetween(Carbon $start, Carbon $end, $user, bool $isSuperAdmin): array
+    {
+        $query = Booking::query()
+            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+            ->where('transaction_amount', '>', 0);
+
+        if (! $isSuperAdmin) {
+            $query->where(function ($q) use ($user) {
+                $q->where('store_id', $user->store_id)
+                    ->orWhereNull('store_id');
+            });
+        }
+
+        $received = 0.0;
+        $outstanding = 0.0;
+
+        $query->get(['transaction_amount', 'amount_received'])->each(function (Booking $booking) use (&$received, &$outstanding) {
+            $amount = (float) $booking->transaction_amount;
+            $receivedAmount = $booking->amount_received !== null ? (float) $booking->amount_received : $amount;
+
+            $received += $receivedAmount;
+            $outstanding += max(0, $amount - $receivedAmount);
+        });
+
+        return [$received, $outstanding];
     }
 
     private function formatRupiah(float $amount): string
