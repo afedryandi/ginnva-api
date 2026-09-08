@@ -30,8 +30,14 @@ class AdminPanelProvider extends PanelProvider
             ->passwordReset()
             ->profile()
             ->brandName('Ginnva Admin')
+            // SEBELUMNYA Color::Red — itu merah generik Tailwind (#ef4444),
+            // BUKAN merah brand Ginnva yang sebenarnya. Diganti ke hex asli
+            // brand (#ED1651, persis sama dengan colors.accent di mobile
+            // app — lihat constants/theme.ts) supaya warna admin panel
+            // konsisten dengan identitas brand di mobile app. Diminta
+            // 2026-09-08.
             ->colors([
-                'primary' => Color::Red,
+                'primary' => Color::hex('#ED1651'),
             ])
             // Navigasi horizontal di atas — diminta 2026-09-08, referensi
             // tata letak Majoo, TAPI bukan dropdown: tiap grup (dulu
