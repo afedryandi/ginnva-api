@@ -16,13 +16,17 @@ use Illuminate\Support\Carbon;
 
 /**
  * "Laporan Promo & Loyalti" — diminta 2026-09-08 setelah eksplorasi menu
- * Laporan Majoo. Voucher/Reward/Poin (Customer & Partner) SUDAH ada di
- * Marketing/Konten, tapi semuanya cuma ledger/daftar mentah — tidak ada
- * satu pun laporan PERFORMA (voucher mana paling laku, tingkat
+ * Laporan Majoo. Voucher/Reward/Poin (Customer & Partner) datanya masih
+ * hidup di Marketing/Konten, tapi semuanya cuma ledger/daftar mentah —
+ * tidak ada satu pun laporan PERFORMA (voucher mana paling laku, tingkat
  * penukaran reward, total poin diterbitkan vs dipakai). Halaman ini
  * mengagregasi data yang SUDAH ADA (tidak ada tabel/kolom baru), sama
  * pola dengan report Keuangan (IncomeStatementReport dkk): custom Page
  * + form rentang tanggal + Blade view.
+ *
+ * SEBELUMNYA di cluster Marketing/Konten — dipindah ke PenjualanCluster
+ * (permintaan susulan 2026-09-08) supaya semua "Laporan" ala Majoo
+ * ngumpul di tab Penjualan bareng SalesResource.
  */
 class PromoLoyaltyReport extends Page implements HasForms
 {
@@ -30,13 +34,13 @@ class PromoLoyaltyReport extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-gift';
 
-    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
 
     protected static ?string $navigationLabel = 'Laporan Promo & Loyalti';
 
     protected static ?string $title = 'Laporan Promo & Loyalti';
 
-    protected static ?int $navigationSort = 100;
+    protected static ?int $navigationSort = 20;
 
     protected static string $view = 'filament.pages.promo-loyalty-report';
 
