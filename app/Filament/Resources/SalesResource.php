@@ -32,6 +32,11 @@ class SalesResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
+    // Kategori sidebar TERPISAH dari 'Booking' (bukan digabung rata) --
+    // diminta 2026-09-08, sama pola dengan Master Data/Sistem di dalam
+    // cluster Lainnya.
+    protected static ?string $navigationGroup = 'Penjualan';
+
     protected static ?int $navigationSort = 25;
 
     protected static ?string $navigationLabel = 'Penjualan';

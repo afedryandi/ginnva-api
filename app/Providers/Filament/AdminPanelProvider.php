@@ -54,10 +54,15 @@ class AdminPanelProvider extends PanelProvider
             // (LainnyaCluster, supaya top-nav tidak terlalu lebar), TAPI
             // di sidebar cluster itu tetap dikategorikan terpisah lewat
             // $navigationGroup di masing-masing resource (VehicleResource
-            // dkk = 'Master Data', ActivityResource dkk = 'Sistem') —
-            // array ini yang menentukan urutan & label 2 kategori itu di
-            // sidebar. Diminta 2026-09-08.
+            // dkk = 'Master Data', ActivityResource dkk = 'Sistem').
+            // Sama pola dipakai lagi di cluster Booking: 'Penjualan'
+            // (SalesResource) dipisah dari 'Booking' (Quotation, Booking
+            // Instalasi, Teknisi, dkk) — array ini yang menentukan
+            // urutan & label semua kategori itu di sidebar. Diminta
+            // 2026-09-08.
             ->navigationGroups([
+                'Booking',
+                'Penjualan',
                 'Master Data',
                 'Sistem',
             ])
