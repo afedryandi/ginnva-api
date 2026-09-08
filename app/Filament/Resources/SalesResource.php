@@ -44,6 +44,17 @@ class SalesResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Penjualan';
 
+    // Item sidebar "Penjualan" ini disembunyikan dulu (diminta 2026-09-08
+    // — dianggap redundan dengan nama tab-nya sendiri, breadcrumb
+    // "Penjualan > Penjualan"), TAPI resource & route-nya TETAP UTUH
+    // (SalesDashboard.php masih boleh dipakai, dan halaman ini masih bisa
+    // diakses lewat URL langsung kalau perlu). Hapus override ini untuk
+    // memunculkan lagi di sidebar.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function canViewAny(): bool
     {
         $user = auth()->user();
