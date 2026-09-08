@@ -22,6 +22,11 @@ class PersediaanReportRedirect extends Page
 
     protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
 
+    // Dikelompokkan di bawah heading sidebar 'Laporan' (diminta
+    // 2026-09-08) -- Dashboard Penjualan (SalesDashboard) SENGAJA tidak
+    // ikut, tetap berdiri sendiri di atas grup ini.
+    protected static ?string $navigationGroup = 'Laporan';
+
     protected static ?string $navigationLabel = 'Laporan Persediaan';
 
     protected static ?string $title = 'Laporan Persediaan';

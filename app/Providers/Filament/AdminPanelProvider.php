@@ -58,9 +58,14 @@ class AdminPanelProvider extends PanelProvider
             // array ini yang menentukan urutan & label 2 kategori itu di
             // sidebar. 'Penjualan' SEMPAT dipakai sebagai sub-kategori di
             // dalam cluster Booking, tapi diminta susulan 2026-09-08 jadi
-            // TAB TOP-NAV SENDIRI (PenjualanCluster) — jadi TIDAK perlu
-            // lagi di sini, cluster tidak butuh navigationGroups().
+            // TAB TOP-NAV SENDIRI (PenjualanCluster). 'Laporan' dipakai
+            // lagi dengan pola yang sama (diminta 2026-09-08) — semua
+            // page 'Laporan *' di cluster Penjualan (Jasa, Promo &
+            // Loyalti, Pelanggan, Karyawan, Persediaan, Settlement)
+            // dikelompokkan di bawah 1 heading, Dashboard Penjualan
+            // sengaja tidak ikut (berdiri sendiri di atas grup ini).
             ->navigationGroups([
+                'Laporan',
                 'Master Data',
                 'Sistem',
             ])

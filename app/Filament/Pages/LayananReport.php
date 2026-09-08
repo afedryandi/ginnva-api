@@ -32,6 +32,11 @@ class LayananReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
 
+    // Dikelompokkan di bawah heading sidebar 'Laporan' (diminta
+    // 2026-09-08) -- Dashboard Penjualan (SalesDashboard) SENGAJA tidak
+    // ikut, tetap berdiri sendiri di atas grup ini.
+    protected static ?string $navigationGroup = 'Laporan';
+
     protected static ?string $navigationLabel = 'Laporan Jasa';
 
     protected static ?string $title = 'Laporan Jasa';
