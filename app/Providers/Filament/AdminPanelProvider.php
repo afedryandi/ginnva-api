@@ -10,14 +10,12 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
-use Illuminate\Support\Facades\Blade;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -74,45 +72,17 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 Widgets\AccountWidget::class,
             ])
-            // ->colors(['primary' => ...]) di atas CUMA mewarnai elemen
-            // aktif (teks/ikon tab yang lagi dibuka, tombol, badge) — itu
-            // memang cara kerja bawaan Filament, background topbar tetap
-            // putih. Diminta 2026-09-08: background strip topbar (bukan
-            // cuma teksnya) jadi merah brand solid, teks/ikon putih supaya
-            // kontras. Filament tidak punya method resmi untuk ini (bukan
-            // bagian dari ->colors()), jadi lewat CSS override manual via
-            // render hook — TIDAK butuh build step Vite/npm, cukup inline
-            // <style> di <head>. .fi-topbar dikonfirmasi dari dokumentasi
-            // Filament v3. SEBELUMNYA coba tebak nama kelas detail per-item
-            // (.fi-topbar-item, .fi-active dkk) — TERNYATA salah tebak,
-            // teks jadi TIDAK KELIHAT SAMA SEKALI (warna teks asli gelap
-            // tetap kepakai di atas background merah baru, bukan ketiban
-            // override). Diganti ke selector universal `.fi-topbar *`
-            // (semua elemen turunan topbar, apa pun nama kelasnya) supaya
-            // tidak bergantung tebakan struktur internal Filament lagi —
-            // beda "aktif vs tidak aktif" dibedakan lewat opacity yang
-            // Filament sendiri sudah terapkan by default (bukan dari CSS
-            // ini). Ditemukan & diperbaiki 2026-09-08 dari laporan
-            // pengguna ("teks topbar tidak kelihat sama sekali").
-            ->renderHook(
-                PanelsRenderHook::HEAD_END,
-                fn () => Blade::render(<<<'BLADE'
-                    <style>
-                        .fi-topbar {
-                            background-color: #ED1651 !important;
-                            border-bottom: none !important;
-                        }
-                        .fi-topbar *:not(input):not(.fi-badge) {
-                            color: #ffffff !important;
-                        }
-                        .fi-topbar svg {
-                            color: #ffffff !important;
-                            stroke: currentColor;
-                        }
-                    </style>
-                    BLADE
-                )
-            )
+            // Percobaan background topbar merah solid via CSS override
+            // manual (render hook) DIBATALKAN 2026-09-08 — 2x tebakan
+            // selector/class Filament meleset (percobaan 1: teks jadi
+            // tidak kelihat sama sekali di atas background merah;
+            // percobaan 2: perbaikannya malah bikin background ikut balik
+            // putih/pudar, teks putih di atas putih jadi tidak kelihat
+            // sama sekali). Dikembalikan ke topbar default Filament
+            // (putih, ->colors() cuma mewarnai elemen aktif) sampai ada
+            // info pasti nama class/struktur DOM topbar yang sebenarnya
+            // (lewat Inspect Element), supaya tidak terus menebak buta
+            // dan mengganggu pemakaian admin panel.
             // Bell icon notifikasi di panel — dipakai alert kedaluwarsa
             // bahan baku (lihat App\Console\Commands\NotifyExpiringMaterials)
             // supaya admin tidak perlu buka Dashboard Inventaris manual
