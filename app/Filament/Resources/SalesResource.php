@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Exports\SalesExport;
 use App\Filament\Resources\SalesResource\Pages;
 use App\Models\Booking;
 use Filament\Forms;
@@ -9,6 +10,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Penjualan" — diminta 2026-09-08 setelah eksplorasi Dashboard Penjualan
@@ -137,8 +139,19 @@ class SalesResource extends Resource
                     ->color(fn (float $state) => $state > 0 ? 'danger' : 'gray')
                     ->toggleable(),
 
+                // Analog "Waktu Order" vs "Waktu Bayar" Majoo (diminta
+                // 2026-09-09) -- created_at = booking DIAJUKAN, entry_date
+                // = booking BENAR-BENAR tercatat sebagai pendapatan
+                // (dibayar/diproses "Referral"). 2 tanggal yang beda arti,
+                // bukan duplikat kolom.
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Waktu Order')
+                    ->dateTime('d M Y H:i')
+                    ->sortable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('journalEntry.entry_date')
-                    ->label('Tanggal Tercatat')
+                    ->label('Waktu Bayar')
                     ->date('d M Y')
                     ->sortable(),
 
@@ -164,6 +177,24 @@ class SalesResource extends Resource
                     ->label('Toko')
                     ->relationship('store', 'name')
                     ->visible(fn () => auth()->user()?->isFullAccess()),
+            ])
+            ->headerActions([
+                // "Ekspor Laporan" (diminta 2026-09-09, analog tombol di
+                // halaman Penjualan Majoo) -- pakai getFilteredTableQuery()
+                // (BUKAN query polos Booking::query()) supaya hasil export
+                // SELALU ikut filter yang sedang aktif di layar (Rentang
+                // Tanggal Tercatat, Toko) -- sama pola yang sudah dipakai &
+                // diperbaiki di WarrantyResource (lihat catatan di sana),
+                // jangan ulangi bug lama "filter di layar tidak ikut ke
+                // export".
+                Tables\Actions\Action::make('exportExcel')
+                    ->label('Export ke Excel')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
+                    ->action(fn ($livewire) => Excel::download(
+                        new SalesExport($livewire->getFilteredTableQuery()),
+                        'penjualan-' . now()->format('Ymd-His') . '.xlsx'
+                    )),
             ])
             ->actions([
                 // Koreksi/tandai lunas TETAP lewat "Proses Referral" di

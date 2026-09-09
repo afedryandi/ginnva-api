@@ -2,14 +2,18 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\SalesSummaryExport;
 use App\Models\Booking;
 use App\Models\VoucherClaim;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
  * "Ringkasan Penjualan" — diminta 2026-09-08, analog waterfall "Ringkasan
@@ -86,6 +90,39 @@ class SalesSummaryReport extends Page implements HasForms
             DatePicker::make('from')->label('Dari')->native(false)->required(),
             DatePicker::make('to')->label('Sampai')->native(false)->required(),
         ])->columns(2)->statePath('data');
+    }
+
+    /**
+     * "Ekspor Laporan" (diminta 2026-09-09, analog tombol di halaman
+     * Ringkasan Penjualan Majoo) -- Excel & PDF, keduanya dibangun dari
+     * getResult() yang SAMA PERSIS yang dipakai halaman web (bukan
+     * query terpisah), supaya angka di file export selalu konsisten
+     * dengan yang tampil di layar untuk filter tanggal yang sama.
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new SalesSummaryExport($this->getResult()),
+                    'ringkasan-penjualan-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.sales_summary', ['result' => $result])->setPaper('a4', 'portrait');
+                    $filename = 'ringkasan-penjualan-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
     }
 
     public function getResult(): array
