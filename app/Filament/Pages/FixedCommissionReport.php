@@ -26,4 +26,14 @@ class FixedCommissionReport extends TechnicianCommissionReport
     // 403 -- band grup 'Laporan Karyawan' (lihat catatan sistem band di
     // ProductSalesReport.php).
     protected static ?int $navigationSort = 403;
+
+    // WAJIB override balik ke true -- TechnicianCommissionReport (induk)
+    // sengaja return false (disembunyikan dari menu karena duplikat
+    // dengan halaman ini), tapi late static binding TIDAK otomatis
+    // membedakan pemanggil, jadi tanpa override ini "Komisi Tetap" ikut
+    // hilang dari sidebar juga.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
 }

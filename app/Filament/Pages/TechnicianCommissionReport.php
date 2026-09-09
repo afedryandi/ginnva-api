@@ -63,6 +63,19 @@ class TechnicianCommissionReport extends Page implements HasForms
         return auth()->user()?->isFullAccess() ?? false;
     }
 
+    // Disembunyikan dari sidebar (diminta 2026-09-09) -- kontennya
+    // sudah muncul via "Komisi Tetap" (FixedCommissionReport, extends
+    // class ini) dengan nama yang sesuai Majoo, jadi 2 menu dengan isi
+    // sama persis dianggap duplikat. Route & logic TETAP UTUH (halaman
+    // masih bisa diakses lewat URL langsung), FixedCommissionReport
+    // WAJIB override method ini balik ke true (late static binding
+    // TIDAK otomatis membedakan -- kalau tidak di-override, subclass
+    // ikut tersembunyi juga).
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public function mount(): void
     {
         $this->form->fill([
