@@ -156,6 +156,15 @@ class TechnicianResource extends Resource
                         ->required()
                         ->default('intermediate'),
 
+                    Forms\Components\TextInput::make('commission_amount')
+                        ->label('Komisi per Pekerjaan (Rp)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->prefix('Rp')
+                        ->helperText('Nominal tetap yang didapat teknisi ini per booking yang dia kerjakan (bukan persentase). Kalau 1 booking dikerjakan >1 teknisi, masing-masing dapat nominal penuh ini, bukan dibagi. Kosongkan kalau belum ada aturan komisi untuk teknisi ini.')
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+
                     Forms\Components\Select::make('status')
                         ->label('Status')
                         ->options([
@@ -212,6 +221,11 @@ class TechnicianResource extends Resource
                     'inactive'       => 'danger',
                     default          => 'gray',
                 }),
+            TextEntry::make('commission_amount')
+                ->label('Komisi per Pekerjaan')
+                ->placeholder('Belum diatur')
+                ->money('IDR', locale: 'id')
+                ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
             TextEntry::make('notes')->label('Catatan')->placeholder('—')->columnSpanFull(),
             TextEntry::make('created_at')->label('Ditambahkan')->dateTime('d M Y H:i'),
         ]);
@@ -268,6 +282,15 @@ class TechnicianResource extends Resource
                         'inactive'       => 'Nonaktif',
                         default          => $state,
                     }),
+
+                // Data komisi sensitif -- disembunyikan default & khusus
+                // isFullAccess, sama filosofi PayrollResource (net_pay).
+                Tables\Columns\TextColumn::make('commission_amount')
+                    ->label('Komisi/Pekerjaan')
+                    ->money('IDR', locale: 'id')
+                    ->placeholder('Belum diatur')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Ditambahkan')

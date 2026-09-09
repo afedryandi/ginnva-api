@@ -131,4 +131,18 @@
         :widgets="[\App\Filament\Widgets\BookingRevenueTrendChart::class, \App\Filament\Widgets\BookingRevenueByCategoryChart::class]"
         :columns="1"
     />
+
+    {{--
+        "Stok Terendah" (diminta 2026-09-09) -- BUKAN widget baru, pakai
+        LANGSUNG widget yang sudah ada di Dashboard Inventaris (satu
+        sumber kebenaran, bukan duplikat query). Masing-masing widget
+        sudah punya canView() sendiri (cek akses menu Bahan Baku/Barang
+        Habis Pakai) jadi aman ditambahkan di sini tanpa guard tambahan
+        -- staff yang tidak punya akses inventaris otomatis tidak lihat
+        widget ini sama sekali.
+    --}}
+    <x-filament-widgets::widgets
+        :widgets="[\App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget::class, \App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget::class]"
+        :columns="1"
+    />
 </x-filament-panels::page>

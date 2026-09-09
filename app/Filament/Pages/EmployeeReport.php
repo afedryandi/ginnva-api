@@ -36,10 +36,10 @@ class EmployeeReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
 
-    // Dikelompokkan di bawah heading sidebar 'Laporan' (diminta
-    // 2026-09-08) -- Dashboard Penjualan (SalesDashboard) SENGAJA tidak
-    // ikut, tetap berdiri sendiri di atas grup ini.
-    protected static ?string $navigationGroup = 'Laporan';
+    // Grup sendiri 'Laporan Karyawan' (diubah 2026-09-09 dari 'Laporan'
+    // gabungan) -- sejajar dengan grup kategori laporan lain. Laporan
+    // Komisi Teknisi (TechnicianCommissionReport) ikut grup yang sama.
+    protected static ?string $navigationGroup = 'Laporan Karyawan';
 
     protected static ?string $navigationLabel = 'Laporan Karyawan';
 

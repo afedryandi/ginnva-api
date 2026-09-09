@@ -31,9 +31,12 @@ class SalesDashboard extends Page
 
     protected static ?int $navigationSort = 1;
 
-    protected static ?string $navigationLabel = 'Dashboard Penjualan';
+    // Diganti jadi "Dashboard" saja (diminta 2026-09-08) -- sudah jelas
+    // dari konteksnya berada di tab Penjualan, "Penjualan" di nama jadi
+    // berlebihan.
+    protected static ?string $navigationLabel = 'Dashboard';
 
-    protected static ?string $title = 'Dashboard Penjualan';
+    protected static ?string $title = 'Dashboard';
 
     protected static string $view = 'filament.pages.sales-dashboard';
 

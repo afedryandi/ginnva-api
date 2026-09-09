@@ -58,14 +58,27 @@ class AdminPanelProvider extends PanelProvider
             // array ini yang menentukan urutan & label 2 kategori itu di
             // sidebar. 'Penjualan' SEMPAT dipakai sebagai sub-kategori di
             // dalam cluster Booking, tapi diminta susulan 2026-09-08 jadi
-            // TAB TOP-NAV SENDIRI (PenjualanCluster). 'Laporan' dipakai
-            // lagi dengan pola yang sama (diminta 2026-09-08) — semua
-            // page 'Laporan *' di cluster Penjualan (Jasa, Promo &
-            // Loyalti, Pelanggan, Karyawan, Persediaan, Settlement)
-            // dikelompokkan di bawah 1 heading, Dashboard Penjualan
-            // sengaja tidak ikut (berdiri sendiri di atas grup ini).
+            // TAB TOP-NAV SENDIRI (PenjualanCluster).
+            //
+            // Struktur grup laporan di cluster Penjualan SEMPAT digabung
+            // jadi 1 grup 'Laporan' (2026-09-08), TAPI diubah 2026-09-09
+            // (permintaan susulan) jadi grup TERPISAH per kategori --
+            // Filament v3 TIDAK mendukung dropdown bersarang (grup di
+            // dalam grup), jadi tiap kategori laporan Majoo (Laporan
+            // Penjualan, Jasa, Promo & Loyalti, Pelanggan, Karyawan,
+            // Persediaan, Settlement) masing-masing jadi grup SEJAJAR
+            // sendiri-sendiri di sidebar cluster Penjualan, bukan
+            // ditumpuk di bawah 1 heading 'Laporan' lagi. Dashboard
+            // Penjualan (SalesDashboard) tetap TIDAK ikut grup manapun,
+            // berdiri sendiri di atas semua grup ini.
             ->navigationGroups([
-                'Laporan',
+                'Laporan Penjualan',
+                'Laporan Jasa',
+                'Laporan Promo & Loyalti',
+                'Laporan Pelanggan',
+                'Laporan Karyawan',
+                'Laporan Persediaan',
+                'Laporan Settlement',
                 'Master Data',
                 'Sistem',
             ])

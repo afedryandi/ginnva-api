@@ -27,6 +27,11 @@ use Illuminate\Database\Eloquent\Builder;
  * SEBELUMNYA jadi sub-kategori sidebar di dalam cluster Booking (supaya
  * tidak menambah lebar top-nav) — diminta 2026-09-08 (permintaan
  * susulan) untuk jadi TAB TOP-NAV SENDIRI, dipindah ke PenjualanCluster.
+ *
+ * SEMPAT disembunyikan dari sidebar (dianggap redundan dengan nama tab),
+ * dimunculkan lagi 2026-09-09 sebagai "Detail Penjualan" di dalam grup
+ * 'Laporan Penjualan' (lihat catatan navigationGroup di bawah) — struktur
+ * grup-per-kategori final, bukan 1 grup 'Laporan' gabungan lagi.
  */
 class SalesResource extends Resource
 {
@@ -36,24 +41,18 @@ class SalesResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
 
-    protected static ?int $navigationSort = 10;
+    // Grup sendiri (diminta 2026-09-09) -- sejajar dengan grup kategori
+    // laporan lain (Laporan Jasa, Laporan Karyawan, dst), BUKAN nested
+    // di dalam grup lain (Filament v3 tidak dukung dropdown bersarang).
+    protected static ?string $navigationGroup = 'Laporan Penjualan';
 
-    protected static ?string $navigationLabel = 'Penjualan';
+    protected static ?int $navigationSort = 2;
+
+    protected static ?string $navigationLabel = 'Detail Penjualan';
 
     protected static ?string $modelLabel = 'Penjualan';
 
     protected static ?string $pluralModelLabel = 'Penjualan';
-
-    // Item sidebar "Penjualan" ini disembunyikan dulu (diminta 2026-09-08
-    // — dianggap redundan dengan nama tab-nya sendiri, breadcrumb
-    // "Penjualan > Penjualan"), TAPI resource & route-nya TETAP UTUH
-    // (SalesDashboard.php masih boleh dipakai, dan halaman ini masih bisa
-    // diakses lewat URL langsung kalau perlu). Hapus override ini untuk
-    // memunculkan lagi di sidebar.
-    public static function shouldRegisterNavigation(): bool
-    {
-        return false;
-    }
 
     public static function canViewAny(): bool
     {

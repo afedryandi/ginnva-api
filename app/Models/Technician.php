@@ -12,8 +12,16 @@ class Technician extends Model
         'name',
         'phone',
         'level',
+        // Nominal komisi TETAP per pekerjaan/booking untuk teknisi ini --
+        // NULL = belum diatur (bukan Rp 0). Lihat migrasi
+        // 2026_09_08_000002 & Laporan Komisi Teknisi.
+        'commission_amount',
         'status',
         'notes',
+    ];
+
+    protected $casts = [
+        'commission_amount' => 'decimal:2',
     ];
 
     public function store()

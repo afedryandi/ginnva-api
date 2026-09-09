@@ -341,6 +341,39 @@ class BookingResource extends Resource
                             : null)
                         ->required(),
 
+                    // Varian/SKU FilmProduct spesifik yang dipasang --
+                    // OPSIONAL (diminta 2026-09-08), supaya "Produk
+                    // Terlaris" bisa dihitung dari Booking sungguhan,
+                    // bukan cuma Quotation (lead, belum tentu jadi
+                    // transaksi). Opsinya difilter sesuai Jenis Layanan
+                    // yang dipilih (kalau PPF, cuma tampilkan varian PPF;
+                    // kalau Kaca Film, cuma tampilkan window_film) supaya
+                    // staff tidak salah pilih varian dari tipe yang beda.
+                    // Booking "Kaca Film + PPF" (dua-duanya) tetap boleh
+                    // pilih dari semua opsi karena tidak bisa ditentukan
+                    // otomatis mana yang dominan.
+                    Forms\Components\Select::make('film_product_id')
+                        ->label('Varian Produk (SKU)')
+                        ->options(function (Forms\Get $get) {
+                            $query = \App\Models\FilmProduct::query()->where('is_active', true);
+
+                            $isKacaFilm = in_array($get('service_type'), ['Kaca Film (Window Film)'], true);
+                            $isPpf = in_array($get('service_type'), ['Pelindung Cat (PPF)'], true);
+
+                            if ($isKacaFilm) {
+                                $query->where('product_type', 'window_film');
+                            } elseif ($isPpf) {
+                                $query->where('product_type', 'ppf');
+                            }
+
+                            return $query->orderBy('name')
+                                ->get()
+                                ->mapWithKeys(fn ($product) => [$product->id => "{$product->sku} — {$product->name}"]);
+                        })
+                        ->searchable()
+                        ->preload()
+                        ->helperText('Opsional — diisi kalau sudah tahu varian PPF/Kaca Film mana yang benar-benar dipasang (biasanya saat booking selesai). Dipakai untuk laporan Produk Terlaris.'),
+
                     Forms\Components\DatePicker::make('preferred_date')
                         ->label('Tanggal Diinginkan')
                         ->required()
@@ -541,6 +574,10 @@ class BookingResource extends Resource
                 ->columns(2)
                 ->schema([
                     TextEntry::make('service_type')->label('Jenis Layanan'),
+                    TextEntry::make('filmProduct.name')
+                        ->label('Varian Produk (SKU)')
+                        ->placeholder('Belum diisi')
+                        ->state(fn (Booking $record) => $record->filmProduct ? "{$record->filmProduct->sku} — {$record->filmProduct->name}" : null),
                     // BUG (500 error): ->date('d M Y') dipakai BARENGAN
                     // dengan ->state() yang sudah mengembalikan string
                     // terformat sendiri — Filament coba Carbon::parse()
@@ -751,6 +788,14 @@ class BookingResource extends Resource
                 Tables\Columns\TextColumn::make('service_type')
                     ->label('Layanan')
                     ->limit(25),
+
+                // Kolom baru (diminta 2026-09-08) -- ditaruh
+                // toggleable+default hidden, tabel booking sudah cukup
+                // padat, ini info tambahan bukan kolom inti.
+                Tables\Columns\TextColumn::make('filmProduct.sku')
+                    ->label('Varian Produk')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('preferred_date')
                     ->label('Tanggal')

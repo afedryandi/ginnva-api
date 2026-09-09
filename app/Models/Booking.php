@@ -28,6 +28,11 @@ class Booking extends Model
         'service_type',
         'product_kaca_film',
         'product_ppf',
+        // Varian/SKU FilmProduct spesifik yang dipasang -- opsional,
+        // diisi staff/teknisi (biasanya saat booking selesai) supaya
+        // laporan "Produk Terlaris" bisa dihitung dari transaksi
+        // sungguhan. Lihat migrasi 2026_09_08_000001.
+        'film_product_id',
         'preferred_date',
         'preferred_time',
         'duration_days',
@@ -316,6 +321,15 @@ class Booking extends Model
     public function voucherClaim()
     {
         return $this->belongsTo(VoucherClaim::class);
+    }
+
+    /**
+     * Varian/SKU FilmProduct yang dipasang di booking ini -- opsional
+     * (nullable), lihat catatan di $fillable.
+     */
+    public function filmProduct()
+    {
+        return $this->belongsTo(FilmProduct::class);
     }
 
     /**
