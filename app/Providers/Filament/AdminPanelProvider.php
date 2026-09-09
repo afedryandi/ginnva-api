@@ -71,16 +71,29 @@ class AdminPanelProvider extends PanelProvider
             // ditumpuk di bawah 1 heading 'Laporan' lagi. Dashboard
             // Penjualan (SalesDashboard) tetap TIDAK ikut grup manapun,
             // berdiri sendiri di atas semua grup ini.
+            // Semua grup diset ->collapsed() (diminta 2026-09-09) supaya
+            // default TERTUTUP saat halaman pertama dimuat, bukan
+            // terbuka semua. String biasa jadi NavigationGroup::make()
+            // eksplisit supaya collapsed() bisa dipasang -- Filament
+            // simpan status buka/tutup per grup di localStorage browser
+            // (persist per user/browser, bukan cuma sekali muat).
+            //
+            // CATATAN: "buka 1 otomatis tutup yang lain" (accordion
+            // beneran, cuma 1 grup boleh terbuka) BUKAN perilaku bawaan
+            // Filament -- defaultnya semua grup independen, boleh
+            // dibuka bersamaan. Itu butuh override Alpine/JS internal,
+            // sengaja TIDAK dikerjakan di sini (lihat diskusi 2026-09-09
+            // soal risiko menebak struktur DOM tanpa akses visual).
             ->navigationGroups([
-                'Laporan Penjualan',
-                'Laporan Jasa',
-                'Laporan Promo & Loyalti',
-                'Laporan Pelanggan',
-                'Laporan Karyawan',
-                'Laporan Persediaan',
-                'Laporan Settlement',
-                'Master Data',
-                'Sistem',
+                \Filament\Navigation\NavigationGroup::make('Laporan Penjualan')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Laporan Jasa')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Laporan Promo & Loyalti')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Laporan Pelanggan')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Laporan Karyawan')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Laporan Persediaan')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Laporan Settlement')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Master Data')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Sistem')->collapsed(),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
