@@ -37,6 +37,11 @@ class MaterialMemoItem extends Model
         return $this->belongsTo(MaterialMemo::class, 'material_memo_id');
     }
 
+    public function scrollCodeUsage(): BelongsTo
+    {
+        return $this->belongsTo(ScrollCodeUsage::class);
+    }
+
     /**
      * Resolve model asli di balik item_type/item_id — BUKAN relasi
      * Eloquent morphTo() beneran (codebase ini belum pernah pakai

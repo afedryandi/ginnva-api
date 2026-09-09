@@ -601,6 +601,50 @@ class BookingResource extends Resource
                             ? ($record->service_reminder_sent_at ? 'Sudah terkirim' : 'Belum terkirim')
                             : null),
                 ]),
+
+            // "Inventori Terpakai" (diminta 2026-09-09) -- data bahan
+            // baku/barang habis pakai/produk+seri roll yang dipakai
+            // untuk booking ini, diambil dari Memo Barang yang terhubung
+            // (Booking::materialMemo(), opsional -- lihat migrasi
+            // 2026_09_09_000001). Section ini sengaja TIDAK MUNCUL kalau
+            // belum ada memo terhubung (bukan tampil kosong membingungkan).
+            InfolistSection::make('Inventori Terpakai')
+                ->description('Bahan baku, barang habis pakai, dan produk+seri roll yang dipakai untuk booking ini, dicatat lewat Memo Barang.')
+                ->visible(fn (Booking $record) => $record->materialMemo !== null)
+                ->schema([
+                    TextEntry::make('materialMemo.memo_number')
+                        ->label('No. Memo Barang')
+                        ->url(fn (Booking $record) => $record->materialMemo
+                            ? \App\Filament\Resources\MaterialMemoResource::getUrl('edit', ['record' => $record->materialMemo])
+                            : null),
+
+                    RepeatableEntry::make('materialMemo.items')
+                        ->label('Item Dipakai')
+                        ->schema([
+                            TextEntry::make('item_name')->label('Nama Barang'),
+                            TextEntry::make('item_type')
+                                ->label('Jenis')
+                                ->badge()
+                                ->formatStateUsing(fn (string $state) => match ($state) {
+                                    'raw_material' => 'Bahan Baku',
+                                    'consumable_item' => 'Barang Habis Pakai',
+                                    'inventory_item' => 'Inventori',
+                                    default => $state,
+                                }),
+                            TextEntry::make('scrollCodeUsage.scrollCode.code')
+                                ->label('Seri Produk (Roll)')
+                                ->placeholder('—'),
+                            TextEntry::make('meters_used')
+                                ->label('Meter Dipakai')
+                                ->placeholder('—')
+                                ->formatStateUsing(fn (?string $state) => $state ? number_format((float) $state, 2) . ' m' : null),
+                            TextEntry::make('qty_used')
+                                ->label('Qty Dipakai')
+                                ->formatStateUsing(fn ($state, $record) => $state !== null ? number_format((float) $state, 2) . ' ' . $record->unit : '—'),
+                        ])
+                        ->columns(5)
+                        ->columnSpanFull(),
+                ]),
         ]);
     }
 

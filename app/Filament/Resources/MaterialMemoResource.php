@@ -95,6 +95,28 @@ class MaterialMemoResource extends Resource
                     ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id)
                     ->disabled(! $isSuperAdmin)
                     ->dehydrated(),
+                // Opsional (diminta 2026-09-09) -- supaya Detail Penjualan/
+                // View Booking bisa menampilkan inventori yang benar-benar
+                // terpakai untuk 1 transaksi (produk+seri roll, bahan
+                // baku, barang habis pakai). UNIQUE per booking (1
+                // booking = 1 memo) -- kalau booking yang dipilih sudah
+                // punya memo lain, error di-tampilkan lewat validationMessages.
+                Forms\Components\Select::make('booking_id')
+                    ->label('Booking Terkait (opsional)')
+                    ->relationship('booking', 'booking_number', function ($query) {
+                        $user = auth()->user();
+                        if ($user && ! $user->isFullAccess()) {
+                            $query->where('store_id', $user->store_id);
+                        }
+                    })
+                    ->getOptionLabelFromRecordUsing(fn (\App\Models\Booking $record) => "{$record->booking_number} — {$record->customer_name}")
+                    ->searchable(['booking_number', 'customer_name'])
+                    ->preload()
+                    ->unique(ignoreRecord: true)
+                    ->validationMessages([
+                        'unique' => 'Booking ini sudah tertaut ke Memo Barang lain.',
+                    ])
+                    ->helperText('Hubungkan ke booking supaya bahan/produk yang dipakai muncul di Detail Penjualan booking tersebut.'),
                 Forms\Components\TextInput::make('vehicle_info')
                     ->label('Info Kendaraan')
                     ->placeholder('Mis. Toyota Avanza - B 1234 XYZ')
@@ -122,6 +144,12 @@ class MaterialMemoResource extends Resource
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('booking.booking_number')
+                    ->label('Booking')
+                    ->searchable()
+                    ->placeholder('—')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('vehicle_info')
                     ->label('Kendaraan')
                     ->searchable()

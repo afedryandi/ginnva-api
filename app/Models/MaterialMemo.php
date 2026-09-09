@@ -15,6 +15,14 @@ class MaterialMemo extends Model
     protected $fillable = [
         'memo_number',
         'store_id',
+        // Booking terkait -- OPSIONAL (diminta 2026-09-09, boleh diisi
+        // kapan saja, tidak wajib saat memo dibuat), UNIQUE per booking
+        // (selalu 1 booking = 1 memo; kalau ada tambahan barang di
+        // tengah pekerjaan, memo yang SAMA diedit -- bukan bikin memo
+        // baru). Dipakai supaya Detail Penjualan/View Booking bisa
+        // menampilkan inventori yang terpakai. Lihat migrasi
+        // 2026_09_09_000001.
+        'booking_id',
         'vehicle_info',
         'spk_number',
         'notes',
@@ -38,6 +46,11 @@ class MaterialMemo extends Model
         return $this->belongsTo(Store::class);
     }
 
+    public function booking(): BelongsTo
+    {
+        return $this->belongsTo(Booking::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -51,7 +64,7 @@ class MaterialMemo extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['memo_number', 'store_id', 'vehicle_info', 'spk_number', 'notes'])
+            ->logOnly(['memo_number', 'store_id', 'booking_id', 'vehicle_info', 'spk_number', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }

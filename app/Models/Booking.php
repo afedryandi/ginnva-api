@@ -333,6 +333,18 @@ class Booking extends Model
     }
 
     /**
+     * Memo Barang (pengambilan/pengembalian bahan) yang terhubung ke
+     * booking ini -- OPSIONAL, hasOne karena selalu 1 booking = 1 memo
+     * (dikonfirmasi 2026-09-09, lihat migrasi
+     * 2026_09_09_000001_add_booking_id_to_material_memos_table).
+     * Dipakai section "Inventori Terpakai" di View Booking.
+     */
+    public function materialMemo()
+    {
+        return $this->hasOne(MaterialMemo::class);
+    }
+
+    /**
      * Jurnal Pendapatan yang otomatis dibuat/diperbarui saat
      * transaction_amount diisi/diubah — lihat BookingPostingService.
      */
