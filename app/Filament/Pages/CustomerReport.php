@@ -98,10 +98,30 @@ class CustomerReport extends Page implements HasForms
             ->withCount(['bookings as bookings_all_time' => fn ($q) => $q
                 ->whereHas('journalEntry')
                 ->where('transaction_amount', '>', 0)])
+            // Ditambahkan 2026-09-09 (analog Laporan Pelanggan Majoo):
+            // total belanja SEPANJANG WAKTU (bukan cuma periode filter)
+            // + kunjungan terakhir, dasar hitung rata-rata/bulan.
+            ->withSum(['bookings as spend_all_time' => fn ($q) => $q
+                ->whereHas('journalEntry')
+                ->where('transaction_amount', '>', 0)], 'transaction_amount')
+            ->withMax(['bookings as last_visit' => fn ($q) => $q
+                ->whereHas('journalEntry')
+                ->where('transaction_amount', '>', 0)], 'preferred_date')
             ->having('bookings_in_period', '>', 0)
             ->orderByDesc('spend_in_period')
             ->limit(20)
-            ->get();
+            ->get()
+            ->map(function (Customer $customer) {
+                // Rata-rata/bulan dihitung dari umur akun (created_at
+                // sampai sekarang), MINIMAL 1 bulan supaya akun yang
+                // baru terdaftar hari ini tidak dibagi 0/pecahan bulan
+                // kecil yang bikin rata-rata meledak tinggi tidak wajar.
+                $monthsActive = max(1, $customer->created_at->diffInMonths(now()));
+                $customer->avg_bookings_per_month = round($customer->bookings_all_time / $monthsActive, 1);
+                $customer->avg_spend_per_month = $customer->spend_all_time / $monthsActive;
+
+                return $customer;
+            });
 
         // ->get()->count() (bukan ->count() langsung) — count() Query
         // Builder tidak selalu aman dikombinasikan dengan having() di atas
