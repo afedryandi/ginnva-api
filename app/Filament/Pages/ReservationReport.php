@@ -93,6 +93,21 @@ class ReservationReport extends Page implements HasForms
             ->orderBy('preferred_date')
             ->get();
 
+        // Stat "Dibuat/Selesai/Dibatalkan/Tingkat Pembatalan" (diminta
+        // 2026-09-09, analog Majoo) -- BEDA basis dari tabel di atas:
+        // dihitung dari created_at (kapan booking DIAJUKAN customer,
+        // bukan preferred_date-nya), dan SEMUA status diikutkan (bukan
+        // cuma confirmed/pending) supaya "Tingkat Pembatalan" benar-benar
+        // mencerminkan proporsi dari SEMUA yang pernah diajukan di
+        // periode ini, sama seperti definisi Majoo.
+        $createdInPeriod = Booking::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->when(! $isFullAccess, fn ($q) => $q->where('store_id', $user?->store_id))
+            ->get(['status']);
+
+        $totalCreated = $createdInPeriod->count();
+        $totalCancelled = $createdInPeriod->where('status', 'cancelled')->count();
+
         return [
             'from' => $from,
             'to' => $to,
@@ -100,6 +115,10 @@ class ReservationReport extends Page implements HasForms
             'totalCount' => $bookings->count(),
             'confirmedCount' => $bookings->where('status', 'confirmed')->count(),
             'pendingCount' => $bookings->where('status', 'pending')->count(),
+            'totalCreated' => $totalCreated,
+            'totalCompleted' => $createdInPeriod->where('status', 'completed')->count(),
+            'totalCancelled' => $totalCancelled,
+            'cancellationRate' => $totalCreated > 0 ? $totalCancelled / $totalCreated * 100 : 0,
         ];
     }
 }
