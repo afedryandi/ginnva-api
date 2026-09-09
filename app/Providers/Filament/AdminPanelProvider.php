@@ -121,6 +121,22 @@ class AdminPanelProvider extends PanelProvider
             // supaya admin tidak perlu buka Dashboard Inventaris manual
             // tiap hari untuk tahu ada yang perlu ditinjau.
             ->databaseNotifications()
+            // Spacing antar-grup sidebar (diminta 2026-09-09) — jarak
+            // vertikal bawaan Filament v3 antar heading grup ("Laporan
+            // Penjualan", "Laporan Jasa", dst) dirasa terlalu jauh.
+            // BEDA RISIKO dari percobaan warna topbar yang gagal
+            // sebelumnya: ini CUMA spacing (margin), bukan warna/
+            // visibility — paling buruk kalau selector-nya meleset,
+            // spacing-nya cuma tidak berubah (bukan teks jadi hilang).
+            // Target `.fi-sidebar-nav-groups` -- container `<ul>` yang
+            // membungkus semua grup navigasi, class ini bagian dari
+            // struktur publik Filament v3 (dipakai untuk theming resmi,
+            // bukan class internal acak). Kalau tetap belum pas, kirim
+            // screenshot Inspect Element supaya tidak menebak lagi.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn () => '<style>.fi-sidebar-nav-groups { row-gap: 0.75rem !important; }</style>',
+            )
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
