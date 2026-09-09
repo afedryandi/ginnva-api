@@ -64,8 +64,8 @@ class SalesByPeriodReport extends Page implements HasForms
     public function form(Form $form): Form
     {
         return $form->schema([
-            DatePicker::make('from')->label('Dari')->native(false)->required(),
-            DatePicker::make('to')->label('Sampai')->native(false)->required(),
+            DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
+            DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             Select::make('granularity')
                 ->label('Kelompokkan Per')
                 ->options([
@@ -74,7 +74,8 @@ class SalesByPeriodReport extends Page implements HasForms
                     'bulanan' => 'Bulanan',
                 ])
                 ->required()
-                ->default('harian'),
+                ->default('harian')
+                ->live(),
         ])->columns(3)->statePath('data');
     }
 

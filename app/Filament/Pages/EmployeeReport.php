@@ -79,7 +79,8 @@ class EmployeeReport extends Page implements HasForms
 
                     return $options;
                 })
-                ->required(),
+                ->required()
+                ->live(),
         ])->statePath('data');
     }
 

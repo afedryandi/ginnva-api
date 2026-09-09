@@ -70,8 +70,8 @@ class VoidReport extends Page implements HasForms
     public function form(Form $form): Form
     {
         return $form->schema([
-            DatePicker::make('from')->label('Dari')->native(false)->required(),
-            DatePicker::make('to')->label('Sampai')->native(false)->required(),
+            DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
+            DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
         ])->columns(2)->statePath('data');
     }
 

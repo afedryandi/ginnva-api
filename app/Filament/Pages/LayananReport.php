@@ -69,8 +69,8 @@ class LayananReport extends Page implements HasForms
     public function form(Form $form): Form
     {
         return $form->schema([
-            DatePicker::make('from')->label('Dari')->native(false)->required(),
-            DatePicker::make('to')->label('Sampai')->native(false)->required(),
+            DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
+            DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             Select::make('store_id')
                 ->label('Toko')
                 ->options(fn () => Store::where('is_active', true)->pluck('name', 'id'))
