@@ -124,18 +124,25 @@ class AdminPanelProvider extends PanelProvider
             // Spacing antar-grup sidebar (diminta 2026-09-09) — jarak
             // vertikal bawaan Filament v3 antar heading grup ("Laporan
             // Penjualan", "Laporan Jasa", dst) dirasa terlalu jauh.
-            // BEDA RISIKO dari percobaan warna topbar yang gagal
-            // sebelumnya: ini CUMA spacing (margin), bukan warna/
-            // visibility — paling buruk kalau selector-nya meleset,
-            // spacing-nya cuma tidak berubah (bukan teks jadi hilang).
-            // Target `.fi-sidebar-nav-groups` -- container `<ul>` yang
-            // membungkus semua grup navigasi, class ini bagian dari
-            // struktur publik Filament v3 (dipakai untuk theming resmi,
-            // bukan class internal acak). Kalau tetap belum pas, kirim
-            // screenshot Inspect Element supaya tidak menebak lagi.
+            //
+            // 2 percobaan pertama SALAH, dikoreksi bertahap via Inspect
+            // Element user (2026-09-09):
+            // - Percobaan 1: target `.fi-sidebar-nav-groups` (nama class
+            //   tebakan) -- TIDAK ngefek, class itu tidak ada.
+            // - Percobaan 2 (belum sempat di-commit): mau pakai
+            //   `margin-top` di selector sibling `.fi-sidebar-group +
+            //   .fi-sidebar-group` -- SALAH ARAH, karena parent asli
+            //   (`<ul class="fi-page-sub-navigation-sidebar flex
+            //   flex-col gap-y-7">`, dikonfirmasi Inspect Element) pakai
+            //   `gap` (flexbox row-gap), bukan margin -- kalau tetap
+            //   dipasang, margin itu NUMPUK di atas gap yang sudah ada
+            //   (nambah jarak, bukan ngurangin).
+            // - FIX BENAR: override `row-gap` LANGSUNG di
+            //   `.fi-page-sub-navigation-sidebar` (nama class asli, sudah
+            //   dikonfirmasi ada di DOM, bukan tebakan lagi).
             ->renderHook(
                 \Filament\View\PanelsRenderHook::HEAD_END,
-                fn () => '<style>.fi-sidebar-nav-groups { row-gap: 0.75rem !important; }</style>',
+                fn () => '<style>.fi-page-sub-navigation-sidebar { row-gap: 0.5rem !important; }</style>',
             )
             ->middleware([
                 EncryptCookies::class,
