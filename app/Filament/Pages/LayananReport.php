@@ -136,7 +136,23 @@ class LayananReport extends Page implements HasForms
 
         uasort($byStore, fn ($a, $b) => $b['revenue'] <=> $a['revenue']);
 
+        // Persentase (diminta 2026-09-09, analog "Jumlah Transaksi %"/
+        // "Penjualan %" di Laporan Jenis Order Majoo). Penyebut jumlah
+        // pakai TOTAL jumlah slot jenis (bukan totalCount) karena
+        // booking Kaca Film+PPF terhitung di KEDUA jenis (bukan cuma 1
+        // booking 1 jenis kayak "Jenis Order" Majoo) -- supaya 2
+        // persentase count tetap jumlah 100%, bukan 200%. Penyebut
+        // revenue pakai totalRevenue asli (split 50/50 sudah pas jumlah
+        // ke totalRevenue, tidak ada double count).
+        $typeCountTotal = $byType['kaca_film']['count'] + $byType['ppf']['count'];
+        foreach ($byType as $key => $row) {
+            $byType[$key]['countPct'] = $typeCountTotal > 0 ? $row['count'] / $typeCountTotal * 100 : 0;
+            $byType[$key]['revenuePct'] = $totalRevenue > 0 ? $row['revenue'] / $totalRevenue * 100 : 0;
+        }
+
         return [
+            'from' => $from,
+            'to' => $to,
             'totalCount' => $bookings->count(),
             'totalRevenue' => $totalRevenue,
             'avgRevenue' => $bookings->count() > 0 ? $totalRevenue / $bookings->count() : 0,

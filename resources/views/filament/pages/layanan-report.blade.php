@@ -25,6 +25,11 @@
         </x-filament::section>
     </div>
 
+    <x-filament-widgets::widgets
+        :widgets="[\App\Filament\Widgets\LayananChart::class]"
+        :columns="1"
+    />
+
     <x-filament::section>
         <x-slot name="heading">Per Jenis Servis</x-slot>
         <x-slot name="description">Booking dengan 2 produk sekaligus dibagi rata 50/50, sama logika Jurnal Umum.</x-slot>
@@ -35,19 +40,25 @@
                     <tr class="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
                         <th class="py-2 pr-3">Jenis</th>
                         <th class="py-2 pr-3 text-right">Jumlah</th>
-                        <th class="py-2 pl-3 text-right">Pendapatan</th>
+                        <th class="py-2 pr-3 text-right">Jumlah %</th>
+                        <th class="py-2 pr-3 text-right">Pendapatan</th>
+                        <th class="py-2 pl-3 text-right">Pendapatan %</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr class="border-b border-gray-100 dark:border-white/5">
                         <td class="py-2 pr-3 font-medium">Kaca Film</td>
                         <td class="py-2 pr-3 text-right tabular-nums">{{ $result['byType']['kaca_film']['count'] }}</td>
-                        <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($result['byType']['kaca_film']['revenue']) }}</td>
+                        <td class="py-2 pr-3 text-right tabular-nums">{{ number_format($result['byType']['kaca_film']['countPct'], 1) }}%</td>
+                        <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($result['byType']['kaca_film']['revenue']) }}</td>
+                        <td class="py-2 pl-3 text-right tabular-nums">{{ number_format($result['byType']['kaca_film']['revenuePct'], 1) }}%</td>
                     </tr>
                     <tr>
                         <td class="py-2 pr-3 font-medium">PPF</td>
                         <td class="py-2 pr-3 text-right tabular-nums">{{ $result['byType']['ppf']['count'] }}</td>
-                        <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($result['byType']['ppf']['revenue']) }}</td>
+                        <td class="py-2 pr-3 text-right tabular-nums">{{ number_format($result['byType']['ppf']['countPct'], 1) }}%</td>
+                        <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($result['byType']['ppf']['revenue']) }}</td>
+                        <td class="py-2 pl-3 text-right tabular-nums">{{ number_format($result['byType']['ppf']['revenuePct'], 1) }}%</td>
                     </tr>
                 </tbody>
             </table>
