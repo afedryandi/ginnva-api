@@ -84,17 +84,24 @@ class AdminPanelProvider extends PanelProvider
             // dibuka bersamaan. Itu butuh override Alpine/JS internal,
             // sengaja TIDAK dikerjakan di sini (lihat diskusi 2026-09-09
             // soal risiko menebak struktur DOM tanpa akses visual).
+            // ->sort() eksplisit DITAMBAHKAN 2026-09-09 -- urutan posisi
+            // array TERNYATA tidak cukup untuk grup sidebar di dalam
+            // Cluster (dikonfirmasi user: Laporan Produk tetap tampil
+            // SEBELUM Laporan Penjualan walau array-nya sudah benar,
+            // sudah dicoba clear cache + incognito). NavigationGroup::sort()
+            // API resmi Filament, dipakai supaya urutan pasti tidak
+            // bergantung asumsi urutan array saja.
             ->navigationGroups([
-                \Filament\Navigation\NavigationGroup::make('Laporan Penjualan')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Laporan Produk')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Laporan Jasa')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Laporan Promo & Loyalti')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Laporan Pelanggan')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Laporan Karyawan')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Laporan Persediaan')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Laporan Settlement')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Master Data')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Sistem')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Laporan Penjualan')->collapsed()->sort(10),
+                \Filament\Navigation\NavigationGroup::make('Laporan Produk')->collapsed()->sort(20),
+                \Filament\Navigation\NavigationGroup::make('Laporan Jasa')->collapsed()->sort(30),
+                \Filament\Navigation\NavigationGroup::make('Laporan Promo & Loyalti')->collapsed()->sort(40),
+                \Filament\Navigation\NavigationGroup::make('Laporan Pelanggan')->collapsed()->sort(50),
+                \Filament\Navigation\NavigationGroup::make('Laporan Karyawan')->collapsed()->sort(60),
+                \Filament\Navigation\NavigationGroup::make('Laporan Persediaan')->collapsed()->sort(70),
+                \Filament\Navigation\NavigationGroup::make('Laporan Settlement')->collapsed()->sort(80),
+                \Filament\Navigation\NavigationGroup::make('Master Data')->collapsed()->sort(90),
+                \Filament\Navigation\NavigationGroup::make('Sistem')->collapsed()->sort(100),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
