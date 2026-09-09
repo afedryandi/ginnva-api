@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\Booking;
 use App\Models\FilmProduct;
+use App\Models\Refund;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -91,10 +92,26 @@ class ProductSalesReport extends Page implements HasForms
             ->get(['id', 'transaction_amount', 'film_product_id']);
 
         $totalRevenue = (float) $bookings->sum('transaction_amount');
+        $totalCount = $bookings->count();
+
+        // Refund per produk (diminta 2026-09-09, sekarang bisa dihitung
+        // berkat fitur Refund) -- di-atribusikan ke film_product_id
+        // BOOKING yang di-refund (bukan tanggal booking-nya), rentang
+        // filter berdasarkan created_at refund itu sendiri, konsisten
+        // dengan RefundReport. Booking yang belum diisi SKU -> masuk
+        // bucket "Belum Diisi SKU" juga, sama seperti penjualannya.
+        $refunds = Refund::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->with('booking:id,film_product_id')
+            ->get(['amount', 'booking_id']);
+
+        $refundByProductId = $refunds->groupBy(fn (Refund $r) => $r->booking?->film_product_id)
+            ->map(fn ($group) => ['count' => $group->count(), 'amount' => (float) $group->sum('amount')]);
 
         $rows = $bookings->groupBy('film_product_id')
-            ->map(function ($group) {
+            ->map(function ($group, $filmProductId) use ($refundByProductId) {
                 $filmProduct = $group->first()->filmProduct;
+                $refundRow = $refundByProductId->get($filmProductId ?: null, ['count' => 0, 'amount' => 0.0]);
 
                 return [
                     'product' => $filmProduct,
@@ -108,13 +125,16 @@ class ProductSalesReport extends Page implements HasForms
                     },
                     'count' => $group->count(),
                     'revenue' => (float) $group->sum('transaction_amount'),
+                    'refundCount' => $refundRow['count'],
+                    'refundAmount' => $refundRow['amount'],
                 ];
             })
             ->sortByDesc(fn ($row) => $row['product'] === null ? -1 : $row['revenue']) // "Belum Diisi SKU" selalu di bawah, biar tidak dikira produk terlaris
             ->values();
 
-        $rows = $rows->map(function ($row) use ($totalRevenue) {
+        $rows = $rows->map(function ($row) use ($totalRevenue, $totalCount) {
             $row['revenuePct'] = $totalRevenue > 0 ? $row['revenue'] / $totalRevenue * 100 : 0;
+            $row['countPct'] = $totalCount > 0 ? $row['count'] / $totalCount * 100 : 0;
 
             return $row;
         });
@@ -125,10 +145,11 @@ class ProductSalesReport extends Page implements HasForms
             'from' => $from,
             'to' => $to,
             'rows' => $rows,
-            'totalCount' => $bookings->count(),
+            'totalCount' => $totalCount,
             'totalRevenue' => $totalRevenue,
+            'totalRefundAmount' => (float) $refunds->sum('amount'),
             'unassignedCount' => $unassignedCount,
-            'unassignedPct' => $bookings->count() > 0 ? $unassignedCount / $bookings->count() * 100 : 0,
+            'unassignedPct' => $totalCount > 0 ? $unassignedCount / $totalCount * 100 : 0,
         ];
     }
 }

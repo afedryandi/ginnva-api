@@ -15,24 +15,34 @@
         </div>
     @endif
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Penjualan Produk</div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">{{ $rupiah($result['totalRevenue']) }}</div>
         </x-filament::section>
 
         <x-filament::section>
-            <div class="text-xs text-gray-500 dark:text-gray-400">Total Transaksi</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total Produk Terjual</div>
             <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['totalCount'], 0, ',', '.') }}</div>
         </x-filament::section>
+
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total Refund</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums text-danger-600 dark:text-danger-400">{{ $rupiah($result['totalRefundAmount']) }}</div>
+        </x-filament::section>
     </div>
+
+    <x-filament-widgets::widgets
+        :widgets="[\App\Filament\Widgets\ProductSalesChart::class]"
+        :columns="1"
+    />
 
     <x-filament::section>
         <x-slot name="heading">Penjualan per Produk (SKU)</x-slot>
         <x-slot name="description">
             Diurutkan dari penjualan tertinggi. "Departemen"/"Kategori" ala Majoo tidak ditampilkan —
             katalog Ginnva tidak pakai struktur itu (SKU langsung di bawah Jenis Produk PPF/Kaca Film).
-            Laba Kotor/HPP/Refund tidak ditampilkan — sama-sama masih blocked seperti laporan Penjualan lain.
+            Laba Kotor/HPP tidak ditampilkan — masih blocked (butuh HPP, sama seperti laporan Penjualan lain).
         </x-slot>
 
         <div class="overflow-x-auto">
@@ -43,8 +53,11 @@
                         <th class="py-2 pr-3">SKU</th>
                         <th class="py-2 pr-3">Jenis Produk</th>
                         <th class="py-2 pr-3 text-right">Jumlah</th>
+                        <th class="py-2 pr-3 text-right">Jumlah %</th>
                         <th class="py-2 pr-3 text-right">Penjualan</th>
-                        <th class="py-2 pl-3 text-right">Penjualan %</th>
+                        <th class="py-2 pr-3 text-right">Penjualan %</th>
+                        <th class="py-2 pr-3 text-right">Jumlah Refund</th>
+                        <th class="py-2 pl-3 text-right">Refund</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -54,11 +67,14 @@
                             <td class="py-2 pr-3 font-mono">{{ $row['sku'] }}</td>
                             <td class="py-2 pr-3">{{ $row['type'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['count'] }}</td>
+                            <td class="py-2 pr-3 text-right tabular-nums">{{ number_format($row['countPct'], 1) }}%</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['revenue']) }}</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">{{ number_format($row['revenuePct'], 1) }}%</td>
+                            <td class="py-2 pr-3 text-right tabular-nums">{{ number_format($row['revenuePct'], 1) }}%</td>
+                            <td class="py-2 pr-3 text-right tabular-nums">{{ $row['refundCount'] > 0 ? $row['refundCount'] : '—' }}</td>
+                            <td class="py-2 pl-3 text-right tabular-nums {{ $row['refundAmount'] > 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $row['refundAmount'] > 0 ? '(' . $rupiah($row['refundAmount']) . ')' : '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada data pada rentang ini.</td></tr>
+                        <tr><td colspan="9" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada data pada rentang ini.</td></tr>
                     @endforelse
                 </tbody>
             </table>
