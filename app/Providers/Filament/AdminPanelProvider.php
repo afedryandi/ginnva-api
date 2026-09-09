@@ -100,7 +100,6 @@ class AdminPanelProvider extends PanelProvider
                 \Filament\Navigation\NavigationGroup::make('Laporan Pelanggan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Karyawan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Persediaan')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Laporan Settlement')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Master Data')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Sistem')->collapsed(),
             ])
