@@ -50,7 +50,15 @@ class ProductSalesReport extends Page implements HasForms
 
     protected static ?string $title = 'Penjualan Produk';
 
-    protected static ?int $navigationSort = 1;
+    // 15 (BUKAN 1) -- diverifikasi 2026-09-09 via source code Filament
+    // (HasSubNavigation::getCachedSubNavigation()): urutan GRUP sidebar
+    // di dalam Cluster ditentukan oleh navigationSort TERKECIL di antara
+    // SEMUA item lintas grup (bukan oleh navigationGroups() array sama
+    // sekali) -- item dengan sort terkecil "menang" duluan jadi grup
+    // pertama yang muncul. Grup 'Laporan Penjualan' isinya sampai
+    // sort=9 (Laporan Refund), jadi 15 memastikan grup ini SELALU
+    // muncul setelah Laporan Penjualan, apa pun urutan alfabet class-nya.
+    protected static ?int $navigationSort = 15;
 
     protected static string $view = 'filament.pages.product-sales-report';
 
