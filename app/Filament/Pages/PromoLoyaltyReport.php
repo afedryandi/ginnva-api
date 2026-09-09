@@ -7,6 +7,7 @@ use App\Models\PointTransaction;
 use App\Models\Reward;
 use App\Models\RewardRedemption;
 use App\Models\Voucher;
+use App\Models\VoucherClaim;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -40,9 +41,14 @@ class PromoLoyaltyReport extends Page implements HasForms
     // 'Laporan' gabungan) -- sejajar dengan grup kategori laporan lain.
     protected static ?string $navigationGroup = 'Laporan Promo & Loyalti';
 
-    protected static ?string $navigationLabel = 'Laporan Promo & Loyalti';
+    // Diganti dari "Laporan Promo & Loyalti" jadi "Laporan Promo"
+    // (diminta 2026-09-09) -- sekarang ada PointReport & CouponReport
+    // (extends class ini) sebagai menu terpisah "Laporan Poin"/"Laporan
+    // Kupon", jadi label item INI disamakan penamaan Majoo persis.
+    // Grup induknya (navigationGroup) TETAP "Laporan Promo & Loyalti".
+    protected static ?string $navigationLabel = 'Laporan Promo';
 
-    protected static ?string $title = 'Laporan Promo & Loyalti';
+    protected static ?string $title = 'Laporan Promo';
 
     // 200 -- band grup 'Laporan Promo & Loyalti' (lihat catatan sistem
     // band di ProductSalesReport.php, diperbaiki 2026-09-09).
@@ -110,6 +116,24 @@ class PromoLoyaltyReport extends Page implements HasForms
         $pointsIssuedPartner = (int) PartnerPointTransaction::where('type', 'earn')->whereBetween('created_at', [$from, $to])->sum('points');
         $pointsSpentPartner = (int) PartnerPointTransaction::where('type', 'spend')->whereBetween('created_at', [$from, $to])->sum('points');
 
+        // "Laporan Promo" Majoo (diminta 2026-09-09) -- stat card & detail
+        // per transaksi, dari VoucherClaim yang BENAR-BENAR dipakai di
+        // sebuah booking (bukan cuma diklaim). used_at dipakai (bukan
+        // created_at) karena itu tanggal voucher SUNGGUHAN dipakai
+        // transaksi -- SAMA logika dengan SalesSummaryReport supaya
+        // "Nilai Promo" di sini konsisten dengan "Promo Voucher" di
+        // Ringkasan Penjualan.
+        $usedClaims = VoucherClaim::query()
+            ->where('status', 'used')
+            ->whereNotNull('booking_id')
+            ->whereBetween('used_at', [$from, $to])
+            ->with(['voucher:id,name,discount_amount', 'booking:id,booking_number,store_id,transaction_amount', 'booking.store:id,name'])
+            ->orderByDesc('used_at')
+            ->get();
+
+        $promoValue = (float) $usedClaims->sum(fn (VoucherClaim $c) => (float) ($c->voucher->discount_amount ?? 0));
+        $promoSalesTotal = (float) $usedClaims->sum(fn (VoucherClaim $c) => (float) ($c->booking->transaction_amount ?? 0));
+
         return [
             'vouchers' => $vouchers,
             'rewards' => $rewards,
@@ -120,6 +144,10 @@ class PromoLoyaltyReport extends Page implements HasForms
                 'spent_partner' => $pointsSpentPartner,
             ],
             'totalRedemptions' => RewardRedemption::whereBetween('created_at', [$from, $to])->count(),
+            'usedClaims' => $usedClaims,
+            'promoTransactionCount' => $usedClaims->count(),
+            'promoValue' => $promoValue,
+            'promoSalesTotal' => $promoSalesTotal,
         ];
     }
 }

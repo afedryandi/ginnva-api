@@ -8,7 +8,30 @@
         $vouchers = $result['vouchers'];
         $rewards = $result['rewards'];
         $points = $result['points'];
+        $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
     @endphp
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total Transaksi dengan Promo</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['promoTransactionCount'], 0, ',', '.') }}</div>
+        </x-filament::section>
+
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Nilai Promo</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums text-danger-600 dark:text-danger-400">({{ $rupiah($result['promoValue']) }})</div>
+        </x-filament::section>
+
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total Penjualan dengan Promo</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">{{ $rupiah($result['promoSalesTotal']) }}</div>
+        </x-filament::section>
+    </div>
+
+    <x-filament-widgets::widgets
+        :widgets="[\App\Filament\Widgets\PromoValueChart::class]"
+        :columns="1"
+    />
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <x-filament::section>
@@ -29,6 +52,38 @@
             <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Customer &amp; Partner, periode terpilih</div>
         </x-filament::section>
     </div>
+
+    <x-filament::section>
+        <x-slot name="heading">Detail Transaksi Promo</x-slot>
+        <x-slot name="description">Tiap baris = 1 voucher yang benar-benar dipakai di 1 booking.</x-slot>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
+                        <th class="py-2 pr-3">Tanggal</th>
+                        <th class="py-2 pr-3">Promo</th>
+                        <th class="py-2 pr-3">No. Booking</th>
+                        <th class="py-2 pr-3">Toko</th>
+                        <th class="py-2 pl-3 text-right">Nilai</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($result['usedClaims'] as $claim)
+                        <tr class="border-b border-gray-100 dark:border-white/5">
+                            <td class="py-2 pr-3 tabular-nums">{{ optional($claim->used_at)->format('d M Y') }}</td>
+                            <td class="py-2 pr-3">{{ $claim->voucher?->name ?? '—' }}</td>
+                            <td class="py-2 pr-3">{{ $claim->booking?->booking_number ?? '—' }}</td>
+                            <td class="py-2 pr-3">{{ $claim->booking?->store?->name ?? '—' }}</td>
+                            <td class="py-2 pl-3 text-right tabular-nums">({{ $rupiah((float) ($claim->voucher->discount_amount ?? 0)) }})</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada promo dipakai pada rentang ini.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </x-filament::section>
 
     <x-filament::section>
         <x-slot name="heading">Performa Voucher</x-slot>
