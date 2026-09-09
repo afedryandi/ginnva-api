@@ -85,10 +85,15 @@ class SalesByOutletReport extends Page implements HasForms
                     ->where('store_id', $store->id)
                     ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
                     ->where('transaction_amount', '>', 0)
-                    ->get(['transaction_amount', 'amount_received']);
+                    ->get(['transaction_amount', 'amount_received', 'product_kaca_film', 'product_ppf']);
 
                 $revenue = (float) $bookings->sum('transaction_amount');
                 $received = (float) $bookings->sum(fn (Booking $b) => $b->amount_received !== null ? (float) $b->amount_received : (float) $b->transaction_amount);
+                // "Produk" -- jumlah kategori produk (Kaca Film/PPF)
+                // terpasang, sama pola dengan SalesByPeriodReport/
+                // SalesDashboard (BUKAN jumlah SKU spesifik, film_product_id
+                // belum wajib diisi).
+                $products = $bookings->sum(fn (Booking $b) => ($b->product_kaca_film ? 1 : 0) + ($b->product_ppf ? 1 : 0));
 
                 return [
                     'store' => $store,
@@ -97,17 +102,35 @@ class SalesByOutletReport extends Page implements HasForms
                     'received' => $received,
                     'outstanding' => max(0, $revenue - $received),
                     'avg' => $bookings->count() > 0 ? $revenue / $bookings->count() : 0,
+                    'products' => $products,
+                    'productsPerTransaction' => $bookings->count() > 0 ? $products / $bookings->count() : 0,
                 ];
             })
             ->sortByDesc('revenue')
             ->values();
 
+        $totalRevenue = $stores->sum('revenue');
+        $totalCount = $stores->sum('count');
+        $totalProducts = $stores->sum('products');
+
+        // Persentase kontribusi tiap outlet terhadap total -- dihitung
+        // di sini (bukan di view) supaya konsisten kalau totalnya 0
+        // (hindari division by zero, tampilkan 0% bukan error/NaN).
+        $stores = $stores->map(function ($row) use ($totalRevenue, $totalCount, $totalProducts) {
+            $row['revenuePct'] = $totalRevenue > 0 ? $row['revenue'] / $totalRevenue * 100 : 0;
+            $row['countPct'] = $totalCount > 0 ? $row['count'] / $totalCount * 100 : 0;
+            $row['productsPct'] = $totalProducts > 0 ? $row['products'] / $totalProducts * 100 : 0;
+
+            return $row;
+        });
+
         return [
             'from' => $from,
             'to' => $to,
             'rows' => $stores,
-            'totalRevenue' => $stores->sum('revenue'),
-            'totalCount' => $stores->sum('count'),
+            'totalRevenue' => $totalRevenue,
+            'totalCount' => $totalCount,
+            'totalProducts' => $totalProducts,
         ];
     }
 }
