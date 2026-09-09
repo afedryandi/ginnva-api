@@ -24,7 +24,8 @@
         <x-slot name="heading">Komisi per Teknisi</x-slot>
         <x-slot name="description">
             Nominal tetap per pekerjaan × jumlah booking (sudah terbayar/tercatat di Jurnal Umum) yang ditugaskan ke teknisi tersebut.
-            Kalau 1 booking dikerjakan >1 teknisi, masing-masing dihitung penuh (tidak dibagi).
+            Kalau 1 booking dikerjakan >1 teknisi, masing-masing dihitung PENUH (tidak dibagi) — termasuk kolom "Penjualan", jadi
+            totalnya lintas teknisi bisa melebihi total Penjualan sungguhan kalau ada booking tim (disengaja, bukan salah hitung).
         </x-slot>
 
         <div class="overflow-x-auto">
@@ -34,6 +35,7 @@
                         <th class="py-2 pr-3">Teknisi</th>
                         <th class="py-2 pr-3">Toko</th>
                         <th class="py-2 pr-3 text-right">Jumlah Pekerjaan</th>
+                        <th class="py-2 pr-3 text-right">Penjualan</th>
                         <th class="py-2 pr-3 text-right">Komisi/Pekerjaan</th>
                         <th class="py-2 pl-3 text-right">Total Komisi</th>
                     </tr>
@@ -44,6 +46,7 @@
                             <td class="py-2 pr-3 font-medium">{{ $row['technician']->name }}</td>
                             <td class="py-2 pr-3">{{ $row['technician']->store?->name ?? '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['jobCount'] }}</td>
+                            <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['salesTotal']) }}</td>
                             @if ($row['rate'] !== null)
                                 <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['rate']) }}</td>
                                 <td class="py-2 pl-3 text-right tabular-nums font-medium">{{ $rupiah($row['totalCommission']) }}</td>
@@ -53,7 +56,7 @@
                             @endif
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada data teknisi bertaut akun installer.</td></tr>
+                        <tr><td colspan="6" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada data teknisi bertaut akun installer.</td></tr>
                     @endforelse
                 </tbody>
             </table>

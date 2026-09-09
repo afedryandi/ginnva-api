@@ -90,17 +90,28 @@ class TechnicianCommissionReport extends Page implements HasForms
             ->orderBy('name')
             ->get()
             ->map(function (Technician $technician) use ($from, $to) {
-                $jobCount = Booking::query()
+                // "Penjualan" (diminta 2026-09-09, analog kolom Majoo) --
+                // total NILAI TRANSAKSI booking yang ditugaskan ke teknisi
+                // ini, BUKAN komisinya sendiri. Kalau 1 booking dikerjakan
+                // >1 teknisi, nilainya ikut terhitung penuh di masing-
+                // masing teknisi (konsisten dengan aturan komisi "full ke
+                // masing-masing", BUKAN dibagi) -- jadi total kolom ini
+                // lintas teknisi BISA melebihi total Penjualan sungguhan
+                // kalau ada booking tim (disengaja, bukan bug).
+                $jobsQuery = Booking::query()
                     ->whereHas('installers', fn ($q) => $q->where('users.id', $technician->user_id))
                     ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
-                    ->where('transaction_amount', '>', 0)
-                    ->count();
+                    ->where('transaction_amount', '>', 0);
+
+                $jobCount = (clone $jobsQuery)->count();
+                $salesTotal = (float) (clone $jobsQuery)->sum('transaction_amount');
 
                 $rate = $technician->commission_amount !== null ? (float) $technician->commission_amount : null;
 
                 return [
                     'technician' => $technician,
                     'jobCount' => $jobCount,
+                    'salesTotal' => $salesTotal,
                     'rate' => $rate,
                     'totalCommission' => $rate !== null ? $rate * $jobCount : null,
                 ];
