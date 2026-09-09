@@ -41,7 +41,7 @@
     <table>
         <tr class="section"><td colspan="2">Penjualan Bersih</td></tr>
         <tr><td>Total Penjualan</td><td class="value">{{ $rupiah($result['grossSales']) }}</td></tr>
-        <tr class="muted"><td>Pengembalian (Refund)</td><td class="value">Belum tersedia</td></tr>
+        <tr><td>Pengembalian (Refund)</td><td class="value">{{ $result['refund'] > 0 ? '(' . $rupiah($result['refund']) . ')' : '-' }}</td></tr>
         <tr class="total"><td>Total Penjualan Bersih</td><td class="value">{{ $rupiah($result['netSales']) }}</td></tr>
     </table>
 

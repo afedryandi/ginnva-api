@@ -46,7 +46,7 @@ class SalesSummaryExport implements FromArray, WithStyles
             [],
             ['PENJUALAN BERSIH'],
             ['Total Penjualan', $rupiah($r['grossSales'])],
-            ['Pengembalian (Refund)', 'Belum tersedia — fitur refund belum ada'],
+            ['Pengembalian (Refund)', $r['refund'] > 0 ? '(' . $rupiah($r['refund']) . ')' : '-'],
             ['Total Penjualan Bersih', $rupiah($r['netSales'])],
             [],
             ['LABA KOTOR'],

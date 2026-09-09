@@ -1025,6 +1025,63 @@ class BookingResource extends Resource
                             ->send();
                     }),
 
+                // "Proses Refund" (diminta 2026-09-09, analog Laporan
+                // Refund Majoo) -- BISA PARSIAL & berkali-kali sampai
+                // habis, TIAP refund otomatis bikin jurnal kontra baru
+                // di Jurnal Umum (lihat RefundService, TIDAK mengedit
+                // jurnal pendapatan asli). Cuma muncul kalau booking
+                // SUDAH punya jurnal pendapatan (sudah "Proses Referral")
+                // -- tidak ada yang bisa di-refund kalau belum pernah
+                // tercatat sebagai pendapatan.
+                Tables\Actions\Action::make('process_refund')
+                    ->label('Proses Refund')
+                    ->icon('heroicon-o-receipt-refund')
+                    ->color('danger')
+                    ->visible(fn (Booking $record) => $record->journal_entry_id !== null
+                        && (float) $record->refunds()->sum('amount') < (float) $record->transaction_amount)
+                    ->form(fn (Booking $record) => [
+                        Forms\Components\Placeholder::make('sisa_refund')
+                            ->label('Sisa yang Bisa Di-refund')
+                            ->content(function () use ($record) {
+                                $remaining = (float) $record->transaction_amount - (float) $record->refunds()->sum('amount');
+
+                                return 'Rp' . number_format($remaining, 0, ',', '.');
+                            }),
+                        Forms\Components\TextInput::make('amount')
+                            ->label('Nominal Refund')
+                            ->numeric()
+                            ->minValue(0.01)
+                            ->required()
+                            ->helperText('Bisa parsial (sebagian dari nilai transaksi) — otomatis bikin jurnal balik pendapatan + kas di Jurnal Umum.'),
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Alasan Refund')
+                            ->rows(2)
+                            ->maxLength(500),
+                    ])
+                    ->action(function (Booking $record, array $data) {
+                        try {
+                            app(\App\Services\RefundService::class)->process(
+                                $record,
+                                (float) $data['amount'],
+                                $data['reason'] ?: null,
+                                auth()->id()
+                            );
+                        } catch (RuntimeException $e) {
+                            Notification::make()
+                                ->title('Refund tidak bisa diproses')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Refund berhasil diproses & jurnal kontra dibuat.')
+                            ->success()
+                            ->send();
+                    }),
+
                 // Kirim reminder maintenance/servis (WA+Push+Email) kapan
                 // saja tanpa menunggu tanggal `next_service_reminder_at`
                 // terjadwal — dipakai store manager begitu instalasi

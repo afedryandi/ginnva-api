@@ -345,6 +345,16 @@ class Booking extends Model
     }
 
     /**
+     * Riwayat refund booking ini -- BISA lebih dari 1 (refund parsial
+     * bertahap), lihat RefundService & migrasi
+     * 2026_09_09_000002_create_refunds_table.
+     */
+    public function refunds()
+    {
+        return $this->hasMany(Refund::class);
+    }
+
+    /**
      * Jurnal Pendapatan yang otomatis dibuat/diperbarui saat
      * transaction_amount diisi/diubah — lihat BookingPostingService.
      */

@@ -63,7 +63,7 @@
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['received']) }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums {{ $row['outstanding'] > 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $row['outstanding'] > 0 ? $rupiah($row['outstanding']) : '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['products'] }}</td>
-                            <td class="py-2 pr-3 text-right italic text-gray-400 dark:text-gray-500">Belum tersedia</td>
+                            <td class="py-2 pr-3 text-right tabular-nums {{ $row['refund'] > 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $row['refund'] > 0 ? '(' . $rupiah($row['refund']) . ')' : '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">
                                 {{ $row['commission'] > 0 ? $rupiah($row['commission']) : '—' }}
                                 @if ($row['hasUnratedJob'])

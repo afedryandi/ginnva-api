@@ -98,9 +98,9 @@
                             <td class="py-2 pr-3">Total Penjualan</td>
                             <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($result['grossSales']) }}</td>
                         </tr>
-                        <tr class="border-b border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500">
-                            <td class="py-2 pr-3 italic">Pengembalian (Refund)</td>
-                            <td class="py-2 pl-3 text-right italic">Belum tersedia — fitur refund belum ada</td>
+                        <tr class="border-b border-gray-100 dark:border-white/5">
+                            <td class="py-2 pr-3">Pengembalian (Refund)</td>
+                            <td class="py-2 pl-3 text-right tabular-nums">{{ $result['refund'] > 0 ? '(' . $rupiah($result['refund']) . ')' : '—' }}</td>
                         </tr>
                         <tr class="font-bold">
                             <td class="py-2 pr-3">Total Penjualan Bersih</td>

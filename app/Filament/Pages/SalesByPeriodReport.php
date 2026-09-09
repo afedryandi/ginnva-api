@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\Booking;
+use App\Models\Refund;
 use App\Models\Technician;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -120,7 +121,7 @@ class SalesByPeriodReport extends Page implements HasForms
             [$key, $label, $bucketEnd] = $this->periodKeyFor($cursor, $granularity);
             $buckets[$key] ??= [
                 'label' => $label, 'revenue' => 0.0, 'received' => 0.0, 'outstanding' => 0.0,
-                'count' => 0, 'products' => 0, 'commission' => 0.0, 'hasUnratedJob' => false,
+                'count' => 0, 'products' => 0, 'commission' => 0.0, 'hasUnratedJob' => false, 'refund' => 0.0,
             ];
             $cursor = $bucketEnd->copy()->addDay();
         }
@@ -153,6 +154,19 @@ class SalesByPeriodReport extends Page implements HasForms
                     $buckets[$key]['hasUnratedJob'] = true;
                 }
             }
+        }
+
+        // Refund -- SEKARANG dihitung sungguhan (diminta 2026-09-09,
+        // lihat RefundService). Dikelompokkan berdasarkan created_at
+        // refund itu sendiri (kapan DIPROSES), bukan tanggal booking-nya.
+        $refunds = Refund::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->get(['amount', 'created_at']);
+
+        foreach ($refunds as $refund) {
+            [$key] = $this->periodKeyFor($refund->created_at, $granularity);
+            if (! isset($buckets[$key])) continue;
+            $buckets[$key]['refund'] += (float) $refund->amount;
         }
 
         return [

@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Exports\SalesSummaryExport;
 use App\Models\Booking;
+use App\Models\Refund;
 use App\Models\VoucherClaim;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
@@ -20,11 +21,13 @@ use Barryvdh\DomPDF\Facade\Pdf;
  * Penjualan" Majoo (Pendapatan → Biaya Promosi → Penjualan Bersih →
  * Laba Kotor). BEDA PENTING dari tiruan Majoo mentah: banyak baris di
  * versi Majoo (Ongkos Kirim, Biaya Pelayanan/MDR, Platform, Asuransi,
- * HPP, Refund) TIDAK PERNAH dicatat di sistem Ginnva sama sekali — bukan
+ * HPP) TIDAK PERNAH dicatat di sistem Ginnva sama sekali — bukan
  * karena kelupaan, tapi karena memang tidak relevan untuk bisnis jasa
  * PPF/Kaca Film (bukan resto/marketplace), atau karena datanya memang
- * belum pernah ditangkap (HPP per booking, refund, PPN — PPN sudah jadi
+ * belum pernah ditangkap (HPP per booking, PPN — PPN sudah jadi
  * salah satu dari 3 keputusan bisnis di dokumen "Catatan untuk Atasan").
+ * Refund SEKARANG dihitung sungguhan (2026-09-09, lihat RefundService)
+ * -- SEMPAT blocked, sudah tidak lagi.
  *
  * Prinsip halaman ini: baris yang datanya VALID dihitung dari data asli
  * (Rp sungguhan), baris yang TIDAK RELEVAN ditandai "Tidak berlaku",
@@ -148,13 +151,17 @@ class SalesSummaryReport extends Page implements HasForms
             ->get()
             ->sum(fn (VoucherClaim $claim) => (float) ($claim->voucher->discount_amount ?? 0));
 
-        // Refund/pengembalian tidak pernah dicatat sistem -- bukan 0
-        // karena "sudah dicek tidak ada", tapi karena memang tidak ada
-        // mekanismenya sama sekali. Ditandai null supaya view tahu ini
-        // beda dari "dicek dan hasilnya nol".
-        $refund = null;
+        // Refund -- SEKARANG dihitung sungguhan (diminta 2026-09-09,
+        // lihat RefundService/RefundReport). Rentang filter dasarnya
+        // created_at refund itu sendiri (kapan refund DIPROSES), BUKAN
+        // tanggal booking-nya -- konsisten dengan RefundReport.
+        $user = auth()->user();
+        $refund = (float) Refund::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->when(! ($user?->isFullAccess() ?? false), fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $user?->store_id)))
+            ->sum('amount');
 
-        $netSales = $grossSales; // tidak dikurangi apa pun karena refund belum ada
+        $netSales = $grossSales - $refund;
 
         return [
             'from' => $from,

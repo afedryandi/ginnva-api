@@ -86,6 +86,7 @@ class AdminPanelProvider extends PanelProvider
             // soal risiko menebak struktur DOM tanpa akses visual).
             ->navigationGroups([
                 \Filament\Navigation\NavigationGroup::make('Laporan Penjualan')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Laporan Produk')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Jasa')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Promo & Loyalti')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Pelanggan')->collapsed(),
