@@ -32,5 +32,7 @@ class JenisOrderReport extends LayananReport
 
     protected static ?string $title = 'Laporan Jenis Order';
 
-    protected static ?int $navigationSort = 7;
+    // 101 -- band grup 'Laporan Jasa' (lihat catatan sistem band di
+    // ProductSalesReport.php, diperbaiki 2026-09-09).
+    protected static ?int $navigationSort = 101;
 }

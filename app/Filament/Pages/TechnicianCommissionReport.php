@@ -50,7 +50,9 @@ class TechnicianCommissionReport extends Page implements HasForms
 
     protected static ?string $title = 'Laporan Komisi Teknisi';
 
-    protected static ?int $navigationSort = 32;
+    // 401 -- band grup 'Laporan Karyawan' (lihat catatan sistem band di
+    // ProductSalesReport.php, diperbaiki 2026-09-09).
+    protected static ?int $navigationSort = 401;
 
     protected static string $view = 'filament.pages.technician-commission-report';
 

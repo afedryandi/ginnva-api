@@ -29,7 +29,9 @@ class SettlementReportRedirect extends Page
 
     protected static ?string $title = 'Laporan Settlement';
 
-    protected static ?int $navigationSort = 40;
+    // 600 -- band grup 'Laporan Settlement' (lihat catatan sistem band
+    // di ProductSalesReport.php, diperbaiki 2026-09-09).
+    protected static ?int $navigationSort = 600;
 
     protected static string $view = 'filament.pages.redirect-placeholder';
 

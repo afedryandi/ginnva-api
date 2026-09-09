@@ -45,7 +45,9 @@ class EmployeeReport extends Page implements HasForms
 
     protected static ?string $title = 'Laporan Karyawan';
 
-    protected static ?int $navigationSort = 30;
+    // 400 -- band grup 'Laporan Karyawan' (lihat catatan sistem band di
+    // ProductSalesReport.php, diperbaiki 2026-09-09).
+    protected static ?int $navigationSort = 400;
 
     protected static string $view = 'filament.pages.employee-report';
 

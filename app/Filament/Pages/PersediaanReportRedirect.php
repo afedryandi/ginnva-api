@@ -30,7 +30,9 @@ class PersediaanReportRedirect extends Page
 
     protected static ?string $title = 'Laporan Persediaan';
 
-    protected static ?int $navigationSort = 35;
+    // 500 -- band grup 'Laporan Persediaan' (lihat catatan sistem band
+    // di ProductSalesReport.php, diperbaiki 2026-09-09).
+    protected static ?int $navigationSort = 500;
 
     protected static string $view = 'filament.pages.redirect-placeholder';
 

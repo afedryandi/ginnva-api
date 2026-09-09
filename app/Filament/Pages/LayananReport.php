@@ -43,7 +43,9 @@ class LayananReport extends Page implements HasForms
 
     protected static ?string $title = 'Laporan Jasa';
 
-    protected static ?int $navigationSort = 5;
+    // 100 -- band grup 'Laporan Jasa' (lihat catatan sistem band di
+    // ProductSalesReport.php, diperbaiki 2026-09-09).
+    protected static ?int $navigationSort = 100;
 
     protected static string $view = 'filament.pages.layanan-report';
 

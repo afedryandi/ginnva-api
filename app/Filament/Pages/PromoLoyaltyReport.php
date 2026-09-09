@@ -44,7 +44,9 @@ class PromoLoyaltyReport extends Page implements HasForms
 
     protected static ?string $title = 'Laporan Promo & Loyalti';
 
-    protected static ?int $navigationSort = 20;
+    // 200 -- band grup 'Laporan Promo & Loyalti' (lihat catatan sistem
+    // band di ProductSalesReport.php, diperbaiki 2026-09-09).
+    protected static ?int $navigationSort = 200;
 
     protected static string $view = 'filament.pages.promo-loyalty-report';
 

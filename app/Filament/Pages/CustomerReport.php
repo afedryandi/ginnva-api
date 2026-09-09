@@ -43,7 +43,9 @@ class CustomerReport extends Page implements HasForms
 
     protected static ?string $title = 'Laporan Pelanggan';
 
-    protected static ?int $navigationSort = 25;
+    // 300 -- band grup 'Laporan Pelanggan' (lihat catatan sistem band di
+    // ProductSalesReport.php, diperbaiki 2026-09-09).
+    protected static ?int $navigationSort = 300;
 
     protected static string $view = 'filament.pages.customer-report';
 
