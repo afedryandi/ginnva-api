@@ -267,6 +267,12 @@ class UserResource extends Resource
                         ->unique(ignoreRecord: true)
                         ->maxLength(255),
 
+                    Forms\Components\TextInput::make('employee_number')
+                        ->label('No. Karyawan')
+                        ->helperText('Nomor induk karyawan Ginnva. Semua akun di sini adalah karyawan (partner & customer tidak termasuk).')
+                        ->unique(ignoreRecord: true)
+                        ->maxLength(50),
+
                     Forms\Components\TextInput::make('phone')
                         ->label('No. HP')
                         ->tel()
@@ -429,6 +435,12 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('employee_number')
+                    ->label('No. Karyawan')
+                    ->searchable()
+                    ->sortable()
+                    ->placeholder('—'),
+
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama')
                     ->searchable()
@@ -480,6 +492,10 @@ class UserResource extends Resource
                     ->label('Status Akun')
                     ->trueLabel('Aktif')
                     ->falseLabel('Nonaktif'),
+
+                Tables\Filters\Filter::make('tanpa_no_karyawan')
+                    ->label('Belum ada No. Karyawan')
+                    ->query(fn (Builder $query) => $query->whereNull('employee_number')),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
