@@ -24,9 +24,9 @@ use Filament\Clusters\Cluster;
  * Yang penting label & grup di bawah ini.
  *
  * Band top-nav grup "Penjualan": SalesDashboard 14, Produk 15,
- * Laporan 16, Analisa Laporan 17. Sort terkecil grup = 14 (dari
- * SalesDashboard), jadi posisi "Penjualan" di top-nav tetap seperti
- * dulu.
+ * Laporan 16, Analisa Laporan 17, Inventori 18. Sort terkecil grup =
+ * 14 (dari SalesDashboard), jadi posisi "Penjualan" di top-nav tetap
+ * seperti dulu.
  */
 class PenjualanCluster extends Cluster
 {

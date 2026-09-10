@@ -105,11 +105,14 @@ class UserResource extends Resource
                 'FilmProductResource' => 'Daftar Produk',
                 'MasterResepResource' => 'Master Resep',
             ],
-            'Inventaris' => [
+            // Cluster "Inventori" (dulu "Inventaris") sekarang di bawah
+            // grup top-nav "Penjualan" (2026-09-10, ikut struktur Majoo)
+            // — tetap section sendiri di sini karena isinya banyak.
+            'Inventori' => [
                 'InventoryDashboard' => 'Dashboard Inventaris',
                 'InventoryItemResource' => 'Produk PPF/WF',
                 'InventoryMovementResource' => 'Riwayat Keluar/Masuk',
-                'RawMaterialResource' => 'Bahan Baku',
+                'RawMaterialResource' => 'Daftar Bahan Baku',
                 'RawMaterialMovementResource' => 'Riwayat Bahan Baku',
                 'AssetResource' => 'Aset Tetap',
                 'ConsumableItemResource' => 'Barang Habis Pakai',

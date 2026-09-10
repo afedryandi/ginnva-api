@@ -27,7 +27,7 @@ class AnalisaLaporanCluster extends Cluster
 
     protected static ?string $clusterBreadcrumb = 'Analisa Laporan';
 
-    // 17 — paling akhir di grup "Penjualan" (SalesDashboard 14,
-    // Produk 15, Laporan 16, Analisa Laporan 17).
+    // Band grup "Penjualan": SalesDashboard 14, Produk 15, Laporan 16,
+    // Analisa Laporan 17, Inventori 18.
     protected static ?int $navigationSort = 17;
 }

@@ -27,7 +27,10 @@ class RawMaterialResource extends Resource
 
     protected static ?int $navigationSort = 30;
 
-    protected static ?string $navigationLabel = 'Bahan Baku';
+    // "Daftar Bahan Baku" — samakan dgn Majoo (Penjualan > Inventori >
+    // Daftar Bahan Baku). Label model tetap "Bahan Baku" (tombol
+    // "Tambah Bahan Baku").
+    protected static ?string $navigationLabel = 'Daftar Bahan Baku';
 
     protected static ?string $modelLabel = 'Bahan Baku';
 
