@@ -23,9 +23,10 @@ use Filament\Clusters\Cluster;
  * refer `$cluster = PenjualanCluster::class`, tidak perlu disentuh.
  * Yang penting label & grup di bawah ini.
  *
- * navigationSort 15 dipertahankan supaya grup "Penjualan" muncul di
- * posisi top-nav yang kurang lebih sama seperti dulu (di antara
- * Booking dan Marketing/Konten).
+ * Band top-nav grup "Penjualan": SalesDashboard 14, Produk 15,
+ * Laporan 16, Analisa Laporan 17. Sort terkecil grup = 14 (dari
+ * SalesDashboard), jadi posisi "Penjualan" di top-nav tetap seperti
+ * dulu.
  */
 class PenjualanCluster extends Cluster
 {
@@ -37,5 +38,5 @@ class PenjualanCluster extends Cluster
 
     protected static ?string $clusterBreadcrumb = 'Laporan';
 
-    protected static ?int $navigationSort = 15;
+    protected static ?int $navigationSort = 16;
 }

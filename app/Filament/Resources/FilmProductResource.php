@@ -18,14 +18,12 @@ class FilmProductResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-swatch';
 
-    protected static ?string $cluster = \App\Filament\Clusters\LainnyaCluster::class;
+    // 2026-09-10: dipindah dari Lainnya > Master Data ke Penjualan >
+    // Produk (cluster ProdukCluster), = "Daftar Produk" di menu Produk
+    // Majoo. Ditaruh bareng "Master Resep" (MasterResepResource).
+    protected static ?string $cluster = \App\Filament\Clusters\ProdukCluster::class;
 
-    // Kategori di sidebar cluster 'Lainnya' -- diminta 2026-09-08, supaya
-    // gabungan Master Data + Sistem tetap terlihat terpisah kategorinya
-    // walau top-nav-nya sudah jadi 1 tab.
-    protected static ?string $navigationGroup = 'Master Data';
-
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 1;
 
     protected static ?string $navigationLabel = 'Produk Film';
 

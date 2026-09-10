@@ -27,8 +27,7 @@ class AnalisaLaporanCluster extends Cluster
 
     protected static ?string $clusterBreadcrumb = 'Analisa Laporan';
 
-    // 16 — tepat setelah cluster "Laporan" (15), sebelum tab top-nav
-    // lain. Grup "Penjualan" tetap mendarat di posisi lama karena sort
-    // terkecil anggotanya = 14 (SalesDashboard).
-    protected static ?int $navigationSort = 16;
+    // 17 — paling akhir di grup "Penjualan" (SalesDashboard 14,
+    // Produk 15, Laporan 16, Analisa Laporan 17).
+    protected static ?int $navigationSort = 17;
 }

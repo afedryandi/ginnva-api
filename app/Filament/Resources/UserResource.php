@@ -95,6 +95,16 @@ class UserResource extends Resource
                 'WarrantyResource' => 'Garansi',
                 'StoreReviewResource' => 'Review Toko',
             ],
+            'Penjualan' => [
+                // Cluster "Produk" di bawah grup top-nav "Penjualan"
+                // (2026-09-10). FilmProductResource dipindah kemari dari
+                // "Master Data". Halaman-halaman Laporan di cluster
+                // "Laporan"/"Analisa Laporan" TIDAK didaftarkan di sini
+                // (pola sama seperti report page lain — akses lewat
+                // canAccess() + menu_access null = boleh).
+                'FilmProductResource' => 'Produk Film',
+                'MasterResepResource' => 'Master Resep',
+            ],
             'Inventaris' => [
                 'InventoryDashboard' => 'Dashboard Inventaris',
                 'InventoryItemResource' => 'Produk PPF/WF',
@@ -152,7 +162,8 @@ class UserResource extends Resource
                 'PartnerPointTransactionResource' => 'Riwayat Poin Partner',
             ],
             'Master Data' => [
-                'FilmProductResource' => 'Produk Film',
+                // FilmProductResource dipindah ke grup 'Penjualan' di
+                // atas (2026-09-10) — sekarang di cluster Produk.
                 'VehicleResource' => 'Kendaraan',
                 'StoreResource' => 'Toko/Dealer',
                 'ScrollCodeResource' => 'Kode Gulungan',

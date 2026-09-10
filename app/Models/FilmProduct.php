@@ -25,6 +25,15 @@ class FilmProduct extends Model
         return $this->hasMany(QuotationItem::class);
     }
 
+    /**
+     * Master Resep (BOM) — bahan standar per 1x pemasangan produk ini.
+     * Diminta 2026-09-10. Lihat FilmProductRecipeItem.
+     */
+    public function recipeItems()
+    {
+        return $this->hasMany(FilmProductRecipeItem::class);
+    }
+
     public function caseStudies()
     {
         return $this->hasMany(CaseStudy::class);
