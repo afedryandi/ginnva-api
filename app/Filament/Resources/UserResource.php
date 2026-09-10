@@ -147,8 +147,12 @@ class UserResource extends Resource
                 // perusahaan, bukan operasional harian yang cocok
                 // didelegasikan ke store_manager.
             ],
+            // Cluster "Pelanggan" (Penjualan > Pelanggan) — CustomerResource
+            // dipindah kemari dari Marketing/Konten (2026-09-10).
+            'Pelanggan' => [
+                'CustomerResource' => 'Daftar Pelanggan',
+            ],
             'Marketing/Konten' => [
-                'CustomerResource' => 'Akun Customer',
                 'PointTransactionResource' => 'Riwayat Poin Customer',
                 'PartnershipInquiryResource' => 'Pengajuan Kemitraan',
                 'ProductInquiryResource' => 'Inquiry Produk',

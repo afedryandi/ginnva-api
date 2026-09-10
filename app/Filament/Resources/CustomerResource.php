@@ -22,15 +22,17 @@ class CustomerResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
 
-    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
+    // 2026-09-10: dipindah dari Marketing/Konten ke Penjualan > Pelanggan
+    // (cluster PelangganCluster), = "Daftar Pelanggan" menu Pelanggan Majoo.
+    protected static ?string $cluster = \App\Filament\Clusters\PelangganCluster::class;
 
-    protected static ?int $navigationSort = 60;
+    protected static ?int $navigationSort = 1;
 
-    protected static ?string $navigationLabel = 'Akun Customer';
+    protected static ?string $navigationLabel = 'Daftar Pelanggan';
 
-    protected static ?string $modelLabel = 'Customer';
+    protected static ?string $modelLabel = 'Pelanggan';
 
-    protected static ?string $pluralModelLabel = 'Akun Customer';
+    protected static ?string $pluralModelLabel = 'Daftar Pelanggan';
 
     /**
      * Read-only untuk semua admin — akun customer dibuat sendiri oleh
