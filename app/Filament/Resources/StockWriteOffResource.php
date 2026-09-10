@@ -25,6 +25,8 @@ class StockWriteOffResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
+    protected static ?string $navigationGroup = 'Kelola Stok';
+
     protected static ?int $navigationSort = 55;
 
     protected static ?string $navigationLabel = 'Stok Terbuang';

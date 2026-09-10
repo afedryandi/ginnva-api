@@ -34,6 +34,8 @@ class StockCardReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
+    protected static ?string $navigationGroup = 'Kelola Stok';
+
     protected static ?int $navigationSort = 45;
 
     protected static ?string $navigationLabel = 'Daftar Stok';

@@ -119,6 +119,8 @@ class AdminPanelProvider extends PanelProvider
                 \Filament\Navigation\NavigationGroup::make('Laporan Pelanggan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Karyawan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Persediaan')->collapsed(),
+                // Grup di dalam cluster "Inventori" (Penjualan > Inventori).
+                \Filament\Navigation\NavigationGroup::make('Kelola Stok')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Master Data')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Sistem')->collapsed(),
             ])
