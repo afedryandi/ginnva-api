@@ -8,8 +8,8 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 /**
  * Stat card di atas tabel "Detail Penjualan" — diminta 2026-09-09,
- * analog 5 kartu (Total Penjualan/Transaksi/Penjualan Bersih/Pembayaran/
- * Piutang) di halaman Detail Penjualan Majoo.
+ * dilengkapi 2026-09-10 jadi kartu ala "Daftar Invoice" Majoo:
+ * Total Invoice / Lunas / Belum Lunas / Void / Total Diterima.
  *
  * KETERBATASAN YANG DISENGAJA: dihitung dari SalesResource::getEloquentQuery()
  * (base scope toko/akses user), BUKAN reaktif mengikuti filter tanggal/
@@ -31,22 +31,31 @@ class SalesDetailStatsWidget extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $bookings = SalesResource::getEloquentQuery()->get(['transaction_amount', 'amount_received']);
+        $bookings = SalesResource::getEloquentQuery()->get(['transaction_amount', 'amount_received', 'status']);
 
         $revenue = (float) $bookings->sum('transaction_amount');
         $received = (float) $bookings->sum(fn ($b) => $b->amount_received !== null ? (float) $b->amount_received : (float) $b->transaction_amount);
         $outstanding = max(0, $revenue - $received);
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
 
+        $void = $bookings->where('status', 'cancelled');
+        $active = $bookings->where('status', '!=', 'cancelled');
+        $belumLunas = $active->filter(fn ($b) => ((float) $b->transaction_amount - (float) ($b->amount_received ?? $b->transaction_amount)) > 0.009);
+        $lunas = $active->reject(fn ($b) => ((float) $b->transaction_amount - (float) ($b->amount_received ?? $b->transaction_amount)) > 0.009);
+
         return [
-            Stat::make('Total Penjualan', $rupiah($revenue)),
-            Stat::make('Total Transaksi', number_format($bookings->count(), 0, ',', '.')),
-            // Penjualan Bersih = Total Penjualan (tidak ada pengurang apa
-            // pun, refund belum ada mekanismenya di sistem).
-            Stat::make('Penjualan Bersih', $rupiah($revenue)),
+            Stat::make('Total Invoice', $rupiah($revenue))
+                ->description(number_format($bookings->count(), 0, ',', '.') . ' invoice'),
+            Stat::make('Lunas', $rupiah((float) $lunas->sum('transaction_amount')))
+                ->description($lunas->count() . ' invoice')
+                ->color('success'),
+            Stat::make('Belum Lunas', $rupiah((float) $belumLunas->sum(fn ($b) => (float) $b->transaction_amount - (float) ($b->amount_received ?? $b->transaction_amount))))
+                ->description($belumLunas->count() . ' invoice')
+                ->color($belumLunas->isNotEmpty() ? 'warning' : 'gray'),
+            Stat::make('Void', $rupiah((float) $void->sum('transaction_amount')))
+                ->description($void->count() . ' invoice')
+                ->color($void->isNotEmpty() ? 'danger' : 'gray'),
             Stat::make('Total Diterima', $rupiah($received)),
-            Stat::make('Total Piutang', $rupiah($outstanding))
-                ->color($outstanding > 0 ? 'danger' : 'gray'),
         ];
     }
 }

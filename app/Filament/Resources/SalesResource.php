@@ -88,10 +88,19 @@ class SalesResource extends Resource
     {
         return $table
             ->columns([
+                // No. Invoice diturunkan dari booking_number (sama dengan
+                // yang dipakai di PDF "Cetak Invoice") — tidak ada tabel/
+                // nomor invoice terpisah. Analog "Daftar Invoice" Majoo.
+                Tables\Columns\TextColumn::make('invoice_number')
+                    ->label('No. Invoice')
+                    ->state(fn (Booking $record) => 'INV/' . $record->booking_number)
+                    ->searchable(query: fn (Builder $query, string $search) => $query->where('booking_number', 'like', "%{$search}%"))
+                    ->weight('bold'),
+
                 Tables\Columns\TextColumn::make('booking_number')
                     ->label('No. Booking')
                     ->searchable()
-                    ->weight('bold'),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('customer_name')
                     ->label('Pelanggan')
@@ -129,7 +138,7 @@ class SalesResource extends Resource
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('outstanding')
-                    ->label('Piutang')
+                    ->label('Sisa Tagihan')
                     ->state(function (Booking $record) {
                         $received = $record->amount_received ?? $record->transaction_amount;
 
@@ -138,6 +147,23 @@ class SalesResource extends Resource
                     ->formatStateUsing(fn (float $state) => $state > 0 ? 'Rp' . number_format($state, 0, ',', '.') : '—')
                     ->color(fn (float $state) => $state > 0 ? 'danger' : 'gray')
                     ->toggleable(),
+
+                Tables\Columns\TextColumn::make('payment_status')
+                    ->label('Status')
+                    ->badge()
+                    ->state(function (Booking $record): string {
+                        if ($record->status === 'cancelled') {
+                            return 'Void';
+                        }
+                        $received = $record->amount_received ?? $record->transaction_amount;
+
+                        return ((float) $record->transaction_amount - (float) $received) > 0.009 ? 'Belum Lunas' : 'Lunas';
+                    })
+                    ->color(fn (string $state) => match ($state) {
+                        'Lunas' => 'success',
+                        'Belum Lunas' => 'warning',
+                        default => 'danger',
+                    }),
 
                 // Analog "Waktu Order" vs "Waktu Bayar" Majoo (diminta
                 // 2026-09-09) -- created_at = booking DIAJUKAN, entry_date
@@ -177,6 +203,23 @@ class SalesResource extends Resource
                     ->label('Toko')
                     ->relationship('store', 'name')
                     ->visible(fn () => auth()->user()?->isFullAccess()),
+
+                Tables\Filters\SelectFilter::make('payment_status')
+                    ->label('Status Pembayaran')
+                    ->options([
+                        'lunas' => 'Lunas',
+                        'belum_lunas' => 'Belum Lunas',
+                        'void' => 'Void',
+                    ])
+                    ->query(fn (Builder $query, array $data) => match ($data['value'] ?? null) {
+                        'void' => $query->where('status', 'cancelled'),
+                        'belum_lunas' => $query->where('status', '!=', 'cancelled')
+                            ->whereNotNull('amount_received')
+                            ->whereColumn('amount_received', '<', 'transaction_amount'),
+                        'lunas' => $query->where('status', '!=', 'cancelled')
+                            ->where(fn ($q) => $q->whereNull('amount_received')->orWhereColumn('amount_received', '>=', 'transaction_amount')),
+                        default => $query,
+                    }),
             ])
             ->headerActions([
                 // "Ekspor Laporan" (diminta 2026-09-09, analog tombol di

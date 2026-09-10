@@ -34,13 +34,15 @@ class SalesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
     public function headings(): array
     {
         return [
+            'No. Invoice',
             'No. Booking',
             'Pelanggan',
             'Toko',
             'Produk',
             'Nilai Transaksi',
             'Diterima',
-            'Piutang',
+            'Sisa Tagihan',
+            'Status',
             'Waktu Order',
             'Waktu Bayar',
             'No. Jurnal',
@@ -55,7 +57,12 @@ class SalesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         $received = $booking->amount_received !== null ? (float) $booking->amount_received : (float) $booking->transaction_amount;
         $outstanding = max(0, (float) $booking->transaction_amount - $received);
 
+        $status = $booking->status === 'cancelled'
+            ? 'Void'
+            : ($outstanding > 0.009 ? 'Belum Lunas' : 'Lunas');
+
         return [
+            'INV/' . $booking->booking_number,
             $booking->booking_number,
             $booking->customer_name ?? '-',
             $booking->store?->name ?? '-',
@@ -68,6 +75,7 @@ class SalesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
             (float) $booking->transaction_amount,
             $received,
             $outstanding,
+            $status,
             optional($booking->created_at)->format('Y-m-d H:i'),
             optional($booking->journalEntry?->entry_date)->format('Y-m-d'),
             $booking->journalEntry?->entry_number ?? '-',
