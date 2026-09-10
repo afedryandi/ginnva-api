@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 use RuntimeException;
 
@@ -1172,6 +1173,17 @@ class BookingResource extends Resource
                             ->send();
                     }),
 
+                // Invoice / bukti transaksi PDF untuk customer (diminta
+                // 2026-09-10, analog "Daftar Invoice" Majoo). Bukan Faktur
+                // Pajak — PPN belum diputuskan. Cuma untuk booking yang
+                // sudah selesai & punya nominal transaksi.
+                Tables\Actions\Action::make('print_invoice')
+                    ->label('Cetak Invoice')
+                    ->icon('heroicon-o-document-text')
+                    ->color('gray')
+                    ->visible(fn (Booking $record) => $record->status === 'completed' && $record->transaction_amount !== null && (float) $record->transaction_amount > 0)
+                    ->action(fn (Booking $record) => static::downloadInvoicePdf($record)),
+
                 // Kirim reminder maintenance/servis (WA+Push+Email) kapan
                 // saja tanpa menunggu tanggal `next_service_reminder_at`
                 // terjadwal — dipakai store manager begitu instalasi
@@ -1315,6 +1327,39 @@ class BookingResource extends Resource
         return [
             BookingResource\RelationManagers\MessagesRelationManager::class,
         ];
+    }
+
+    /**
+     * Invoice / bukti transaksi PDF booking. transaction_amount disimpan
+     * NET (sudah dipotong promo) — "kotor" = net + spend_promo_discount.
+     * amount_received null = dianggap lunas penuh (pola BookingPostingService).
+     */
+    protected static function downloadInvoicePdf(Booking $record)
+    {
+        $record->loadMissing(['store', 'customer', 'filmProduct', 'spendPromo']);
+
+        $net = (float) $record->transaction_amount;
+        $discount = (float) ($record->spend_promo_discount ?? 0);
+        $gross = $net + $discount;
+        $received = $record->amount_received !== null ? (float) $record->amount_received : $net;
+        $outstanding = max(0, round($net - $received, 2));
+
+        $pdf = Pdf::loadView('pdf.booking_invoice', [
+            'booking' => $record,
+            'invoiceNumber' => 'INV/' . $record->booking_number,
+            'customerName' => $record->customer_name ?? $record->customer?->name ?? '—',
+            'customerPhone' => $record->phone_number ?? $record->customer?->phone_number,
+            'net' => $net,
+            'gross' => $gross,
+            'discount' => $discount,
+            'promoName' => $record->spendPromo?->name,
+            'received' => $received,
+            'outstanding' => $outstanding,
+        ])->setPaper('a4', 'portrait');
+
+        $filename = 'Invoice-' . str_replace(['/', ' '], '-', $record->booking_number) . '.pdf';
+
+        return response()->streamDownload(fn () => print($pdf->output()), $filename);
     }
 
     public static function getPages(): array
