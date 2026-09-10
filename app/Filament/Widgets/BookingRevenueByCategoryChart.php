@@ -53,28 +53,20 @@ class BookingRevenueByCategoryChart extends ChartWidget
             $query->where('store_id', $user->store_id);
         }
 
-        $bookings = $query->get(['transaction_amount', 'product_kaca_film', 'product_ppf']);
+        // Split 50/50 (booking PPF + Kaca Film sekaligus) dihitung di SQL.
+        // Booking tanpa product_ppf/product_kaca_film sengaja tidak masuk
+        // kategori mana pun (ELSE 0) — bukan dipaksa ke salah satu.
+        $agg = $query->selectRaw(
+            'COALESCE(SUM(CASE'
+            . ' WHEN product_ppf = 1 AND product_kaca_film = 1 THEN transaction_amount / 2'
+            . ' WHEN product_kaca_film = 1 THEN transaction_amount ELSE 0 END), 0) as kaca_film,'
+            . ' COALESCE(SUM(CASE'
+            . ' WHEN product_ppf = 1 AND product_kaca_film = 1 THEN transaction_amount / 2'
+            . ' WHEN product_ppf = 1 THEN transaction_amount ELSE 0 END), 0) as ppf'
+        )->toBase()->first();
 
-        $ppfTotal = 0.0;
-        $kacaFilmTotal = 0.0;
-
-        foreach ($bookings as $booking) {
-            $amount = (float) $booking->transaction_amount;
-            $bothProducts = $booking->product_ppf && $booking->product_kaca_film;
-
-            if ($bothProducts) {
-                $ppfTotal += $amount / 2;
-                $kacaFilmTotal += $amount / 2;
-            } elseif ($booking->product_ppf) {
-                $ppfTotal += $amount;
-            } elseif ($booking->product_kaca_film) {
-                $kacaFilmTotal += $amount;
-            }
-            // Booking tanpa product_ppf/product_kaca_film (seharusnya
-            // tidak pernah terjadi — form booking mewajibkan salah satu)
-            // sengaja tidak masuk kategori mana pun, bukan dipaksa masuk
-            // salah satu supaya tidak menyesatkan.
-        }
+        $kacaFilmTotal = (float) $agg->kaca_film;
+        $ppfTotal = (float) $agg->ppf;
 
         return [
             'datasets' => [

@@ -55,6 +55,14 @@ class SalesDashboard extends Page
 
     public string $referenceDate;
 
+    /**
+     * Memoisasi hasil getResult() dalam 1 request Livewire. Property
+     * private → tidak diserialisasi antar request, otomatis fresh tiap
+     * re-render (toggle periode / navigasi tanggal) tapi tidak dihitung
+     * ulang kalau dipanggil >1x dalam render yang sama.
+     */
+    private ?array $resultCache = null;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -79,11 +87,13 @@ class SalesDashboard extends Page
 
         $this->period = $period;
         $this->referenceDate = now()->toDateString();
+        $this->resultCache = null;
     }
 
     public function goPrev(): void
     {
         $this->referenceDate = $this->shift($this->referenceDate, $this->period, -1)->toDateString();
+        $this->resultCache = null;
     }
 
     public function goNext(): void
@@ -97,6 +107,7 @@ class SalesDashboard extends Page
         }
 
         $this->referenceDate = $next->toDateString();
+        $this->resultCache = null;
     }
 
     private function shift(string $date, string $period, int $direction): Carbon
@@ -163,6 +174,10 @@ class SalesDashboard extends Page
 
     public function getResult(): array
     {
+        if ($this->resultCache !== null) {
+            return $this->resultCache;
+        }
+
         $user = auth()->user();
         $isSuperAdmin = $user?->isFullAccess() ?? false;
 
@@ -212,7 +227,7 @@ class SalesDashboard extends Page
 
         $lastMonthToDateNet = $lastMonthToDate['revenue'] - $lastMonthToDate['refund'];
 
-        return [
+        return $this->resultCache = [
             'current' => $current,
             'previous' => $previous,
             'monthToDateRevenue' => $monthToDateNet,
@@ -247,28 +262,19 @@ class SalesDashboard extends Page
             $query->where('store_id', $user->store_id);
         }
 
-        $revenue = 0.0;
-        $received = 0.0;
-        $count = 0;
-        // "Produk Terjual" ala Majoo dipetakan ke jumlah PRODUK (kategori)
-        // yang tercakup per booking — booking Kaca Film+PPF+Detailing
-        // sekaligus dihitung 3, bukan 1 — Ginnva tidak jual satuan barang
-        // diskrit seperti retail, jadi flag product_* adalah definisi
-        // paling masuk akal dari data yang ada.
-        $productsSold = 0;
+        // Agregasi di SQL (bukan tarik semua baris lalu jumlah di PHP) —
+        // "Produk Terjual" = 1 booking dgn Kaca Film+PPF+Detailing = 3.
+        $agg = $query->selectRaw(
+            'COUNT(*) as cnt,'
+            . ' COALESCE(SUM(transaction_amount), 0) as revenue,'
+            . ' COALESCE(SUM(COALESCE(amount_received, transaction_amount)), 0) as received,'
+            . ' COALESCE(SUM(COALESCE(product_kaca_film, 0) + COALESCE(product_ppf, 0) + COALESCE(product_detailing, 0)), 0) as products_sold'
+        )->toBase()->first();
 
-        $query->get(['transaction_amount', 'amount_received', 'product_kaca_film', 'product_ppf', 'product_detailing'])
-            ->each(function (Booking $booking) use (&$revenue, &$received, &$count, &$productsSold) {
-                $amount = (float) $booking->transaction_amount;
-                $receivedAmount = $booking->amount_received !== null ? (float) $booking->amount_received : $amount;
-
-                $revenue += $amount;
-                $received += $receivedAmount;
-                $count++;
-                $productsSold += ($booking->product_kaca_film ? 1 : 0)
-                    + ($booking->product_ppf ? 1 : 0)
-                    + ($booking->product_detailing ? 1 : 0);
-            });
+        $revenue = (float) $agg->revenue;
+        $received = (float) $agg->received;
+        $count = (int) $agg->cnt;
+        $productsSold = (int) $agg->products_sold;
 
         $refund = (float) Refund::query()
             ->whereBetween('created_at', [$start, $end])

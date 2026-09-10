@@ -101,25 +101,28 @@ class BookingRevenueTrendChart extends ChartWidget
      */
     private function dailyRevenue(Carbon $start, Carbon $end, $user, bool $isSuperAdmin): array
     {
+        // Agregasi & bucket per hari di SQL (GROUP BY DAY) — bukan tarik
+        // semua booking lalu group di PHP. Join ke journal_entries setara
+        // whereHas('journalEntry') karena bookings.journal_entry_id FK.
         $query = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
-            ->where('transaction_amount', '>', 0)
-            ->with(['journalEntry:id,entry_date']);
+            ->join('journal_entries', 'journal_entries.id', '=', 'bookings.journal_entry_id')
+            ->whereBetween('journal_entries.entry_date', [$start->toDateString(), $end->toDateString()])
+            ->where('bookings.transaction_amount', '>', 0);
 
         if (! $isSuperAdmin) {
-            // store_id di bookings NOT NULL (migrasi create_bookings_table)
-            // — orWhereNull() dulu itu dead code + bocor angka toko lain.
-            $query->where('store_id', $user->store_id);
+            $query->where('bookings.store_id', $user->store_id);
         }
 
+        $rows = $query
+            ->groupByRaw('DAY(journal_entries.entry_date)')
+            ->selectRaw('DAY(journal_entries.entry_date) as d, COALESCE(SUM(bookings.transaction_amount), 0) as total')
+            ->toBase()
+            ->get();
+
         $byDay = [];
-        $query->get(['id', 'transaction_amount', 'journal_entry_id'])->each(function (Booking $booking) use (&$byDay) {
-            $day = $booking->journalEntry?->entry_date?->day;
-            if ($day === null) {
-                return;
-            }
-            $byDay[$day] = ($byDay[$day] ?? 0) + (float) $booking->transaction_amount;
-        });
+        foreach ($rows as $row) {
+            $byDay[(int) $row->d] = (float) $row->total;
+        }
 
         return $byDay;
     }
