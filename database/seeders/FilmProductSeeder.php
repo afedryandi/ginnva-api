@@ -56,27 +56,10 @@ class FilmProductSeeder extends Seeder
             ]
         );
 
-        // Seri H30 — Nano-Ceramic, posisi samping/belakang, VLT 28%, garansi 8 tahun
-        FilmProduct::updateOrCreate(
-            ['sku' => 'WF-H30'],
-            [
-                'name'         => 'Ginnva H30 (Samping/Belakang)',
-                'product_type' => 'window_film',
-                'base_price'   => 300000,
-                'is_active'    => true,
-            ]
-        );
-
-        // Seri H15 — Nano-Ceramic, posisi samping/belakang, VLT 16%, garansi 8 tahun
-        FilmProduct::updateOrCreate(
-            ['sku' => 'WF-H15'],
-            [
-                'name'         => 'Ginnva H15 (Samping/Belakang)',
-                'product_type' => 'window_film',
-                'base_price'   => 300000,
-                'is_active'    => true,
-            ]
-        );
+        // WF-H30 & WF-H15 DIHAPUS 2026-09-10 (migrasi 2026_09_10_000008) —
+        // tidak ada di katalog Majoo sebagai produk standalone (Majoo cuma
+        // punya "Panoramic H15/H30" yg sudah dibuat sebagai WF-PANORAMIC*).
+        // Jangan tambahkan lagi di sini.
 
         // ─── Paint Protection Film ────────────────────────────────────
         // Black Crystal M8-M — Matte, 7.5 mil, garansi 8 tahun
