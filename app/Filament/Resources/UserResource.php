@@ -102,6 +102,9 @@ class UserResource extends Resource
                 // "Laporan"/"Analisa Laporan" TIDAK didaftarkan di sini
                 // (pola sama seperti report page lain — akses lewat
                 // canAccess() + menu_access null = boleh).
+                // Dashboard Penjualan = permission SENDIRI sejak 2026-09-10
+                // (dulu ikut BookingResource) — angka omzet data manajemen.
+                'SalesDashboard' => 'Dashboard Penjualan',
                 'FilmProductResource' => 'Daftar Produk',
                 'MasterResepResource' => 'Master Resep',
             ],

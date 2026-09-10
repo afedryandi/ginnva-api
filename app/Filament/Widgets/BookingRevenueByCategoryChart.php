@@ -27,7 +27,12 @@ class BookingRevenueByCategoryChart extends ChartWidget
 
     public static function canView(): bool
     {
-        return auth()->user()?->hasMenuAccess(BookingResource::class) ?? false;
+        $user = auth()->user();
+
+        // Dipakai di Dashboard utama (/admin) DAN Dashboard Penjualan —
+        // salah satu akses cukup.
+        return ($user?->hasMenuAccess(\App\Filament\Pages\SalesDashboard::class) ?? false)
+            || ($user?->hasMenuAccess(BookingResource::class) ?? false);
     }
 
     protected function getData(): array
@@ -43,10 +48,9 @@ class BookingRevenueByCategoryChart extends ChartWidget
             ->where('transaction_amount', '>', 0);
 
         if (! $isSuperAdmin) {
-            $query->where(function ($q) use ($user) {
-                $q->where('store_id', $user->store_id)
-                    ->orWhereNull('store_id');
-            });
+            // store_id di bookings NOT NULL (migrasi create_bookings_table)
+            // — orWhereNull() dulu itu dead code + bocor angka toko lain.
+            $query->where('store_id', $user->store_id);
         }
 
         $bookings = $query->get(['transaction_amount', 'product_kaca_film', 'product_ppf']);

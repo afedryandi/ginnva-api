@@ -968,6 +968,13 @@ class BookingResource extends Resource
                     ->label('Hanya yang akan datang')
                     ->query(fn (Builder $query) => $query->whereDate('preferred_date', '>=', today()))
                     ->default(),
+
+                // Booking sudah SELESAI tapi nominal/pendapatannya belum
+                // dicatat (belum "Proses Referral") — dipakai juga sebagai
+                // target link dari banner "Belum Diproses" di Dashboard.
+                Tables\Filters\Filter::make('selesai_belum_diproses')
+                    ->label('Selesai, belum diproses')
+                    ->query(fn (Builder $query) => $query->where('status', 'completed')->whereDoesntHave('journalEntry')),
             ])
             ->actions([
                 // Nominal transaksi & kode referral partner SENGAJA diproses

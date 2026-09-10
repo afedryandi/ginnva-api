@@ -6,8 +6,13 @@
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
         $avgOf = fn ($total, $count) => $count > 0 ? $total / $count : 0;
 
-        $currentAvg = $avgOf($current['revenue'], $current['count']);
-        $previousAvg = $avgOf($previous['revenue'], $previous['count']);
+        // Angka BERSIH = tercatat − pengembalian (refund). Ini yang jadi
+        // headline supaya "Total Penjualan" = "Penjualan Bersih" di P&L.
+        $currentNet = $current['revenue'] - $current['refund'];
+        $previousNet = $previous['revenue'] - $previous['refund'];
+
+        $currentAvg = $avgOf($currentNet, $current['count']);
+        $previousAvg = $avgOf($previousNet, $previous['count']);
         $currentProductAvg = $avgOf($current['productsSold'], $current['count']);
         $previousProductAvg = $avgOf($previous['productsSold'], $previous['count']);
 
@@ -21,6 +26,20 @@
             return ['arrow' => $percent >= 0 ? '↑' : '↓', 'value' => number_format(abs($percent), 2, ',', '.'), 'up' => $percent >= 0];
         };
     @endphp
+
+    @if ($result['pendingCount'] > 0)
+        <a
+            href="{{ \App\Filament\Resources\BookingResource::getUrl('index', ['tableFilters' => ['selesai_belum_diproses' => ['isActive' => true]]]) }}"
+            class="flex items-center gap-2 rounded-lg border border-warning-300 bg-warning-50 px-3 py-2 text-sm text-warning-800 transition hover:bg-warning-100 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300 dark:hover:bg-warning-500/20"
+        >
+            <x-heroicon-o-exclamation-triangle class="h-4 w-4 flex-shrink-0" />
+            <span>
+                <strong class="font-semibold">{{ number_format($result['pendingCount'], 0, ',', '.') }} booking</strong>
+                sudah selesai tapi belum diproses ke pendapatan — nominalnya belum masuk angka di bawah.
+            </span>
+            <x-heroicon-o-arrow-right class="ml-auto h-4 w-4 flex-shrink-0" />
+        </a>
+    @endif
 
     {{-- Toggle periode + navigasi tanggal — persis pola Majoo --}}
     <div class="flex flex-wrap items-center gap-3">
@@ -57,12 +76,15 @@
     <x-filament::section>
         <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
             <div>
-                <x-metric-label tooltip="Total Penjualan = jumlah transaction_amount dari booking yang SUDAH tercatat ke Jurnal Umum (sudah lewat 'Proses Referral'). Booking berstatus Selesai yang BELUM diisi nominal transaksi tidak ikut terhitung. Booking dengan 2 produk (Kaca Film + PPF) sekaligus dibagi rata 50/50 ke breakdown kategori — sama logika dengan jurnal Pendapatan di Keuangan. Nilai belum dikurangi booking yang dibatalkan/refund.">Total Penjualan</x-metric-label>
-                @php $c = $change($current['revenue'], $previous['revenue']); @endphp
+                <x-metric-label tooltip="Total Penjualan (bersih) = jumlah transaction_amount dari booking yang SUDAH tercatat ke Jurnal Umum (sudah lewat 'Proses Referral'), DIKURANGI nominal refund yang diproses pada periode ini. Sama definisi dengan 'Penjualan Bersih' di Ringkasan Penjualan & Laba-Rugi. Booking Selesai yang belum diproses tidak ikut (lihat peringatan di atas). Booking dibatalkan tidak mungkin masuk (tidak punya jurnal).">Total Penjualan</x-metric-label>
+                @php $c = $change($currentNet, $previousNet); @endphp
                 @if ($c)
                     <span class="text-xs font-semibold {{ $c['up'] ? 'text-success-600 dark:text-success-400' : 'text-danger-600 dark:text-danger-400' }}">{{ $c['arrow'] }}{{ $c['value'] }}%</span>
                 @endif
-                <div class="mt-1 text-3xl font-bold tabular-nums">{{ $rupiah($current['revenue']) }}</div>
+                <div class="mt-1 text-3xl font-bold tabular-nums">{{ $rupiah($currentNet) }}</div>
+                @if ($current['refund'] > 0)
+                    <div class="mt-1 text-xs text-danger-600 dark:text-danger-400">setelah pengembalian {{ $rupiah($current['refund']) }} (kotor {{ $rupiah($current['revenue']) }})</div>
+                @endif
                 <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">Akumulasi dari Awal Bulan {{ $rupiah($result['monthToDateRevenue']) }}</div>
                 <div class="text-xs text-gray-500 dark:text-gray-400">Proyeksi Bulan Ini {{ $rupiah($result['projection']) }}</div>
             </div>
@@ -90,7 +112,7 @@
                     <div class="text-lg font-bold tabular-nums">{{ $rupiah($currentAvg) }}</div>
                 </div>
                 <div>
-                    <x-metric-label tooltip="Produk Terjual = jumlah produk yang terpasang pada periode ini. Booking dengan Kaca Film + PPF sekaligus dihitung 2 (bukan 1), sesuai flag product_kaca_film/product_ppf pada booking.">Produk Terjual</x-metric-label>
+                    <x-metric-label tooltip="Produk Terjual = jumlah jenis produk/jasa yang tercakup pada periode ini. Satu booking dengan Kaca Film + PPF + Detailing sekaligus dihitung 3, sesuai flag product_kaca_film / product_ppf / product_detailing pada booking.">Produk Terjual</x-metric-label>
                     @php $c = $change($current['productsSold'], $previous['productsSold']); @endphp
                     @if ($c)<span class="text-xs font-semibold {{ $c['up'] ? 'text-success-600 dark:text-success-400' : 'text-danger-600 dark:text-danger-400' }}">{{ $c['arrow'] }}{{ $c['value'] }}%</span>@endif
                     <div class="text-lg font-bold tabular-nums">{{ number_format($current['productsSold'], 0, ',', '.') }}</div>

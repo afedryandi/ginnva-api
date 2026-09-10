@@ -2,8 +2,8 @@
 
 namespace App\Filament\Pages;
 
-use App\Filament\Resources\BookingResource;
 use App\Models\Booking;
+use App\Models\Refund;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 
@@ -59,8 +59,11 @@ class SalesDashboard extends Page
     {
         $user = auth()->user();
 
+        // Permission SENDIRI (bukan lagi ikut BookingResource) — angka omzet
+        // adalah data manajemen, tidak semua orang yang bisa input jadwal
+        // booking perlu melihatnya. Diatur di "Akses Menu" akun user.
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(BookingResource::class);
+            && $user->hasMenuAccess(static::class);
     }
 
     public function mount(): void
@@ -173,11 +176,13 @@ class SalesDashboard extends Page
         // dihitung dari bulan KALENDER berjalan (bukan ikut $period
         // terpilih) — sama seperti Majoo yang tetap menampilkan 2 baris
         // ini apa pun toggle Harian/Mingguan/Bulan yang dipilih.
+        // Pakai angka BERSIH (dikurangi refund) supaya konsisten dgn P&L.
         $monthStart = now()->startOfMonth();
         $monthToDate = $this->summarize($monthStart, now()->endOfDay(), $user, $isSuperAdmin);
+        $monthToDateNet = $monthToDate['revenue'] - $monthToDate['refund'];
         $daysElapsed = now()->day;
         $daysInMonth = now()->daysInMonth;
-        $projection = $daysElapsed > 0 ? ($monthToDate['revenue'] / $daysElapsed) * $daysInMonth : 0;
+        $projection = $daysElapsed > 0 ? ($monthToDateNet / $daysElapsed) * $daysInMonth : 0;
 
         // "Growth insight banner" ala Majoo ("penjualanmu bulan ini
         // meningkat senilai Rp4.700.000") — dibandingkan ke bulan lalu
@@ -194,18 +199,39 @@ class SalesDashboard extends Page
             $isSuperAdmin
         );
 
+        // Booking SELESAI yang belum "Proses Referral" (belum ada jurnal
+        // pendapatan) — pendapatan yang SUDAH terjadi tapi belum tercatat.
+        // Booking cancelled tidak mungkin punya jurnal (cancel diblokir
+        // setelah 'completed'), jadi tidak perlu dikecualikan lagi.
+        $pendingQuery = Booking::query()
+            ->where('status', 'completed')
+            ->whereDoesntHave('journalEntry');
+        if (! $isSuperAdmin) {
+            $pendingQuery->where('store_id', $user->store_id);
+        }
+
+        $lastMonthToDateNet = $lastMonthToDate['revenue'] - $lastMonthToDate['refund'];
+
         return [
             'current' => $current,
             'previous' => $previous,
-            'monthToDateRevenue' => $monthToDate['revenue'],
+            'monthToDateRevenue' => $monthToDateNet,
             'projection' => $projection,
-            'growthDelta' => $monthToDate['revenue'] - $lastMonthToDate['revenue'],
-            'growthHasComparison' => $lastMonthToDate['revenue'] > 0,
+            'growthDelta' => $monthToDateNet - $lastMonthToDateNet,
+            'growthHasComparison' => $lastMonthToDateNet > 0,
+            'pendingCount' => $pendingQuery->count(),
         ];
     }
 
     /**
-     * @return array{revenue: float, received: float, outstanding: float, count: int, productsSold: int}
+     * Booking cancelled TIDAK mungkin masuk sini (cancel diblokir setelah
+     * status 'completed', jurnal cuma dibuat setelah 'completed' + Proses
+     * Referral) — jadi filter whereHas('journalEntry') sudah cukup.
+     * `refund` = nominal refund yang DIPROSES dalam periode ini (by
+     * Refund.created_at) — SAMA definisi dengan SalesSummaryReport supaya
+     * "Total Penjualan (bersih)" di dashboard = "Penjualan Bersih" di P&L.
+     *
+     * @return array{revenue: float, received: float, outstanding: float, count: int, productsSold: int, refund: float}
      */
     private function summarize(Carbon $start, Carbon $end, $user, bool $isSuperAdmin): array
     {
@@ -214,23 +240,24 @@ class SalesDashboard extends Page
             ->where('transaction_amount', '>', 0);
 
         if (! $isSuperAdmin) {
-            $query->where(function ($q) use ($user) {
-                $q->where('store_id', $user->store_id)
-                    ->orWhereNull('store_id');
-            });
+            // Strict per toko — samakan dengan SalesResource. store_id
+            // di bookings NOT NULL (lihat migrasi create_bookings_table),
+            // jadi orWhereNull() dulu itu dead code + potensi bocor angka
+            // toko lain untuk manajer.
+            $query->where('store_id', $user->store_id);
         }
 
         $revenue = 0.0;
         $received = 0.0;
         $count = 0;
         // "Produk Terjual" ala Majoo dipetakan ke jumlah PRODUK (kategori)
-        // yang tercakup per booking — booking Kaca Film+PPF sekaligus
-        // dihitung 2, bukan 1 — Ginnva tidak jual satuan barang diskrit
-        // seperti retail, jadi ini definisi yang paling masuk akal dari
-        // data yang ada (product_kaca_film/product_ppf).
+        // yang tercakup per booking — booking Kaca Film+PPF+Detailing
+        // sekaligus dihitung 3, bukan 1 — Ginnva tidak jual satuan barang
+        // diskrit seperti retail, jadi flag product_* adalah definisi
+        // paling masuk akal dari data yang ada.
         $productsSold = 0;
 
-        $query->get(['transaction_amount', 'amount_received', 'product_kaca_film', 'product_ppf'])
+        $query->get(['transaction_amount', 'amount_received', 'product_kaca_film', 'product_ppf', 'product_detailing'])
             ->each(function (Booking $booking) use (&$revenue, &$received, &$count, &$productsSold) {
                 $amount = (float) $booking->transaction_amount;
                 $receivedAmount = $booking->amount_received !== null ? (float) $booking->amount_received : $amount;
@@ -238,8 +265,15 @@ class SalesDashboard extends Page
                 $revenue += $amount;
                 $received += $receivedAmount;
                 $count++;
-                $productsSold += ($booking->product_kaca_film ? 1 : 0) + ($booking->product_ppf ? 1 : 0);
+                $productsSold += ($booking->product_kaca_film ? 1 : 0)
+                    + ($booking->product_ppf ? 1 : 0)
+                    + ($booking->product_detailing ? 1 : 0);
             });
+
+        $refund = (float) Refund::query()
+            ->whereBetween('created_at', [$start, $end])
+            ->when(! $isSuperAdmin, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $user->store_id)))
+            ->sum('amount');
 
         return [
             'revenue' => $revenue,
@@ -247,6 +281,7 @@ class SalesDashboard extends Page
             'outstanding' => max(0, $revenue - $received),
             'count' => $count,
             'productsSold' => $productsSold,
+            'refund' => $refund,
         ];
     }
 }
