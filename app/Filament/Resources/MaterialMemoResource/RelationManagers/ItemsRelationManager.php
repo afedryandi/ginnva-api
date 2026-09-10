@@ -5,6 +5,7 @@ namespace App\Filament\Resources\MaterialMemoResource\RelationManagers;
 use App\Models\ConsumableItem;
 use App\Models\InventoryItem;
 use App\Models\MaterialMemoItem;
+use App\Models\FilmProduct;
 use App\Models\RawMaterial;
 use App\Services\MaterialMemoStockService;
 use Filament\Forms;
@@ -12,6 +13,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Collection;
 use Illuminate\Support\HtmlString;
 
 class ItemsRelationManager extends RelationManager
@@ -32,6 +34,27 @@ class ItemsRelationManager extends RelationManager
     public function isReadOnly(): bool
     {
         return true;
+    }
+
+    /**
+     * Produk Film yang resepnya bisa dipakai auto-isi memo ini:
+     * varian film yang dipasang (film_product_id) + produk "Detailing"
+     * kalau booking-nya ber-product_detailing. Di-unique per id supaya
+     * kalau kebetulan film_product_id itu SVC-DETAILING sendiri tidak
+     * dobel.
+     */
+    protected function recipeSourceProducts(): Collection
+    {
+        $booking = $this->getOwnerRecord()->booking;
+
+        if ($booking === null) {
+            return collect();
+        }
+
+        return collect([
+            $booking->filmProduct,
+            $booking->product_detailing ? FilmProduct::detailing() : null,
+        ])->filter()->unique('id')->values();
     }
 
     public function table(Table $table): Table
@@ -195,11 +218,14 @@ class ItemsRelationManager extends RelationManager
                     }),
 
                 // "Isi dari Master Resep" — diminta 2026-09-10. Kalau memo
-                // ini tertaut ke booking yang punya film_product_id, dan
-                // Produk Film itu punya Master Resep (BOM), tombol ini
-                // menambahkan bahan resep sekaligus ke memo (lewat
-                // MaterialMemoStockService yang SAMA — stok ikut berkurang,
+                // tertaut ke booking, tombol ini menambahkan bahan dari
+                // Master Resep (BOM) sekaligus ke memo lewat
+                // MaterialMemoStockService yang SAMA (stok ikut berkurang,
                 // bukan insert baris mentah).
+                //
+                // Sumber resep = varian film yang dipasang (film_product_id)
+                // + produk "Detailing" kalau booking ber-product_detailing
+                // (lihat recipeSourceProducts()).
                 //
                 // Baris resep 'film_roll' DILEWATI — auto-fill tidak tahu
                 // gulungan spesifik mana yang dipakai (itu dipilih saat
@@ -211,35 +237,35 @@ class ItemsRelationManager extends RelationManager
                     ->label('Isi dari Master Resep')
                     ->icon('heroicon-o-beaker')
                     ->color('info')
-                    ->visible(function () {
-                        $filmProduct = $this->getOwnerRecord()->booking?->filmProduct;
-
-                        return $filmProduct !== null
-                            && $filmProduct->recipeItems()
-                                ->whereIn('item_type', ['raw_material', 'consumable_item'])
-                                ->where('standard_qty', '>', 0)
-                                ->exists();
-                    })
+                    ->visible(fn () => $this->recipeSourceProducts()
+                        ->contains(fn (FilmProduct $p) => $p->recipeItems()
+                            ->whereIn('item_type', ['raw_material', 'consumable_item'])
+                            ->where('standard_qty', '>', 0)
+                            ->exists()))
                     ->requiresConfirmation()
                     ->modalHeading('Isi Barang dari Master Resep')
                     ->modalDescription(function () {
-                        $filmProduct = $this->getOwnerRecord()->booking->filmProduct;
-                        $lines = $filmProduct->recipeItems
-                            ->map(fn ($r) => '• ' . $r->item_name . ': ' . rtrim(rtrim(number_format((float) $r->standard_qty, 2), '0'), '.') . ' ' . ($r->unit ?? '')
-                                . ($r->item_type === 'film_roll' ? ' (roll — dilewati, tambah manual)' : ''))
-                            ->implode("\n");
+                        $blocks = $this->recipeSourceProducts()
+                            ->map(function (FilmProduct $product) {
+                                $lines = $product->recipeItems
+                                    ->map(fn ($r) => '• ' . e($r->item_name) . ': ' . rtrim(rtrim(number_format((float) $r->standard_qty, 2), '0'), '.') . ' ' . e($r->unit ?? '')
+                                        . ($r->item_type === 'film_roll' ? ' <em>(roll — dilewati, tambah manual)</em>' : ''))
+                                    ->implode('<br>');
+
+                                return '<strong>' . e($product->name) . '</strong><br>' . ($lines ?: '<em>(resep kosong)</em>');
+                            })
+                            ->implode('<br><br>');
 
                         return new HtmlString(
-                            'Resep <strong>' . e($filmProduct->name) . '</strong> akan menambahkan barang berikut ke memo. Stok ikut berkurang. Bahan yang sudah ada di memo dilewati.<br><br>'
-                            . nl2br(e($lines))
+                            'Bahan berikut akan ditambahkan ke memo. Stok ikut berkurang. Bahan yang sudah ada di memo dilewati.<br><br>' . $blocks
                         );
                     })
                     ->modalSubmitActionLabel('Tambahkan')
                     ->action(function () {
                         $memo = $this->getOwnerRecord();
-                        $filmProduct = $memo->booking?->filmProduct;
+                        $sources = $this->recipeSourceProducts();
 
-                        if ($filmProduct === null) {
+                        if ($sources->isEmpty()) {
                             return;
                         }
 
@@ -249,50 +275,52 @@ class ItemsRelationManager extends RelationManager
                         $skippedRoll = 0;
                         $failed = [];
 
-                        foreach ($filmProduct->recipeItems as $recipe) {
-                            if ($recipe->item_type === 'film_roll') {
-                                $skippedRoll++;
+                        foreach ($sources as $product) {
+                            foreach ($product->recipeItems as $recipe) {
+                                if ($recipe->item_type === 'film_roll') {
+                                    $skippedRoll++;
 
-                                continue;
-                            }
+                                    continue;
+                                }
 
-                            if ((float) $recipe->standard_qty <= 0) {
-                                continue;
-                            }
+                                if ((float) $recipe->standard_qty <= 0) {
+                                    continue;
+                                }
 
-                            $model = match ($recipe->item_type) {
-                                'raw_material' => RawMaterial::find($recipe->item_id),
-                                'consumable_item' => ConsumableItem::find($recipe->item_id),
-                                default => null,
-                            };
+                                $model = match ($recipe->item_type) {
+                                    'raw_material' => RawMaterial::find($recipe->item_id),
+                                    'consumable_item' => ConsumableItem::find($recipe->item_id),
+                                    default => null,
+                                };
 
-                            if ($model === null) {
-                                continue;
-                            }
+                                if ($model === null) {
+                                    continue;
+                                }
 
-                            $alreadyInMemo = $memo->items()
-                                ->where('item_type', $recipe->item_type)
-                                ->where('item_id', $model->id)
-                                ->exists();
+                                $alreadyInMemo = $memo->items()
+                                    ->where('item_type', $recipe->item_type)
+                                    ->where('item_id', $model->id)
+                                    ->exists();
 
-                            if ($alreadyInMemo) {
-                                $skippedExisting++;
+                                if ($alreadyInMemo) {
+                                    $skippedExisting++;
 
-                                continue;
-                            }
+                                    continue;
+                                }
 
-                            try {
-                                MaterialMemoStockService::addMaterial(
-                                    $model,
-                                    $recipe->item_type,
-                                    $memo,
-                                    (float) $recipe->standard_qty,
-                                    $userId,
-                                    'Auto dari Master Resep (' . $filmProduct->sku . ')',
-                                );
-                                $added++;
-                            } catch (\InvalidArgumentException $e) {
-                                $failed[] = $model->name . ' — ' . $e->getMessage();
+                                try {
+                                    MaterialMemoStockService::addMaterial(
+                                        $model,
+                                        $recipe->item_type,
+                                        $memo,
+                                        (float) $recipe->standard_qty,
+                                        $userId,
+                                        'Auto dari Master Resep (' . $product->sku . ')',
+                                    );
+                                    $added++;
+                                } catch (\InvalidArgumentException $e) {
+                                    $failed[] = $model->name . ' — ' . $e->getMessage();
+                                }
                             }
                         }
 

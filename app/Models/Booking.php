@@ -28,6 +28,9 @@ class Booking extends Model
         'service_type',
         'product_kaca_film',
         'product_ppf',
+        // Penanda booking mencakup jasa detailing (sendiri / tambahan).
+        // Lihat migrasi 2026_09_10_000003.
+        'product_detailing',
         // Varian/SKU FilmProduct spesifik yang dipasang -- opsional,
         // diisi staff/teknisi (biasanya saat booking selesai) supaya
         // laporan "Produk Terlaris" bisa dihitung dari transaksi
@@ -57,6 +60,7 @@ class Booking extends Model
         'amount_received' => 'decimal:2',
         'product_kaca_film' => 'boolean',
         'product_ppf' => 'boolean',
+        'product_detailing' => 'boolean',
         'duration_days' => 'integer',
         'next_service_reminder_at' => 'date',
         'service_reminder_sent_at' => 'datetime',

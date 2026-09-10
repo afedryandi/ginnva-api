@@ -26,6 +26,17 @@ class FilmProduct extends Model
     }
 
     /**
+     * Produk "Detailing" — SATU layanan umum (dikonfirmasi user
+     * 2026-09-10), dibuat lewat migrasi 2026_09_10_000002 (SKU
+     * SVC-DETAILING). Dipakai auto-isi Memo Barang saat booking
+     * ber-product_detailing.
+     */
+    public static function detailing(): ?self
+    {
+        return static::where('product_type', 'detailing')->first();
+    }
+
+    /**
      * Master Resep (BOM) — bahan standar per 1x pemasangan produk ini.
      * Diminta 2026-09-10. Lihat FilmProductRecipeItem.
      */

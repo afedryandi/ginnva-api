@@ -131,7 +131,8 @@ class ProductSalesReport extends Page implements HasForms
                     'type' => match ($filmProduct?->product_type) {
                         'window_film' => 'Kaca Film',
                         'ppf' => 'PPF',
-                        'color_change' => 'Color Change',
+                        'detailing' => 'Detailing',
+                        'color_change' => 'Ganti Warna',
                         default => '—',
                     },
                     'count' => $group->count(),

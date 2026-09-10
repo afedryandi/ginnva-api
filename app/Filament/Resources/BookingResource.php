@@ -355,7 +355,13 @@ class BookingResource extends Resource
                     Forms\Components\Select::make('film_product_id')
                         ->label('Varian Produk (SKU)')
                         ->options(function (Forms\Get $get) {
-                            $query = \App\Models\FilmProduct::query()->where('is_active', true);
+                            // Detailing (product_type 'detailing') BUKAN varian
+                            // film — dikecualikan dari dropdown ini. Penanda
+                            // detailing di booking = toggle "Termasuk Detailing"
+                            // di bawah.
+                            $query = \App\Models\FilmProduct::query()
+                                ->where('is_active', true)
+                                ->where('product_type', '!=', 'detailing');
 
                             $isKacaFilm = in_array($get('service_type'), ['Kaca Film (Window Film)'], true);
                             $isPpf = in_array($get('service_type'), ['Pelindung Cat (PPF)'], true);
@@ -373,6 +379,16 @@ class BookingResource extends Resource
                         ->searchable()
                         ->preload()
                         ->helperText('Opsional — diisi kalau sudah tahu varian PPF/Kaca Film mana yang benar-benar dipasang (biasanya saat booking selesai). Dipakai untuk laporan Produk Terlaris.'),
+
+                    // Detailing dijual dua-duanya (sendiri / tambahan pada
+                    // booking film) — diminta 2026-09-10. Toggle terpisah,
+                    // TIDAK lewat service_type, supaya tidak meledakkan
+                    // kombinasi opsi & tidak mengganggu mesin tahap film.
+                    // Dipakai auto-isi Memo Barang dari Master Resep detailing.
+                    Forms\Components\Toggle::make('product_detailing')
+                        ->label('Termasuk Jasa Detailing')
+                        ->helperText('Centang kalau booking ini mencakup detailing (poles/coating/cuci interior/dll) — baik dijual sendiri maupun bareng pemasangan film.')
+                        ->default(false),
 
                     Forms\Components\DatePicker::make('preferred_date')
                         ->label('Tanggal Diinginkan')
@@ -578,6 +594,11 @@ class BookingResource extends Resource
                         ->label('Varian Produk (SKU)')
                         ->placeholder('Belum diisi')
                         ->state(fn (Booking $record) => $record->filmProduct ? "{$record->filmProduct->sku} — {$record->filmProduct->name}" : null),
+                    TextEntry::make('product_detailing')
+                        ->label('Jasa Detailing')
+                        ->badge()
+                        ->state(fn (Booking $record) => $record->product_detailing ? 'Termasuk' : 'Tidak')
+                        ->color(fn (Booking $record) => $record->product_detailing ? 'success' : 'gray'),
                     // BUG (500 error): ->date('d M Y') dipakai BARENGAN
                     // dengan ->state() yang sudah mengembalikan string
                     // terformat sendiri — Filament coba Carbon::parse()

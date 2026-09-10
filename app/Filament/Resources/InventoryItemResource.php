@@ -179,7 +179,7 @@ class InventoryItemResource extends Resource
                         ->createOptionForm([
                             Forms\Components\Select::make('film_product_id')
                                 ->label('Produk Film')
-                                ->options(fn () => FilmProduct::pluck('name', 'id'))
+                                ->options(fn () => FilmProduct::where('product_type', '!=', 'detailing')->pluck('name', 'id'))
                                 ->required()
                                 ->searchable()
                                 // Isi otomatis Total Panjang begitu produk
@@ -382,6 +382,7 @@ class InventoryItemResource extends Resource
                         Forms\Components\Select::make('film_product_id')
                             ->label('Produk Film')
                             ->options(fn () => \App\Models\FilmProduct::where('is_active', true)
+                                ->where('product_type', '!=', 'detailing')
                                 ->get()
                                 ->mapWithKeys(function (\App\Models\FilmProduct $fp) {
                                     $type = $fp->product_type === 'ppf' ? 'PPF' : 'Kaca Film';

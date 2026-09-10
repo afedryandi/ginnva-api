@@ -104,6 +104,7 @@ class FilmProductResource extends Resource
                         ->options([
                             'window_film' => 'Kaca Film',
                             'ppf'         => 'Paint Protection Film (PPF)',
+                            'detailing'   => 'Detailing (jasa, bukan film)',
                         ])
                         ->live()
                         ->required(),
@@ -119,7 +120,7 @@ class FilmProductResource extends Resource
                         ])
                         ->default('front')
                         ->visible(fn (Forms\Get $get) => $get('product_type') === 'window_film')
-                        ->required(),
+                        ->required(fn (Forms\Get $get) => $get('product_type') === 'window_film'),
 
                     Forms\Components\TextInput::make('base_price')
                         ->label('Harga Dasar')
@@ -161,9 +162,11 @@ class FilmProductResource extends Resource
                     ->label('Tipe')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'window_film' => 'Kaca Film',
-                        'ppf'         => 'PPF',
-                        default       => $state,
+                        'window_film'  => 'Kaca Film',
+                        'ppf'          => 'PPF',
+                        'detailing'    => 'Detailing',
+                        'color_change' => 'Ganti Warna',
+                        default        => $state,
                     })
                     ->sortable(),
 
@@ -208,6 +211,7 @@ class FilmProductResource extends Resource
                     ->options([
                         'window_film' => 'Kaca Film',
                         'ppf'         => 'PPF',
+                        'detailing'   => 'Detailing',
                     ]),
 
                 Tables\Filters\TernaryFilter::make('is_active')

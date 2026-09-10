@@ -95,7 +95,8 @@ class MasterResepResource extends Resource
                         ->content(fn (FilmProduct $record) => match ($record->product_type) {
                             'window_film' => 'Kaca Film',
                             'ppf' => 'PPF',
-                            'color_change' => 'Color Change',
+                            'detailing' => 'Detailing',
+                            'color_change' => 'Ganti Warna',
                             default => $record->product_type,
                         }),
                 ]),
@@ -200,7 +201,8 @@ class MasterResepResource extends Resource
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'window_film' => 'Kaca Film',
                         'ppf' => 'PPF',
-                        'color_change' => 'Color Change',
+                        'detailing' => 'Detailing',
+                        'color_change' => 'Ganti Warna',
                         default => $state,
                     })
                     ->sortable(),
@@ -235,6 +237,7 @@ class MasterResepResource extends Resource
                     ->options([
                         'window_film' => 'Kaca Film',
                         'ppf' => 'PPF',
+                        'detailing' => 'Detailing',
                     ]),
                 Tables\Filters\Filter::make('belum_diisi')
                     ->label('Belum ada resep')
