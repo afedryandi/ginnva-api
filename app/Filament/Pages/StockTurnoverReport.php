@@ -36,9 +36,7 @@ class StockTurnoverReport extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
 
-    protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
-
-    protected static ?string $navigationGroup = 'Analisa Laporan';
+    protected static ?string $cluster = \App\Filament\Clusters\AnalisaLaporanCluster::class;
 
     protected static ?string $navigationLabel = 'Perputaran Stok';
 
@@ -46,7 +44,7 @@ class StockTurnoverReport extends Page implements HasForms
 
     // 602 -- band grup 'Analisa Laporan' (lihat catatan sistem band di
     // ProductSalesReport.php).
-    protected static ?int $navigationSort = 602;
+    protected static ?int $navigationSort = 3;
 
     protected static string $view = 'filament.pages.stock-turnover-report';
 

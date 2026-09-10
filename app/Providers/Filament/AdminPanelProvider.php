@@ -75,6 +75,11 @@ class AdminPanelProvider extends PanelProvider
             // (bekas PenjualanCluster). SalesDashboard TIDAK ikut cluster
             // ini — dia naik jadi item langsung di bawah grup 'Penjualan'
             // (2026-09-10), sibling dari cluster 'Laporan'.
+            // 'Analisa Laporan' TIDAK di dalam cluster 'Laporan' — dia
+            // cluster SENDIRI (AnalisaLaporanCluster, $navigationGroup
+            // 'Penjualan'), sejajar dengan 'Laporan': struktur jadi
+            // Penjualan > Analisa Laporan > Waktu Teramai Penjualan
+            // (diminta 2026-09-10). Makanya tidak ada di array ini lagi.
             // Semua grup diset ->collapsed() (diminta 2026-09-09) supaya
             // default TERTUTUP saat halaman pertama dimuat, bukan
             // terbuka semua. String biasa jadi NavigationGroup::make()
@@ -114,7 +119,6 @@ class AdminPanelProvider extends PanelProvider
                 \Filament\Navigation\NavigationGroup::make('Laporan Pelanggan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Karyawan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Persediaan')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Analisa Laporan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Master Data')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Sistem')->collapsed(),
             ])

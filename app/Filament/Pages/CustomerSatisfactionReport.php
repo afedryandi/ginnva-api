@@ -22,9 +22,7 @@ class CustomerSatisfactionReport extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-face-smile';
 
-    protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
-
-    protected static ?string $navigationGroup = 'Analisa Laporan';
+    protected static ?string $cluster = \App\Filament\Clusters\AnalisaLaporanCluster::class;
 
     protected static ?string $navigationLabel = 'Kepuasan Pelanggan';
 
@@ -32,7 +30,7 @@ class CustomerSatisfactionReport extends Page implements HasForms
 
     // 603 -- band grup 'Analisa Laporan' (lihat catatan sistem band di
     // ProductSalesReport.php).
-    protected static ?int $navigationSort = 603;
+    protected static ?int $navigationSort = 4;
 
     protected static string $view = 'filament.pages.customer-satisfaction-report';
 
