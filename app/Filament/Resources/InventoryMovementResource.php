@@ -30,7 +30,9 @@ class InventoryMovementResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
-    protected static ?int $navigationSort = 20;
+    protected static ?string $navigationGroup = 'Riwayat';
+
+    protected static ?int $navigationSort = 100;
 
     protected static ?string $navigationLabel = 'Riwayat Keluar/Masuk';
 

@@ -28,7 +28,9 @@ class RawMaterialMovementResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
-    protected static ?int $navigationSort = 40;
+    protected static ?string $navigationGroup = 'Riwayat';
+
+    protected static ?int $navigationSort = 101;
 
     protected static ?string $navigationLabel = 'Riwayat Bahan Baku';
 

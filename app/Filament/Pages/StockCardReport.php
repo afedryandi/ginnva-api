@@ -36,7 +36,7 @@ class StockCardReport extends Page implements HasForms
 
     protected static ?string $navigationGroup = 'Kelola Stok';
 
-    protected static ?int $navigationSort = 45;
+    protected static ?int $navigationSort = 110;
 
     protected static ?string $navigationLabel = 'Daftar Stok';
 

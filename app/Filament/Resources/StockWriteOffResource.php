@@ -27,7 +27,7 @@ class StockWriteOffResource extends Resource
 
     protected static ?string $navigationGroup = 'Kelola Stok';
 
-    protected static ?int $navigationSort = 55;
+    protected static ?int $navigationSort = 111;
 
     protected static ?string $navigationLabel = 'Stok Terbuang';
 
