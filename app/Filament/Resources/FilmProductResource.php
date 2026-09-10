@@ -26,11 +26,13 @@ class FilmProductResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
-    protected static ?string $navigationLabel = 'Produk Film';
+    // Label menu = "Daftar Produk" (samakan dengan Majoo; katalog ini
+    // juga sudah tidak film-only sejak ada product_type 'detailing').
+    protected static ?string $navigationLabel = 'Daftar Produk';
 
-    protected static ?string $modelLabel = 'Produk Film';
+    protected static ?string $modelLabel = 'Produk';
 
-    protected static ?string $pluralModelLabel = 'Produk Film';
+    protected static ?string $pluralModelLabel = 'Produk';
 
     /**
      * Data master nasional, tidak ber-scope toko — super_admin dan

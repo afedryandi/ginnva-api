@@ -10,7 +10,7 @@ use Filament\Clusters\Cluster;
  *
  * Diminta 2026-09-10: replikasi menu "Produk" Majoo. Dari 15 sub-item
  * Majoo, cuma yang RELEVAN untuk Ginnva yang masuk sini:
- *   - Produk Film (FilmProductResource, dipindah dari Lainnya > Master
+ *   - Daftar Produk (FilmProductResource, dipindah dari Lainnya > Master
  *     Data) = "Daftar Produk" Majoo
  *   - Master Resep (MasterResepResource) = "Master Resep" Majoo
  * Sisanya (Departemen, Kategori, Layanan, Fasilitas, Ekstra, Paket,
@@ -18,7 +18,7 @@ use Filament\Clusters\Cluster;
  * Cetak Barcode, dst) TIDAK relevan / terkunci keputusan harga —
  * lihat memory project_penjualan_majoo_blocked_items.
  *
- * Struktur: Penjualan > Produk > Produk Film / Master Resep.
+ * Struktur: Penjualan > Produk > Daftar Produk / Master Resep.
  */
 class ProdukCluster extends Cluster
 {

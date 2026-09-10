@@ -102,7 +102,7 @@ class UserResource extends Resource
                 // "Laporan"/"Analisa Laporan" TIDAK didaftarkan di sini
                 // (pola sama seperti report page lain — akses lewat
                 // canAccess() + menu_access null = boleh).
-                'FilmProductResource' => 'Produk Film',
+                'FilmProductResource' => 'Daftar Produk',
                 'MasterResepResource' => 'Master Resep',
             ],
             'Inventaris' => [
