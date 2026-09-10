@@ -18,7 +18,8 @@ class RewardResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-gift';
 
-    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
+    // 2026-09-10: dipindah dari Marketing/Konten ke Penjualan > Promosi.
+    protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
 
     protected static ?int $navigationSort = 85;
 

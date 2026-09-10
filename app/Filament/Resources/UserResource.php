@@ -152,6 +152,13 @@ class UserResource extends Resource
             'Pelanggan' => [
                 'CustomerResource' => 'Daftar Pelanggan',
             ],
+            // Cluster "Promosi" (Penjualan > Promosi) — Voucher/Reward/
+            // Klaim Reward dipindah kemari dari Marketing/Konten (2026-09-10).
+            'Promosi' => [
+                'VoucherResource' => 'Voucher Promo',
+                'RewardResource' => 'Katalog Reward',
+                'RewardRedemptionResource' => 'Klaim Reward',
+            ],
             'Marketing/Konten' => [
                 'PointTransactionResource' => 'Riwayat Poin Customer',
                 'PartnershipInquiryResource' => 'Pengajuan Kemitraan',
@@ -165,9 +172,6 @@ class UserResource extends Resource
                 'MaterialResource' => 'Materi Download',
                 'MaterialCategoryResource' => 'Kategori Materi',
                 'PartnerResource' => 'Partner',
-                'VoucherResource' => 'Voucher Promo',
-                'RewardResource' => 'Katalog Reward',
-                'RewardRedemptionResource' => 'Klaim Reward',
                 'PartnerPointTransactionResource' => 'Riwayat Poin Partner',
             ],
             'Master Data' => [
