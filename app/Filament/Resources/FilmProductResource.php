@@ -8,9 +8,11 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
+use App\Services\PriceCalculator;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\HtmlString;
 
 class FilmProductResource extends Resource
 {
@@ -141,6 +143,41 @@ class FilmProductResource extends Resource
                         ->label('Aktif (tampil di pilihan quotation)')
                         ->default(true),
                 ]),
+
+            // Simulasi harga = Harga Dasar × koefisien (menu Penjualan >
+            // Produk > Koefisien Harga). Read-only, cuma alat bantu lihat
+            // dampak Harga Dasar per ukuran mobil. Fase 1 aktivasi pricing
+            // 2026-09-10 — belum dipakai di alur quotation (Fase 2).
+            Forms\Components\Section::make('Simulasi Harga per Ukuran Kendaraan')
+                ->description('Harga jual = Harga Dasar × koefisien ukuran. Atur koefisien di menu "Koefisien Harga". Simpan dulu perubahan Harga Dasar untuk lihat angka terbaru.')
+                ->visible(fn (?FilmProduct $record, Forms\Get $get) => $record !== null
+                    && in_array($get('product_type'), ['window_film', 'ppf'], true))
+                ->schema([
+                    Forms\Components\Placeholder::make('price_matrix')
+                        ->hiddenLabel()
+                        ->content(function (FilmProduct $record): HtmlString {
+                            if ((float) $record->base_price <= 0) {
+                                return new HtmlString('<span style="color:#d97706">Harga Dasar masih Rp 0 — isi dulu untuk melihat simulasi.</span>');
+                            }
+
+                            $rows = collect(PriceCalculator::matrix($record))
+                                ->map(fn (array $r, string $size) => '<tr>'
+                                    .'<td style="padding:2px 16px 2px 0">'.$size.'</td>'
+                                    .'<td style="padding:2px 16px 2px 0;text-align:right">'.($r['coefficient'] !== null ? number_format($r['coefficient'], 2).'×' : '—').'</td>'
+                                    .'<td style="padding:2px 0;text-align:right;font-weight:600">'.($r['price'] !== null ? 'Rp'.number_format($r['price'], 0, ',', '.') : '<span style="color:#d97706">koefisien belum ada</span>').'</td>'
+                                    .'</tr>')
+                                ->implode('');
+
+                            return new HtmlString(
+                                '<table style="font-size:0.875rem;border-collapse:collapse">'
+                                .'<thead><tr style="border-bottom:1px solid #e5e7eb">'
+                                .'<th style="text-align:left;padding-right:16px">Ukuran</th>'
+                                .'<th style="text-align:right;padding-right:16px">Koef.</th>'
+                                .'<th style="text-align:right">Harga Jual</th>'
+                                .'</tr></thead><tbody>'.$rows.'</tbody></table>'
+                            );
+                        }),
+                ]),
         ]);
     }
 
@@ -195,6 +232,12 @@ class FilmProductResource extends Resource
                     ->label('Harga Dasar')
                     ->money('IDR')
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('price_status')
+                    ->label('Status Harga')
+                    ->badge()
+                    ->state(fn (FilmProduct $record): string => (float) $record->base_price > 0 ? 'Terisi' : 'Belum diisi')
+                    ->color(fn (FilmProduct $record): string => (float) $record->base_price > 0 ? 'success' : 'gray'),
 
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Aktif')

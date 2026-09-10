@@ -104,6 +104,7 @@ class UserResource extends Resource
                 // canAccess() + menu_access null = boleh).
                 'FilmProductResource' => 'Produk Film',
                 'MasterResepResource' => 'Master Resep',
+                'PriceRuleResource' => 'Koefisien Harga',
             ],
             'Inventaris' => [
                 'InventoryDashboard' => 'Dashboard Inventaris',
@@ -167,19 +168,9 @@ class UserResource extends Resource
                 'VehicleResource' => 'Kendaraan',
                 'StoreResource' => 'Toko/Dealer',
                 'ScrollCodeResource' => 'Kode Gulungan',
-                // PriceRuleResource SENGAJA tidak dimasukkan di sini --
-                // resource-nya sendiri hidden total dari sidebar
-                // (shouldRegisterNavigation() false, lihat komentarnya:
-                // kalkulasi harga belum diimplementasikan di quotation
-                // flow). Beda dari ScrollCodeResource yang juga hidden
-                // tapi tetap punya jalur akses sah (drill-down dari menu
-                // Barang), grant "Koefisien Harga" di sini tidak
-                // mengarah ke mana pun di UI -- staff yang di-grant harus
-                // tahu & ketik URL manual, opsi mati yang cuma
-                // membingungkan admin saat assign role. Kembalikan baris
-                // ini kalau fitur harga otomatis sudah siap & resource-nya
-                // dibuka lagi ke navigasi. Ditemukan & diperbaiki
-                // 2026-08-29, audit modul Koefisien Harga.
+                // PriceRuleResource ('Koefisien Harga') dipindah ke grup
+                // 'Penjualan' di atas (2026-09-10) — resource-nya dibuka
+                // lagi dari sidebar bareng aktivasi pricing Fase 1.
             ],
             'Sistem' => [
                 'CustomerNotificationResource' => 'Riwayat Notifikasi',

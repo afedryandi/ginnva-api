@@ -16,12 +16,11 @@ class PriceRuleResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calculator';
 
-    protected static ?string $cluster = \App\Filament\Clusters\LainnyaCluster::class;
-
-    // Kategori di sidebar cluster 'Lainnya' -- diminta 2026-09-08, supaya
-    // gabungan Master Data + Sistem tetap terlihat terpisah kategorinya
-    // walau top-nav-nya sudah jadi 1 tab.
-    protected static ?string $navigationGroup = 'Master Data';
+    // 2026-09-10: dibuka lagi (dulu shouldRegisterNavigation() false —
+    // "kalkulasi harga belum diimplementasikan"). User minta aktifkan
+    // pricing (Fase 1: mesin + simulasi). Dipindah dari Lainnya > Master
+    // Data ke Penjualan > Produk (bareng Produk Film & Master Resep).
+    protected static ?string $cluster = \App\Filament\Clusters\ProdukCluster::class;
 
     protected static ?string $navigationLabel = 'Koefisien Harga';
 
@@ -29,19 +28,13 @@ class PriceRuleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Koefisien Harga';
 
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 3;
 
     /**
      * Data master pricing nasional, bukan per-toko — aksesnya diatur lewat
      * canAccessStaffArea() + hasMenuAccess(), jadi bisa didelegasikan ke
      * staff/role tertentu lewat "Akses Menu".
      */
-    // Disembunyikan dari navigasi — kalkulasi harga belum diimplementasikan
-    // di quotation flow. Aktifkan kembali saat fitur harga otomatis siap.
-    public static function shouldRegisterNavigation(): bool
-    {
-        return false;
-    }
 
     public static function canViewAny(): bool
     {
