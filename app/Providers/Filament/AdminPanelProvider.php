@@ -56,9 +56,11 @@ class AdminPanelProvider extends PanelProvider
             // $navigationGroup di masing-masing resource (VehicleResource
             // dkk = 'Master Data', ActivityResource dkk = 'Sistem') —
             // array ini yang menentukan urutan & label 2 kategori itu di
-            // sidebar. 'Penjualan' SEMPAT dipakai sebagai sub-kategori di
-            // dalam cluster Booking, tapi diminta susulan 2026-09-08 jadi
-            // TAB TOP-NAV SENDIRI (PenjualanCluster).
+            // sidebar. 'Penjualan' SEMPAT jadi tab top-nav sendiri
+            // (PenjualanCluster, 2026-09-08), lalu 2026-09-10 turun jadi
+            // navigationGroup biasa yang isinya SalesDashboard + cluster
+            // 'Laporan' (lihat PenjualanCluster.php) — supaya hirarki
+            // sama persis Majoo (Penjualan > Laporan > kategori > item).
             //
             // Struktur grup laporan di cluster Penjualan SEMPAT digabung
             // jadi 1 grup 'Laporan' (2026-09-08), TAPI diubah 2026-09-09
@@ -68,9 +70,11 @@ class AdminPanelProvider extends PanelProvider
             // Penjualan, Jasa, Promo & Loyalti, Pelanggan, Karyawan,
             // Persediaan, Settlement) masing-masing jadi grup SEJAJAR
             // sendiri-sendiri di sidebar cluster Penjualan, bukan
-            // ditumpuk di bawah 1 heading 'Laporan' lagi. Dashboard
-            // Penjualan (SalesDashboard) tetap TIDAK ikut grup manapun,
-            // berdiri sendiri di atas semua grup ini.
+            // ditumpuk di bawah 1 heading 'Laporan' lagi. Grup kategori
+            // ini SEKARANG hidup di dalam sub-nav cluster 'Laporan'
+            // (bekas PenjualanCluster). SalesDashboard TIDAK ikut cluster
+            // ini — dia naik jadi item langsung di bawah grup 'Penjualan'
+            // (2026-09-10), sibling dari cluster 'Laporan'.
             // Semua grup diset ->collapsed() (diminta 2026-09-09) supaya
             // default TERTUTUP saat halaman pertama dimuat, bukan
             // terbuka semua. String biasa jadi NavigationGroup::make()
@@ -92,7 +96,17 @@ class AdminPanelProvider extends PanelProvider
             // yang masih terbalik di sidebar Cluster BELUM terselesaikan
             // -- perlu cara lain yang benar-benar terverifikasi dulu
             // sebelum dicoba lagi (tidak menebak nama method lagi).
+            // 2026-09-10: 'Penjualan' ditambah sebagai navigationGroup
+            // TOP-NAV (dulu PenjualanCluster, sekarang turun jadi grup).
+            // Isinya: SalesDashboard (page) + cluster 'Laporan' (bekas
+            // PenjualanCluster). Ini yang bikin struktur jadi sama Majoo:
+            // Penjualan (grup) > Laporan (cluster) > Laporan Penjualan
+            // (sub-nav grup cluster) > Ringkasan Penjualan (item).
+            // Sisa entri di array ini adalah grup INTERNAL cluster
+            // (sub-nav 'Laporan' + sub-nav 'Lainnya') — didaftarkan di
+            // sini semata supaya ->collapsed() bisa dipasang.
             ->navigationGroups([
+                \Filament\Navigation\NavigationGroup::make('Penjualan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Penjualan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Produk')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Jasa')->collapsed(),

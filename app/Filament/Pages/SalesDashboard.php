@@ -27,9 +27,20 @@ class SalesDashboard extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
 
-    protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
+    // 2026-09-10: KELUAR dari cluster. Struktur baru ala Majoo —
+    // "Penjualan" jadi navigationGroup (bukan Cluster lagi), halaman ini
+    // berdiri langsung di bawah grup itu sebagai sibling dari cluster
+    // "Laporan" (bekas PenjualanCluster). Hasilnya di top-nav: dropdown
+    // "Penjualan" > [Dashboard, Laporan].
+    protected static ?string $navigationGroup = 'Penjualan';
 
-    protected static ?int $navigationSort = 1;
+    // 14 (bukan 1) — di top-nav, urutan grup ikut nilai sort TERKECIL
+    // anggotanya (pola sama seperti sub-nav cluster, lihat memory
+    // filament_cluster_navigation_group_order). Cluster 'Laporan' =
+    // sort 15; item ini 14 supaya (a) grup 'Penjualan' mendarat di
+    // posisi top-nav ~sama seperti dulu, (b) "Dashboard" tampil di atas
+    // "Laporan" di dalam dropdown.
+    protected static ?int $navigationSort = 14;
 
     // Diganti jadi "Dashboard" saja (diminta 2026-09-08) -- sudah jelas
     // dari konteksnya berada di tab Penjualan, "Penjualan" di nama jadi
