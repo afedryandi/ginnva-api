@@ -92,6 +92,7 @@ class StockWriteOffService
             }
 
             return StockWriteOff::create([
+                'write_off_number' => StockWriteOff::generateNumber(),
                 'writeoffable_type' => $itemType,
                 'writeoffable_id' => $item->id,
                 'item_name' => $item->name,

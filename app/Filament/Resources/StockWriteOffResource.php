@@ -65,6 +65,12 @@ class StockWriteOffResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('write_off_number')
+                    ->label('Nomor')
+                    ->searchable()
+                    ->weight('bold')
+                    ->placeholder('—'),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Tanggal')
                     ->dateTime('d M Y, H:i')

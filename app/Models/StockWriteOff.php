@@ -16,6 +16,7 @@ class StockWriteOff extends Model
     use LogsActivity;
 
     protected $fillable = [
+        'write_off_number',
         'writeoffable_type',
         'writeoffable_id',
         'item_name',
@@ -46,6 +47,18 @@ class StockWriteOff extends Model
     public function reasonLabel(): string
     {
         return self::REASON_LABELS[$this->reason] ?? $this->reason;
+    }
+
+    /**
+     * WO-YYYYMMDD-XXXX (urut per hari). Dipanggil di dalam transaction
+     * oleh StockWriteOffService supaya tidak race-condition dobel nomor.
+     */
+    public static function generateNumber(): string
+    {
+        $datePart = now()->format('Ymd');
+        $todayCount = static::where('write_off_number', 'like', "WO-{$datePart}-%")->count();
+
+        return sprintf('WO-%s-%04d', $datePart, $todayCount + 1);
     }
 
     public function resolveItem(): RawMaterial|ConsumableItem|null
