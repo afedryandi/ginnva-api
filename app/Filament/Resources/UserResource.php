@@ -119,6 +119,8 @@ class UserResource extends Resource
                 'ConsumableItemMovementResource' => 'Riwayat Barang Habis Pakai',
                 'MaterialMemoResource' => 'Memo Pengambilan/Pengembalian',
                 'PurchaseRequestResource' => 'Permohonan Pembelian',
+                'StockCardReport' => 'Daftar Stok (Kartu Stok)',
+                'StockWriteOffResource' => 'Stok Terbuang',
             ],
             'Karyawan' => [
                 'AttendanceResource' => 'Absensi Karyawan',

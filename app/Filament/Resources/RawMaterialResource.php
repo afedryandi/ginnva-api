@@ -338,6 +338,61 @@ class RawMaterialResource extends Resource
                             ->send();
                     }),
 
+                // "Stok Terbuang" (write-off) — beda dari "Sesuaikan Stok"
+                // yang generik: ada alasan terstruktur + jurnal kerugian
+                // otomatis (6520). Lihat StockWriteOffService.
+                Tables\Actions\Action::make('write_off')
+                    ->label('Catat Stok Terbuang')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('Catat Stok Terbuang')
+                    ->form([
+                        Forms\Components\TextInput::make('quantity')
+                            ->label('Jumlah Terbuang')
+                            ->numeric()
+                            ->required()
+                            ->minValue(0.01)
+                            ->maxValue(fn (RawMaterial $record) => (float) $record->current_stock)
+                            ->suffix(fn (RawMaterial $record) => $record->unit)
+                            ->helperText(fn (RawMaterial $record) => 'Stok saat ini: ' . number_format((float) $record->current_stock, 2) . ' ' . $record->unit
+                                . (($record->unit_cost !== null && (float) $record->unit_cost > 0)
+                                    ? '. Harga modal Rp' . number_format((float) $record->unit_cost, 0, ',', '.') . '/' . $record->unit . ' — jurnal kerugian dibuat otomatis.'
+                                    : '. Harga modal belum diisi — stok tetap dikurangi, tapi jurnal kerugian dilewati.')),
+
+                        Forms\Components\Select::make('reason')
+                            ->label('Alasan')
+                            ->options(\App\Models\StockWriteOff::REASON_LABELS)
+                            ->required()
+                            ->native(false),
+
+                        Forms\Components\Textarea::make('note')
+                            ->label('Catatan (opsional)')
+                            ->rows(2)
+                            ->maxLength(255),
+                    ])
+                    ->action(function (RawMaterial $record, array $data) {
+                        try {
+                            $wo = app(\App\Services\StockWriteOffService::class)->record(
+                                $record,
+                                'raw_material',
+                                (float) $data['quantity'],
+                                $data['reason'],
+                                $data['note'] ?? null,
+                                auth()->id(),
+                            );
+
+                            Notification::make()
+                                ->title('Stok terbuang dicatat')
+                                ->body($wo->total_value !== null
+                                    ? 'Kerugian Rp' . number_format((float) $wo->total_value, 0, ',', '.') . ' diposting ke Jurnal Umum.'
+                                    : 'Stok dikurangi. Jurnal kerugian dilewati (harga modal belum diisi).')
+                                ->success()
+                                ->send();
+                        } catch (\RuntimeException $e) {
+                            Notification::make()->title('Gagal mencatat stok terbuang')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
+
                 Tables\Actions\Action::make('record_movement')
                     ->label('Catat Stok')
                     ->icon('heroicon-o-arrow-path')
