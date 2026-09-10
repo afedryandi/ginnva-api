@@ -12,6 +12,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
 
 class ItemsRelationManager extends RelationManager
 {
@@ -191,6 +192,126 @@ class ItemsRelationManager extends RelationManager
                                 ->danger()
                                 ->send();
                         }
+                    }),
+
+                // "Isi dari Master Resep" — diminta 2026-09-10. Kalau memo
+                // ini tertaut ke booking yang punya film_product_id, dan
+                // Produk Film itu punya Master Resep (BOM), tombol ini
+                // menambahkan bahan resep sekaligus ke memo (lewat
+                // MaterialMemoStockService yang SAMA — stok ikut berkurang,
+                // bukan insert baris mentah).
+                //
+                // Baris resep 'film_roll' DILEWATI — auto-fill tidak tahu
+                // gulungan spesifik mana yang dipakai (itu dipilih saat
+                // pemakaian nyata), jadi roll tetap ditambah manual lewat
+                // "Tambah Barang". Bahan yang SUDAH ada di memo juga
+                // dilewati supaya aman diklik berulang (memo boleh diedit
+                // di tengah pekerjaan).
+                Tables\Actions\Action::make('isi_dari_resep')
+                    ->label('Isi dari Master Resep')
+                    ->icon('heroicon-o-beaker')
+                    ->color('info')
+                    ->visible(function () {
+                        $filmProduct = $this->getOwnerRecord()->booking?->filmProduct;
+
+                        return $filmProduct !== null
+                            && $filmProduct->recipeItems()
+                                ->whereIn('item_type', ['raw_material', 'consumable_item'])
+                                ->where('standard_qty', '>', 0)
+                                ->exists();
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Isi Barang dari Master Resep')
+                    ->modalDescription(function () {
+                        $filmProduct = $this->getOwnerRecord()->booking->filmProduct;
+                        $lines = $filmProduct->recipeItems
+                            ->map(fn ($r) => '• ' . $r->item_name . ': ' . rtrim(rtrim(number_format((float) $r->standard_qty, 2), '0'), '.') . ' ' . ($r->unit ?? '')
+                                . ($r->item_type === 'film_roll' ? ' (roll — dilewati, tambah manual)' : ''))
+                            ->implode("\n");
+
+                        return new HtmlString(
+                            'Resep <strong>' . e($filmProduct->name) . '</strong> akan menambahkan barang berikut ke memo. Stok ikut berkurang. Bahan yang sudah ada di memo dilewati.<br><br>'
+                            . nl2br(e($lines))
+                        );
+                    })
+                    ->modalSubmitActionLabel('Tambahkan')
+                    ->action(function () {
+                        $memo = $this->getOwnerRecord();
+                        $filmProduct = $memo->booking?->filmProduct;
+
+                        if ($filmProduct === null) {
+                            return;
+                        }
+
+                        $userId = auth()->id();
+                        $added = 0;
+                        $skippedExisting = 0;
+                        $skippedRoll = 0;
+                        $failed = [];
+
+                        foreach ($filmProduct->recipeItems as $recipe) {
+                            if ($recipe->item_type === 'film_roll') {
+                                $skippedRoll++;
+
+                                continue;
+                            }
+
+                            if ((float) $recipe->standard_qty <= 0) {
+                                continue;
+                            }
+
+                            $model = match ($recipe->item_type) {
+                                'raw_material' => RawMaterial::find($recipe->item_id),
+                                'consumable_item' => ConsumableItem::find($recipe->item_id),
+                                default => null,
+                            };
+
+                            if ($model === null) {
+                                continue;
+                            }
+
+                            $alreadyInMemo = $memo->items()
+                                ->where('item_type', $recipe->item_type)
+                                ->where('item_id', $model->id)
+                                ->exists();
+
+                            if ($alreadyInMemo) {
+                                $skippedExisting++;
+
+                                continue;
+                            }
+
+                            try {
+                                MaterialMemoStockService::addMaterial(
+                                    $model,
+                                    $recipe->item_type,
+                                    $memo,
+                                    (float) $recipe->standard_qty,
+                                    $userId,
+                                    'Auto dari Master Resep (' . $filmProduct->sku . ')',
+                                );
+                                $added++;
+                            } catch (\InvalidArgumentException $e) {
+                                $failed[] = $model->name . ' — ' . $e->getMessage();
+                            }
+                        }
+
+                        $body = "{$added} bahan ditambahkan ke memo.";
+                        if ($skippedExisting > 0) {
+                            $body .= " {$skippedExisting} sudah ada, dilewati.";
+                        }
+                        if ($skippedRoll > 0) {
+                            $body .= " {$skippedRoll} baris Roll Film dilewati — tambahkan manual lewat \"Tambah Barang\" (pilih gulungan).";
+                        }
+                        if (! empty($failed)) {
+                            $body .= ' Gagal: ' . implode('; ', $failed);
+                        }
+
+                        Notification::make()
+                            ->title($added > 0 ? 'Barang ditambahkan dari resep' : 'Tidak ada barang baru ditambahkan')
+                            ->body($body)
+                            ->{! empty($failed) ? 'warning' : 'success'}()
+                            ->send();
                     }),
             ])
             ->actions([
