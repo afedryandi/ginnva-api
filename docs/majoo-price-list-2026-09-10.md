@@ -48,3 +48,16 @@ dikonfirmasi user = bagian paket PPF, bukan produk detailing terpisah.
    Platinum/Signature dijual per UKURAN MOBIL (satu harga = satu mobil, semua kaca).
 3. **Nama lini beda.** Ginnva: A70/H70/H15/H30. Majoo: Platinum/Signature/Panoramic.
    Perlu konfirmasi user: Platinum & Signature = film apa?
+
+## Keputusan user 2026-09-10
+
+- Model harga = **matriks** (bukan base_price × koefisien).
+- Window film ikut Majoo (**per ukuran mobil**), bukan per posisi kaca.
+- **Signature = A70** (WF-A70), **Platinum = H70** (WF-H70). SKU tetap.
+- **WF-H15 & WF-H30 tetap 2 produk terpisah, harga FLAT masing-masing**
+  (angka belum diberikan — diisi admin di field "Harga Jual (Dasar/Flat)").
+- 3 baris Panoramic Majoo = **produk terpisah** → dibuat: WF-PANORAMIC
+  (Rp 1.300.000), WF-PANORAMIC-L (Rp 1.950.000), WF-SUNROOF (Rp 650.000),
+  window_film, harga flat.
+- Detailing: cuma ukuran M (Rp 1.500.000) → base_price flat. Ukuran lain
+  belum ada.
