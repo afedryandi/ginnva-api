@@ -21,7 +21,7 @@ class CustomerExport implements FromQuery, WithHeadings, WithMapping, ShouldAuto
     public function headings(): array
     {
         return [
-            'Nama', 'Email', 'No. WhatsApp',
+            'Nama', 'Email', 'No. WhatsApp', 'Jenis Kelamin', 'Alamat',
             'Email Terverifikasi', 'Jumlah Garansi', 'Jumlah Booking',
             'Terdaftar Pada',
         ];
@@ -33,6 +33,8 @@ class CustomerExport implements FromQuery, WithHeadings, WithMapping, ShouldAuto
             $customer->name ?? '—',
             $customer->email,
             $customer->phone_number ?? '—',
+            Customer::GENDER_LABELS[$customer->gender] ?? '—',
+            $customer->address ?? '—',
             $customer->email_verified_at?->format('d/m/Y H:i') ?? 'Belum',
             $customer->warranties_count,
             $customer->bookings_count,

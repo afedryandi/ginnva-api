@@ -150,6 +150,40 @@ class CustomerResource extends Resource
         $record->update($data);
     }
 
+    /**
+     * "Data Pribadi" — satu-satunya jalur admin isi jenis kelamin &
+     * alamat pelanggan (form resource lain read-only, lihat komentar
+     * canViewAny()). Pola sama dengan setReferralTableAction().
+     */
+    public static function personalDataTableAction(): Tables\Actions\Action
+    {
+        return Tables\Actions\Action::make('personalData')
+            ->label('Data Pribadi')
+            ->icon('heroicon-o-identification')
+            ->color('gray')
+            ->visible(fn (Customer $record) => ! $record->deleted_at)
+            ->form([
+                Forms\Components\Select::make('gender')
+                    ->label('Jenis Kelamin')
+                    ->options(Customer::GENDER_LABELS)
+                    ->native(false)
+                    ->nullable(),
+
+                Forms\Components\Textarea::make('address')
+                    ->label('Alamat')
+                    ->rows(3)
+                    ->maxLength(500),
+            ])
+            ->fillForm(fn (Customer $record): array => [
+                'gender' => $record->gender,
+                'address' => $record->address,
+            ])
+            ->action(fn (Customer $record, array $data) => $record->update([
+                'gender' => $data['gender'] ?? null,
+                'address' => $data['address'] ?? null,
+            ]));
+    }
+
     public static function setReferralTableAction(): Tables\Actions\Action
     {
         return Tables\Actions\Action::make('setReferral')
@@ -196,6 +230,19 @@ class CustomerResource extends Resource
                     Forms\Components\Placeholder::make('email_verified_at')
                         ->label('Email Terverifikasi')
                         ->content(fn (?Customer $record) => $record?->email_verified_at?->format('d M Y H:i') ?? 'Belum'),
+                ]),
+
+            Forms\Components\Section::make('Data Pribadi')
+                ->description('Diisi admin lewat aksi "Data Pribadi" di daftar pelanggan.')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\Placeholder::make('gender')
+                        ->label('Jenis Kelamin')
+                        ->content(fn (?Customer $record) => $record?->gender ? (Customer::GENDER_LABELS[$record->gender] ?? $record->gender) : '—'),
+
+                    Forms\Components\Placeholder::make('address')
+                        ->label('Alamat')
+                        ->content(fn (?Customer $record) => $record?->address ?: '—'),
                 ]),
 
             Forms\Components\Section::make('Referral')
@@ -260,6 +307,18 @@ class CustomerResource extends Resource
                     ->placeholder('—')
                     ->searchable(),
 
+                Tables\Columns\TextColumn::make('gender')
+                    ->label('Jenis Kelamin')
+                    ->formatStateUsing(fn (?string $state) => $state ? (Customer::GENDER_LABELS[$state] ?? $state) : '—')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('address')
+                    ->label('Alamat')
+                    ->placeholder('—')
+                    ->limit(40)
+                    ->searchable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('warranties_count')
                     ->label('Jumlah Garansi')
                     ->counts('warranties'),
@@ -317,6 +376,7 @@ class CustomerResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
+                static::personalDataTableAction(),
                 static::setReferralTableAction(),
                 Tables\Actions\DeleteAction::make(),
             ])

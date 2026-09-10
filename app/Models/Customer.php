@@ -18,10 +18,17 @@ class Customer extends Model implements Authenticatable, JWTSubject
 {
     use AuthenticatableTrait;
 
+    public const GENDER_LABELS = [
+        'male' => 'Laki-Laki',
+        'female' => 'Perempuan',
+    ];
+
     protected $fillable = [
         'name',
         'email',
         'phone_number',
+        'gender',
+        'address',
         'email_verified_at',
         'phone_verified_at',
         'referral_code',
