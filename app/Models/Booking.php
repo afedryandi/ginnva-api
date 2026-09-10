@@ -51,6 +51,11 @@ class Booking extends Model
         'amount_received',
         'partner_id',
         'voucher_claim_id',
+        // Promo Per Total Pembelian (potongan flat, diterapkan manual).
+        // transaction_amount disimpan NET; spend_promo_discount = snapshot
+        // potongan. Lihat migrasi 2026_09_10_000014.
+        'spend_promo_id',
+        'spend_promo_discount',
         'journal_entry_id',
     ];
 
@@ -61,6 +66,7 @@ class Booking extends Model
         'product_kaca_film' => 'boolean',
         'product_ppf' => 'boolean',
         'product_detailing' => 'boolean',
+        'spend_promo_discount' => 'decimal:2',
         'duration_days' => 'integer',
         'next_service_reminder_at' => 'date',
         'service_reminder_sent_at' => 'datetime',
@@ -334,6 +340,15 @@ class Booking extends Model
     public function filmProduct()
     {
         return $this->belongsTo(FilmProduct::class);
+    }
+
+    /**
+     * Promo Per Total Pembelian yang diterapkan ke booking ini (opsional).
+     * Lihat SpendPromo & migrasi 2026_09_10_000014.
+     */
+    public function spendPromo()
+    {
+        return $this->belongsTo(SpendPromo::class);
     }
 
     /**

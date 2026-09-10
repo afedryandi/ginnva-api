@@ -627,6 +627,13 @@ class BookingResource extends Resource
                         ->badge()
                         ->state(fn (Booking $record) => $record->product_detailing ? 'Termasuk' : 'Tidak')
                         ->color(fn (Booking $record) => $record->product_detailing ? 'success' : 'gray'),
+
+                    TextEntry::make('spendPromo.name')
+                        ->label('Promo Total Pembelian')
+                        ->placeholder('Tidak ada')
+                        ->state(fn (Booking $record) => $record->spend_promo_id
+                            ? ($record->spendPromo?->name ?? '(promo dihapus)') . ' — potong Rp' . number_format((float) $record->spend_promo_discount, 0, ',', '.')
+                            : null),
                     // BUG (500 error): ->date('d M Y') dipakai BARENGAN
                     // dengan ->state() yang sudah mengembalikan string
                     // terformat sendiri — Filament coba Carbon::parse()
@@ -997,6 +1004,19 @@ class BookingResource extends Resource
                                 ? 'Selisihnya akan dicatat sebagai Piutang Usaha (belum lunas).'
                                 : 'Kosongkan/samakan dengan Nominal Transaksi kalau customer sudah lunas penuh.'),
 
+                        // Promo Per Total Pembelian (opsional) — potongan flat
+                        // untuk booking yang nominal KOTOR-nya >= ambang.
+                        // "Nominal Transaksi" di atas diisi angka NET (sudah
+                        // dipotong); sistem cek net + potongan >= minimal.
+                        Forms\Components\Select::make('spend_promo_id')
+                            ->label('Promo Total Pembelian (opsional)')
+                            ->options(fn () => \App\Models\SpendPromo::running()->orderBy('name')->get()
+                                ->mapWithKeys(fn (\App\Models\SpendPromo $p) => [
+                                    $p->id => "{$p->name} — min Rp" . number_format((float) $p->min_purchase_amount, 0, ',', '.') . ' → potong Rp' . number_format((float) $p->discount_amount, 0, ',', '.'),
+                                ]))
+                            ->default(fn (Booking $record) => $record->spend_promo_id)
+                            ->helperText('"Nominal Transaksi" diisi angka SETELAH potongan. Sistem cek: (Nominal + potongan promo) harus ≥ minimal pembelian promo.'),
+
                         Forms\Components\TextInput::make('referral_code')
                             ->label('Kode Referral Partner')
                             ->maxLength(20)
@@ -1012,6 +1032,25 @@ class BookingResource extends Resource
                     ->action(function (Booking $record, array $data) {
                         $messages = [];
 
+                        // Validasi & snapshot Promo Total Pembelian.
+                        $promoId = $data['spend_promo_id'] ?: null;
+                        $promoDiscount = null;
+                        if ($promoId) {
+                            $promo = \App\Models\SpendPromo::find($promoId);
+                            $promoDiscount = (float) ($promo->discount_amount ?? 0);
+                            $net = (float) ($data['transaction_amount'] !== '' ? $data['transaction_amount'] : 0);
+                            $gross = $net + $promoDiscount;
+                            if ($promo && $gross + 0.009 < (float) $promo->min_purchase_amount) {
+                                Notification::make()
+                                    ->title('Promo tidak memenuhi syarat')
+                                    ->body('Nominal kotor (Rp' . number_format($gross, 0, ',', '.') . ') belum mencapai minimal pembelian promo (Rp' . number_format((float) $promo->min_purchase_amount, 0, ',', '.') . ').')
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+                        }
+
                         // Nominal transaksi & jurnal Pendapatan-nya dibungkus
                         // 1 DB transaction — lihat BookingPostingService
                         // untuk asumsi penyederhanaan (kas penuh, split
@@ -1021,11 +1060,13 @@ class BookingResource extends Resource
                         // tersimpan — supaya tidak ada nominal "yatim"
                         // tanpa jurnal di baliknya.
                         try {
-                            DB::transaction(function () use ($record, $data) {
+                            DB::transaction(function () use ($record, $data, $promoId, $promoDiscount) {
                                 $record->update([
                                     'transaction_amount' => $data['transaction_amount'] !== '' ? $data['transaction_amount'] : null,
                                     'amount_received'     => $data['amount_received'] !== '' ? $data['amount_received'] : null,
                                     'referral_code'       => $data['referral_code'] ?: null,
+                                    'spend_promo_id'       => $promoId,
+                                    'spend_promo_discount' => $promoId ? $promoDiscount : null,
                                 ]);
 
                                 app(BookingPostingService::class)->sync($record->refresh());

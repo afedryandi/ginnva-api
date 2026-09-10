@@ -156,6 +156,7 @@ class UserResource extends Resource
             // Klaim Reward dipindah kemari dari Marketing/Konten (2026-09-10).
             'Promosi' => [
                 'VoucherResource' => 'Voucher Promo',
+                'SpendPromoResource' => 'Promo Total Pembelian',
                 'RewardResource' => 'Katalog Reward',
                 'RewardRedemptionResource' => 'Klaim Reward',
             ],
