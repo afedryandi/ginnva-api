@@ -16,11 +16,9 @@ class PriceRuleResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calculator';
 
-    // 2026-09-10: dibuka lagi (dulu shouldRegisterNavigation() false —
-    // "kalkulasi harga belum diimplementasikan"). User minta aktifkan
-    // pricing (Fase 1: mesin + simulasi). Dipindah dari Lainnya > Master
-    // Data ke Penjualan > Produk (bareng Produk Film & Master Resep).
-    protected static ?string $cluster = \App\Filament\Clusters\ProdukCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\LainnyaCluster::class;
+
+    protected static ?string $navigationGroup = 'Master Data';
 
     protected static ?string $navigationLabel = 'Koefisien Harga';
 
@@ -28,13 +26,23 @@ class PriceRuleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Koefisien Harga';
 
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 40;
 
     /**
      * Data master pricing nasional, bukan per-toko — aksesnya diatur lewat
      * canAccessStaffArea() + hasMenuAccess(), jadi bisa didelegasikan ke
      * staff/role tertentu lewat "Akses Menu".
      */
+    // DISEMBUNYIKAN lagi 2026-09-10. Sempat dibuka (aktivasi pricing
+    // Fase 1), TAPI ekspor daftar harga Majoo membuktikan model
+    // base_price × koefisien tidak bisa mereproduksi harga riil (rasio
+    // antar-ukuran beda tiap lini). Diganti MATRIKS harga
+    // (film_product_prices + FilmProduct.base_price flat). Tabel
+    // price_rules dibiarkan (tidak dihapus) tapi tidak dipakai lagi.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
 
     public static function canViewAny(): bool
     {

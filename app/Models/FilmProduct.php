@@ -45,6 +45,15 @@ class FilmProduct extends Model
         return $this->hasMany(FilmProductRecipeItem::class);
     }
 
+    /**
+     * Harga jual per ukuran kendaraan (matriks). Harga flat = base_price.
+     * Lihat FilmProductPrice & PriceCalculator (2026-09-10).
+     */
+    public function prices()
+    {
+        return $this->hasMany(FilmProductPrice::class);
+    }
+
     public function caseStudies()
     {
         return $this->hasMany(CaseStudy::class);

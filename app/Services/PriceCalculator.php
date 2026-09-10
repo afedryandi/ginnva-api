@@ -3,89 +3,69 @@
 namespace App\Services;
 
 use App\Models\FilmProduct;
-use App\Models\PriceRule;
 
 /**
- * Kalkulasi harga jual produk = FilmProduct.base_price × koefisien
- * PriceRule(ukuran kendaraan, bagian mobil).
+ * Harga jual Produk Film — INTERNAL Ginnva saja (tidak ditampilkan ke
+ * publik/customer, per keputusan user 2026-09-10).
  *
- * Rancangan lama Ginnva (base_price × coefficient) yang baru diaktifkan
- * 2026-09-10 — FASE 1: mesin + tampilan simulasi di Filament + menu
- * "Koefisien Harga" dibuka lagi. Wiring ke alur quotation (auto-hitung
- * saat customer/staff bikin lead) = Fase 2, belum dikerjakan.
+ * Model harga: MATRIKS. Ekspor daftar harga Majoo (2026-09-10)
+ * membuktikan `base_price × koefisien tunggal` tidak bisa mereproduksi
+ * harga riil — rasio antar-ukuran beda tiap lini. Jadi:
+ *   - `FilmProduct.base_price` = harga flat / dasar (produk yg harganya
+ *     sama semua ukuran, mis. Panoramic)
+ *   - `film_product_prices` (FilmProduct::prices) = harga spesifik per
+ *     ukuran kendaraan (Platinum / Signature / PPF)
  *
- * Selama base_price produk masih Rp 0 (nunggu daftar harga kantor
- * pusat), calculate() mengembalikan filled=false dan UI menampilkan
- * "Belum diisi" — BUKAN Rp 0 palsu.
+ * priceFor(): cari baris ukuran → fallback ke base_price → null kalau
+ * dua-duanya kosong (UI tampilkan "Belum diisi", bukan Rp 0 palsu).
+ *
+ * Tabel `price_rules` / menu "Koefisien Harga" DITINGGALKAN (di-hide
+ * lagi) — digantikan matriks ini.
  */
 class PriceCalculator
 {
     public const VEHICLE_SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
 
-    /**
-     * Bagian mobil yang dipakai untuk cari koefisien, diturunkan dari
-     * jenis & posisi produk:
-     *   - PPF                      -> 'full_set' (pelindung body, dijual
-     *                                 per ukuran mobil)
-     *   - Window film 'front'      -> 'front'
-     *   - Window film 'side_rear'  -> 'side'
-     *   - Window film 'all'/lain   -> 'full_set'
-     *
-     * ASUMSI awal — hubungan posisi<->bagian mobil belum dikonfirmasi
-     * user; sesuaikan di sini kalau ternyata beda (mis. 'side_rear'
-     * mestinya gabungan 'side' + 'back').
-     */
-    public static function carPartFor(FilmProduct $product): string
+    public static function priceFor(FilmProduct $product, ?string $vehicleSize): ?float
     {
-        if ($product->product_type === 'ppf') {
-            return 'full_set';
+        if ($vehicleSize !== null) {
+            $row = $product->prices->firstWhere('vehicle_size', $vehicleSize);
+
+            if ($row !== null) {
+                return (float) $row->price;
+            }
         }
 
-        return match ($product->position) {
-            'front' => 'front',
-            'side_rear' => 'side',
-            default => 'full_set',
-        };
+        $base = (float) $product->base_price;
+
+        return $base > 0 ? $base : null;
     }
 
     /**
-     * @return array{base_price: float, coefficient: float|null, car_part: string, price: float|null, filled: bool}
-     */
-    public static function calculate(FilmProduct $product, string $vehicleSize): array
-    {
-        $carPart = self::carPartFor($product);
-        $basePrice = (float) $product->base_price;
-
-        $rule = PriceRule::query()
-            ->where('vehicle_size', $vehicleSize)
-            ->where('car_part', $carPart)
-            ->first();
-
-        $coefficient = $rule ? (float) $rule->coefficient : null;
-        $filled = $basePrice > 0 && $coefficient !== null;
-
-        return [
-            'base_price' => $basePrice,
-            'coefficient' => $coefficient,
-            'car_part' => $carPart,
-            'price' => $filled ? round($basePrice * $coefficient, 2) : null,
-            'filled' => $filled,
-        ];
-    }
-
-    /**
-     * Simulasi harga untuk kelima ukuran kendaraan.
+     * Harga untuk kelima ukuran + harga flat.
      *
-     * @return array<string, array{base_price: float, coefficient: float|null, car_part: string, price: float|null, filled: bool}>
+     * @return array{S: float|null, M: float|null, L: float|null, XL: float|null, XXL: float|null, flat: float|null}
      */
     public static function matrix(FilmProduct $product): array
     {
         $out = [];
 
         foreach (self::VEHICLE_SIZES as $size) {
-            $out[$size] = self::calculate($product, $size);
+            $row = $product->prices->firstWhere('vehicle_size', $size);
+            $out[$size] = $row !== null ? (float) $row->price : null;
         }
 
+        $base = (float) $product->base_price;
+        $out['flat'] = $base > 0 ? $base : null;
+
         return $out;
+    }
+
+    /**
+     * Apakah produk ini sudah punya harga (flat atau per ukuran)?
+     */
+    public static function isPriced(FilmProduct $product): bool
+    {
+        return (float) $product->base_price > 0 || $product->prices->isNotEmpty();
     }
 }

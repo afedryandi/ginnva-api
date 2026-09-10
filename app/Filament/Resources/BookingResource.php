@@ -378,7 +378,35 @@ class BookingResource extends Resource
                         })
                         ->searchable()
                         ->preload()
+                        ->live()
                         ->helperText('Opsional — diisi kalau sudah tahu varian PPF/Kaca Film mana yang benar-benar dipasang (biasanya saat booking selesai). Dipakai untuk laporan Produk Terlaris.'),
+
+                    // Referensi harga INTERNAL (bukan ditampilkan ke customer)
+                    // — bantu staf set Nilai Transaksi. Booking tidak simpan
+                    // ukuran kendaraan (cuma teks bebas), jadi tampilkan
+                    // seluruh matriks, staf pilih sendiri yang sesuai.
+                    Forms\Components\Placeholder::make('price_reference')
+                        ->label('Referensi Harga (internal)')
+                        ->visible(fn (Forms\Get $get) => filled($get('film_product_id')))
+                        ->content(function (Forms\Get $get) {
+                            $product = \App\Models\FilmProduct::with('prices')->find($get('film_product_id'));
+                            if ($product === null) {
+                                return '—';
+                            }
+
+                            $matrix = \App\Services\PriceCalculator::matrix($product);
+                            $parts = [];
+                            foreach (['S', 'M', 'L', 'XL', 'XXL'] as $size) {
+                                if ($matrix[$size] !== null) {
+                                    $parts[] = $size.': Rp'.number_format($matrix[$size], 0, ',', '.');
+                                }
+                            }
+                            if ($matrix['flat'] !== null && $parts === []) {
+                                $parts[] = 'Flat: Rp'.number_format($matrix['flat'], 0, ',', '.');
+                            }
+
+                            return $parts === [] ? 'Harga belum diisi untuk produk ini.' : new \Illuminate\Support\HtmlString(implode(' &nbsp;·&nbsp; ', $parts));
+                        }),
 
                     // Detailing dijual dua-duanya (sendiri / tambahan pada
                     // booking film) — diminta 2026-09-10. Toggle terpisah,

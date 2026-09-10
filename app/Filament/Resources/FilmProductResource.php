@@ -8,11 +8,10 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use App\Services\PriceCalculator;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\HtmlString;
 
 class FilmProductResource extends Resource
 {
@@ -125,17 +124,10 @@ class FilmProductResource extends Resource
                         ->required(fn (Forms\Get $get) => $get('product_type') === 'window_film'),
 
                     Forms\Components\TextInput::make('base_price')
-                        ->label('Harga Dasar')
-                        ->helperText('Referensi internal sales. Tidak ditampilkan ke customer — kalkulasi quotation memakai base_price × coefficient(vehicle_size, car_part).')
+                        ->label('Harga Jual (Dasar / Flat)')
+                        ->helperText('INTERNAL — tidak ditampilkan ke customer. Dipakai kalau harga SAMA untuk semua ukuran mobil (mis. Panoramic). Kalau harga beda per ukuran, isi di bagian "Harga per Ukuran" di bawah — itu yang menang.')
                         ->numeric()
                         ->prefix('Rp')
-                        // SEBELUMNYA tidak ada minValue() -- field harga
-                        // bisa tersimpan 0 atau negatif tanpa ditolak
-                        // validasi, tidak konsisten dengan field nominal
-                        // lain di sistem (mis. StoreResource::
-                        // late_deduction_amount yang sudah pakai
-                        // ->minValue(0)). Ditemukan & diperbaiki
-                        // 2026-08-29, audit modul Produk Film.
                         ->minValue(0)
                         ->required(),
 
@@ -144,39 +136,45 @@ class FilmProductResource extends Resource
                         ->default(true),
                 ]),
 
-            // Simulasi harga = Harga Dasar × koefisien (menu Penjualan >
-            // Produk > Koefisien Harga). Read-only, cuma alat bantu lihat
-            // dampak Harga Dasar per ukuran mobil. Fase 1 aktivasi pricing
-            // 2026-09-10 — belum dipakai di alur quotation (Fase 2).
-            Forms\Components\Section::make('Simulasi Harga per Ukuran Kendaraan')
-                ->description('Harga jual = Harga Dasar × koefisien ukuran. Atur koefisien di menu "Koefisien Harga". Simpan dulu perubahan Harga Dasar untuk lihat angka terbaru.')
-                ->visible(fn (?FilmProduct $record, Forms\Get $get) => $record !== null
-                    && in_array($get('product_type'), ['window_film', 'ppf'], true))
+            // Matriks harga per ukuran kendaraan (film_product_prices).
+            // Model base_price × koefisien DITINGGALKAN 2026-09-10 — harga
+            // Majoo tidak mengikuti koefisien tunggal. Baris di sini MENANG
+            // atas base_price untuk ukuran yang diisi. Harga INTERNAL saja.
+            Forms\Components\Section::make('Harga Jual per Ukuran Kendaraan')
+                ->description('Isi kalau harga BEDA per ukuran mobil (Platinum / Signature / PPF). Kosongkan untuk produk harga flat — cukup "Harga Jual (Dasar / Flat)" di atas.')
+                ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing'], true))
                 ->schema([
-                    Forms\Components\Placeholder::make('price_matrix')
+                    Forms\Components\Repeater::make('prices')
+                        ->relationship()
                         ->hiddenLabel()
-                        ->content(function (FilmProduct $record): HtmlString {
-                            if ((float) $record->base_price <= 0) {
-                                return new HtmlString('<span style="color:#d97706">Harga Dasar masih Rp 0 — isi dulu untuk melihat simulasi.</span>');
-                            }
+                        ->addActionLabel('Tambah harga per ukuran')
+                        ->reorderable(false)
+                        ->defaultItems(0)
+                        ->columns(2)
+                        ->itemLabel(fn (array $state): ?string => filled($state['vehicle_size'] ?? null)
+                            ? $state['vehicle_size'].(filled($state['price'] ?? null) ? ' — Rp'.number_format((float) $state['price'], 0, ',', '.') : '')
+                            : null)
+                        ->schema([
+                            Forms\Components\Select::make('vehicle_size')
+                                ->label('Ukuran Kendaraan')
+                                ->options([
+                                    'S' => 'S — City Car (Agya, Brio)',
+                                    'M' => 'M — Sedan / Hatchback',
+                                    'L' => 'L — SUV / MPV (Fortuner, Innova)',
+                                    'XL' => 'XL — Large SUV / Van (Alphard)',
+                                    'XXL' => 'XXL — Bus / Truck',
+                                ])
+                                ->required()
+                                ->distinct()
+                                ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
 
-                            $rows = collect(PriceCalculator::matrix($record))
-                                ->map(fn (array $r, string $size) => '<tr>'
-                                    .'<td style="padding:2px 16px 2px 0">'.$size.'</td>'
-                                    .'<td style="padding:2px 16px 2px 0;text-align:right">'.($r['coefficient'] !== null ? number_format($r['coefficient'], 2).'×' : '—').'</td>'
-                                    .'<td style="padding:2px 0;text-align:right;font-weight:600">'.($r['price'] !== null ? 'Rp'.number_format($r['price'], 0, ',', '.') : '<span style="color:#d97706">koefisien belum ada</span>').'</td>'
-                                    .'</tr>')
-                                ->implode('');
-
-                            return new HtmlString(
-                                '<table style="font-size:0.875rem;border-collapse:collapse">'
-                                .'<thead><tr style="border-bottom:1px solid #e5e7eb">'
-                                .'<th style="text-align:left;padding-right:16px">Ukuran</th>'
-                                .'<th style="text-align:right;padding-right:16px">Koef.</th>'
-                                .'<th style="text-align:right">Harga Jual</th>'
-                                .'</tr></thead><tbody>'.$rows.'</tbody></table>'
-                            );
-                        }),
+                            Forms\Components\TextInput::make('price')
+                                ->label('Harga Jual')
+                                ->numeric()
+                                ->prefix('Rp')
+                                ->minValue(0)
+                                ->required(),
+                        ]),
                 ]),
         ]);
     }
@@ -236,8 +234,8 @@ class FilmProductResource extends Resource
                 Tables\Columns\TextColumn::make('price_status')
                     ->label('Status Harga')
                     ->badge()
-                    ->state(fn (FilmProduct $record): string => (float) $record->base_price > 0 ? 'Terisi' : 'Belum diisi')
-                    ->color(fn (FilmProduct $record): string => (float) $record->base_price > 0 ? 'success' : 'gray'),
+                    ->state(fn (FilmProduct $record): string => ((float) $record->base_price > 0 || ($record->prices_count ?? 0) > 0) ? 'Terisi' : 'Belum diisi')
+                    ->color(fn (FilmProduct $record): string => ((float) $record->base_price > 0 || ($record->prices_count ?? 0) > 0) ? 'success' : 'gray'),
 
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Aktif')
@@ -341,6 +339,11 @@ class FilmProductResource extends Resource
                 ]),
             ])
             ->defaultSort('name');
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->withCount('prices');
     }
 
     public static function getPages(): array

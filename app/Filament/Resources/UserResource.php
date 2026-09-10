@@ -104,7 +104,6 @@ class UserResource extends Resource
                 // canAccess() + menu_access null = boleh).
                 'FilmProductResource' => 'Produk Film',
                 'MasterResepResource' => 'Master Resep',
-                'PriceRuleResource' => 'Koefisien Harga',
             ],
             'Inventaris' => [
                 'InventoryDashboard' => 'Dashboard Inventaris',
@@ -168,9 +167,10 @@ class UserResource extends Resource
                 'VehicleResource' => 'Kendaraan',
                 'StoreResource' => 'Toko/Dealer',
                 'ScrollCodeResource' => 'Kode Gulungan',
-                // PriceRuleResource ('Koefisien Harga') dipindah ke grup
-                // 'Penjualan' di atas (2026-09-10) — resource-nya dibuka
-                // lagi dari sidebar bareng aktivasi pricing Fase 1.
+                // PriceRuleResource ('Koefisien Harga') SENGAJA tidak di
+                // sini — resource-nya hidden (shouldRegisterNavigation
+                // false): model base_price × koefisien ditinggalkan
+                // 2026-09-10, diganti matriks harga (film_product_prices).
             ],
             'Sistem' => [
                 'CustomerNotificationResource' => 'Riwayat Notifikasi',

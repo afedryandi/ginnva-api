@@ -29,22 +29,27 @@ class FilmProductSeeder extends Seeder
     public function run(): void
     {
         // ─── Car Window Film ──────────────────────────────────────────
-        // Seri A70 — Bi-silver Sputtering, posisi depan, garansi 10 tahun
+        // Seri A70 — Bi-silver Sputtering, garansi 10 tahun. Nama jual
+        // "Ginnva Signature" (dikonfirmasi user 2026-09-10, lihat migrasi
+        // 2026_09_10_000006). base_price di sini cuma nilai awal seeder —
+        // harga riil (matriks per ukuran) diisi lewat migrasi import +
+        // Filament, JANGAN andalkan angka ini.
         FilmProduct::updateOrCreate(
             ['sku' => 'WF-A70'],
             [
-                'name'         => 'Ginnva A70 (Depan)',
+                'name'         => 'Ginnva Signature',
                 'product_type' => 'window_film',
                 'base_price'   => 400000,
                 'is_active'    => true,
             ]
         );
 
-        // Seri H70 — Nano-Ceramic, posisi depan, garansi 8 tahun
+        // Seri H70 — Nano-Ceramic, garansi 8 tahun. Nama jual "Ginnva
+        // Platinum" (dikonfirmasi user 2026-09-10).
         FilmProduct::updateOrCreate(
             ['sku' => 'WF-H70'],
             [
-                'name'         => 'Ginnva H70 (Depan)',
+                'name'         => 'Ginnva Platinum',
                 'product_type' => 'window_film',
                 'base_price'   => 350000,
                 'is_active'    => true,
