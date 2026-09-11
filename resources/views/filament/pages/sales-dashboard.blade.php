@@ -55,13 +55,21 @@
         </a>
     @endif
 
-    {{-- Toggle periode + navigasi tanggal + lompat-ke-tanggal + filter cabang --}}
+    {{--
+        Toggle periode + navigasi tanggal + lompat-ke-tanggal + filter
+        cabang. wire:target di baris ini SENGAJA menyebut nama method/
+        property yang benar-benar mengubah hasil (bukan "target semua
+        request") — supaya spinner cuma nongol untuk aksi yang relevan.
+    --}}
     <div class="flex flex-wrap items-center gap-3">
         <div class="inline-flex rounded-lg border border-gray-200 p-1 dark:border-white/10">
             @foreach (['harian' => 'Harian', 'mingguan' => 'Mingguan', 'bulanan' => 'Bulanan'] as $key => $label)
                 <button
                     type="button"
                     wire:click="setPeriod('{{ $key }}')"
+                    wire:loading.attr="disabled"
+                    wire:target="setPeriod('{{ $key }}')"
+                    aria-pressed="{{ $period === $key ? 'true' : 'false' }}"
                     @class([
                         'rounded-md px-4 py-1.5 text-sm font-medium transition',
                         'bg-primary-600 text-white' => $period === $key,
@@ -72,15 +80,34 @@
         </div>
 
         <div class="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 dark:border-white/10">
-            <button type="button" wire:click="goPrev" class="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">
+            <button
+                type="button"
+                wire:click="goPrev"
+                wire:loading.attr="disabled"
+                wire:target="goPrev"
+                aria-label="Periode sebelumnya"
+                class="text-gray-500 hover:text-gray-800 disabled:opacity-40 dark:text-gray-400 dark:hover:text-white"
+            >
                 <x-heroicon-o-chevron-left class="h-4 w-4" />
             </button>
-            <span class="min-w-[9rem] text-center text-sm font-medium">{{ $this->getRangeLabel() }}</span>
+            <span class="min-w-[9rem] text-center text-sm font-medium">
+                <span wire:loading.remove wire:target="setPeriod, goPrev, goNext, referenceDate, storeId">{{ $this->getRangeLabel() }}</span>
+                <span wire:loading wire:target="setPeriod, goPrev, goNext, referenceDate, storeId" class="inline-flex items-center justify-center gap-1.5 text-gray-400 dark:text-gray-500">
+                    <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    Memuat…
+                </span>
+            </span>
             <button
                 type="button"
                 wire:click="goNext"
+                wire:loading.attr="disabled"
+                wire:target="goNext"
+                aria-label="Periode berikutnya"
                 @disabled(! $this->canGoNext())
-                @class(['text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white' => $this->canGoNext(), 'text-gray-300 dark:text-gray-700' => ! $this->canGoNext()])
+                @class(['text-gray-500 hover:text-gray-800 disabled:opacity-40 dark:text-gray-400 dark:hover:text-white' => $this->canGoNext(), 'text-gray-300 dark:text-gray-700' => ! $this->canGoNext()])
             >
                 <x-heroicon-o-chevron-right class="h-4 w-4" />
             </button>
@@ -113,7 +140,10 @@
         @endif
     </div>
 
-    <x-filament::section>
+    <x-filament::section
+        wire:loading.class="opacity-50 pointer-events-none"
+        wire:target="setPeriod, goPrev, goNext, referenceDate, storeId"
+    >
         @if ($isEmpty)
             <div class="flex flex-col items-center gap-2 py-10 text-center">
                 <x-heroicon-o-document-magnifying-glass class="h-10 w-10 text-gray-300 dark:text-gray-600" />

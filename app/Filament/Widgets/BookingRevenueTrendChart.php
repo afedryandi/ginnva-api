@@ -24,6 +24,15 @@ class BookingRevenueTrendChart extends ChartWidget
 
     protected static ?int $sort = 1;
 
+    // EKSPLISIT dimatikan (audit 2026-09-11) — default ChartWidget di
+    // Filament v3 auto-poll berkala walau halaman idle, artinya query
+    // agregat (join journal_entries + GROUP BY) jalan otomatis di
+    // background tanpa perlu. Data cuma berubah lewat "Proses Referral"
+    // (aksi eksplisit staf), jadi tidak perlu live-refresh — Livewire
+    // sudah re-render widget ini tiap kali dashboard di-render ulang
+    // (ganti periode/tanggal/cabang).
+    protected static ?string $pollingInterval = null;
+
     public static function canView(): bool
     {
         $user = auth()->user();

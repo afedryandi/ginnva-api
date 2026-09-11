@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Services\SalesSnapshotService;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Livewire\Attributes\Url;
 
 /**
  * "Dashboard Penjualan" — diminta 2026-09-08, referensi
@@ -50,11 +51,21 @@ class SalesDashboard extends Page
 
     protected static string $view = 'filament.pages.sales-dashboard';
 
+    // #[Url] (audit 2026-09-11) — filter disimpan di query string supaya
+    // link bisa di-bookmark/dibagikan dalam kondisi filter tertentu dan
+    // bertahan lewat refresh/tombol back, bukan cuma di state Livewire
+    // yang hilang begitu halaman dimuat ulang. Alias nama query dibuat
+    // ramah-baca (?periode=&tanggal=&cabang=) bukan nama property mentah.
+    // Nilai dari query TIDAK dipercaya mentah-mentah — divalidasi/di-clamp
+    // di mount() (sama seperti updatedReferenceDate()/setPeriod()).
+    #[Url(as: 'periode')]
     public string $period = 'harian';
 
-    public string $referenceDate;
+    #[Url(as: 'tanggal')]
+    public string $referenceDate = '';
 
     /** Filter cabang — hanya untuk full-access. null = seluruh cabang. */
+    #[Url(as: 'cabang')]
     public ?int $storeId = null;
 
     /**
@@ -83,7 +94,28 @@ class SalesDashboard extends Page
 
     public function mount(): void
     {
-        $this->referenceDate = now()->toDateString();
+        // referenceDate/period/storeId sudah di-hydrate dari query string
+        // (#[Url]) SEBELUM mount() ini jalan — nilai kosong berarti tidak
+        // ada di URL (kunjungan baru), nilai terisi berarti dari link yang
+        // dibagikan/di-bookmark. Kedua kasus tetap divalidasi di sini,
+        // supaya URL yang diutak-atik manual tidak bisa memaksa periode
+        // tidak dikenal atau tanggal masa depan.
+        if (! in_array($this->period, SalesSnapshotService::PERIODS, true)) {
+            $this->period = 'harian';
+        }
+
+        $parsed = null;
+        if ($this->referenceDate !== '') {
+            try {
+                $parsed = Carbon::parse($this->referenceDate);
+            } catch (\Throwable) {
+                $parsed = null;
+            }
+        }
+
+        $this->referenceDate = (! $parsed || $parsed->greaterThan(now()))
+            ? now()->toDateString()
+            : $parsed->toDateString();
     }
 
     public function setPeriod(string $period): void

@@ -25,6 +25,10 @@ class BookingRevenueByCategoryChart extends ChartWidget
 
     protected static ?int $sort = 2;
 
+    // Sama alasan dengan BookingRevenueTrendChart — matikan auto-poll
+    // default, data cuma berubah lewat aksi eksplisit "Proses Referral".
+    protected static ?string $pollingInterval = null;
+
     public static function canView(): bool
     {
         $user = auth()->user();
