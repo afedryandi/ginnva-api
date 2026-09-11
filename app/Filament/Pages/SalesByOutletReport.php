@@ -2,15 +2,21 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\SalesByOutletExport;
 use App\Models\Booking;
 use App\Models\Refund;
 use App\Models\Store;
+use App\Services\SalesSnapshotService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Livewire\Attributes\Url;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Penjualan Outlet" — diminta 2026-09-09, analog "Penjualan Outlet"
@@ -27,6 +33,11 @@ use Illuminate\Support\Carbon;
  * BERSIH. Sekarang refund per toko dihitung & dikurangkan, supaya angka
  * di sini SELALU sama persis dengan laporan lain untuk toko & periode
  * yang sama.
+ *
+ * Agregasi SQL (audit 2026-09-11, temuan H) — SEBELUMNYA getResult()
+ * loop tiap toko lalu ->get() booking terpisah (N query, N = jumlah
+ * toko). Sekarang 1 query GROUP BY store_id (COUNT/SUM/CASE), DB yang
+ * hitung — pola sama SalesSnapshotService/SalesDetailStatsWidget.
  *
  * Staff store-scoped (bukan isFullAccess) TETAP bisa akses halaman ini
  * tapi cuma lihat toko sendiri (1 baris) — sama pola scoping yang
@@ -53,6 +64,15 @@ class SalesByOutletReport extends Page implements HasForms
 
     public ?array $data = [];
 
+    // #[Url] (audit 2026-09-11, temuan D) — pola sama laporan Penjualan
+    // lain: filter disimpan di query string supaya link bisa
+    // di-bookmark/dibagikan & bertahan lewat refresh.
+    #[Url(as: 'from')]
+    public ?string $from = null;
+
+    #[Url(as: 'to')]
+    public ?string $to = null;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -63,10 +83,35 @@ class SalesByOutletReport extends Page implements HasForms
 
     public function mount(): void
     {
+        $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
+        $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
+
         $this->form->fill([
-            'from' => now()->startOfMonth()->toDateString(),
-            'to' => now()->endOfMonth()->toDateString(),
+            'from' => $this->from,
+            'to' => $this->to,
         ]);
+    }
+
+    private function queryDateOrDefault(mixed $value, Carbon $default): string
+    {
+        if (! is_string($value) || $value === '') {
+            return $default->toDateString();
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return $default->toDateString();
+        }
+    }
+
+    public function updatedData(mixed $value, string $key): void
+    {
+        match ($key) {
+            'from' => $this->from = $value,
+            'to' => $this->to = $value,
+            default => null,
+        };
     }
 
     public function form(Form $form): Form
@@ -77,60 +122,97 @@ class SalesByOutletReport extends Page implements HasForms
         ])->columns(2)->statePath('data');
     }
 
+    /**
+     * "Ekspor Laporan" (audit 2026-09-11, temuan B) — pola sama laporan
+     * Penjualan lain, dibangun dari getResult() yang sama dipakai layar.
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new SalesByOutletExport($this->getResult()),
+                    'penjualan-outlet-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.sales_by_outlet', ['result' => $result])->setPaper('a4', 'landscape');
+                    $filename = 'penjualan-outlet-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
+    }
+
     public function getResult(): array
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
         $user = auth()->user();
         $isFullAccess = $user?->isFullAccess() ?? false;
+        $storeId = $isFullAccess ? null : $user?->store_id;
 
         // Refund per toko -- SAMA definisi dengan seluruh laporan
         // Penjualan lain: dikelompokkan berdasarkan created_at refund itu
         // sendiri (kapan DIPROSES), bukan tanggal booking-nya.
         $refundByStoreId = Refund::query()
             ->whereBetween('created_at', [$from, $to])
-            ->whereHas('booking', function ($q) use ($isFullAccess, $user) {
-                if (! $isFullAccess) {
-                    $q->where('store_id', $user?->store_id);
-                }
-            })
+            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
             ->with('booking:id,store_id')
             ->get(['amount', 'booking_id', 'created_at'])
             ->groupBy(fn (Refund $r) => $r->booking?->store_id)
             ->map(fn ($group) => (float) $group->sum('amount'));
 
+        // 1 query agregat GROUP BY store_id (audit 2026-09-11, temuan H)
+        // -- gantikan loop N query per toko.
+        $aggByStoreId = Booking::query()
+            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+            ->where('transaction_amount', '>', 0)
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->groupBy('store_id')
+            ->selectRaw(
+                'store_id,'
+                . ' COUNT(*) as cnt,'
+                . ' COALESCE(SUM(transaction_amount), 0) as revenue,'
+                . ' COALESCE(SUM(COALESCE(amount_received, transaction_amount)), 0) as received,'
+                . ' COALESCE(SUM(COALESCE(product_kaca_film, 0) + COALESCE(product_ppf, 0)), 0) as products'
+            )
+            ->toBase()
+            ->get()
+            ->keyBy('store_id');
+
         $stores = Store::query()
-            ->when(! $isFullAccess, fn ($q) => $q->where('id', $user?->store_id))
+            ->when($storeId, fn ($q) => $q->where('id', $storeId))
             ->orderBy('name')
             ->get(['id', 'name'])
-            ->map(function (Store $store) use ($from, $to, $refundByStoreId) {
-                $bookings = Booking::query()
-                    ->where('store_id', $store->id)
-                    ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
-                    ->where('transaction_amount', '>', 0)
-                    ->get(['transaction_amount', 'amount_received', 'product_kaca_film', 'product_ppf']);
-
-                $grossRevenue = (float) $bookings->sum('transaction_amount');
+            ->map(function (Store $store) use ($aggByStoreId, $refundByStoreId) {
+                $agg = $aggByStoreId->get($store->id);
+                $count = (int) ($agg->cnt ?? 0);
+                $grossRevenue = (float) ($agg->revenue ?? 0);
+                $received = (float) ($agg->received ?? 0);
+                $products = (int) ($agg->products ?? 0);
                 $refund = (float) ($refundByStoreId[$store->id] ?? 0);
                 $revenue = $grossRevenue - $refund;
-                $received = (float) $bookings->sum(fn (Booking $b) => $b->amount_received !== null ? (float) $b->amount_received : (float) $b->transaction_amount);
-                // "Produk" -- jumlah kategori produk (Kaca Film/PPF)
-                // terpasang, sama pola dengan SalesByPeriodReport/
-                // SalesDashboard (BUKAN jumlah SKU spesifik, film_product_id
-                // belum wajib diisi).
-                $products = $bookings->sum(fn (Booking $b) => ($b->product_kaca_film ? 1 : 0) + ($b->product_ppf ? 1 : 0));
 
                 return [
                     'store' => $store,
-                    'count' => $bookings->count(),
+                    'count' => $count,
                     'grossRevenue' => $grossRevenue,
                     'refund' => $refund,
                     'revenue' => $revenue,
                     'received' => $received,
                     'outstanding' => max(0, $grossRevenue - $received),
-                    'avg' => $bookings->count() > 0 ? $revenue / $bookings->count() : 0,
+                    'avg' => $count > 0 ? $revenue / $count : 0,
                     'products' => $products,
-                    'productsPerTransaction' => $bookings->count() > 0 ? $products / $bookings->count() : 0,
+                    'productsPerTransaction' => $count > 0 ? $products / $count : 0,
                 ];
             })
             ->sortByDesc('revenue')
@@ -155,11 +237,15 @@ class SalesByOutletReport extends Page implements HasForms
         return [
             'from' => $from,
             'to' => $to,
+            'storeId' => $storeId,
             'rows' => $stores,
             'totalRevenue' => $totalRevenue,
             'totalRefund' => $totalRefund,
             'totalCount' => $totalCount,
             'totalProducts' => $totalProducts,
+            // Banner "booking selesai belum diproses" (audit 2026-09-11,
+            // temuan C) — sama konsep dengan laporan Penjualan lain.
+            'pendingCount' => app(SalesSnapshotService::class)->pendingCount($storeId),
         ];
     }
 }

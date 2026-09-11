@@ -17,33 +17,38 @@ use Filament\Widgets\ChartWidget;
  * palet manual per toko -- supaya otomatis nambah warna kalau toko
  * baru dibuka, tidak perlu update kode.
  *
- * Filter rentang hari sendiri (getFilters() bawaan ChartWidget), sama
- * alasan dengan SalesByPeriodChart -- widget & Page 2 komponen Livewire
- * terpisah, tidak disinkronkan ke form Dari/Sampai di halamannya.
+ * SINKRON dengan SalesByOutletReport (audit 2026-09-11, temuan A) —
+ * SEBELUMNYA widget ini punya filter sendiri (14/30/90 hari terakhir),
+ * terputus dari form Dari/Sampai di halamannya. Sekarang menerima
+ * $from/$to lewat mount() (dipanggil @livewire(..., ['from'=>...]) dari
+ * blade halaman, BUKAN <x-filament-widgets::widgets> — pola sama yang
+ * sudah terbukti jalan di SalesDashboard/SalesByPeriodChart).
  */
 class SalesByOutletChart extends ChartWidget
 {
     protected static ?string $heading = 'Grafik Penjualan Outlet';
+
+    protected static ?string $pollingInterval = null;
+
+    public ?string $from = null;
+
+    public ?string $to = null;
+
+    public function mount(?string $from = null, ?string $to = null): void
+    {
+        $this->from = $from;
+        $this->to = $to;
+    }
 
     public static function canView(): bool
     {
         return SalesByOutletReport::canAccess();
     }
 
-    protected function getFilters(): ?array
-    {
-        return [
-            '14' => '14 Hari Terakhir',
-            '30' => '30 Hari Terakhir',
-            '90' => '90 Hari Terakhir',
-        ];
-    }
-
     protected function getData(): array
     {
-        $days = (int) ($this->filter ?? 30);
-        $start = now()->subDays($days - 1)->startOfDay();
-        $end = now()->endOfDay();
+        $start = $this->from ? \Illuminate\Support\Carbon::parse($this->from)->startOfDay() : now()->subDays(29)->startOfDay();
+        $end = $this->to ? \Illuminate\Support\Carbon::parse($this->to)->endOfDay() : now()->endOfDay();
         $user = auth()->user();
         $isFullAccess = $user?->isFullAccess() ?? false;
 
