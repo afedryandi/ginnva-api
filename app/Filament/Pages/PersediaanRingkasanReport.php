@@ -2,9 +2,13 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\PersediaanRingkasanReportExport;
 use App\Models\ConsumableItem;
 use App\Models\RawMaterial;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Lap. Ringkasan Persediaan" — diminta 2026-09-09. SEMPAT extends
@@ -44,6 +48,37 @@ class PersediaanRingkasanReport extends Page
 
         return ($user?->canAccessStaffArea() ?? false)
             && $user->hasMenuAccess(static::class);
+    }
+
+    /**
+     * "Ekspor Laporan" (audit 2026-09-11, temuan B) — snapshot kondisi
+     * terkini (tidak ada filter di halaman ini, jadi tidak ada parameter
+     * untuk dibawa ke export).
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new PersediaanRingkasanReportExport($this->getResult()),
+                    'ringkasan-persediaan-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.persediaan_ringkasan_report', ['result' => $result])->setPaper('a4', 'landscape');
+                    $filename = 'ringkasan-persediaan-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
     }
 
     public function getResult(): array
