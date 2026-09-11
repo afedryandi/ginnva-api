@@ -2,9 +2,12 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\LayananReportExport;
 use App\Models\Booking;
 use App\Models\Refund;
 use App\Models\Store;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -12,6 +15,9 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
+use Livewire\Attributes\Url;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Laporan Jasa" — diminta 2026-09-08, analog "Laporan Jasa" Majoo
@@ -52,6 +58,18 @@ class LayananReport extends Page implements HasForms
 
     public ?array $data = [];
 
+    // #[Url] (audit 2026-09-11, temuan D) — pola sama laporan Penjualan
+    // lain. Property ini di kelas dasar berlaku juga untuk JenisOrderReport
+    // (extends penuh), jadi satu implementasi dua halaman.
+    #[Url(as: 'from')]
+    public ?string $from = null;
+
+    #[Url(as: 'to')]
+    public ?string $to = null;
+
+    #[Url(as: 'cabang')]
+    public ?int $storeIdFilter = null;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -62,11 +80,41 @@ class LayananReport extends Page implements HasForms
 
     public function mount(): void
     {
+        $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
+        $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
+
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            $this->storeIdFilter = null;
+        }
+
         $this->form->fill([
-            'from' => now()->startOfMonth()->toDateString(),
-            'to' => now()->endOfMonth()->toDateString(),
-            'store_id' => null,
+            'from' => $this->from,
+            'to' => $this->to,
+            'store_id' => $this->storeIdFilter,
         ]);
+    }
+
+    private function queryDateOrDefault(mixed $value, Carbon $default): string
+    {
+        if (! is_string($value) || $value === '') {
+            return $default->toDateString();
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return $default->toDateString();
+        }
+    }
+
+    public function updatedData(mixed $value, string $key): void
+    {
+        match ($key) {
+            'from' => $this->from = $value,
+            'to' => $this->to = $value,
+            'store_id' => $this->storeIdFilter = $value ? (int) $value : null,
+            default => null,
+        };
     }
 
     public function form(Form $form): Form
@@ -79,8 +127,46 @@ class LayananReport extends Page implements HasForms
                 ->options(fn () => Store::where('is_active', true)->pluck('name', 'id'))
                 ->searchable()
                 ->placeholder('Semua Toko')
+                ->live()
                 ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
         ])->columns(3)->statePath('data');
+    }
+
+    /**
+     * "Ekspor Laporan" (audit 2026-09-11, temuan B) — filename & judul
+     * ikut halaman aktif (static::$navigationLabel) supaya export dari
+     * "Laporan Jenis Order" tidak keliru bertuliskan "Laporan Jasa"
+     * walau logic-nya sama persis.
+     */
+    protected function getHeaderActions(): array
+    {
+        $slug = Str::slug(static::$navigationLabel ?? 'laporan-jasa');
+
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new LayananReportExport($this->getResult(), static::$navigationLabel ?? 'Laporan Jasa'),
+                    $slug . '-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () use ($slug) {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.layanan_report', [
+                        'result' => $result,
+                        'title' => static::$navigationLabel ?? 'Laporan Jasa',
+                    ])->setPaper('a4', 'portrait');
+                    $filename = $slug . '-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
     }
 
     public function getResult(): array
