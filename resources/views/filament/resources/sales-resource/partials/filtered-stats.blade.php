@@ -11,7 +11,16 @@
     $rupiah = fn ($n) => 'Rp' . number_format((float) $n, 0, ',', '.');
 @endphp
 
-<div class="grid grid-cols-2 gap-3 md:grid-cols-5">
+{{--
+    Layout grid pakai STYLE INLINE (bukan class Tailwind grid-cols-*/gap-*)
+    — 2026-09-11: class Tailwind non-standar (grid-cols-5 dkk) yang tidak
+    dipakai komponen Filament sendiri TERBUKTI tidak ikut ter-compile ke
+    CSS panel walau sudah `npm run build` (kartu tampil stack 1 kolom).
+    Inline style TIDAK bergantung stylesheet apa pun, jadi selalu jalan.
+    `repeat(auto-fit, minmax(...))` responsif SENDIRI tanpa media query —
+    otomatis 5 kolom di layar lebar, turun ke lebih sedikit di sempit.
+--}}
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:0.75rem;">
     <x-filament::section>
         <div class="text-xs text-gray-500 dark:text-gray-400">Total Invoice</div>
         <div class="mt-1 text-xl font-bold tabular-nums">{{ $rupiah($stats['total_revenue']) }}</div>
