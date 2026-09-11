@@ -2,18 +2,24 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\PromoLoyaltyReportExport;
 use App\Models\PartnerPointTransaction;
 use App\Models\PointTransaction;
 use App\Models\Reward;
 use App\Models\RewardRedemption;
 use App\Models\Voucher;
 use App\Models\VoucherClaim;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
+use Livewire\Attributes\Url;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Laporan Promo & Loyalti" — diminta 2026-09-08 setelah eksplorasi menu
@@ -58,6 +64,14 @@ class PromoLoyaltyReport extends Page implements HasForms
 
     public ?array $data = [];
 
+    // #[Url] (audit 2026-09-11, temuan D) — pola sama laporan Penjualan
+    // lain. Berlaku juga untuk CouponReport (extends penuh).
+    #[Url(as: 'from')]
+    public ?string $from = null;
+
+    #[Url(as: 'to')]
+    public ?string $to = null;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -68,10 +82,35 @@ class PromoLoyaltyReport extends Page implements HasForms
 
     public function mount(): void
     {
+        $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
+        $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
+
         $this->form->fill([
-            'from' => now()->startOfMonth()->toDateString(),
-            'to' => now()->endOfMonth()->toDateString(),
+            'from' => $this->from,
+            'to' => $this->to,
         ]);
+    }
+
+    private function queryDateOrDefault(mixed $value, Carbon $default): string
+    {
+        if (! is_string($value) || $value === '') {
+            return $default->toDateString();
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return $default->toDateString();
+        }
+    }
+
+    public function updatedData(mixed $value, string $key): void
+    {
+        match ($key) {
+            'from' => $this->from = $value,
+            'to' => $this->to = $value,
+            default => null,
+        };
     }
 
     public function form(Form $form): Form
@@ -80,6 +119,43 @@ class PromoLoyaltyReport extends Page implements HasForms
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
         ])->columns(2)->statePath('data');
+    }
+
+    /**
+     * "Ekspor Laporan" (audit 2026-09-11, temuan B) — filename & judul
+     * ikut halaman aktif (static::$navigationLabel), sama pola dengan
+     * LayananReport/JenisOrderReport supaya export dari "Laporan Kupon"
+     * tidak keliru bertuliskan "Laporan Promo".
+     */
+    protected function getHeaderActions(): array
+    {
+        $slug = Str::slug(static::$navigationLabel ?? 'laporan-promo');
+
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new PromoLoyaltyReportExport($this->getResult(), static::$navigationLabel ?? 'Laporan Promo'),
+                    $slug . '-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () use ($slug) {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.promo_loyalty_report', [
+                        'result' => $result,
+                        'title' => static::$navigationLabel ?? 'Laporan Promo',
+                    ])->setPaper('a4', 'portrait');
+                    $filename = $slug . '-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
     }
 
     /**
@@ -147,6 +223,8 @@ class PromoLoyaltyReport extends Page implements HasForms
         $promoSalesTotal = (float) $usedClaims->sum(fn (VoucherClaim $c) => (float) ($c->booking->transaction_amount ?? 0));
 
         return [
+            'from' => $from,
+            'to' => $to,
             'storeId' => $storeId,
             'vouchers' => $vouchers,
             'rewards' => $rewards,

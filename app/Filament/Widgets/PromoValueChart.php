@@ -5,51 +5,54 @@ namespace App\Filament\Widgets;
 use App\Filament\Pages\PromoLoyaltyReport;
 use App\Models\VoucherClaim;
 use Filament\Widgets\ChartWidget;
+use Illuminate\Support\Carbon;
 
 /**
  * "Grafik Promo" — diminta 2026-09-09, analog Majoo. 1 garis: total
  * nilai voucher dipakai per hari (used_at, status=used, terhubung
  * booking).
  *
- * Filter rentang hari sendiri (getFilters() bawaan ChartWidget), sama
- * alasan dengan chart Penjualan lain -- widget & Page 2 komponen
- * Livewire terpisah.
+ * SINKRON dengan PromoLoyaltyReport (audit 2026-09-11, temuan A) —
+ * SEBELUMNYA widget ini punya filter sendiri (14/30/90 hari terakhir),
+ * terputus dari form Dari/Sampai di halamannya. Sekarang menerima
+ * $from/$to/$storeId lewat mount() (dipanggil @livewire(..., ['from'=>...])
+ * dari blade halaman, BUKAN <x-filament-widgets::widgets> — pola sama
+ * yang sudah terbukti jalan di chart Penjualan lain).
  */
 class PromoValueChart extends ChartWidget
 {
     protected static ?string $heading = 'Grafik Promo';
+
+    protected static ?string $pollingInterval = null;
+
+    public ?string $from = null;
+
+    public ?string $to = null;
+
+    public ?int $storeId = null;
+
+    public function mount(?string $from = null, ?string $to = null, ?int $storeId = null): void
+    {
+        $this->from = $from;
+        $this->to = $to;
+        $this->storeId = $storeId;
+    }
 
     public static function canView(): bool
     {
         return PromoLoyaltyReport::canAccess();
     }
 
-    protected function getFilters(): ?array
-    {
-        return [
-            '14' => '14 Hari Terakhir',
-            '30' => '30 Hari Terakhir',
-            '90' => '90 Hari Terakhir',
-        ];
-    }
-
     protected function getData(): array
     {
-        $days = (int) ($this->filter ?? 30);
-        $start = now()->subDays($days - 1)->startOfDay();
-        $end = now()->endOfDay();
-
-        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit Laporan
-        // Promo): grafik ini SEBELUMNYA SAMA SEKALI TIDAK ADA scoping
-        // toko — manajer toko manapun lihat nilai promo company-wide.
-        $user = auth()->user();
-        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+        $start = $this->from ? Carbon::parse($this->from)->startOfDay() : now()->subDays(29)->startOfDay();
+        $end = $this->to ? Carbon::parse($this->to)->endOfDay() : now()->endOfDay();
 
         $claims = VoucherClaim::query()
             ->where('status', 'used')
             ->whereNotNull('booking_id')
             ->whereBetween('used_at', [$start, $end])
-            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
+            ->when($this->storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $this->storeId)))
             ->with('voucher:id,discount_amount')
             ->get(['id', 'used_at', 'voucher_id']);
 

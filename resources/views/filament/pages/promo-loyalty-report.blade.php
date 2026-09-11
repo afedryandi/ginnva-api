@@ -9,9 +9,11 @@
         $rewards = $result['rewards'];
         $points = $result['points'];
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
+        $filterTargets = 'data.from, data.to';
     @endphp
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Transaksi dengan Promo</div>
             <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['promoTransactionCount'], 0, ',', '.') }}</div>
@@ -28,12 +30,18 @@
         </x-filament::section>
     </div>
 
-    <x-filament-widgets::widgets
-        :widgets="[\App\Filament\Widgets\PromoValueChart::class]"
-        :columns="1"
-    />
+    {{--
+        @livewire() langsung (bukan <x-filament-widgets::widgets>) supaya
+        bisa kirim from/to/storeId ke mount() grafik (audit 2026-09-11,
+        temuan A) — sebelumnya grafik selalu 14/30/90 hari terakhir sendiri.
+    --}}
+    @livewire(
+        \App\Filament\Widgets\PromoValueChart::class,
+        ['from' => $result['from']->toDateString(), 'to' => $result['to']->toDateString(), 'storeId' => $result['storeId']],
+        key('promo-value-chart-' . $result['from']->toDateString() . '-' . $result['to']->toDateString() . '-' . ($result['storeId'] ?? 'all'))
+    )
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Poin Customer Diterbitkan</div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">+{{ number_format($points['issued_customer'], 0, ',', '.') }}</div>
@@ -161,4 +169,5 @@
             </table>
         </div>
     </x-filament::section>
+    </div>
 </x-filament-panels::page>
