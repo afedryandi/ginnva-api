@@ -24,6 +24,9 @@ use Illuminate\Support\Carbon;
  * Sumber & logika pendapatan SAMA PERSIS dengan seluruh laporan
  * Penjualan lain (whereHas('journalEntry'), transaction_amount > 0,
  * amount_received NULL = lunas penuh) — satu sumber kebenaran.
+ *
+ * Scoping toko (audit 2026-09-11): staff toko dikunci ke store_id
+ * sendiri, full-access lihat seluruh cabang — lihat getResult().
  */
 class SalesByPeriodReport extends Page implements HasForms
 {
@@ -93,9 +96,19 @@ class SalesByPeriodReport extends Page implements HasForms
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
         $granularity = $this->data['granularity'] ?? 'harian';
 
+        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): halaman ini
+        // SEBELUMNYA SAMA SEKALI TIDAK ADA scoping toko — bookings MAUPUN
+        // refund — manajer toko manapun melihat rekap company-wide. Sama
+        // pola scoping dengan seluruh laporan Penjualan lain: null =
+        // seluruh cabang (full-access saja), staff toko dikunci ke
+        // store_id sendiri.
+        $user = auth()->user();
+        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
             ->where('transaction_amount', '>', 0)
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['journalEntry:id,entry_date', 'installers:id'])
             ->get(['id', 'transaction_amount', 'amount_received', 'journal_entry_id', 'product_kaca_film', 'product_ppf']);
 
@@ -161,6 +174,7 @@ class SalesByPeriodReport extends Page implements HasForms
         // refund itu sendiri (kapan DIPROSES), bukan tanggal booking-nya.
         $refunds = Refund::query()
             ->whereBetween('created_at', [$from, $to])
+            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
             ->get(['amount', 'created_at']);
 
         foreach ($refunds as $refund) {
