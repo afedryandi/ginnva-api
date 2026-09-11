@@ -44,10 +44,17 @@ class ProductSalesChart extends ChartWidget
         $start = now()->subDays($days - 1)->startOfDay();
         $end = now()->endOfDay();
 
+        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit Penjualan
+        // Produk): grafik ini SEBELUMNYA SAMA SEKALI TIDAK ADA scoping
+        // toko — manajer toko manapun lihat top produk company-wide.
+        $user = auth()->user();
+        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
             ->where('transaction_amount', '>', 0)
             ->whereNotNull('film_product_id')
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['journalEntry:id,entry_date', 'filmProduct:id,name'])
             ->get(['transaction_amount', 'journal_entry_id', 'film_product_id']);
 

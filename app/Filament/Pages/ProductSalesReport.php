@@ -96,9 +96,17 @@ class ProductSalesReport extends Page implements HasForms
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
 
+        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): halaman ini
+        // SEBELUMNYA SAMA SEKALI TIDAK ADA scoping toko (bahkan tidak
+        // ada pengecekan auth()->user() sama sekali) — manajer toko
+        // manapun melihat breakdown SKU company-wide.
+        $user = auth()->user();
+        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
             ->where('transaction_amount', '>', 0)
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with('filmProduct:id,sku,name,product_type')
             ->get(['id', 'transaction_amount', 'film_product_id']);
 
@@ -113,6 +121,7 @@ class ProductSalesReport extends Page implements HasForms
         // bucket "Belum Diisi SKU" juga, sama seperti penjualannya.
         $refunds = Refund::query()
             ->whereBetween('created_at', [$from, $to])
+            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
             ->with('booking:id,film_product_id')
             ->get(['amount', 'booking_id']);
 
