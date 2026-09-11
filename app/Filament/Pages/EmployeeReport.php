@@ -2,13 +2,18 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\EmployeeReportExport;
 use App\Models\Payroll;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Livewire\Attributes\Url;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Laporan Karyawan" — diminta 2026-09-08, analog "Laporan Karyawan"
@@ -53,6 +58,11 @@ class EmployeeReport extends Page implements HasForms
 
     public ?array $data = [];
 
+    // #[Url] (audit 2026-09-11, temuan D) — pola sama laporan Penjualan
+    // lain.
+    #[Url(as: 'bulan')]
+    public ?string $month = null;
+
     public static function canAccess(): bool
     {
         return auth()->user()?->isFullAccess() ?? false;
@@ -60,9 +70,24 @@ class EmployeeReport extends Page implements HasForms
 
     public function mount(): void
     {
-        $this->form->fill([
-            'month' => now()->subMonthNoOverflow()->startOfMonth()->toDateString(),
-        ]);
+        // Nilai dari URL divalidasi terhadap 12 opsi bulan yang tersedia
+        // di form — kalau tidak valid (mis. lebih dari 12 bulan lalu),
+        // fallback ke default (bulan lalu).
+        $validMonths = collect(range(0, 11))
+            ->map(fn ($i) => Carbon::now()->subMonths($i)->startOfMonth()->toDateString());
+
+        if (! $this->month || ! $validMonths->contains($this->month)) {
+            $this->month = now()->subMonthNoOverflow()->startOfMonth()->toDateString();
+        }
+
+        $this->form->fill(['month' => $this->month]);
+    }
+
+    public function updatedData(mixed $value, string $key): void
+    {
+        if ($key === 'month') {
+            $this->month = $value;
+        }
     }
 
     public function form(Form $form): Form
@@ -84,6 +109,36 @@ class EmployeeReport extends Page implements HasForms
                 ->required()
                 ->live(),
         ])->statePath('data');
+    }
+
+    /**
+     * "Ekspor Laporan" (audit 2026-09-11, temuan B) — pola sama laporan
+     * Penjualan lain.
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new EmployeeReportExport($this->getResult()),
+                    'laporan-karyawan-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.employee_report', ['result' => $result])->setPaper('a4', 'landscape');
+                    $filename = 'laporan-karyawan-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
     }
 
     public function getResult(): array
