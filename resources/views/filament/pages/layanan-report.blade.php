@@ -12,7 +12,7 @@
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <x-filament::section>
-            <div class="text-xs text-gray-500 dark:text-gray-400">Jasa Terjual</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Transaksi</div>
             <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['totalCount'], 0, ',', '.') }}</div>
         </x-filament::section>
 

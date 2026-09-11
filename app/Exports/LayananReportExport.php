@@ -27,7 +27,7 @@ class LayananReportExport implements FromArray, WithStyles
             ['Periode', $r['from']->format('d M Y') . ' - ' . $r['to']->format('d M Y')],
             [],
             ['RINGKASAN'],
-            ['Jasa Terjual', $r['totalCount']],
+            ['Transaksi', $r['totalCount']],
             ['Total Pendapatan (bersih)', $rupiah($r['totalRevenue'])],
             ['Pengembalian', $r['refund'] > 0 ? '(' . $rupiah($r['refund']) . ')' : '-'],
             ['Total Pendapatan (kotor)', $rupiah($r['grossRevenue'])],

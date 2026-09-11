@@ -26,7 +26,7 @@
     @endif
 
     <table>
-        <tr><td>Jasa Terjual</td><td class="value">{{ number_format($result['totalCount'], 0, ',', '.') }}</td></tr>
+        <tr><td>Transaksi</td><td class="value">{{ number_format($result['totalCount'], 0, ',', '.') }}</td></tr>
         <tr class="total"><td>Total Pendapatan (bersih)</td><td class="value">{{ $rupiah($result['totalRevenue']) }}</td></tr>
         <tr><td>Rata-rata per Jasa</td><td class="value">{{ $rupiah($result['avgRevenue']) }}</td></tr>
     </table>
