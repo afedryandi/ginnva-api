@@ -3,9 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Exports\SalesSummaryExport;
-use App\Models\Booking;
-use App\Models\Refund;
 use App\Models\VoucherClaim;
+use App\Services\SalesSnapshotService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -35,9 +34,12 @@ use Barryvdh\DomPDF\Facade\Pdf;
  * ditandai "Belum tersedia" — TIDAK ADA satu pun angka yang ditebak/
  * dipaksa jadi Rp 0 supaya terlihat lengkap seperti tiruan Majoo.
  *
- * Sumber kebenaran pendapatan SAMA PERSIS dengan seluruh laporan
- * Penjualan lain: whereHas('journalEntry') + transaction_amount > 0
- * (booking yang benar-benar sudah diproses ke Jurnal Umum).
+ * Sumber kebenaran pendapatan (gross/refund/net/jumlah transaksi) SEJAK
+ * 2026-09-11 pakai App\Services\SalesSnapshotService — SAMA PERSIS yang
+ * dipakai SalesDashboard, termasuk scoping toko-nya (SEBELUMNYA halaman
+ * ini punya query duplikat sendiri yang lupa di-scope ke store_id untuk
+ * grossSales/bookingCount, cuma refund yang di-scope — bug ditemukan
+ * saat audit, lihat memory project_sales_dashboard_audit).
  *
  * Promo Voucher DIHITUNG dari VoucherClaim (status=used, di dalam
  * rentang tanggal) × Voucher::discount_amount — ini SATU-SATUNYA
@@ -153,44 +155,45 @@ class SalesSummaryReport extends Page implements HasForms
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
 
-        $bookingsQuery = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
-            ->where('transaction_amount', '>', 0);
+        $user = auth()->user();
+        $isFullAccess = $user?->isFullAccess() ?? false;
+        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): sebelumnya
+        // grossSales/bookingCount/voucherDiscount TIDAK di-scope ke toko
+        // sama sekali (cuma refund yang di-scope) — manajer toko melihat
+        // angka company-wide, dan netSales = gross(semua cabang) −
+        // refund(cabang sendiri) MATEMATISNYA SALAH, bukan cuma bocor.
+        // Sekarang pakai SalesSnapshotService (SATU sumber kebenaran yang
+        // sama dengan SalesDashboard) supaya gross/refund/net/count
+        // konsisten ter-scope bareng, bukan query terpisah yang gampang
+        // menyimpang lagi ke depan. null = seluruh cabang (full-access
+        // saja) — belum ada filter cabang di halaman ini (lihat memory
+        // project_sales_dashboard_audit, temuan B).
+        $storeId = $isFullAccess ? null : $user?->store_id;
 
-        $grossSales = (float) (clone $bookingsQuery)->sum('transaction_amount');
+        $snapshot = app(SalesSnapshotService::class)->summarize($from, $to, $storeId);
 
         // Promo Voucher -- satu-satunya "biaya promosi" yang punya nilai
         // Rupiah tersimpan (Voucher::discount_amount). used_at dipakai
         // (bukan created_at) karena itu tanggal voucher BENAR-BENAR
-        // dipakai transaksi, bukan tanggal diklaim.
+        // dipakai transaksi, bukan tanggal diklaim. Di-scope ke toko lewat
+        // relasi booking, sama pola dengan refund.
         $voucherDiscount = (float) VoucherClaim::query()
             ->where('status', 'used')
             ->whereNotNull('booking_id')
             ->whereBetween('used_at', [$from, $to])
+            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
             ->with('voucher:id,discount_amount')
             ->get()
             ->sum(fn (VoucherClaim $claim) => (float) ($claim->voucher->discount_amount ?? 0));
 
-        // Refund -- SEKARANG dihitung sungguhan (diminta 2026-09-09,
-        // lihat RefundService/RefundReport). Rentang filter dasarnya
-        // created_at refund itu sendiri (kapan refund DIPROSES), BUKAN
-        // tanggal booking-nya -- konsisten dengan RefundReport.
-        $user = auth()->user();
-        $refund = (float) Refund::query()
-            ->whereBetween('created_at', [$from, $to])
-            ->when(! ($user?->isFullAccess() ?? false), fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $user?->store_id)))
-            ->sum('amount');
-
-        $netSales = $grossSales - $refund;
-
         return [
             'from' => $from,
             'to' => $to,
-            'grossSales' => $grossSales,
+            'grossSales' => $snapshot['revenue'],
             'voucherDiscount' => $voucherDiscount,
-            'refund' => $refund,
-            'netSales' => $netSales,
-            'bookingCount' => (clone $bookingsQuery)->count(),
+            'refund' => $snapshot['refund'],
+            'netSales' => $snapshot['net'],
+            'bookingCount' => $snapshot['count'],
         ];
     }
 }
