@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\Booking;
+use App\Models\Refund;
 use App\Models\Store;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -88,22 +89,33 @@ class LayananReport extends Page implements HasForms
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
         $user = auth()->user();
         $isSuperAdmin = $user?->isFullAccess() ?? false;
+        // storeId efektif dipakai untuk booking DAN refund supaya
+        // keduanya konsisten scope ke cabang yang sama.
+        $storeId = $isSuperAdmin ? (empty($this->data['store_id']) ? null : $this->data['store_id']) : $user?->store_id;
 
         $query = Booking::query()
             ->with('store')
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
-            ->where('transaction_amount', '>', 0);
-
-        if (! $isSuperAdmin) {
-            $query->where(function ($q) use ($user) {
-                $q->where('store_id', $user->store_id)
-                    ->orWhereNull('store_id');
-            });
-        } elseif (! empty($this->data['store_id'])) {
-            $query->where('store_id', $this->data['store_id']);
-        }
+            ->where('transaction_amount', '>', 0)
+            // store_id di bookings NOT NULL (migrasi create_bookings_table)
+            // — orWhereNull() dulu di sini itu dead code, dibersihkan
+            // 2026-09-11 (audit) sama pola dengan P1 SalesDashboard.
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId));
 
         $bookings = $query->get(['id', 'store_id', 'transaction_amount', 'product_kaca_film', 'product_ppf']);
+
+        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): "Total
+        // Pendapatan" SEBELUMNYA gross, tidak dikurangi refund — beda
+        // dari Dashboard/Ringkasan/Per Periode/Outlet yang konsisten
+        // pakai angka bersih. Refund TIDAK tertaut ke jenis produk
+        // tertentu (cuma ke booking), jadi TIDAK didistribusikan ke
+        // byType/byStore (itu tetap gross apa adanya per baris) — cukup
+        // dikurangkan di headline "Total Pendapatan" + footnote gross,
+        // pola sama SalesDashboard.
+        $refundTotal = (float) Refund::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
+            ->sum('amount');
 
         $byType = [
             'kaca_film' => ['count' => 0, 'revenue' => 0.0],
@@ -152,12 +164,16 @@ class LayananReport extends Page implements HasForms
             $byType[$key]['revenuePct'] = $totalRevenue > 0 ? $row['revenue'] / $totalRevenue * 100 : 0;
         }
 
+        $netRevenue = $totalRevenue - $refundTotal;
+
         return [
             'from' => $from,
             'to' => $to,
             'totalCount' => $bookings->count(),
-            'totalRevenue' => $totalRevenue,
-            'avgRevenue' => $bookings->count() > 0 ? $totalRevenue / $bookings->count() : 0,
+            'totalRevenue' => $netRevenue,
+            'grossRevenue' => $totalRevenue,
+            'refund' => $refundTotal,
+            'avgRevenue' => $bookings->count() > 0 ? $netRevenue / $bookings->count() : 0,
             'byType' => $byType,
             'byStore' => $byStore,
         ];

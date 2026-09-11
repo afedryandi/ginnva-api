@@ -40,9 +40,17 @@ class LayananChart extends ChartWidget
         $start = now()->subDays($days - 1)->startOfDay();
         $end = now()->endOfDay();
 
+        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit Laporan Jenis
+        // Order): grafik ini SEBELUMNYA SAMA SEKALI TIDAK ADA scoping
+        // toko — manajer toko manapun lihat tren company-wide, baik dari
+        // Laporan Jasa maupun Laporan Jenis Order (widget yang sama).
+        $user = auth()->user();
+        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
             ->where('transaction_amount', '>', 0)
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with('journalEntry:id,entry_date')
             ->get(['transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf']);
 

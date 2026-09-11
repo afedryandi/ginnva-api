@@ -15,8 +15,11 @@
         </x-filament::section>
 
         <x-filament::section>
-            <div class="text-xs text-gray-500 dark:text-gray-400">Total Pendapatan</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total Pendapatan (bersih)</div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">{{ $rupiah($result['totalRevenue']) }}</div>
+            @if ($result['refund'] > 0)
+                <div class="mt-1 text-xs text-danger-600 dark:text-danger-400">setelah pengembalian {{ $rupiah($result['refund']) }} (kotor {{ $rupiah($result['grossRevenue']) }})</div>
+            @endif
         </x-filament::section>
 
         <x-filament::section>
@@ -32,7 +35,11 @@
 
     <x-filament::section>
         <x-slot name="heading">Per Jenis Servis</x-slot>
-        <x-slot name="description">Booking dengan 2 produk sekaligus dibagi rata 50/50, sama logika Jurnal Umum.</x-slot>
+        <x-slot name="description">
+            Booking dengan 2 produk sekaligus dibagi rata 50/50, sama logika Jurnal Umum. Angka di bawah KOTOR (belum
+            dikurangi pengembalian) — refund tidak tertaut ke jenis produk tertentu, cuma dikurangkan di "Total
+            Pendapatan (bersih)" di atas.
+        </x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
