@@ -249,7 +249,15 @@ class SalesResource extends Resource
                     ->color('gray')
                     ->url(fn (Booking $record) => BookingResource::getUrl('view', ['record' => $record])),
             ])
-            ->defaultSort('booking_number', 'desc');
+            // 'booking_number' DULU dipakai untuk default sort — TERNYATA
+            // salah (audit 2026-09-11): formatnya BKG-YYYYMM-XXXX, 4
+            // karakter terakhir RANDOM (lihat Booking::generateBookingNumber()),
+            // bukan sequential. "desc" cuma mengurutkan string acak dalam
+            // bulan yang sama, BUKAN "terbaru dulu" seperti yang diharapkan
+            // dari sebuah Daftar Invoice. Ganti ke tanggal jurnal (kapan
+            // BENAR-BENAR tercatat jadi pendapatan) — kolomnya sudah
+            // ->sortable() di atas lewat relasi journalEntry.
+            ->defaultSort('journalEntry.entry_date', 'desc');
     }
 
     public static function getPages(): array

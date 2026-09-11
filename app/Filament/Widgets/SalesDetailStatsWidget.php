@@ -19,6 +19,15 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
  * dengan state filter live sebuah ListRecords table tanpa menebak
  * struktur internal. Jadi kartu ini tampilkan total KESELURUHAN data
  * yang bisa diakses user, bukan "hasil filter saat ini" seperti Majoo.
+ *
+ * PERFORMA (audit 2026-09-11, temuan #2): SEBELUMNYA getStats() tarik
+ * SEMUA baris yang bisa diakses user ke PHP (->get([...]) lalu sum/
+ * filter di Collection) — sama kelas masalah dengan bug performa
+ * SalesDashboard sebelum P2. Sekarang 1 query agregat SQL
+ * (COUNT/SUM/CASE, ->toBase()->first()) — DB yang hitung, bukan PHP
+ * yang tarik semua baris lalu hitung. Ambang "belum lunas" (selisih >
+ * 0.009) direplikasi PERSIS di SQL supaya hasilnya identik dengan
+ * logika PHP yang dipakai kolom 'payment_status' di tabel & SalesExport.
  */
 class SalesDetailStatsWidget extends StatsOverviewWidget
 {
@@ -31,31 +40,47 @@ class SalesDetailStatsWidget extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $bookings = SalesResource::getEloquentQuery()->get(['transaction_amount', 'amount_received', 'status']);
+        $agg = SalesResource::getEloquentQuery()
+            ->selectRaw(
+                'COUNT(*) as total_count,'
+                . ' COALESCE(SUM(bookings.transaction_amount), 0) as total_revenue,'
+                . ' COALESCE(SUM(COALESCE(bookings.amount_received, bookings.transaction_amount)), 0) as total_received,'
 
-        $revenue = (float) $bookings->sum('transaction_amount');
-        $received = (float) $bookings->sum(fn ($b) => $b->amount_received !== null ? (float) $b->amount_received : (float) $b->transaction_amount);
-        $outstanding = max(0, $revenue - $received);
-        $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
+                . ' COUNT(CASE WHEN bookings.status = \'cancelled\' THEN 1 END) as void_count,'
+                . ' COALESCE(SUM(CASE WHEN bookings.status = \'cancelled\' THEN bookings.transaction_amount ELSE 0 END), 0) as void_amount,'
 
-        $void = $bookings->where('status', 'cancelled');
-        $active = $bookings->where('status', '!=', 'cancelled');
-        $belumLunas = $active->filter(fn ($b) => ((float) $b->transaction_amount - (float) ($b->amount_received ?? $b->transaction_amount)) > 0.009);
-        $lunas = $active->reject(fn ($b) => ((float) $b->transaction_amount - (float) ($b->amount_received ?? $b->transaction_amount)) > 0.009);
+                . ' COUNT(CASE WHEN bookings.status != \'cancelled\''
+                . ' AND (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) > 0.009'
+                . ' THEN 1 END) as belum_lunas_count,'
+                . ' COALESCE(SUM(CASE WHEN bookings.status != \'cancelled\''
+                . ' AND (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) > 0.009'
+                . ' THEN (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) ELSE 0 END), 0) as belum_lunas_amount,'
+
+                . ' COUNT(CASE WHEN bookings.status != \'cancelled\''
+                . ' AND (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) <= 0.009'
+                . ' THEN 1 END) as lunas_count,'
+                . ' COALESCE(SUM(CASE WHEN bookings.status != \'cancelled\''
+                . ' AND (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) <= 0.009'
+                . ' THEN bookings.transaction_amount ELSE 0 END), 0) as lunas_amount'
+            )
+            ->toBase()
+            ->first();
+
+        $rupiah = fn ($n) => 'Rp' . number_format((float) $n, 0, ',', '.');
 
         return [
-            Stat::make('Total Invoice', $rupiah($revenue))
-                ->description(number_format($bookings->count(), 0, ',', '.') . ' invoice'),
-            Stat::make('Lunas', $rupiah((float) $lunas->sum('transaction_amount')))
-                ->description($lunas->count() . ' invoice')
+            Stat::make('Total Invoice', $rupiah($agg->total_revenue))
+                ->description(number_format((int) $agg->total_count, 0, ',', '.') . ' invoice'),
+            Stat::make('Lunas', $rupiah($agg->lunas_amount))
+                ->description(number_format((int) $agg->lunas_count, 0, ',', '.') . ' invoice')
                 ->color('success'),
-            Stat::make('Belum Lunas', $rupiah((float) $belumLunas->sum(fn ($b) => (float) $b->transaction_amount - (float) ($b->amount_received ?? $b->transaction_amount))))
-                ->description($belumLunas->count() . ' invoice')
-                ->color($belumLunas->isNotEmpty() ? 'warning' : 'gray'),
-            Stat::make('Void', $rupiah((float) $void->sum('transaction_amount')))
-                ->description($void->count() . ' invoice')
-                ->color($void->isNotEmpty() ? 'danger' : 'gray'),
-            Stat::make('Total Diterima', $rupiah($received)),
+            Stat::make('Belum Lunas', $rupiah($agg->belum_lunas_amount))
+                ->description(number_format((int) $agg->belum_lunas_count, 0, ',', '.') . ' invoice')
+                ->color((int) $agg->belum_lunas_count > 0 ? 'warning' : 'gray'),
+            Stat::make('Void', $rupiah($agg->void_amount))
+                ->description(number_format((int) $agg->void_count, 0, ',', '.') . ' invoice')
+                ->color((int) $agg->void_count > 0 ? 'danger' : 'gray'),
+            Stat::make('Total Diterima', $rupiah($agg->total_received)),
         ];
     }
 }
