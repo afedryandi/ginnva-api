@@ -3,15 +3,18 @@
 namespace App\Filament\Pages;
 
 use App\Exports\SalesSummaryExport;
+use App\Models\Store;
 use App\Models\VoucherClaim;
 use App\Services\SalesSnapshotService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Livewire\Attributes\Url;
 use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -73,6 +76,25 @@ class SalesSummaryReport extends Page implements HasForms
 
     public ?array $data = [];
 
+    // #[Url] (audit 2026-09-11, temuan D) — sama pola dengan
+    // SalesDashboard: filter disimpan di query string supaya link bisa
+    // di-bookmark/dibagikan dan bertahan lewat refresh. Nama alias 'from'/
+    // 'to' SENGAJA dipertahankan (bukan 'dari'/'sampai') karena tombol
+    // "Lihat & Export" di Dashboard Penjualan sudah mengirim ?from=&to=
+    // — mengubah nama di sini akan memutus link itu.
+    //
+    // Property TERPISAH dari $data (dipakai Filament Form) karena Form
+    // butuh container array — kedua sisi disinkronkan lewat mount() (URL
+    // -> form) dan updatedData() (form -> URL, lihat method di bawah).
+    #[Url(as: 'from')]
+    public ?string $from = null;
+
+    #[Url(as: 'to')]
+    public ?string $to = null;
+
+    #[Url(as: 'cabang')]
+    public ?int $storeId = null;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -83,16 +105,28 @@ class SalesSummaryReport extends Page implements HasForms
 
     public function mount(): void
     {
-        // ?from=&to= (audit Dashboard Penjualan 2026-09-11, temuan #7) —
-        // dibaca dari query string kalau ada (dipakai tombol "Lihat &
-        // Export" di Dashboard Penjualan supaya rentang tanggal yang
-        // sedang dilihat di sana ikut terbawa ke sini, bukan cuma
-        // melempar ke bulan berjalan). Sengaja BUKAN Livewire #[Url] —
-        // halaman ini cuma butuh baca sekali saat mount, tidak perlu
-        // filternya balik nulis ke URL tiap form berubah.
+        // $from/$to/$storeId sudah di-hydrate dari query string (#[Url])
+        // SEBELUM mount ini jalan — kosong berarti kunjungan baru, terisi
+        // berarti dari link yang dibagikan/di-bookmark ATAU dari tombol
+        // "Lihat & Export" di Dashboard Penjualan. Tetap divalidasi di
+        // sini supaya URL yang diutak-atik manual tidak bisa memaksa
+        // tanggal tidak valid.
+        $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
+        $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
+
+        // storeId dari URL cuma valid kalau akun ini full-access — staff
+        // toko TIDAK PERNAH boleh pilih cabang lain (lihat form() &
+        // getResult()), jadi nilai URL yang tidak sah diabaikan di sini
+        // juga (bukan cuma di getResult()) supaya form tidak menampilkan
+        // pilihan yang sebenarnya tidak akan dipakai.
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            $this->storeId = null;
+        }
+
         $this->form->fill([
-            'from' => $this->queryDateOrDefault(request()->query('from'), now()->startOfMonth()),
-            'to' => $this->queryDateOrDefault(request()->query('to'), now()->endOfMonth()),
+            'from' => $this->from,
+            'to' => $this->to,
+            'store_id' => $this->storeId,
         ]);
     }
 
@@ -109,12 +143,41 @@ class SalesSummaryReport extends Page implements HasForms
         }
     }
 
+    /**
+     * Livewire lifecycle hook — dipanggil tiap ada perubahan di $data
+     * (form live()). Cerminkan balik ke property #[Url] supaya URL ikut
+     * berubah begitu user ganti tanggal/cabang manual (bukan cuma
+     * terisi sekali dari link Dashboard) — pelengkap arah mount() di atas.
+     */
+    public function updatedData(mixed $value, string $key): void
+    {
+        match ($key) {
+            'from' => $this->from = $value,
+            'to' => $this->to = $value,
+            'store_id' => $this->storeId = $value ? (int) $value : null,
+            default => null,
+        };
+    }
+
     public function form(Form $form): Form
     {
+        $isFullAccess = auth()->user()?->isFullAccess() ?? false;
+
         return $form->schema([
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
-        ])->columns(2)->statePath('data');
+            // Filter cabang (audit 2026-09-11, temuan B) — cuma untuk
+            // full-access, sama pola dengan storeId di SalesDashboard.
+            // Staff toko tidak lihat field ini sama sekali (bukan cuma
+            // disabled) — getResult() juga tidak pernah percaya nilainya
+            // untuk staff, lihat catatan di sana.
+            Select::make('store_id')
+                ->label('Cabang')
+                ->placeholder('Semua cabang')
+                ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                ->visible($isFullAccess)
+                ->live(),
+        ])->columns($isFullAccess ? 3 : 2)->statePath('data');
     }
 
     /**
@@ -164,13 +227,17 @@ class SalesSummaryReport extends Page implements HasForms
         // refund(cabang sendiri) MATEMATISNYA SALAH, bukan cuma bocor.
         // Sekarang pakai SalesSnapshotService (SATU sumber kebenaran yang
         // sama dengan SalesDashboard) supaya gross/refund/net/count
-        // konsisten ter-scope bareng, bukan query terpisah yang gampang
-        // menyimpang lagi ke depan. null = seluruh cabang (full-access
-        // saja) — belum ada filter cabang di halaman ini (lihat memory
-        // project_sales_dashboard_audit, temuan B).
-        $storeId = $isFullAccess ? null : $user?->store_id;
+        // konsisten ter-scope bareng. null = seluruh cabang (full-access,
+        // termasuk kalau tidak memilih apa pun di filter Cabang).
+        //
+        // Staff toko SELALU dikunci ke tokonya sendiri, TIDAK PEDULI apa
+        // isi $data['store_id'] — field itu bahkan tidak dirender untuk
+        // mereka (lihat form()), tapi tetap dijaga di sini juga (defense
+        // in depth, bukan cuma andalkan visible() di form).
+        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
 
-        $snapshot = app(SalesSnapshotService::class)->summarize($from, $to, $storeId);
+        $snapshotService = app(SalesSnapshotService::class);
+        $snapshot = $snapshotService->summarize($from, $to, $storeId);
 
         // Promo Voucher -- satu-satunya "biaya promosi" yang punya nilai
         // Rupiah tersimpan (Voucher::discount_amount). used_at dipakai
@@ -194,6 +261,12 @@ class SalesSummaryReport extends Page implements HasForms
             'refund' => $snapshot['refund'],
             'netSales' => $snapshot['net'],
             'bookingCount' => $snapshot['count'],
+            // Banner "booking selesai belum diproses" (audit 2026-09-11,
+            // temuan C) — SAMA konsep dengan SalesDashboard, TIDAK
+            // di-filter rentang tanggal (pending = belum ada jurnal sama
+            // sekali, jadi tanggal jurnal tidak relevan) — scope cabang
+            // saja yang dipakai, konsisten dengan sisa laporan ini.
+            'pendingCount' => $snapshotService->pendingCount($storeId),
         ];
     }
 }
