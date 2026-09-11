@@ -6,9 +6,13 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
+        $filterTargets = 'data.from, data.to';
     @endphp
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
+    {{-- style inline (bukan class grid-cols-*) -- panel Filament tidak
+         compile Tailwind project ini, lihat catatan di SalesResource. --}}
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Komisi Periode Ini</div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">{{ $rupiah($result['totalCommission']) }}</div>
@@ -69,4 +73,5 @@
             </p>
         @endif
     </x-filament::section>
+    </div>
 </x-filament-panels::page>
