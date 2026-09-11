@@ -26,6 +26,9 @@
         <x-slot name="heading">Top 20 Pelanggan (Belanja Terbesar)</x-slot>
         <x-slot name="description">
             Berdasarkan booking berbayar dalam rentang tanggal terpilih — cuma pelanggan yang punya akun (tidak termasuk walk-in tanpa akun).
+            @if (! (auth()->user()?->isFullAccess() ?? false))
+                Peringkat & belanja di bawah cuma menghitung booking di TOKO ANDA — belanja pelanggan di cabang lain tidak ikut.
+            @endif
             "Alamat" dan "Outlet Registrasi" ala Majoo tidak ditampilkan — akun customer Ginnva tidak punya field alamat maupun toko pendaftaran (akun dibuat lewat mobile app, bukan didaftarkan staff di 1 outlet tertentu).
         </x-slot>
 

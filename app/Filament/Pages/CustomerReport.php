@@ -80,7 +80,22 @@ class CustomerReport extends Page implements HasForms
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
 
+        // "Pelanggan Baru Daftar" & "Pelanggan Repeat" SENGAJA TETAP
+        // company-wide (audit 2026-09-11): akun Customer tidak punya
+        // store_id sama sekali (didaftarkan lewat mobile app, bukan 1
+        // outlet), dan "repeat" cuma headcount (bukan rincian Rp),
+        // konsepnya memang lintas-cabang (pelanggan bisa pindah toko).
         $newCustomers = Customer::whereBetween('created_at', [$from, $to])->count();
+
+        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): "Top
+        // Pelanggan" SEBELUMNYA tidak di-scope toko sama sekali —
+        // manajer toko manapun lihat peringkat belanja yang dipengaruhi
+        // transaksi pelanggan di TOKO LAIN juga. Sekarang di-scope: full-
+        // access tetap company-wide, staff toko cuma lihat booking di
+        // tokonya sendiri (jadi "Top Pelanggan DI TOKO INI", bukan
+        // lintas-cabang).
+        $user = auth()->user();
+        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
 
         // "Repeat" = pelanggan yang punya >1 booking BERBAYAR (bukan
         // sekadar >1 pengajuan booking apa pun) SEPANJANG WAKTU (bukan
@@ -91,22 +106,27 @@ class CustomerReport extends Page implements HasForms
         $topCustomers = Customer::query()
             ->withCount(['bookings as bookings_in_period' => fn ($q) => $q
                 ->whereHas('journalEntry', fn ($q2) => $q2->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
-                ->where('transaction_amount', '>', 0)])
+                ->where('transaction_amount', '>', 0)
+                ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))])
             ->withSum(['bookings as spend_in_period' => fn ($q) => $q
                 ->whereHas('journalEntry', fn ($q2) => $q2->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
-                ->where('transaction_amount', '>', 0)], 'transaction_amount')
+                ->where('transaction_amount', '>', 0)
+                ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))], 'transaction_amount')
             ->withCount(['bookings as bookings_all_time' => fn ($q) => $q
                 ->whereHas('journalEntry')
-                ->where('transaction_amount', '>', 0)])
+                ->where('transaction_amount', '>', 0)
+                ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))])
             // Ditambahkan 2026-09-09 (analog Laporan Pelanggan Majoo):
             // total belanja SEPANJANG WAKTU (bukan cuma periode filter)
             // + kunjungan terakhir, dasar hitung rata-rata/bulan.
             ->withSum(['bookings as spend_all_time' => fn ($q) => $q
                 ->whereHas('journalEntry')
-                ->where('transaction_amount', '>', 0)], 'transaction_amount')
+                ->where('transaction_amount', '>', 0)
+                ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))], 'transaction_amount')
             ->withMax(['bookings as last_visit' => fn ($q) => $q
                 ->whereHas('journalEntry')
-                ->where('transaction_amount', '>', 0)], 'preferred_date')
+                ->where('transaction_amount', '>', 0)
+                ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))], 'preferred_date')
             ->having('bookings_in_period', '>', 0)
             ->orderByDesc('spend_in_period')
             ->limit(20)
