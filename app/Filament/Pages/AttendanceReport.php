@@ -2,8 +2,11 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\AttendanceReportExport;
 use App\Models\Attendance;
 use App\Models\Store;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -11,6 +14,8 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Livewire\Attributes\Url;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Laporan Absensi" — diminta 2026-09-09, analog "Absensi" Majoo. BEDA
@@ -54,6 +59,17 @@ class AttendanceReport extends Page implements HasForms
 
     public ?array $data = [];
 
+    // #[Url] (audit 2026-09-11, temuan D) — pola sama laporan Penjualan
+    // lain.
+    #[Url(as: 'from')]
+    public ?string $from = null;
+
+    #[Url(as: 'to')]
+    public ?string $to = null;
+
+    #[Url(as: 'cabang')]
+    public ?int $storeIdFilter = null;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -64,11 +80,41 @@ class AttendanceReport extends Page implements HasForms
 
     public function mount(): void
     {
+        $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
+        $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
+
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            $this->storeIdFilter = null;
+        }
+
         $this->form->fill([
-            'from' => now()->startOfMonth()->toDateString(),
-            'to' => now()->endOfMonth()->toDateString(),
-            'store_id' => null,
+            'from' => $this->from,
+            'to' => $this->to,
+            'store_id' => $this->storeIdFilter,
         ]);
+    }
+
+    private function queryDateOrDefault(mixed $value, Carbon $default): string
+    {
+        if (! is_string($value) || $value === '') {
+            return $default->toDateString();
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return $default->toDateString();
+        }
+    }
+
+    public function updatedData(mixed $value, string $key): void
+    {
+        match ($key) {
+            'from' => $this->from = $value,
+            'to' => $this->to = $value,
+            'store_id' => $this->storeIdFilter = $value ? (int) $value : null,
+            default => null,
+        };
     }
 
     public function form(Form $form): Form
@@ -84,6 +130,36 @@ class AttendanceReport extends Page implements HasForms
                 ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
                 ->live(),
         ])->columns(3)->statePath('data');
+    }
+
+    /**
+     * "Ekspor Laporan" (audit 2026-09-11, temuan B) — pola sama laporan
+     * Penjualan lain.
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new AttendanceReportExport($this->getResult()),
+                    'laporan-absensi-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.attendance_report', ['result' => $result])->setPaper('a4', 'landscape');
+                    $filename = 'laporan-absensi-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
     }
 
     public function getResult(): array
