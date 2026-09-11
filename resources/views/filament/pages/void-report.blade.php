@@ -6,8 +6,10 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
+        $filterTargets = 'data.from, data.to';
     @endphp
 
+    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Booking Dibatalkan</div>
@@ -70,4 +72,5 @@
             </table>
         </div>
     </x-filament::section>
+    </div>
 </x-filament-panels::page>
