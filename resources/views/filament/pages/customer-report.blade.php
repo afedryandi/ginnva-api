@@ -36,31 +36,31 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                        <th class="py-2 pr-3">Pelanggan</th>
-                        <th class="py-2 pr-3">Kontak</th>
-                        <th class="py-2 pr-3">Tanggal Registrasi</th>
-                        <th class="py-2 pr-3 text-right">Booking (Periode Ini)</th>
-                        <th class="py-2 pr-3 text-right">Belanja (Periode Ini)</th>
-                        <th class="py-2 pr-3 text-right">Total Booking (Sepanjang Waktu)</th>
-                        <th class="py-2 pr-3 text-right">Total Belanja (Sepanjang Waktu)</th>
-                        <th class="py-2 pr-3">Kunjungan Terakhir</th>
-                        <th class="py-2 pr-3 text-right">Rata-rata Kunjungan/Bulan</th>
-                        <th class="py-2 pl-3 text-right">Rata-rata Belanja/Bulan</th>
+                        <th class="whitespace-nowrap py-2 px-3">Pelanggan</th>
+                        <th class="whitespace-nowrap py-2 px-3">Kontak</th>
+                        <th class="whitespace-nowrap py-2 px-3">Tanggal Registrasi</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Booking (Periode Ini)</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Belanja (Periode Ini)</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Total Booking (Sepanjang Waktu)</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Total Belanja (Sepanjang Waktu)</th>
+                        <th class="whitespace-nowrap py-2 px-3">Kunjungan Terakhir</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Rata-rata Kunjungan/Bulan</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Rata-rata Belanja/Bulan</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($result['topCustomers'] as $customer)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3 font-medium">{{ $customer->name }}</td>
-                            <td class="py-2 pr-3 text-xs text-gray-500 dark:text-gray-400">{{ $customer->phone_number ?? $customer->email ?? '—' }}</td>
-                            <td class="py-2 pr-3 tabular-nums">{{ $customer->created_at?->format('d M Y') }}</td>
-                            <td class="py-2 pr-3 text-right tabular-nums">{{ $customer->bookings_in_period }}</td>
-                            <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($customer->spend_in_period) }}</td>
-                            <td class="py-2 pr-3 text-right tabular-nums">{{ $customer->bookings_all_time }}</td>
-                            <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($customer->spend_all_time) }}</td>
-                            <td class="py-2 pr-3 tabular-nums">{{ $customer->last_visit ? \Illuminate\Support\Carbon::parse($customer->last_visit)->format('d M Y') : '—' }}</td>
-                            <td class="py-2 pr-3 text-right tabular-nums">{{ $customer->avg_bookings_per_month }}</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($customer->avg_spend_per_month) }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 font-medium">{{ $customer->name }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-xs text-gray-500 dark:text-gray-400">{{ $customer->phone_number ?? $customer->email ?? '—' }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $customer->created_at?->format('d M Y') }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $customer->bookings_in_period }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $rupiah($customer->spend_in_period) }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $customer->bookings_all_time }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $rupiah($customer->spend_all_time) }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $customer->last_visit ? \Illuminate\Support\Carbon::parse($customer->last_visit)->format('d M Y') : '—' }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $customer->avg_bookings_per_month }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $rupiah($customer->avg_spend_per_month) }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="10" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada pelanggan dengan booking berbayar pada rentang ini.</td></tr>
