@@ -1340,8 +1340,14 @@ class BookingResource extends Resource
      * Invoice / bukti transaksi PDF booking. transaction_amount disimpan
      * NET (sudah dipotong promo) — "kotor" = net + spend_promo_discount.
      * amount_received null = dianggap lunas penuh (pola BookingPostingService).
+     *
+     * PUBLIC (bukan protected lagi, audit Detail Penjualan 2026-09-11,
+     * temuan #5) — dipakai ULANG oleh aksi "Cetak Invoice" di
+     * SalesResource ("Daftar Invoice") supaya user tidak perlu pindah ke
+     * halaman Booking dulu cuma untuk cetak. SATU implementasi, dua
+     * pemicu — bukan logic PDF yang diduplikasi.
      */
-    protected static function downloadInvoicePdf(Booking $record)
+    public static function downloadInvoicePdf(Booking $record)
     {
         $record->loadMissing(['store', 'customer', 'filmProduct', 'spendPromo']);
 

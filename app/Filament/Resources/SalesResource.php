@@ -87,6 +87,19 @@ class SalesResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // Stat card "Total Invoice/Lunas/Belum Lunas/Void/Total
+            // Diterima" (audit 2026-09-11, temuan #3) — SEBELUMNYA header
+            // widget terpisah yang SELALU tampilkan total keseluruhan
+            // data, tidak peduli filter apa pun yang aktif. Dipindah ke
+            // sini karena Table::header() dievaluasi ULANG tiap kali
+            // tabel re-render (ganti filter/pencarian/halaman) DAN
+            // menerima $livewire — jadi $livewire->getFilteredTableQuery()
+            // di sini SELALU query yang sedang aktif di layar, query yang
+            // SAMA dipakai tombol "Export ke Excel" di bawah. Agregasi
+            // SQL-nya satu implementasi, lihat SalesDetailStatsWidget::aggregate().
+            ->header(fn ($livewire) => view('filament.resources.sales-resource.partials.filtered-stats', [
+                'stats' => \App\Filament\Widgets\SalesDetailStatsWidget::aggregate($livewire->getFilteredTableQuery()),
+            ]))
             ->columns([
                 // No. Invoice diturunkan dari booking_number (sama dengan
                 // yang dipakai di PDF "Cetak Invoice") — tidak ada tabel/
@@ -126,6 +139,17 @@ class SalesResource extends Resource
                     ->money('IDR', locale: 'id')
                     ->weight('bold')
                     ->sortable(),
+
+                // Potongan Promo (audit 2026-09-11, temuan #4) —
+                // transaction_amount SUDAH net (dipotong promo), kolom
+                // ini cuma menjelaskan berapa potongannya, supaya angka
+                // di sini tidak kelihatan "tidak sinkron" dibanding PDF
+                // Cetak Invoice yang sudah lebih dulu tampilkan baris
+                // ini (lihat BookingResource::downloadInvoicePdf()).
+                Tables\Columns\TextColumn::make('spend_promo_discount')
+                    ->label('Potongan Promo')
+                    ->formatStateUsing(fn (?string $state) => $state && (float) $state > 0 ? 'Rp' . number_format((float) $state, 0, ',', '.') : '—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 // amount_received NULL = dianggap lunas penuh (lihat
                 // BookingPostingService), jadi placeholder-nya HARUS
@@ -248,6 +272,20 @@ class SalesResource extends Resource
                     ->icon('heroicon-o-eye')
                     ->color('gray')
                     ->url(fn (Booking $record) => BookingResource::getUrl('view', ['record' => $record])),
+
+                // "Cetak Invoice" (audit 2026-09-11, temuan #5) — SEBELUMNYA
+                // cuma ada di BookingResource, user harus "Lihat Booking"
+                // dulu cuma untuk cetak, padahal kolom pertama tabel ini
+                // sudah bernama "No. Invoice" (menjanjikan ini Daftar
+                // Invoice). Pakai ULANG BookingResource::downloadInvoicePdf()
+                // (sekarang public) — satu implementasi PDF, dua pemicu.
+                // Syarat visible SAMA PERSIS dengan yang di BookingResource.
+                Tables\Actions\Action::make('printInvoice')
+                    ->label('Cetak Invoice')
+                    ->icon('heroicon-o-document-text')
+                    ->color('gray')
+                    ->visible(fn (Booking $record) => $record->status === 'completed' && $record->transaction_amount !== null && (float) $record->transaction_amount > 0)
+                    ->action(fn (Booking $record) => BookingResource::downloadInvoicePdf($record)),
             ])
             // 'booking_number' DULU dipakai untuk default sort — TERNYATA
             // salah (audit 2026-09-11): formatnya BKG-YYYYMM-XXXX, 4
