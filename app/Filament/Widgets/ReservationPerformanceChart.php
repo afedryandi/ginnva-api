@@ -5,50 +5,52 @@ namespace App\Filament\Widgets;
 use App\Filament\Pages\ReservationReport;
 use App\Models\Booking;
 use Filament\Widgets\ChartWidget;
+use Illuminate\Support\Carbon;
 
 /**
  * "Grafik Performa Reservasi" — diminta 2026-09-09, analog Majoo. 2
  * garis: Dibuat (semua booking diajukan hari itu, created_at) vs
  * Dibatalkan (yang statusnya jadi 'cancelled', diajukan hari itu).
  *
- * Filter rentang hari sendiri (getFilters() bawaan ChartWidget), sama
- * alasan dengan chart Penjualan lain -- widget & Page 2 komponen
- * Livewire terpisah.
+ * SINKRON dengan ReservationReport (audit 2026-09-11, temuan A) —
+ * SEBELUMNYA widget ini punya filter sendiri (14/30/90 hari terakhir),
+ * terputus dari form Dari/Sampai di halamannya. Sekarang menerima
+ * $from/$to/$storeId lewat mount() (dipanggil @livewire(..., ['from'=>...])
+ * dari blade halaman, BUKAN <x-filament-widgets::widgets> — pola sama
+ * yang sudah terbukti jalan di chart Penjualan lain).
  */
 class ReservationPerformanceChart extends ChartWidget
 {
     protected static ?string $heading = 'Grafik Performa Reservasi';
+
+    protected static ?string $pollingInterval = null;
+
+    public ?string $from = null;
+
+    public ?string $to = null;
+
+    public ?int $storeId = null;
+
+    public function mount(?string $from = null, ?string $to = null, ?int $storeId = null): void
+    {
+        $this->from = $from;
+        $this->to = $to;
+        $this->storeId = $storeId;
+    }
 
     public static function canView(): bool
     {
         return ReservationReport::canAccess();
     }
 
-    protected function getFilters(): ?array
-    {
-        return [
-            '14' => '14 Hari Terakhir',
-            '30' => '30 Hari Terakhir',
-            '90' => '90 Hari Terakhir',
-        ];
-    }
-
     protected function getData(): array
     {
-        $days = (int) ($this->filter ?? 30);
-        $start = now()->subDays($days - 1)->startOfDay();
-        $end = now()->endOfDay();
-
-        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit Laporan
-        // Reservasi): grafik ini SEBELUMNYA SAMA SEKALI TIDAK ADA
-        // scoping toko — manajer toko manapun lihat "Dibuat vs
-        // Dibatalkan" company-wide, walau halaman utamanya sudah benar.
-        $user = auth()->user();
-        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+        $start = $this->from ? Carbon::parse($this->from)->startOfDay() : now()->subDays(29)->startOfDay();
+        $end = $this->to ? Carbon::parse($this->to)->endOfDay() : now()->endOfDay();
 
         $bookings = Booking::query()
             ->whereBetween('created_at', [$start, $end])
-            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->when($this->storeId, fn ($q) => $q->where('store_id', $this->storeId))
             ->get(['created_at', 'status']);
 
         $createdByDate = [];

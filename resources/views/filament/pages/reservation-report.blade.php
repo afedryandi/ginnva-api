@@ -6,8 +6,10 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
+        $filterTargets = 'data.from, data.to, data.status';
     @endphp
 
+    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Reservasi Dibuat</div>
@@ -30,10 +32,16 @@
         </x-filament::section>
     </div>
 
-    <x-filament-widgets::widgets
-        :widgets="[\App\Filament\Widgets\ReservationPerformanceChart::class]"
-        :columns="1"
-    />
+    {{--
+        @livewire() langsung (bukan <x-filament-widgets::widgets>) supaya
+        bisa kirim from/to/storeId ke mount() grafik (audit 2026-09-11,
+        temuan A) — sebelumnya grafik selalu 14/30/90 hari terakhir sendiri.
+    --}}
+    @livewire(
+        \App\Filament\Widgets\ReservationPerformanceChart::class,
+        ['from' => $result['from']->toDateString(), 'to' => $result['to']->toDateString(), 'storeId' => $result['storeId']],
+        key('reservation-chart-' . $result['from']->toDateString() . '-' . $result['to']->toDateString() . '-' . ($result['storeId'] ?? 'all'))
+    )
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <x-filament::section>
@@ -111,4 +119,5 @@
             </table>
         </div>
     </x-filament::section>
+    </div>
 </x-filament-panels::page>
