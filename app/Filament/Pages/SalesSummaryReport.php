@@ -81,10 +81,30 @@ class SalesSummaryReport extends Page implements HasForms
 
     public function mount(): void
     {
+        // ?from=&to= (audit Dashboard Penjualan 2026-09-11, temuan #7) —
+        // dibaca dari query string kalau ada (dipakai tombol "Lihat &
+        // Export" di Dashboard Penjualan supaya rentang tanggal yang
+        // sedang dilihat di sana ikut terbawa ke sini, bukan cuma
+        // melempar ke bulan berjalan). Sengaja BUKAN Livewire #[Url] —
+        // halaman ini cuma butuh baca sekali saat mount, tidak perlu
+        // filternya balik nulis ke URL tiap form berubah.
         $this->form->fill([
-            'from' => now()->startOfMonth()->toDateString(),
-            'to' => now()->endOfMonth()->toDateString(),
+            'from' => $this->queryDateOrDefault(request()->query('from'), now()->startOfMonth()),
+            'to' => $this->queryDateOrDefault(request()->query('to'), now()->endOfMonth()),
         ]);
+    }
+
+    private function queryDateOrDefault(mixed $value, Carbon $default): string
+    {
+        if (! is_string($value) || $value === '') {
+            return $default->toDateString();
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return $default->toDateString();
+        }
     }
 
     public function form(Form $form): Form

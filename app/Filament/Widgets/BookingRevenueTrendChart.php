@@ -17,6 +17,16 @@ use Illuminate\Support\Carbon;
  * Sumber sama dengan BookingRevenueStatsWidget/BookingRevenueByCategoryChart
  * (whereHas('journalEntry'), transaction_amount > 0) supaya SELALU
  * konsisten dengan Jurnal Umum & widget pendapatan lain.
+ *
+ * $storeId (audit 2026-09-11, temuan #2) — override filter cabang, DIISI
+ * lewat @livewire(..., ['storeId' => ...], key(...)) dari
+ * sales-dashboard.blade.php supaya chart ikut filter cabang yang dipilih
+ * full-access di Dashboard Penjualan (SEBELUMNYA chart ini selalu
+ * company-wide, tidak konsisten dengan metrik ringkasan di atasnya).
+ * Dipanggil TANPA param dari Dashboard utama /admin (default null =
+ * company-wide untuk full-access, seperti semula) — key widget di blade
+ * itu sengaja tidak pakai storeId sama sekali jadi param ini tidak
+ * pernah terisi di sana.
  */
 class BookingRevenueTrendChart extends ChartWidget
 {
@@ -32,6 +42,14 @@ class BookingRevenueTrendChart extends ChartWidget
     // sudah re-render widget ini tiap kali dashboard di-render ulang
     // (ganti periode/tanggal/cabang).
     protected static ?string $pollingInterval = null;
+
+    /** Override filter cabang — lihat catatan di atas class. */
+    public ?int $storeId = null;
+
+    public function mount(?int $storeId = null): void
+    {
+        $this->storeId = $storeId;
+    }
 
     public static function canView(): bool
     {
@@ -118,8 +136,13 @@ class BookingRevenueTrendChart extends ChartWidget
             ->whereBetween('journal_entries.entry_date', [$start->toDateString(), $end->toDateString()])
             ->where('bookings.transaction_amount', '>', 0);
 
+        // Staff toko SELALU dikunci ke tokonya (tidak boleh dioverride
+        // oleh $this->storeId) — full-access boleh override lewat filter
+        // cabang Dashboard Penjualan (lihat catatan $storeId di atas class).
         if (! $isSuperAdmin) {
             $query->where('bookings.store_id', $user->store_id);
+        } elseif ($this->storeId) {
+            $query->where('bookings.store_id', $this->storeId);
         }
 
         $rows = $query

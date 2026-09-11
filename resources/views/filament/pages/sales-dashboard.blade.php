@@ -31,14 +31,36 @@
         // Drill-down ke "Detail Penjualan" (SalesResource) dengan filter
         // rentang tanggal jurnal + cabang yang sama seperti dashboard.
         [$dStart, $dEnd] = $this->currentRange();
+        $effectiveStoreId = $this->effectiveStoreId();
         $drillFilters = ['entry_date' => ['from' => $dStart->toDateString(), 'until' => $dEnd->toDateString()]];
-        if ($this->storeId) {
-            $drillFilters['store_id'] = ['value' => $this->storeId];
+        if ($effectiveStoreId) {
+            $drillFilters['store_id'] = ['value' => $effectiveStoreId];
         }
         $drillUrl = \App\Filament\Resources\SalesResource::getUrl('index', ['tableFilters' => $drillFilters]);
 
+        // Jembatan ke "Ringkasan Penjualan" (audit 2026-09-11, temuan #7)
+        // — bawa rentang tanggal yang SAMA persis yang sedang dilihat di
+        // sini, bukan cuma lempar ke bulan berjalan.
+        $summaryReportUrl = \App\Filament\Pages\SalesSummaryReport::getUrl([
+            'from' => $dStart->toDateString(),
+            'to' => $dEnd->toDateString(),
+        ]);
+
         $storeOptions = $this->getStoreOptions();
         $canFilterStore = (auth()->user()?->isFullAccess() ?? false) && count($storeOptions) > 1;
+
+        // Ringkasan kecil "perlu perhatian" (audit 2026-09-11, temuan #6)
+        // — GANTI 2 widget tabel penuh yang sebelumnya nempel di bawah
+        // Dashboard Penjualan (domainnya Inventori, bukan Penjualan).
+        // Query yang SAMA dipakai widget aslinya (needingAttentionQuery(),
+        // ditarik keluar dari table() masing-masing) supaya angkanya
+        // tidak pernah menyimpang dari Dashboard Inventaris.
+        $materialsAttentionCount = \App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget::canView()
+            ? \App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget::needingAttentionQuery()->count()
+            : null;
+        $consumablesAttentionCount = \App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget::canView()
+            ? \App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget::needingAttentionQuery()->count()
+            : null;
     @endphp
 
     @if ($result['pendingCount'] > 0)
@@ -247,30 +269,74 @@
                 <p>Badge <x-heroicon-m-arrow-up class="inline h-3 w-3" /> / <x-heroicon-m-arrow-down class="inline h-3 w-3" /> membandingkan periode ini dengan periode sebelumnya yang sama panjang. Kalau periode pembanding nol, badge tidak ditampilkan.</p>
             </div>
         </details>
+
+        {{-- Jembatan ke Ringkasan Penjualan (audit 2026-09-11, #7) — bukan
+             export sendiri di sini, cukup nyambung ke halaman yang sudah
+             punya tombol Export Excel/PDF, bawa rentang tanggal yang sama. --}}
+        <a
+            href="{{ $summaryReportUrl }}"
+            class="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:underline dark:text-primary-400"
+        >
+            <x-heroicon-o-arrow-down-tray class="h-4 w-4" />
+            Lihat &amp; Export di Ringkasan Penjualan
+        </a>
         @endif
     </x-filament::section>
 
     <p class="text-xs text-gray-500 dark:text-gray-400">
         Grafik di bawah selalu menampilkan bulan kalender berjalan (perbandingan dengan bulan lalu) —
-        tidak mengikuti filter periode, tanggal, atau cabang di atas.
+        tidak mengikuti filter periode/tanggal di atas, tapi TETAP ikut filter cabang.
     </p>
 
-    <x-filament-widgets::widgets
-        :widgets="[\App\Filament\Widgets\BookingRevenueTrendChart::class, \App\Filament\Widgets\BookingRevenueByCategoryChart::class]"
-        :columns="1"
-    />
+    {{--
+        @livewire() langsung (bukan <x-filament-widgets::widgets>) supaya
+        bisa kirim $effectiveStoreId ke mount() masing-masing chart (audit
+        2026-09-11, temuan #2 — sebelumnya kedua chart ini selalu
+        company-wide, tidak ikut filter cabang di atas). wire:key SENGAJA
+        cuma menyebut storeId (bukan period/referenceDate juga) — data
+        chart memang dikunci ke bulan kalender berjalan, remount tak perlu
+        dipicu oleh perubahan periode/tanggal, cukup oleh ganti cabang.
+    --}}
+    <div class="grid grid-cols-1 gap-6">
+        @livewire(\App\Filament\Widgets\BookingRevenueTrendChart::class, ['storeId' => $effectiveStoreId], key('sales-dashboard-trend-' . ($effectiveStoreId ?? 'all')))
+        @livewire(\App\Filament\Widgets\BookingRevenueByCategoryChart::class, ['storeId' => $effectiveStoreId], key('sales-dashboard-category-' . ($effectiveStoreId ?? 'all')))
+    </div>
 
     {{--
-        "Stok Terendah" (diminta 2026-09-09) -- BUKAN widget baru, pakai
-        LANGSUNG widget yang sudah ada di Dashboard Inventaris (satu
-        sumber kebenaran, bukan duplikat query). Masing-masing widget
-        sudah punya canView() sendiri (cek akses menu Bahan Baku/Barang
-        Habis Pakai) jadi aman ditambahkan di sini tanpa guard tambahan
-        -- staff yang tidak punya akses inventaris otomatis tidak lihat
-        widget ini sama sekali.
+        "Perlu Perhatian" (audit 2026-09-11, temuan #6) — SEBELUMNYA 2
+        widget tabel Inventori penuh nempel di sini, padahal domainnya
+        Inventori bukan Penjualan. Diganti jadi ringkasan angka + link ke
+        Dashboard Inventaris (query count DITARIK dari widget aslinya,
+        lihat needingAttentionQuery() — angkanya tidak pernah menyimpang
+        dari tabel yang sebenarnya).
     --}}
-    <x-filament-widgets::widgets
-        :widgets="[\App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget::class, \App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget::class]"
-        :columns="1"
-    />
+    @if ($materialsAttentionCount !== null || $consumablesAttentionCount !== null)
+        <a
+            href="{{ \App\Filament\Pages\InventoryDashboard::getUrl() }}"
+            class="flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 px-4 py-3 text-sm hover:bg-gray-50 dark:border-white/10 dark:hover:bg-white/5"
+        >
+            <span class="font-medium text-gray-700 dark:text-gray-200">Persediaan perlu perhatian:</span>
+            @if ($materialsAttentionCount !== null)
+                <span @class([
+                    'inline-flex items-center gap-1',
+                    'text-warning-600 dark:text-warning-400' => $materialsAttentionCount > 0,
+                    'text-gray-400 dark:text-gray-500' => $materialsAttentionCount === 0,
+                ])>
+                    <x-heroicon-o-beaker class="h-4 w-4" />
+                    {{ number_format($materialsAttentionCount, 0, ',', '.') }} bahan baku
+                </span>
+            @endif
+            @if ($consumablesAttentionCount !== null)
+                <span @class([
+                    'inline-flex items-center gap-1',
+                    'text-warning-600 dark:text-warning-400' => $consumablesAttentionCount > 0,
+                    'text-gray-400 dark:text-gray-500' => $consumablesAttentionCount === 0,
+                ])>
+                    <x-heroicon-o-cube class="h-4 w-4" />
+                    {{ number_format($consumablesAttentionCount, 0, ',', '.') }} barang habis pakai
+                </span>
+            @endif
+            <x-heroicon-o-arrow-right class="ml-auto h-4 w-4 flex-shrink-0 text-gray-400" />
+        </a>
+    @endif
 </x-filament-panels::page>

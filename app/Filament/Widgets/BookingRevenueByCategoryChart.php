@@ -18,6 +18,10 @@ use Filament\Widgets\ChartWidget;
  * 4100 PPF & 4200 Kaca Film, 50/50 kalau dua-duanya true), supaya
  * breakdown di chart ini TIDAK PERNAH menyimpang dari angka yang
  * sebenarnya tercatat di Jurnal Umum.
+ *
+ * $storeId (audit 2026-09-11, temuan #2) — sama seperti
+ * BookingRevenueTrendChart: override filter cabang, diisi lewat
+ * @livewire(..., ['storeId' => ...]) dari sales-dashboard.blade.php.
  */
 class BookingRevenueByCategoryChart extends ChartWidget
 {
@@ -28,6 +32,14 @@ class BookingRevenueByCategoryChart extends ChartWidget
     // Sama alasan dengan BookingRevenueTrendChart — matikan auto-poll
     // default, data cuma berubah lewat aksi eksplisit "Proses Referral".
     protected static ?string $pollingInterval = null;
+
+    /** Override filter cabang — lihat catatan di atas class. */
+    public ?int $storeId = null;
+
+    public function mount(?int $storeId = null): void
+    {
+        $this->storeId = $storeId;
+    }
 
     public static function canView(): bool
     {
@@ -55,6 +67,9 @@ class BookingRevenueByCategoryChart extends ChartWidget
             // store_id di bookings NOT NULL (migrasi create_bookings_table)
             // — orWhereNull() dulu itu dead code + bocor angka toko lain.
             $query->where('store_id', $user->store_id);
+        } elseif ($this->storeId) {
+            // Full-access override lewat filter cabang Dashboard Penjualan.
+            $query->where('store_id', $this->storeId);
         }
 
         // Split 50/50 (booking PPF + Kaca Film sekaligus) dihitung di SQL.

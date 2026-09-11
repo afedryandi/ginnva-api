@@ -200,23 +200,31 @@ class SalesDashboard extends Page
         return $next->lessThanOrEqualTo(now());
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku setelah aturan akses: full-access
+     * boleh pilih (null = semua cabang), staff toko SELALU dikunci ke
+     * tokonya sendiri (tidak peduli isi $this->storeId). Satu method ini
+     * dipakai untuk metrik ringkasan (getResult), drill-down link, DAN
+     * kedua chart di blade (audit 2026-09-11, temuan #2) — supaya
+     * semuanya konsisten scope ke cabang yang sama.
+     */
+    public function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        return ($user?->isFullAccess() ?? false) ? $this->storeId : $user?->store_id;
+    }
+
     public function getResult(): array
     {
         if ($this->resultCache !== null) {
             return $this->resultCache;
         }
 
-        $user = auth()->user();
-        $isSuperAdmin = $user?->isFullAccess() ?? false;
-
-        // Toko yang difilter: full-access boleh pilih (null = semua),
-        // staff toko SELALU dikunci ke tokonya sendiri.
-        $storeId = $isSuperAdmin ? $this->storeId : $user?->store_id;
-
         $snapshot = $this->snapshotService()->snapshot(
             $this->period,
             Carbon::parse($this->referenceDate),
-            $storeId
+            $this->effectiveStoreId()
         );
 
         return $this->resultCache = [

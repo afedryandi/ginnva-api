@@ -8,6 +8,7 @@ use Filament\Notifications\Notification;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
+use Illuminate\Database\Eloquent\Builder;
 
 class ConsumablesNeedingAttentionWidget extends BaseWidget
 {
@@ -27,21 +28,32 @@ class ConsumablesNeedingAttentionWidget extends BaseWidget
             || ($user?->hasMenuAccess(ConsumableItemResource::class) ?? false);
     }
 
+    /**
+     * Ditarik keluar dari table() (audit 2026-09-11, temuan #6) — dipakai
+     * ULANG oleh ringkasan kecil "X barang perlu restock" di Dashboard
+     * Penjualan supaya angka badge itu SELALU konsisten dengan isi tabel
+     * widget penuh di Dashboard Inventaris.
+     */
+    public static function needingAttentionQuery(): Builder
+    {
+        return ConsumableItem::query()
+            ->where(function ($query) {
+                $query->where(fn ($q) => $q->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point'))
+                    // Dead stock: ada stok tapi tidak ada pergerakan
+                    // dalam DEAD_STOCK_DAYS hari (lihat ConsumableItem::isDeadStock()).
+                    ->orWhere(fn ($q) => $q->where('current_stock', '>', 0)
+                        ->where('updated_at', '<', now()->subDays(ConsumableItem::DEAD_STOCK_DAYS)));
+            })
+            // Baris yang sudah "Tandai Ditinjau" DAN belum ada
+            // perubahan lagi sejak itu disembunyikan.
+            ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'));
+    }
+
     public function table(Table $table): Table
     {
         return $table
             ->query(
-                ConsumableItem::query()
-                    ->where(function ($query) {
-                        $query->where(fn ($q) => $q->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point'))
-                            // Dead stock: ada stok tapi tidak ada pergerakan
-                            // dalam DEAD_STOCK_DAYS hari (lihat ConsumableItem::isDeadStock()).
-                            ->orWhere(fn ($q) => $q->where('current_stock', '>', 0)
-                                ->where('updated_at', '<', now()->subDays(ConsumableItem::DEAD_STOCK_DAYS)));
-                    })
-                    // Baris yang sudah "Tandai Ditinjau" DAN belum ada
-                    // perubahan lagi sejak itu disembunyikan.
-                    ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'))
+                static::needingAttentionQuery()
                     // Paling menipis (selisih terbesar di bawah ambang) duluan.
                     ->orderByRaw('(reorder_point - current_stock) DESC')
             )

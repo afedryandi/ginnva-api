@@ -8,6 +8,7 @@ use Filament\Notifications\Notification;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
+use Illuminate\Database\Eloquent\Builder;
 
 class MaterialsNeedingAttentionWidget extends BaseWidget
 {
@@ -31,28 +32,39 @@ class MaterialsNeedingAttentionWidget extends BaseWidget
             || ($user?->hasMenuAccess(RawMaterialResource::class) ?? false);
     }
 
+    /**
+     * Ditarik keluar dari table() (audit 2026-09-11, temuan #6) — dipakai
+     * ULANG oleh ringkasan kecil "X bahan perlu restock" di Dashboard
+     * Penjualan (bukan query terpisah) supaya angka badge itu SELALU
+     * konsisten dengan isi tabel widget penuh di Dashboard Inventaris.
+     */
+    public static function needingAttentionQuery(): Builder
+    {
+        return RawMaterial::query()->where(function ($query) {
+            $query->where(fn ($q) => $q->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point'))
+                // Dihitung dari batch yang MASIH ADA stoknya, bukan
+                // kolom expiry_date induk (cuma snapshot pendaftaran,
+                // tidak sinkron begitu ada batch ke-2 dst) — lihat
+                // RawMaterial::earliestActiveExpiryDate().
+                ->orWhereHas('batches', fn ($q) => $q->where('quantity', '>', 0)
+                    ->whereNotNull('expiry_date')
+                    ->whereDate('expiry_date', '<=', now()->addDays(30)))
+                // Dead stock: ada stok tapi tidak ada pergerakan
+                // dalam DEAD_STOCK_DAYS hari (lihat RawMaterial::isDeadStock()).
+                ->orWhere(fn ($q) => $q->where('current_stock', '>', 0)
+                    ->where('updated_at', '<', now()->subDays(RawMaterial::DEAD_STOCK_DAYS)));
+        })
+            // Baris yang sudah "Tandai Ditinjau" DAN belum ada
+            // perubahan lagi sejak itu disembunyikan — lihat
+            // Acknowledgeable::isAcknowledged().
+            ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'));
+    }
+
     public function table(Table $table): Table
     {
         return $table
             ->query(
-                RawMaterial::query()->where(function ($query) {
-                    $query->where(fn ($q) => $q->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point'))
-                        // Dihitung dari batch yang MASIH ADA stoknya, bukan
-                        // kolom expiry_date induk (cuma snapshot pendaftaran,
-                        // tidak sinkron begitu ada batch ke-2 dst) — lihat
-                        // RawMaterial::earliestActiveExpiryDate().
-                        ->orWhereHas('batches', fn ($q) => $q->where('quantity', '>', 0)
-                            ->whereNotNull('expiry_date')
-                            ->whereDate('expiry_date', '<=', now()->addDays(30)))
-                        // Dead stock: ada stok tapi tidak ada pergerakan
-                        // dalam DEAD_STOCK_DAYS hari (lihat RawMaterial::isDeadStock()).
-                        ->orWhere(fn ($q) => $q->where('current_stock', '>', 0)
-                            ->where('updated_at', '<', now()->subDays(RawMaterial::DEAD_STOCK_DAYS)));
-                })
-                    // Baris yang sudah "Tandai Ditinjau" DAN belum ada
-                    // perubahan lagi sejak itu disembunyikan — lihat
-                    // Acknowledgeable::isAcknowledged().
-                    ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'))
+                static::needingAttentionQuery()
                     ->withMin(['batches as earliest_expiry' => fn ($q) => $q->where('quantity', '>', 0)->whereNotNull('expiry_date')], 'expiry_date')
                     // Paling mendesak duluan: sudah kedaluwarsa dulu, baru
                     // yang stoknya sudah 0, baru sisanya — bukan urutan PK.
