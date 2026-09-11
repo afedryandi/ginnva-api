@@ -5,6 +5,7 @@
 
     @php
         $result = $this->getResult();
+        $filterTargets = 'data.from, data.to';
     @endphp
 
     <div class="rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
@@ -13,6 +14,7 @@
         pernah disimpan. Angka Utilisasi di sini pendekatan, bukan catatan historis pasti.
     </div>
 
+    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}">
     <x-filament::section>
         <x-slot name="heading">Utilisasi per Toko</x-slot>
         <x-slot name="description">Diurutkan dari utilisasi tertinggi. Hari libur toko dilewati dari perhitungan (tidak dihitung sebagai kapasitas kosong).</x-slot>
@@ -53,4 +55,5 @@
             </table>
         </div>
     </x-filament::section>
+    </div>
 </x-filament-panels::page>
