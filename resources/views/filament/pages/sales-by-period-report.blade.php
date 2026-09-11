@@ -6,8 +6,35 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
+        $filterTargets = 'data.from, data.to, data.granularity';
     @endphp
 
+    @if ($result['pendingCount'] > 0)
+        <a
+            href="{{ \App\Filament\Resources\BookingResource::getUrl('index', ['tableFilters' => ['selesai_belum_diproses' => ['isActive' => true]]]) }}"
+            class="flex items-center gap-2 rounded-lg border border-warning-300 bg-warning-50 px-3 py-2 text-sm text-warning-800 transition hover:bg-warning-100 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300 dark:hover:bg-warning-500/20"
+        >
+            <x-heroicon-o-exclamation-triangle class="h-4 w-4 flex-shrink-0" />
+            <span>
+                <strong class="font-semibold">{{ number_format($result['pendingCount'], 0, ',', '.') }} booking</strong>
+                sudah selesai tapi belum diproses ke pendapatan — nominalnya belum masuk laporan ini.
+            </span>
+            <x-heroicon-o-arrow-right class="ml-auto h-4 w-4 flex-shrink-0" />
+        </a>
+    @endif
+
+    @if ($result['tooManyBuckets'])
+        <div class="flex items-center gap-2 rounded-lg border border-warning-300 bg-warning-50 px-3 py-2 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+            <x-heroicon-o-information-circle class="h-4 w-4 flex-shrink-0" />
+            <span>
+                Tabel ini {{ number_format(count($result['rows']), 0, ',', '.') }} baris — rentang tanggal cukup panjang untuk granularitas
+                "{{ ucfirst($result['granularity']) }}". Pertimbangkan granularitas lebih kasar (Mingguan/Bulanan) atau persempit rentang tanggal
+                supaya lebih mudah dibaca.
+            </span>
+        </div>
+    @endif
+
+    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Penjualan (Seluruh Rentang)</div>
@@ -25,10 +52,19 @@
         </x-filament::section>
     </div>
 
-    <x-filament-widgets::widgets
-        :widgets="[\App\Filament\Widgets\SalesByPeriodChart::class]"
-        :columns="1"
-    />
+    {{--
+        @livewire() langsung (bukan <x-filament-widgets::widgets>) supaya
+        bisa kirim from/to/granularity/storeId ke mount() grafik (audit
+        2026-09-11, temuan A) — SEBELUMNYA grafik selalu 14/30/90 hari
+        terakhir sendiri, terputus dari filter di atas. wire:key ikut
+        semua 4 parameter supaya widget REMOUNT (bukan cuma re-render)
+        begitu salah satu berubah.
+    --}}
+    @livewire(
+        \App\Filament\Widgets\SalesByPeriodChart::class,
+        ['from' => $result['from']->toDateString(), 'to' => $result['to']->toDateString(), 'granularity' => $result['granularity'], 'storeId' => $result['storeId']],
+        key('sales-by-period-chart-' . $result['from']->toDateString() . '-' . $result['to']->toDateString() . '-' . $result['granularity'] . '-' . ($result['storeId'] ?? 'all'))
+    )
 
     <x-filament::section>
         <x-slot name="heading">Rekap per Periode</x-slot>
@@ -84,4 +120,5 @@
             * = ada teknisi yang komisinya belum diatur (menu Teknisi) pada periode itu — nominal Komisi belum mencerminkan semua pekerjaan.
         </p>
     </x-filament::section>
+    </div>
 </x-filament-panels::page>

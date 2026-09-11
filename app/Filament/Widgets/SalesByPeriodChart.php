@@ -23,75 +23,87 @@ use Illuminate\Support\Carbon;
  * skala jauh -- dipisah 2 sumbu-Y (dual axis, fitur resmi Chart.js)
  * supaya garis Transaksi/Produk tidak terlihat rata di dasar grafik.
  *
- * Filter rentang hari lewat getFilters() bawaan ChartWidget (BUKAN
- * disinkronkan ke form Dari/Sampai/Granularitas di SalesByPeriodReport
- * — widget & Page adalah 2 komponen Livewire terpisah, menyinkronkan
- * keduanya butuh wiring lintas-komponen yang tidak saya coba tebak di
- * sini; filter sendiri di widget ini lebih aman & tetap berguna).
+ * SINKRON dengan SalesByPeriodReport (audit 2026-09-11, temuan A) —
+ * SEBELUMNYA widget ini punya filter sendiri (14/30/90 hari terakhir,
+ * selalu harian), terputus dari form Dari/Sampai/Granularitas di
+ * halamannya. Sekarang menerima $from/$to/$granularity/$storeId lewat
+ * mount() (dipanggil @livewire(..., ['from'=>...]) dari blade halaman,
+ * BUKAN <x-filament-widgets::widgets> yang tidak bisa kirim param
+ * custom — pola sama yang sudah terbukti jalan di chart SalesDashboard)
+ * dan mengelompokkan periode PERSIS sama dengan tabel di bawahnya lewat
+ * SalesByPeriodReport::periodKeyFor() (satu implementasi, dua pemakai).
+ * $storeId di-scope PERSIS sama dengan halaman (staff dikunci ke
+ * tokonya, sudah di-resolve oleh pemanggil — lihat blade).
  */
 class SalesByPeriodChart extends ChartWidget
 {
     protected static ?string $heading = 'Grafik Penjualan Per Periode';
+
+    protected static ?string $pollingInterval = null;
+
+    public ?string $from = null;
+
+    public ?string $to = null;
+
+    public ?string $granularity = null;
+
+    public ?int $storeId = null;
+
+    public function mount(?string $from = null, ?string $to = null, ?string $granularity = null, ?int $storeId = null): void
+    {
+        $this->from = $from;
+        $this->to = $to;
+        $this->granularity = $granularity ?? 'harian';
+        $this->storeId = $storeId;
+    }
 
     public static function canView(): bool
     {
         return SalesByPeriodReport::canAccess();
     }
 
-    protected function getFilters(): ?array
-    {
-        return [
-            '14' => '14 Hari Terakhir',
-            '30' => '30 Hari Terakhir',
-            '90' => '90 Hari Terakhir',
-        ];
-    }
-
     protected function getData(): array
     {
-        $days = (int) ($this->filter ?? 30);
-        $start = now()->subDays($days - 1)->startOfDay();
-        $end = now()->endOfDay();
-
-        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit Penjualan Per
-        // Periode): grafik ini SEBELUMNYA SAMA SEKALI TIDAK ADA scoping
-        // toko — manajer toko manapun lihat tren company-wide. Sama pola
-        // dengan halaman SalesByPeriodReport pasangannya.
-        $user = auth()->user();
-        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+        $start = $this->from ? Carbon::parse($this->from)->startOfDay() : now()->subDays(29)->startOfDay();
+        $end = $this->to ? Carbon::parse($this->to)->endOfDay() : now()->endOfDay();
+        $granularity = $this->granularity ?? 'harian';
 
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
             ->where('transaction_amount', '>', 0)
-            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->when($this->storeId, fn ($q) => $q->where('store_id', $this->storeId))
             ->with('journalEntry:id,entry_date')
             ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf']);
 
-        $byDate = [];
-        foreach ($bookings as $booking) {
-            $date = $booking->journalEntry?->entry_date?->toDateString();
-            if (! $date) continue;
-
-            $byDate[$date] ??= ['revenue' => 0.0, 'count' => 0, 'products' => 0];
-            $byDate[$date]['revenue'] += (float) $booking->transaction_amount;
-            $byDate[$date]['count']++;
-            $byDate[$date]['products'] += ($booking->product_kaca_film ? 1 : 0) + ($booking->product_ppf ? 1 : 0);
-        }
-
-        $labels = [];
-        $revenueData = [];
-        $countData = [];
-        $productsData = [];
+        $buckets = [];
+        $order = [];
 
         $cursor = $start->copy();
         while ($cursor->lte($end)) {
-            $key = $cursor->toDateString();
-            $labels[] = $cursor->format('d M');
-            $revenueData[] = $byDate[$key]['revenue'] ?? 0;
-            $countData[] = $byDate[$key]['count'] ?? 0;
-            $productsData[] = $byDate[$key]['products'] ?? 0;
-            $cursor->addDay();
+            [$key, $label, $bucketEnd] = SalesByPeriodReport::periodKeyFor($cursor, $granularity);
+            if (! isset($buckets[$key])) {
+                $buckets[$key] = ['label' => $label, 'revenue' => 0.0, 'count' => 0, 'products' => 0];
+                $order[] = $key;
+            }
+            $cursor = $bucketEnd->copy()->addDay();
         }
+
+        foreach ($bookings as $booking) {
+            $entryDate = $booking->journalEntry?->entry_date;
+            if (! $entryDate) continue;
+
+            [$key] = SalesByPeriodReport::periodKeyFor(Carbon::parse($entryDate), $granularity);
+            if (! isset($buckets[$key])) continue;
+
+            $buckets[$key]['revenue'] += (float) $booking->transaction_amount;
+            $buckets[$key]['count']++;
+            $buckets[$key]['products'] += ($booking->product_kaca_film ? 1 : 0) + ($booking->product_ppf ? 1 : 0);
+        }
+
+        $labels = array_map(fn ($key) => $buckets[$key]['label'], $order);
+        $revenueData = array_map(fn ($key) => $buckets[$key]['revenue'], $order);
+        $countData = array_map(fn ($key) => $buckets[$key]['count'], $order);
+        $productsData = array_map(fn ($key) => $buckets[$key]['products'], $order);
 
         return [
             'datasets' => [
