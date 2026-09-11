@@ -123,10 +123,22 @@ class PromoLoyaltyReport extends Page implements HasForms
         // transaksi -- SAMA logika dengan SalesSummaryReport supaya
         // "Nilai Promo" di sini konsisten dengan "Promo Voucher" di
         // Ringkasan Penjualan.
+        //
+        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): bagian
+        // TRANSAKSI (klaim voucher terpakai, tertaut ke booking & toko)
+        // SEBELUMNYA SAMA SEKALI TIDAK ADA scoping toko — manajer toko
+        // manapun lihat semua transaksi promo company-wide. Poin
+        // Customer/Partner (loyalti lintas-toko) & katalog Voucher/
+        // Reward (program perusahaan) SENGAJA TETAP company-wide —
+        // tidak terikat 1 cabang.
+        $user = auth()->user();
+        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+
         $usedClaims = VoucherClaim::query()
             ->where('status', 'used')
             ->whereNotNull('booking_id')
             ->whereBetween('used_at', [$from, $to])
+            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
             ->with(['voucher:id,name,discount_amount', 'booking:id,booking_number,store_id,transaction_amount', 'booking.store:id,name'])
             ->orderByDesc('used_at')
             ->get();
@@ -135,6 +147,7 @@ class PromoLoyaltyReport extends Page implements HasForms
         $promoSalesTotal = (float) $usedClaims->sum(fn (VoucherClaim $c) => (float) ($c->booking->transaction_amount ?? 0));
 
         return [
+            'storeId' => $storeId,
             'vouchers' => $vouchers,
             'rewards' => $rewards,
             'points' => [

@@ -39,10 +39,17 @@ class PromoValueChart extends ChartWidget
         $start = now()->subDays($days - 1)->startOfDay();
         $end = now()->endOfDay();
 
+        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit Laporan
+        // Promo): grafik ini SEBELUMNYA SAMA SEKALI TIDAK ADA scoping
+        // toko — manajer toko manapun lihat nilai promo company-wide.
+        $user = auth()->user();
+        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+
         $claims = VoucherClaim::query()
             ->where('status', 'used')
             ->whereNotNull('booking_id')
             ->whereBetween('used_at', [$start, $end])
+            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
             ->with('voucher:id,discount_amount')
             ->get(['id', 'used_at', 'voucher_id']);
 
