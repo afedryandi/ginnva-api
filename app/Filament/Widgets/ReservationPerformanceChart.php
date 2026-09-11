@@ -39,8 +39,16 @@ class ReservationPerformanceChart extends ChartWidget
         $start = now()->subDays($days - 1)->startOfDay();
         $end = now()->endOfDay();
 
+        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit Laporan
+        // Reservasi): grafik ini SEBELUMNYA SAMA SEKALI TIDAK ADA
+        // scoping toko — manajer toko manapun lihat "Dibuat vs
+        // Dibatalkan" company-wide, walau halaman utamanya sudah benar.
+        $user = auth()->user();
+        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+
         $bookings = Booking::query()
             ->whereBetween('created_at', [$start, $end])
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->get(['created_at', 'status']);
 
         $createdByDate = [];
