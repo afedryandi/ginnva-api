@@ -75,7 +75,16 @@ class RefundReport extends Page implements HasForms
 
         $refunds = Refund::query()
             ->whereBetween('created_at', [$from, $to])
-            ->with(['booking:id,booking_number,customer_name,store_id', 'booking.store:id,name', 'creator:id,name'])
+            ->with([
+                'booking:id,booking_number,customer_name,store_id',
+                'booking.store:id,name',
+                'creator:id,name',
+                // BUG DIPERBAIKI 2026-09-11: deskripsi halaman ("klik
+                // No. Jurnal untuk lihat detailnya") menjanjikan kolom
+                // ini, tapi SEBELUMNYA tidak pernah di-eager-load ATAU
+                // ditampilkan di tabel sama sekali.
+                'journalEntry:id,entry_number',
+            ])
             ->when(! $isFullAccess, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $user?->store_id)))
             ->orderByDesc('created_at')
             ->get();

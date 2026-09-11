@@ -39,6 +39,7 @@
                         <th class="py-2 pr-3">Toko</th>
                         <th class="py-2 pr-3">Metode Pembayaran</th>
                         <th class="py-2 pr-3">Diproses Oleh</th>
+                        <th class="py-2 pr-3">No. Jurnal</th>
                         <th class="py-2 pr-3">Alasan</th>
                         <th class="py-2 pl-3 text-right">Nominal</th>
                     </tr>
@@ -53,11 +54,21 @@
                             <td class="py-2 pr-3">{{ $refund->booking?->store?->name ?? '—' }}</td>
                             <td class="py-2 pr-3">Tunai</td>
                             <td class="py-2 pr-3">{{ $refund->creator?->name ?? '—' }}</td>
+                            <td class="py-2 pr-3">
+                                @if ($refund->journalEntry)
+                                    <a
+                                        href="{{ \App\Filament\Resources\JournalEntryResource::getUrl('index', ['tableSearch' => $refund->journalEntry->entry_number]) }}"
+                                        class="font-mono text-primary-600 hover:underline dark:text-primary-400"
+                                    >{{ $refund->journalEntry->entry_number }}</a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="py-2 pr-3">{{ $refund->reason ?: '—' }}</td>
                             <td class="py-2 pl-3 text-right tabular-nums text-danger-600 dark:text-danger-400">{{ $rupiah((float) $refund->amount) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada refund pada rentang ini.</td></tr>
+                        <tr><td colspan="10" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada refund pada rentang ini.</td></tr>
                     @endforelse
                 </tbody>
             </table>
