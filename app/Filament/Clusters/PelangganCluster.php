@@ -14,8 +14,8 @@ use Filament\Clusters\Cluster;
  * Marketing/Konten). Grup Pelanggan / Grup Harga Spesial / Kustom Data
  * Majoo TIDAK dibuat (skip — lihat memory project_penjualan_majoo_blocked_items).
  *
- * Band sort grup "Penjualan": Dashboard 14, Produk 15, Laporan 16,
- * Analisa Laporan 17, Inventori 18, Pelanggan 19.
+ * Band sort grup "Penjualan": Dashboard 14, Laporan 15, Analisa Laporan
+ * 16, Produk 17, Inventori 18, Pelanggan 19 (diurutkan ulang 2026-09-11).
  */
 class PelangganCluster extends Cluster
 {

@@ -23,10 +23,11 @@ use Filament\Clusters\Cluster;
  * refer `$cluster = PenjualanCluster::class`, tidak perlu disentuh.
  * Yang penting label & grup di bawah ini.
  *
- * Band top-nav grup "Penjualan": SalesDashboard 14, Produk 15,
- * Laporan 16, Analisa Laporan 17, Inventori 18. Sort terkecil grup =
- * 14 (dari SalesDashboard), jadi posisi "Penjualan" di top-nav tetap
- * seperti dulu.
+ * Band top-nav grup "Penjualan": SalesDashboard 14, Laporan 15, Analisa
+ * Laporan 16, Produk 17, Inventori 18, Pelanggan 19, Promosi 20
+ * (diurutkan ulang 2026-09-11 — Laporan didahulukan dari Produk). Sort
+ * terkecil grup = 14 (dari SalesDashboard), jadi posisi "Penjualan" di
+ * top-nav tetap seperti dulu.
  */
 class PenjualanCluster extends Cluster
 {
@@ -38,5 +39,5 @@ class PenjualanCluster extends Cluster
 
     protected static ?string $clusterBreadcrumb = 'Laporan';
 
-    protected static ?int $navigationSort = 16;
+    protected static ?int $navigationSort = 15;
 }

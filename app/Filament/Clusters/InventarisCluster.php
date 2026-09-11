@@ -13,8 +13,8 @@ use Filament\Clusters\Cluster;
  * Aset, Memo Barang, Permohonan Pembelian, Dashboard Inventaris) tidak
  * berubah — cuma penempatan top-nav-nya.
  *
- * Band sort grup "Penjualan": Dashboard 14, Produk 15, Laporan 16,
- * Analisa Laporan 17, Inventori 18.
+ * Band sort grup "Penjualan": Dashboard 14, Laporan 15, Analisa Laporan
+ * 16, Produk 17, Inventori 18 (diurutkan ulang 2026-09-11).
  */
 class InventarisCluster extends Cluster
 {

@@ -2,8 +2,7 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\Booking;
-use App\Models\Refund;
+use App\Services\SalesSnapshotService;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 
@@ -19,9 +18,9 @@ use Illuminate\Support\Carbon;
  * Page sendiri sudah Livewire component, jadi $period/$referenceDate
  * cukup jadi public property biasa, tidak perlu wiring widget terpisah.
  *
- * Sumber tetap SAMA PERSIS dengan widget lain (whereHas('journalEntry'),
- * transaction_amount > 0) — SATU sumber kebenaran, konsisten dengan
- * Jurnal Umum & SalesResource.
+ * Sejak audit 2026-09-10 seluruh perhitungan ditarik ke
+ * App\Services\SalesSnapshotService — halaman ini tinggal memanggil
+ * ->snapshot() lalu memetakan hasilnya ke bentuk yang dipakai blade.
  */
 class SalesDashboard extends Page
 {
@@ -55,6 +54,9 @@ class SalesDashboard extends Page
 
     public string $referenceDate;
 
+    /** Filter cabang — hanya untuk full-access. null = seluruh cabang. */
+    public ?int $storeId = null;
+
     /**
      * Memoisasi hasil getResult() dalam 1 request Livewire. Property
      * private → tidak diserialisasi antar request, otomatis fresh tiap
@@ -62,6 +64,11 @@ class SalesDashboard extends Page
      * ulang kalau dipanggil >1x dalam render yang sama.
      */
     private ?array $resultCache = null;
+
+    private function snapshotService(): SalesSnapshotService
+    {
+        return app(SalesSnapshotService::class);
+    }
 
     public static function canAccess(): bool
     {
@@ -81,7 +88,7 @@ class SalesDashboard extends Page
 
     public function setPeriod(string $period): void
     {
-        if (! in_array($period, ['harian', 'mingguan', 'bulanan'], true)) {
+        if (! in_array($period, SalesSnapshotService::PERIODS, true)) {
             return;
         }
 
@@ -92,7 +99,9 @@ class SalesDashboard extends Page
 
     public function goPrev(): void
     {
-        $this->referenceDate = $this->shift($this->referenceDate, $this->period, -1)->toDateString();
+        $this->referenceDate = $this->snapshotService()
+            ->shift(Carbon::parse($this->referenceDate), $this->period, -1)
+            ->toDateString();
         $this->resultCache = null;
     }
 
@@ -101,7 +110,7 @@ class SalesDashboard extends Page
         // Tidak boleh maju melewati periode yang mengandung hari ini —
         // sama pola dengan tombol '>' Majoo yang disabled begitu sampai
         // periode berjalan (lihat screenshot 08 Sep 26 - 08 Sep 26).
-        $next = $this->shift($this->referenceDate, $this->period, 1);
+        $next = $this->snapshotService()->shift(Carbon::parse($this->referenceDate), $this->period, 1);
         if ($next->greaterThan(now())) {
             return;
         }
@@ -110,50 +119,37 @@ class SalesDashboard extends Page
         $this->resultCache = null;
     }
 
-    private function shift(string $date, string $period, int $direction): Carbon
+    // Dipicu date-picker "Lompat ke tanggal" — clamp ke hari ini supaya
+    // tidak bisa lihat periode masa depan (konsisten dengan goNext()).
+    public function updatedReferenceDate($value): void
     {
-        $carbon = Carbon::parse($date);
+        if ($value && Carbon::parse($value)->greaterThan(now())) {
+            $this->referenceDate = now()->toDateString();
+        }
+        $this->resultCache = null;
+    }
 
-        return match ($period) {
-            'harian' => $carbon->addDays($direction),
-            'mingguan' => $carbon->addWeeks($direction),
-            'bulanan' => $carbon->addMonthsNoOverflow($direction),
-            default => $carbon,
-        };
+    public function updatedStoreId(): void
+    {
+        $this->resultCache = null;
+    }
+
+    /** Daftar toko untuk filter (full-access saja). */
+    public function getStoreOptions(): array
+    {
+        return \App\Models\Store::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
     }
 
     /**
      * @return array{0: Carbon, 1: Carbon}
      */
-    private function currentRange(): array
+    public function currentRange(): array
     {
-        $ref = Carbon::parse($this->referenceDate);
-
-        return match ($this->period) {
-            'harian' => [$ref->copy()->startOfDay(), $ref->copy()->endOfDay()],
-            'mingguan' => [$ref->copy()->startOfWeek(Carbon::MONDAY), $ref->copy()->endOfWeek(Carbon::SUNDAY)],
-            'bulanan' => [$ref->copy()->startOfMonth(), $ref->copy()->endOfMonth()],
-            default => [$ref->copy()->startOfDay(), $ref->copy()->endOfDay()],
-        };
-    }
-
-    /**
-     * Periode SEBELUMNYA yang sama panjangnya, langsung berbatasan
-     * dengan awal periode berjalan — pembanding apple-to-apple, sama
-     * definisi dengan badge %perubahan di BookingRevenueStatsWidget.
-     *
-     * @return array{0: Carbon, 1: Carbon}
-     */
-    private function previousRange(): array
-    {
-        [$start, $end] = $this->currentRange();
-
-        return match ($this->period) {
-            'harian' => [$start->copy()->subDay(), $end->copy()->subDay()],
-            'mingguan' => [$start->copy()->subWeek(), $end->copy()->subWeek()],
-            'bulanan' => [$start->copy()->subMonthNoOverflow()->startOfMonth(), $start->copy()->subMonthNoOverflow()->endOfMonth()],
-            default => [$start->copy()->subDay(), $end->copy()->subDay()],
-        };
+        return $this->snapshotService()->range($this->period, Carbon::parse($this->referenceDate));
     }
 
     public function getRangeLabel(): string
@@ -167,7 +163,7 @@ class SalesDashboard extends Page
 
     public function canGoNext(): bool
     {
-        $next = $this->shift($this->referenceDate, $this->period, 1);
+        $next = $this->snapshotService()->shift(Carbon::parse($this->referenceDate), $this->period, 1);
 
         return $next->lessThanOrEqualTo(now());
     }
@@ -181,113 +177,24 @@ class SalesDashboard extends Page
         $user = auth()->user();
         $isSuperAdmin = $user?->isFullAccess() ?? false;
 
-        [$start, $end] = $this->currentRange();
-        [$prevStart, $prevEnd] = $this->previousRange();
+        // Toko yang difilter: full-access boleh pilih (null = semua),
+        // staff toko SELALU dikunci ke tokonya sendiri.
+        $storeId = $isSuperAdmin ? $this->storeId : $user?->store_id;
 
-        $current = $this->summarize($start, $end, $user, $isSuperAdmin);
-        $previous = $this->summarize($prevStart, $prevEnd, $user, $isSuperAdmin);
-
-        // "Akumulasi dari Awal Bulan" & "Proyeksi Bulan Ini" SELALU
-        // dihitung dari bulan KALENDER berjalan (bukan ikut $period
-        // terpilih) — sama seperti Majoo yang tetap menampilkan 2 baris
-        // ini apa pun toggle Harian/Mingguan/Bulan yang dipilih.
-        // Pakai angka BERSIH (dikurangi refund) supaya konsisten dgn P&L.
-        $monthStart = now()->startOfMonth();
-        $monthToDate = $this->summarize($monthStart, now()->endOfDay(), $user, $isSuperAdmin);
-        $monthToDateNet = $monthToDate['revenue'] - $monthToDate['refund'];
-        $daysElapsed = now()->day;
-        $daysInMonth = now()->daysInMonth;
-        $projection = $daysElapsed > 0 ? ($monthToDateNet / $daysElapsed) * $daysInMonth : 0;
-
-        // "Growth insight banner" ala Majoo ("penjualanmu bulan ini
-        // meningkat senilai Rp4.700.000") — dibandingkan ke bulan lalu
-        // TAPI cuma sejumlah hari yang SAMA sudah berjalan bulan ini
-        // (apple-to-apple, bukan bulan lalu PENUH vs bulan ini yang
-        // masih separuh jalan — itu SELALU kelihatan "turun" padahal
-        // cuma belum selesai sebulan).
-        $lastMonthStart = now()->subMonthNoOverflow()->startOfMonth();
-        $comparableDayCount = min($daysElapsed, $lastMonthStart->daysInMonth);
-        $lastMonthToDate = $this->summarize(
-            $lastMonthStart,
-            $lastMonthStart->copy()->addDays($comparableDayCount - 1)->endOfDay(),
-            $user,
-            $isSuperAdmin
+        $snapshot = $this->snapshotService()->snapshot(
+            $this->period,
+            Carbon::parse($this->referenceDate),
+            $storeId
         );
 
-        // Booking SELESAI yang belum "Proses Referral" (belum ada jurnal
-        // pendapatan) — pendapatan yang SUDAH terjadi tapi belum tercatat.
-        // Booking cancelled tidak mungkin punya jurnal (cancel diblokir
-        // setelah 'completed'), jadi tidak perlu dikecualikan lagi.
-        $pendingQuery = Booking::query()
-            ->where('status', 'completed')
-            ->whereDoesntHave('journalEntry');
-        if (! $isSuperAdmin) {
-            $pendingQuery->where('store_id', $user->store_id);
-        }
-
-        $lastMonthToDateNet = $lastMonthToDate['revenue'] - $lastMonthToDate['refund'];
-
         return $this->resultCache = [
-            'current' => $current,
-            'previous' => $previous,
-            'monthToDateRevenue' => $monthToDateNet,
-            'projection' => $projection,
-            'growthDelta' => $monthToDateNet - $lastMonthToDateNet,
-            'growthHasComparison' => $lastMonthToDateNet > 0,
-            'pendingCount' => $pendingQuery->count(),
-        ];
-    }
-
-    /**
-     * Booking cancelled TIDAK mungkin masuk sini (cancel diblokir setelah
-     * status 'completed', jurnal cuma dibuat setelah 'completed' + Proses
-     * Referral) — jadi filter whereHas('journalEntry') sudah cukup.
-     * `refund` = nominal refund yang DIPROSES dalam periode ini (by
-     * Refund.created_at) — SAMA definisi dengan SalesSummaryReport supaya
-     * "Total Penjualan (bersih)" di dashboard = "Penjualan Bersih" di P&L.
-     *
-     * @return array{revenue: float, received: float, outstanding: float, count: int, productsSold: int, refund: float}
-     */
-    private function summarize(Carbon $start, Carbon $end, $user, bool $isSuperAdmin): array
-    {
-        $query = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
-            ->where('transaction_amount', '>', 0);
-
-        if (! $isSuperAdmin) {
-            // Strict per toko — samakan dengan SalesResource. store_id
-            // di bookings NOT NULL (lihat migrasi create_bookings_table),
-            // jadi orWhereNull() dulu itu dead code + potensi bocor angka
-            // toko lain untuk manajer.
-            $query->where('store_id', $user->store_id);
-        }
-
-        // Agregasi di SQL (bukan tarik semua baris lalu jumlah di PHP) —
-        // "Produk Terjual" = 1 booking dgn Kaca Film+PPF+Detailing = 3.
-        $agg = $query->selectRaw(
-            'COUNT(*) as cnt,'
-            . ' COALESCE(SUM(transaction_amount), 0) as revenue,'
-            . ' COALESCE(SUM(COALESCE(amount_received, transaction_amount)), 0) as received,'
-            . ' COALESCE(SUM(COALESCE(product_kaca_film, 0) + COALESCE(product_ppf, 0) + COALESCE(product_detailing, 0)), 0) as products_sold'
-        )->toBase()->first();
-
-        $revenue = (float) $agg->revenue;
-        $received = (float) $agg->received;
-        $count = (int) $agg->cnt;
-        $productsSold = (int) $agg->products_sold;
-
-        $refund = (float) Refund::query()
-            ->whereBetween('created_at', [$start, $end])
-            ->when(! $isSuperAdmin, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $user->store_id)))
-            ->sum('amount');
-
-        return [
-            'revenue' => $revenue,
-            'received' => $received,
-            'outstanding' => max(0, $revenue - $received),
-            'count' => $count,
-            'productsSold' => $productsSold,
-            'refund' => $refund,
+            'current' => $snapshot['current'],
+            'previous' => $snapshot['previous'],
+            'monthToDateRevenue' => $snapshot['monthToDateNet'],
+            'projection' => $snapshot['projection'],
+            'growthDelta' => $snapshot['growthDelta'],
+            'growthHasComparison' => $snapshot['growthHasComparison'],
+            'pendingCount' => $snapshot['pendingCount'],
         ];
     }
 }

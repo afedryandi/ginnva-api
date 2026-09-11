@@ -20,7 +20,7 @@ use Illuminate\Support\Carbon;
  */
 class BookingRevenueTrendChart extends ChartWidget
 {
-    protected static ?string $heading = 'Tren Pendapatan Harian';
+    protected static ?string $heading = 'Tren Pendapatan Harian (Bulan Ini vs Bulan Lalu)';
 
     protected static ?int $sort = 1;
 

@@ -15,8 +15,9 @@ use Filament\Clusters\Cluster;
  * dibuat — tidak cocok model booking Ginnva (transaction_amount nego
  * manual, bukan dijumlah dari line item).
  *
- * Band sort grup "Penjualan": Dashboard 14, Produk 15, Laporan 16,
- * Analisa Laporan 17, Inventori 18, Pelanggan 19, Promosi 20.
+ * Band sort grup "Penjualan": Dashboard 14, Laporan 15, Analisa Laporan
+ * 16, Produk 17, Inventori 18, Pelanggan 19, Promosi 20 (diurutkan
+ * ulang 2026-09-11).
  */
 class PromosiCluster extends Cluster
 {

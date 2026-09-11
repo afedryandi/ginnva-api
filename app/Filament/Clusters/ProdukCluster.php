@@ -30,8 +30,10 @@ class ProdukCluster extends Cluster
 
     protected static ?string $clusterBreadcrumb = 'Produk';
 
-    // Band top-nav grup "Penjualan": SalesDashboard 14, Produk 15,
-    // Laporan 16, Analisa Laporan 17, Inventori 18. Sort terkecil grup
-    // = 14, jadi posisi "Penjualan" di top-nav tetap seperti dulu.
-    protected static ?int $navigationSort = 15;
+    // Band top-nav grup "Penjualan": SalesDashboard 14, Laporan 15,
+    // Analisa Laporan 16, Produk 17, Inventori 18, Pelanggan 19,
+    // Promosi 20 (diurutkan ulang 2026-09-11 — Laporan didahulukan dari
+    // Produk). Sort terkecil grup = 14, jadi posisi "Penjualan" di
+    // top-nav tetap seperti dulu.
+    protected static ?int $navigationSort = 17;
 }
