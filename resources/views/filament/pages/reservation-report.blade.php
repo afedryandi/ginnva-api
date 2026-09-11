@@ -10,7 +10,17 @@
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+    {{--
+        Layout grid pakai STYLE INLINE, bukan class Tailwind grid-cols-*
+        — panel Filament di project ini tidak pakai theme kustom
+        (viteTheme()), jadi CSS-nya bawaan package filament/filament,
+        BUKAN hasil compile Tailwind project ini. Kombinasi grid-cols
+        yang tidak dipakai komponen Filament sendiri (mis. grid-cols-4)
+        gagal ter-compile ke situ, kartu jadi stack 1 kolom (ditemukan
+        di stat card SalesResource, 2026-09-11). Inline style tidak
+        bergantung stylesheet apa pun, selalu jalan.
+    --}}
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Reservasi Dibuat</div>
             <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['totalCreated'], 0, ',', '.') }}</div>
@@ -43,7 +53,7 @@
         key('reservation-chart-' . $result['from']->toDateString() . '-' . $result['to']->toDateString() . '-' . ($result['storeId'] ?? 'all'))
     )
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Reservasi Aktif (Confirmed + Pending)</div>
             <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['totalCount'], 0, ',', '.') }}</div>
