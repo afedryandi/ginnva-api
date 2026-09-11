@@ -12,6 +12,7 @@
             'adjustment' => 'Penyesuaian',
             default => $type,
         };
+        $filterTargets = 'data.from, data.to';
     @endphp
 
     <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
@@ -19,7 +20,10 @@
         (satu pool bersama, bukan per-cabang), dan pergerakan stok tidak menyimpan nomor referensi transaksi.
     </div>
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
+    {{-- style inline (bukan class grid-cols-*) -- panel Filament tidak
+         compile Tailwind project ini, lihat catatan di SalesResource. --}}
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Bahan Baku Masuk</div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">{{ number_format($result['materialInCount'], 0, ',', '.') }}</div>
@@ -118,4 +122,5 @@
             </table>
         </div>
     </x-filament::section>
+    </div>
 </x-filament-panels::page>
