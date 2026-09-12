@@ -26,6 +26,13 @@ class EditMaterialMemo extends EditRecord
                 ->label('Hapus')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
+                // Audit 2026-09-12 — SEBELUMNYA tidak ada ->visible() sama
+                // sekali di sini, beda dari semua resource Inventaris lain
+                // (RawMaterial/ConsumableItem/InventoryItem/Asset) yang
+                // membatasi hapus ke isFullAccess(). Staff biasa manapun
+                // dengan akses menu ini bisa hapus memo permanen tokonya
+                // sendiri kapan saja. Disamakan dengan pola resource lain.
+                ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
                 ->requiresConfirmation()
                 ->modalHeading('Hapus Memo Ini?')
                 ->modalDescription('Semua barang di memo ini akan dibalik dulu (stok/sisa meter yang sudah terpakai dikembalikan), baru memonya dihapus permanen.')
