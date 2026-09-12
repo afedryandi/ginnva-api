@@ -3,14 +3,20 @@
         {{ $this->form }}
     </x-filament::section>
 
-    @php $result = $this->getResult(); @endphp
+    @php
+        $result = $this->getResult();
+        $filterTargets = 'data.from, data.to';
+    @endphp
 
+    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
         Rating 5-bintang ala Majoo tidak ditampilkan — Ginnva cuma mencatat 3 tingkat sentiment (Positif/Netral/Negatif),
         bukan skala 1-5. Sentiment yang tersedia ditampilkan apa adanya di bawah.
     </div>
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+    {{-- style inline (bukan class grid-cols-*) -- panel Filament tidak
+         compile Tailwind project ini, lihat catatan di SalesResource. --}}
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Review</div>
             <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['total'], 0, ',', '.') }}</div>
@@ -60,19 +66,19 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                        <th class="py-2 pr-3">Toko</th>
-                        <th class="py-2 pr-3 text-right">Total Review</th>
-                        <th class="py-2 pr-3 text-right">Positif</th>
-                        <th class="py-2 pl-3 text-right">Negatif</th>
+                        <th class="whitespace-nowrap py-2 px-3">Toko</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Total Review</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Positif</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Negatif</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($result['byStore'] as $storeName => $row)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3 font-medium">{{ $storeName }}</td>
-                            <td class="py-2 pr-3 text-right tabular-nums">{{ $row['total'] }}</td>
-                            <td class="py-2 pr-3 text-right tabular-nums text-success-600 dark:text-success-400">{{ $row['positive'] }}</td>
-                            <td class="py-2 pl-3 text-right tabular-nums text-danger-600 dark:text-danger-400">{{ $row['negative'] }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 font-medium">{{ $storeName }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $row['total'] }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums text-success-600 dark:text-success-400">{{ $row['positive'] }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums text-danger-600 dark:text-danger-400">{{ $row['negative'] }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="4" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada review pada rentang ini.</td></tr>
@@ -123,4 +129,5 @@
             @endforelse
         </div>
     </x-filament::section>
+    </div>
 </x-filament-panels::page>
