@@ -299,6 +299,16 @@ class CustomerResource extends Resource
         ]);
     }
 
+    /**
+     * Eager-load — kolom "referredBy.name" & "referredByPartner.business_name"
+     * di table() di bawah sebelumnya N+1 per baris (audit framework
+     * 2026-09-14, "N+1 query & eager loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with(['referredBy', 'referredByPartner']);
+    }
+
     public static function table(Table $table): Table
     {
         return $table

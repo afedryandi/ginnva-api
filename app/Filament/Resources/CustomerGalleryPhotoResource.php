@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Galeri "showcase" per-customer — TERPISAH dari galeri personal yang
@@ -113,6 +114,16 @@ class CustomerGalleryPhotoResource extends Resource
                         ->default(fn () => auth()->id()),
                 ]),
         ]);
+    }
+
+    /**
+     * Eager-load — kolom "customer.name" & "uploadedBy.name" di
+     * table() di bawah sebelumnya N+1 per baris (audit framework
+     * 2026-09-14, "N+1 query & eager loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with(['customer', 'uploadedBy']);
     }
 
     public static function table(Table $table): Table

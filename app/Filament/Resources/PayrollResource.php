@@ -14,6 +14,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -69,6 +70,18 @@ class PayrollResource extends Resource
     public static function canDeleteAny(): bool
     {
         return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    /**
+     * Eager-load — kolom "journalEntry.entry_number", "store.name",
+     * "user.name" di table() di bawah sebelumnya N+1 per baris (audit
+     * framework 2026-09-14, "N+1 query & eager loading"). TIDAK
+     * menambah filter store_id -- canViewAny() resource ini sudah
+     * full-access-only (lihat komentar di atas), jadi tidak perlu.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with(['journalEntry', 'store', 'user']);
     }
 
     public static function table(Table $table): Table

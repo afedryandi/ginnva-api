@@ -11,6 +11,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Master data kategori Pemasukan/Pengeluaran — sama filosofi dengan
@@ -127,6 +128,16 @@ class FinanceCategoryResource extends Resource
                 ->helperText('Kategori nonaktif tidak muncul lagi sebagai pilihan transaksi baru, tapi riwayat lama tetap tersimpan apa adanya.')
                 ->default(true),
         ]);
+    }
+
+    /**
+     * Eager-load — kolom "account.display_name" di table() di bawah
+     * sebelumnya N+1 per baris (audit framework 2026-09-14, "N+1 query
+     * & eager loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with('account');
     }
 
     public static function table(Table $table): Table

@@ -13,6 +13,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use RuntimeException;
@@ -57,6 +58,17 @@ class BankStatementLineResource extends Resource
     public static function canDelete($record): bool
     {
         return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    /**
+     * Eager-load — kolom "account.display_name" &
+     * "matchedLine.journalEntry.entry_number" di table() di bawah
+     * sebelumnya N+1 per baris (audit framework 2026-09-14, "N+1 query
+     * & eager loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with(['account', 'matchedLine.journalEntry']);
     }
 
     public static function table(Table $table): Table

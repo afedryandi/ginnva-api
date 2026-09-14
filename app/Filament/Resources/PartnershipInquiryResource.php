@@ -11,6 +11,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 class PartnershipInquiryResource extends Resource
@@ -137,6 +138,16 @@ class PartnershipInquiryResource extends Resource
                         ->columnSpanFull(),
                 ]),
         ]);
+    }
+
+    /**
+     * Eager-load — kolom "partner.referral_code" di table() di bawah
+     * sebelumnya N+1 per baris (audit framework 2026-09-14, "N+1
+     * query & eager loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with('partner');
     }
 
     public static function table(Table $table): Table

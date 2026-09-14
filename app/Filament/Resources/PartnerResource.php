@@ -11,6 +11,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 
@@ -170,6 +171,16 @@ class PartnerResource extends Resource
                         ->helperText('Menentukan link mana yang dipakai saat "Unduh QR". Kosongkan kalau partner ini tidak daftar lewat salah satu landing page (mis. influencer/komunitas yang direkrut langsung) — QR yang di-generate tetap akan pakai link /partner (landing page umum) sebagai default, bukan dikosongkan.'),
                 ]),
         ]);
+    }
+
+    /**
+     * Eager-load — kolom "user.email" di table() di bawah sebelumnya
+     * N+1 per baris (audit framework 2026-09-14, "N+1 query & eager
+     * loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with('user');
     }
 
     public static function table(Table $table): Table

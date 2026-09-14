@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Ledger poin customer (earn/spend dari booking, bonus "ajak teman"
@@ -117,6 +118,16 @@ class PointTransactionResource extends Resource
                 ->required()
                 ->columnSpanFull(),
         ]);
+    }
+
+    /**
+     * Eager-load — kolom "customer.name" di table() di bawah
+     * sebelumnya N+1 per baris (audit framework 2026-09-14, "N+1
+     * query & eager loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with('customer');
     }
 
     public static function table(Table $table): Table

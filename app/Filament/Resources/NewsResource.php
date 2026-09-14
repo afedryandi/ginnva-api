@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 class NewsResource extends Resource
@@ -92,6 +93,16 @@ class NewsResource extends Resource
                         ->visible(fn (Forms\Get $get) => $get('is_published')),
                 ]),
         ]);
+    }
+
+    /**
+     * Eager-load — kolom "author.name" di table() di bawah sebelumnya
+     * N+1 per baris (audit framework 2026-09-14, "N+1 query & eager
+     * loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with('author');
     }
 
     public static function table(Table $table): Table

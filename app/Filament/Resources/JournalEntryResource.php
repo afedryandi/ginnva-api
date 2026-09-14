@@ -13,6 +13,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use RuntimeException;
 
 /**
@@ -153,6 +154,16 @@ class JournalEntryResource extends Resource
                         ->addable(fn (?JournalEntry $record) => $record?->status !== 'posted'),
                 ]),
         ]);
+    }
+
+    /**
+     * Eager-load — kolom "store.name" di table() di bawah sebelumnya
+     * N+1 per baris (audit framework 2026-09-14, "N+1 query & eager
+     * loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with('store');
     }
 
     public static function table(Table $table): Table

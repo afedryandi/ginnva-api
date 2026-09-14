@@ -11,6 +11,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class CaseStudyResource extends Resource
 {
@@ -139,6 +140,16 @@ class CaseStudyResource extends Resource
                         ->default(true),
                 ]),
         ]);
+    }
+
+    /**
+     * Eager-load — kolom "filmProduct.name" & "vehicle.model" di
+     * table() di bawah sebelumnya N+1 per baris (audit framework
+     * 2026-09-14, "N+1 query & eager loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with(['filmProduct', 'vehicle']);
     }
 
     public static function table(Table $table): Table

@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Ledger poin Partner — sebelum app rilis (belum ada booking sama sekali
@@ -116,6 +117,16 @@ class PartnerPointTransactionResource extends Resource
                 ->required()
                 ->columnSpanFull(),
         ]);
+    }
+
+    /**
+     * Eager-load — kolom "partner.business_name" di table() di bawah
+     * sebelumnya N+1 per baris (audit framework 2026-09-14, "N+1
+     * query & eager loading").
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with('partner');
     }
 
     public static function table(Table $table): Table
