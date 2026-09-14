@@ -60,6 +60,10 @@ class SalesByPeriodReport extends Page implements HasForms
     // munculnya banner saran "pakai granularitas lebih kasar".
     private const TOO_MANY_BUCKETS_THRESHOLD = 200;
 
+    // Lihat komentar di getResult() -- cap ini beda dari
+    // TOO_MANY_BUCKETS_THRESHOLD (itu cuma saran UI granularitas).
+    private const MAX_RANGE_DAYS = 730;
+
     // #[Url] (audit 2026-09-11, temuan D) — sama pola dengan
     // SalesDashboard/SalesSummaryReport: filter disimpan di query string
     // supaya link bisa di-bookmark/dibagikan & bertahan lewat refresh.
@@ -188,6 +192,21 @@ class SalesByPeriodReport extends Page implements HasForms
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
         $granularity = $this->data['granularity'] ?? 'harian';
 
+        // Hard cap rentang tanggal (audit framework 2026-09-14,
+        // "Agregasi laporan di level database") — laporan ini menarik
+        // SEMUA baris booking+refund ke PHP lalu bucket manual per
+        // periode (termasuk lookup komisi per teknisi), belum ditulis
+        // ulang jadi SQL murni karena risiko salah hitung angka
+        // finansial tanpa bisa diuji lokal. Cap ini MURNI jaring
+        // pengaman volume data, beda dari TOO_MANY_BUCKETS_THRESHOLD di
+        // atas (itu cuma saran UI, ini benar-benar membatasi data yang
+        // ditarik dari database).
+        $rangeClamped = false;
+        if ($from->diffInDays($to) > self::MAX_RANGE_DAYS) {
+            $from = $to->copy()->subDays(self::MAX_RANGE_DAYS)->startOfDay();
+            $rangeClamped = true;
+        }
+
         // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): halaman ini
         // SEBELUMNYA SAMA SEKALI TIDAK ADA scoping toko — bookings MAUPUN
         // refund — manajer toko manapun melihat rekap company-wide. Sama
@@ -290,6 +309,7 @@ class SalesByPeriodReport extends Page implements HasForms
             // Guard rentang sangat panjang (audit 2026-09-11, temuan G) —
             // advisory saja, TIDAK memotong data.
             'tooManyBuckets' => count($buckets) > self::TOO_MANY_BUCKETS_THRESHOLD,
+            'rangeClamped' => $rangeClamped,
         ];
     }
 

@@ -148,10 +148,23 @@ class PointReport extends Page implements HasForms
         ];
     }
 
+    // Hard cap rentang tanggal (audit framework 2026-09-14, "Agregasi
+    // laporan di level database") — laporan ini menarik SEMUA baris
+    // transaksi poin ke PHP DAN bikin 1 entri $rows per hari dalam
+    // rentang (bahkan hari kosong), belum ditulis ulang jadi SQL murni.
+    // Cap ini MURNI jaring pengaman volume data.
+    private const MAX_RANGE_DAYS = 730;
+
     public function getResult(): array
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
+
+        $rangeClamped = false;
+        if ($from->diffInDays($to) > self::MAX_RANGE_DAYS) {
+            $from = $to->copy()->subDays(self::MAX_RANGE_DAYS)->startOfDay();
+            $rangeClamped = true;
+        }
 
         $customerTx = PointTransaction::query()
             ->whereBetween('created_at', [$from, $to])
@@ -205,6 +218,7 @@ class PointReport extends Page implements HasForms
             'rows' => $rows,
             'totalEarned' => array_sum(array_column($rows, 'earned')),
             'totalSpent' => array_sum(array_column($rows, 'spent')),
+            'rangeClamped' => $rangeClamped,
         ];
     }
 }

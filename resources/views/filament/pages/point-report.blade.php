@@ -10,6 +10,16 @@
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
+    @if ($result['rangeClamped'])
+        <div class="flex items-center gap-2 rounded-lg border border-warning-300 bg-warning-50 px-3 py-2 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+            <x-heroicon-o-information-circle class="h-4 w-4 flex-shrink-0" />
+            <span>
+                Rentang tanggal yang dipilih terlalu panjang — laporan ini dibatasi maksimal 2 tahun terakhir
+                ({{ $result['from']->translatedFormat('d M Y') }} – {{ $result['to']->translatedFormat('d M Y') }})
+                supaya tidak membebani server. Persempit rentang tanggal untuk hasil yang lebih presisi.
+            </span>
+        </div>
+    @endif
     {{-- style inline (bukan class grid-cols-*) -- panel Filament tidak
          compile Tailwind project ini, lihat catatan di SalesResource. --}}
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">

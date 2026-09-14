@@ -137,10 +137,26 @@ class PeakSalesTimeReport extends Page implements HasForms
         ];
     }
 
+    // Hard cap rentang tanggal (audit framework 2026-09-14, "Agregasi
+    // laporan di level database") — laporan ini menarik SEMUA baris
+    // booking ke PHP lalu bucket manual per hari-dalam-minggu (perlu
+    // COUNT(DISTINCT customer_id) per hari, belum ditulis ulang jadi
+    // SQL murni karena risiko salah hitung tanpa bisa diuji lokal).
+    // Cap ini MURNI jaring pengaman volume data, tidak mengubah angka
+    // hasil laporan untuk rentang normal.
+    private const MAX_RANGE_DAYS = 730;
+
     public function getResult(): array
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
+
+        $rangeClamped = false;
+        if ($from->diffInDays($to) > self::MAX_RANGE_DAYS) {
+            $from = $to->copy()->subDays(self::MAX_RANGE_DAYS)->startOfDay();
+            $rangeClamped = true;
+        }
+
         $user = auth()->user();
         $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
 
@@ -202,6 +218,7 @@ class PeakSalesTimeReport extends Page implements HasForms
             'totalCount' => $totalCount,
             'totalProducts' => $totalProducts,
             'totalCustomers' => $totalCustomers,
+            'rangeClamped' => $rangeClamped,
         ];
     }
 }
