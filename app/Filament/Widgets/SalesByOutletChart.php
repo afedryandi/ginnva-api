@@ -30,6 +30,10 @@ class SalesByOutletChart extends ChartWidget
 
     protected static ?string $pollingInterval = null;
 
+    // Full-width (diminta 2026-09-14) — sama alasan LayananChart, lihat
+    // catatan di sana.
+    protected int|string|array $columnSpan = 'full';
+
     public ?string $from = null;
 
     public ?string $to = null;

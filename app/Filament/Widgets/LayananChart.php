@@ -20,6 +20,14 @@ class LayananChart extends ChartWidget
 {
     protected static ?string $heading = 'Grafik Jenis Order';
 
+    // Full-width (diminta 2026-09-14) — di Dashboard utama /admin, widget
+    // ini SEKARANG jadi salah satu dari cuma 2 chart yang tersisa (4
+    // lainnya dipindah ke App\Filament\ReportWidgets, lihat audit "Tab
+    // Dashboard"), jadi grid 2-kolom bawaan Filament menyisakan banyak
+    // area kosong janggal di sebelahnya. Full-width bikin tiap chart
+    // menumpuk 1 baris penuh, tidak ada celah kosong.
+    protected int|string|array $columnSpan = 'full';
+
     public static function canView(): bool
     {
         return LayananReport::canAccess();
