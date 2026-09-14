@@ -72,7 +72,15 @@ class RollScrapPoolResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->with(['store', 'filmProduct']);
+        // 'movements' di-filter cuma type='in' -- itu yang punya
+        // source_scroll_code_id, dipakai kolom "Kode Gulungan" di
+        // table() di bawah (diminta 2026-09-14). Eager-load supaya tidak
+        // N+1 per baris.
+        $query = parent::getEloquentQuery()->with([
+            'store',
+            'filmProduct',
+            'movements' => fn ($q) => $q->where('type', 'in')->with('sourceScrollCode:id,code'),
+        ]);
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -104,6 +112,20 @@ class RollScrapPoolResource extends Resource
                         ? "{$record->filmProduct->sku} — {$record->filmProduct->name}"
                         : '—')
                     ->searchable(),
+
+                // Diminta 2026-09-14 -- kode gulungan ASAL yang sisanya
+                // sudah dikumpulkan ke pool ini (bisa >1), diambil dari
+                // movement type='in' (lihat getEloquentQuery() di atas).
+                Tables\Columns\TextColumn::make('scroll_codes')
+                    ->label('Kode Gulungan')
+                    ->state(fn (RollScrapPool $record) => $record->movements
+                        ->pluck('sourceScrollCode.code')
+                        ->filter()
+                        ->unique()
+                        ->implode(', '))
+                    ->placeholder('—')
+                    ->wrap()
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('remaining_length_meters')
                     ->label('Sisa')
