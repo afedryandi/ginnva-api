@@ -43,8 +43,8 @@ Lokasi nilai asli: **file `.env` di server production**, dikelola manual oleh sy
 ### Mobile (`ginnva-mobile`)
 | Item | Lokasi |
 |---|---|
-| `google-services.json` | Sudah ada di repo (`ginnva-mobile/google-services.json`) — kredensial Firebase Android, perlakukan sebagai rahasia meski ada di repo |
-| `firebase-service-account.json` | Sudah ada di repo — **JANGAN** publikasikan repo ini secara publik selama file ini masih di dalamnya |
+| `google-services.json` | **TIDAK** ter-track di repo (di `.gitignore`) — file asli ada di mesin developer/server build, harus disalin manual sebelum `eas build`. Sempat ter-commit sekali (riwayat Git commit `a0ca865`, sudah dihapus dari tracking) — kalau API key Firebase (`ginnva-79b3a`) belum pernah dirotasi sejak audit 2026-09-14, prioritaskan itu, karena riwayat commit lama tidak bisa "dihapus" tanpa rewrite history. |
+| `firebase-service-account.json` | **TIDAK** pernah ter-commit ke repo manapun (dikonfirmasi lewat audit 2026-09-14) — tetap simpan hanya di server/password manager tim, jangan taruh di repo. |
 | Expo/EAS account | Akun yang dipakai untuk build (`eas build`) — kredensial login tersimpan di akun Expo tim, bukan di file |
 | Play Console | Akun Google Play Console untuk submit APK/AAB — kredensial di password manager tim |
 
