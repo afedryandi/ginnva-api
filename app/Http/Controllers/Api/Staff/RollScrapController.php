@@ -49,8 +49,17 @@ class RollScrapController extends Controller
         $user = $request->user('api');
         $search = trim((string) $request->query('search', ''));
 
+        // "Kode Gulungan" (diminta 2026-09-14) -- pool sisa gabungan dari
+        // >1 roll, staff perlu tahu kode ASAL sisanya (mis. buat cocokkan
+        // sama catatan garansi/riwayat). Diambil dari movement type='in'
+        // (lihat RollScrapPool::collectFrom()) -- 'out'/'correction' tidak
+        // relevan, tidak punya source_scroll_code_id.
         $pools = RollScrapPool::query()
-            ->with(['store:id,name', 'filmProduct:id,sku,name'])
+            ->with([
+                'store:id,name',
+                'filmProduct:id,sku,name',
+                'movements' => fn ($q) => $q->where('type', 'in')->with('sourceScrollCode:id,code'),
+            ])
             ->where('remaining_length_meters', '>', 0)
             ->when(! $user->isFullAccess(), fn ($q) => $q->where('store_id', $user->store_id))
             ->when($search !== '', fn ($q) => $q->whereHas('filmProduct', fn ($fq) => $fq
@@ -58,7 +67,15 @@ class RollScrapController extends Controller
                 ->orWhere('sku', 'like', "%{$search}%")))
             ->orderByDesc('updated_at')
             ->limit(30)
-            ->get();
+            ->get()
+            ->each(function (RollScrapPool $pool) {
+                $pool->setAttribute('scroll_codes', $pool->movements
+                    ->pluck('sourceScrollCode.code')
+                    ->filter()
+                    ->unique()
+                    ->values());
+                $pool->unsetRelation('movements');
+            });
 
         return response()->json([
             'success' => true,
