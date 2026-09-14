@@ -3,6 +3,10 @@
 > Dokumen operasional: URL, daftar kredensial (lokasi, BUKAN nilai), dan
 > SOP deploy/rollback/backup. Diperbarui manual — kalau ada perubahan
 > infrastruktur, update file ini juga.
+>
+> Untuk prosedur **insiden besar** (server down total, database hilang,
+> kredensial bocor, deploy ulang dari nol server kosong) — lihat
+> [DRP.md](DRP.md).
 
 ## 1. URL & Endpoint
 
