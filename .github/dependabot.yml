@@ -1,0 +1,27 @@
+# Audit framework 2026-09-14, "Ketergantungan pihak ketiga (dependency)"
+# -- otomasi PR update dependency + alert kerentanan keamanan. Alert
+# keamanan (Dependabot security alerts) aktif otomatis begitu file ini
+# ada, TIDAK perlu konfigurasi tambahan -- cek tab "Security" repo
+# GitHub kalau ada alert. File ini khusus mengatur PR update VERSI
+# berkala (bukan cuma yang berkaitan kerentanan).
+
+version: 2
+updates:
+  - package-ecosystem: "composer"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(ci)"
