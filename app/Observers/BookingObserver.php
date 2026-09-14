@@ -42,11 +42,14 @@ class BookingObserver
                 Mail::to($recipients->all())->send(new NewBookingMail($booking));
             } catch (\Exception $e) {
                 // Jangan sampai kegagalan kirim email menggagalkan proses
-                // pembuatan booking itu sendiri — cukup dicatat di log.
+                // pembuatan booking itu sendiri — cukup dicatat di log +
+                // dilaporkan ke Sentry (audit framework 2026-09-14,
+                // "Monitoring & alerting error production").
                 Log::error('Gagal mengirim notifikasi email booking baru', [
                     'booking_id' => $booking->id,
                     'error'      => $e->getMessage(),
                 ]);
+                report($e);
             }
         }
 

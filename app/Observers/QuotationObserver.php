@@ -65,11 +65,14 @@ class QuotationObserver
                 Mail::to($recipients->all())->send(new NewQuotationMail($quotation));
             } catch (\Exception $e) {
                 // Jangan sampai kegagalan kirim email menggagalkan proses
-                // pembuatan quotation itu sendiri — cukup dicatat di log.
+                // pembuatan quotation itu sendiri — cukup dicatat di log +
+                // dilaporkan ke Sentry (audit framework 2026-09-14,
+                // "Monitoring & alerting error production").
                 Log::error('Gagal mengirim notifikasi email quotation baru', [
                     'quotation_id' => $quotation->id,
                     'error'        => $e->getMessage(),
                 ]);
+                report($e);
             }
         }
 

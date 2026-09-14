@@ -47,6 +47,11 @@ class ServiceReminderService
                 $results['push'] = true;
             } catch (\Throwable $e) {
                 Log::error('[ServiceReminder] Push gagal: ' . $e->getMessage(), ['booking_id' => $booking->id]);
+                // Audit framework 2026-09-14, "Monitoring & alerting
+                // error production" -- report() ke Sentry, exception
+                // tetap sengaja di-catch (bukan menggagalkan reminder
+                // channel lain).
+                report($e);
             }
         }
 
@@ -57,6 +62,7 @@ class ServiceReminderService
                 $results['email'] = true;
             } catch (\Throwable $e) {
                 Log::error('[ServiceReminder] Email gagal: ' . $e->getMessage(), ['booking_id' => $booking->id]);
+                report($e);
             }
         }
 

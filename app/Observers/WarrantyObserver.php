@@ -93,6 +93,7 @@ class WarrantyObserver
                             'warranty_id' => $warranty->id,
                             'error'       => $e->getMessage(),
                         ]);
+                        report($e);
                     }
                 }
             } elseif ($justRejected) {

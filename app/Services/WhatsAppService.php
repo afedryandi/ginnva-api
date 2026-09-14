@@ -101,6 +101,11 @@ class WhatsAppService
             return true;
         } catch (\Throwable $e) {
             Log::error('[WhatsApp] Exception: ' . $e->getMessage(), ['to' => $phoneNumber]);
+            // Audit framework 2026-09-14, "Monitoring & alerting error
+            // production" -- report() ke Sentry, exception tetap
+            // sengaja di-catch (return false, tidak menggagalkan
+            // pemanggil).
+            report($e);
 
             return false;
         }

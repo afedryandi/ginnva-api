@@ -170,6 +170,14 @@ class PushNotificationService
             } catch (\Exception $e) {
                 $failed += count($chunk);
                 Log::error('[Expo Push] Exception: ' . $e->getMessage());
+                // Audit framework 2026-09-14, "Monitoring & alerting error
+                // production" -- SEBELUMNYA cuma tercatat di storage/logs
+                // lokal, kegagalan kirim notifikasi baru ketahuan lewat
+                // komplain user. report() meneruskan ke Sentry (no-op
+                // kalau SENTRY_LARAVEL_DSN kosong) TANPA menggagalkan
+                // proses utama -- exception tetap sengaja di-catch, cuma
+                // sekarang juga dilaporkan.
+                report($e);
             }
         }
 
