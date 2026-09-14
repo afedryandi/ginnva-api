@@ -118,6 +118,14 @@ return [
     | This is not particularly recommended, so make sure you have appropriate
     | systems in place to revoke the token if necessary.
     |
+    | CATATAN GINNVA (audit framework 2026-09-14, item "Autentikasi & sesi
+    | API mobile"): setting ini SAAT INI TIDAK DIPAKAI — tidak ada endpoint
+    | /refresh atau pemanggilan JWTAuth::refresh() di manapun di aplikasi
+    | (staff & customer guard sama-sama JWT_TTL 30 hari, habis = wajib
+    | login ulang total). Dibiarkan (bukan dihapus) karena ini file
+    | config bawaan package tymon/jwt-auth — kalau nanti ada kebutuhan
+    | refresh flow, tinggal pakai value ini.
+    |
     */
 
     'refresh_ttl' => env('JWT_REFRESH_TTL', 20160),
