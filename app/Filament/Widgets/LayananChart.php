@@ -28,6 +28,11 @@ class LayananChart extends ChartWidget
     // menumpuk 1 baris penuh, tidak ada celah kosong.
     protected int|string|array $columnSpan = 'full';
 
+    // Full-width tanpa batas tinggi bikin kartu jadi terlalu besar
+    // (canvas Chart.js ikut melebar proporsional) — dibatasi supaya
+    // proporsinya wajar (diminta 2026-09-14).
+    protected static ?string $maxHeight = '280px';
+
     public static function canView(): bool
     {
         return LayananReport::canAccess();

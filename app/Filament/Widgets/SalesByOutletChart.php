@@ -34,6 +34,9 @@ class SalesByOutletChart extends ChartWidget
     // catatan di sana.
     protected int|string|array $columnSpan = 'full';
 
+    // Dibatasi tingginya (diminta 2026-09-14) — sama alasan LayananChart.
+    protected static ?string $maxHeight = '280px';
+
     public ?string $from = null;
 
     public ?string $to = null;
