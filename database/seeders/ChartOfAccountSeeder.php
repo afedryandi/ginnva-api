@@ -145,6 +145,13 @@ class ChartOfAccountSeeder extends Seeder
 
             ['code' => '6500', 'name' => 'Beban Lain-lain', 'type' => 'beban_operasional', 'postable' => false],
             ['code' => '6510', 'name' => 'Beban Piutang Tak Tertagih', 'type' => 'beban_operasional', 'parent' => '6500', 'flow' => 'operasional'],
+            // Ditambahkan 2026-09-14 (audit framework, "Cakupan automated
+            // testing") -- StockWriteOffService::LOSS_ACCOUNT_CODE sudah
+            // lama mereferensikan kode ini, tapi TIDAK PERNAH ada di
+            // seeder, jadi fitur "Stok Terbuang" gagal (RuntimeException
+            // "akun tidak ditemukan") setiap kali dipakai untuk barang
+            // ber-unit_cost. Ketahuan saat menyiapkan data test.
+            ['code' => '6520', 'name' => 'Beban Kerugian Persediaan', 'type' => 'beban_operasional', 'parent' => '6500', 'flow' => 'operasional', 'description' => 'Write-off stok rusak/kedaluwarsa/hilang — StockWriteOffService.'],
 
             // ─── 7000-8000 LAIN-LAIN & PAJAK ────────────────────────
             // 7100/7800 SENGAJA bukan 'operasional' — bunga dari
