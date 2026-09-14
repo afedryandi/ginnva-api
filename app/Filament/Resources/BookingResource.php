@@ -1052,6 +1052,34 @@ class BookingResource extends Resource
                             }
                         }
 
+                        // Segregation of duties (audit framework 2026-09-14)
+                        // -- staff non-full-access TIDAK langsung memposting,
+                        // permintaannya masuk antrean approval dulu (lihat
+                        // TransactionApprovalService & TransactionApprovalRequestResource).
+                        // Full-access TETAP proses langsung (self-approval
+                        // tidak menambah kontrol apa pun).
+                        if (! (auth()->user()?->isFullAccess() ?? false)) {
+                            app(\App\Services\TransactionApprovalService::class)->submitBookingReferral(
+                                $record,
+                                (float) ($data['transaction_amount'] !== '' ? $data['transaction_amount'] : 0),
+                                $data['amount_received'] !== '' ? (float) $data['amount_received'] : null,
+                                [
+                                    'referral_code' => $data['referral_code'] ?: null,
+                                    'spend_promo_id' => $promoId,
+                                    'spend_promo_discount' => $promoId ? $promoDiscount : null,
+                                ],
+                                auth()->id()
+                            );
+
+                            Notification::make()
+                                ->title('Menunggu persetujuan')
+                                ->body('Permintaan Proses Referral untuk booking ini sudah dikirim ke admin/direksi untuk disetujui sebelum diposting ke Jurnal Umum.')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
                         // Nominal transaksi & jurnal Pendapatan-nya dibungkus
                         // 1 DB transaction — lihat BookingPostingService
                         // untuk asumsi penyederhanaan (kas penuh, split
@@ -1150,6 +1178,26 @@ class BookingResource extends Resource
                             ->maxLength(500),
                     ])
                     ->action(function (Booking $record, array $data) {
+                        // Segregation of duties (audit framework 2026-09-14)
+                        // -- lihat catatan sama di action process_referral
+                        // di atas.
+                        if (! (auth()->user()?->isFullAccess() ?? false)) {
+                            app(\App\Services\TransactionApprovalService::class)->submitRefund(
+                                $record,
+                                (float) $data['amount'],
+                                $data['reason'] ?: null,
+                                auth()->id()
+                            );
+
+                            Notification::make()
+                                ->title('Menunggu persetujuan')
+                                ->body('Permintaan Proses Refund untuk booking ini sudah dikirim ke admin/direksi untuk disetujui.')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
                         try {
                             app(\App\Services\RefundService::class)->process(
                                 $record,
