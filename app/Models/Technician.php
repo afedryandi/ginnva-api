@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Technician extends Model
 {
@@ -12,6 +14,21 @@ class Technician extends Model
     // yang sudah ada di TechnicianResource::getEloquentQuery() SENGAJA
     // DIBIARKAN sebagai defense-in-depth.
     use HasStoreScope;
+
+    // Audit framework 2026-09-14, "Jejak audit (audit trail) perubahan
+    // data" -- commission_amount menentukan nominal Laporan Komisi
+    // Teknisi (uang sungguhan dibayarkan), sebelumnya perubahan nilainya
+    // (siapa/kapan/dari-berapa-ke-berapa) tidak tercatat sama sekali.
+    use LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['store_id', 'name', 'phone', 'level', 'commission_amount', 'status'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('technician');
+    }
 
     protected $fillable = [
         'store_id',
