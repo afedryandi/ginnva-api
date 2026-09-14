@@ -42,6 +42,28 @@
         @endforelse
     </table>
 
+    <h2>Ringkasan Promo Total Pembelian</h2>
+    <table>
+        <tr><td>Total Transaksi</td><td class="value">{{ number_format($result['spendPromoTransactionCount'], 0, ',', '.') }}</td></tr>
+        <tr><td>Total Potongan</td><td class="value">({{ $rupiah($result['spendPromoDiscountTotal']) }})</td></tr>
+    </table>
+
+    <h2>Detail Transaksi Promo Total Pembelian</h2>
+    <table>
+        <tr><th>Tanggal</th><th>Promo</th><th>No. Booking</th><th>Toko</th><th class="value">Potongan</th></tr>
+        @forelse ($result['spendPromoBookings'] as $booking)
+            <tr>
+                <td>{{ $booking->created_at?->format('d M Y') }}</td>
+                <td>{{ $booking->spendPromo?->name ?? '-' }}</td>
+                <td>{{ $booking->booking_number }}</td>
+                <td>{{ $booking->store?->name ?? '-' }}</td>
+                <td class="value">({{ $rupiah($booking->spend_promo_discount) }})</td>
+            </tr>
+        @empty
+            <tr><td colspan="5">Tidak ada transaksi Promo Total Pembelian pada rentang ini.</td></tr>
+        @endforelse
+    </table>
+
     <h2>Performa Voucher (company-wide)</h2>
     <table>
         <tr><th>Voucher</th><th class="value">Diklaim</th><th class="value">Dipakai</th><th class="value">Sisa Stok</th><th>Status</th></tr>

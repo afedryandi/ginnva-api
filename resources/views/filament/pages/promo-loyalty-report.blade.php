@@ -93,6 +93,50 @@
         </div>
     </x-filament::section>
 
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Transaksi Promo Total Pembelian</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['spendPromoTransactionCount'], 0, ',', '.') }}</div>
+        </x-filament::section>
+
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Potongan Promo Total Pembelian</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums text-danger-600 dark:text-danger-400">({{ $rupiah($result['spendPromoDiscountTotal']) }})</div>
+        </x-filament::section>
+    </div>
+
+    <x-filament::section>
+        <x-slot name="heading">Detail Transaksi Promo Total Pembelian</x-slot>
+        <x-slot name="description">Tiap baris = 1 booking yang pakai potongan flat "Promo Total Pembelian" (beda dari voucher/kupon di atas).</x-slot>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
+                        <th class="whitespace-nowrap py-2 px-3">Tanggal</th>
+                        <th class="whitespace-nowrap py-2 px-3">Promo</th>
+                        <th class="whitespace-nowrap py-2 px-3">No. Booking</th>
+                        <th class="whitespace-nowrap py-2 px-3">Toko</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Potongan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($result['spendPromoBookings'] as $booking)
+                        <tr class="border-b border-gray-100 dark:border-white/5">
+                            <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $booking->created_at?->format('d M Y') }}</td>
+                            <td class="whitespace-nowrap py-2 px-3">{{ $booking->spendPromo?->name ?? '—' }}</td>
+                            <td class="whitespace-nowrap py-2 px-3">{{ $booking->booking_number }}</td>
+                            <td class="whitespace-nowrap py-2 px-3">{{ $booking->store?->name ?? '—' }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">({{ $rupiah((float) $booking->spend_promo_discount) }})</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada transaksi Promo Total Pembelian pada rentang ini.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </x-filament::section>
+
     <x-filament::section>
         <x-slot name="heading">Performa Voucher</x-slot>
         <x-slot name="description">Diklaim & dipakai dalam rentang tanggal terpilih — bukan status stok sekarang.</x-slot>

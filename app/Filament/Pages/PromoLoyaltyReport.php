@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Exports\PromoLoyaltyReportExport;
+use App\Models\Booking;
 use App\Models\PartnerPointTransaction;
 use App\Models\PointTransaction;
 use App\Models\Reward;
@@ -222,6 +223,23 @@ class PromoLoyaltyReport extends Page implements HasForms
         $promoValue = (float) $usedClaims->sum(fn (VoucherClaim $c) => (float) ($c->voucher->discount_amount ?? 0));
         $promoSalesTotal = (float) $usedClaims->sum(fn (VoucherClaim $c) => (float) ($c->booking->transaction_amount ?? 0));
 
+        // "Promo Total Pembelian" (SpendPromo) — diminta 2026-09-14,
+        // menyusul catatan pending audit "Promo Total Pembelian":
+        // sebelumnya BELUM diintegrasikan ke laporan ini sama sekali.
+        // Store-scoping sama pola dengan usedClaims di atas — transaksi
+        // (booking yang benar-benar pakai promo ini) di-scope toko,
+        // tapi katalog SpendPromo sendiri (aturan promo) tetap
+        // company-wide.
+        $spendPromoBookings = Booking::query()
+            ->whereNotNull('spend_promo_id')
+            ->whereBetween('created_at', [$from, $to])
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->with(['spendPromo:id,name', 'store:id,name'])
+            ->orderByDesc('created_at')
+            ->get(['id', 'booking_number', 'store_id', 'spend_promo_id', 'spend_promo_discount', 'transaction_amount', 'created_at']);
+
+        $spendPromoDiscountTotal = (float) $spendPromoBookings->sum('spend_promo_discount');
+
         return [
             'from' => $from,
             'to' => $to,
@@ -239,6 +257,9 @@ class PromoLoyaltyReport extends Page implements HasForms
             'promoTransactionCount' => $usedClaims->count(),
             'promoValue' => $promoValue,
             'promoSalesTotal' => $promoSalesTotal,
+            'spendPromoBookings' => $spendPromoBookings,
+            'spendPromoTransactionCount' => $spendPromoBookings->count(),
+            'spendPromoDiscountTotal' => $spendPromoDiscountTotal,
         ];
     }
 }

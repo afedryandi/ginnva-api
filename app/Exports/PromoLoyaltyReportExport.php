@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Models\Booking;
 use App\Models\VoucherClaim;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithStyles;
@@ -51,6 +52,24 @@ class PromoLoyaltyReportExport implements FromArray, WithStyles
                 $claim->booking?->booking_number ?? '-',
                 $claim->booking?->store?->name ?? '-',
                 '(' . $rupiah($claim->voucher->discount_amount ?? 0) . ')',
+            ];
+        }
+
+        $rows[] = [];
+        $rows[] = ['RINGKASAN PROMO TOTAL PEMBELIAN'];
+        $rows[] = ['Total Transaksi', $r['spendPromoTransactionCount']];
+        $rows[] = ['Total Potongan', '(' . $rupiah($r['spendPromoDiscountTotal']) . ')'];
+        $rows[] = [];
+        $rows[] = ['DETAIL TRANSAKSI PROMO TOTAL PEMBELIAN'];
+        $rows[] = ['Tanggal', 'Promo', 'No. Booking', 'Toko', 'Potongan'];
+        foreach ($r['spendPromoBookings'] as $booking) {
+            /** @var Booking $booking */
+            $rows[] = [
+                $booking->created_at?->format('Y-m-d'),
+                $booking->spendPromo?->name ?? '-',
+                $booking->booking_number,
+                $booking->store?->name ?? '-',
+                '(' . $rupiah($booking->spend_promo_discount) . ')',
             ];
         }
 
