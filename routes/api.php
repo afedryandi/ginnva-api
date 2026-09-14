@@ -133,11 +133,17 @@ Route::prefix('customer')->group(function () {
 
         Route::middleware('auth:customer')->group(function () {
             Route::get('/me', [CustomerAuthController::class, 'me']);
-            Route::put('/profile', [CustomerAuthController::class, 'updateProfile']);
+            // throttle ditambahkan (audit framework 2026-09-14, item
+            // "Autentikasi & sesi API mobile") -- sebelumnya endpoint
+            // mutasi ini tidak dibatasi sama sekali, beda dari pola
+            // throttle konsisten di modul lain.
+            Route::put('/profile', [CustomerAuthController::class, 'updateProfile'])
+                ->middleware('throttle:10,1');
             Route::post('/logout', [CustomerAuthController::class, 'logout']);
             // Wajib per kebijakan Google Play — lihat catatan di
             // CustomerAuthController::deleteAccount().
-            Route::delete('/account', [CustomerAuthController::class, 'deleteAccount']);
+            Route::delete('/account', [CustomerAuthController::class, 'deleteAccount'])
+                ->middleware('throttle:10,1');
         });
     });
 
@@ -382,12 +388,21 @@ Route::prefix('partner')->middleware('auth:api')->group(function () {
     Route::get('/points', [PartnerController::class, 'points']);
     Route::get('/redemptions', [PartnerController::class, 'redemptions']);
     Route::get('/referrals', [PartnerController::class, 'referrals']);
-    Route::put('/profile', [PartnerController::class, 'updateProfile']);
-    Route::post('/change-password', [PartnerController::class, 'changePassword']);
+    // throttle ditambahkan ke 4 route mutasi di bawah (audit framework
+    // 2026-09-14, item "Autentikasi & sesi API mobile") -- sebelumnya
+    // sama sekali tidak dibatasi, terutama change-password yang paling
+    // berisiko (rawan brute-force validasi password lama / spam hash
+    // bcrypt berulang tanpa rate limit).
+    Route::put('/profile', [PartnerController::class, 'updateProfile'])
+        ->middleware('throttle:10,1');
+    Route::post('/change-password', [PartnerController::class, 'changePassword'])
+        ->middleware('throttle:10,1');
     Route::get('/promos', [CarouselController::class, 'partnerPromos']);
     Route::get('/notifications', [NotificationController::class, 'partnerHistory']);
-    Route::post('/notifications/{id}/read', [NotificationController::class, 'partnerMarkRead']);
-    Route::post('/notifications/read-all', [NotificationController::class, 'partnerMarkAllRead']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'partnerMarkRead'])
+        ->middleware('throttle:20,1');
+    Route::post('/notifications/read-all', [NotificationController::class, 'partnerMarkAllRead'])
+        ->middleware('throttle:20,1');
     Route::post('/rewards/{id}/redeem', [RewardController::class, 'redeemAsPartner'])
         ->middleware('throttle:10,1');
 });
@@ -402,7 +417,11 @@ Route::middleware('auth:customer')->group(function () {
     Route::post('/notifications/link-token', [NotificationController::class, 'linkToken'])
         ->middleware('throttle:20,1');
     Route::get('/customer/notifications', [NotificationController::class, 'history']);
-    Route::post('/customer/notifications/{id}/read', [NotificationController::class, 'markRead']);
-    Route::post('/customer/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    // throttle ditambahkan (audit framework 2026-09-14, item
+    // "Autentikasi & sesi API mobile") -- sebelumnya tidak dibatasi.
+    Route::post('/customer/notifications/{id}/read', [NotificationController::class, 'markRead'])
+        ->middleware('throttle:20,1');
+    Route::post('/customer/notifications/read-all', [NotificationController::class, 'markAllRead'])
+        ->middleware('throttle:20,1');
     Route::get('/customer/points', [PointController::class, 'index']);
 });
