@@ -55,6 +55,18 @@ class PartnershipInquiryResource extends Resource
         return false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada — canEdit() bawaan Resource selalu FALSE
+     * tanpa Policy, jadi EditAction (satu-satunya cara staff menindak-
+     * lanjuti/memperbarui status inquiry ini) tidak pernah muncul.
+     * Ditemukan lewat sapu bersih 2026-09-14 (audit framework,
+     * "Otorisasi default-deny").
+     */
+    public static function canEdit($record): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function canDelete($record): bool
     {
         return auth()->user()?->isFullAccess() ?? false;

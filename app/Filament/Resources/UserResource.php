@@ -547,10 +547,19 @@ class UserResource extends Resource
                     // DeleteBulkAction polos yang bisa cascade riwayat HR
                     // tanpa peringatan atau berhenti total kalau 1 baris
                     // gagal.
+                    // SEBELUMNYA tidak ada ->visible() sama sekali di sini —
+                    // BulkAction custom TIDAK auto-wired ke Gate (beda dari
+                    // DeleteBulkAction bawaan, lihat catatan di
+                    // FilmProductResource), jadi staff manapun dengan akses
+                    // menu ini bisa hapus massal akun staff lain, terlepas
+                    // dari canDelete()==isFullAccess() yang sudah ada di
+                    // atas. Ditemukan lewat sapu bersih 2026-09-14 (audit
+                    // framework, "Otorisasi default-deny").
                     Tables\Actions\BulkAction::make('delete')
                         ->label('Hapus')
                         ->icon('heroicon-o-trash')
                         ->color('danger')
+                        ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
                         ->requiresConfirmation()
                         ->modalDescription('Akun dengan riwayat HR (absensi/cuti/gaji/SP/kontrak) akan DILEWATI, bukan dihapus — nonaktifkan akun itu satu-satu lewat aksi "Nonaktifkan".')
                         ->action(function (\Illuminate\Database\Eloquent\Collection $records) {

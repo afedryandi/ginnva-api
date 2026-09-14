@@ -45,6 +45,38 @@ class VehicleResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA tidak ada override di sini sama sekali, tanpa Policy
+     * terdaftar — canCreate()/canEdit()/canDelete() bawaan Resource
+     * selalu FALSE tanpa Policy, jadi EditAction/DeleteAction (baris)
+     * tidak pernah muncul untuk siapa pun. LEBIH PARAH: BulkAction
+     * "Hapus" custom di bawah (bukan DeleteBulkAction bawaan) TIDAK
+     * ikut ter-auto-wire ke Gate sama sekali, jadi staff mana pun
+     * dengan akses menu ini SELALU bisa hapus massal kendaraan lewat
+     * situ walau tombol Hapus satuan tidak pernah muncul — sama pola
+     * bug yang sudah diperbaiki di FilmProductResource. Ditemukan lewat
+     * sapu bersih 2026-09-14 (audit framework, "Otorisasi default-deny").
+     */
+    public static function canCreate(): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canEdit($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDelete($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -191,6 +223,7 @@ class VehicleResource extends Resource
                         ->label('Hapus')
                         ->icon('heroicon-o-trash')
                         ->color('danger')
+                        ->visible(fn () => static::canDeleteAny())
                         ->requiresConfirmation()
                         ->action(function (\Illuminate\Support\Collection $records) {
                             $deleted = 0;

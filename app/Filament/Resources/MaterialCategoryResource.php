@@ -41,6 +41,32 @@ class MaterialCategoryResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA cuma canViewAny() yang ada, tanpa Policy terdaftar —
+     * EditAction/DeleteAction/DeleteBulkAction di table() tidak pernah
+     * muncul untuk siapa pun (default-deny Laravel). Ditemukan lewat
+     * sapu bersih 2026-09-14 (audit framework, "Otorisasi default-deny").
+     */
+    public static function canCreate(): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canEdit($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDelete($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

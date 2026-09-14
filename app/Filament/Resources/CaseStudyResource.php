@@ -41,6 +41,36 @@ class CaseStudyResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA cuma canViewAny() yang ada dan tidak ada CaseStudyPolicy
+     * terdaftar — canCreate()/canEdit()/canDelete() bawaan Resource
+     * selalu FALSE tanpa policy (default-deny Laravel), jadi tombol
+     * "New", "Edit", dan "Hapus" (EditAction/DeleteAction/DeleteBulkAction
+     * di table()) tidak pernah muncul untuk siapa pun. Ditemukan lewat
+     * sapu bersih 2026-09-14 (audit framework, item "Otorisasi
+     * default-deny"). Dibiarkan seluas canViewAny() — sama pola dengan
+     * VehicleResource/FilmProductResource (data master company-wide).
+     */
+    public static function canCreate(): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canEdit($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDelete($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

@@ -58,6 +58,24 @@ class FinanceCategoryResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA cuma canViewAny()/canCreate()/canEdit() yang ada —
+     * canDelete() bawaan Resource selalu FALSE tanpa Policy, jadi
+     * DeleteAction (yang sudah punya guard data-integrity
+     * ->visible(!hasTransactions()) sendiri di table()) tidak pernah
+     * muncul walau syarat guard itu terpenuhi. Ditemukan lewat sapu
+     * bersih 2026-09-14 (audit framework, "Otorisasi default-deny").
+     */
+    public static function canDelete($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

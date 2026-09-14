@@ -53,6 +53,17 @@ class RoleResource extends Resource
         return auth()->user()?->isFullAccess() ?? false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada — canCreate() bawaan Resource selalu FALSE
+     * tanpa Policy, jadi CreateAction ("Buat Role") di ListRoles tidak
+     * pernah muncul untuk siapa pun. Ditemukan lewat sapu bersih
+     * 2026-09-14 (audit framework, "Otorisasi default-deny").
+     */
+    public static function canCreate(): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function canEdit($record): bool
     {
         return auth()->user()?->isFullAccess()

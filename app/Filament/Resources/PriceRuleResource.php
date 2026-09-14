@@ -52,6 +52,35 @@ class PriceRuleResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * SEBELUMNYA cuma canViewAny() yang ada, tanpa Policy terdaftar —
+     * EditAction/DeleteAction/DeleteBulkAction di table() tidak pernah
+     * muncul (default-deny Laravel). Resource ini disembunyikan dari
+     * nav (shouldRegisterNavigation() di atas) tapi tetap reachable
+     * lewat URL langsung — defense-in-depth yang sama pentingnya walau
+     * jarang diakses. Ditemukan lewat sapu bersih 2026-09-14 (audit
+     * framework, "Otorisasi default-deny").
+     */
+    public static function canCreate(): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canEdit($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDelete($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
