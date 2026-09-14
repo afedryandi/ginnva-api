@@ -271,6 +271,71 @@ class RawMaterial extends Model
         });
     }
 
+    /**
+     * Pembatalan kejadian PALING TERAKHIR — sama fitur dengan
+     * ConsumableItem::reverseLastMovement()/InventoryItem, ditambahkan
+     * di audit 2026-09-14 (RawMaterial sebelumnya satu-satunya yang
+     * tidak punya ini, inkonsisten). BEDA dari ConsumableItem karena
+     * bahan baku pakai batch FIFO:
+     * - type 'in': batch yang dibuat movement ini ikut DIHAPUS PRESISI —
+     *   aman karena guard di Resource menjamin ini movement TERAKHIR
+     *   untuk bahan ini, jadi batch yang baru dibuatnya pasti batch
+     *   TERBARU (belum ada 'in'/'adjustment naik' lain setelahnya yang
+     *   bisa bikin batch baru lagi).
+     * - type 'out'/'adjustment': batch TIDAK disentuh sama sekali —
+     *   sistem tidak menyimpan batch mana & berapa yang dikonsumsi FIFO
+     *   per kejadian, jadi mengembalikannya presisi ke batch asal tidak
+     *   mungkin tanpa data tambahan. Cuma current_stock yang dikoreksi
+     *   (sama seperti pola ConsumableItem, yang memang tidak punya
+     *   batch sama sekali). Staff perlu tahu ini — lihat modalDescription
+     *   di RawMaterialMovementResource.
+     */
+    public function reverseLastMovement(RawMaterialMovement $movement, ?int $userId): void
+    {
+        if ($movement->raw_material_id !== $this->id) {
+            throw new \InvalidArgumentException('Baris riwayat ini bukan milik bahan ini.');
+        }
+
+        DB::transaction(function () use ($movement, $userId) {
+            $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+
+            $isLatest = ! $material->movements()->where('id', '>', $movement->id)->exists();
+            if (! $isLatest) {
+                throw new \InvalidArgumentException('Cuma bisa membatalkan riwayat paling terakhir — sudah ada kejadian lain setelah ini.');
+            }
+
+            $reversedStock = match ($movement->type) {
+                'in' => (float) $material->current_stock - (float) $movement->quantity,
+                'out' => (float) $material->current_stock + (float) $movement->quantity,
+                'adjustment' => (float) $material->current_stock - (float) $movement->quantity,
+                default => (float) $material->current_stock,
+            };
+
+            if ($movement->type === 'in') {
+                $latestBatch = $material->batches()->orderByDesc('id')->first();
+                $latestBatch?->delete();
+            }
+
+            $material->update(['current_stock' => max(0, $reversedStock)]);
+
+            $movement->delete();
+
+            $material->movements()->create([
+                'type' => 'correction',
+                'quantity' => 0,
+                'note' => 'Koreksi: membatalkan pencatatan "' . match ($movement->type) {
+                    'in' => 'Masuk',
+                    'out' => 'Keluar',
+                    'adjustment' => 'Penyesuaian (Opname)',
+                    default => $movement->type,
+                } . '" yang salah.',
+                'user_id' => $userId,
+            ]);
+
+            $this->setRawAttributes($material->getAttributes());
+        });
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

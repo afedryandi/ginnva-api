@@ -91,11 +91,13 @@ class RawMaterialMovementResource extends Resource
                         'success' => 'in',
                         'danger'  => 'out',
                         'warning' => 'adjustment',
+                        'gray'    => 'correction',
                     ])
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'in' => 'Masuk',
                         'out' => 'Keluar',
                         'adjustment' => 'Penyesuaian (Opname)',
+                        'correction' => 'Koreksi',
                         default => $state,
                     }),
 
@@ -126,7 +128,7 @@ class RawMaterialMovementResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('type')
                     ->label('Jenis')
-                    ->options(['in' => 'Masuk', 'out' => 'Keluar', 'adjustment' => 'Penyesuaian (Opname)']),
+                    ->options(['in' => 'Masuk', 'out' => 'Keluar', 'adjustment' => 'Penyesuaian (Opname)', 'correction' => 'Koreksi']),
 
                 Tables\Filters\SelectFilter::make('raw_material_id')
                     ->label('Bahan Baku')
@@ -204,6 +206,39 @@ class RawMaterialMovementResource extends Resource
                             ->danger()
                             ->persistent()
                             ->send();
+                    }),
+            ])
+            ->actions([
+                // Ditambahkan audit 2026-09-14 (temuan inkonsistensi) —
+                // sama pola InventoryMovementResource/ConsumableItemMovementResource,
+                // tapi lihat catatan penting di RawMaterial::reverseLastMovement():
+                // untuk 'out'/'adjustment', batch FIFO TIDAK dikembalikan
+                // presisi (sistem tidak menyimpan batch mana yang dipakai
+                // per kejadian) — modalDescription menjelaskan ini eksplisit
+                // supaya staff tidak salah kira semuanya presisi seperti
+                // pembatalan 'in'.
+                Tables\Actions\Action::make('reverse')
+                    ->label('Batalkan')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('danger')
+                    ->visible(fn (RawMaterialMovement $record) => auth()->user()?->isFullAccess()
+                        && $record->type !== 'correction'
+                        && $record->rawMaterial !== null
+                        && ! $record->rawMaterial->movements()->where('id', '>', $record->id)->exists())
+                    ->requiresConfirmation()
+                    ->modalDescription(fn (RawMaterialMovement $record) => $record->type === 'in'
+                        ? 'Batalkan pencatatan ini? Batch yang dibuat movement ini akan dihapus, stok dikembalikan ke sebelumnya, dan baris "Koreksi" baru ditambahkan sebagai jejaknya. Cuma bisa untuk kejadian paling terakhir bahan ini.'
+                        : 'Batalkan pencatatan ini? Stok akan dikembalikan ke sebelumnya (batch FIFO TIDAK ikut disesuaikan presisi — sistem tidak menyimpan batch mana yang terpakai per kejadian), dan baris "Koreksi" baru ditambahkan sebagai jejaknya. Cuma bisa untuk kejadian paling terakhir bahan ini.')
+                    ->action(function (RawMaterialMovement $record) {
+                        try {
+                            $record->rawMaterial->reverseLastMovement($record, auth()->id());
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()->title('Tidak bisa membatalkan')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Pencatatan dibatalkan')->success()->send();
                     }),
             ])
             ->defaultSort('created_at', 'desc');
