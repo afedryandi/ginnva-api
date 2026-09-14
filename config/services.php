@@ -73,4 +73,13 @@ return [
         'credentials_path' => env('FCM_CREDENTIALS_PATH', storage_path('app/firebase/service-account.json')),
     ],
 
+    // Backup database otomatis (App\Console\Commands\BackupDatabase, lihat
+    // routes/console.php) -- audit framework 2026-09-14, "Jadwal backup
+    // database otomatis". rclone_remote OPSIONAL: kalau kosong, backup
+    // tetap dibuat & disimpan lokal, cuma tidak ada salinan off-site.
+    'backup' => [
+        'rclone_remote' => env('RCLONE_BACKUP_REMOTE'),
+        'retention_days' => env('BACKUP_RETENTION_DAYS', 14),
+    ],
+
 ];

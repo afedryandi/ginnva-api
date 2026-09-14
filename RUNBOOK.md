@@ -76,7 +76,13 @@ Lokasi nilai asli: **file `.env` di server production**, dikelola manual oleh sy
 3. Ulangi langkah cache-clear/build seperti SOP Deploy di atas.
 4. Kalau rollback juga perlu mundur migrasi database, jalankan `php artisan migrate:rollback` **dengan hati-hati** — pastikan tidak ada data baru yang akan hilang; lebih aman restore dari backup (§5) kalau migrasi sudah mengubah struktur data secara signifikan.
 
-## 5. SOP Backup Database (manual)
+## 5. SOP Backup Database
+
+**Otomatis sejak 2026-09-14** (audit framework, "Jadwal backup database otomatis"): `App\Console\Commands\BackupDatabase` jalan **harian jam 03:00** lewat Laravel Scheduler (lihat `routes/console.php`) — dump + gzip + upload ke remote `rclone` (kalau `RCLONE_BACKUP_REMOTE` di `.env` sudah diisi, lihat `.env.example`), plus retensi lokal otomatis (`BACKUP_RETENTION_DAYS`, default 14 hari). Syarat: `php artisan schedule:run` harus terpasang di **crontab server** (`* * * * * cd /path/ke/project && php artisan schedule:run >> /dev/null 2>&1`) — cek dulu apakah sudah ada sebelum mengandalkan ini, karena scheduler Laravel TIDAK jalan sendiri tanpa cron ini.
+
+**Uji restore secara berkala** — auditor manapun akan bilang backup yang belum pernah dicoba restore bukan backup yang bisa dipercaya. Jadwalkan simulasi restore minimal 1x/kuartal ke database staging, bukan cuma percaya file `.sql.gz` ada di remote.
+
+**Manual (masih berguna untuk backup ad-hoc sebelum migrasi berisiko / di luar jadwal harian):**
 
 Dijalankan **di server production** lewat SSH (bukan dari mesin development):
 

@@ -42,3 +42,8 @@ Schedule::command('warranty:notify-expiring')->dailyAt('08:00');
 // tanggal 1 supaya bulan yang disusutkan sudah selesai penuh. Lihat
 // App\Console\Commands\PostAssetDepreciation.
 Schedule::command('assets:post-depreciation')->monthlyOn(1, '02:00');
+
+// Backup database harian (audit framework 2026-09-14, "Jadwal backup
+// database otomatis") -- otomasi SOP manual RUNBOOK.md §5, dini hari
+// supaya tidak bentrok jam sibuk. Lihat App\Console\Commands\BackupDatabase.
+Schedule::command('backup:database')->dailyAt('03:00');
