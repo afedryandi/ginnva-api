@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -11,6 +12,14 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class Booking extends Model
 {
     use LogsActivity;
+    // Global Scope store-id (audit framework 2026-09-14, "Isolasi data
+    // multi-tenant") — lihat App\Models\Scopes\StoreScope. Pola manual
+    // yang sudah ada di BookingResource::getEloquentQuery() SENGAJA
+    // DIBIARKAN (bukan dihapus) sebagai defense-in-depth; filter dari
+    // scope ini no-op/redundan di sana, tapi jadi satu-satunya
+    // proteksi untuk query LANGSUNG ke Booking:: di tempat lain
+    // (widget/report/service) yang sebelumnya rawan lupa di-scope.
+    use HasStoreScope;
 
     // Default lama pengerjaan (hari) per jenis produk kalau staff tidak
     // isi manual — dipakai getEffectiveDurationDaysAttribute() &

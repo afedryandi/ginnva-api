@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\Acknowledgeable;
+use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -19,6 +20,15 @@ class Attendance extends Model
 {
     use LogsActivity;
     use Acknowledgeable;
+
+    // Global Scope store-id (audit framework 2026-09-14, "Isolasi data
+    // multi-tenant") — lihat App\Models\Scopes\StoreScope. Pola manual
+    // yang sudah ada di AttendanceResource::getEloquentQuery() SENGAJA
+    // DIBIARKAN (bukan dihapus) sebagai defense-in-depth; filter dari
+    // scope ini no-op/redundan di sana, tapi jadi satu-satunya proteksi
+    // untuk query LANGSUNG ke Attendance:: di tempat lain (widget/
+    // report/service) yang sebelumnya rawan lupa di-scope.
+    use HasStoreScope;
 
     // Dipakai kalau Store::attendance_radius_meters/late_tolerance_minutes
     // kosong (belum diatur admin) — lihat migration

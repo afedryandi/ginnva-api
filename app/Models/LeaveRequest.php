@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -12,6 +13,15 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class LeaveRequest extends Model
 {
     use LogsActivity;
+
+    // Global Scope store-id (audit framework 2026-09-14, "Isolasi data
+    // multi-tenant") — lihat App\Models\Scopes\StoreScope. Pola manual
+    // yang sudah ada di LeaveRequestResource::getEloquentQuery() SENGAJA
+    // DIBIARKAN (bukan dihapus) sebagai defense-in-depth; filter dari
+    // scope ini no-op/redundan di sana, tapi jadi satu-satunya proteksi
+    // untuk query LANGSUNG ke LeaveRequest:: di tempat lain (widget/
+    // report/service) yang sebelumnya rawan lupa di-scope.
+    use HasStoreScope;
 
     // Standar minimum UU Ketenagakerjaan RI — 12 hari cuti/tahun, cuma
     // berlaku untuk type 'cuti' (Izin & Sakit TIDAK memotong jatah ini,
