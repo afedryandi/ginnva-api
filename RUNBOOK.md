@@ -133,3 +133,16 @@ git push origin --tags
 ```
 
 Untuk melihat semua tag yang sudah dibuat: `git tag -l`. Untuk menghapus tag yang salah (sebelum ada yang lain pull): `git tag -d <tag>` lalu `git push origin :refs/tags/<tag>`.
+
+## 7. Konsistensi Lintas-Environment (Single Source of Truth)
+
+Ditambahkan 2026-09-14 (audit framework, "Konsistensi lintas-environment") — insiden nyata pernah terjadi: 2 clone lokal `ginnva-mobile` (folder kerja developer vs folder kerja AI assistant) menyimpang berminggu-minggu tanpa disadari, salah satunya sempat merender ulang fitur yang sudah diperbaiki di clone lain (regresi ter-deploy diam-diam). Aturan berikut mencegah pengulangan.
+
+**Aturan #1 — remote Git (`origin`) adalah SATU-SATUNYA sumber kebenaran, bukan file lokal di komputer mana pun.** Kalau ada keraguan "versi mana yang benar", jawabannya selalu: apa pun yang ada di `origin/master` (mobile/web) atau `origin/development` (api) — BUKAN isi folder lokal terbaru yang "kelihatannya" benar.
+
+**Aturan #2 — `ginnva-api` & `ginnva-web`: 1 clone per mesin kerja, selalu `git pull` sebelum mulai kerja.** Repo ini TIDAK punya masalah dual-clone (dikonfirmasi 2026-09-14) — pertahankan begini, jangan buat clone kerja paralel kedua.
+
+**Aturan #3 — `ginnva-mobile` PUNYA 2 clone lokal yang disengaja tetap ada** (folder kerja developer `C:\Users\Antony\ginnva-mobile` + folder kerja sesi AI assistant `Downloads\...\ginnva-mobile`) — kalau situasi ini berubah (mis. AI assistant selalu kerja langsung di 1 folder yang sama dengan developer), sederhanakan jadi 1 clone. Selama masih 2:
+- **WAJIB `git status` + `git log -1` di KEDUA folder sebelum mulai sesi kerja baru** — kalau HEAD commit beda, SELESAIKAN penyimpangan itu dulu (pull/merge/diff manual) sebelum menulis kode baru di folder mana pun.
+- Perubahan yang belum di-commit (per instruksi standing user: mobile TIDAK auto-commit/push) **WAJIB disalin file-per-file ke folder satunya** segera setelah diedit — jangan menumpuk banyak file berbeda dulu baru disinkronkan belakangan, itu yang menyebabkan insiden awal.
+- Kalau ragu file mana yang lebih baru/benar antara 2 folder: `diff` langsung, JANGAN asumsi berdasarkan tanggal file (bisa menyesatkan kalau salah satu di-edit dari sesi lama yang belum ditutup).
