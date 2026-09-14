@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,6 +12,13 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class JournalEntry extends Model
 {
     use LogsActivity;
+
+    // Global Scope store-id (audit framework 2026-09-14, "Isolasi data
+    // multi-tenant") — JournalEntryResource::canViewAny() sudah
+    // full-access-only, jadi scope ini no-op lewat Filament; jaring
+    // pengaman untuk query LANGSUNG ke JournalEntry:: di tempat lain
+    // (widget/report/service). Lihat App\Models\Scopes\StoreScope.
+    use HasStoreScope;
 
     protected $fillable = [
         'entry_number',

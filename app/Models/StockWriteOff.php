@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Spatie\Activitylog\LogOptions;
@@ -14,6 +15,14 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class StockWriteOff extends Model
 {
     use LogsActivity;
+
+    // Global Scope store-id (audit framework 2026-09-14, "Isolasi data
+    // multi-tenant") — PENTING: sebelum ini, StockWriteOffResource TIDAK
+    // punya scoping store_id sama sekali (bug asli, sekarang juga
+    // diperbaiki manual di StockWriteOffResource::getEloquentQuery()).
+    // Scope ini jadi proteksi utama, bukan cuma defense-in-depth.
+    // Lihat App\Models\Scopes\StoreScope.
+    use HasStoreScope;
 
     protected $fillable = [
         'write_off_number',

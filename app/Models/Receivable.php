@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,6 +12,12 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class Receivable extends Model
 {
     use LogsActivity;
+
+    // Global Scope store-id (audit framework 2026-09-14, "Isolasi data
+    // multi-tenant") — lihat App\Models\Scopes\StoreScope. Pola manual
+    // yang sudah ada di ReceivableResource::getEloquentQuery() SENGAJA
+    // DIBIARKAN sebagai defense-in-depth.
+    use HasStoreScope;
 
     protected $fillable = [
         'receivable_number',

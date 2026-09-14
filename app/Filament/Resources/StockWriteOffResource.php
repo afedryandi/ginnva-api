@@ -63,7 +63,22 @@ class StockWriteOffResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with(['creator', 'journalEntry']);
+        // SEBELUMNYA tidak ada filter store_id di sini sama sekali (bug
+        // ditemukan lewat audit framework 2026-09-14, "Isolasi data
+        // multi-tenant") — staf non-full-access bisa melihat write-off
+        // stok toko lain. Global Scope di model StockWriteOff (lihat
+        // App\Models\Scopes\StoreScope) sekarang jadi proteksi utamanya;
+        // filter manual di sini tetap ditulis eksplisit supaya konsisten
+        // dengan pola di seluruh Resource lain & tidak diam-diam
+        // bergantung sepenuhnya pada Global Scope.
+        $query = parent::getEloquentQuery()->with(['creator', 'journalEntry']);
+        $user  = auth()->user();
+
+        if ($user && ! $user->isFullAccess()) {
+            $query->where('store_id', $user->store_id);
+        }
+
+        return $query;
     }
 
     public static function table(Table $table): Table

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -9,6 +10,12 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class StoreReview extends Model
 {
     use LogsActivity;
+
+    // Global Scope store-id (audit framework 2026-09-14, "Isolasi data
+    // multi-tenant") — lihat App\Models\Scopes\StoreScope. Pola manual
+    // yang sudah ada di StoreReviewResource::getEloquentQuery() SENGAJA
+    // DIBIARKAN sebagai defense-in-depth.
+    use HasStoreScope;
 
     protected $fillable = [
         'booking_id',
