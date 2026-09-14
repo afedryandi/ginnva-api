@@ -54,6 +54,26 @@ class CustomerResource extends Resource
         return false;
     }
 
+    /**
+     * SEBELUMNYA tidak ada override di sini dan tidak ada CustomerPolicy
+     * terdaftar — canView() bawaan Resource selalu FALSE untuk siapa pun
+     * tanpa Policy (default-deny Laravel). Sama bug class yang sudah
+     * ditemukan & diperbaiki di banyak resource lain (ActivityResource,
+     * BookingResource, ScrollCodeResource, dst) — di sini akibatnya
+     * tombol "Lihat" (Tables\Actions\ViewAction) tidak pernah muncul
+     * sama sekali, padahal halaman ViewCustomer (riwayat warranty/
+     * booking + aksi "Set Referral") sudah dibangun lengkap. Dibiarkan
+     * seluas canViewAny() — tidak ada ->visible() tambahan di kode
+     * aslinya untuk ViewAction.
+     */
+    public static function canView($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class);
+    }
+
     public static function canDelete($record): bool
     {
         return auth()->user()?->isFullAccess() ?? false;
