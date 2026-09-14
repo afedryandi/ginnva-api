@@ -18,8 +18,9 @@ use RuntimeException;
  *
  * PENDEKATAN: bikin JournalEntry BARU yang membalik SEBAGIAN pendapatan
  * (Debit akun Pendapatan sebesar nominal refund, split 50/50 kalau
- * booking-nya PPF+Kaca Film — SAMA PERSIS logika revenueSplits() di
- * BookingPostingService — Kredit Kas sebesar nominal refund) — BUKAN
+ * booking-nya PPF+Kaca Film — lihat BookingRevenueSplitter, SATU-SATUNYA
+ * implementasi split ini, dipakai bareng BookingPostingService — Kredit
+ * Kas sebesar nominal refund) — BUKAN
  * mengedit/membalik total JournalEntry ASLI booking itu. Praktik
  * akuntansi standar: entry historis tidak pernah diedit, koreksi selalu
  * lewat entry baru. Ini juga TIDAK memanggil BookingPostingService::sync()
@@ -35,9 +36,6 @@ use RuntimeException;
 class RefundService
 {
     private const CASH_ACCOUNT_CODE = '1101';
-    private const PPF_REVENUE_ACCOUNT_CODE = '4100';
-    private const KACA_FILM_REVENUE_ACCOUNT_CODE = '4200';
-    private const FALLBACK_REVENUE_ACCOUNT_CODE = '4400';
 
     /**
      * @throws RuntimeException kalau booking belum punya jurnal
@@ -81,7 +79,7 @@ class RefundService
             }
 
             $lines = [];
-            foreach ($this->revenueSplits($booking, $amount) as $accountCode => $portion) {
+            foreach (BookingRevenueSplitter::splits($booking, $amount) as $accountCode => $portion) {
                 $account = ChartOfAccount::where('code', $accountCode)->first();
                 if (! $account) {
                     throw new RuntimeException("Akun pendapatan (kode {$accountCode}) tidak ditemukan di Bagan Akun.");
@@ -112,32 +110,5 @@ class RefundService
                 'created_by' => $userId,
             ]);
         });
-    }
-
-    /**
-     * @return array<string, float> kode akun => nominal — SAMA PERSIS
-     *         logika BookingPostingService::revenueSplits(), diterapkan
-     *         ke nominal refund (bukan transaction_amount penuh).
-     */
-    private function revenueSplits(Booking $booking, float $amount): array
-    {
-        if ($booking->product_ppf && $booking->product_kaca_film) {
-            $half = round($amount / 2, 2);
-
-            return [
-                self::PPF_REVENUE_ACCOUNT_CODE => $half,
-                self::KACA_FILM_REVENUE_ACCOUNT_CODE => round($amount - $half, 2),
-            ];
-        }
-
-        if ($booking->product_ppf) {
-            return [self::PPF_REVENUE_ACCOUNT_CODE => $amount];
-        }
-
-        if ($booking->product_kaca_film) {
-            return [self::KACA_FILM_REVENUE_ACCOUNT_CODE => $amount];
-        }
-
-        return [self::FALLBACK_REVENUE_ACCOUNT_CODE => $amount];
     }
 }

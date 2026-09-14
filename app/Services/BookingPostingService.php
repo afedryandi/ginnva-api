@@ -37,9 +37,6 @@ class BookingPostingService
 {
     private const CASH_ACCOUNT_CODE = '1101';
     private const PIUTANG_USAHA_ACCOUNT_CODE = '1110';
-    private const PPF_REVENUE_ACCOUNT_CODE = '4100';
-    private const KACA_FILM_REVENUE_ACCOUNT_CODE = '4200';
-    private const FALLBACK_REVENUE_ACCOUNT_CODE = '4400';
 
     /**
      * Sinkronkan jurnal Pendapatan booking ini dengan transaction_amount/
@@ -130,7 +127,7 @@ class BookingPostingService
             $lines[] = ['chart_of_account_id' => $piutang->id, 'debit' => $outstanding];
         }
 
-        $revenueSplits = $this->revenueSplits($booking, $amount);
+        $revenueSplits = BookingRevenueSplitter::splits($booking, $amount);
         foreach ($revenueSplits as $accountCode => $portion) {
             $account = ChartOfAccount::where('code', $accountCode)->first();
             if (! $account) {
@@ -151,35 +148,6 @@ class BookingPostingService
         ], $lines);
 
         return $service->post($entry, auth()->id());
-    }
-
-    /**
-     * @return array<string, float> kode akun => nominal
-     */
-    private function revenueSplits(Booking $booking, float $amount): array
-    {
-        if ($booking->product_ppf && $booking->product_kaca_film) {
-            $half = round($amount / 2, 2);
-
-            return [
-                self::PPF_REVENUE_ACCOUNT_CODE => $half,
-                // Sisa (bukan $half lagi) dipakai untuk baris kedua —
-                // supaya total 2 baris SELALU persis sama dengan $amount
-                // walau $amount ganjil (pembulatan $half tidak membuang
-                // recehan).
-                self::KACA_FILM_REVENUE_ACCOUNT_CODE => round($amount - $half, 2),
-            ];
-        }
-
-        if ($booking->product_ppf) {
-            return [self::PPF_REVENUE_ACCOUNT_CODE => $amount];
-        }
-
-        if ($booking->product_kaca_film) {
-            return [self::KACA_FILM_REVENUE_ACCOUNT_CODE => $amount];
-        }
-
-        return [self::FALLBACK_REVENUE_ACCOUNT_CODE => $amount];
     }
 
     private function reverseExisting(Booking $booking): void
