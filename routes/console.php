@@ -47,3 +47,7 @@ Schedule::command('assets:post-depreciation')->monthlyOn(1, '02:00');
 // database otomatis") -- otomasi SOP manual RUNBOOK.md §5, dini hari
 // supaya tidak bentrok jam sibuk. Lihat App\Console\Commands\BackupDatabase.
 Schedule::command('backup:database')->dailyAt('03:00');
+
+// Hapus kode OTP kedaluwarsa (audit framework 2026-09-14, "Retensi &
+// penghapusan data historis") -- lihat App\Console\Commands\PruneExpiredOtpCodes.
+Schedule::command('otp:prune-expired')->dailyAt('04:00');

@@ -146,3 +146,17 @@ Ditambahkan 2026-09-14 (audit framework, "Konsistensi lintas-environment") — i
 - **WAJIB `git status` + `git log -1` di KEDUA folder sebelum mulai sesi kerja baru** — kalau HEAD commit beda, SELESAIKAN penyimpangan itu dulu (pull/merge/diff manual) sebelum menulis kode baru di folder mana pun.
 - Perubahan yang belum di-commit (per instruksi standing user: mobile TIDAK auto-commit/push) **WAJIB disalin file-per-file ke folder satunya** segera setelah diedit — jangan menumpuk banyak file berbeda dulu baru disinkronkan belakangan, itu yang menyebabkan insiden awal.
 - Kalau ragu file mana yang lebih baru/benar antara 2 folder: `diff` langsung, JANGAN asumsi berdasarkan tanggal file (bisa menyesatkan kalau salah satu di-edit dari sesi lama yang belum ditutup).
+
+## 8. Kebijakan Retensi Data
+
+Ditambahkan 2026-09-14 (audit framework, "Retensi & penghapusan data historis"). Status per jenis data — bukan daftar lengkap final, perbarui kalau ada keputusan baru:
+
+| Jenis Data | Retensi | Status |
+|---|---|---|
+| Kode OTP (`otp_codes`) | 7 hari setelah expired | **Otomatis** — `App\Console\Commands\PruneExpiredOtpCodes`, jadwal harian jam 04:00 |
+| Log aktivitas (`activity_log`, spatie/laravel-activitylog) | Tanpa batas (belum diputuskan) | Sengaja dibiarkan tanpa purge dulu — cakupannya baru diperluas untuk audit trail (lihat item "Jejak audit"), volume masih kecil. Revisit kalau tabel mulai membengkak nyata. |
+| Riwayat chat booking (`booking_messages`) | Tanpa batas (belum diputuskan) | Sama alasan di atas — jangan buru-buru hapus riwayat yang mungkin masih relevan untuk sengketa/investigasi. |
+| Data transaksi keuangan (`bookings`, `journal_entries`, `receivables`, `payables`) | **Terikat kewajiban pajak** — BELUM diputuskan formal | Terkait langsung ke keputusan model PPN yang masih menunggu atasan (lihat memory `project_penjualan_majoo_blocked_items.md`). Jangan hapus/purge apa pun di kategori ini sebelum ada kepastian. |
+| Device token (`device_tokens`) milik akun yang sudah dihapus/tidak aktif | Belum ada kebijakan | **Belum dievaluasi** — kandidat pembersihan berikutnya kalau diminta lanjut. |
+
+**Prinsip umum**: kalau ragu antara hapus atau simpan, DEFAULT ke simpan dulu (terutama data yang menyentuh kewajiban hukum/pajak) — purge yang salah tidak bisa dibatalkan, keputusan menunda purge selalu bisa direvisi nanti.
