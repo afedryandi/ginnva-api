@@ -45,55 +45,41 @@ class BackupDatabase extends Command
         File::ensureDirectoryExists($backupDir);
 
         $timestamp = now()->format('Ymd_His');
-        $sqlPath = "{$backupDir}/ginnva_backup_{$timestamp}.sql";
-        $gzPath = "{$sqlPath}.gz";
+        $gzPath = "{$backupDir}/ginnva_backup_{$timestamp}.sql.gz";
 
         // --no-tablespaces: hindari error "Access denied ... PROCESS
         // privilege" di mysqldump versi baru kalau DB user production
         // tidak diberi privilege PROCESS global (umum di shared/managed
         // hosting) — sama catatan yang sudah ada di RUNBOOK.md §5.
+        //
+        // PENTING: mysqldump di-pipe LANGSUNG ke gzip lewat shell (`|`),
+        // BUKAN ditampung ke memori PHP dulu (percobaan pertama
+        // ->output() lalu File::put() bikin PHP kehabisan memory_limit
+        // 128MB begitu database production di-dump sungguhan — dump
+        // beberapa ratus MB tidak muat ditampung sekaligus di RAM PHP).
         // Password dikirim lewat MYSQL_PWD env var (bukan argumen
         // --password= di command line) supaya tidak muncul di process
-        // list (`ps aux`) server selama proses berjalan -- lebih aman
-        // dari SOP manual RUNBOOK yang minta password interaktif.
+        // list (`ps aux`) server selama proses berjalan.
+        $shellCommand = sprintf(
+            'mysqldump --no-tablespaces -h %s -P %s -u %s %s | gzip > %s',
+            escapeshellarg($connection['host']),
+            escapeshellarg((string) $connection['port']),
+            escapeshellarg($connection['username']),
+            escapeshellarg($connection['database']),
+            escapeshellarg($gzPath)
+        );
+
         $dumpResult = Process::timeout(600)
             ->env(['MYSQL_PWD' => $connection['password']])
-            ->run([
-                'mysqldump',
-                '--no-tablespaces',
-                '-h', $connection['host'],
-                '-P', (string) $connection['port'],
-                '-u', $connection['username'],
-                $connection['database'],
-            ]);
+            ->run($shellCommand);
 
-        if (! $dumpResult->successful()) {
-            Log::error('[BackupDatabase] mysqldump gagal', [
+        if (! $dumpResult->successful() || ! File::exists($gzPath) || File::size($gzPath) === 0) {
+            Log::error('[BackupDatabase] mysqldump/gzip gagal', [
                 'exit_code' => $dumpResult->exitCode(),
                 'error' => $dumpResult->errorOutput(),
             ]);
-            $this->error('mysqldump gagal: ' . $dumpResult->errorOutput());
-
-            return self::FAILURE;
-        }
-
-        File::put($sqlPath, $dumpResult->output());
-
-        if (! File::exists($sqlPath) || File::size($sqlPath) === 0) {
-            Log::error('[BackupDatabase] File dump kosong/tidak terbentuk', ['path' => $sqlPath]);
-            $this->error('File dump kosong — backup dibatalkan.');
-
-            return self::FAILURE;
-        }
-
-        // gzip lewat proses shell (bukan ext-zlib) supaya hasilnya
-        // persis sama dengan SOP manual RUNBOOK (`| gzip`), gampang
-        // dibuka manual pakai `gunzip` kalau perlu inspeksi cepat.
-        $gzipResult = Process::timeout(300)->run(['gzip', '-f', $sqlPath]);
-
-        if (! $gzipResult->successful() || ! File::exists($gzPath)) {
-            Log::error('[BackupDatabase] gzip gagal', ['error' => $gzipResult->errorOutput()]);
-            $this->error('gzip gagal: ' . $gzipResult->errorOutput());
+            $this->error('Backup gagal: ' . $dumpResult->errorOutput());
+            File::delete($gzPath);
 
             return self::FAILURE;
         }
