@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\ChartOfAccount;
 use App\Models\JournalEntry;
 use App\Models\Receivable;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -59,39 +60,54 @@ class BookingPostingService
      */
     public function sync(Booking $booking): ?JournalEntry
     {
-        $this->assertReceivableSafeToReplace($booking);
+        // Audit framework 2026-09-14, "Integritas transaksi finansial"
+        // -- SEBELUMNYA method ini sama sekali TIDAK dibungkus
+        // DB::transaction(): balik jurnal lama, hapus piutang lama,
+        // bikin jurnal baru, update booking, & bikin piutang baru semua
+        // operasi TERPISAH. Kalau request gagal/timeout di tengah
+        // (mis. setelah jurnal lama dibalik tapi sebelum jurnal baru
+        // dibuat), booking jadi tersangkut di state rusak (jurnal
+        // hilang tanpa gantinya) tanpa cara pulih otomatis. lockForUpdate()
+        // di baris pertama juga mencegah 2 klik "Proses Referral" cepat
+        // beruntun/bersamaan bikin 2 jurnal duplikat untuk booking yang
+        // sama.
+        return DB::transaction(function () use ($booking) {
+            $booking = Booking::query()->where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
-        $amount = (float) ($booking->transaction_amount ?? 0);
+            $this->assertReceivableSafeToReplace($booking);
 
-        $this->reverseExisting($booking);
-        $this->clearReplaceableReceivable($booking);
+            $amount = (float) ($booking->transaction_amount ?? 0);
 
-        if ($amount <= 0) {
-            $booking->update(['journal_entry_id' => null]);
+            $this->reverseExisting($booking);
+            $this->clearReplaceableReceivable($booking);
 
-            return null;
-        }
+            if ($amount <= 0) {
+                $booking->update(['journal_entry_id' => null]);
 
-        $received = min((float) ($booking->amount_received ?? $amount), $amount);
-        $outstanding = round($amount - $received, 2);
+                return null;
+            }
 
-        $entry = $this->post($booking, $amount, $received, $outstanding);
-        $booking->update(['journal_entry_id' => $entry->id]);
+            $received = min((float) ($booking->amount_received ?? $amount), $amount);
+            $outstanding = round($amount - $received, 2);
 
-        if ($outstanding > 0) {
-            app(ReceivableService::class)->create([
-                'customer_name' => $booking->customer_name,
-                'store_id' => $booking->store_id,
-                'source_type' => 'booking',
-                'source_id' => $booking->id,
-                'amount' => $outstanding,
-                'due_date' => null,
-                'journal_entry_id' => $entry->id,
-                'created_by' => auth()->id(),
-            ]);
-        }
+            $entry = $this->post($booking, $amount, $received, $outstanding);
+            $booking->update(['journal_entry_id' => $entry->id]);
 
-        return $entry;
+            if ($outstanding > 0) {
+                app(ReceivableService::class)->create([
+                    'customer_name' => $booking->customer_name,
+                    'store_id' => $booking->store_id,
+                    'source_type' => 'booking',
+                    'source_id' => $booking->id,
+                    'amount' => $outstanding,
+                    'due_date' => null,
+                    'journal_entry_id' => $entry->id,
+                    'created_by' => auth()->id(),
+                ]);
+            }
+
+            return $entry;
+        });
     }
 
     private function post(Booking $booking, float $amount, float $received, float $outstanding): JournalEntry

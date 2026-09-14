@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Booking;
 use App\Models\ChartOfAccount;
 use App\Models\Refund;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -45,57 +46,72 @@ class RefundService
      */
     public function process(Booking $booking, float $amount, ?string $reason, ?int $userId): Refund
     {
-        if (! $booking->journal_entry_id) {
-            throw new RuntimeException('Booking ini belum punya jurnal pendapatan (belum diproses lewat "Proses Referral") — tidak ada yang bisa di-refund.');
-        }
-
         if ($amount <= 0) {
             throw new RuntimeException('Nominal refund harus lebih dari Rp 0.');
         }
 
-        $alreadyRefunded = (float) $booking->refunds()->sum('amount');
-        $remaining = round((float) $booking->transaction_amount - $alreadyRefunded, 2);
+        // Audit framework 2026-09-14, "Integritas transaksi finansial"
+        // -- SEBELUMNYA "sisa yang bisa di-refund" dihitung TANPA lock
+        // & TANPA transaction sama sekali: 2 refund untuk booking yang
+        // sama diajukan hampir bersamaan bisa dua-duanya membaca
+        // $alreadyRefunded yang SAMA (belum saling lihat punya masing-
+        // masing), dua-duanya lolos validasi "tidak melebihi remaining",
+        // dan total refund akhirnya melebihi transaction_amount --
+        // uang keluar lebih dari yang seharusnya. lockForUpdate() di
+        // baris pertama mengunci booking ini supaya refund kedua HARUS
+        // menunggu refund pertama commit dulu sebelum mulai menghitung
+        // ulang sisa yang benar.
+        return DB::transaction(function () use ($booking, $amount, $reason, $userId) {
+            $booking = Booking::query()->where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
-        if ($amount > $remaining) {
-            throw new RuntimeException("Nominal refund (Rp" . number_format($amount, 0, ',', '.') . ") melebihi sisa yang bisa di-refund (Rp" . number_format($remaining, 0, ',', '.') . ').');
-        }
-
-        $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
-        if (! $cash) {
-            throw new RuntimeException('Akun kas (kode ' . self::CASH_ACCOUNT_CODE . ') tidak ditemukan di Bagan Akun.');
-        }
-
-        $lines = [];
-        foreach ($this->revenueSplits($booking, $amount) as $accountCode => $portion) {
-            $account = ChartOfAccount::where('code', $accountCode)->first();
-            if (! $account) {
-                throw new RuntimeException("Akun pendapatan (kode {$accountCode}) tidak ditemukan di Bagan Akun.");
+            if (! $booking->journal_entry_id) {
+                throw new RuntimeException('Booking ini belum punya jurnal pendapatan (belum diproses lewat "Proses Referral") — tidak ada yang bisa di-refund.');
             }
-            $lines[] = ['chart_of_account_id' => $account->id, 'debit' => $portion];
-        }
-        $lines[] = ['chart_of_account_id' => $cash->id, 'credit' => $amount];
 
-        $refundNumber = Refund::generateRefundNumber();
+            $alreadyRefunded = (float) $booking->refunds()->sum('amount');
+            $remaining = round((float) $booking->transaction_amount - $alreadyRefunded, 2);
 
-        $service = app(JournalEntryService::class);
-        $entry = $service->create([
-            'entry_date' => now()->toDateString(),
-            'store_id' => $booking->store_id,
-            'description' => "Refund {$refundNumber} — booking {$booking->booking_number} ({$booking->customer_name})" . ($reason ? " — {$reason}" : ''),
-            'reference_type' => 'refund',
-            'reference_id' => $booking->id,
-            'created_by' => $userId,
-        ], $lines);
-        $entry = $service->post($entry, $userId);
+            if ($amount > $remaining) {
+                throw new RuntimeException("Nominal refund (Rp" . number_format($amount, 0, ',', '.') . ") melebihi sisa yang bisa di-refund (Rp" . number_format($remaining, 0, ',', '.') . ').');
+            }
 
-        return Refund::create([
-            'refund_number' => $refundNumber,
-            'booking_id' => $booking->id,
-            'amount' => $amount,
-            'reason' => $reason,
-            'journal_entry_id' => $entry->id,
-            'created_by' => $userId,
-        ]);
+            $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
+            if (! $cash) {
+                throw new RuntimeException('Akun kas (kode ' . self::CASH_ACCOUNT_CODE . ') tidak ditemukan di Bagan Akun.');
+            }
+
+            $lines = [];
+            foreach ($this->revenueSplits($booking, $amount) as $accountCode => $portion) {
+                $account = ChartOfAccount::where('code', $accountCode)->first();
+                if (! $account) {
+                    throw new RuntimeException("Akun pendapatan (kode {$accountCode}) tidak ditemukan di Bagan Akun.");
+                }
+                $lines[] = ['chart_of_account_id' => $account->id, 'debit' => $portion];
+            }
+            $lines[] = ['chart_of_account_id' => $cash->id, 'credit' => $amount];
+
+            $refundNumber = Refund::generateRefundNumber();
+
+            $service = app(JournalEntryService::class);
+            $entry = $service->create([
+                'entry_date' => now()->toDateString(),
+                'store_id' => $booking->store_id,
+                'description' => "Refund {$refundNumber} — booking {$booking->booking_number} ({$booking->customer_name})" . ($reason ? " — {$reason}" : ''),
+                'reference_type' => 'refund',
+                'reference_id' => $booking->id,
+                'created_by' => $userId,
+            ], $lines);
+            $entry = $service->post($entry, $userId);
+
+            return Refund::create([
+                'refund_number' => $refundNumber,
+                'booking_id' => $booking->id,
+                'amount' => $amount,
+                'reason' => $reason,
+                'journal_entry_id' => $entry->id,
+                'created_by' => $userId,
+            ]);
+        });
     }
 
     /**

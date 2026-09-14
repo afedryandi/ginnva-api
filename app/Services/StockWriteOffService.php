@@ -48,6 +48,19 @@ class StockWriteOffService
         }
 
         return DB::transaction(function () use ($item, $itemType, $quantity, $reason, $note, $userId) {
+            // Audit framework 2026-09-14, "Integritas transaksi
+            // finansial" -- SEBELUMNYA $item->current_stock dibaca dari
+            // instance yang di-load SEBELUM transaksi/lock ini, jadi 2
+            // write-off bersamaan pada barang yang sama bisa
+            // menghitung 2 target stok absolut berbeda dari data basi
+            // yang sama, dan yang commit belakangan diam-diam MENIMPA
+            // hasil yang commit duluan dengan angka salah (adjustStock()
+            // set stok ke nilai ABSOLUT, bukan pengurangan relatif).
+            // lockForUpdate() di sini DULU sebelum baca current_stock
+            // memastikan snapshot-nya konsisten -- adjustStock() di
+            // bawah re-lock baris yang SAMA lagi, aman (koneksi/transaksi
+            // yang sama, bukan deadlock).
+            $item = $item::query()->where('id', $item->id)->lockForUpdate()->firstOrFail();
             $current = (float) $item->current_stock;
 
             if ($quantity > $current) {

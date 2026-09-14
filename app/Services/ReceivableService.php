@@ -85,21 +85,31 @@ class ReceivableService
      */
     public function recordPayment(Receivable $receivable, float $amount, Carbon $date, ?int $userId, ?string $notes = null): ReceivablePayment
     {
-        if ($receivable->status === 'paid') {
-            throw new RuntimeException('Piutang ini sudah lunas.');
-        }
-
         if ($amount <= 0) {
             throw new RuntimeException('Nominal pelunasan harus lebih besar dari 0.');
         }
 
-        $remaining = $receivable->remainingAmount();
-        if ($amount > $remaining) {
-            $selisih = number_format($amount - $remaining, 0, ',', '.');
-            throw new RuntimeException("Nominal melebihi sisa piutang sebesar Rp {$selisih}.");
-        }
-
+        // Audit framework 2026-09-14, "Integritas transaksi finansial"
+        // -- SEBELUMNYA validasi status/sisa piutang dibaca SEBELUM
+        // transaction+lock (dari instance $receivable yang basi), sama
+        // bug class dengan PayableService/RefundService: 2 pelunasan
+        // hampir bersamaan untuk piutang yang sama bisa dua-duanya
+        // lolos validasi dari data lama yang sama, amount_paid akhirnya
+        // melebihi amount. lockForUpdate() dulu, baru validasi pakai
+        // data yang sudah dikunci.
         return DB::transaction(function () use ($receivable, $amount, $date, $userId, $notes) {
+            $receivable = Receivable::query()->where('id', $receivable->id)->lockForUpdate()->firstOrFail();
+
+            if ($receivable->status === 'paid') {
+                throw new RuntimeException('Piutang ini sudah lunas.');
+            }
+
+            $remaining = $receivable->remainingAmount();
+            if ($amount > $remaining) {
+                $selisih = number_format($amount - $remaining, 0, ',', '.');
+                throw new RuntimeException("Nominal melebihi sisa piutang sebesar Rp {$selisih}.");
+            }
+
             $piutangUsaha = ChartOfAccount::where('code', self::PIUTANG_USAHA_ACCOUNT_CODE)->first();
             $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
 

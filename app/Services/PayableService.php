@@ -92,21 +92,31 @@ class PayableService
      */
     public function recordPayment(Payable $payable, float $amount, Carbon $date, ?int $userId, ?string $notes = null): PayablePayment
     {
-        if ($payable->status === 'paid') {
-            throw new RuntimeException('Tagihan ini sudah lunas.');
-        }
-
         if ($amount <= 0) {
             throw new RuntimeException('Nominal pembayaran harus lebih besar dari 0.');
         }
 
-        $remaining = $payable->remainingAmount();
-        if ($amount > $remaining) {
-            $selisih = number_format($amount - $remaining, 0, ',', '.');
-            throw new RuntimeException("Nominal melebihi sisa tagihan sebesar Rp {$selisih}.");
-        }
-
+        // Audit framework 2026-09-14, "Integritas transaksi finansial"
+        // -- SEBELUMNYA validasi status/sisa tagihan dibaca SEBELUM
+        // transaction+lock (dari instance $payable yang basi), sama
+        // bug class dengan RefundService: 2 pembayaran hampir bersamaan
+        // untuk tagihan yang sama bisa dua-duanya lolos validasi dari
+        // data lama yang sama, dan amount_paid akhirnya melebihi amount
+        // (overpayment tidak terdeteksi). lockForUpdate() dulu, baru
+        // validasi pakai data yang sudah dikunci.
         return DB::transaction(function () use ($payable, $amount, $date, $userId, $notes) {
+            $payable = Payable::query()->where('id', $payable->id)->lockForUpdate()->firstOrFail();
+
+            if ($payable->status === 'paid') {
+                throw new RuntimeException('Tagihan ini sudah lunas.');
+            }
+
+            $remaining = $payable->remainingAmount();
+            if ($amount > $remaining) {
+                $selisih = number_format($amount - $remaining, 0, ',', '.');
+                throw new RuntimeException("Nominal melebihi sisa tagihan sebesar Rp {$selisih}.");
+            }
+
             $hutangUsaha = ChartOfAccount::where('code', self::HUTANG_USAHA_ACCOUNT_CODE)->first();
             $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
 
