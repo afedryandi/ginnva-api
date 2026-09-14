@@ -2,13 +2,16 @@
 
 namespace App\Filament\Resources;
 
+use App\Exports\StockWriteOffExport;
 use App\Filament\Resources\StockWriteOffResource\Pages;
 use App\Models\StockWriteOff;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Stok Terbuang" — daftar write-off barang rusak/kedaluwarsa/hilang
@@ -149,6 +152,36 @@ class StockWriteOffResource extends Resource
                     ->query(fn (Builder $query, array $data) => $query
                         ->when($data['from'], fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
                         ->when($data['until'], fn ($q, $date) => $q->whereDate('created_at', '<=', $date))),
+            ])
+            ->headerActions([
+                // Filter-aware, sama pola dengan InventoryMovementResource/
+                // RawMaterialMovementResource/ConsumableItemMovementResource
+                // (audit 2026-09-14, temuan pola standar) — ikut filter
+                // yang sedang aktif di layar.
+                Tables\Actions\Action::make('exportExcel')
+                    ->label('Export ke Excel')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
+                    ->action(fn ($livewire) => Excel::download(
+                        new StockWriteOffExport($livewire->getFilteredTableQuery()),
+                        'stok-terbuang-' . now()->format('Ymd-His') . '.xlsx'
+                    )),
+
+                Tables\Actions\Action::make('exportPdf')
+                    ->label('Export ke PDF')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('gray')
+                    ->action(function ($livewire) {
+                        $writeOffs = $livewire->getFilteredTableQuery()
+                            ->with(['creator', 'journalEntry'])
+                            ->reorder('created_at', 'desc')
+                            ->get();
+
+                        $pdf = Pdf::loadView('pdf.stock_write_offs', ['writeOffs' => $writeOffs])->setPaper('a4', 'landscape');
+                        $filename = 'stok-terbuang-' . now()->format('Ymd-His') . '.pdf';
+
+                        return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                    }),
             ])
             ->defaultSort('created_at', 'desc');
     }
