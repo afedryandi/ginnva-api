@@ -9,6 +9,11 @@ use Illuminate\Support\Carbon;
 
 class WarrantyTrendChart extends ChartWidget
 {
+    // Audit framework 2026-09-14, "Auto-polling widget Livewire" --
+    // sebelumnya ikut default Filament (poll tiap 60 detik walau
+    // halaman idle), tidak perlu real-time untuk widget ini.
+    protected static ?string $pollingInterval = null;
+
     protected static ?string $heading = 'Tren Pengajuan Garansi';
 
     // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — SEBELUMNYA

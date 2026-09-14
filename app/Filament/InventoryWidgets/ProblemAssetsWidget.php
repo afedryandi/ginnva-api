@@ -11,6 +11,11 @@ use Filament\Widgets\TableWidget as BaseWidget;
 
 class ProblemAssetsWidget extends BaseWidget
 {
+    // Audit framework 2026-09-14, "Auto-polling widget Livewire" --
+    // sebelumnya ikut default Filament (poll tiap 60 detik walau
+    // halaman idle), tidak perlu real-time untuk widget ini.
+    protected static ?string $pollingInterval = null;
+
     protected static ?string $heading = 'Aset Bermasalah';
 
     protected int|string|array $columnSpan = 'full';
