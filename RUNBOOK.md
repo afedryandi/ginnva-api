@@ -60,9 +60,13 @@ Lokasi nilai asli: **file `.env` di server production**, dikelola manual oleh sy
 
 ## 3. SOP Deploy
 
-1. Pastikan branch yang akan di-deploy sudah lolos testing lokal (`npx tsc --noEmit` untuk mobile, cek balance kurung untuk PHP kalau tidak ada linter).
-2. `git push` ke remote (branch utama atau branch rilis, sesuai konvensi tim).
-3. Di server: `git pull`, lalu (untuk `ginnva-api`):
+1. Pastikan branch yang akan di-deploy sudah lolos testing lokal (`npx tsc --noEmit` untuk mobile, cek balance kurung untuk PHP kalau tidak ada linter) — dan sejak 2026-09-14 lolos CI (`.github/workflows/ci.yml`, lint+test) kalau push-nya lewat GitHub.
+2. **Migrasi baru sejak deploy terakhir — WAJIB direview manual dulu sebelum langkah 3** (audit framework 2026-09-14, "Manajemen migrasi database"): `git log --name-only -- database/migrations` atau `ls -lt database/migrations | head` untuk lihat file baru. Kalau ADA migrasi yang menghapus/mengubah DATA (bukan cuma skema) — cek isinya untuk pola `DB::table(...)->delete()`, `->update()`, `DB::statement(...DELETE/UPDATE...)` — treat sebagai **destruktif**:
+   - Jalankan backup manual dulu (§5) walau backup harian otomatis sudah jalan — jangan andalkan jadwal 03:00 semalam kalau migrasi mau dijalankan siang ini.
+   - Idealnya uji dulu migrasi itu di database staging berisi salinan data production, bukan langsung di production.
+   - Migrasi yang jujur menulis di komentar `down()` bahwa dirinya TIDAK reversibel (mis. penggabungan/penghapusan data) — itu tanda migrasi tersebut butuh perhatian ekstra di langkah ini, bukan sekadar informasi.
+3. `git push` ke remote (branch utama atau branch rilis, sesuai konvensi tim).
+4. Di server: `git pull`, lalu (untuk `ginnva-api`):
    ```bash
    composer install --no-dev --optimize-autoloader
    php artisan migrate --force
@@ -70,8 +74,8 @@ Lokasi nilai asli: **file `.env` di server production**, dikelola manual oleh sy
    php artisan route:cache
    php artisan view:cache
    ```
-4. Untuk `ginnva-web`: `npm install && npm run build`, lalu restart proses Next.js (PM2/systemd sesuai setup server).
-5. Untuk mobile: build lewat EAS (`eas build --platform android --profile production`), submit ke Play Console kalau sudah siap rilis publik.
+5. Untuk `ginnva-web`: `npm install && npm run build`, lalu restart proses Next.js (PM2/systemd sesuai setup server).
+6. Untuk mobile: build lewat EAS (`eas build --platform android --profile production`), submit ke Play Console kalau sudah siap rilis publik.
 
 ## 4. SOP Rollback
 
