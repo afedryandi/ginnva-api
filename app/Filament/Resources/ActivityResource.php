@@ -25,12 +25,9 @@ class ActivityResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clock';
 
-    protected static ?string $cluster = \App\Filament\Clusters\LainnyaCluster::class;
-
-    // Kategori di sidebar cluster 'Lainnya' -- diminta 2026-09-08, supaya
-    // gabungan Master Data + Sistem tetap terlihat terpisah kategorinya
-    // walau top-nav-nya sudah jadi 1 tab.
-    protected static ?string $navigationGroup = 'Sistem';
+    // Dipindah ke SistemCluster 2026-09-14 (struktur dropdown top-nav
+    // "Lainnya" bertingkat — lihat catatan di MasterDataCluster.php).
+    protected static ?string $cluster = \App\Filament\Clusters\SistemCluster::class;
 
     protected static ?int $navigationSort = 20;
 

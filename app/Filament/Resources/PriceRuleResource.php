@@ -16,9 +16,9 @@ class PriceRuleResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calculator';
 
-    protected static ?string $cluster = \App\Filament\Clusters\LainnyaCluster::class;
-
-    protected static ?string $navigationGroup = 'Master Data';
+    // Dipindah ke MasterDataCluster 2026-09-14 (struktur dropdown top-nav
+    // "Lainnya" bertingkat — lihat catatan di MasterDataCluster.php).
+    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
 
     protected static ?string $navigationLabel = 'Koefisien Harga';
 

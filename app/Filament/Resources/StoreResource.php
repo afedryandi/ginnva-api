@@ -19,12 +19,9 @@ class StoreResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
 
-    protected static ?string $cluster = \App\Filament\Clusters\LainnyaCluster::class;
-
-    // Kategori di sidebar cluster 'Lainnya' -- diminta 2026-09-08, supaya
-    // gabungan Master Data + Sistem tetap terlihat terpisah kategorinya
-    // walau top-nav-nya sudah jadi 1 tab.
-    protected static ?string $navigationGroup = 'Master Data';
+    // Dipindah ke MasterDataCluster 2026-09-14 (struktur dropdown top-nav
+    // "Lainnya" bertingkat — lihat catatan di MasterDataCluster.php).
+    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
 
     protected static ?int $navigationSort = 30;
 

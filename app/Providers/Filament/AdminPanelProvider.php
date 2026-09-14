@@ -50,13 +50,16 @@ class AdminPanelProvider extends PanelProvider
             // perannya (grouping sekarang berbasis kelas $cluster per
             // resource/page, bukan string navigationGroup lagi).
             ->topNavigation()
-            // Master Data & Sistem digabung jadi 1 tab top-nav "Lainnya"
-            // (LainnyaCluster, supaya top-nav tidak terlalu lebar), TAPI
-            // di sidebar cluster itu tetap dikategorikan terpisah lewat
-            // $navigationGroup di masing-masing resource (VehicleResource
-            // dkk = 'Master Data', ActivityResource dkk = 'Sistem') —
-            // array ini yang menentukan urutan & label 2 kategori itu di
-            // sidebar. 'Penjualan' SEMPAT jadi tab top-nav sendiri
+            // 2026-09-14: "Lainnya" DIUBAH dari 1 Cluster datar
+            // (LainnyaCluster, isi Master Data + Sistem dibedakan cuma
+            // lewat sidebar sub-heading) jadi navigationGroup TOP-NAV
+            // bertingkat, PERSIS pola "Penjualan" (lihat catatan
+            // MasterDataCluster.php) — "Lainnya" sekarang menaungi 3
+            // Cluster sejajar: MasterDataCluster, NotifikasiCluster,
+            // SistemCluster. Klik "Lainnya" di top-nav menampilkan
+            // dropdown 3 kategori itu, sama seperti klik "Penjualan"
+            // menampilkan dropdown Laporan/Analisa Laporan/Produk/dst.
+            // 'Penjualan' SEMPAT jadi tab top-nav sendiri
             // (PenjualanCluster, 2026-09-08), lalu 2026-09-10 turun jadi
             // navigationGroup biasa yang isinya SalesDashboard + cluster
             // 'Laporan' (lihat PenjualanCluster.php) — supaya hirarki
@@ -122,8 +125,11 @@ class AdminPanelProvider extends PanelProvider
                 // Grup di dalam cluster "Inventori" (Penjualan > Inventori).
                 \Filament\Navigation\NavigationGroup::make('Riwayat')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Kelola Stok')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Master Data')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Sistem')->collapsed(),
+                // 'Master Data'/'Sistem' TIDAK lagi didaftarkan di sini
+                // sejak 2026-09-14 — dulu label sub-heading SIDEBAR di
+                // dalam LainnyaCluster yang datar, sekarang sudah jadi
+                // Cluster TOP-NAV sendiri (MasterDataCluster/SistemCluster,
+                // ->collapsed() tidak relevan untuk level itu).
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
