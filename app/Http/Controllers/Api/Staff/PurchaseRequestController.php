@@ -48,6 +48,10 @@ class PurchaseRequestController extends Controller
      * GET /api/staff/purchase-requests
      * Full-access lihat company-wide (opsional filter store_id), staff
      * biasa cuma lihat toko sendiri — sama pola dengan MaterialMemoController.
+     * Dipaginasi lewat offset (audit framework 2026-09-14, "Pagination &
+     * batas hasil query mobile" — SEBELUMNYA ->get() polos tanpa batas,
+     * beda dari komentar di atas yang bilang "sama pola dengan
+     * MaterialMemoController" padahal itu sudah dipaginasi).
      */
     public function index(Request $request)
     {
@@ -57,16 +61,21 @@ class PurchaseRequestController extends Controller
 
         $user = $request->user('api');
         $storeId = $user->isFullAccess() ? $request->query('store_id') : $user->store_id;
+        $offset = max(0, (int) $request->query('offset', 0));
+        $perPage = 50;
 
-        $requests = PurchaseRequest::query()
+        $query = PurchaseRequest::query()
             ->with(['requester:id,name', 'reviewer:id,name'])
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->orderByDesc('created_at')
-            ->get();
+            ->orderByDesc('created_at');
+
+        $requests = (clone $query)->offset($offset)->limit($perPage)->get();
+        $hasMore = (clone $query)->offset($offset + $perPage)->limit(1)->exists();
 
         return response()->json([
             'success' => true,
             'data' => $requests->map(fn (PurchaseRequest $r) => $this->transform($r)),
+            'has_more' => $hasMore,
         ]);
     }
 
