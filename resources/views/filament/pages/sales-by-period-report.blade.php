@@ -61,7 +61,7 @@
         begitu salah satu berubah.
     --}}
     @livewire(
-        \App\Filament\Widgets\SalesByPeriodChart::class,
+        \App\Filament\ReportWidgets\SalesByPeriodChart::class,
         ['from' => $result['from']->toDateString(), 'to' => $result['to']->toDateString(), 'granularity' => $result['granularity'], 'storeId' => $result['storeId']],
         key('sales-by-period-chart-' . $result['from']->toDateString() . '-' . $result['to']->toDateString() . '-' . $result['granularity'] . '-' . ($result['storeId'] ?? 'all'))
     )

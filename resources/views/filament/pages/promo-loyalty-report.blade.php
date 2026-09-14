@@ -36,7 +36,7 @@
         temuan A) — sebelumnya grafik selalu 14/30/90 hari terakhir sendiri.
     --}}
     @livewire(
-        \App\Filament\Widgets\PromoValueChart::class,
+        \App\Filament\ReportWidgets\PromoValueChart::class,
         ['from' => $result['from']->toDateString(), 'to' => $result['to']->toDateString(), 'storeId' => $result['storeId']],
         key('promo-value-chart-' . $result['from']->toDateString() . '-' . $result['to']->toDateString() . '-' . ($result['storeId'] ?? 'all'))
     )

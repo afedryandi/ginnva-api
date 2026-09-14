@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Widgets;
+namespace App\Filament\ReportWidgets;
 
 use App\Filament\Pages\ProductSalesReport;
 use App\Models\Booking;
@@ -21,6 +21,19 @@ use Illuminate\Support\Carbon;
  * $from/$to/$storeId lewat mount() (dipanggil @livewire(..., ['from'=>...])
  * dari blade halaman, BUKAN <x-filament-widgets::widgets> — pola sama
  * yang sudah terbukti jalan di chart Penjualan lain).
+ *
+ * PINDAH ke namespace App\Filament\ReportWidgets (audit 2026-09-14,
+ * temuan 🔴) — SEBELUMNYA di App\Filament\Widgets yang di-auto-discover
+ * panel-wide (lihat AdminPanelProvider::discoverWidgets()), jadi widget
+ * ini ikut nongol OTOMATIS di Dashboard utama /admin (bukan cuma di
+ * ProductSalesReport tempat dia seharusnya). Karena mount() dipanggil
+ * TANPA argumen oleh Dashboard generik, $storeId selalu null di sana —
+ * staff/manajer toko manapun yang buka Dashboard utama melihat data
+ * PENJUALAN PRODUK SELURUH PERUSAHAAN, bukan cuma tokonya. Fallback
+ * auth()->user() di bawah (sama pola LayananChart/SalesByOutletChart)
+ * menutup celahnya untuk defense-in-depth, TAPI akar masalahnya
+ * (auto-discovery) yang diperbaiki dengan pindah namespace ini — sama
+ * pola InventoryWidgets (lihat catatan di InventoryStatsOverview.php).
  */
 class ProductSalesChart extends ChartWidget
 {
@@ -53,11 +66,18 @@ class ProductSalesChart extends ChartWidget
         $start = $this->from ? Carbon::parse($this->from)->startOfDay() : now()->subDays(29)->startOfDay();
         $end = $this->to ? Carbon::parse($this->to)->endOfDay() : now()->endOfDay();
 
+        // Fallback defense-in-depth (audit 2026-09-14) — kalau widget ini
+        // somehow dirender tanpa lewat @livewire(['storeId' => ...])
+        // (mis. auto-discovery lama/cache), staff non-full-access TETAP
+        // dikunci ke tokonya sendiri, tidak pernah diam-diam company-wide.
+        $user = auth()->user();
+        $storeId = $this->storeId ?? (($user?->isFullAccess() ?? false) ? null : $user?->store_id);
+
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
             ->where('transaction_amount', '>', 0)
             ->whereNotNull('film_product_id')
-            ->when($this->storeId, fn ($q) => $q->where('store_id', $this->storeId))
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['journalEntry:id,entry_date', 'filmProduct:id,name'])
             ->get(['transaction_amount', 'journal_entry_id', 'film_product_id']);
 

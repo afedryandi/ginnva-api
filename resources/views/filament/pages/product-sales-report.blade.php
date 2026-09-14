@@ -43,7 +43,7 @@
         temuan A) — sebelumnya grafik selalu 14/30/90 hari terakhir sendiri.
     --}}
     @livewire(
-        \App\Filament\Widgets\ProductSalesChart::class,
+        \App\Filament\ReportWidgets\ProductSalesChart::class,
         ['from' => $result['from']->toDateString(), 'to' => $result['to']->toDateString(), 'storeId' => $result['storeId']],
         key('product-sales-chart-' . $result['from']->toDateString() . '-' . $result['to']->toDateString() . '-' . ($result['storeId'] ?? 'all'))
     )

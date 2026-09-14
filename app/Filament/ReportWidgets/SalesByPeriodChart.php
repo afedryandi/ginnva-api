@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Widgets;
+namespace App\Filament\ReportWidgets;
 
 use App\Filament\Pages\SalesByPeriodReport;
 use App\Models\Booking;
@@ -32,8 +32,16 @@ use Illuminate\Support\Carbon;
  * custom — pola sama yang sudah terbukti jalan di chart SalesDashboard)
  * dan mengelompokkan periode PERSIS sama dengan tabel di bawahnya lewat
  * SalesByPeriodReport::periodKeyFor() (satu implementasi, dua pemakai).
- * $storeId di-scope PERSIS sama dengan halaman (staff dikunci ke
- * tokonya, sudah di-resolve oleh pemanggil — lihat blade).
+ *
+ * PINDAH ke namespace App\Filament\ReportWidgets (audit 2026-09-14,
+ * temuan 🔴) — SEBELUMNYA auto-discovered di Dashboard utama /admin
+ * dengan $storeId selalu null di sana (komentar lama "$storeId
+ * di-scope PERSIS sama dengan halaman... sudah di-resolve oleh
+ * pemanggil" TERNYATA cuma benar kalau pemanggilnya memang blade
+ * report ini — Dashboard generik memanggil tanpa argumen sama sekali),
+ * membocorkan tren penjualan per periode seluruh perusahaan ke staff
+ * toko manapun. Fallback auth()->user() + pindah namespace menutup
+ * celahnya sekaligus akar masalahnya (sama pola InventoryWidgets).
  */
 class SalesByPeriodChart extends ChartWidget
 {
@@ -68,10 +76,13 @@ class SalesByPeriodChart extends ChartWidget
         $end = $this->to ? Carbon::parse($this->to)->endOfDay() : now()->endOfDay();
         $granularity = $this->granularity ?? 'harian';
 
+        $user = auth()->user();
+        $storeId = $this->storeId ?? (($user?->isFullAccess() ?? false) ? null : $user?->store_id);
+
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
             ->where('transaction_amount', '>', 0)
-            ->when($this->storeId, fn ($q) => $q->where('store_id', $this->storeId))
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with('journalEntry:id,entry_date')
             ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf']);
 

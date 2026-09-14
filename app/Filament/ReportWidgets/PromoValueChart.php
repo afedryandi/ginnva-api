@@ -1,27 +1,34 @@
 <?php
 
-namespace App\Filament\Widgets;
+namespace App\Filament\ReportWidgets;
 
-use App\Filament\Pages\ReservationReport;
-use App\Models\Booking;
+use App\Filament\Pages\PromoLoyaltyReport;
+use App\Models\VoucherClaim;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
 
 /**
- * "Grafik Performa Reservasi" — diminta 2026-09-09, analog Majoo. 2
- * garis: Dibuat (semua booking diajukan hari itu, created_at) vs
- * Dibatalkan (yang statusnya jadi 'cancelled', diajukan hari itu).
+ * "Grafik Promo" — diminta 2026-09-09, analog Majoo. 1 garis: total
+ * nilai voucher dipakai per hari (used_at, status=used, terhubung
+ * booking).
  *
- * SINKRON dengan ReservationReport (audit 2026-09-11, temuan A) —
+ * SINKRON dengan PromoLoyaltyReport (audit 2026-09-11, temuan A) —
  * SEBELUMNYA widget ini punya filter sendiri (14/30/90 hari terakhir),
  * terputus dari form Dari/Sampai di halamannya. Sekarang menerima
  * $from/$to/$storeId lewat mount() (dipanggil @livewire(..., ['from'=>...])
  * dari blade halaman, BUKAN <x-filament-widgets::widgets> — pola sama
  * yang sudah terbukti jalan di chart Penjualan lain).
+ *
+ * PINDAH ke namespace App\Filament\ReportWidgets (audit 2026-09-14,
+ * temuan 🔴) — sama alasan persis ProductSalesChart: SEBELUMNYA
+ * auto-discovered di Dashboard utama /admin dengan $storeId selalu
+ * null di sana, membocorkan nilai promo seluruh perusahaan ke staff
+ * toko manapun. Fallback auth()->user() + pindah namespace menutup
+ * celahnya sekaligus akar masalahnya (sama pola InventoryWidgets).
  */
-class ReservationPerformanceChart extends ChartWidget
+class PromoValueChart extends ChartWidget
 {
-    protected static ?string $heading = 'Grafik Performa Reservasi';
+    protected static ?string $heading = 'Grafik Promo';
 
     protected static ?string $pollingInterval = null;
 
@@ -40,7 +47,7 @@ class ReservationPerformanceChart extends ChartWidget
 
     public static function canView(): bool
     {
-        return ReservationReport::canAccess();
+        return PromoLoyaltyReport::canAccess();
     }
 
     protected function getData(): array
@@ -48,52 +55,44 @@ class ReservationPerformanceChart extends ChartWidget
         $start = $this->from ? Carbon::parse($this->from)->startOfDay() : now()->subDays(29)->startOfDay();
         $end = $this->to ? Carbon::parse($this->to)->endOfDay() : now()->endOfDay();
 
-        $bookings = Booking::query()
-            ->whereBetween('created_at', [$start, $end])
-            ->when($this->storeId, fn ($q) => $q->where('store_id', $this->storeId))
-            ->get(['created_at', 'status']);
+        $user = auth()->user();
+        $storeId = $this->storeId ?? (($user?->isFullAccess() ?? false) ? null : $user?->store_id);
 
-        $createdByDate = [];
-        $cancelledByDate = [];
-        foreach ($bookings as $booking) {
-            $date = $booking->created_at->toDateString();
-            $createdByDate[$date] = ($createdByDate[$date] ?? 0) + 1;
-            if ($booking->status === 'cancelled') {
-                $cancelledByDate[$date] = ($cancelledByDate[$date] ?? 0) + 1;
-            }
+        $claims = VoucherClaim::query()
+            ->where('status', 'used')
+            ->whereNotNull('booking_id')
+            ->whereBetween('used_at', [$start, $end])
+            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
+            ->with('voucher:id,discount_amount')
+            ->get(['id', 'used_at', 'voucher_id']);
+
+        $byDate = [];
+        foreach ($claims as $claim) {
+            $date = $claim->used_at?->toDateString();
+            if (! $date) continue;
+            $byDate[$date] = ($byDate[$date] ?? 0) + (float) ($claim->voucher->discount_amount ?? 0);
         }
 
         $labels = [];
-        $createdData = [];
-        $cancelledData = [];
+        $data = [];
         $cursor = $start->copy();
         while ($cursor->lte($end)) {
             $key = $cursor->toDateString();
             $labels[] = $cursor->format('d M');
-            $createdData[] = $createdByDate[$key] ?? 0;
-            $cancelledData[] = $cancelledByDate[$key] ?? 0;
+            $data[] = $byDate[$key] ?? 0;
             $cursor->addDay();
         }
 
         return [
             'datasets' => [
                 [
-                    'label' => 'Dibuat',
-                    'data' => $createdData,
-                    'borderColor' => '#2563eb',
-                    'backgroundColor' => 'rgba(37, 99, 235, 0.1)',
+                    'label' => 'Nilai Promo',
+                    'data' => $data,
+                    'borderColor' => '#16a34a',
+                    'backgroundColor' => 'rgba(22, 163, 74, 0.1)',
                     'pointRadius' => 2,
                     'tension' => 0.3,
                     'fill' => true,
-                ],
-                [
-                    'label' => 'Dibatalkan',
-                    'data' => $cancelledData,
-                    'borderColor' => '#dc2626',
-                    'backgroundColor' => 'transparent',
-                    'pointRadius' => 2,
-                    'tension' => 0.3,
-                    'fill' => false,
                 ],
             ],
             'labels' => $labels,
@@ -109,12 +108,11 @@ class ReservationPerformanceChart extends ChartWidget
     {
         return [
             'plugins' => [
-                'legend' => ['display' => true, 'position' => 'top', 'align' => 'end'],
+                'legend' => ['display' => false],
             ],
             'scales' => [
                 'y' => [
                     'beginAtZero' => true,
-                    'ticks' => ['precision' => 0],
                     'grid' => ['color' => 'rgba(148, 163, 184, 0.12)'],
                 ],
                 'x' => [
