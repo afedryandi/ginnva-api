@@ -154,6 +154,35 @@ class Warranty extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    /**
+     * Audit framework 2026-09-14, "Penanganan data pribadi (PII)
+     * pelanggan" -- customer_name/phone_number di kolom asli SENGAJA
+     * TETAP UTUH (kebutuhan bukti klaim garansi), tapi kalau akun
+     * customer terkait sudah dihapus (customer_id ada tapi relasi
+     * customer() sudah tidak ketemu lagi karena soft-delete), tampilan
+     * di Filament diganti generik supaya tidak menampilkan PII orang
+     * yang sudah minta akunnya dihapus. Dipakai di WarrantyResource,
+     * BUKAN nama attribute asli (customer_name) supaya form edit tetap
+     * baca/tulis data mentahnya, tidak ikut ketimpa string generik ini.
+     */
+    public function getDisplayCustomerNameAttribute(): string
+    {
+        if ($this->customer_id && ! $this->customer) {
+            return 'Pelanggan Terhapus';
+        }
+
+        return $this->customer_name ?? '—';
+    }
+
+    public function getDisplayPhoneNumberAttribute(): string
+    {
+        if ($this->customer_id && ! $this->customer) {
+            return '—';
+        }
+
+        return $this->phone_number ?? '—';
+    }
+
     public function reviewer()
     {
         return $this->belongsTo(User::class, 'reviewed_by');

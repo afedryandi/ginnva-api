@@ -21,6 +21,35 @@ class Booking extends Model
     // (widget/report/service) yang sebelumnya rawan lupa di-scope.
     use HasStoreScope;
 
+    /**
+     * Audit framework 2026-09-14, "Penanganan data pribadi (PII)
+     * pelanggan" -- customer_name/phone_number di kolom asli SENGAJA
+     * TETAP UTUH (kebutuhan bukti pajak/audit transaksi), tapi kalau
+     * akun customer terkait sudah dihapus (customer_id ada tapi relasi
+     * customer() tidak ketemu lagi karena soft-delete), tampilan di
+     * Filament diganti generik. Dipakai BUKAN nama attribute asli,
+     * supaya form/aksi lain yang baca customer_name/phone_number
+     * langsung tidak ikut ketimpa string generik ini. Lihat pola sama
+     * di Warranty::getDisplayCustomerNameAttribute().
+     */
+    public function getDisplayCustomerNameAttribute(): string
+    {
+        if ($this->customer_id && ! $this->customer) {
+            return 'Pelanggan Terhapus';
+        }
+
+        return $this->customer_name ?? $this->customer?->name ?? $this->customer?->email ?? '—';
+    }
+
+    public function getDisplayPhoneNumberAttribute(): string
+    {
+        if ($this->customer_id && ! $this->customer) {
+            return '—';
+        }
+
+        return $this->phone_number ?? $this->customer?->phone_number ?? '—';
+    }
+
     // Default lama pengerjaan (hari) per jenis produk kalau staff tidak
     // isi manual — dipakai getEffectiveDurationDaysAttribute() &
     // Booking::booted(). PPF butuh beberapa hari, Kaca Film biasanya

@@ -445,9 +445,10 @@ class WarrantyResource extends Resource
                     ->searchable()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('customer_name')
+                Tables\Columns\TextColumn::make('display_customer_name')
                     ->label('Pelanggan')
-                    ->searchable(),
+                    ->searchable(query: fn (Builder $query, string $search) => $query
+                        ->where('customer_name', 'like', "%{$search}%")),
 
                 Tables\Columns\TextColumn::make('customer.email')
                     ->label('Akun App')
@@ -478,9 +479,10 @@ class WarrantyResource extends Resource
                     })
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('phone_number')
+                Tables\Columns\TextColumn::make('display_phone_number')
                     ->label('No. Telepon')
-                    ->searchable()
+                    ->searchable(query: fn (Builder $query, string $search) => $query
+                        ->where('phone_number', 'like', "%{$search}%"))
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('store.name')

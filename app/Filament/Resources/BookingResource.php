@@ -609,10 +609,10 @@ class BookingResource extends Resource
                 ->schema([
                     TextEntry::make('display_name')
                         ->label('Nama Customer')
-                        ->state(fn (Booking $record) => $record->customer_name ?? $record->customer?->name ?? $record->customer?->email ?? '—'),
+                        ->state(fn (Booking $record) => $record->display_customer_name),
                     TextEntry::make('phone_number')
                         ->label('No. Telepon')
-                        ->state(fn (Booking $record) => $record->phone_number ?? $record->customer?->phone_number ?? '—'),
+                        ->state(fn (Booking $record) => $record->display_phone_number),
                 ]),
 
             InfolistSection::make('Detail Booking')
@@ -841,12 +841,7 @@ class BookingResource extends Resource
 
                 Tables\Columns\TextColumn::make('display_name')
                     ->label('Customer')
-                    ->getStateUsing(fn (Booking $record): string =>
-                        $record->customer_name
-                            ?? $record->customer?->name
-                            ?? $record->customer?->email
-                            ?? '—'
-                    )
+                    ->getStateUsing(fn (Booking $record): string => $record->display_customer_name)
                     ->searchable(query: fn (Builder $query, string $search) => $query
                         ->where('customer_name', 'like', "%{$search}%")
                         ->orWhereHas('customer', fn ($q) => $q
@@ -857,9 +852,7 @@ class BookingResource extends Resource
 
                 Tables\Columns\TextColumn::make('phone_number')
                     ->label('No. Telepon')
-                    ->getStateUsing(fn (Booking $record): string =>
-                        $record->phone_number ?? $record->customer?->phone_number ?? '—'
-                    )
+                    ->getStateUsing(fn (Booking $record): string => $record->display_phone_number)
                     ->toggleable(),
 
                 Tables\Columns\BadgeColumn::make('source')
@@ -1224,18 +1217,28 @@ class BookingResource extends Resource
                 // harus copy-paste nomor manual ke WhatsApp Web. Lihat
                 // audit UI/UX Filament Booking 2026-08-27.
                 Tables\Actions\ActionGroup::make([
+                    // Audit framework 2026-09-14, "Penanganan data
+                    // pribadi (PII) pelanggan" -- customer_name/
+                    // phone_number tetap utuh di database (bukti
+                    // transaksi), TAPI aksi hubungi AKTIF (WA/telepon)
+                    // sengaja disembunyikan kalau akun customer sudah
+                    // dihapus -- kontak orang yang sudah minta akunnya
+                    // dihapus tidak seharusnya tetap dipakai staff untuk
+                    // menghubungi, walau nomornya masih tercatat.
                     Tables\Actions\Action::make('whatsapp')
                         ->label('WhatsApp')
                         ->icon('heroicon-o-chat-bubble-left-right')
                         ->color('success')
-                        ->visible(fn (Booking $record) => filled($record->phone_number ?? $record->customer?->phone_number))
+                        ->visible(fn (Booking $record) => ! ($record->customer_id && ! $record->customer)
+                            && filled($record->phone_number ?? $record->customer?->phone_number))
                         ->url(fn (Booking $record) => 'https://wa.me/' . PhoneFormatter::toWhatsAppNumber($record->phone_number ?? $record->customer?->phone_number))
                         ->openUrlInNewTab(),
                     Tables\Actions\Action::make('call')
                         ->label('Telepon')
                         ->icon('heroicon-o-phone')
                         ->color('info')
-                        ->visible(fn (Booking $record) => filled($record->phone_number ?? $record->customer?->phone_number))
+                        ->visible(fn (Booking $record) => ! ($record->customer_id && ! $record->customer)
+                            && filled($record->phone_number ?? $record->customer?->phone_number))
                         ->url(fn (Booking $record) => 'tel:' . ($record->phone_number ?? $record->customer?->phone_number)),
                 ])
                     ->label('Hubungi')

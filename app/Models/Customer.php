@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Support\Str;
@@ -17,6 +18,18 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
 class Customer extends Model implements Authenticatable, JWTSubject
 {
     use AuthenticatableTrait;
+
+    // Audit framework 2026-09-14, "Penanganan data pribadi (PII)
+    // pelanggan" -- kolom deleted_at SUDAH ADA sejak migrasi
+    // add_deleted_at_to_customers_table, tapi trait ini SEBELUMNYA
+    // TIDAK pernah dipasang, jadi deleted_at tertulis tapi tidak
+    // fungsional sama sekali (tidak ada query yang otomatis
+    // mengecualikan akun yang sudah dihapus). Relasi lain (Booking/
+    // Warranty ->customer) tetap aman dipakai untuk tampilan historis
+    // karena semuanya sudah punya fallback ke kolom customer_name/
+    // phone_number yang didenormalisasi, bukan bergantung ke relasi
+    // ini untuk data yang sudah dianonimkan.
+    use SoftDeletes;
 
     public const GENDER_LABELS = [
         'male' => 'Laki-Laki',

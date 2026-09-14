@@ -8,7 +8,10 @@ use App\Mail\WelcomeMail;
 use App\Models\Customer;
 use App\Models\DeviceToken;
 use App\Models\OtpCode;
+use App\Models\ProductInquiry;
+use App\Models\Quotation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -243,16 +246,44 @@ class AuthController extends Controller
     {
         $customer = $request->user('customer');
 
-        DeviceToken::where('customer_id', $customer->id)->delete();
+        // Audit framework 2026-09-14, "Penanganan data pribadi (PII)
+        // pelanggan" -- SEBELUM email/phone_number di-null, dicocokkan
+        // dulu ke lead marketing publik (quotations/product_inquiries,
+        // TIDAK terhubung customer_id, cuma teks bebas) yang kebetulan
+        // pakai kontak yang sama, lalu ikut dianonimkan. Booking &
+        // Warranty SENGAJA TIDAK disentuh di sini -- itu catatan
+        // transaksi/garansi selesai yang perlu tetap utuh untuk bukti
+        // pajak/audit/klaim garansi (keputusan 2026-09-14), tampilannya
+        // di Filament diganti jadi "Pelanggan Terhapus" tanpa mengubah
+        // data mentahnya (lihat BookingResource/WarrantyResource).
+        DB::transaction(function () use ($customer) {
+            $oldPhone = $customer->phone_number;
+            $oldEmail = $customer->email;
 
-        $customer->update([
-            'name'               => null,
-            'email'              => null,
-            'phone_number'       => null,
-            'email_verified_at'  => null,
-            'phone_verified_at'  => null,
-            'deleted_at'         => now(),
-        ]);
+            if ($oldPhone) {
+                Quotation::where('customer_phone', $oldPhone)
+                    ->update(['customer_name' => 'Pelanggan Terhapus', 'customer_phone' => null]);
+
+                ProductInquiry::where('customer_contact', $oldPhone)
+                    ->update(['customer_name' => 'Pelanggan Terhapus', 'customer_contact' => '-']);
+            }
+
+            if ($oldEmail) {
+                ProductInquiry::where('customer_contact', $oldEmail)
+                    ->update(['customer_name' => 'Pelanggan Terhapus', 'customer_contact' => '-']);
+            }
+
+            DeviceToken::where('customer_id', $customer->id)->delete();
+
+            $customer->update([
+                'name'               => null,
+                'email'              => null,
+                'phone_number'       => null,
+                'email_verified_at'  => null,
+                'phone_verified_at'  => null,
+            ]);
+            $customer->delete();
+        });
 
         JWTAuth::invalidate(JWTAuth::getToken());
 
