@@ -1,3 +1,14 @@
+# Ginnva API
+
+Backend Laravel + panel admin Filament untuk sistem operasional Window Film & PPF multi-cabang (booking, inventaris, keuangan, karyawan, promo/loyalti).
+
+**Baca dulu sebelum kerja di repo ini:**
+- [ARCHITECTURE.md](ARCHITECTURE.md) — pola store-scoping, otorisasi Filament, posting keuangan, keterbatasan model stok yang belum diputuskan.
+- [RUNBOOK.md](RUNBOOK.md) — SOP deploy/rollback/backup, lokasi kredensial, kebijakan retensi data.
+- [DRP.md](DRP.md) — prosedur kalau ada insiden besar (server down, database hilang).
+
+---
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
