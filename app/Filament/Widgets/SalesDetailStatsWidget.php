@@ -30,9 +30,25 @@ class SalesDetailStatsWidget extends StatsOverviewWidget
 {
     protected static ?int $sort = -1;
 
+    /**
+     * SEBELUMNYA cuma cek SalesResource::canViewAny() — komentar class di
+     * atas sudah jelas bilang widget ini TIDAK LAGI dipakai sebagai
+     * header widget (diganti Table::header() reaktif di SalesResource),
+     * cuma dipertahankan untuk method statis aggregate()-nya. Tapi tanpa
+     * canView() ini, widget tetap ikut ter-render sebagai widget viewable
+     * biasa di Dashboard utama /admin (folder ini di-auto-discover
+     * panel-wide) — kartu "Total Invoice/Lunas/Belum Lunas/Void/Total
+     * Diterima" nongol duluan (sort=-1) padahal tidak pernah dimaksudkan
+     * tampil di sana. Audit 2026-09-14 ("urutan metrics Dashboard") —
+     * sama kelas bug dengan 4 chart laporan yang sebelumnya dipindah ke
+     * App\Filament\ReportWidgets, tapi class ini TIDAK dipindah (tetap di
+     * sini) karena aggregate()-nya masih dipanggil statis dari
+     * SalesResource — cukup dimatikan sebagai widget, bukan dipindah
+     * namespace.
+     */
     public static function canView(): bool
     {
-        return SalesResource::canViewAny();
+        return false;
     }
 
     /**

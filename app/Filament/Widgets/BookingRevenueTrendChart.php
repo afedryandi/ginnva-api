@@ -32,7 +32,10 @@ class BookingRevenueTrendChart extends ChartWidget
 {
     protected static ?string $heading = 'Tren Pendapatan Harian (Bulan Ini vs Bulan Lalu)';
 
-    protected static ?int $sort = 1;
+    // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — SEBELUMNYA
+    // sort=1 bentrok dengan BookingStatsWidget (juga 1). Lihat catatan
+    // urutan lengkap di BookingRevenueByCategoryChart.php.
+    protected static ?int $sort = 2;
 
     // EKSPLISIT dimatikan (audit 2026-09-11) — default ChartWidget di
     // Filament v3 auto-poll berkala walau halaman idle, artinya query

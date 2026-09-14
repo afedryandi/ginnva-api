@@ -17,7 +17,9 @@ class MarketingStatsWidget extends BaseWidget
 {
     protected ?string $heading = 'Marketing/Konten';
 
-    protected static ?int $sort = 5;
+    // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — lihat
+    // catatan urutan lengkap di BookingRevenueByCategoryChart.php.
+    protected static ?int $sort = 7;
 
     protected function getStats(): array
     {

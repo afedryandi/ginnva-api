@@ -11,7 +11,10 @@ class WarrantyTrendChart extends ChartWidget
 {
     protected static ?string $heading = 'Tren Pengajuan Garansi';
 
-    protected static ?int $sort = 2;
+    // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — SEBELUMNYA
+    // sort=2 bentrok dengan BookingRevenueByCategoryChart. Lihat catatan
+    // urutan lengkap di BookingRevenueByCategoryChart.php.
+    protected static ?int $sort = 4;
 
     /**
      * SEBELUMNYA tidak ada canView() sama sekali di sini — beda dari

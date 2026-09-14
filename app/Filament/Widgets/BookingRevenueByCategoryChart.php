@@ -27,7 +27,15 @@ class BookingRevenueByCategoryChart extends ChartWidget
 {
     protected static ?string $heading = 'Pendapatan per Kategori (Bulan Ini)';
 
-    protected static ?int $sort = 2;
+    // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — SEBELUMNYA
+    // sort=2 bentrok dengan WarrantyTrendChart (juga 2), bikin urutan
+    // 2 widget itu tidak terprediksi (tie-break jatuh ke urutan discovery
+    // class, gampang tidak sesuai ekspektasi — lihat memory
+    // filament_cluster_navigation_group_order.md). Urutan Dashboard
+    // sekarang: Revenue (0-3) > Booking count (implisit lewat
+    // BookingStatsWidget) > Warranty (4-5) > Quotation (6) > Marketing
+    // (7) > Karyawan (8) > Master Data (9).
+    protected static ?int $sort = 3;
 
     // Sama alasan dengan BookingRevenueTrendChart — matikan auto-poll
     // default, data cuma berubah lewat aksi eksplisit "Proses Referral".

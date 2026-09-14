@@ -11,7 +11,9 @@ class QuotationTrendChart extends ChartWidget
 {
     protected static ?string $heading = 'Tren Quotation';
 
-    protected static ?int $sort = 4;
+    // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — lihat
+    // catatan urutan lengkap di BookingRevenueByCategoryChart.php.
+    protected static ?int $sort = 6;
 
     /**
      * Sama temuan dengan WarrantyTrendChart — sebelumnya tidak ada
