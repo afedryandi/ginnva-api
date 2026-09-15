@@ -76,7 +76,7 @@ class ScrollCode extends Model
      */
     public function usages()
     {
-        return $this->hasMany(ScrollCodeUsage::class)->latest();
+        return $this->hasMany(ScrollCodeUsage::class)->with('booking:id,booking_number,customer_name')->latest();
     }
 
     /**
@@ -94,13 +94,13 @@ class ScrollCode extends Model
      *         atau gulungan ini belum punya total_length_meters (tidak bisa
      *         dilacak per meter).
      */
-    public function recordUsage(float $meters, ?int $userId = null, ?string $note = null): void
+    public function recordUsage(float $meters, ?int $userId = null, ?string $note = null, ?int $bookingId = null): void
     {
         if ($meters <= 0) {
             throw new \InvalidArgumentException('Jumlah meter harus lebih besar dari 0.');
         }
 
-        DB::transaction(function () use ($meters, $userId, $note) {
+        DB::transaction(function () use ($meters, $userId, $note, $bookingId) {
             $scrollCode = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
             if ($scrollCode->remaining_length_meters === null) {
@@ -127,6 +127,7 @@ class ScrollCode extends Model
                 'meters' => $meters,
                 'note' => $note,
                 'user_id' => $userId,
+                'booking_id' => $bookingId,
             ]);
 
             $this->setRawAttributes($scrollCode->getAttributes());

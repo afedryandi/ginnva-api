@@ -9,6 +9,7 @@ class ScrollCodeUsage extends Model
 {
     protected $fillable = [
         'scroll_code_id',
+        'booking_id',
         'meters',
         'note',
         'user_id',
@@ -26,5 +27,10 @@ class ScrollCodeUsage extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function booking(): BelongsTo
+    {
+        return $this->belongsTo(Booking::class);
     }
 }

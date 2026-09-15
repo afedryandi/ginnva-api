@@ -37,6 +37,14 @@ class UsagesRelationManager extends RelationManager
                     ->badge()
                     ->color('warning'),
 
+                Tables\Columns\TextColumn::make('booking.booking_number')
+                    ->label('Booking')
+                    ->placeholder('—')
+                    ->description(fn ($record) => $record->booking?->customer_name)
+                    ->url(fn ($record) => $record->booking
+                        ? \App\Filament\Resources\BookingResource::getUrl('edit', ['record' => $record->booking])
+                        : null),
+
                 Tables\Columns\TextColumn::make('note')
                     ->label('Catatan')
                     ->placeholder('—')

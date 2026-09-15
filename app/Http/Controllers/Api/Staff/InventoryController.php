@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
 use App\Models\InventoryItem;
 use App\Models\ScrollCode;
 use App\Models\Store;
@@ -311,6 +312,7 @@ class InventoryController extends Controller
         $validator = Validator::make($request->all(), [
             'meters' => 'required|numeric|min:0.01',
             'note' => 'nullable|string|max:500',
+            'booking_id' => 'nullable|integer|exists:bookings,id',
         ]);
 
         if ($validator->fails()) {
@@ -340,8 +342,30 @@ class InventoryController extends Controller
             ], 403);
         }
 
+        // Traceability roll -> booking (diminta user 2026-09-15): cuma
+        // boleh dilink ke booking yang sudah 'confirmed' (bukan pending,
+        // supaya tidak nyambung ke booking yang bisa saja ditolak), dan
+        // harus 1 toko yang sama kecuali full-access.
+        if ($request->filled('booking_id')) {
+            $booking = Booking::find($request->booking_id);
+
+            if (! $booking || $booking->status !== 'confirmed') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Booking yang dipilih tidak valid atau belum dikonfirmasi.',
+                ], 422);
+            }
+
+            if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Booking ini milik toko lain.',
+                ], 403);
+            }
+        }
+
         try {
-            $scrollCode->recordUsage((float) $request->meters, $user->id, $request->note);
+            $scrollCode->recordUsage((float) $request->meters, $user->id, $request->note, $request->booking_id);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,

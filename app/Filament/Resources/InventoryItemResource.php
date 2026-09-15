@@ -554,6 +554,24 @@ class InventoryItemResource extends Resource
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan (opsional)')
                             ->placeholder('Mis. dipakai untuk mobil apa, no. polisi, nama customer'),
+
+                        // Traceability roll -> booking (diminta user
+                        // 2026-09-15) -- opsional, cuma booking
+                        // 'confirmed' toko yang sama (kecuali full-access)
+                        // supaya kalau roll ini ternyata cacat, semua
+                        // booking pemakainya bisa ditemukan lewat
+                        // ScrollCodeResource > Riwayat Pemakaian.
+                        Forms\Components\Select::make('booking_id')
+                            ->label('Booking Terkait (opsional)')
+                            ->options(fn (InventoryItem $record) => \App\Models\Booking::query()
+                                ->where('status', 'confirmed')
+                                ->when(! auth()->user()?->isFullAccess(), fn ($q) => $q->where('store_id', $record->scrollCode->store_id))
+                                ->orderByDesc('preferred_date')
+                                ->limit(50)
+                                ->get()
+                                ->mapWithKeys(fn ($b) => [$b->id => "{$b->booking_number} — {$b->customer_name}"]))
+                            ->searchable()
+                            ->placeholder('Tidak dilink ke booking mana pun'),
                     ])
                     ->action(function (InventoryItem $record, array $data) {
                         if (! static::canActOnScrollCode($record->scrollCode)) {
@@ -567,7 +585,7 @@ class InventoryItemResource extends Resource
                         }
 
                         try {
-                            $record->scrollCode->recordUsage((float) $data['meters'], auth()->id(), $data['note'] ?? null);
+                            $record->scrollCode->recordUsage((float) $data['meters'], auth()->id(), $data['note'] ?? null, $data['booking_id'] ?? null);
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()
                                 ->title('Tidak bisa mencatat pemakaian')
