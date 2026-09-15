@@ -27,7 +27,10 @@ class MaterialResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Materi Download';
 
-    protected static ?int $navigationSort = 45;
+    // 46, bukan 45 -- 45 dipakai JobOpeningResource, sort kembar bikin
+    // urutan sidebar tie-break ke discovery class yang tidak konsisten
+    // (ditemukan saat audit navigasi 2026-09-15).
+    protected static ?int $navigationSort = 46;
 
     public static function canViewAny(): bool
     {
