@@ -26,7 +26,7 @@ $query->when($storeId, fn ($q) => $q->where('store_id', $storeId));
 
 **Dua lapis proteksi berjalan bersamaan** (disengaja, bukan redundan tanpa alasan):
 1. Manual di tiap `Resource::getEloquentQuery()`/Controller — pola di atas.
-2. Eloquent **Global Scope** (`App\Models\Scopes\StoreScope` + trait `App\Models\Concerns\HasStoreScope`) — jaring pengaman untuk query LANGSUNG ke model dari widget/report/service yang lupa scoping manual. Dipasang di 15 model (Booking, MaterialMemo, PurchaseRequest, Attendance, LeaveRequest, WarningLetter, BlockedDate, FinanceTransaction, Payable, Receivable, RollScrapPool, StoreReview, Technician, JournalEntry, StockWriteOff).
+2. Eloquent **Global Scope** (`App\Models\Scopes\StoreScope` + trait `App\Models\Concerns\HasStoreScope`) — jaring pengaman untuk query LANGSUNG ke model dari widget/report/service yang lupa scoping manual. Dipasang di 14 model (Booking, MaterialMemo, PurchaseRequest, Attendance, LeaveRequest, WarningLetter, BlockedDate, FinanceTransaction, Payable, Receivable, StoreReview, Technician, JournalEntry, StockWriteOff).
 
 **Model yang SENGAJA TIDAK dipasangi Global Scope** — jangan tambahkan tanpa desain ulang:
 - `Asset`, `ScrollCode` — `store_id = NULL` punya arti khusus (aset pusat / belum dialokasikan), scope generik akan merusak alur alokasi.
@@ -58,7 +58,7 @@ Nominal transaksi/refund di atas **semua ambang** dari staff non-full-access waj
 
 Model stok saat ini **nasional/gudang pusat** (bukan per-cabang) — belum ada keputusan final apakah dirombak jadi per-cabang, tetap nasional, atau bertahap (Fase 1: mutasi roll + PO formal + penanda cabang; Fase 2: pecah stok kalau perlu). Dokumen keputusan formal ada di `Downloads/Keputusan-PPN-DP-Produk-Stok-Ginnva.docx` (Topik 4), menunggu jawaban atasan.
 
-**Terkait**: fitur "Sisa Roll" (`RollScrapPool`) mengumpulkan sisa material lintas-ScrollCode per toko — ADA gap arsitektur belum terselesaikan soal traceability roll_number Warranty vs pool sisa (1 roll seharusnya = 1 garansi, tapi pool menggabungkan banyak sisa jadi satu tanpa kode tunggal). Sengaja dibiarkan (`Abaikan dulu`, keputusan user) sampai tim internal berdiskusi.
+**Terkait**: fitur "Sisa Roll" (`RollScrapPool`, mengumpulkan sisa material lintas-ScrollCode per toko) sempat dibangun 2026-09-14 lalu **dihapus total 2026-09-15** (diminta user) karena desainnya menabrak gap arsitektur traceability yang sama: roll_number Warranty seharusnya 1 roll = 1 garansi, tapi pool sisa menggabungkan banyak roll jadi satu tanpa kode tunggal. Pertanyaan traceability ini sendiri **belum terjawab** — kalau dibahas lagi, itu diskusi baru dari nol, bukan lanjutan Sisa Roll (lihat memory `project_sisa_roll_dibatalkan`).
 
 ## 6. Struktur Navigasi Filament
 
