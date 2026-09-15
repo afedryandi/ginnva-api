@@ -423,7 +423,13 @@ class BookingResource extends Resource
                         ->label('Tanggal Diinginkan')
                         ->required()
                         ->live()
-                        ->minDate(fn () => $form->getOperation() === 'create' ? now() : null)
+                        // startOfDay(), BUKAN now() polos -- now() ikut
+                        // bawa jam-menit-detik saat itu, jadi begitu lewat
+                        // tengah malam, pilih tanggal HARI INI pun gagal
+                        // validasi (nilai date-picker dianggap jam 00:00,
+                        // selalu "sebelum" now() yang sudah lewat jam 00:00).
+                        // Ditemukan lewat laporan user 2026-09-15.
+                        ->minDate(fn () => $form->getOperation() === 'create' ? now()->startOfDay() : null)
                         ->afterStateUpdated(fn (Forms\Set $set, Forms\Get $get) => static::regenerateCapacitiesIfDatesChanged($get, $set)),
 
                     Forms\Components\TextInput::make('preferred_time')
