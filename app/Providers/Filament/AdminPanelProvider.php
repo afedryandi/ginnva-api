@@ -114,17 +114,18 @@ class AdminPanelProvider extends PanelProvider
             // (sub-nav 'Laporan' + sub-nav 'Lainnya') — didaftarkan di
             // sini semata supaya ->collapsed() bisa dipasang.
             ->navigationGroups([
-                // Icon ditambah 2026-09-15 (diminta user) -- 'Penjualan'
-                // satu-satunya top-nav tab yang sebelumnya tanpa ikon
-                // (dia NavigationGroup biasa, bukan Cluster yang punya
-                // $navigationIcon sendiri seperti tab lain).
-                \Filament\Navigation\NavigationGroup::make('Penjualan')->icon('heroicon-o-shopping-cart')->collapsed(),
-                // 'Lainnya' TIDAK ada Cluster/Page yang eksplisit
-                // mendaftarkannya (dia lahir implisit dari 3 Cluster yang
-                // $navigationGroup='Lainnya' -- MasterData/Notifikasi/
-                // Sistem), jadi tanpa entri di sini ikonnya kosong. Icon
-                // ditambah 2026-09-15 (diminta user), sama alasan dengan 'Penjualan'.
-                \Filament\Navigation\NavigationGroup::make('Lainnya')->icon('heroicon-o-ellipsis-horizontal-circle'),
+                // 2026-09-15: SEMPAT dicoba tambah ->icon() eksplisit ke
+                // grup 'Penjualan' & 'Lainnya' (diminta user) -- LANGSUNG
+                // error fatal production ("Navigation group [Penjualan]
+                // has an icon but one or more of its items also have
+                // icons"). Filament TIDAK IZINKAN grup DAN item di
+                // dalamnya (Cluster Booking/Inventori/MasterData/dst,
+                // semua sudah punya $navigationIcon sendiri) sama-sama
+                // punya ikon. DIBATALKAN -- kalau mau grup ini berikon,
+                // SEMUA Cluster anggotanya harus dilepas ikonnya dulu
+                // (trade-off yang belum tentu diinginkan, tanya user dulu
+                // sebelum coba lagi).
+                \Filament\Navigation\NavigationGroup::make('Penjualan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Penjualan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Produk')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Jasa')->collapsed(),
