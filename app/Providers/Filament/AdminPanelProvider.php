@@ -248,8 +248,17 @@ class AdminPanelProvider extends PanelProvider
                        dark mode tab aktif SUDAH kebaca putih di atas
                        overlay merah muda (dikonfirmasi screenshot user),
                        kalau dipaksa gelap tanpa syarat malah merusak
-                       yang sudah benar di sana. */
-                    :root:not(.dark) .fi-topbar a[aria-current="page"] {
+                       yang sudah benar di sana.
+                       PENTING (ronde 2, screenshot user masih belum
+                       kebaca): kasih warna di elemen <a>-nya SAJA TIDAK
+                       CUKUP -- span/svg ANAK di dalamnya sudah kena warna
+                       putih LANGSUNG dari rule ".fi-topbar span"/".fi-topbar
+                       svg" di atas (lebih spesifik dari sekadar
+                       inheritance), jadi harus ditimpa eksplisit juga di
+                       level span/svg, bukan cuma di <a> pembungkusnya. */
+                    :root:not(.dark) .fi-topbar a[aria-current="page"],
+                    :root:not(.dark) .fi-topbar a[aria-current="page"] span,
+                    :root:not(.dark) .fi-topbar a[aria-current="page"] svg {
                         color: #111827 !important;
                     }
                     /* FIX (screenshot user 2026-09-15): dropdown notifikasi
