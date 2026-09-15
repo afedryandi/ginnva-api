@@ -227,6 +227,38 @@ class AdminPanelProvider extends PanelProvider
                     .fi-sidebar-item-active {
                         background-color: rgba(255, 255, 255, 0.15) !important;
                     }
+                    /* FIX (screenshot user 2026-09-15): tab navbar AKTIF
+                       ("Dashboard") punya latar pil terang bawaan Filament
+                       (didesain untuk topbar putih asli) -- sekarang latar
+                       terang itu nangkring di atas merah, teks putih di
+                       atasnya jadi tidak kebaca. `.fi-active` adalah class
+                       status Filament v3 yang ditempel di elemen nav yang
+                       sedang aktif (dipakai konsisten di seluruh komponen
+                       navigasi Filament, bukan tebakan sekali pakai).
+                       Diganti jadi overlay putih transparan (senada
+                       perbaikan sidebar di atas) supaya teks putih tetap
+                       kebaca di atasnya. BELUM diverifikasi visual --
+                       screenshot berikutnya akan konfirmasi. */
+                    .fi-topbar .fi-active {
+                        background-color: rgba(255, 255, 255, 0.15) !important;
+                    }
+                    /* FIX (screenshot user 2026-09-15): dropdown notifikasi
+                       & menu profil ikut ketiban aturan teks putih di atas
+                       karena dia anak DOM dari .fi-topbar, padahal latar
+                       panel dropdown-nya sendiri TETAP putih -- teks putih
+                       di atas putih jadi tidak kebaca. Dikembalikan ke
+                       warna teks gelap normal Filament KHUSUS di dalam
+                       panel dropdown (.fi-dropdown-panel), spesifisitas
+                       CSS-nya setara + urutan belakangan supaya menang
+                       lawan aturan ".fi-topbar span" di atas. */
+                    .fi-dropdown-panel,
+                    .fi-dropdown-panel a,
+                    .fi-dropdown-panel button,
+                    .fi-dropdown-panel span,
+                    .fi-dropdown-panel p,
+                    .fi-dropdown-panel div {
+                        color: #111827 !important;
+                    }
                 </style>',
             )
             ->renderHook(
