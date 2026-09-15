@@ -246,8 +246,18 @@ class AdminPanelProvider extends PanelProvider
                        putih (putih di atas bg-gray-50 yang nyaris putih
                        = tidak kebaca). Fix: kembalikan warna gelap
                        eksplisit di class asli ini, bukan lagi menebak. */
+                    /* Ronde 5: bukan cuma tab AKTIF -- tab MANA PUN yang
+                       di-hover/focus juga dapat latar terang sementara
+                       (".fi-topbar-item-button" punya class Tailwind
+                       "hover:bg-gray-50 focus-visible:bg-gray-50", sama
+                       pola dengan tab aktif), jadi masalah yang sama
+                       muncul lagi saat hover. Dicakup sekalian di sini. */
                     :root:not(.dark) .fi-topbar-item-active .fi-topbar-item-icon,
-                    :root:not(.dark) .fi-topbar-item-active .fi-topbar-item-label {
+                    :root:not(.dark) .fi-topbar-item-active .fi-topbar-item-label,
+                    :root:not(.dark) .fi-topbar-item-button:hover .fi-topbar-item-icon,
+                    :root:not(.dark) .fi-topbar-item-button:hover .fi-topbar-item-label,
+                    :root:not(.dark) .fi-topbar-item-button:focus-visible .fi-topbar-item-icon,
+                    :root:not(.dark) .fi-topbar-item-button:focus-visible .fi-topbar-item-label {
                         color: #111827 !important;
                     }
                     /* FIX (screenshot user 2026-09-15): dropdown notifikasi
