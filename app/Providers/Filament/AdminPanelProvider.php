@@ -268,6 +268,23 @@ class AdminPanelProvider extends PanelProvider
                     :root:not(.dark) .fi-topbar-item-button:focus-visible .fi-topbar-group-toggle-icon {
                         color: #111827 !important;
                     }
+                    /* Ronde 7 (user lapor 2026-09-15): DARK mode -- pas
+                       bersih-bersih di ronde 4 (hapus rule ".fi-active"
+                       yang salah), rule LATAR highlight-nya ikut kehapus
+                       semuanya, padahal itu satu-satunya yang bikin tab
+                       aktif KELIHATAN beda dari tab lain. Sisa bawaan
+                       Filament di dark mode cuma "dark:bg-white/5" (tint
+                       putih 5%, nyaris tidak kelihat di atas merah).
+                       Dikembalikan lagi tapi kali ini KHUSUS dark mode &
+                       pakai class asli yang sudah terverifikasi (bukan
+                       ".fi-active" yang salah dulu). Teks TIDAK disentuh
+                       di sini -- sudah putih dari rule paling atas & sudah
+                       kebaca dengan baik menurut screenshot sebelumnya. */
+                    .dark .fi-topbar-item-active .fi-topbar-item-button,
+                    .dark .fi-topbar-item-button:hover,
+                    .dark .fi-topbar-item-button:focus-visible {
+                        background-color: rgba(255, 255, 255, 0.18) !important;
+                    }
                     /* FIX (screenshot user 2026-09-15): dropdown notifikasi
                        & menu profil ikut ketiban aturan teks putih di atas
                        karena dia anak DOM dari .fi-topbar, padahal latar
