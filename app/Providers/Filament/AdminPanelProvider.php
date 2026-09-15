@@ -257,7 +257,15 @@ class AdminPanelProvider extends PanelProvider
                     :root:not(.dark) .fi-topbar-item-button:hover .fi-topbar-item-icon,
                     :root:not(.dark) .fi-topbar-item-button:hover .fi-topbar-item-label,
                     :root:not(.dark) .fi-topbar-item-button:focus-visible .fi-topbar-item-icon,
-                    :root:not(.dark) .fi-topbar-item-button:focus-visible .fi-topbar-item-label {
+                    :root:not(.dark) .fi-topbar-item-button:focus-visible .fi-topbar-item-label,
+                    /* Ronde 6 (Inspect Element user): tab "Penjualan"/
+                       "Lainnya" (pemicu dropdown) punya ikon panah bawah
+                       TERPISAH, class-nya ".fi-topbar-group-toggle-icon"
+                       -- BEDA dari ikon tab biasa ".fi-topbar-item-icon",
+                       jadi tidak ikut ke-cover rule di atas. */
+                    :root:not(.dark) .fi-topbar-item-active .fi-topbar-group-toggle-icon,
+                    :root:not(.dark) .fi-topbar-item-button:hover .fi-topbar-group-toggle-icon,
+                    :root:not(.dark) .fi-topbar-item-button:focus-visible .fi-topbar-group-toggle-icon {
                         color: #111827 !important;
                     }
                     /* FIX (screenshot user 2026-09-15): dropdown notifikasi
