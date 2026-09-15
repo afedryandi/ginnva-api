@@ -187,6 +187,48 @@ class AdminPanelProvider extends PanelProvider
             // - FIX BENAR: override `row-gap` LANGSUNG di
             //   `.fi-page-sub-navigation-sidebar` (nama class asli, sudah
             //   dikonfirmasi ada di DOM, bukan tebakan lagi).
+            // Topbar & sidebar warna solid merah brand (diminta user
+            // 2026-09-15, percobaan ke-3 -- 2 percobaan sebelumnya
+            // 2026-09-08 GAGAL karena menebak nama class yang salah,
+            // lihat catatan di atas). Kali ini pakai `.fi-topbar` &
+            // `.fi-sidebar` -- class TOP-LEVEL resmi Filament v3 (bukan
+            // class internal bersarang yang sebelumnya ditebak salah),
+            // dan background+teks/ikon di-override BERSAMAAN (dugaan
+            // penyebab "teks tidak kelihat" sebelumnya: cuma background
+            // yang diganti, teks default gelap jadi tidak kebaca di atas
+            // merah). BELUM diverifikasi visual langsung (tidak ada
+            // kredensial admin untuk Inspect Element live) -- WAJIB cek
+            // screenshot user setelah deploy, siap di-revert cepat kalau
+            // meleset lagi (pola sama seperti perbaikan row-gap di bawah).
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn () => '<style>
+                    .fi-topbar,
+                    .fi-topbar nav {
+                        background-color: #ED1651 !important;
+                    }
+                    .fi-topbar a,
+                    .fi-topbar button,
+                    .fi-topbar svg,
+                    .fi-topbar span {
+                        color: #ffffff !important;
+                    }
+                    .fi-sidebar,
+                    .fi-sidebar-nav {
+                        background-color: #ED1651 !important;
+                    }
+                    .fi-sidebar-nav a,
+                    .fi-sidebar-nav button,
+                    .fi-sidebar-nav svg,
+                    .fi-sidebar-nav span,
+                    .fi-sidebar-group-label {
+                        color: #ffffff !important;
+                    }
+                    .fi-sidebar-item-active {
+                        background-color: rgba(255, 255, 255, 0.15) !important;
+                    }
+                </style>',
+            )
             ->renderHook(
                 \Filament\View\PanelsRenderHook::HEAD_END,
                 fn () => '<style>.fi-page-sub-navigation-sidebar { row-gap: 0.5rem !important; }</style>',
