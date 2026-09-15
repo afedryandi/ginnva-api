@@ -227,38 +227,27 @@ class AdminPanelProvider extends PanelProvider
                     .fi-sidebar-item-active {
                         background-color: rgba(255, 255, 255, 0.15) !important;
                     }
-                    /* Percobaan `.fi-active` (di bawah) TERBUKTI SALAH
-                       lewat screenshot user 2026-09-15 -- tab "Dashboard"
-                       aktif TETAP tidak kebaca, berarti class itu bukan
-                       yang menempel di elemen ini (atau tidak menang
-                       lawan rule bawaan Filament). DIBIARKAN sebagai
-                       no-op harmless (tidak dihapus, siapa tahu class-nya
-                       benar tapi kasusnya beda) -- perbaikan SUNGGUHAN ada
-                       di bawah, pakai [aria-current="page"] (atribut
-                       aksesibilitas standar yang Filament pasang di link
-                       nav yang aktif, BUKAN nama class internal yang
-                       gampang meleset). Langsung set warna TEKS gelap
-                       (bukan coba ubah warna latar yang tidak jelas
-                       class-nya) -- kontras tetap terjamin walau latar
-                       pil aktifnya warna apa pun. */
-                    .fi-topbar .fi-active {
-                        background-color: rgba(255, 255, 255, 0.15) !important;
-                    }
-                    /* Discope KHUSUS light mode (":not(.dark)") -- di
-                       dark mode tab aktif SUDAH kebaca putih di atas
-                       overlay merah muda (dikonfirmasi screenshot user),
-                       kalau dipaksa gelap tanpa syarat malah merusak
-                       yang sudah benar di sana.
-                       PENTING (ronde 2, screenshot user masih belum
-                       kebaca): kasih warna di elemen <a>-nya SAJA TIDAK
-                       CUKUP -- span/svg ANAK di dalamnya sudah kena warna
-                       putih LANGSUNG dari rule ".fi-topbar span"/".fi-topbar
-                       svg" di atas (lebih spesifik dari sekadar
-                       inheritance), jadi harus ditimpa eksplisit juga di
-                       level span/svg, bukan cuma di <a> pembungkusnya. */
-                    :root:not(.dark) .fi-topbar a[aria-current="page"],
-                    :root:not(.dark) .fi-topbar a[aria-current="page"] span,
-                    :root:not(.dark) .fi-topbar a[aria-current="page"] svg {
+                    /* RIWAYAT 2 percobaan gagal sebelumnya (`.fi-active`,
+                       lalu `a[aria-current="page"]`) -- DIHAPUS, keduanya
+                       terbukti salah/tidak match dari screenshot user.
+                       FIX FINAL (ronde 4) -- user kirim HTML asli hasil
+                       Inspect Element 2026-09-15, class SEBENARNYA:
+                       <li class="fi-topbar-item fi-active
+                       fi-topbar-item-active"><a class="fi-topbar-item-button
+                       ... bg-gray-50 dark:bg-white/5"><svg
+                       class="fi-topbar-item-icon ... text-primary-600
+                       dark:text-primary-400">...<span
+                       class="fi-topbar-item-label ... text-primary-600
+                       dark:text-primary-400">. Warna asli Filament untuk
+                       tab aktif SUDAH benar (text-primary-600 = merah tua,
+                       kontras cukup di atas bg-gray-50) -- masalahnya
+                       MURNI rule pertama saya (".fi-topbar span/svg
+                       {color:white!important}") menimpanya paksa jadi
+                       putih (putih di atas bg-gray-50 yang nyaris putih
+                       = tidak kebaca). Fix: kembalikan warna gelap
+                       eksplisit di class asli ini, bukan lagi menebak. */
+                    :root:not(.dark) .fi-topbar-item-active .fi-topbar-item-icon,
+                    :root:not(.dark) .fi-topbar-item-active .fi-topbar-item-label {
                         color: #111827 !important;
                     }
                     /* FIX (screenshot user 2026-09-15): dropdown notifikasi
