@@ -33,9 +33,13 @@ class PointTransactionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-star';
 
-    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
+    // Dipindah dari MarketingKontenCluster ke PromosiCluster 2026-09-15
+    // (diminta user) -- ledger poin customer secara konsep 1 keluarga
+    // dengan Reward/RewardRedemption (poin didapat -> ditukar), bukan
+    // konten marketing/website.
+    protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
 
-    protected static ?int $navigationSort = 65;
+    protected static ?int $navigationSort = 95;
 
     protected static ?string $navigationLabel = 'Riwayat Poin Customer';
 

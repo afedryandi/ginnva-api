@@ -15,6 +15,12 @@ use Filament\Clusters\Cluster;
  * dibuat — tidak cocok model booking Ginnva (transaction_amount nego
  * manual, bukan dijumlah dari line item).
  *
+ * 2026-09-15: Riwayat Poin Customer & Riwayat Poin Partner
+ * (PointTransactionResource/PartnerPointTransactionResource) DIPINDAH
+ * ke sini dari MarketingKontenCluster (diminta user) — ledger poin
+ * secara konsep 1 keluarga dengan Reward/RewardRedemption (poin
+ * didapat -> ditukar), bukan konten marketing/website.
+ *
  * Band sort grup "Penjualan": Dashboard 14, Laporan 15, Analisa Laporan
  * 16, Produk 17, Inventori 18, Pelanggan 19, Promosi 20 (diurutkan
  * ulang 2026-09-11).
