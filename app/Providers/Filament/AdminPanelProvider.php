@@ -256,8 +256,31 @@ class AdminPanelProvider extends PanelProvider
                     .fi-dropdown-panel button,
                     .fi-dropdown-panel span,
                     .fi-dropdown-panel p,
-                    .fi-dropdown-panel div {
+                    .fi-dropdown-panel div,
+                    .fi-dropdown-panel svg {
                         color: #111827 !important;
+                    }
+                    /* FIX kedua (screenshot user 2026-09-15, ronde 2):
+                       svg ikon (toggle tema, dsb) di dalam dropdown
+                       KELUPAAN di fix sebelumnya -- cuma a/button/span/p/div
+                       yang di-cover, svg tidak, jadi masih ketiban warna
+                       putih dari ".fi-topbar svg" di atas. TAPI kalau svg
+                       dipaksa gelap TANPA syarat, mode GELAP (latar
+                       dropdown-nya ikut gelap by default Filament) akan
+                       rusak sebaliknya (ikon gelap di atas gelap). Jadi
+                       khusus mode dark (".dark" class di <html>, dipasang
+                       Filament sendiri) svg dikembalikan terang lagi --
+                       spesifisitas ".dark .fi-dropdown-panel svg" lebih
+                       tinggi dari ".fi-topbar svg" & rule di atas, jadi
+                       otomatis menang di mode dark. */
+                    .dark .fi-dropdown-panel,
+                    .dark .fi-dropdown-panel a,
+                    .dark .fi-dropdown-panel button,
+                    .dark .fi-dropdown-panel span,
+                    .dark .fi-dropdown-panel p,
+                    .dark .fi-dropdown-panel div,
+                    .dark .fi-dropdown-panel svg {
+                        color: #f3f4f6 !important;
                     }
                 </style>',
             )
