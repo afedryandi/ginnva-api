@@ -29,7 +29,19 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->passwordReset()
             ->profile()
+            // Logo diganti dari teks "Ginnva Admin" ke logo hexagon "G"
+            // asli (diminta user 2026-09-15). Sumber:
+            // C:\Users\Antony\Documents\Ginnva\Company Profile\ginnva-favicon-logo.png
+            // -- latar aslinya PUTIH SOLID (bukan transparan), dibuat
+            // transparan dulu pakai ffmpeg colorkey (hapus semua piksel
+            // putih, termasuk celah negative-space "G" di tengah supaya
+            // celahnya ikut tembus ke warna topbar merah) sebelum
+            // disalin ke public/images/ginnva-logo.png. brandName() tetap
+            // dipertahankan sebagai alt text aksesibilitas (Filament
+            // pakai ini walau logo gambar sudah ada).
             ->brandName('Ginnva Admin')
+            ->brandLogo(asset('images/ginnva-logo.png'))
+            ->brandLogoHeight('2.5rem')
             // Sempat diganti ke Color::hex('#ED1651') (hex asli brand) lalu
             // dicoba warnai background topbar merah solid via CSS override
             // — percobaannya gagal 2x dan sempat bikin topbar tidak
