@@ -23,7 +23,6 @@ use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
 use App\Http\Controllers\Api\Staff\QuotationController as StaffQuotationController;
 use App\Http\Controllers\Api\Staff\BookingMessageController as StaffBookingMessageController;
 use App\Http\Controllers\Api\Staff\InventoryController as StaffInventoryController;
-use App\Http\Controllers\Api\Staff\RollScrapController as StaffRollScrapController;
 use App\Http\Controllers\Api\Staff\AssetController as StaffAssetController;
 use App\Http\Controllers\Api\Staff\RawMaterialController as StaffRawMaterialController;
 use App\Http\Controllers\Api\Staff\ConsumableItemController as StaffConsumableItemController;
@@ -305,15 +304,11 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:30,1');
         Route::post('/inventory/{code}/record-usage', [StaffInventoryController::class, 'recordUsage'])
             ->middleware('throttle:30,1');
-        Route::post('/inventory/{code}/collect-scrap', [StaffInventoryController::class, 'collectScrap'])
-            ->middleware('throttle:30,1');
 
-        // "Sisa Roll" — pool sisa panjang+potongan lebar yang dikumpulkan
-        // dari berbagai kode gulungan (lihat RollScrapPool model), dipakai
-        // lagi untuk instalasi tanpa buka roll baru.
-        Route::get('/roll-scraps', [StaffRollScrapController::class, 'index']);
-        Route::post('/roll-scraps/{pool}/consume', [StaffRollScrapController::class, 'consume'])
-            ->middleware('throttle:30,1');
+        // Fitur "Sisa Roll" (RollScrapPool) & endpoint collect-scrap
+        // DIHAPUS TOTAL 2026-09-15 (diminta user, dibatalkan -- gap
+        // arsitektur traceability roll_number vs Garansi belum
+        // terselesaikan, tim memutuskan tidak jadi dilanjutkan).
 
         // Aset — scan QR sama seperti Barang, dibatasi ke staff yang
         // akun Filament-nya dicentang akses menu "Aset".

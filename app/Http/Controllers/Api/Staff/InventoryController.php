@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
-use App\Models\RollScrapPool;
 use App\Models\ScrollCode;
 use App\Models\Store;
 use Illuminate\Http\Request;
@@ -435,77 +434,10 @@ class InventoryController extends Controller
         ]);
     }
 
-    /**
-     * POST /api/staff/inventory/{code}/collect-scrap
-     *
-     * "Kumpulkan Sisa" (diminta 2026-09-14, sama fitur dengan aksi
-     * Filament di InventoryItemResource — lihat RollScrapPool::collectFrom()
-     * untuk latar belakang lengkap). Pindahkan sisa panjang + estimasi
-     * potongan lebar roll ini ke pool "Sisa Roll" toko+produknya, roll
-     * sumbernya otomatis ditandai habis.
-     */
-    public function collectScrap(Request $request, string $code)
-    {
-        if (! $this->authorizeScan($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Inventaris.',
-            ], 403);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'meters' => 'required|numeric|min:0.01',
-            'note' => 'nullable|string|max:500',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Data yang dikirim tidak valid.',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $item = InventoryItem::where('code', $code)->first();
-
-        if (! $item || ! $item->scroll_code_id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Barang ini tidak punya kode gulungan terkait.',
-            ], 404);
-        }
-
-        $scrollCode = ScrollCode::find($item->scroll_code_id);
-        $user = $request->user('api');
-
-        if (! $this->canActOnScrollCode($scrollCode, $user)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Kode gulungan ini teralokasi ke toko lain.',
-            ], 403);
-        }
-
-        try {
-            RollScrapPool::collectFrom($scrollCode, (float) $request->meters, $user->id, $request->note);
-        } catch (\InvalidArgumentException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 422);
-        }
-
-        $item = $item->fresh();
-        $item->load([
-            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name'])->limit(20),
-            'scrollCode.filmProduct',
-            'scrollCode.store:id,name',
-            'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Sisa dikumpulkan ke pool "Sisa Roll".',
-            'data' => $item,
-        ]);
-    }
+    // collectScrap() / fitur "Sisa Roll" (RollScrapPool) DIHAPUS TOTAL
+    // 2026-09-15 (diminta user, dibatalkan -- gap arsitektur
+    // traceability roll_number vs Garansi belum terselesaikan, tim
+    // memutuskan tidak jadi dilanjutkan). Endpoint POST
+    // /api/staff/inventory/{code}/collect-scrap ikut dihapus dari
+    // routes/api.php.
 }

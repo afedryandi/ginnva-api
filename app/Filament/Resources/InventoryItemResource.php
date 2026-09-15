@@ -8,7 +8,6 @@ use App\Filament\Resources\InventoryItemResource\RelationManagers\MovementsRelat
 use App\Filament\Resources\InventoryItemResource\RelationManagers\ScrollCodeUsagesRelationManager;
 use App\Models\FilmProduct;
 use App\Models\InventoryItem;
-use App\Models\RollScrapPool;
 use App\Models\ScrollCode;
 use App\Services\QrCodeService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -582,59 +581,12 @@ class InventoryItemResource extends Resource
                         Notification::make()->title('Pemakaian dicatat')->success()->send();
                     }),
 
-                // "Kumpulkan Sisa" (diminta 2026-09-14) — pindahkan sisa
-                // panjang (+ estimasi potongan lebar yang masih bisa
-                // dipakai, tidak tercatat terpisah di sistem) roll ini ke
-                // pool "Sisa Roll" (RollScrapPool) per toko+produk, supaya
-                // bisa dijual/dipakai lagi tanpa membuka roll baru —
-                // sebelumnya sisa begini dipakai diam-diam tanpa jejak,
-                // padahal stok roll tercatat sudah habis. Roll sumbernya
-                // otomatis ditandai habis (lihat RollScrapPool::collectFrom()).
-                Tables\Actions\Action::make('collect_scrap')
-                    ->label('Kumpulkan Sisa')
-                    ->icon('heroicon-o-archive-box-arrow-down')
-                    ->color('gray')
-                    ->visible(fn (InventoryItem $record) => $record->scrollCode?->total_length_meters !== null
-                        && $record->scrollCode->status !== 'used'
-                        && static::canActOnScrollCode($record->scrollCode))
-                    ->form([
-                        Forms\Components\TextInput::make('meters')
-                            ->label('Total Sisa (meter)')
-                            ->numeric()
-                            ->required()
-                            ->minValue(0.01)
-                            ->suffix('meter')
-                            ->helperText(fn (InventoryItem $record) => 'Sisa panjang tercatat saat ini: ' . number_format((float) $record->scrollCode->remaining_length_meters, 2) . ' meter. Gabungkan dengan estimasi potongan lebar yang masih bisa dipakai di luar itu (tidak tercatat terpisah).'),
-
-                        Forms\Components\Textarea::make('note')
-                            ->label('Catatan (opsional)')
-                            ->placeholder('Mis. kondisi sisa, kenapa segini banyaknya'),
-                    ])
-                    ->action(function (InventoryItem $record, array $data) {
-                        if (! static::canActOnScrollCode($record->scrollCode)) {
-                            Notification::make()
-                                ->title('Tidak bisa mengumpulkan sisa')
-                                ->body('Kode gulungan ini teralokasi ke toko lain.')
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        try {
-                            RollScrapPool::collectFrom($record->scrollCode, (float) $data['meters'], auth()->id(), $data['note'] ?? null);
-                        } catch (\InvalidArgumentException $e) {
-                            Notification::make()
-                                ->title('Tidak bisa mengumpulkan sisa')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        Notification::make()->title('Sisa dikumpulkan ke pool "Sisa Roll"')->success()->send();
-                    }),
+                // "Kumpulkan Sisa" / fitur "Sisa Roll" (RollScrapPool)
+                // DIHAPUS TOTAL 2026-09-15 (diminta user, dibatalkan --
+                // ada gap arsitektur traceability roll_number vs Garansi
+                // yang belum terselesaikan, tim memutuskan tidak jadi
+                // dilanjutkan). Backend (model/resource/controller/route),
+                // Filament, dan mobile semua ikut dihapus.
 
                 Tables\Actions\Action::make('mark_scroll_code_used')
                     ->label('Tandai Habis')
