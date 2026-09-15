@@ -114,7 +114,17 @@ class AdminPanelProvider extends PanelProvider
             // (sub-nav 'Laporan' + sub-nav 'Lainnya') — didaftarkan di
             // sini semata supaya ->collapsed() bisa dipasang.
             ->navigationGroups([
-                \Filament\Navigation\NavigationGroup::make('Penjualan')->collapsed(),
+                // Icon ditambah 2026-09-15 (diminta user) -- 'Penjualan'
+                // satu-satunya top-nav tab yang sebelumnya tanpa ikon
+                // (dia NavigationGroup biasa, bukan Cluster yang punya
+                // $navigationIcon sendiri seperti tab lain).
+                \Filament\Navigation\NavigationGroup::make('Penjualan')->icon('heroicon-o-shopping-cart')->collapsed(),
+                // 'Lainnya' TIDAK ada Cluster/Page yang eksplisit
+                // mendaftarkannya (dia lahir implisit dari 3 Cluster yang
+                // $navigationGroup='Lainnya' -- MasterData/Notifikasi/
+                // Sistem), jadi tanpa entri di sini ikonnya kosong. Icon
+                // ditambah 2026-09-15 (diminta user), sama alasan dengan 'Penjualan'.
+                \Filament\Navigation\NavigationGroup::make('Lainnya')->icon('heroicon-o-ellipsis-horizontal-circle'),
                 \Filament\Navigation\NavigationGroup::make('Laporan Penjualan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Produk')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Jasa')->collapsed(),
