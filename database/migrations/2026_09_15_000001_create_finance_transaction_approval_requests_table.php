@@ -14,12 +14,19 @@ use Illuminate\Support\Facades\Schema;
  * menambah kontrol) -- lihat FinanceTransactionApprovalService.
  * Pemasukan (type='in') TIDAK terpengaruh, tetap tercatat langsung
  * seperti sebelumnya.
+ *
+ * Nama tabel SENGAJA dipersingkat jadi "finance_expense_approvals"
+ * (bukan "finance_transaction_approval_requests" sesuai nama model) --
+ * nama panjang bikin nama constraint foreign key otomatis (mis.
+ * "..._manager_approved_by_foreign") kepotong lewat batas identifier
+ * MySQL 64 karakter, migrasi gagal di server (ditemukan 2026-09-15).
+ * Lihat FinanceTransactionApprovalRequest::$table.
  */
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('finance_transaction_approval_requests', function (Blueprint $table) {
+        Schema::create('finance_expense_approvals', function (Blueprint $table) {
             $table->id();
 
             // Data transaksi yang diajukan -- persis field FinanceTransaction
@@ -56,6 +63,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('finance_transaction_approval_requests');
+        Schema::dropIfExists('finance_expense_approvals');
     }
 };

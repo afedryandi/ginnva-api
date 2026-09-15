@@ -16,6 +16,14 @@ class FinanceTransactionApprovalRequest extends Model
 {
     use LogsActivity;
 
+    // Nama tabel fisik SENGAJA lebih pendek dari nama model --
+    // "finance_transaction_approval_requests" (nama default Eloquent
+    // dari nama class ini) bikin nama constraint foreign key otomatis
+    // kepotong lewat batas identifier MySQL 64 karakter (migrasi gagal
+    // di server, ditemukan 2026-09-15). Lihat catatan lengkap di
+    // migrasinya.
+    protected $table = 'finance_expense_approvals';
+
     // TIDAK pakai trait HasStoreScope (App\Models\Scopes\StoreScope) --
     // model ini tidak punya kolom store_id sungguhan, cuma di dalam
     // payload JSON (lihat getStoreIdFromPayloadAttribute() di bawah).
