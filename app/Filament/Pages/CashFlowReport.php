@@ -32,7 +32,9 @@ class CashFlowReport extends Page implements HasForms
 
     protected static ?string $title = 'Laporan Arus Kas';
 
-    protected static ?int $navigationSort = 9;
+    // Direnumber 12 (dari 9) -- audit navigasi 2026-09-15, dampak
+    // renumber beruntun akibat tabrakan sort lain di cluster ini.
+    protected static ?int $navigationSort = 12;
 
     protected static string $view = 'filament.pages.cash-flow-report';
 

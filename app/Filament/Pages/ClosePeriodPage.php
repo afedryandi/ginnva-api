@@ -34,7 +34,9 @@ class ClosePeriodPage extends Page implements HasForms
 
     protected static ?string $title = 'Tutup Periode';
 
-    protected static ?int $navigationSort = 10;
+    // Direnumber 13 (dari 10) -- audit navigasi 2026-09-15, dampak
+    // renumber beruntun akibat tabrakan sort lain di cluster ini.
+    protected static ?int $navigationSort = 13;
 
     protected static string $view = 'filament.pages.close-period';
 

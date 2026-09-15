@@ -32,7 +32,9 @@ class GeneralLedgerReport extends Page implements HasForms
 
     protected static ?string $title = 'Buku Besar';
 
-    protected static ?int $navigationSort = 7;
+    // Direnumber 10 (dari 7) -- audit navigasi 2026-09-15, dampak
+    // renumber beruntun akibat tabrakan sort lain di cluster ini.
+    protected static ?int $navigationSort = 10;
 
     protected static string $view = 'filament.pages.general-ledger-report';
 

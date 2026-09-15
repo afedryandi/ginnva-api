@@ -43,7 +43,9 @@ class BankStatementLineResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Rekonsiliasi Bank';
 
-    protected static ?int $navigationSort = 11;
+    // Direnumber 14 (dari 11) -- audit navigasi 2026-09-15, dampak
+    // renumber beruntun akibat tabrakan sort lain di cluster ini.
+    protected static ?int $navigationSort = 14;
 
     public static function canViewAny(): bool
     {

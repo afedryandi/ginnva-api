@@ -29,7 +29,9 @@ class BalanceSheetReport extends Page implements HasForms
 
     protected static ?string $title = 'Neraca (Balance Sheet)';
 
-    protected static ?int $navigationSort = 8;
+    // Direnumber 11 (dari 8) -- audit navigasi 2026-09-15, dampak
+    // renumber beruntun akibat tabrakan sort lain di cluster ini.
+    protected static ?int $navigationSort = 11;
 
     protected static string $view = 'filament.pages.balance-sheet-report';
 

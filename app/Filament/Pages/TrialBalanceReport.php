@@ -30,7 +30,9 @@ class TrialBalanceReport extends Page implements HasForms
 
     protected static ?string $title = 'Neraca Saldo';
 
-    protected static ?int $navigationSort = 5;
+    // Direnumber 8 (dari 5) -- audit navigasi 2026-09-15, tabrakan
+    // dengan PayableResource.
+    protected static ?int $navigationSort = 8;
 
     protected static string $view = 'filament.pages.trial-balance-report';
 

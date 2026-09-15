@@ -30,7 +30,9 @@ class IncomeStatementReport extends Page implements HasForms
 
     protected static ?string $title = 'Laporan Laba Rugi';
 
-    protected static ?int $navigationSort = 6;
+    // Direnumber 9 (dari 6) -- audit navigasi 2026-09-15, tabrakan
+    // dengan ReceivableResource.
+    protected static ?int $navigationSort = 9;
 
     protected static string $view = 'filament.pages.income-statement-report';
 
