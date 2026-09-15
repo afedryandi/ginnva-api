@@ -2,9 +2,12 @@
 
 namespace App\Filament\Resources\FinanceTransactionResource\Pages;
 
+use App\Filament\Resources\FinanceTransactionApprovalRequestResource;
 use App\Filament\Resources\FinanceTransactionResource;
 use App\Models\FinanceCategory;
 use App\Models\FinanceTransaction;
+use App\Models\FinanceTransactionApprovalRequest;
+use App\Services\FinanceTransactionApprovalService;
 use App\Services\FinanceTransactionPostingService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
@@ -41,15 +44,29 @@ class CreateFinanceTransaction extends CreateRecord
     }
 
     /**
-     * Fase 3 — transaksi ini SEKALIGUS diposting otomatis ke Jurnal
-     * Umum (lihat FinanceTransactionPostingService), dibungkus 1 DB
-     * transaction supaya kalau posting gagal (mis. kategori belum
-     * dihubungkan ke Bagan Akun, atau periode sudah ditutup), Transaksi
-     * Keuangan-nya juga TIDAK ikut tersimpan — staff langsung tahu ada
-     * masalah, bukan dapat transaksi "yatim" tanpa jurnal di baliknya.
+     * Fase 4 — Kontrol & Kepatuhan (2026-09-15): PENGELUARAN (type='out')
+     * dari staff non-full-access TIDAK LAGI langsung tercatat -- masuk
+     * antrean approval berjenjang dulu (store_manager lalu direksi),
+     * lihat FinanceTransactionApprovalService. Pemasukan (type='in')
+     * dan SEMUA transaksi dari full-access TETAP langsung tercatat
+     * seperti sebelumnya (Fase 3, self-approval tidak menambah kontrol).
      */
     protected function handleRecordCreation(array $data): Model
     {
+        $user = auth()->user();
+
+        if ($data['type'] === 'out' && ! ($user?->isFullAccess() ?? false)) {
+            $request = app(FinanceTransactionApprovalService::class)->submit($data, $user);
+
+            Notification::make()
+                ->title('Menunggu persetujuan')
+                ->body('Pengeluaran ini sudah diajukan untuk disetujui sebelum tercatat.')
+                ->warning()
+                ->send();
+
+            return $request;
+        }
+
         return DB::transaction(function () use ($data) {
             $transaction = FinanceTransaction::create($data);
 
@@ -68,5 +85,33 @@ class CreateFinanceTransaction extends CreateRecord
 
             return $transaction;
         });
+    }
+
+    /**
+     * Kalau yang dibuat adalah pengajuan approval (bukan FinanceTransaction
+     * sungguhan), arahkan ke daftar Persetujuan Pengeluaran, bukan
+     * halaman Edit Transaksi Keuangan yang tidak berlaku untuk record ini.
+     */
+    protected function getRedirectUrl(): string
+    {
+        if ($this->record instanceof FinanceTransactionApprovalRequest) {
+            return FinanceTransactionApprovalRequestResource::getUrl('index');
+        }
+
+        return parent::getRedirectUrl();
+    }
+
+    /**
+     * Notifikasi "menunggu persetujuan" sudah dikirim manual di
+     * handleRecordCreation() -- jangan dobel dengan notifikasi
+     * "created" bawaan Filament yang judulnya tidak sesuai konteks ini.
+     */
+    protected function getCreatedNotification(): ?Notification
+    {
+        if ($this->record instanceof FinanceTransactionApprovalRequest) {
+            return null;
+        }
+
+        return parent::getCreatedNotification();
     }
 }

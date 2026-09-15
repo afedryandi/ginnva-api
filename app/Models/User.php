@@ -76,6 +76,19 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     }
 
     /**
+     * Dipakai untuk tahap pertama approval berjenjang Transaksi Keuangan
+     * (Fase 4 — Kontrol & Kepatuhan, 2026-09-15) — lihat
+     * FinanceTransactionApprovalService. Sengaja terpisah dari
+     * isFullAccess() karena store_manager BUKAN full-access (masih
+     * dikunci ke store_id sendiri untuk hal lain), tapi punya wewenang
+     * approval tahap 1 untuk pengeluaran toko sendiri.
+     */
+    public function isStoreManager(): bool
+    {
+        return $this->hasRole('store_manager');
+    }
+
+    /**
      * Boleh masuk ke Filament panel sama sekali — TIDAK berarti boleh lihat
      * semua menu (itu diatur per-resource lewat hasMenuAccess()). Berlaku
      * untuk role APA PUN selain yang ada di NO_PANEL_ROLES, termasuk role
