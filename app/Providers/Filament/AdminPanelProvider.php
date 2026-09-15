@@ -227,20 +227,30 @@ class AdminPanelProvider extends PanelProvider
                     .fi-sidebar-item-active {
                         background-color: rgba(255, 255, 255, 0.15) !important;
                     }
-                    /* FIX (screenshot user 2026-09-15): tab navbar AKTIF
-                       ("Dashboard") punya latar pil terang bawaan Filament
-                       (didesain untuk topbar putih asli) -- sekarang latar
-                       terang itu nangkring di atas merah, teks putih di
-                       atasnya jadi tidak kebaca. `.fi-active` adalah class
-                       status Filament v3 yang ditempel di elemen nav yang
-                       sedang aktif (dipakai konsisten di seluruh komponen
-                       navigasi Filament, bukan tebakan sekali pakai).
-                       Diganti jadi overlay putih transparan (senada
-                       perbaikan sidebar di atas) supaya teks putih tetap
-                       kebaca di atasnya. BELUM diverifikasi visual --
-                       screenshot berikutnya akan konfirmasi. */
+                    /* Percobaan `.fi-active` (di bawah) TERBUKTI SALAH
+                       lewat screenshot user 2026-09-15 -- tab "Dashboard"
+                       aktif TETAP tidak kebaca, berarti class itu bukan
+                       yang menempel di elemen ini (atau tidak menang
+                       lawan rule bawaan Filament). DIBIARKAN sebagai
+                       no-op harmless (tidak dihapus, siapa tahu class-nya
+                       benar tapi kasusnya beda) -- perbaikan SUNGGUHAN ada
+                       di bawah, pakai [aria-current="page"] (atribut
+                       aksesibilitas standar yang Filament pasang di link
+                       nav yang aktif, BUKAN nama class internal yang
+                       gampang meleset). Langsung set warna TEKS gelap
+                       (bukan coba ubah warna latar yang tidak jelas
+                       class-nya) -- kontras tetap terjamin walau latar
+                       pil aktifnya warna apa pun. */
                     .fi-topbar .fi-active {
                         background-color: rgba(255, 255, 255, 0.15) !important;
+                    }
+                    /* Discope KHUSUS light mode (":not(.dark)") -- di
+                       dark mode tab aktif SUDAH kebaca putih di atas
+                       overlay merah muda (dikonfirmasi screenshot user),
+                       kalau dipaksa gelap tanpa syarat malah merusak
+                       yang sudah benar di sana. */
+                    :root:not(.dark) .fi-topbar a[aria-current="page"] {
+                        color: #111827 !important;
                     }
                     /* FIX (screenshot user 2026-09-15): dropdown notifikasi
                        & menu profil ikut ketiban aturan teks putih di atas
