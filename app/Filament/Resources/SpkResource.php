@@ -56,7 +56,7 @@ class SpkResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->with(['store', 'booking', 'checklistItems']);
+        $query = parent::getEloquentQuery()->with(['store', 'booking', 'checklistItems', 'damageMarks']);
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -280,7 +280,7 @@ class SpkResource extends Resource
                     ->icon('heroicon-o-printer')
                     ->color('gray')
                     ->action(function (Spk $record) {
-                        $record->loadMissing(['checklistItems', 'store', 'booking']);
+                        $record->loadMissing(['checklistItems', 'damageMarks', 'store', 'booking']);
                         $pdf = Pdf::loadView('pdf.spk', ['spk' => $record])->setPaper('a4', 'portrait');
                         $filename = str_replace('/', '-', $record->spk_number) . '.pdf';
 

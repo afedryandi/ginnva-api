@@ -16,10 +16,11 @@ class SpkService
     /**
      * @param  array{store_id:int, booking_id:int, customer_name:string, phone_number:?string, address:?string, vehicle_plate:?string, vehicle_vin:?string, vehicle_brand:?string, vehicle_year:?string, vehicle_type:?string, vehicle_km:?int, fuel_level:?string, battery_note:?string, checked_in_at:?string, checked_out_at:?string, notes:?string}  $data
      * @param  array<int, array{category:string, label:string, is_checked:bool}>  $checklistItems
+     * @param  ?array<int, array{x_percent:float, y_percent:float, code:string, note:?string}>  $damageMarks  null = tidak disentuh (lihat catatan di syncDamageMarks)
      */
-    public function create(array $data, array $checklistItems, ?int $createdBy): Spk
+    public function create(array $data, array $checklistItems, ?int $createdBy, ?array $damageMarks = null): Spk
     {
-        return DB::transaction(function () use ($data, $checklistItems, $createdBy) {
+        return DB::transaction(function () use ($data, $checklistItems, $createdBy, $damageMarks) {
             $spkNumber = Spk::generateNumberForStore($data['store_id']);
 
             $spk = Spk::create(array_merge($data, [
@@ -28,22 +29,25 @@ class SpkService
             ]));
 
             $this->syncChecklistItems($spk, $checklistItems);
+            $this->syncDamageMarks($spk, $damageMarks);
 
-            return $spk->fresh('checklistItems');
+            return $spk->fresh(['checklistItems', 'damageMarks']);
         });
     }
 
     /**
      * @param  array<int, array{category:string, label:string, is_checked:bool}>  $checklistItems
+     * @param  ?array<int, array{x_percent:float, y_percent:float, code:string, note:?string}>  $damageMarks  null = tidak disentuh (lihat catatan di syncDamageMarks)
      */
-    public function update(Spk $spk, array $data, array $checklistItems): Spk
+    public function update(Spk $spk, array $data, array $checklistItems, ?array $damageMarks = null): Spk
     {
-        return DB::transaction(function () use ($spk, $data, $checklistItems) {
+        return DB::transaction(function () use ($spk, $data, $checklistItems, $damageMarks) {
             $spk->update($data);
 
             $this->syncChecklistItems($spk, $checklistItems);
+            $this->syncDamageMarks($spk, $damageMarks);
 
-            return $spk->fresh('checklistItems');
+            return $spk->fresh(['checklistItems', 'damageMarks']);
         });
     }
 
@@ -104,6 +108,37 @@ class SpkService
                 'label' => $item['label'],
                 'is_checked' => (bool) ($item['is_checked'] ?? false),
                 'sort_order' => $index,
+            ]);
+        }
+    }
+
+    /**
+     * Titik kerusakan diagram kondisi kendaraan (Fase 2, diisi dari
+     * mobile app) -- $damageMarks SENGAJA nullable, BEDA dari
+     * checklistItems yang selalu di-replace penuh: Filament (EditSpk)
+     * belum punya UI buat damage marks sama sekali, jadi kalau
+     * parameter ini di-default array kosong biasa, tiap kali admin edit
+     * SPK lewat Filament (field lain saja) titik-titik yang sudah
+     * diinput staff dari lapangan bakal ikut terhapus tanpa sengaja.
+     * null = jangan sentuh data yang sudah ada; array (termasuk kosong)
+     * = replace penuh, ini yang dipakai mobile app.
+     *
+     * @param  ?array<int, array{x_percent:float, y_percent:float, code:string, note:?string}>  $damageMarks
+     */
+    private function syncDamageMarks(Spk $spk, ?array $damageMarks): void
+    {
+        if ($damageMarks === null) {
+            return;
+        }
+
+        $spk->damageMarks()->delete();
+
+        foreach ($damageMarks as $mark) {
+            $spk->damageMarks()->create([
+                'x_percent' => $mark['x_percent'],
+                'y_percent' => $mark['y_percent'],
+                'code' => $mark['code'],
+                'note' => $mark['note'] ?? null,
             ]);
         }
     }

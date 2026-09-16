@@ -34,6 +34,15 @@ class Spk extends Model
         'f' => 'F',
     ];
 
+    public const DAMAGE_CODE_LABELS = [
+        'C' => 'Cat Luka/Belang (Stone Chip, Repaint)',
+        'B' => 'Baret Dalam',
+        'P' => 'Penyok',
+        'G' => 'Kaca Baret/Retak',
+        'M' => 'Komponen Hilang',
+        'OS' => 'Over Spray',
+    ];
+
     /**
      * Daftar checklist bawaan form kertas asli -- dipakai
      * SpkService::create() buat mengisi awal tiap kategori supaya
@@ -91,6 +100,11 @@ class Spk extends Model
     public function checklistItems(): HasMany
     {
         return $this->hasMany(SpkChecklistItem::class)->orderBy('sort_order');
+    }
+
+    public function damageMarks(): HasMany
+    {
+        return $this->hasMany(SpkDamageMark::class);
     }
 
     /**

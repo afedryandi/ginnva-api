@@ -37,7 +37,7 @@ class SpkController extends Controller
 
         $user = $request->user('api');
 
-        $query = Spk::query()->with(['booking:id,booking_number', 'store:id,name'])
+        $query = Spk::query()->with(['booking:id,booking_number', 'store:id,name', 'damageMarks'])
             ->orderByDesc('created_at');
 
         if (! $user->isFullAccess()) {
@@ -84,7 +84,7 @@ class SpkController extends Controller
             return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke SPK.'], 403);
         }
 
-        $spk = Spk::with(['checklistItems', 'booking:id,booking_number', 'store:id,name'])->find($id);
+        $spk = Spk::with(['checklistItems', 'damageMarks', 'booking:id,booking_number', 'store:id,name'])->find($id);
 
         if (! $spk || ! $this->canAccess($request, $spk)) {
             return response()->json(['success' => false, 'message' => 'SPK tidak ditemukan.'], 404);
@@ -129,7 +129,12 @@ class SpkController extends Controller
         $data['store_id'] = $booking->store_id;
 
         try {
-            $spk = app(SpkService::class)->create($data, $request->input('checklist_items', []), $user->id);
+            $spk = app(SpkService::class)->create(
+                $data,
+                $request->input('checklist_items', []),
+                $user->id,
+                $request->has('damage_marks') ? $request->input('damage_marks', []) : null
+            );
         } catch (RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -171,7 +176,12 @@ class SpkController extends Controller
 
         $data = $this->extractSpkData($request);
 
-        $spk = app(SpkService::class)->update($spk, $data, $request->input('checklist_items', []));
+        $spk = app(SpkService::class)->update(
+            $spk,
+            $data,
+            $request->input('checklist_items', []),
+            $request->has('damage_marks') ? $request->input('damage_marks', []) : null
+        );
 
         return response()->json([
             'success' => true,
@@ -209,6 +219,11 @@ class SpkController extends Controller
             'checklist_items.*.category' => 'required_with:checklist_items|in:pekerjaan,extra_service,perlengkapan',
             'checklist_items.*.label' => 'required_with:checklist_items|string|max:255',
             'checklist_items.*.is_checked' => 'nullable|boolean',
+            'damage_marks' => 'nullable|array',
+            'damage_marks.*.x_percent' => 'required_with:damage_marks|numeric|min:0|max:100',
+            'damage_marks.*.y_percent' => 'required_with:damage_marks|numeric|min:0|max:100',
+            'damage_marks.*.code' => 'required_with:damage_marks|in:C,B,P,G,M,OS',
+            'damage_marks.*.note' => 'nullable|string|max:255',
         ];
     }
 

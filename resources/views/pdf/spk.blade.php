@@ -80,10 +80,25 @@
             </td>
             <td style="width: 50%;">
                 <div class="section-title">Kondisi Kendaraan</div>
-                <p style="color: #888; font-size: 10px; margin-top: 30px; text-align: center;">
-                    (Diagram kondisi kendaraan &amp; kode kerusakan diisi manual)
-                </p>
-                <table class="field-table" style="width: 100%; margin-top: 40px;">
+                @if ($spk->damageMarks->isEmpty())
+                    <p style="color: #888; font-size: 10px; margin-top: 30px; text-align: center;">
+                        (Belum ada titik kerusakan ditandai dari aplikasi)
+                    </p>
+                @else
+                    {{-- Titik kerusakan ditandai dari mobile app (tap di diagram
+                         mobil, lihat SpkDamageMark) -- dicetak sebagai daftar
+                         posisi + kode, BUKAN digambar ulang di atas diagram
+                         (PDF ini tidak punya gambar mobil, cuma teks/tabel). --}}
+                    <table class="field-table" style="width: 100%; margin-top: 6px;">
+                        @foreach ($spk->damageMarks as $mark)
+                            <tr>
+                                <td style="width: 20%;"><strong>{{ $mark->code }}</strong></td>
+                                <td>{{ \App\Models\Spk::DAMAGE_CODE_LABELS[$mark->code] ?? $mark->code }} (posisi {{ number_format($mark->x_percent, 0) }}%, {{ number_format($mark->y_percent, 0) }}%)@if ($mark->note) — {{ $mark->note }}@endif</td>
+                            </tr>
+                        @endforeach
+                    </table>
+                @endif
+                <table class="field-table" style="width: 100%; margin-top: 10px;">
                     <tr><td style="font-size: 9px; color: #555;">Kode Kerusakan: C=Cat Luka/Belang, B=Baret Dalam, P=Penyok, G=Kaca Baret/Retak, M=Komponen Hilang, OS=Over Spray</td></tr>
                 </table>
             </td>
