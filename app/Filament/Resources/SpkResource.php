@@ -104,7 +104,14 @@ class SpkResource extends Resource
                     Forms\Components\Tabs\Tab::make('Kondisi Kendaraan')
                         ->visible(fn (?Spk $record) => $record !== null)
                         ->badge(fn (?Spk $record) => $record?->damageMarks->count() ?: null)
-                        ->schema([static::damageMarksPlaceholder()]),
+                        ->schema([
+                            Forms\Components\ViewField::make('damage_diagram')
+                                ->label('')
+                                ->view('filament.spk.damage-diagram')
+                                ->viewData(fn (?Spk $record) => ['record' => $record]),
+
+                            static::damageMarksPlaceholder(),
+                        ]),
 
                     Forms\Components\Tabs\Tab::make('Catatan')
                         ->schema([
