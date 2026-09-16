@@ -101,6 +101,11 @@ class SpkResource extends Resource
                     Forms\Components\Tabs\Tab::make('Checklist')
                         ->schema(static::checklistTabSchema()),
 
+                    Forms\Components\Tabs\Tab::make('Kondisi Kendaraan')
+                        ->visible(fn (?Spk $record) => $record !== null)
+                        ->badge(fn (?Spk $record) => $record?->damageMarks->count() ?: null)
+                        ->schema([static::damageMarksPlaceholder()]),
+
                     Forms\Components\Tabs\Tab::make('Catatan')
                         ->schema([
                             Forms\Components\Textarea::make('notes')
@@ -239,6 +244,37 @@ class SpkResource extends Resource
         ];
     }
 
+    /**
+     * Read-only -- titik kerusakan diisi dari mobile app (halaman
+     * "Kondisi Kendaraan" tersendiri, lihat SpkController::
+     * updateDamageMarks()), Filament belum punya UI diagram interaktif
+     * buat menandainya (diminta user 2026-09-16: cukup versi baca-saja
+     * dulu di sini, badge + daftar teks sama seperti di PDF).
+     */
+    private static function damageMarksPlaceholder(): Forms\Components\Placeholder
+    {
+        return Forms\Components\Placeholder::make('damage_marks_display')
+            ->label('')
+            ->content(function (?Spk $record) {
+                if (! $record || $record->damageMarks->isEmpty()) {
+                    return 'Belum ada titik kerusakan ditandai dari aplikasi.';
+                }
+
+                return new \Illuminate\Support\HtmlString(
+                    '<ul style="margin:0;padding-left:1.1rem;list-style:disc;">' .
+                    $record->damageMarks->map(fn ($mark) => sprintf(
+                        '<li><strong>%s</strong> — %s (posisi %s%%, %s%%)%s</li>',
+                        e($mark->code),
+                        e(Spk::DAMAGE_CODE_LABELS[$mark->code] ?? $mark->code),
+                        number_format($mark->x_percent, 0),
+                        number_format($mark->y_percent, 0),
+                        $mark->note ? ' — ' . e($mark->note) : ''
+                    ))->implode('') .
+                    '</ul>'
+                );
+            });
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -269,6 +305,13 @@ class SpkResource extends Resource
                     ->dateTime('d M Y, H:i')
                     ->placeholder('—')
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('damage_marks_count')
+                    ->label('Kerusakan')
+                    ->state(fn (Spk $record) => $record->damageMarks->count())
+                    ->badge()
+                    ->color(fn (int $state) => $state > 0 ? 'danger' : 'gray')
+                    ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} titik" : 'Belum ada'),
             ])
             ->defaultSort('created_at', 'desc')
             ->actions([
