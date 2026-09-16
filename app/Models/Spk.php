@@ -151,6 +151,15 @@ class Spk extends Model
 
             imagefilledellipse($image, $x, $y, ($radius + 3) * 2, ($radius + 3) * 2, $white);
             imagefilledellipse($image, $x, $y, $radius * 2, $radius * 2, $fill);
+
+            // Huruf kode di dalam titik -- pakai font bawaan GD (bukan
+            // TrueType, tidak butuh file font terpisah), dicenterkan
+            // manual pakai imagefontwidth/height (diminta user
+            // 2026-09-16, sebelumnya titik cuma warna tanpa huruf).
+            $font = 5;
+            $textWidth = imagefontwidth($font) * strlen($mark->code);
+            $textHeight = imagefontheight($font);
+            imagestring($image, $font, (int) ($x - $textWidth / 2), (int) ($y - $textHeight / 2), $mark->code, $white);
         }
 
         ob_start();
