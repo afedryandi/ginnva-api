@@ -108,6 +108,60 @@ class Spk extends Model
     }
 
     /**
+     * Dipakai KHUSUS di PDF (resources/views/pdf/spk.blade.php) -- DomPDF
+     * tidak bisa diandalkan buat "position: absolute" di dalam sel
+     * tabel (titik overlay CSS terbukti meleset/keluar border, lihat
+     * screenshot user 2026-09-16). Solusinya titik-titik digambar
+     * LANGSUNG ke bitmap-nya pakai GD (bukan overlay HTML/CSS), jadi
+     * hasilnya cuma 1 <img> normal yang pasti tetap di dalam sel
+     * tabel apa pun. Filament & mobile app TETAP pakai overlay
+     * HTML/CSS biasa (rendernya di browser sungguhan, bukan DomPDF,
+     * jadi position:absolute di situ aman-aman saja).
+     */
+    public function damageDiagramDataUri(): string
+    {
+        $path = public_path('images/spk-car-diagram.png');
+
+        if (! is_file($path) || ! function_exists('imagecreatefrompng')) {
+            return '';
+        }
+
+        $codeColors = [
+            'C' => [239, 68, 68],
+            'B' => [249, 115, 22],
+            'P' => [234, 179, 8],
+            'G' => [59, 130, 246],
+            'M' => [139, 92, 246],
+            'OS' => [34, 197, 94],
+        ];
+
+        $image = imagecreatefrompng($path);
+        imagesavealpha($image, true);
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $radius = (int) round(min($width, $height) * 0.025);
+
+        foreach ($this->damageMarks as $mark) {
+            [$r, $g, $b] = $codeColors[$mark->code] ?? [102, 102, 102];
+            $x = (int) round(((float) $mark->x_percent / 100) * $width);
+            $y = (int) round(((float) $mark->y_percent / 100) * $height);
+
+            $white = imagecolorallocate($image, 255, 255, 255);
+            $fill = imagecolorallocate($image, $r, $g, $b);
+
+            imagefilledellipse($image, $x, $y, ($radius + 3) * 2, ($radius + 3) * 2, $white);
+            imagefilledellipse($image, $x, $y, $radius * 2, $radius * 2, $fill);
+        }
+
+        ob_start();
+        imagepng($image);
+        $bytes = ob_get_clean();
+        imagedestroy($image);
+
+        return 'data:image/png;base64,' . base64_encode($bytes);
+    }
+
+    /**
      * Dipanggil di dalam DB::transaction() oleh SpkService supaya tidak
      * race-condition dobel nomor -- sama pola dengan
      * Invoice::generateNumberForStore().

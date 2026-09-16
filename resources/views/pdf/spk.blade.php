@@ -81,27 +81,27 @@
             <td style="width: 50%;">
                 <div class="section-title">Kondisi Kendaraan</div>
 
-                {{-- Diagram visual, sama gambar & posisi persen dengan
-                     Filament (resources/views/filament/spk/damage-diagram.blade.php)
-                     & mobile app (DamageDiagram.tsx) -- public_path()
-                     dipakai (bukan asset()) supaya DomPDF baca file
-                     lokal langsung tanpa perlu resolve URL remote. --}}
+                {{-- Diagram visual -- titik kerusakan digambar LANGSUNG
+                     ke bitmap-nya pakai GD (Spk::damageDiagramDataUri()),
+                     BUKAN overlay CSS "position: absolute" seperti di
+                     Filament/mobile -- DomPDF terbukti tidak bisa
+                     diandalkan menempatkan elemen absolut di dalam sel
+                     tabel dengan benar (titik meleset keluar border,
+                     lihat screenshot user 2026-09-16). Hasilnya cuma 1
+                     <img> normal yang pasti tetap di dalam sel. --}}
                 @php
-                    $damageCodeColors = ['C' => '#ef4444', 'B' => '#f97316', 'P' => '#eab308', 'G' => '#3b82f6', 'M' => '#8b5cf6', 'OS' => '#22c55e'];
-                    // Ukuran EKSPLISIT (width & height, bukan cuma
-                    // width) -- DomPDF tidak selalu menghitung ulang
-                    // proporsi lebar/tinggi gambar dengan benar kalau
-                    // cuma salah satu yang diisi, apalagi di dalam <td>
-                    // (posisi absolut anaknya jadi ikut meleset).
-                    $diagramWidth = 140;
+                    // Diperbesar (140 -> 190px) sesuai permintaan user --
+                    // masih muat di lebar sel 50% halaman A4 (~250px
+                    // dikurangi padding).
+                    $diagramWidth = 190;
                     $diagramHeight = round($diagramWidth * 1400 / 1120);
                 @endphp
-                <div style="position: relative; width: {{ $diagramWidth }}px; height: {{ $diagramHeight }}px;">
-                    <img src="{{ public_path('images/spk-car-diagram.png') }}" width="{{ $diagramWidth }}" height="{{ $diagramHeight }}" style="width: {{ $diagramWidth }}px; height: {{ $diagramHeight }}px; border: 1px solid #ccc;">
-                    @foreach ($spk->damageMarks as $mark)
-                        <div style="position: absolute; left: {{ $mark->x_percent }}%; top: {{ $mark->y_percent }}%; width: 10px; height: 10px; margin-left: -5px; margin-top: -5px; border-radius: 5px; background: {{ $damageCodeColors[$mark->code] ?? '#666' }}; border: 1px solid #fff;"></div>
-                    @endforeach
-                </div>
+                <img
+                    src="{{ $spk->damageDiagramDataUri() }}"
+                    width="{{ $diagramWidth }}"
+                    height="{{ $diagramHeight }}"
+                    style="width: {{ $diagramWidth }}px; height: {{ $diagramHeight }}px; border: 1px solid #ccc;"
+                >
 
                 @if ($spk->damageMarks->isEmpty())
                     <p style="color: #888; font-size: 10px; margin-top: 8px;">
