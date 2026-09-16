@@ -139,7 +139,19 @@ class Spk extends Model
         imagesavealpha($image, true);
         $width = imagesx($image);
         $height = imagesy($image);
-        $radius = (int) round(min($width, $height) * 0.025);
+        // Diperbesar (0.025 -> 0.04) supaya ada ruang buat huruf kode
+        // yang lebih besar (diminta user 2026-09-16 -- huruf sebelumnya
+        // kebaca kekecilan setelah gambar di-downscale ke ukuran cetak).
+        $radius = (int) round(min($width, $height) * 0.04);
+
+        // TTF bawaan paket dompdf/dompdf (SELALU ada di server mana pun
+        // barryvdh/laravel-dompdf ter-install, tidak perlu font
+        // terpisah) -- dipakai supaya ukuran huruf bisa diatur bebas
+        // (font bawaan GD/imagestring mentok di 15px, kekecilan kalau
+        // gambar 1120px ini di-downscale jadi ~250px di halaman cetak).
+        $fontPath = base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf');
+        $useTtf = is_file($fontPath);
+        $fontSize = (int) round($radius * 0.95);
 
         foreach ($this->damageMarks as $mark) {
             [$r, $g, $b] = $codeColors[$mark->code] ?? [102, 102, 102];
@@ -152,14 +164,24 @@ class Spk extends Model
             imagefilledellipse($image, $x, $y, ($radius + 3) * 2, ($radius + 3) * 2, $white);
             imagefilledellipse($image, $x, $y, $radius * 2, $radius * 2, $fill);
 
-            // Huruf kode di dalam titik -- pakai font bawaan GD (bukan
-            // TrueType, tidak butuh file font terpisah), dicenterkan
-            // manual pakai imagefontwidth/height (diminta user
-            // 2026-09-16, sebelumnya titik cuma warna tanpa huruf).
-            $font = 5;
-            $textWidth = imagefontwidth($font) * strlen($mark->code);
-            $textHeight = imagefontheight($font);
-            imagestring($image, $font, (int) ($x - $textWidth / 2), (int) ($y - $textHeight / 2), $mark->code, $white);
+            if ($useTtf) {
+                $bbox = imagettfbbox($fontSize, 0, $fontPath, $mark->code);
+                $textWidth = abs($bbox[2] - $bbox[0]);
+                $textHeight = abs($bbox[7] - $bbox[1]);
+                imagettftext(
+                    $image, $fontSize, 0,
+                    (int) round($x - $textWidth / 2),
+                    (int) round($y + $textHeight / 2),
+                    $white, $fontPath, $mark->code
+                );
+            } else {
+                // Fallback kalau path dompdf berubah/tidak ketemu --
+                // font bawaan GD, lebih kecil tapi tetap ada label.
+                $font = 5;
+                $textWidth = imagefontwidth($font) * strlen($mark->code);
+                $textHeight = imagefontheight($font);
+                imagestring($image, $font, (int) ($x - $textWidth / 2), (int) ($y - $textHeight / 2), $mark->code, $white);
+            }
         }
 
         ob_start();
