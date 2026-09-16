@@ -62,7 +62,7 @@
 
     <table class="grid">
         <tr>
-            <td style="width: 50%;">
+            <td style="width: 38%;">
                 <div class="section-title">Data Pelanggan</div>
                 <table class="field-table" style="width: 100%; margin-top: 6px;">
                     <tr><td class="field-label">Nama</td><td>: {{ $spk->customer_name }}</td></tr>
@@ -78,7 +78,7 @@
                     <tr><td class="field-label">Keluar</td><td>: {{ $spk->checked_out_at?->translatedFormat('d M Y, H:i') ?? '-' }}</td></tr>
                 </table>
             </td>
-            <td style="width: 50%;">
+            <td style="width: 62%;">
                 <div class="section-title">Kondisi Kendaraan</div>
 
                 {{-- Diagram visual -- titik kerusakan digambar LANGSUNG
@@ -87,29 +87,39 @@
                      Filament/mobile -- DomPDF terbukti tidak bisa
                      diandalkan menempatkan elemen absolut di dalam sel
                      tabel dengan benar (titik meleset keluar border,
-                     lihat screenshot user 2026-09-16). Hasilnya cuma 1
-                     <img> normal yang pasti tetap di dalam sel. --}}
+                     lihat screenshot user 2026-09-16). Kolom "Data
+                     Pelanggan" dipersempit (50% -> 38%) supaya kolom
+                     ini dapat jatah lebar lebih besar (62%), diagram
+                     bisa diperbesar sampai dekat tepi bawah border
+                     tanpa berebut ruang sama legenda kode di sampingnya. --}}
                 @php
-                    // Diperbesar (140 -> 190px) sesuai permintaan user --
-                    // masih muat di lebar sel 50% halaman A4 (~250px
-                    // dikurangi padding).
-                    $diagramWidth = 190;
+                    $diagramWidth = 250;
                     $diagramHeight = round($diagramWidth * 1400 / 1120);
                 @endphp
-                <img
-                    src="{{ $spk->damageDiagramDataUri() }}"
-                    width="{{ $diagramWidth }}"
-                    height="{{ $diagramHeight }}"
-                    style="width: {{ $diagramWidth }}px; height: {{ $diagramHeight }}px; border: 1px solid #ccc;"
-                >
-
-                @if ($spk->damageMarks->isEmpty())
-                    <p style="color: #888; font-size: 10px; margin-top: 8px;">
-                        (Belum ada titik kerusakan ditandai dari aplikasi)
-                    </p>
-                @endif
-                <table class="field-table" style="width: 100%; margin-top: 10px;">
-                    <tr><td style="font-size: 9px; color: #555;">Kode Kerusakan: C=Cat Luka/Belang, B=Baret Dalam, P=Penyok, G=Kaca Baret/Retak, M=Komponen Hilang, OS=Over Spray</td></tr>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 250px; vertical-align: top; padding: 0;">
+                            <img
+                                src="{{ $spk->damageDiagramDataUri() }}"
+                                width="{{ $diagramWidth }}"
+                                height="{{ $diagramHeight }}"
+                                style="width: {{ $diagramWidth }}px; height: {{ $diagramHeight }}px; border: 1px solid #ccc;"
+                            >
+                            @if ($spk->damageMarks->isEmpty())
+                                <p style="color: #888; font-size: 9px; margin-top: 6px;">
+                                    (Belum ada titik kerusakan ditandai dari aplikasi)
+                                </p>
+                            @endif
+                        </td>
+                        <td style="vertical-align: top; padding: 0 0 0 10px; font-size: 9px; color: #333;">
+                            <strong style="display: block; margin-bottom: 4px;">Kode Kerusakan</strong>
+                            @foreach (\App\Models\Spk::DAMAGE_CODE_LABELS as $code => $label)
+                                <div style="margin-bottom: 3px;">
+                                    <strong>{{ $code }}</strong> = {{ $label }}
+                                </div>
+                            @endforeach
+                        </td>
+                    </tr>
                 </table>
             </td>
         </tr>
