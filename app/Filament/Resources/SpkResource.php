@@ -92,6 +92,33 @@ class SpkResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
+            Forms\Components\Tabs::make('Tabs')
+                ->columnSpanFull()
+                ->tabs([
+                    Forms\Components\Tabs\Tab::make('Informasi')
+                        ->schema(static::informationTabSchema()),
+
+                    Forms\Components\Tabs\Tab::make('Checklist')
+                        ->schema(static::checklistTabSchema()),
+
+                    Forms\Components\Tabs\Tab::make('Catatan')
+                        ->schema([
+                            Forms\Components\Textarea::make('notes')
+                                ->label('')
+                                ->rows(3),
+                        ]),
+                ]),
+        ]);
+    }
+
+    /**
+     * Dipecah jadi Tabs (Informasi/Checklist/Catatan) supaya halaman
+     * tidak terlalu panjang -- sebelumnya semua section ditumpuk
+     * vertikal sekaligus (diminta user 2026-09-16).
+     */
+    private static function informationTabSchema(): array
+    {
+        return [
             Forms\Components\Section::make('Informasi SPK')
                 ->columns(2)
                 ->schema([
@@ -156,7 +183,7 @@ class SpkResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Data Kendaraan')
-                ->columns(3)
+                ->columns(2)
                 ->schema([
                     Forms\Components\TextInput::make('vehicle_plate')
                         ->label('No. Polisi')
@@ -192,23 +219,24 @@ class SpkResource extends Resource
                         ->label('Battery')
                         ->maxLength(100),
                 ]),
+        ];
+    }
 
+    private static function checklistTabSchema(): array
+    {
+        return [
             Forms\Components\Section::make('Uraian Pekerjaan')
+                ->collapsed()
                 ->schema([static::checklistRepeater('pekerjaan', '')]),
 
             Forms\Components\Section::make('Extra Services')
+                ->collapsed()
                 ->schema([static::checklistRepeater('extra_service', '')]),
 
             Forms\Components\Section::make('Perlengkapan Kendaraan')
+                ->collapsed()
                 ->schema([static::checklistRepeater('perlengkapan', '')]),
-
-            Forms\Components\Section::make('Catatan')
-                ->schema([
-                    Forms\Components\Textarea::make('notes')
-                        ->label('')
-                        ->rows(3),
-                ]),
-        ]);
+        ];
     }
 
     public static function table(Table $table): Table
