@@ -53,6 +53,13 @@ class BookingController extends Controller
             $query->where('status', $request->status);
         }
 
+        // Dipakai mobile app buat picker booking saat bikin SPK baru --
+        // cuma booking yang belum punya SPK sama sekali (lihat
+        // Booking::spk(), 1 booking = 1 SPK).
+        if ($request->boolean('without_spk')) {
+            $query->doesntHave('spk');
+        }
+
         $bookings = $query->paginate(20);
 
         return response()->json([

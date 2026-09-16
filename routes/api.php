@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\Customer\MyWarrantyController;
 use App\Http\Controllers\Api\Customer\StoreReviewController;
 use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
+use App\Http\Controllers\Api\Staff\SpkController as StaffSpkController;
 use App\Http\Controllers\Api\Staff\QuotationController as StaffQuotationController;
 use App\Http\Controllers\Api\Staff\BookingMessageController as StaffBookingMessageController;
 use App\Http\Controllers\Api\Staff\InventoryController as StaffInventoryController;
@@ -255,6 +256,18 @@ Route::prefix('staff')->group(function () {
 
         Route::get('/bookings/{id}/messages', [StaffBookingMessageController::class, 'index']);
         Route::post('/bookings/{id}/messages', [StaffBookingMessageController::class, 'store'])
+            ->middleware('throttle:20,1');
+
+        // SPK (Surat Perintah Kerja) -- diminta user 2026-09-16, staff
+        // isi form inspeksi kendaraan langsung dari HP di lapangan.
+        // Semua tulis-menulis lewat SpkService yang sama dengan
+        // Filament (lihat SpkController), 1 booking = 1 SPK.
+        Route::get('/spks', [StaffSpkController::class, 'index']);
+        Route::get('/spks/checklist-template', [StaffSpkController::class, 'checklistTemplate']);
+        Route::get('/spks/{id}', [StaffSpkController::class, 'show']);
+        Route::post('/spks', [StaffSpkController::class, 'store'])
+            ->middleware('throttle:20,1');
+        Route::put('/spks/{id}', [StaffSpkController::class, 'update'])
             ->middleware('throttle:20,1');
 
         // Link anonymous token (didaftarkan saat app pertama kali dibuka)
