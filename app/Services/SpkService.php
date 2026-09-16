@@ -96,6 +96,22 @@ class SpkService
     }
 
     /**
+     * Simpan titik kerusakan SAJA -- dipakai halaman "Kondisi Kendaraan"
+     * tersendiri di mobile app (diminta user 2026-09-16: inspeksi
+     * kendaraan dipisah jadi halaman baru, bukan menumpuk di form utama
+     * SPK). Field lain (checklist, data kendaraan, dst.) tidak disentuh
+     * sama sekali.
+     *
+     * @param  array<int, array{x_percent:float, y_percent:float, code:string, note:?string}>  $damageMarks
+     */
+    public function updateDamageMarksOnly(Spk $spk, array $damageMarks): Spk
+    {
+        $this->syncDamageMarks($spk, $damageMarks);
+
+        return $spk->fresh('damageMarks');
+    }
+
+    /**
      * @param  array<int, array{category:string, label:string, is_checked:bool}>  $checklistItems
      */
     private function syncChecklistItems(Spk $spk, array $checklistItems): void

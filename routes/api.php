@@ -269,6 +269,10 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:20,1');
         Route::put('/spks/{id}', [StaffSpkController::class, 'update'])
             ->middleware('throttle:20,1');
+        // Halaman "Kondisi Kendaraan" tersendiri (diminta user 2026-09-16) --
+        // cuma simpan damage_marks, tidak butuh field SPK lain.
+        Route::put('/spks/{id}/damage-marks', [StaffSpkController::class, 'updateDamageMarks'])
+            ->middleware('throttle:20,1');
 
         // Link anonymous token (didaftarkan saat app pertama kali dibuka)
         // ke akun staff yang baru login — supaya push notif booking/chat

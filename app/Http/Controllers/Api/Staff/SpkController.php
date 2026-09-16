@@ -190,6 +190,51 @@ class SpkController extends Controller
         ]);
     }
 
+    /**
+     * PUT /api/staff/spks/{id}/damage-marks
+     * Endpoint terpisah buat halaman "Kondisi Kendaraan" tersendiri di
+     * mobile app (diminta user 2026-09-16: inspeksi kendaraan dibuka
+     * sebagai halaman baru, bukan bagian dari form SPK utama) -- cuma
+     * terima & simpan damage_marks, TIDAK butuh field SPK lain sama
+     * sekali (beda dari update() yang mewajibkan customer_name dkk.).
+     */
+    public function updateDamageMarks(Request $request, int $id)
+    {
+        if (! $this->authorize($request)) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke SPK.'], 403);
+        }
+
+        $spk = Spk::find($id);
+
+        if (! $spk || ! $this->canAccess($request, $spk)) {
+            return response()->json(['success' => false, 'message' => 'SPK tidak ditemukan.'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'damage_marks' => 'present|array',
+            'damage_marks.*.x_percent' => 'required|numeric|min:0|max:100',
+            'damage_marks.*.y_percent' => 'required|numeric|min:0|max:100',
+            'damage_marks.*.code' => 'required|in:C,B,P,G,M,OS',
+            'damage_marks.*.note' => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $spk = app(SpkService::class)->updateDamageMarksOnly($spk, $request->input('damage_marks', []));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Kondisi kendaraan berhasil disimpan.',
+            'data' => $spk,
+        ]);
+    }
+
     private function canAccess(Request $request, Spk $spk): bool
     {
         $user = $request->user('api');
