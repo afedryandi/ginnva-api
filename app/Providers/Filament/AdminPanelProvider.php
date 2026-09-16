@@ -337,6 +337,25 @@ class AdminPanelProvider extends PanelProvider
                     .dark .fi-dropdown-panel svg {
                         color: #f3f4f6 !important;
                     }
+                    /* FIX (user lapor 2026-09-16): icon lonceng di HEADER
+                       modal notifikasi ("Belum ada notifikasi") -- BUKAN
+                       tombol pemicu di topbar (itu sudah putih dari rule
+                       paling atas), ini elemen terpisah di dalam modal
+                       (.fi-modal-header), dikonfirmasi lewat Inspect
+                       Element user: <svg class="fi-modal-icon h-6 w-6
+                       text-gray-500 dark:text-gray-400"> di dalam div
+                       bulat "bg-gray-100", wire:key mengandung
+                       "database-notifications.header". Warna asli
+                       Filament (gray-500 di atas gray-100) kontrasnya
+                       tipis di light theme. Di-scope KHUSUS ke modal
+                       notifikasi (bukan `.fi-modal-icon` generik) supaya
+                       tidak ikut mengubah warna icon semantik (merah/
+                       kuning) di modal lain seperti konfirmasi hapus.
+                       Dark mode tidak disentuh (dark:text-gray-400 sudah
+                       cukup kontras di atas bg-gray-500/20 gelap). */
+                    :root:not(.dark) [wire\:key*="database-notifications"] .fi-modal-icon {
+                        color: #374151 !important;
+                    }
                 </style>',
             )
             ->renderHook(
