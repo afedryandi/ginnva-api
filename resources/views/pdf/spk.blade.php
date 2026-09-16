@@ -88,27 +88,25 @@
                      lokal langsung tanpa perlu resolve URL remote. --}}
                 @php
                     $damageCodeColors = ['C' => '#ef4444', 'B' => '#f97316', 'P' => '#eab308', 'G' => '#3b82f6', 'M' => '#8b5cf6', 'OS' => '#22c55e'];
+                    // Ukuran EKSPLISIT (width & height, bukan cuma
+                    // width) -- DomPDF tidak selalu menghitung ulang
+                    // proporsi lebar/tinggi gambar dengan benar kalau
+                    // cuma salah satu yang diisi, apalagi di dalam <td>
+                    // (posisi absolut anaknya jadi ikut meleset).
+                    $diagramWidth = 140;
+                    $diagramHeight = round($diagramWidth * 1400 / 1120);
                 @endphp
-                <div style="position: relative; width: 170px; margin: 6px auto 0;">
-                    <img src="{{ public_path('images/spk-car-diagram.png') }}" style="width: 170px; display: block; border: 1px solid #ccc;">
+                <div style="position: relative; width: {{ $diagramWidth }}px; height: {{ $diagramHeight }}px;">
+                    <img src="{{ public_path('images/spk-car-diagram.png') }}" width="{{ $diagramWidth }}" height="{{ $diagramHeight }}" style="width: {{ $diagramWidth }}px; height: {{ $diagramHeight }}px; border: 1px solid #ccc;">
                     @foreach ($spk->damageMarks as $mark)
-                        <div style="position: absolute; left: {{ $mark->x_percent }}%; top: {{ $mark->y_percent }}%; width: 12px; height: 12px; margin-left: -6px; margin-top: -6px; border-radius: 6px; background: {{ $damageCodeColors[$mark->code] ?? '#666' }}; border: 1px solid #fff; text-align: center; font-size: 6px; font-weight: bold; color: #fff; line-height: 11px;">{{ $mark->code }}</div>
+                        <div style="position: absolute; left: {{ $mark->x_percent }}%; top: {{ $mark->y_percent }}%; width: 10px; height: 10px; margin-left: -5px; margin-top: -5px; border-radius: 5px; background: {{ $damageCodeColors[$mark->code] ?? '#666' }}; border: 1px solid #fff;"></div>
                     @endforeach
                 </div>
 
                 @if ($spk->damageMarks->isEmpty())
-                    <p style="color: #888; font-size: 10px; margin-top: 8px; text-align: center;">
+                    <p style="color: #888; font-size: 10px; margin-top: 8px;">
                         (Belum ada titik kerusakan ditandai dari aplikasi)
                     </p>
-                @else
-                    <table class="field-table" style="width: 100%; margin-top: 8px;">
-                        @foreach ($spk->damageMarks as $mark)
-                            <tr>
-                                <td style="width: 20%;"><strong>{{ $mark->code }}</strong></td>
-                                <td>{{ \App\Models\Spk::DAMAGE_CODE_LABELS[$mark->code] ?? $mark->code }} (posisi {{ number_format($mark->x_percent, 0) }}%, {{ number_format($mark->y_percent, 0) }}%)@if ($mark->note) — {{ $mark->note }}@endif</td>
-                            </tr>
-                        @endforeach
-                    </table>
                 @endif
                 <table class="field-table" style="width: 100%; margin-top: 10px;">
                     <tr><td style="font-size: 9px; color: #555;">Kode Kerusakan: C=Cat Luka/Belang, B=Baret Dalam, P=Penyok, G=Kaca Baret/Retak, M=Komponen Hilang, OS=Over Spray</td></tr>
