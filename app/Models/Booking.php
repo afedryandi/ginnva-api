@@ -402,6 +402,15 @@ class Booking extends Model
     }
 
     /**
+     * SPK (Surat Perintah Kerja) untuk booking ini -- 1 booking = 1 SPK
+     * (booking_id unique, lihat migrasi create_spks_table).
+     */
+    public function spk()
+    {
+        return $this->hasOne(Spk::class);
+    }
+
+    /**
      * Riwayat refund booking ini -- BISA lebih dari 1 (refund parsial
      * bertahap), lihat RefundService & migrasi
      * 2026_09_09_000002_create_refunds_table.
