@@ -33,11 +33,14 @@
     <table class="header">
         <tr>
             <td style="width: 60%;">
-                <div class="brand">GINNVA</div>
+                <div class="brand">GINNVA HOUSE</div>
+                {{-- Info perusahaan resmi (dikoreksi user 2026-09-16) --
+                     BUKAN lagi data toko (Store). Tanpa nama PT,
+                     telepon, & email (diminta user), cuma alamat +
+                     website. --}}
                 <div class="brand-sub">
-                    www.ginnva.co.id<br>
-                    {{ $spk->store?->name ?? 'Ginnva Shield Indonesia' }}
-                    @if ($spk->store?->address) &middot; {{ $spk->store->address }}@endif
+                    Thamrin Business Center, Jl. M.H Thamrin Blok 1 No. 52, PIK 2, Kosambi, Selembaran, Tangerang, Banten 15210<br>
+                    www.ginnva.id
                 </div>
             </td>
             <td class="title" style="width: 40%;">
@@ -75,7 +78,14 @@
                     <tr><td class="field-label">Kilometer</td><td>: {{ $spk->vehicle_km ? number_format($spk->vehicle_km, 0, ',', '.') . ' Km' : '-' }}</td></tr>
                     <tr><td class="field-label">BBM / Battery</td><td>: {{ \App\Models\Spk::FUEL_LEVEL_LABELS[$spk->fuel_level] ?? '-' }} / {{ $spk->battery_note ?? '-' }}</td></tr>
                     <tr><td class="field-label">Masuk</td><td>: {{ $spk->checked_in_at?->translatedFormat('d M Y, H:i') ?? '-' }}</td></tr>
-                    <tr><td class="field-label">Keluar</td><td>: {{ $spk->checked_out_at?->translatedFormat('d M Y, H:i') ?? '-' }}</td></tr>
+                    {{-- Kalau belum diisi & ini lembar buat tanda tangan
+                         basah (bukan cetak ulang arsip), SENGAJA
+                         dikosongkan (bukan "-") -- field ini memang
+                         ditulis tangan staff nanti saat customer
+                         benar-benar ambil kendaraan, sama seperti garis
+                         kosong di form kertas asli (diminta user
+                         2026-09-16). --}}
+                    <tr><td class="field-label">Keluar</td><td>: {{ $spk->checked_out_at?->translatedFormat('d M Y, H:i') ?? (($isReprint ?? false) ? '-' : '') }}</td></tr>
                 </table>
             </td>
             <td style="width: 62%;">
@@ -168,22 +178,28 @@
         </table>
     @endif
 
-    <table class="sign-table">
-        <tr>
-            <td>
-                <div class="sign-label">Dikerjakan Oleh :</div>
-            </td>
-            <td>
-                <div class="sign-label">Diperiksa Oleh :</div>
-            </td>
-            <td>
-                <div class="sign-label">Konfirmasi Pelanggan :</div>
-            </td>
-            <td>
-                <div class="sign-label">Diterima dengan Baik :</div>
-            </td>
-        </tr>
-    </table>
+    {{-- Kolom tanda tangan cuma di lembar ASLI (buat tanda tangan basah
+         staff & customer) -- versi "Cetak Ulang" ($isReprint) adalah
+         salinan arsip digital SETELAH lembar fisik sudah ditandatangani,
+         jadi tidak perlu kolom kosong lagi (diminta user 2026-09-16). --}}
+    @unless ($isReprint ?? false)
+        <table class="sign-table">
+            <tr>
+                <td>
+                    <div class="sign-label">Dikerjakan Oleh :</div>
+                </td>
+                <td>
+                    <div class="sign-label">Diperiksa Oleh :</div>
+                </td>
+                <td>
+                    <div class="sign-label">Konfirmasi Pelanggan :</div>
+                </td>
+                <td>
+                    <div class="sign-label">Diterima dengan Baik :</div>
+                </td>
+            </tr>
+        </table>
+    @endunless
 
     <div class="footer-note">
         <strong>Perhatian:</strong>

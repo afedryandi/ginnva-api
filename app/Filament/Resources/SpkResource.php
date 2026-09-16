@@ -331,8 +331,26 @@ class SpkResource extends Resource
                     ->color('gray')
                     ->action(function (Spk $record) {
                         $record->loadMissing(['checklistItems', 'damageMarks', 'store', 'booking']);
-                        $pdf = Pdf::loadView('pdf.spk', ['spk' => $record])->setPaper('a4', 'portrait');
+                        $pdf = Pdf::loadView('pdf.spk', ['spk' => $record, 'isReprint' => false])->setPaper('a4', 'portrait');
                         $filename = str_replace('/', '-', $record->spk_number) . '.pdf';
+
+                        return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                    }),
+
+                // Salinan arsip digital SETELAH kendaraan sudah keluar &
+                // lembar fisik sudah ditandatangani basah -- tanpa kolom
+                // tanda tangan kosong, field "Keluar" tampil apa adanya
+                // (bukan dikosongkan seperti lembar asli), lihat
+                // pdf.spk::$isReprint (diminta user 2026-09-16).
+                Tables\Actions\Action::make('reprint')
+                    ->label('Cetak Ulang (Arsip)')
+                    ->icon('heroicon-o-document-duplicate')
+                    ->color('gray')
+                    ->visible(fn (Spk $record) => $record->checked_out_at !== null)
+                    ->action(function (Spk $record) {
+                        $record->loadMissing(['checklistItems', 'damageMarks', 'store', 'booking']);
+                        $pdf = Pdf::loadView('pdf.spk', ['spk' => $record, 'isReprint' => true])->setPaper('a4', 'portrait');
+                        $filename = str_replace('/', '-', $record->spk_number) . '-arsip.pdf';
 
                         return response()->streamDownload(fn () => print($pdf->output()), $filename);
                     }),
