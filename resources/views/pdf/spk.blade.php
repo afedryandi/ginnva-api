@@ -80,16 +80,28 @@
             </td>
             <td style="width: 50%;">
                 <div class="section-title">Kondisi Kendaraan</div>
+
+                {{-- Diagram visual, sama gambar & posisi persen dengan
+                     Filament (resources/views/filament/spk/damage-diagram.blade.php)
+                     & mobile app (DamageDiagram.tsx) -- public_path()
+                     dipakai (bukan asset()) supaya DomPDF baca file
+                     lokal langsung tanpa perlu resolve URL remote. --}}
+                @php
+                    $damageCodeColors = ['C' => '#ef4444', 'B' => '#f97316', 'P' => '#eab308', 'G' => '#3b82f6', 'M' => '#8b5cf6', 'OS' => '#22c55e'];
+                @endphp
+                <div style="position: relative; width: 170px; margin: 6px auto 0;">
+                    <img src="{{ public_path('images/spk-car-diagram.png') }}" style="width: 170px; display: block; border: 1px solid #ccc;">
+                    @foreach ($spk->damageMarks as $mark)
+                        <div style="position: absolute; left: {{ $mark->x_percent }}%; top: {{ $mark->y_percent }}%; width: 12px; height: 12px; margin-left: -6px; margin-top: -6px; border-radius: 6px; background: {{ $damageCodeColors[$mark->code] ?? '#666' }}; border: 1px solid #fff; text-align: center; font-size: 6px; font-weight: bold; color: #fff; line-height: 11px;">{{ $mark->code }}</div>
+                    @endforeach
+                </div>
+
                 @if ($spk->damageMarks->isEmpty())
-                    <p style="color: #888; font-size: 10px; margin-top: 30px; text-align: center;">
+                    <p style="color: #888; font-size: 10px; margin-top: 8px; text-align: center;">
                         (Belum ada titik kerusakan ditandai dari aplikasi)
                     </p>
                 @else
-                    {{-- Titik kerusakan ditandai dari mobile app (tap di diagram
-                         mobil, lihat SpkDamageMark) -- dicetak sebagai daftar
-                         posisi + kode, BUKAN digambar ulang di atas diagram
-                         (PDF ini tidak punya gambar mobil, cuma teks/tabel). --}}
-                    <table class="field-table" style="width: 100%; margin-top: 6px;">
+                    <table class="field-table" style="width: 100%; margin-top: 8px;">
                         @foreach ($spk->damageMarks as $mark)
                             <tr>
                                 <td style="width: 20%;"><strong>{{ $mark->code }}</strong></td>
