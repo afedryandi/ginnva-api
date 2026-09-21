@@ -1,8 +1,8 @@
 <?php
 
-use App\Models\Customer;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -29,9 +29,25 @@ return new class extends Migration
         // Backfill kode untuk customer yang sudah ada, supaya semua akun
         // langsung punya kode referral untuk dibagikan tanpa perlu nunggu
         // dibuka/disimpan ulang.
-        Customer::whereNull('referral_code')->orderBy('id')->each(function (Customer $customer) {
-            $customer->update(['referral_code' => Customer::generateReferralCode()]);
-        });
+        //
+        // SENGAJA pakai DB::table (bukan model Eloquent Customer) di sini
+        // dan di bawah — migrasi ini harus tetap bisa direplay dari nol di
+        // instalasi/restore baru kapan pun, walau model Customer sudah
+        // berubah setelah migrasi ini ditulis (mis. nambah SoftDeletes).
+        // Query lewat Eloquent otomatis kena global scope model versi
+        // SEKARANG, yang bisa merujuk kolom (deleted_at) yang belum ada
+        // di titik histori migrasi ini — query builder mentah tidak
+        // terikat ke definisi model sama sekali.
+        DB::table('customers')->whereNull('referral_code')->orderBy('id')
+            ->chunkById(500, function ($customers) {
+                foreach ($customers as $customer) {
+                    do {
+                        $code = strtoupper(Str::random(6));
+                    } while (DB::table('customers')->where('referral_code', $code)->exists());
+
+                    DB::table('customers')->where('id', $customer->id)->update(['referral_code' => $code]);
+                }
+            });
     }
 
     public function down(): void
