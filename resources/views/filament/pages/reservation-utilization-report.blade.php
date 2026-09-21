@@ -28,6 +28,8 @@
                         <th class="py-2 pr-3 text-right">Kapasitas/Hari</th>
                         <th class="py-2 pr-3 text-right">Total Kapasitas</th>
                         <th class="py-2 pr-3 text-right">Terpakai</th>
+                        <th class="py-2 pr-3 text-right">Kosong</th>
+                        <th class="py-2 pr-3 text-right">Dibatalkan</th>
                         <th class="py-2 pl-3">Utilisasi</th>
                     </tr>
                 </thead>
@@ -39,6 +41,8 @@
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['capacityPerDay'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['totalCapacity'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['totalUsed'] }}</td>
+                            <td class="py-2 pr-3 text-right tabular-nums text-gray-500 dark:text-gray-400">{{ $row['emptySlots'] }}</td>
+                            <td class="py-2 pr-3 text-right tabular-nums {{ $row['cancelledCount'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-500 dark:text-gray-400' }}">{{ $row['cancelledCount'] }}</td>
                             <td class="py-2 pl-3">
                                 <div class="flex items-center gap-2">
                                     <div class="h-2 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
@@ -49,7 +53,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada toko yang bisa diakses.</td></tr>
+                        <tr><td colspan="8" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada toko yang bisa diakses.</td></tr>
                     @endforelse
                 </tbody>
             </table>

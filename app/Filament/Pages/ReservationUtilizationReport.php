@@ -38,6 +38,17 @@ use Maatwebsite\Excel\Facades\Excel;
  *
  * Hari libur toko (Store::isClosedOn()) DILEWATI dari perhitungan --
  * toko tutup tidak dihitung sebagai "kapasitas kosong terbuang".
+ *
+ * Kolom "Kosong" & "Dibatalkan" (2026-09-21, temuan Majoo vs Ginnva
+ * "Laporan Utilisasi Ruangan") -- Majoo pecah utilisasi jadi 4 sisi
+ * (jam operasional/terpakai/kosong/dibatalkan) PER BAY fisik, tapi
+ * Ginnva TIDAK punya entitas bay/stall individual sama sekali di
+ * skema (cuma Store.install_capacity_per_day sebagai 1 angka agregat
+ * per toko) -- jadi laporan ini tetap per-TOKO, bukan per-bay
+ * sungguhan. "Kosong" = totalCapacity - totalUsed. "Dibatalkan" =
+ * hitungan booking status='cancelled' di periode ini (informasional,
+ * TIDAK dikurangkan dari manapun -- booking cancelled sudah otomatis
+ * tidak ikut confirmedOverlapCount()).
  */
 class ReservationUtilizationReport extends Page implements HasForms
 {
@@ -195,12 +206,30 @@ class ReservationUtilizationReport extends Page implements HasForms
 
             $totalCapacity = $workingDays * $capacity;
 
+            // "Dibatalkan" (audit Majoo vs Ginnva, "Laporan Utilisasi
+            // Ruangan") — booking yang di-cancel dengan preferred_date di
+            // dalam periode ini. Ini INFORMASIONAL saja (berapa banyak
+            // reservasi hangus), TIDAK dikurangkan dari totalUsed —
+            // booking yang dibatalkan sudah otomatis tidak lagi dihitung
+            // confirmedOverlapCount() (yang hanya menghitung status
+            // 'confirmed'), jadi tidak ada risiko dobel hitung.
+            $cancelledCount = Booking::query()
+                ->where('store_id', $store->id)
+                ->where('status', 'cancelled')
+                ->whereDate('preferred_date', '>=', $from)
+                ->whereDate('preferred_date', '<=', $to)
+                ->count();
+
             return [
                 'store' => $store,
                 'capacityPerDay' => $capacity,
                 'workingDays' => $workingDays,
                 'totalUsed' => $totalUsed,
                 'totalCapacity' => $totalCapacity,
+                // "Kosong" — sisa kapasitas yang tidak terpakai booking
+                // confirmed di periode ini.
+                'emptySlots' => max(0, $totalCapacity - $totalUsed),
+                'cancelledCount' => $cancelledCount,
                 'utilizationPct' => $totalCapacity > 0 ? min(100, $totalUsed / $totalCapacity * 100) : 0,
             ];
         })->sortByDesc('utilizationPct')->values();

@@ -29,6 +29,8 @@
                 <th>Kapasitas/Hari</th>
                 <th>Total Kapasitas</th>
                 <th>Terpakai</th>
+                <th>Kosong</th>
+                <th>Dibatalkan</th>
                 <th>Utilisasi</th>
             </tr>
         </thead>
@@ -40,6 +42,8 @@
                     <td>{{ number_format($row['capacityPerDay'], 0, ',', '.') }}</td>
                     <td>{{ number_format($row['totalCapacity'], 0, ',', '.') }}</td>
                     <td>{{ number_format($row['totalUsed'], 0, ',', '.') }}</td>
+                    <td>{{ number_format($row['emptySlots'], 0, ',', '.') }}</td>
+                    <td>{{ number_format($row['cancelledCount'], 0, ',', '.') }}</td>
                     <td>{{ number_format($row['utilizationPct'], 1, ',', '.') }}%</td>
                 </tr>
             @endforeach

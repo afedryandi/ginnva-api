@@ -24,6 +24,8 @@ class ReservationUtilizationReportExport implements FromArray, WithHeadings, Wit
             'Kapasitas/Hari',
             'Total Kapasitas',
             'Terpakai',
+            'Kosong',
+            'Dibatalkan',
             'Utilisasi %',
         ];
     }
@@ -37,6 +39,8 @@ class ReservationUtilizationReportExport implements FromArray, WithHeadings, Wit
                 $row['capacityPerDay'],
                 $row['totalCapacity'],
                 $row['totalUsed'],
+                $row['emptySlots'],
+                $row['cancelledCount'],
                 round($row['utilizationPct'], 1) . '%',
             ])
             ->values()
