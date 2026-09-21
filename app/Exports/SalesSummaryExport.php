@@ -18,6 +18,10 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * berlaku"/"Belum tersedia" apa adanya (BUKAN dikonversi jadi 0 atau
  * dikosongkan) supaya file Excel-nya tidak menyesatkan kalau dibuka
  * terpisah tanpa konteks halaman webnya.
+ *
+ * Baris "Pajak (PPN)" SEJAK 2026-09-19 pakai angka sungguhan (lihat
+ * getResult() SalesSummaryReport & Booking::applyPpnBreakdown()) --
+ * bukan lagi "Belum tersedia".
  */
 class SalesSummaryExport implements FromArray, WithStyles
 {
@@ -36,7 +40,7 @@ class SalesSummaryExport implements FromArray, WithStyles
             ['Penjualan Kotor', $rupiah($r['grossSales'])],
             ['Ongkos Kirim', 'Tidak berlaku'],
             ['Biaya Pelayanan / MDR', 'Tidak berlaku'],
-            ['Pajak (PPN)', 'Belum tersedia'],
+            ['Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)', $rupiah($r['ppnAmount'])],
             ['Total Pendapatan', $rupiah($r['grossSales'])],
             [],
             ['BIAYA PROMOSI'],

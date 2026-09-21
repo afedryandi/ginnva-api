@@ -380,7 +380,41 @@ class BookingResource extends Resource
                         ->searchable()
                         ->preload()
                         ->live()
-                        ->helperText('Opsional — diisi kalau sudah tahu varian PPF/Kaca Film mana yang benar-benar dipasang (biasanya saat booking selesai). Dipakai untuk laporan Produk Terlaris.'),
+                        ->helperText('Produk UTAMA booking ini — diisi staff toko saat booking dikonfirmasi. Kalau booking ini pakai lebih dari 1 varian produk (mis. kaca depan beda dari kaca samping/belakang), tambahkan sisanya di "Produk Tambahan per Bagian" di bawah.'),
+
+                    // Produk TAMBAHAN per bagian kendaraan -- keputusan
+                    // atasan 2026-09-19 (Topik 3): 1 booking BISA pakai
+                    // lebih dari 1 produk, dicatat staff toko saat booking
+                    // dikonfirmasi. SENGAJA opsional & terpisah dari
+                    // film_product_id (produk utama) di atas -- lihat
+                    // catatan lengkap di Booking::filmProducts().
+                    Forms\Components\Repeater::make('filmProducts')
+                        ->relationship()
+                        ->label('Produk Tambahan per Bagian (opsional)')
+                        ->addActionLabel('+ Tambah produk untuk bagian lain')
+                        ->reorderable(false)
+                        ->defaultItems(0)
+                        ->columns(2)
+                        ->columnSpanFull()
+                        ->itemLabel(fn (array $state): ?string => filled($state['position'] ?? null) ? $state['position'] : 'Bagian baru')
+                        ->schema([
+                            Forms\Components\Select::make('film_product_id')
+                                ->label('Varian Produk (SKU)')
+                                ->options(fn () => \App\Models\FilmProduct::query()
+                                    ->where('is_active', true)
+                                    ->where('product_type', '!=', 'detailing')
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(fn ($product) => [$product->id => "{$product->sku} — {$product->name}"]))
+                                ->searchable()
+                                ->preload()
+                                ->required(),
+                            Forms\Components\TextInput::make('position')
+                                ->label('Posisi/Bagian')
+                                ->placeholder('mis. Kaca Depan, Kaca Samping, Kaca Belakang, Bumper Depan')
+                                ->maxLength(50),
+                        ])
+                        ->helperText('Isi kalau booking ini genuinely butuh lebih dari 1 varian produk untuk bagian kendaraan berbeda. Kebanyakan booking cukup 1 produk utama saja di atas.'),
 
                     // Referensi harga INTERNAL (bukan ditampilkan ke customer)
                     // — bantu staf set Nilai Transaksi. Booking tidak simpan
@@ -626,9 +660,18 @@ class BookingResource extends Resource
                 ->schema([
                     TextEntry::make('service_type')->label('Jenis Layanan'),
                     TextEntry::make('filmProduct.name')
-                        ->label('Varian Produk (SKU)')
+                        ->label('Varian Produk (SKU) — Utama')
                         ->placeholder('Belum diisi')
                         ->state(fn (Booking $record) => $record->filmProduct ? "{$record->filmProduct->sku} — {$record->filmProduct->name}" : null),
+                    // Produk tambahan per bagian (Topik 3, 2026-09-19) --
+                    // cuma tampil kalau memang diisi, lihat Booking::filmProducts().
+                    TextEntry::make('filmProducts')
+                        ->label('Produk Tambahan per Bagian')
+                        ->placeholder('—')
+                        ->state(fn (Booking $record) => $record->filmProducts->isEmpty() ? null : $record->filmProducts
+                            ->map(fn (\App\Models\BookingFilmProduct $item) => trim(($item->position ? "{$item->position}: " : '') . "{$item->filmProduct->sku} — {$item->filmProduct->name}"))
+                            ->implode(', '))
+                        ->visible(fn (Booking $record) => $record->filmProducts->isNotEmpty()),
                     TextEntry::make('product_detailing')
                         ->label('Jasa Detailing')
                         ->badge()
@@ -976,6 +1019,79 @@ class BookingResource extends Resource
                     ->query(fn (Builder $query) => $query->where('status', 'completed')->whereDoesntHave('journalEntry')),
             ])
             ->actions([
+                // "Catat Uang Muka (DP)" -- keputusan atasan 2026-09-19
+                // (Topik 2, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx"): DP
+                // BUKAN syarat wajib, diterima fleksibel kapan saja SELAMA
+                // proses instalasi berjalan (belum completed/cancelled).
+                // Nominal bebas diisi staff (tidak ada aturan tetap/%).
+                // TERPISAH dari "Proses Referral" (transaction_amount) --
+                // DP dicatat sbg Pendapatan Diterima Dimuka (liabilitas,
+                // akun 2140), bukan pendapatan jasa. Lihat DownPaymentService.
+                Tables\Actions\Action::make('receive_down_payment')
+                    ->label('Catat Uang Muka (DP)')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('info')
+                    ->visible(fn (Booking $record) => ! in_array($record->status, ['completed', 'cancelled'], true))
+                    ->form([
+                        Forms\Components\Placeholder::make('dp_sudah_diterima')
+                            ->label('DP Sudah Diterima (belum dikembalikan)')
+                            ->content(fn (Booking $record) => 'Rp' . number_format($record->outstanding_down_payment, 0, ',', '.'))
+                            ->visible(fn (Booking $record) => $record->outstanding_down_payment > 0),
+                        Forms\Components\TextInput::make('amount')
+                            ->label('Nominal DP Diterima')
+                            ->numeric()
+                            ->minValue(0.01)
+                            ->required()
+                            ->helperText('Bebas diisi sesuai kesepakatan dengan customer -- dicatat sebagai Pendapatan Diterima Dimuka, BUKAN pendapatan jasa.'),
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Catatan (opsional)')
+                            ->rows(2)
+                            ->maxLength(500),
+                    ])
+                    ->action(function (Booking $record, array $data) {
+                        // Segregation of duties (audit framework 2026-09-14)
+                        // -- konsisten dengan process_referral/process_refund
+                        // di bawah, DP tetap uang sungguhan yang berpindah.
+                        if (! (auth()->user()?->isFullAccess() ?? false)) {
+                            app(\App\Services\TransactionApprovalService::class)->submitDownPayment(
+                                $record,
+                                (float) $data['amount'],
+                                $data['notes'] ?: null,
+                                auth()->id()
+                            );
+
+                            Notification::make()
+                                ->title('Menunggu persetujuan')
+                                ->body('Permintaan Catat Uang Muka (DP) untuk booking ini sudah dikirim ke admin/direksi untuk disetujui.')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        try {
+                            app(\App\Services\DownPaymentService::class)->receive(
+                                $record,
+                                (float) $data['amount'],
+                                $data['notes'] ?: null,
+                                auth()->id()
+                            );
+                        } catch (RuntimeException $e) {
+                            Notification::make()
+                                ->title('DP tidak bisa dicatat')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('DP berhasil dicatat & jurnal Pendapatan Diterima Dimuka dibuat.')
+                            ->success()
+                            ->send();
+                    }),
+
                 // Nominal transaksi & kode referral partner SENGAJA diproses
                 // bareng di sini (Filament), bukan saat "Selesaikan Booking"
                 // di mobile app lagi — dipisah supaya staff toko fokus ke
@@ -1335,6 +1451,13 @@ class BookingResource extends Resource
 
                             $locked->update(['status' => 'cancelled', 'notes' => $notes]);
 
+                            // Keputusan atasan 2026-09-19 (Topik 2, "Keputusan-
+                            // PPN-DP-Produk-Stok-Ginnva.docx"): DP dikembalikan
+                            // PENUH kalau booking dibatalkan -- no-op kalau
+                            // booking ini tidak punya DP sama sekali.
+                            app(\App\Services\DownPaymentService::class)
+                                ->refundAllOnCancellation($locked->id, auth()->id());
+
                             return null;
                         });
 
@@ -1425,6 +1548,12 @@ class BookingResource extends Resource
             'promoName' => $record->spendPromo?->name,
             'received' => $received,
             'outstanding' => $outstanding,
+            // Rincian PPN (Topik 1, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx"
+            // 2026-09-19) -- null untuk booking lama sebelum fitur ini aktif
+            // (lihat Booking::applyPpnBreakdown()), blade cek null sebelum
+            // menampilkan barisnya.
+            'dppAmount' => $record->dpp_amount !== null ? (float) $record->dpp_amount : null,
+            'ppnAmount' => $record->ppn_amount !== null ? (float) $record->ppn_amount : null,
         ])->setPaper('a4', 'portrait');
 
         $filename = 'Invoice-' . str_replace(['/', ' '], '-', $record->booking_number) . '.pdf';

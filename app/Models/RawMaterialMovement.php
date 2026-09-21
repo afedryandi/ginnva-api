@@ -9,6 +9,10 @@ class RawMaterialMovement extends Model
 {
     protected $fillable = [
         'raw_material_id',
+        // Penanda cabang (Topik 4, Fase 1, 2026-09-19) -- OPSIONAL,
+        // current_stock TETAP 1 angka nasional (lihat catatan lengkap di
+        // migrasi add_store_id_to_material_movements_tables).
+        'store_id',
         'type',
         'quantity',
         'unit_cost',
@@ -24,6 +28,11 @@ class RawMaterialMovement extends Model
     public function rawMaterial(): BelongsTo
     {
         return $this->belongsTo(RawMaterial::class);
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     public function user(): BelongsTo

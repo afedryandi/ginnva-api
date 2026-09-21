@@ -57,6 +57,10 @@ class Booking extends Model
     public const DEFAULT_DURATION_DAYS_PPF     = 3;
     public const DEFAULT_DURATION_DAYS_DEFAULT = 1;
 
+    // Keputusan atasan 2026-09-19 (Topik 1, "Keputusan-PPN-DP-Produk-
+    // Stok-Ginnva.docx"): harga customer SUDAH inclusive PPN 11%.
+    public const PPN_RATE = 0.11;
+
     protected $fillable = [
         'booking_number',
         'customer_id',
@@ -86,6 +90,11 @@ class Booking extends Model
         'service_reminder_sent_at',
         'referral_code',
         'transaction_amount',
+        // Rincian PPN (inclusive 11%) dari transaction_amount -- diisi
+        // OTOMATIS oleh Booking::booted() 'saving', bukan diinput staff.
+        // Tetap $fillable supaya seeder/test bisa override kalau perlu.
+        'dpp_amount',
+        'ppn_amount',
         'amount_received',
         'partner_id',
         'voucher_claim_id',
@@ -100,6 +109,8 @@ class Booking extends Model
     protected $casts = [
         'preferred_date' => 'date',
         'transaction_amount' => 'decimal:2',
+        'dpp_amount' => 'decimal:2',
+        'ppn_amount' => 'decimal:2',
         'amount_received' => 'decimal:2',
         'product_kaca_film' => 'boolean',
         'product_ppf' => 'boolean',
@@ -372,12 +383,30 @@ class Booking extends Model
     }
 
     /**
-     * Varian/SKU FilmProduct yang dipasang di booking ini -- opsional
-     * (nullable), lihat catatan di $fillable.
+     * Varian/SKU FilmProduct UTAMA yang dipasang di booking ini --
+     * opsional (nullable), lihat catatan di $fillable. TETAP field
+     * tunggal (BUKAN diganti relasi hasMany) supaya 15+ file yang sudah
+     * bergantung padanya (Master Resep, Invoice, Warranty, Laporan
+     * Produk Terlaris, dst) tidak perlu diubah -- lihat filmProducts()
+     * di bawah untuk produk TAMBAHAN per bagian kendaraan lain.
      */
     public function filmProduct()
     {
         return $this->belongsTo(FilmProduct::class);
+    }
+
+    /**
+     * Produk TAMBAHAN per bagian kendaraan (keputusan atasan 2026-09-19,
+     * Topik 3, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx") -- dicatat
+     * staff toko saat booking dikonfirmasi, kalau booking ini genuinely
+     * pakai lebih dari 1 varian produk (mis. kaca depan beda dari kaca
+     * samping/belakang). Produk UTAMA tetap di film_product_id/
+     * filmProduct() di atas -- ini cuma yang KEDUA dst. Lihat
+     * BookingFilmProduct & migrasi create_booking_film_products_table.
+     */
+    public function filmProducts()
+    {
+        return $this->hasMany(BookingFilmProduct::class);
     }
 
     /**
@@ -421,6 +450,29 @@ class Booking extends Model
     }
 
     /**
+     * Riwayat Uang Muka (DP) booking ini -- BISA lebih dari 1 (dibayar
+     * bertahap), lihat DownPaymentService & migrasi
+     * create_booking_down_payments_table (keputusan atasan 2026-09-19,
+     * Topik 2).
+     */
+    public function downPayments()
+    {
+        return $this->hasMany(BookingDownPayment::class);
+    }
+
+    /**
+     * Total DP yang sudah diterima DAN BELUM dikembalikan -- dipakai
+     * tampilan (badge "DP: Rp X") & validasi ("tidak bisa refund lebih
+     * dari yang belum di-refund"). BUKAN net dari transaction_amount
+     * (DP itu Pendapatan Diterima Dimuka/liabilitas, terpisah total dari
+     * pendapatan jasa).
+     */
+    public function getOutstandingDownPaymentAttribute(): float
+    {
+        return (float) $this->downPayments()->whereNull('refunded_at')->sum('amount');
+    }
+
+    /**
      * Jurnal Pendapatan yang otomatis dibuat/diperbarui saat
      * transaction_amount diisi/diubah — lihat BookingPostingService.
      */
@@ -446,6 +498,45 @@ class Booking extends Model
                     : self::DEFAULT_DURATION_DAYS_DEFAULT;
             }
         });
+
+        // Rincian PPN (Topik 1, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx"
+        // 2026-09-19) -- OTOMATIS dihitung ulang tiap kali transaction_amount
+        // diisi/diubah (create ATAU edit), tidak pernah diinput manual staff.
+        // 'saving' (bukan cuma 'creating') supaya booking lama yang
+        // transaction_amount-nya diedit setelah fitur ini aktif ikut dapat
+        // rincian -- konsisten dengan keputusan "booking baru saja" (booking
+        // lama yang TIDAK disentuh lagi tetap dpp_amount/ppn_amount null).
+        static::saving(function (Booking $booking) {
+            if (! $booking->isDirty('transaction_amount')) {
+                return;
+            }
+
+            $booking->applyPpnBreakdown();
+        });
+    }
+
+    /**
+     * Hitung dpp_amount & ppn_amount dari transaction_amount saat ini,
+     * asumsi harga SUDAH inclusive PPN 11% (DPP = Total / 1.11, PPN =
+     * Total - DPP). transaction_amount kosong/0 -> kedua kolom di-null-kan
+     * (bukan 0) supaya "belum ada transaksi" tetap beda dari "transaksi
+     * Rp 0 dgn PPN Rp 0".
+     */
+    public function applyPpnBreakdown(): void
+    {
+        $total = (float) ($this->transaction_amount ?? 0);
+
+        if ($total <= 0) {
+            $this->dpp_amount = null;
+            $this->ppn_amount = null;
+
+            return;
+        }
+
+        $dpp = round($total / (1 + self::PPN_RATE), 2);
+
+        $this->dpp_amount = $dpp;
+        $this->ppn_amount = round($total - $dpp, 2);
     }
 
     protected static function generateBookingNumber(): string

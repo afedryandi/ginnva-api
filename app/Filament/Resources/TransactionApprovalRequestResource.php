@@ -94,7 +94,7 @@ class TransactionApprovalRequestResource extends Resource
                 Tables\Columns\TextColumn::make('nominal')
                     ->label('Nominal Diajukan')
                     ->getStateUsing(function (TransactionApprovalRequest $record): string {
-                        $amount = $record->type === 'refund'
+                        $amount = in_array($record->type, ['refund', 'booking_down_payment'], true)
                             ? ($record->payload['amount'] ?? 0)
                             : ($record->payload['transaction_amount'] ?? 0);
 

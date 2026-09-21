@@ -20,6 +20,7 @@ class TransactionApprovalRequest extends Model
     public const TYPE_LABELS = [
         'booking_referral' => 'Proses Referral',
         'refund' => 'Proses Refund',
+        'booking_down_payment' => 'Catat Uang Muka (DP)',
     ];
 
     protected $fillable = [

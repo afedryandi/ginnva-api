@@ -75,13 +75,13 @@ class ConsumableItem extends Model
      *
      * @throws \InvalidArgumentException kalau stok keluar melebihi stok yang tersedia.
      */
-    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?float $unitCost = null): ConsumableItemMovement
+    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?float $unitCost = null, ?int $storeId = null): ConsumableItemMovement
     {
         if ($quantity <= 0) {
             throw new \InvalidArgumentException('Jumlah harus lebih besar dari 0.');
         }
 
-        return DB::transaction(function () use ($type, $quantity, $userId, $note, $unitCost) {
+        return DB::transaction(function () use ($type, $quantity, $userId, $note, $unitCost, $storeId) {
             $item = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
             if ($type === 'out' && $item->current_stock < $quantity) {
@@ -101,6 +101,10 @@ class ConsumableItem extends Model
                 'unit_cost' => $type === 'in' ? ($unitCost ?? $item->unit_cost) : null,
                 'note' => $note,
                 'user_id' => $userId,
+                // Penanda cabang (Topik 4, Fase 1, 2026-09-19) -- OPSIONAL,
+                // current_stock TETAP nasional. Lihat catatan sama di
+                // RawMaterial::recordMovement().
+                'store_id' => $storeId,
             ]);
 
             $this->setRawAttributes($item->getAttributes());
@@ -112,9 +116,9 @@ class ConsumableItem extends Model
     /**
      * Sama persis pola RawMaterial::adjustStock() — stock opname.
      */
-    public function adjustStock(float $actualQuantity, ?int $userId, ?string $note = null): ?ConsumableItemMovement
+    public function adjustStock(float $actualQuantity, ?int $userId, ?string $note = null, ?int $storeId = null): ?ConsumableItemMovement
     {
-        return DB::transaction(function () use ($actualQuantity, $userId, $note) {
+        return DB::transaction(function () use ($actualQuantity, $userId, $note, $storeId) {
             $item = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
             $delta = round($actualQuantity - (float) $item->current_stock, 2);
 
@@ -129,6 +133,7 @@ class ConsumableItem extends Model
                 'quantity' => $delta,
                 'note' => $note,
                 'user_id' => $userId,
+                'store_id' => $storeId,
             ]);
 
             $this->setRawAttributes($item->getAttributes());
@@ -186,6 +191,7 @@ class ConsumableItem extends Model
                     default => $movement->type,
                 } . '" yang salah.',
                 'user_id' => $userId,
+                'store_id' => $movement->store_id,
             ]);
 
             $this->setRawAttributes($item->getAttributes());

@@ -122,6 +122,12 @@
             <td>TOTAL</td>
             <td class="text-right">Rp {{ number_format($net, 0, ',', '.') }}</td>
         </tr>
+        @if ($ppnAmount !== null)
+        <tr>
+            <td style="font-size: 10px; color: #888;">termasuk DPP Rp {{ number_format($dppAmount, 0, ',', '.') }} + PPN 11% Rp {{ number_format($ppnAmount, 0, ',', '.') }}</td>
+            <td></td>
+        </tr>
+        @endif
         <tr class="rowline">
             <td>Dibayar</td>
             <td class="text-right">Rp {{ number_format($received, 0, ',', '.') }}</td>

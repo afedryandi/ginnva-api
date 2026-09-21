@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ScrollCodeResource\Pages;
+use App\Filament\Resources\ScrollCodeResource\RelationManagers\TransfersRelationManager;
 use App\Filament\Resources\ScrollCodeResource\RelationManagers\UsagesRelationManager;
 use App\Models\FilmProduct;
 use App\Models\ScrollCode;
@@ -497,6 +498,44 @@ class ScrollCodeResource extends Resource
                         Notification::make()->title('Data panjang diperbarui')->success()->send();
                     }),
 
+                // "Mutasi Roll Film antar cabang" -- keputusan atasan
+                // 2026-09-19 (Topik 4, Fase 1, "Keputusan-PPN-DP-Produk-
+                // Stok-Ginnva.docx"). Beda dari bulk action "Alokasi ke
+                // Toko" di bawah (itu utk kode 'unallocated' yang BELUM
+                // pernah dialokasi) -- ini untuk kode 'allocated' yang
+                // SUDAH di 1 toko, tapi mau dipindah ke toko lain (mis.
+                // toko A over-purchase, kirim sebagian ke toko B).
+                Tables\Actions\Action::make('transfer')
+                    ->label('Mutasi ke Cabang Lain')
+                    ->icon('heroicon-o-arrow-path-rounded-square')
+                    ->color('warning')
+                    ->visible(fn (ScrollCode $record) => (auth()->user()?->isFullAccess() ?? false)
+                        && $record->status === 'allocated')
+                    ->form([
+                        Forms\Components\Select::make('to_store_id')
+                            ->label('Toko Tujuan')
+                            ->options(fn (ScrollCode $record) => Store::where('is_active', true)
+                                ->where('id', '!=', $record->store_id)
+                                ->pluck('name', 'id'))
+                            ->searchable()
+                            ->required(),
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Alasan Mutasi')
+                            ->required()
+                            ->placeholder('Mis. toko asal kelebihan stok, permintaan toko tujuan'),
+                    ])
+                    ->action(function (ScrollCode $record, array $data) {
+                        try {
+                            $record->transferTo((int) $data['to_store_id'], $data['reason'], auth()->id());
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()->title($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Mutasi dicatat')->success()->send();
+                    }),
+
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn (ScrollCode $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'unallocated'),
@@ -623,6 +662,7 @@ class ScrollCodeResource extends Resource
     {
         return [
             UsagesRelationManager::class,
+            TransfersRelationManager::class,
         ];
     }
 

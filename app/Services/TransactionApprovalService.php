@@ -64,6 +64,30 @@ class TransactionApprovalService
     }
 
     /**
+     * DP (2026-09-19, Topik 2) IKUT diwajibkan approval full-access untuk
+     * staff non-full-access -- konsisten dengan Proses Referral/Refund
+     * (audit framework 2026-09-14, "semua nominal wajib approval"), DP
+     * tetap uang sungguhan yang keluar/masuk meskipun bukan pendapatan.
+     */
+    public function submitDownPayment(Booking $booking, float $amount, ?string $notes, int $requestedBy): TransactionApprovalRequest
+    {
+        $request = TransactionApprovalRequest::create([
+            'type' => 'booking_down_payment',
+            'booking_id' => $booking->id,
+            'payload' => [
+                'amount' => $amount,
+                'notes' => $notes,
+            ],
+            'status' => 'pending',
+            'requested_by' => $requestedBy,
+        ]);
+
+        $this->notifyFullAccess($booking, $request);
+
+        return $request;
+    }
+
+    /**
      * @throws RuntimeException diteruskan dari BookingPostingService/
      *         RefundService kalau data sudah tidak valid lagi saat
      *         akhirnya dieksekusi (mis. booking sudah diubah staff
@@ -116,6 +140,13 @@ class TransactionApprovalService
                     (float) $request->payload['amount'],
                     $request->payload['reason'] ?? null,
                     $request->requested_by // pemohon asli tercatat sebagai created_by Refund, approver tercatat di kolom decided_by request ini
+                );
+            } elseif ($request->type === 'booking_down_payment') {
+                app(DownPaymentService::class)->receive(
+                    $booking,
+                    (float) $request->payload['amount'],
+                    $request->payload['notes'] ?? null,
+                    $request->requested_by // sama pola dengan refund di atas -- pemohon asli tercatat sebagai created_by DP
                 );
             }
 

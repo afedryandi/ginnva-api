@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Exports\SalesSummaryExport;
+use App\Models\Booking;
 use App\Models\Store;
 use App\Models\VoucherClaim;
 use App\Services\SalesSnapshotService;
@@ -36,6 +37,14 @@ use Barryvdh\DomPDF\Facade\Pdf;
  * baris yang BELUM BISA dihitung (butuh data/keputusan lebih dulu)
  * ditandai "Belum tersedia" — TIDAK ADA satu pun angka yang ditebak/
  * dipaksa jadi Rp 0 supaya terlihat lengkap seperti tiruan Majoo.
+ *
+ * PPN (2026-09-19): keputusan sudah turun (Topik 1, "Keputusan-PPN-DP-
+ * Produk-Stok-Ginnva.docx") — harga inclusive 11%, berlaku booking baru
+ * saja. Baris "Pajak (PPN)" SEKARANG angka sungguhan (SUM(ppn_amount)
+ * booking dalam periode ini, lihat Booking::applyPpnBreakdown()) — TAPI
+ * booking lama sebelum fitur ini aktif tetap punya ppn_amount NULL
+ * (tidak dihitung ulang retroaktif sesuai keputusan), jadi angkanya
+ * cuma mencerminkan booking yang sudah "menyentuh" fitur ini.
  *
  * Sumber kebenaran pendapatan (gross/refund/net/jumlah transaksi) SEJAK
  * 2026-09-11 pakai App\Services\SalesSnapshotService — SAMA PERSIS yang
@@ -253,10 +262,25 @@ class SalesSummaryReport extends Page implements HasForms
             ->get()
             ->sum(fn (VoucherClaim $claim) => (float) ($claim->voucher->discount_amount ?? 0));
 
+        // PPN (Topik 1, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx"
+        // 2026-09-19) -- filter booking SAMA PERSIS dengan
+        // SalesSnapshotService::summarize() (sudah ada jurnal pendapatan
+        // di periode ini + transaction_amount > 0 + scope toko) supaya
+        // konsisten dengan grossSales, TAPI SUM(ppn_amount) -- booking
+        // lama yang ppn_amount-nya masih null otomatis tidak menyumbang
+        // apa pun ke total ini (bukan error, memang belum "menyentuh"
+        // fitur PPN sesuai keputusan "berlaku booking baru saja").
+        $ppnAmount = (float) Booking::query()
+            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+            ->where('transaction_amount', '>', 0)
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->sum('ppn_amount');
+
         return [
             'from' => $from,
             'to' => $to,
             'grossSales' => $snapshot['revenue'],
+            'ppnAmount' => $ppnAmount,
             'voucherDiscount' => $voucherDiscount,
             'refund' => $snapshot['refund'],
             'netSales' => $snapshot['net'],

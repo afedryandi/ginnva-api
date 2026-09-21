@@ -34,7 +34,13 @@ class MaterialMemoStockService
     public static function addMaterial($material, string $itemType, MaterialMemo $memo, float $qtyTaken, int $userId, ?string $conditionNotes): MaterialMemoItem
     {
         return DB::transaction(function () use ($material, $itemType, $memo, $qtyTaken, $userId, $conditionNotes) {
-            $material->recordMovement('out', $qtyTaken, $userId, self::buildNote($memo, 'pengambilan', $conditionNotes));
+            // Penanda cabang (Topik 4, Fase 1, 2026-09-19) -- ini SATU-
+            // SATUNYA event yang benar-benar "pemakaian bahan" per
+            // keputusan atasan (staff mengambil bahan dari toko $memo->
+            // store_id untuk dipasang ke booking). Alur lain (return,
+            // koreksi qty, write-off, stok awal/import) SENGAJA belum
+            // ditandai di iterasi ini -- lihat project_ppn_dp_implementation.
+            $material->recordMovement('out', $qtyTaken, $userId, self::buildNote($memo, 'pengambilan', $conditionNotes), storeId: $memo->store_id);
 
             return MaterialMemoItem::create([
                 'material_memo_id' => $memo->id,

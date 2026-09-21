@@ -124,6 +124,14 @@ class BookingController extends Controller
 
             $locked->update(['status' => 'cancelled']);
 
+            // Keputusan atasan 2026-09-19 (Topik 2, "Keputusan-PPN-DP-
+            // Produk-Stok-Ginnva.docx"): DP dikembalikan PENUH kalau
+            // booking dibatalkan -- no-op kalau tidak punya DP sama sekali.
+            // userId null (bukan user Filament/staff) -- customer guard
+            // terpisah, journal_entries.created_by nullable.
+            app(\App\Services\DownPaymentService::class)
+                ->refundAllOnCancellation($locked->id, null);
+
             return response()->json([
                 'success' => true,
                 'data'    => $locked->fresh(),

@@ -175,6 +175,60 @@ class ScrollCode extends Model
         });
     }
 
+    /**
+     * Riwayat "Mutasi Roll Film antar cabang" -- keputusan atasan
+     * 2026-09-19 (Topik 4, Fase 1). Lihat ScrollCodeTransfer & migrasi
+     * create_scroll_code_transfers_table.
+     */
+    public function transfers()
+    {
+        return $this->hasMany(ScrollCodeTransfer::class)->latest();
+    }
+
+    /**
+     * Pindahkan kepemilikan gulungan ini ke store lain + catat 1 baris
+     * riwayat mutasi -- pola SAMA PERSIS dengan Asset transfer
+     * (AssetResource::transfer action), disederhanakan (tanpa
+     * assigned_to/kondisi fisik, cuma store + alasan) karena frekuensi
+     * mutasi bahan dikonfirmasi jarang (per bulan/lebih jarang).
+     *
+     * Cuma kode berstatus 'allocated' yang boleh dimutasi -- 'used' sudah
+     * terpasang fisik di kendaraan (tidak ada yang bisa dipindah),
+     * 'unallocated' pakai jalur "Alokasi ke Toko" (bulk action yang
+     * sudah ada), bukan mutasi.
+     *
+     * @throws \InvalidArgumentException kalau status bukan 'allocated',
+     *         atau tujuan sama dengan toko asal.
+     */
+    public function transferTo(int $toStoreId, ?string $reason, ?int $userId): ScrollCodeTransfer
+    {
+        return DB::transaction(function () use ($toStoreId, $reason, $userId) {
+            $scrollCode = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+
+            if ($scrollCode->status !== 'allocated') {
+                throw new \InvalidArgumentException('Cuma kode gulungan berstatus "Dialokasi" yang bisa dimutasi -- kode "Belum Dialokasi" pakai Alokasi ke Toko, kode "Terpakai" sudah terpasang fisik.');
+            }
+
+            if ((int) $scrollCode->store_id === $toStoreId) {
+                throw new \InvalidArgumentException('Toko tujuan sama dengan toko asal.');
+            }
+
+            $transfer = ScrollCodeTransfer::create([
+                'scroll_code_id' => $scrollCode->id,
+                'from_store_id' => $scrollCode->store_id,
+                'to_store_id' => $toStoreId,
+                'reason' => $reason,
+                'performed_by' => $userId,
+            ]);
+
+            $scrollCode->update(['store_id' => $toStoreId]);
+
+            $this->setRawAttributes($scrollCode->getAttributes());
+
+            return $transfer;
+        });
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

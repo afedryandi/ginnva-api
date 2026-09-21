@@ -137,15 +137,21 @@ class RawMaterial extends Model
      * sumber kebenaran utama untuk validasi & tampilan, batch cuma
      * pelacakan tambahan.
      *
+     * @param  int|null  $storeId  Penanda cabang (Topik 4, Fase 1,
+     *         2026-09-19) -- OPSIONAL, murni tag "cabang mana yang
+     *         melakukan kejadian ini", TIDAK memecah current_stock (masih
+     *         1 angka nasional). Dibiarkan null kalau tidak relevan
+     *         (mis. stok awal/import Excel yang company-wide).
+     *
      * @throws \InvalidArgumentException kalau stok keluar melebihi stok yang tersedia.
      */
-    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?string $receivedDate = null, ?string $expiryDate = null, ?float $unitCost = null): RawMaterialMovement
+    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?string $receivedDate = null, ?string $expiryDate = null, ?float $unitCost = null, ?int $storeId = null): RawMaterialMovement
     {
         if ($quantity <= 0) {
             throw new \InvalidArgumentException('Jumlah harus lebih besar dari 0.');
         }
 
-        return DB::transaction(function () use ($type, $quantity, $userId, $note, $receivedDate, $expiryDate, $unitCost) {
+        return DB::transaction(function () use ($type, $quantity, $userId, $note, $receivedDate, $expiryDate, $unitCost, $storeId) {
             $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
             if ($type === 'out' && $material->current_stock < $quantity) {
@@ -191,6 +197,7 @@ class RawMaterial extends Model
                 'unit_cost' => $type === 'in' ? ($unitCost ?? $material->unit_cost) : null,
                 'note' => $note,
                 'user_id' => $userId,
+                'store_id' => $storeId,
             ]);
 
             $this->setRawAttributes($material->getAttributes());
@@ -231,9 +238,9 @@ class RawMaterial extends Model
      * Return null (tidak ada movement dibuat) kalau hasil hitung sama
      * persis dengan sistem — tidak perlu bikin baris riwayat kosong.
      */
-    public function adjustStock(float $actualQuantity, ?int $userId, ?string $note = null): ?RawMaterialMovement
+    public function adjustStock(float $actualQuantity, ?int $userId, ?string $note = null, ?int $storeId = null): ?RawMaterialMovement
     {
-        return DB::transaction(function () use ($actualQuantity, $userId, $note) {
+        return DB::transaction(function () use ($actualQuantity, $userId, $note, $storeId) {
             $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
             $delta = round($actualQuantity - (float) $material->current_stock, 2);
 
@@ -263,6 +270,7 @@ class RawMaterial extends Model
                 'quantity' => $delta,
                 'note' => $note,
                 'user_id' => $userId,
+                'store_id' => $storeId,
             ]);
 
             $this->setRawAttributes($material->getAttributes());
@@ -330,6 +338,8 @@ class RawMaterial extends Model
                     default => $movement->type,
                 } . '" yang salah.',
                 'user_id' => $userId,
+                // Koreksi mewarisi penanda cabang movement yang dibatalkan.
+                'store_id' => $movement->store_id,
             ]);
 
             $this->setRawAttributes($material->getAttributes());

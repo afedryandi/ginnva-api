@@ -27,7 +27,7 @@
         <tr><td>Penjualan Kotor</td><td class="value">{{ $rupiah($result['grossSales']) }}</td></tr>
         <tr class="muted"><td>Ongkos Kirim</td><td class="value">Tidak berlaku</td></tr>
         <tr class="muted"><td>Biaya Pelayanan / MDR</td><td class="value">Tidak berlaku</td></tr>
-        <tr class="muted"><td>Pajak (PPN)</td><td class="value">Belum tersedia</td></tr>
+        <tr><td>Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)</td><td class="value">{{ $rupiah($result['ppnAmount']) }}</td></tr>
         <tr class="total"><td>Total Pendapatan</td><td class="value">{{ $rupiah($result['grossSales']) }}</td></tr>
     </table>
 

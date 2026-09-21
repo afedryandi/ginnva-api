@@ -263,7 +263,7 @@ class BookingController extends Controller
             'reason' => 'nullable|string|max:500',
         ]);
 
-        return DB::transaction(function () use ($booking, $request) {
+        return DB::transaction(function () use ($booking, $request, $user) {
             $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
 
             if (in_array($locked->status, ['completed', 'cancelled'], true)) {
@@ -279,6 +279,12 @@ class BookingController extends Controller
                 'status' => 'cancelled',
                 'notes'  => $notes,
             ]);
+
+            // Keputusan atasan 2026-09-19 (Topik 2, "Keputusan-PPN-DP-
+            // Produk-Stok-Ginnva.docx"): DP dikembalikan PENUH kalau
+            // booking dibatalkan -- no-op kalau tidak punya DP sama sekali.
+            app(\App\Services\DownPaymentService::class)
+                ->refundAllOnCancellation($locked->id, $user->id);
 
             return response()->json([
                 'success' => true,
