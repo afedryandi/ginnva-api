@@ -129,6 +129,7 @@ class UserResource extends Resource
             'Karyawan' => [
                 'EmployeeTypeResource' => 'Tipe Karyawan',
                 'AttendanceResource' => 'Absensi Karyawan',
+                'AttendanceCorrectionRequestResource' => 'Koreksi Absensi',
                 'LeaveRequestResource' => 'Izin & Cuti',
                 'WarningLetterResource' => 'Surat Peringatan',
                 'ContractExtensionResource' => 'Perpanjang Kontrak',

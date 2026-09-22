@@ -40,34 +40,31 @@ class AttendanceResource extends Resource
     }
 
     /**
-     * SEBELUMNYA tidak ada canCreate()/canEdit()/canDelete() sama
-     * sekali, dan tidak ada AttendancePolicy terdaftar — Gate default-
-     * deny bikin tombol "Entri Manual" (CreateAction, FITUR INTI untuk
-     * skenario device/wifi absen mati yang diminta eksplisit oleh
-     * stakeholder) dan EditAction TIDAK PERNAH muncul untuk SIAPA PUN,
-     * termasuk super_admin — bertentangan langsung dengan komentar
-     * EditAction di table() di bawah ("Edit SELALU boleh dibuka").
-     * canCreate()/canEdit() dibiarkan seluas canViewAny() — form/page
-     * Create & field-field form() sendiri yang sudah menjaga store-
-     * scoping & field mana yang boleh diubah non-full-access (lihat
-     * mutateFormDataBeforeCreate() & ->disabled() per field). canDelete()
-     * disamakan persis dengan guard ->visible() yang sudah ada di
-     * DeleteAction (isFullAccess() DAN bukan baris 'clock').
+     * Audit Majoo f24 ("Alur approval utk absensi anomali"), diubah
+     * 2026-09-22 atas keputusan user: entri/edit LANGSUNG sekarang
+     * TERBATAS store_manager/full-access saja -- staff biasa (non-
+     * manager) lewat "Ajukan Koreksi" (AttendanceCorrectionService),
+     * BUKAN lagi canCreate()/canEdit() terbuka seluas hasMenuAccess()
+     * seperti sebelumnya (siapa pun dengan akses menu bisa langsung
+     * ubah data absensi tanpa jejak approval).
      */
-    public static function canCreate(): bool
+    private static function canEditDirectly(): bool
     {
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && ($user->isFullAccess() || $user->isStoreManager());
+    }
+
+    public static function canCreate(): bool
+    {
+        return static::canEditDirectly();
     }
 
     public static function canEdit($record): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return static::canEditDirectly();
     }
 
     public static function canDelete($record): bool
@@ -347,12 +344,60 @@ class AttendanceResource extends Resource
                         Notification::make()->title('Ditandai sudah ditinjau')->success()->send();
                     }),
 
-                // Edit SELALU boleh dibuka (termasuk baris 'clock'/'alpha'/
-                // 'leave') — form-nya sendiri yang mengunci field-field
-                // sensitif untuk non-full-access (lihat disabled() di
-                // masing-masing field form()), bukan menyembunyikan tombol
-                // Edit total seperti sebelumnya.
+                // Edit LANGSUNG cuma untuk store_manager/full-access
+                // (canEdit(), diubah 2026-09-22 audit Majoo f24) — form-nya
+                // sendiri masih mengunci field-field sensitif utk non-
+                // full-access (lihat disabled() di masing-masing field
+                // form()).
                 Tables\Actions\EditAction::make(),
+
+                // "Ajukan Koreksi" (audit Majoo f24) — pengganti EditAction
+                // untuk staff non-manager (EditAction di atas sudah
+                // otomatis sembunyi buat mereka lewat canEdit()). Koreksi
+                // baris yang SUDAH ADA (attendance_id diisi), beda dari
+                // aksi header "Ajukan Koreksi" yang untuk ENTRI BARU.
+                Tables\Actions\Action::make('requestCorrectionExisting')
+                    ->label('Ajukan Koreksi')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('gray')
+                    ->visible(fn () => ! (auth()->user()?->isFullAccess() ?? false) && ! (auth()->user()?->isStoreManager() ?? false))
+                    ->form([
+                        Forms\Components\DateTimePicker::make('clock_in_at')
+                            ->label('Jam Masuk')
+                            ->seconds(false),
+
+                        Forms\Components\DateTimePicker::make('clock_out_at')
+                            ->label('Jam Keluar')
+                            ->seconds(false),
+
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Alasan Koreksi')
+                            ->required()
+                            ->rows(2)
+                            ->columnSpanFull(),
+                    ])
+                    ->fillForm(fn (Attendance $record) => [
+                        'clock_in_at' => $record->clock_in_at,
+                        'clock_out_at' => $record->clock_out_at,
+                    ])
+                    ->action(function (Attendance $record, array $data) {
+                        app(\App\Services\AttendanceCorrectionService::class)->submit([
+                            'attendance_id' => $record->id,
+                            'user_id' => $record->user_id,
+                            'store_id' => $record->store_id,
+                            'date' => $record->date->toDateString(),
+                            'entry_type' => $record->entry_type,
+                            'clock_in_at' => $data['clock_in_at'] ?: null,
+                            'clock_out_at' => $data['clock_out_at'] ?: null,
+                            'reason' => $data['reason'],
+                        ], auth()->id());
+
+                        Notification::make()
+                            ->title('Permintaan koreksi dikirim')
+                            ->body('Menunggu persetujuan store manager/admin sebelum data absensi resmi berubah.')
+                            ->success()
+                            ->send();
+                    }),
 
                 // Baris 'clock' (absen asli via GPS) TIDAK BISA dihapus
                 // sama sekali, oleh siapa pun — kesalahan pada baris ini
