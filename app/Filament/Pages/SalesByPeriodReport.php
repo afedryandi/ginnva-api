@@ -234,6 +234,11 @@ class SalesByPeriodReport extends Page implements HasForms
             ->whereNotNull('user_id')
             ->pluck('commission_amount', 'user_id');
 
+        // HPP per booking (audit Majoo f7, "Kolom Laba Kotor") — film +
+        // bahan pendukung, lihat BookingCogsService untuk rincian &
+        // batasan perkiraannya.
+        $cogsByBookingId = app(\App\Services\BookingCogsService::class)->forBookings($bookings->pluck('id')->all());
+
         $buckets = [];
 
         // Inisialisasi semua slot periode dalam rentang DULU (bukan cuma
@@ -246,6 +251,7 @@ class SalesByPeriodReport extends Page implements HasForms
             $buckets[$key] ??= [
                 'label' => $label, 'revenue' => 0.0, 'received' => 0.0, 'outstanding' => 0.0,
                 'count' => 0, 'products' => 0, 'commission' => 0.0, 'hasUnratedJob' => false, 'refund' => 0.0,
+                'cogs' => 0.0, 'hasMissingCost' => false,
             ];
             $cursor = $bucketEnd->copy()->addDay();
         }
@@ -278,6 +284,12 @@ class SalesByPeriodReport extends Page implements HasForms
                     $buckets[$key]['hasUnratedJob'] = true;
                 }
             }
+
+            $cogs = $cogsByBookingId[$booking->id] ?? ['cost' => 0.0, 'hasMissingCost' => false];
+            $buckets[$key]['cogs'] += $cogs['cost'];
+            if ($cogs['hasMissingCost']) {
+                $buckets[$key]['hasMissingCost'] = true;
+            }
         }
 
         // Refund -- SEKARANG dihitung sungguhan (diminta 2026-09-09,
@@ -294,6 +306,13 @@ class SalesByPeriodReport extends Page implements HasForms
             $buckets[$key]['refund'] += (float) $refund->amount;
         }
 
+        // "Laba Kotor" = Penjualan − Komisi − Pengembalian − HPP (audit
+        // Majoo f7) — dihitung SETELAH refund masuk supaya baris ini
+        // tersedia untuk setiap bucket.
+        foreach ($buckets as $key => $bucket) {
+            $buckets[$key]['grossProfit'] = $bucket['revenue'] - $bucket['commission'] - $bucket['refund'] - $bucket['cogs'];
+        }
+
         return [
             'from' => $from,
             'to' => $to,
@@ -303,6 +322,15 @@ class SalesByPeriodReport extends Page implements HasForms
             'totalRevenue' => array_sum(array_column($buckets, 'revenue')),
             'totalCount' => array_sum(array_column($buckets, 'count')),
             'totalProducts' => array_sum(array_column($buckets, 'products')),
+            'totalCogs' => array_sum(array_column($buckets, 'cogs')),
+            'totalGrossProfit' => array_sum(array_column($buckets, 'grossProfit')),
+            // Banner "HPP belum lengkap" (audit Majoo f7) — muncul kalau
+            // ADA booking dalam rentang ini yang pakai gulungan film
+            // tanpa Harga Beli, atau bahan pendukung tanpa unit_cost.
+            // Laba Kotor tetap ditampilkan (bukan disembunyikan), cuma
+            // ditandai sebagai perkiraan minimum (HPP yang belum lengkap
+            // dihitung Rp 0, jadi Laba Kotor sungguhan bisa lebih rendah).
+            'hasMissingCost' => (bool) array_sum(array_map(fn ($b) => $b['hasMissingCost'] ? 1 : 0, $buckets)),
             // Banner "booking selesai belum diproses" (audit 2026-09-11,
             // temuan C) — sama konsep dgn laporan Penjualan lain.
             'pendingCount' => app(SalesSnapshotService::class)->pendingCount($storeId),

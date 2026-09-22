@@ -37,6 +37,8 @@
                 <th>Produk</th>
                 <th>Pengembalian</th>
                 <th>Komisi</th>
+                <th>HPP</th>
+                <th>Laba Kotor</th>
             </tr>
         </thead>
         <tbody>
@@ -50,6 +52,8 @@
                     <td>{{ number_format($row['products'], 0, ',', '.') }}</td>
                     <td>{{ $row['refund'] > 0 ? '(' . $rupiah($row['refund']) . ')' : '-' }}</td>
                     <td>{{ $row['commission'] > 0 ? $rupiah($row['commission']) : '-' }}{{ $row['hasUnratedJob'] ? ' *' : '' }}</td>
+                    <td>{{ $row['cogs'] > 0 ? '(' . $rupiah($row['cogs']) . ')' : '-' }}{{ $row['hasMissingCost'] ? ' †' : '' }}</td>
+                    <td>{{ $rupiah($row['grossProfit']) }}</td>
                 </tr>
             @endforeach
             <tr class="total">
@@ -58,11 +62,15 @@
                 <td>{{ $rupiah($result['totalRevenue']) }}</td>
                 <td colspan="2"></td>
                 <td>{{ number_format($result['totalProducts'], 0, ',', '.') }}</td>
-                <td colspan="2"></td>
+                <td></td>
+                <td></td>
+                <td>{{ $rupiah($result['totalCogs']) }}</td>
+                <td>{{ $rupiah($result['totalGrossProfit']) }}</td>
             </tr>
         </tbody>
     </table>
 
     <p class="footnote">* = ada teknisi yang komisinya belum diatur (menu Teknisi) pada periode itu — nominal Komisi belum mencerminkan semua pekerjaan.</p>
+    <p class="footnote">† = ada bahan (gulungan film/bahan pendukung) yang belum diisi harga belinya — HPP baris itu minimum, Laba Kotor sungguhan bisa lebih rendah.</p>
 </body>
 </html>

@@ -20,6 +20,7 @@ class ScrollCode extends Model
         'max_usage',
         'total_length_meters',
         'remaining_length_meters',
+        'purchase_cost',
         'allocated_at',
         'used_at',
         'warranty_code',
@@ -28,9 +29,26 @@ class ScrollCode extends Model
     protected $casts = [
         'total_length_meters'     => 'decimal:2',
         'remaining_length_meters' => 'decimal:2',
+        'purchase_cost'           => 'decimal:2',
         'allocated_at'            => 'datetime',
         'used_at'                 => 'datetime',
     ];
+
+    /**
+     * Harga per meter, diturunkan dari purchase_cost/total_length_meters
+     * -- null kalau salah satu belum diisi (audit Majoo f7, "Kolom Laba
+     * Kotor"). BUKAN disimpan sebagai kolom sendiri supaya tidak bisa
+     * drift dari 2 sumber (purchase_cost & total_length_meters) yang
+     * masing-masing bisa diedit terpisah lewat "Edit Panjang & Harga".
+     */
+    public function costPerMeter(): ?float
+    {
+        if ($this->purchase_cost === null || $this->total_length_meters === null || (float) $this->total_length_meters <= 0) {
+            return null;
+        }
+
+        return (float) $this->purchase_cost / (float) $this->total_length_meters;
+    }
 
     public function filmProduct()
     {
@@ -232,7 +250,7 @@ class ScrollCode extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'store_id', 'total_length_meters', 'remaining_length_meters', 'max_usage'])
+            ->logOnly(['status', 'store_id', 'total_length_meters', 'remaining_length_meters', 'max_usage', 'purchase_cost'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('scroll_code')

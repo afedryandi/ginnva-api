@@ -45,6 +45,16 @@
         </div>
     @endif
 
+    @if ($result['hasMissingCost'])
+        <div class="flex items-center gap-2 rounded-lg border border-warning-300 bg-warning-50 px-3 py-2 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+            <x-heroicon-o-exclamation-triangle class="h-4 w-4 flex-shrink-0" />
+            <span>
+                Sebagian booking di rentang ini pakai bahan (gulungan film/bahan pendukung) yang belum diisi harga belinya — HPP-nya dihitung Rp 0 untuk bagian itu.
+                <strong class="font-semibold">Laba Kotor di bawah adalah MINIMUM</strong> (bisa lebih rendah dari yang ditampilkan). Isi "Harga Beli Gulungan" di menu Kode Gulungan & "Harga Beli" di Bahan Baku/Barang Habis Pakai untuk akurasi penuh.
+            </span>
+        </div>
+    @endif
+
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <x-filament::section>
@@ -60,6 +70,16 @@
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Produk</div>
             <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['totalProducts'], 0, ',', '.') }}</div>
+        </x-filament::section>
+
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total HPP {{ $result['hasMissingCost'] ? '(minimum, ada harga belum diisi)' : '' }}</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums text-danger-600 dark:text-danger-400">{{ $rupiah($result['totalCogs']) }}</div>
+        </x-filament::section>
+
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total Laba Kotor (Penjualan − Komisi − Pengembalian − HPP)</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums {{ $result['totalGrossProfit'] < 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}">{{ $rupiah($result['totalGrossProfit']) }}</div>
         </x-filament::section>
     </div>
 
@@ -97,6 +117,8 @@
                         <th class="py-2 pr-3 text-right">Produk</th>
                         <th class="py-2 pr-3 text-right">Pengembalian</th>
                         <th class="py-2 pr-3 text-right">Komisi</th>
+                        <th class="py-2 pr-3 text-right">HPP</th>
+                        <th class="py-2 pr-3 text-right">Laba Kotor</th>
                         <th class="py-2 pr-3 text-right">Penjualan/Transaksi</th>
                         <th class="py-2 pl-3 text-right">Produk/Transaksi</th>
                     </tr>
@@ -117,11 +139,18 @@
                                     <span title="Ada teknisi yang mengerjakan booking di periode ini tapi komisinya belum diatur — nominal di atas belum lengkap.">*</span>
                                 @endif
                             </td>
+                            <td class="py-2 pr-3 text-right tabular-nums">
+                                {{ $row['cogs'] > 0 ? '(' . $rupiah($row['cogs']) . ')' : '—' }}
+                                @if ($row['hasMissingCost'])
+                                    <span title="Ada bahan yang dipakai di periode ini belum diisi harga belinya — HPP baris ini minimum, bisa lebih tinggi.">*</span>
+                                @endif
+                            </td>
+                            <td class="py-2 pr-3 text-right font-semibold tabular-nums {{ $row['grossProfit'] < 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $rupiah($row['grossProfit']) }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['count'] > 0 ? $rupiah($row['revenue'] / $row['count']) : '—' }}</td>
                             <td class="py-2 pl-3 text-right tabular-nums">{{ $row['count'] > 0 ? number_format($row['products'] / $row['count'], 2) : '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="10" class="py-4 text-center text-gray-500 dark:text-gray-400">Pilih rentang tanggal di atas.</td></tr>
+                        <tr><td colspan="12" class="py-4 text-center text-gray-500 dark:text-gray-400">Pilih rentang tanggal di atas.</td></tr>
                     @endforelse
                 </tbody>
             </table>

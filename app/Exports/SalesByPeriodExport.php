@@ -31,6 +31,8 @@ class SalesByPeriodExport implements FromArray, WithHeadings, WithStyles
             'Produk',
             'Pengembalian',
             'Komisi',
+            'HPP',
+            'Laba Kotor',
             'Penjualan/Transaksi',
             'Produk/Transaksi',
         ];
@@ -48,6 +50,8 @@ class SalesByPeriodExport implements FromArray, WithHeadings, WithStyles
                 $row['products'],
                 $row['refund'],
                 $row['commission'] . ($row['hasUnratedJob'] ? ' *' : ''),
+                $row['cogs'] . ($row['hasMissingCost'] ? ' *' : ''),
+                $row['grossProfit'],
                 $row['count'] > 0 ? round($row['revenue'] / $row['count']) : 0,
                 $row['count'] > 0 ? round($row['products'] / $row['count'], 2) : 0,
             ])

@@ -252,6 +252,14 @@ class ScrollCodeResource extends Resource
                         : 'info')
                     ->toggleable(),
 
+                Tables\Columns\TextColumn::make('purchase_cost')
+                    ->label('Harga/Meter')
+                    ->placeholder('Belum diisi')
+                    ->formatStateUsing(fn (ScrollCode $record) => $record->costPerMeter() !== null
+                        ? 'Rp' . number_format($record->costPerMeter(), 0, ',', '.') . '/m'
+                        : null)
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('allocated_at')
                     ->label('Dialokasi Pada')
                     ->dateTime('d M Y')
@@ -342,6 +350,13 @@ class ScrollCodeResource extends Resource
                             ->numeric()
                             ->required()
                             ->minValue(0.01),
+
+                        Forms\Components\TextInput::make('purchase_cost')
+                            ->label('Harga Beli Gulungan (opsional)')
+                            ->helperText('Harga beli TOTAL 1 gulungan ini (bukan per meter) — dipakai hitung HPP & Laba Kotor di Laporan Penjualan Per Periode. Boleh dikosongkan kalau belum tahu, laporan akan menandainya "harga belum diisi".')
+                            ->numeric()
+                            ->prefix('Rp')
+                            ->minValue(0),
                     ])
                     ->action(function (array $data) {
                         // Cek unique manual terhadap nilai yang SUDAH di-trim
@@ -375,6 +390,7 @@ class ScrollCodeResource extends Resource
                                 'max_usage'       => $data['max_usage'] ?? null,
                                 'total_length_meters'     => $data['total_length_meters'] ?? null,
                                 'remaining_length_meters' => $data['total_length_meters'] ?? null,
+                                'purchase_cost'   => $data['purchase_cost'] !== '' ? $data['purchase_cost'] : null,
                                 'status'          => 'unallocated',
                             ]);
                         } catch (QueryException $e) {
@@ -469,13 +485,14 @@ class ScrollCodeResource extends Resource
                 // tidak diketahui sistem), jadi harus manual di sini kalau
                 // adminnya tahu/bisa perkirakan sisa fisiknya.
                 Tables\Actions\Action::make('edit_length')
-                    ->label('Edit Panjang')
+                    ->label('Edit Panjang & Harga')
                     ->icon('heroicon-o-pencil-square')
                     ->color('gray')
                     ->visible(fn () => auth()->user()?->isFullAccess())
                     ->fillForm(fn (ScrollCode $record) => [
                         'total_length_meters' => $record->total_length_meters,
                         'remaining_length_meters' => $record->remaining_length_meters,
+                        'purchase_cost' => $record->purchase_cost,
                     ])
                     ->form([
                         Forms\Components\TextInput::make('total_length_meters')
@@ -488,14 +505,22 @@ class ScrollCodeResource extends Resource
                             ->numeric()
                             ->minValue(0)
                             ->helperText('Perkirakan sisa fisik gulungan sekarang kalau kode ini sudah pernah dipakai sebelum fitur ini ada.'),
+
+                        Forms\Components\TextInput::make('purchase_cost')
+                            ->label('Harga Beli Gulungan (opsional)')
+                            ->numeric()
+                            ->prefix('Rp')
+                            ->minValue(0)
+                            ->helperText('Harga beli TOTAL gulungan ini — dipakai hitung HPP & Laba Kotor di Laporan Penjualan Per Periode.'),
                     ])
                     ->action(function (ScrollCode $record, array $data) {
                         $record->update([
                             'total_length_meters' => $data['total_length_meters'] ?? null,
                             'remaining_length_meters' => $data['remaining_length_meters'] ?? null,
+                            'purchase_cost' => $data['purchase_cost'] !== '' ? $data['purchase_cost'] : null,
                         ]);
 
-                        Notification::make()->title('Data panjang diperbarui')->success()->send();
+                        Notification::make()->title('Data panjang & harga diperbarui')->success()->send();
                     }),
 
                 // "Mutasi Roll Film antar cabang" -- keputusan atasan
