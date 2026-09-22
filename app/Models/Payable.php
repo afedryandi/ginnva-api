@@ -77,10 +77,13 @@ class Payable extends Model
      * sama pola dengan MaterialMemoItem::resolveItem() (bukan morphTo
      * Eloquent beneran, codebase ini belum pernah pakai morphMap).
      */
-    public function resolveSource(): ?PurchaseRequest
+    public function resolveSource(): PurchaseRequest|RecurringBillTemplate|null
     {
         return match ($this->source_type) {
             'purchase_request' => PurchaseRequest::find($this->source_id),
+            // Audit Majoo f48, "Template tagihan rutin" — Payable yang
+            // di-generate otomatis menautkan balik ke template asalnya.
+            'recurring_bill_template' => RecurringBillTemplate::find($this->source_id),
             default => null,
         };
     }

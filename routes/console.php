@@ -51,3 +51,7 @@ Schedule::command('backup:database')->dailyAt('03:00');
 // Hapus kode OTP kedaluwarsa (audit framework 2026-09-14, "Retensi &
 // penghapusan data historis") -- lihat App\Console\Commands\PruneExpiredOtpCodes.
 Schedule::command('otp:prune-expired')->dailyAt('04:00');
+
+// Generate tagihan rutin (audit Majoo f48, "Template tagihan rutin")
+// -- lihat App\Console\Commands\GenerateRecurringBills.
+Schedule::command('billing:generate-recurring')->dailyAt('05:00');
