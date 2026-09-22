@@ -107,6 +107,7 @@ class UserResource extends Resource
                 'SalesDashboard' => 'Dashboard Penjualan',
                 'FilmProductResource' => 'Daftar Produk',
                 'MasterResepResource' => 'Master Resep',
+                'ProductImportLogResource' => 'Riwayat Impor Produk',
             ],
             // Cluster "Inventori" (dulu "Inventaris") sekarang di bawah
             // grup top-nav "Penjualan" (2026-09-10, ikut struktur Majoo)
