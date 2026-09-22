@@ -179,6 +179,43 @@ class FilmProductResource extends Resource
                                 ->required(),
                         ]),
                 ]),
+
+            // Harga khusus per Grup Pelanggan (audit Majoo f40) — SENGAJA
+            // flat (bukan matriks per ukuran lagi) supaya tetap sederhana;
+            // MENANG atas harga per-ukuran/flat normal di atas kalau
+            // customer booking ini tergabung di grup tsb. Lihat
+            // PriceCalculator::priceFor().
+            Forms\Components\Section::make('Harga Khusus per Grup Pelanggan')
+                ->description('Opsional — isi kalau grup pelanggan tertentu (mis. Member/Korporat) dapat harga berbeda dari harga normal di atas untuk produk ini.')
+                ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing', 'premium_wash'], true))
+                ->collapsed()
+                ->schema([
+                    Forms\Components\Repeater::make('groupPrices')
+                        ->relationship()
+                        ->hiddenLabel()
+                        ->addActionLabel('Tambah harga per grup')
+                        ->reorderable(false)
+                        ->defaultItems(0)
+                        ->columns(2)
+                        ->itemLabel(fn (array $state): ?string => filled($state['customer_group_id'] ?? null)
+                            ? (\App\Models\CustomerGroup::find($state['customer_group_id'])?->name ?? '—') . (filled($state['price'] ?? null) ? ' — Rp' . number_format((float) $state['price'], 0, ',', '.') : '')
+                            : null)
+                        ->schema([
+                            Forms\Components\Select::make('customer_group_id')
+                                ->label('Grup Pelanggan')
+                                ->options(fn () => \App\Models\CustomerGroup::where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
+                                ->required()
+                                ->distinct()
+                                ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+
+                            Forms\Components\TextInput::make('price')
+                                ->label('Harga Jual')
+                                ->numeric()
+                                ->prefix('Rp')
+                                ->minValue(0)
+                                ->required(),
+                        ]),
+                ]),
         ]);
     }
 

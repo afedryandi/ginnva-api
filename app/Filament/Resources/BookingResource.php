@@ -424,7 +424,7 @@ class BookingResource extends Resource
                         ->label('Referensi Harga (internal)')
                         ->visible(fn (Forms\Get $get) => filled($get('film_product_id')))
                         ->content(function (Forms\Get $get) {
-                            $product = \App\Models\FilmProduct::with('prices')->find($get('film_product_id'));
+                            $product = \App\Models\FilmProduct::with(['prices', 'groupPrices'])->find($get('film_product_id'));
                             if ($product === null) {
                                 return '—';
                             }
@@ -438,6 +438,20 @@ class BookingResource extends Resource
                             }
                             if ($matrix['flat'] !== null && $parts === []) {
                                 $parts[] = 'Flat: Rp'.number_format($matrix['flat'], 0, ',', '.');
+                            }
+
+                            // Harga khusus Grup Pelanggan (audit Majoo f40)
+                            // — cuma tampil kalau customer booking ini
+                            // tergabung di grup yang punya override utk
+                            // produk ini.
+                            $customerId = $get('customer_id');
+                            $customer = $customerId ? \App\Models\Customer::find($customerId) : null;
+                            if ($customer?->customer_group_id) {
+                                $groupPrice = \App\Services\PriceCalculator::priceFor($product, null, $customer->customer_group_id);
+                                $normalPrice = \App\Services\PriceCalculator::priceFor($product, null);
+                                if ($groupPrice !== null && $groupPrice !== $normalPrice) {
+                                    $parts[] = "Grup {$customer->customerGroup->name}: Rp" . number_format($groupPrice, 0, ',', '.');
+                                }
                             }
 
                             return $parts === [] ? 'Harga belum diisi untuk produk ini.' : new \Illuminate\Support\HtmlString(implode(' &nbsp;·&nbsp; ', $parts));

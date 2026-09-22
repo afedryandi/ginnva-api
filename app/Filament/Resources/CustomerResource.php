@@ -9,6 +9,7 @@ use App\Models\Partner;
 use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -252,6 +253,17 @@ class CustomerResource extends Resource
                     Forms\Components\Placeholder::make('email_verified_at')
                         ->label('Email Terverifikasi')
                         ->content(fn (?Customer $record) => $record?->email_verified_at?->format('d M Y H:i') ?? 'Belum'),
+
+                    // Grup Pelanggan (audit Majoo f40) — satu-satunya
+                    // field yang benar-benar editable di form ini selain
+                    // via aksi tabel terpisah, karena field lain berasal
+                    // dari registrasi mobile app.
+                    Forms\Components\Select::make('customer_group_id')
+                        ->label('Grup Pelanggan')
+                        ->relationship('customerGroup', 'name', fn ($query) => $query->where('is_active', true)->orderBy('sort_order'))
+                        ->placeholder('Tidak ada grup')
+                        ->helperText('Menentukan harga khusus produk untuk pelanggan ini kalau grupnya punya harga di menu Grup Pelanggan.')
+                        ->native(false),
                 ]),
 
             Forms\Components\Section::make('Data Pribadi')
@@ -414,6 +426,32 @@ class CustomerResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    // "Atur Pelanggan via checklist" (audit Majoo f40) --
+                    // dibangun sebagai bulk action (cari/filter pelanggan
+                    // dulu, lalu assign sekaligus), bukan checklist raksasa
+                    // di halaman Grup Pelanggan yang tidak scalable kalau
+                    // jumlah pelanggan besar.
+                    Tables\Actions\BulkAction::make('setCustomerGroup')
+                        ->label('Atur Grup Pelanggan')
+                        ->icon('heroicon-o-user-group')
+                        ->color('gray')
+                        ->form([
+                            Forms\Components\Select::make('customer_group_id')
+                                ->label('Grup Pelanggan')
+                                ->options(fn () => \App\Models\CustomerGroup::where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
+                                ->placeholder('Tidak ada grup (hapus dari grup)')
+                                ->native(false),
+                        ])
+                        ->action(function (\Illuminate\Support\Collection $records, array $data) {
+                            $records->each->update(['customer_group_id' => $data['customer_group_id'] ?: null]);
+
+                            Notification::make()
+                                ->title(count($records) . ' pelanggan diperbarui grupnya')
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])

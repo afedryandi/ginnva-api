@@ -40,6 +40,9 @@ class Customer extends Model implements Authenticatable, JWTSubject
         'name',
         'email',
         'phone_number',
+        // Grup Pelanggan (audit Majoo f40) — opsional, dipakai untuk
+        // harga khusus per grup (lihat FilmProductGroupPrice).
+        'customer_group_id',
         'gender',
         'address',
         'email_verified_at',
@@ -101,6 +104,11 @@ class Customer extends Model implements Authenticatable, JWTSubject
     public function referredByPartner()
     {
         return $this->belongsTo(Partner::class, 'referred_by_partner_id');
+    }
+
+    public function customerGroup()
+    {
+        return $this->belongsTo(CustomerGroup::class);
     }
 
     public function warranties()

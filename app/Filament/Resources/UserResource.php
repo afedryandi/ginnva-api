@@ -162,6 +162,7 @@ class UserResource extends Resource
             // dipindah kemari dari Marketing/Konten (2026-09-10).
             'Pelanggan' => [
                 'CustomerResource' => 'Daftar Pelanggan',
+                'CustomerGroupResource' => 'Grup Pelanggan',
             ],
             // Cluster "Promosi" (Penjualan > Promosi) — Voucher/Reward/
             // Klaim Reward dipindah kemari dari Marketing/Konten (2026-09-10).

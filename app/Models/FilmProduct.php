@@ -74,6 +74,15 @@ class FilmProduct extends Model
         return $this->hasMany(FilmProductPrice::class);
     }
 
+    /**
+     * Harga khusus per grup pelanggan (audit Majoo f40) — lihat
+     * FilmProductGroupPrice & PriceCalculator::priceFor().
+     */
+    public function groupPrices()
+    {
+        return $this->hasMany(FilmProductGroupPrice::class);
+    }
+
     public function caseStudies()
     {
         return $this->hasMany(CaseStudy::class);
