@@ -26,6 +26,7 @@ class ReservationUtilizationReportExport implements FromArray, WithHeadings, Wit
             'Terpakai',
             'Kosong',
             'Dibatalkan',
+            'Tingkat Pembatalan %',
             'Utilisasi %',
         ];
     }
@@ -41,6 +42,7 @@ class ReservationUtilizationReportExport implements FromArray, WithHeadings, Wit
                 $row['totalUsed'],
                 $row['emptySlots'],
                 $row['cancelledCount'],
+                round($row['cancellationRatePct'], 1) . '%',
                 round($row['utilizationPct'], 1) . '%',
             ])
             ->values()

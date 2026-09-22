@@ -220,6 +220,18 @@ class ReservationUtilizationReport extends Page implements HasForms
                 ->whereDate('preferred_date', '<=', $to)
                 ->count();
 
+            // "Tingkat Pembatalan" (audit Majoo, f16: "KPI eksplisit, bukan
+            // cuma daftar") — cancelledCount dibagi SELURUH booking yang
+            // preferred_date-nya jatuh di periode ini (semua status,
+            // BUKAN totalUsed yang satuannya slot kapasitas hari, bukan
+            // jumlah booking) supaya rasionya benar "dari sekian reservasi
+            // yang masuk, berapa % batal" — bukan tercampur skala kapasitas.
+            $totalBookingsCount = Booking::query()
+                ->where('store_id', $store->id)
+                ->whereDate('preferred_date', '>=', $from)
+                ->whereDate('preferred_date', '<=', $to)
+                ->count();
+
             return [
                 'store' => $store,
                 'capacityPerDay' => $capacity,
@@ -230,14 +242,21 @@ class ReservationUtilizationReport extends Page implements HasForms
                 // confirmed di periode ini.
                 'emptySlots' => max(0, $totalCapacity - $totalUsed),
                 'cancelledCount' => $cancelledCount,
+                'totalBookingsCount' => $totalBookingsCount,
+                'cancellationRatePct' => $totalBookingsCount > 0 ? $cancelledCount / $totalBookingsCount * 100 : 0,
                 'utilizationPct' => $totalCapacity > 0 ? min(100, $totalUsed / $totalCapacity * 100) : 0,
             ];
         })->sortByDesc('utilizationPct')->values();
+
+        $totalCancelled = $rows->sum('cancelledCount');
+        $totalBookings = $rows->sum('totalBookingsCount');
 
         return [
             'from' => $from,
             'to' => $to,
             'rows' => $rows,
+            // KPI eksplisit seluruh cabang (audit Majoo f16).
+            'cancellationRatePct' => $totalBookings > 0 ? $totalCancelled / $totalBookings * 100 : 0,
         ];
     }
 }

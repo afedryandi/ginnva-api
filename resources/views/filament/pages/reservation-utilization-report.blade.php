@@ -14,7 +14,15 @@
         pernah disimpan. Angka Utilisasi di sini pendekatan, bukan catatan historis pasti.
     </div>
 
-    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}">
+    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Tingkat Pembatalan (Seluruh Cabang)</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums {{ $result['cancellationRatePct'] >= 15 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ number_format($result['cancellationRatePct'], 1) }}%</div>
+            <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">dari seluruh reservasi (confirmed + cancelled) pada rentang ini</div>
+        </x-filament::section>
+    </div>
+
     <x-filament::section>
         <x-slot name="heading">Utilisasi per Toko</x-slot>
         <x-slot name="description">Diurutkan dari utilisasi tertinggi. Hari libur toko dilewati dari perhitungan (tidak dihitung sebagai kapasitas kosong).</x-slot>
@@ -30,6 +38,7 @@
                         <th class="py-2 pr-3 text-right">Terpakai</th>
                         <th class="py-2 pr-3 text-right">Kosong</th>
                         <th class="py-2 pr-3 text-right">Dibatalkan</th>
+                        <th class="py-2 pr-3 text-right">Tingkat Pembatalan</th>
                         <th class="py-2 pl-3">Utilisasi</th>
                     </tr>
                 </thead>
@@ -43,6 +52,7 @@
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['totalUsed'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums text-gray-500 dark:text-gray-400">{{ $row['emptySlots'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums {{ $row['cancelledCount'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-500 dark:text-gray-400' }}">{{ $row['cancelledCount'] }}</td>
+                            <td class="py-2 pr-3 text-right tabular-nums {{ $row['cancellationRatePct'] >= 15 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-500 dark:text-gray-400' }}">{{ number_format($row['cancellationRatePct'], 1) }}%</td>
                             <td class="py-2 pl-3">
                                 <div class="flex items-center gap-2">
                                     <div class="h-2 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
@@ -53,7 +63,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada toko yang bisa diakses.</td></tr>
+                        <tr><td colspan="9" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada toko yang bisa diakses.</td></tr>
                     @endforelse
                 </tbody>
             </table>

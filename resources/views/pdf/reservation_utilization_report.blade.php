@@ -20,6 +20,7 @@
         Kapasitas dihitung dari setting SAAT INI tiap toko (Kapasitas Instalasi/Hari), bukan kapasitas persis yang
         berlaku di hari tertentu di masa lalu — angka Utilisasi ini pendekatan, bukan catatan historis pasti.
     </div>
+    <p>Tingkat Pembatalan (Seluruh Cabang): <strong>{{ number_format($result['cancellationRatePct'], 1, ',', '.') }}%</strong></p>
 
     <table>
         <thead>
@@ -31,6 +32,7 @@
                 <th>Terpakai</th>
                 <th>Kosong</th>
                 <th>Dibatalkan</th>
+                <th>Tingkat Pembatalan</th>
                 <th>Utilisasi</th>
             </tr>
         </thead>
@@ -44,6 +46,7 @@
                     <td>{{ number_format($row['totalUsed'], 0, ',', '.') }}</td>
                     <td>{{ number_format($row['emptySlots'], 0, ',', '.') }}</td>
                     <td>{{ number_format($row['cancelledCount'], 0, ',', '.') }}</td>
+                    <td>{{ number_format($row['cancellationRatePct'], 1, ',', '.') }}%</td>
                     <td>{{ number_format($row['utilizationPct'], 1, ',', '.') }}%</td>
                 </tr>
             @endforeach
