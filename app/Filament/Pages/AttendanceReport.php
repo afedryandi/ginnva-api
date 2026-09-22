@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Exports\AttendanceReportExport;
 use App\Models\Attendance;
 use App\Models\Store;
+use App\Services\AttendancePatternService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
@@ -24,18 +25,20 @@ use Maatwebsite\Excel\Facades\Excel;
  * `Attendance` (clock_in_at/clock_out_at/late_minutes/early_leave_minutes
  * per baris, sudah lengkap tersimpan dari fitur Absensi mobile app).
  *
- * KETERBATASAN: Attendance TIDAK menyimpan "Jadwal Masuk/Pulang"
- * (jam target) per baris -- cuma late_minutes/early_leave_minutes yang
- * SUDAH dihitung sistem terhadap jadwal itu saat clock in/out. Jadi
- * kolom "Jadwal Masuk/Pulang" ala Majoo TIDAK ditampilkan (datanya
- * tidak tersimpan terpisah), tapi hasil perhitungannya (terlambat/
- * pulang cepat berapa menit) tetap akurat karena diambil dari kolom
- * yang sama yang dipakai AttendanceResource.
+ * KETERBATASAN: Attendance TIDAK menyimpan "Jadwal Masuk/Pulang" (jam
+ * target) per baris -- cuma late_minutes/early_leave_minutes yang SUDAH
+ * dihitung sistem terhadap jadwal itu saat clock in/out. Jadi kolom
+ * "Jadwal Masuk/Pulang" mentah ala Majoo TIDAK ditampilkan per baris di
+ * tabel Rincian Absensi (datanya tidak tersimpan terpisah).
  *
- * "Masuk Lebih Cepat"/"Keluar Lebih Lama" (datang sebelum jadwal/pulang
- * setelah jadwal) Majoo TIDAK ditampilkan -- sistem Ginnva cuma
- * menyimpan sisi negatifnya (telat/pulang cepat), tidak ada kolom
- * simetris untuk "lebih awal/lebih lama" dari jadwal.
+ * "Masuk Lebih Cepat"/"Keluar Lebih Lama" (audit Majoo f23, "6 jenis
+ * keterlambatan/kecepatan") SEKARANG BISA dihitung (2026-09-22) berkat
+ * modul Jadwal Kerja yang dibangun hari yang sama -- lihat tabel "Pola
+ * Ketepatan Waktu per Karyawan" & App\Services\AttendancePatternService,
+ * yang membandingkan clock_in_at/clock_out_at terhadap Shift yang
+ * berlaku (via EmployeeScheduleAssignment/ScheduleDayOverride).
+ * Karyawan yang belum di-assign Jadwal Kerja tetap TIDAK bisa
+ * dibandingkan (ditandai "Tanpa Jadwal", bukan dipaksa 0).
  */
 class AttendanceReport extends Page implements HasForms
 {
@@ -177,6 +180,29 @@ class AttendanceReport extends Page implements HasForms
             ->orderByDesc('date')
             ->get();
 
+        // Kategorisasi detail (audit Majoo f23, "6 jenis keterlambatan/
+        // kecepatan") -- melengkapi lateCount/earlyLeaveCount lama dengan
+        // 2 kategori simetris baru (Masuk Lebih Awal, Lembur/Pulang
+        // Lambat) yang sekarang bisa dihitung berkat modul Jadwal Kerja.
+        // Lihat AttendancePatternService untuk penjelasan lengkap.
+        $classified = app(AttendancePatternService::class)->classify($rows);
+
+        $patternByUser = $classified
+            ->filter(fn (array $c) => $c['attendance']->user !== null)
+            ->groupBy(fn (array $c) => $c['attendance']->user_id)
+            ->map(function (\Illuminate\Support\Collection $group) {
+                return [
+                    'user' => $group->first()['attendance']->user,
+                    'lateCount' => $group->where('isLate', true)->count(),
+                    'earlyLeaveCount' => $group->where('isEarlyLeave', true)->count(),
+                    'earlyArrivalCount' => $group->where('isEarlyArrival', true)->count(),
+                    'overtimeCount' => $group->where('isOvertime', true)->count(),
+                    'noScheduleCount' => $group->where('hasSchedule', false)->count(),
+                ];
+            })
+            ->sortBy(fn ($row) => $row['user']->name)
+            ->values();
+
         return [
             'from' => $from,
             'to' => $to,
@@ -186,6 +212,9 @@ class AttendanceReport extends Page implements HasForms
             'earlyLeaveCount' => $rows->where('early_leave_minutes', '>', 0)->count(),
             'alphaCount' => $rows->where('entry_type', 'alpha')->count(),
             'leaveCount' => $rows->where('entry_type', 'leave')->count(),
+            'earlyArrivalCount' => $classified->where('isEarlyArrival', true)->count(),
+            'overtimeCount' => $classified->where('isOvertime', true)->count(),
+            'patternByUser' => $patternByUser,
         ];
     }
 }
