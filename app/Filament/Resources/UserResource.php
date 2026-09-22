@@ -126,6 +126,7 @@ class UserResource extends Resource
                 'StockWriteOffResource' => 'Stok Terbuang',
             ],
             'Karyawan' => [
+                'EmployeeTypeResource' => 'Tipe Karyawan',
                 'AttendanceResource' => 'Absensi Karyawan',
                 'LeaveRequestResource' => 'Izin & Cuti',
                 'WarningLetterResource' => 'Surat Peringatan',
@@ -317,9 +318,18 @@ class UserResource extends Resource
                         ->prefix('Rp')
                         ->minValue(0),
 
+                    Forms\Components\Select::make('employee_type_id')
+                        ->label('Tipe Karyawan')
+                        ->relationship('employeeType', 'name', fn ($query) => $query->where('is_active', true))
+                        ->helperText('Kelola daftar tipe di menu "Tipe Karyawan". Tipe menentukan apakah "Tanggal Berakhir Kontrak" di bawah wajib diisi atau tidak.')
+                        ->preload()
+                        ->live(),
+
                     Forms\Components\DatePicker::make('contract_end_date')
                         ->label('Tanggal Berakhir Kontrak')
-                        ->helperText('Isi di sini untuk kontrak PERTAMA kali. Perpanjangan berikutnya dicatat lewat menu "Perpanjang Kontrak" supaya riwayatnya tersimpan, bukan diedit langsung di sini.'),
+                        ->helperText('Isi di sini untuk kontrak PERTAMA kali. Perpanjangan berikutnya dicatat lewat menu "Perpanjang Kontrak" supaya riwayatnya tersimpan, bukan diedit langsung di sini.')
+                        ->visible(fn (Forms\Get $get) => (bool) \App\Models\EmployeeType::find($get('employee_type_id'))?->has_end_date)
+                        ->required(fn (Forms\Get $get) => (bool) \App\Models\EmployeeType::find($get('employee_type_id'))?->has_end_date),
 
                     Forms\Components\Select::make('roles')
                         ->label('Role')
@@ -483,6 +493,11 @@ class UserResource extends Resource
                     ->label('Toko')
                     ->placeholder('—')
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('employeeType.name')
+                    ->label('Tipe Karyawan')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Status')

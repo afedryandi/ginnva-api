@@ -25,6 +25,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'join_date',
         'base_salary',
         'contract_end_date',
+        'employee_type_id',
         'password',
         'store_id',
         'menu_access',
@@ -184,6 +185,11 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     public function contractExtensions()
     {
         return $this->hasMany(ContractExtension::class)->latest();
+    }
+
+    public function employeeType()
+    {
+        return $this->belongsTo(EmployeeType::class);
     }
 
     /**
