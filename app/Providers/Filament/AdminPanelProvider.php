@@ -246,16 +246,28 @@ class AdminPanelProvider extends PanelProvider
                        ".fi-page-sub-navigation-sidebar-ctn" /
                        ".fi-page-sub-navigation-sidebar" (dikonfirmasi
                        Inspect Element user), BUKAN ".fi-sidebar-nav".
-                       Rule background di atas TIDAK PERNAH match struktur
-                       ini, tapi rule teks putih (".fi-sidebar-group-label")
-                       tetap match (Filament pakai ulang nama class label
-                       yang sama) -- teks putih di atas background terang
-                       bawaan = tidak kebaca. Fix: background merah brand
-                       yang sama juga diterapkan ke struktur sub-navigasi
-                       Cluster ini. */
-                    .fi-page-sub-navigation-sidebar-ctn,
-                    .fi-page-sub-navigation-sidebar {
-                        background-color: #ED1651 !important;
+                       Rule teks putih (".fi-sidebar-group-label") di atas
+                       tetap match di struktur ini juga (Filament pakai
+                       ulang nama class label yang sama) -- teks putih di
+                       atas background terang bawaan = tidak kebaca.
+                       PERCOBAAN PERTAMA (dihapus): ikut mewarnai
+                       background sub-nav ini jadi merah brand juga --
+                       user tolak, dianggap jelek/berlebihan untuk
+                       sub-navigasi. FIX YANG DIPAKAI: batalkan saja paksaan
+                       warna putih KHUSUS di struktur sub-nav Cluster ini
+                       (selector lebih spesifik menang tanpa perlu urutan),
+                       biarkan background TETAP bawaan Filament (terang)
+                       dan teks balik pakai class asli elemen ini sendiri
+                       (text-gray-500 dark:text-gray-400 -- sudah otomatis
+                       benar di kedua tema, seperti item sub-nav lain yang
+                       memang tidak pernah kena rule paksa ini). */
+                    .fi-page-sub-navigation-sidebar-ctn .fi-sidebar-group-label,
+                    .fi-page-sub-navigation-sidebar .fi-sidebar-group-label {
+                        color: #6b7280 !important;
+                    }
+                    :root.dark .fi-page-sub-navigation-sidebar-ctn .fi-sidebar-group-label,
+                    :root.dark .fi-page-sub-navigation-sidebar .fi-sidebar-group-label {
+                        color: #9ca3af !important;
                     }
                     .fi-sidebar-item-active {
                         background-color: rgba(255, 255, 255, 0.15) !important;
