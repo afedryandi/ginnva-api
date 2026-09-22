@@ -22,7 +22,7 @@
                     Minggu {{ $calendar['weekStart']->format('d M') }} – {{ $calendar['weekStart']->copy()->endOfWeek(\Carbon\Carbon::SUNDAY)->format('d M Y') }}
                 </x-slot>
                 <x-slot name="description">
-                    Berdasarkan Jadwal Kerja yang sedang aktif per karyawan. "—" artinya belum ada Jadwal Kerja ter-assign untuk tanggal itu.
+                    Berdasarkan Jadwal Kerja yang sedang aktif per karyawan. "—" artinya belum ada Jadwal Kerja ter-assign untuk tanggal itu. Klik sel untuk override 1 hari itu saja (mis. tukar shift dadakan) tanpa mengubah template.
                 </x-slot>
 
                 <div class="overflow-x-auto">
@@ -42,8 +42,15 @@
                             @foreach ($calendar['rows'] as $row)
                                 <tr class="border-b border-gray-100 dark:border-gray-800">
                                     <td class="py-2 pr-4 font-medium whitespace-nowrap sticky left-0 bg-white dark:bg-gray-900">{{ $row['employee']->name }}</td>
-                                    @foreach ($row['cells'] as $cell)
-                                        <td class="py-2 px-3 text-center whitespace-nowrap">
+                                    @foreach ($row['cells'] as $i => $cell)
+                                        <td
+                                            wire:click="mountAction('overrideDay', { userId: {{ $row['employee']->id }}, date: '{{ $calendar['days'][$i]->toDateString() }}' })"
+                                            class="relative py-2 px-3 text-center whitespace-nowrap cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                                            title="{{ $cell['reason'] ?? 'Klik untuk ubah jadwal hari ini' }}"
+                                        >
+                                            @if ($cell['is_override'] ?? false)
+                                                <span class="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-amber-500" title="Override aktif"></span>
+                                            @endif
                                             @if ($cell['color'] ?? null)
                                                 <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium" style="background-color: {{ $cell['color'] }}22; color: {{ $cell['color'] }};">
                                                     {{ $cell['label'] }}
