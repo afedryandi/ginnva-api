@@ -32,6 +32,27 @@
         </x-filament::section>
     </div>
 
+    @php $pinnedAccounts = $this->getPinnedAccountBalances(); @endphp
+    @if ($pinnedAccounts->isNotEmpty())
+        <x-filament::section>
+            <x-slot name="heading">Saldo Akun Pilihan</x-slot>
+            <x-slot name="description">Saldo kumulatif per akhir bulan yang dipilih — atur lewat "Kelola Widget" di atas.</x-slot>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                @foreach ($pinnedAccounts as $row)
+                    <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                        <div class="text-xs text-gray-500 dark:text-gray-400">{{ $row['account']->display_name }}</div>
+                        <div @class([
+                            'mt-1 text-xl font-bold tabular-nums',
+                            'text-success-600 dark:text-success-400' => $row['balance'] >= 0,
+                            'text-danger-600 dark:text-danger-400' => $row['balance'] < 0,
+                        ])>{{ $rupiah($row['balance']) }}</div>
+                    </div>
+                @endforeach
+            </div>
+        </x-filament::section>
+    @endif
+
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <x-filament::section>
             <x-slot name="heading">Rincian Pemasukan per Kategori</x-slot>

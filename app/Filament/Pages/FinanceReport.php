@@ -2,13 +2,18 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\ChartOfAccount;
+use App\Models\FinanceDashboardWidget;
 use App\Models\FinanceTransaction;
 use App\Models\Store;
+use App\Services\FinancialStatementService;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 
@@ -116,5 +121,73 @@ class FinanceReport extends Page implements HasForms
     public function getBreakdown(): \Illuminate\Support\Collection
     {
         return FinanceTransaction::byCategoryForMonth($this->selectedMonth(), $this->selectedStoreId());
+    }
+
+    /**
+     * "Tambah Widget" (audit Majoo f46) — TERBATAS full-access, sama
+     * filosofi ChartOfAccountResource/JournalEntryResource: saldo akun
+     * COA individual (mis. rekening bank spesifik) adalah data kontrol
+     * finansial perusahaan, bukan operasional harian toko.
+     */
+    protected function getHeaderActions(): array
+    {
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            return [];
+        }
+
+        return [
+            Action::make('manageWidgets')
+                ->label('Kelola Widget')
+                ->icon('heroicon-o-squares-plus')
+                ->color('gray')
+                ->form([
+                    Select::make('chart_of_account_ids')
+                        ->label('Akun COA yang Dipin')
+                        ->multiple()
+                        ->searchable()
+                        ->options(fn () => ChartOfAccount::where('is_active', true)->orderBy('code')
+                            ->get()
+                            ->mapWithKeys(fn (ChartOfAccount $a) => [$a->id => $a->display_name]))
+                        ->default(fn () => auth()->user()->financeDashboardWidgets()->pluck('chart_of_account_id')->all())
+                        ->helperText('Muncul sebagai kartu saldo di atas breakdown kategori, dihitung per tanggal akhir bulan yang dipilih.'),
+                ])
+                ->action(function (array $data) {
+                    $userId = auth()->id();
+                    FinanceDashboardWidget::where('user_id', $userId)->delete();
+
+                    foreach (array_values($data['chart_of_account_ids'] ?? []) as $i => $accountId) {
+                        FinanceDashboardWidget::create([
+                            'user_id' => $userId,
+                            'chart_of_account_id' => $accountId,
+                            'sort_order' => $i,
+                        ]);
+                    }
+
+                    Notification::make()->title('Widget diperbarui')->success()->send();
+                }),
+        ];
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, array{account: ChartOfAccount, balance: float}>
+     */
+    public function getPinnedAccountBalances(): \Illuminate\Support\Collection
+    {
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            return collect();
+        }
+
+        $asOf = $this->selectedMonth()->copy()->endOfMonth();
+        $service = app(FinancialStatementService::class);
+
+        return auth()->user()->financeDashboardWidgets()
+            ->with('chartOfAccount')
+            ->orderBy('sort_order')
+            ->get()
+            ->filter(fn (FinanceDashboardWidget $w) => $w->chartOfAccount !== null)
+            ->map(fn (FinanceDashboardWidget $w) => [
+                'account' => $w->chartOfAccount,
+                'balance' => $service->balanceAsOf($w->chartOfAccount, $asOf, $this->selectedStoreId()),
+            ]);
     }
 }

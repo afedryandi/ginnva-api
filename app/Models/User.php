@@ -192,6 +192,11 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         return $this->belongsTo(EmployeeType::class);
     }
 
+    public function financeDashboardWidgets()
+    {
+        return $this->hasMany(FinanceDashboardWidget::class);
+    }
+
     /**
      * Label yang ditampilkan di chat booking — SENGAJA bukan nama asli
      * staff (privasi/profesionalitas), tapi berdasarkan jabatan. Supaya

@@ -42,6 +42,30 @@ class FinancialStatementService
      *
      * @return array{rows: Collection<int, array{account: ChartOfAccount, debit: float, credit: float, balance: float}>, total_debit: float, total_credit: float}
      */
+    /**
+     * Saldo KUMULATIF 1 akun tunggal per tanggal cutoff — dipakai kartu
+     * KPI custom "Tambah Widget" (audit Majoo f46). SAMA formula dengan
+     * trialBalance() (debit-kredit sampai $asOf, arah mengikuti
+     * normal_balance akun), cuma diringkas ke 1 angka untuk 1 akun
+     * spesifik alih-alih semua akun sekaligus.
+     */
+    public function balanceAsOf(ChartOfAccount $account, Carbon $asOf, ?int $storeId = null): float
+    {
+        $sum = JournalEntryLine::query()
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+            ->where('journal_entries.status', 'posted')
+            ->where('journal_entry_lines.chart_of_account_id', $account->id)
+            ->whereDate('journal_entries.entry_date', '<=', $asOf->toDateString())
+            ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
+            ->selectRaw('COALESCE(SUM(debit), 0) as debit, COALESCE(SUM(credit), 0) as credit')
+            ->first();
+
+        $debit = (float) $sum->debit;
+        $credit = (float) $sum->credit;
+
+        return $account->isDebitNormal() ? $debit - $credit : $credit - $debit;
+    }
+
     public function trialBalance(Carbon $asOf, ?int $storeId = null): array
     {
         $sums = JournalEntryLine::query()
