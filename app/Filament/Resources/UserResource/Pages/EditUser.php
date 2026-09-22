@@ -35,6 +35,15 @@ class EditUser extends EditRecord
     {
         $this->rolesBeforeSave = $this->record->roles()->pluck('name')->all();
 
+        // "Riwayat Karir" (audit Majoo f57) — alasan perpindahan toko,
+        // field TRANSIEN (bukan kolom users, lihat User::$pendingTransferReason)
+        // yang dibaca User::booted()::updated() begitu store_id benar-
+        // benar berubah. Dihapus dari $data supaya tidak ikut lewat ke
+        // update() (aman juga kalau lupa -- 'transfer_reason' bukan
+        // $fillable, Eloquent otomatis mengabaikannya).
+        $this->record->pendingTransferReason = $data['transfer_reason'] ?? null;
+        unset($data['transfer_reason']);
+
         return UserResource::mergeMenuAccessFields($data);
     }
 

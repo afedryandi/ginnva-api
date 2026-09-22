@@ -17,6 +17,39 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     use LogsActivity;
     use Notifiable;
 
+    /**
+     * Alasan perpindahan toko (audit Majoo f57, "Riwayat Karir") --
+     * property TRANSIEN (bukan kolom DB, tidak di $fillable), diisi
+     * UserResource sesaat sebelum save() supaya booted()::updated() di
+     * bawah bisa menyertakannya ke baris EmployeeCareerHistory. Null
+     * berarti tidak ada alasan yang diisi (opsional).
+     */
+    public ?string $pendingTransferReason = null;
+
+    /**
+     * "Riwayat Karir" (audit Majoo f57) -- SETIAP kali store_id berubah
+     * (lewat jalur mana pun: form edit biasa, bulk action, dll), catat
+     * otomatis sebagai baris riwayat yang mudah dibaca HR, BEDA dari
+     * LogsActivity generik (baris mentah kolom-per-kolom). Dibatasi
+     * SENGAJA ke perpindahan toko/outlet saja -- Ginnva belum punya
+     * entitas "Jabatan"/"Departemen" formal (lihat temuan terpisah
+     * f79/f80, belum diputuskan).
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (User $user) {
+            if ($user->wasChanged('store_id')) {
+                EmployeeCareerHistory::create([
+                    'user_id' => $user->id,
+                    'previous_store_id' => $user->getOriginal('store_id'),
+                    'new_store_id' => $user->store_id,
+                    'reason' => $user->pendingTransferReason,
+                    'changed_by' => auth()->id(),
+                ]);
+            }
+        });
+    }
+
     protected $fillable = [
         'name',
         'email',
@@ -213,6 +246,11 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     public function documents()
     {
         return $this->hasMany(EmployeeDocument::class);
+    }
+
+    public function careerHistories()
+    {
+        return $this->hasMany(EmployeeCareerHistory::class)->latest();
     }
 
     /**

@@ -387,6 +387,7 @@ class UserResource extends Resource
                         ->relationship('store', 'name')
                         ->searchable()
                         ->preload()
+                        ->live()
                         ->required(function (Forms\Get $get): bool {
                             $roleIds = $get('roles') ?? [];
                             if (empty($roleIds)) return false;
@@ -415,6 +416,17 @@ class UserResource extends Resource
                             },
                         ])
                         ->helperText('Wajib diisi kalau role-nya installer atau store_manager — tanpa Toko, akun ini tidak akan bisa akses booking/chat toko manapun. Kosongkan untuk super_admin/direksi/partner/role company-wide lain.'),
+
+                    // "Riwayat Karir" (audit Majoo f57) — field TRANSIEN,
+                    // BUKAN kolom users (lihat User::$pendingTransferReason),
+                    // cuma tampil kalau Toko baru saja diubah dari nilai
+                    // semula, supaya alasan perpindahannya ikut tercatat
+                    // di tab "Riwayat Karir" (lihat EditUser::mutateFormDataBeforeSave()).
+                    Forms\Components\TextInput::make('transfer_reason')
+                        ->label('Alasan Perpindahan Toko (opsional)')
+                        ->maxLength(255)
+                        ->visible(fn (Forms\Get $get, ?User $record) => $record !== null && (int) $get('store_id') !== (int) $record->store_id)
+                        ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('password')
                         ->label('Password')
@@ -705,6 +717,7 @@ class UserResource extends Resource
     {
         return [
             \App\Filament\Resources\UserResource\RelationManagers\DocumentsRelationManager::class,
+            \App\Filament\Resources\UserResource\RelationManagers\CareerHistoriesRelationManager::class,
         ];
     }
 
