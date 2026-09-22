@@ -20,6 +20,7 @@
         <tr>
             <th>Nama</th><th>Jenis</th><th class="value">Terpakai</th><th class="value">Sisa</th>
             <th class="value">Rata-rata Stok</th><th class="value">Perputaran Stok</th><th class="value">Hari Terjual</th>
+            <th class="value">Stok Hari Ini</th><th class="value">Konsumsi/Hari</th><th class="value">Estimasi Habis</th>
         </tr>
         @forelse ($result['rows'] as $row)
             <tr>
@@ -30,9 +31,12 @@
                 <td class="value">{{ number_format($row['avgStock'], 2, ',', '.') }} {{ $row['item']->unit }}</td>
                 <td class="value">{{ $row['turnoverRatio'] !== null ? number_format($row['turnoverRatio'], 2, ',', '.') . 'x' : '-' }}</td>
                 <td class="value">{{ $row['daysSold'] }} Hari</td>
+                <td class="value">{{ number_format($row['currentStock'], 2, ',', '.') }} {{ $row['item']->unit }}</td>
+                <td class="value">{{ number_format($row['avgDailyConsumption'], 2, ',', '.') }} {{ $row['item']->unit }}</td>
+                <td class="value">{{ $row['daysUntilStockout'] !== null ? number_format($row['daysUntilStockout'], 0, ',', '.') . ' Hari' : '-' }}</td>
             </tr>
         @empty
-            <tr><td colspan="7">Tidak ada pergerakan stok pada rentang ini.</td></tr>
+            <tr><td colspan="10">Tidak ada pergerakan stok pada rentang ini.</td></tr>
         @endforelse
     </table>
 </body>

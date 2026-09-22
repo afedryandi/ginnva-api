@@ -204,6 +204,20 @@ class StockTurnoverReport extends Page implements HasForms
             ->unique()
             ->count();
 
+        // "Estimasi Hari Stok Habis" (audit Majoo f26, "forward-looking,
+        // berbasis kecepatan konsumsi") — MELENGKAPI turnover ratio yang
+        // backward-looking. Kecepatan konsumsi = qty keluar SELURUH
+        // rentang dibagi jumlah HARI kalender rentang itu (bukan cuma
+        // hari yang ada pergerakan -- rata-rata harian yang benar harus
+        // membagi dengan hari sepi juga). Diproyeksikan dari
+        // current_stock SEKARANG (bukan stockAtTo di akhir rentang
+        // laporan) -- pertanyaannya "kapan habis dari SEKARANG", bukan
+        // "kapan habis dari tanggal laporan yang mungkin sudah lewat".
+        $periodDays = max(1, $from->diffInDays($to) + 1);
+        $avgDailyConsumption = $qtyOutInPeriod / $periodDays;
+        $currentStock = (float) $item->current_stock;
+        $daysUntilStockout = $avgDailyConsumption > 0 ? $currentStock / $avgDailyConsumption : null;
+
         return [
             'item' => $item,
             'type' => $type,
@@ -213,6 +227,9 @@ class StockTurnoverReport extends Page implements HasForms
             'avgStock' => max(0, $avgStock),
             'turnoverRatio' => $turnoverRatio,
             'daysSold' => $daysSold,
+            'currentStock' => $currentStock,
+            'avgDailyConsumption' => $avgDailyConsumption,
+            'daysUntilStockout' => $daysUntilStockout,
         ];
     }
 }

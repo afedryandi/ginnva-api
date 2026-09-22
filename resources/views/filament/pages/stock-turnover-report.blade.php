@@ -12,6 +12,8 @@
     <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
         Rasio Perputaran = Qty Keluar ÷ Rata-rata Stok (stok awal &amp; akhir rentang, direkonstruksi dari histori pergerakan
         — sistem tidak menyimpan snapshot stok harian). Rasio tinggi = bahan cepat berputar, bukan otomatis "bagus"/"buruk".
+        "Estimasi Habis" diproyeksikan dari <strong>stok HARI INI</strong> (bukan stok di akhir rentang filter) dibagi
+        kecepatan konsumsi rata-rata harian pada rentang ini — perkiraan kasar, asumsi kecepatan konsumsi tetap.
         Bahan yang tidak ada pergerakan sama sekali di rentang ini tidak ditampilkan.
     </div>
 
@@ -30,6 +32,9 @@
                         <th class="whitespace-nowrap py-2 px-3 text-right">Rata-rata Stok</th>
                         <th class="whitespace-nowrap py-2 px-3 text-right">Perputaran Stok</th>
                         <th class="whitespace-nowrap py-2 px-3 text-right">Hari Terjual</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Stok Hari Ini</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Konsumsi/Hari</th>
+                        <th class="whitespace-nowrap py-2 px-3 text-right">Estimasi Habis</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -42,9 +47,14 @@
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ number_format($row['avgStock'], 2) }} {{ $row['item']->unit }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums font-medium">{{ $row['turnoverRatio'] !== null ? number_format($row['turnoverRatio'], 2) . 'x' : '—' }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $row['daysSold'] }} Hari</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ number_format($row['currentStock'], 2) }} {{ $row['item']->unit }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ number_format($row['avgDailyConsumption'], 2) }} {{ $row['item']->unit }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums font-medium {{ $row['daysUntilStockout'] !== null && $row['daysUntilStockout'] <= 14 ? 'text-danger-600 dark:text-danger-400' : '' }}">
+                                {{ $row['daysUntilStockout'] !== null ? number_format($row['daysUntilStockout'], 0) . ' Hari' : '—' }}
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada pergerakan stok pada rentang ini.</td></tr>
+                        <tr><td colspan="10" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada pergerakan stok pada rentang ini.</td></tr>
                     @endforelse
                 </tbody>
             </table>

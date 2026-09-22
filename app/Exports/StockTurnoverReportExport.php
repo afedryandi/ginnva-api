@@ -18,7 +18,7 @@ class StockTurnoverReportExport implements FromArray, WithHeadings, WithStyles
 
     public function headings(): array
     {
-        return ['Nama', 'Jenis', 'Terpakai', 'Sisa', 'Rata-rata Stok', 'Perputaran Stok', 'Hari Terjual'];
+        return ['Nama', 'Jenis', 'Terpakai', 'Sisa', 'Rata-rata Stok', 'Perputaran Stok', 'Hari Terjual', 'Stok Hari Ini', 'Konsumsi/Hari', 'Estimasi Habis (Hari)'];
     }
 
     public function array(): array
@@ -34,6 +34,9 @@ class StockTurnoverReportExport implements FromArray, WithHeadings, WithStyles
                 $row['avgStock'],
                 $row['turnoverRatio'] !== null ? round($row['turnoverRatio'], 2) : '-',
                 $row['daysSold'],
+                $row['currentStock'],
+                round($row['avgDailyConsumption'], 2),
+                $row['daysUntilStockout'] !== null ? round($row['daysUntilStockout']) : '-',
             ];
         }
 
