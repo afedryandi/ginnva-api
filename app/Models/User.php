@@ -328,6 +328,24 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
             && $this->hasMenuAccess(\App\Filament\Resources\PurchaseRequestResource::class);
     }
 
+    /**
+     * Riwayat lengkap penugasan Jadwal Kerja (WorkSchedule) karyawan ini
+     * -- audit Majoo vs Ginnva, modul "Jadwal Kerja", dibangun 2026-09-22.
+     */
+    public function scheduleAssignments()
+    {
+        return $this->hasMany(\App\Models\EmployeeScheduleAssignment::class);
+    }
+
+    /**
+     * Penugasan Jadwal Kerja yang AKTIF SEKARANG (atau null kalau belum
+     * pernah di-assign apa pun) -- lihat EmployeeScheduleAssignment::activeFor().
+     */
+    public function currentScheduleAssignment(): ?\App\Models\EmployeeScheduleAssignment
+    {
+        return \App\Models\EmployeeScheduleAssignment::activeFor($this->id);
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         // SENGAJA tidak masukkan 'password' walau di-hash — jangan pernah

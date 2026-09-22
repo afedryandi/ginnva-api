@@ -130,6 +130,12 @@ class UserResource extends Resource
                 'LeaveRequestResource' => 'Izin & Cuti',
                 'WarningLetterResource' => 'Surat Peringatan',
                 'ContractExtensionResource' => 'Perpanjang Kontrak',
+                // Modul Jadwal Kerja (audit Majoo, 2026-09-22).
+                // WorkScheduleCalendarReport (Page) SENGAJA tidak
+                // dimasukkan di sini -- pola sama dgn report Page lain,
+                // akses lewat canAccess()+menu_access null = boleh.
+                'ShiftResource' => 'Daftar Shift',
+                'WorkScheduleResource' => 'Daftar Jadwal Kerja',
                 // PayrollResource SENGAJA tidak dimasukkan di sini — lihat
                 // komentar di PayrollResource::canViewAny(), selalu
                 // isFullAccess-only, tidak pernah lewat menu_access.
