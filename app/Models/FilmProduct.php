@@ -3,9 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
+/**
+ * LogsActivity ditambahkan 2026-09-22 (audit Majoo, f30) — sebelum ini
+ * perubahan harga/nama/status aktif produk sama sekali tidak punya
+ * jejak audit (siapa ubah apa kapan, sebelum/sesudah), padahal harga
+ * adalah data yang sering diubah & berdampak langsung ke penjualan.
+ */
 class FilmProduct extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'sku',
         'name',
@@ -67,5 +77,20 @@ class FilmProduct extends Model
     public function caseStudies()
     {
         return $this->hasMany(CaseStudy::class);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['sku', 'name', 'product_type', 'position', 'base_price', 'is_active'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('film_product')
+            ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
+                'created' => "Produk \"{$this->name}\" ({$this->sku}) ditambahkan",
+                'updated' => "Produk \"{$this->name}\" ({$this->sku}) diubah",
+                'deleted' => "Produk \"{$this->name}\" ({$this->sku}) dihapus",
+                default => "Produk \"{$this->name}\" — {$eventName}",
+            });
     }
 }
