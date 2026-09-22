@@ -61,6 +61,39 @@ class Booking extends Model
     // Stok-Ginnva.docx"): harga customer SUDAH inclusive PPN 11%.
     public const PPN_RATE = 0.11;
 
+    /**
+     * Cap nego harga kasir (audit Majoo f31) -- keputusan user
+     * 2026-09-22: staff booking non-full-access boleh proses transaksi
+     * dengan harga didiskon SENDIRI (tanpa approval) selama diskonnya
+     * ≤ 5% dari harga acuan matriks (PriceCalculator::priceFor()).
+     * Global untuk semua toko/role (bukan per-toko), angka tetap
+     * (bukan diedit lewat UI) -- pola sama dengan PPN_RATE di atas.
+     */
+    public const NEGOTIATION_DISCOUNT_MAX_PCT = 5.0;
+
+    /**
+     * @param  float|null  $referencePrice  Harga acuan dari
+     *         PriceCalculator::priceFor() -- null kalau film_product_id/
+     *         vehicle_size booking ini tidak diisi atau harga matriksnya
+     *         belum ada. Referensi tidak diketahui SELALU dianggap DI
+     *         LUAR cap (wajib approval) -- tidak pernah diloloskan tanpa
+     *         verifikasi.
+     */
+    public static function isWithinNegotiationCap(?float $referencePrice, float $enteredAmount): bool
+    {
+        if ($referencePrice === null || $referencePrice <= 0) {
+            return false;
+        }
+
+        if ($enteredAmount >= $referencePrice) {
+            return true; // Bukan diskon (harga penuh atau lebih tinggi).
+        }
+
+        $discountPct = ($referencePrice - $enteredAmount) / $referencePrice * 100;
+
+        return $discountPct <= self::NEGOTIATION_DISCOUNT_MAX_PCT;
+    }
+
     /** Label kanal pembayaran (audit Majoo f3, "Breakdown Metode Pembayaran"). */
     public const PAYMENT_METHOD_LABELS = [
         'tunai' => 'Tunai',
@@ -90,6 +123,11 @@ class Booking extends Model
         // laporan "Produk Terlaris" bisa dihitung dari transaksi
         // sungguhan. Lihat migrasi 2026_09_08_000001.
         'film_product_id',
+        // Ukuran kendaraan (S/M/L/XL/XXL, lihat PriceCalculator::VEHICLE_SIZES)
+        // -- opsional, dipakai hitung harga acuan matriks utk validasi
+        // cap nego harga (lihat isWithinNegotiationCap()). Lihat migrasi
+        // 2026_09_22_000012.
+        'vehicle_size',
         'preferred_date',
         'preferred_time',
         'duration_days',

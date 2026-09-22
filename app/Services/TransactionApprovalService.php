@@ -20,7 +20,7 @@ use RuntimeException;
 class TransactionApprovalService
 {
     /**
-     * @param  array{referral_code?: ?string, spend_promo_id?: ?int, spend_promo_discount?: ?float, payment_method?: ?string}  $extra
+     * @param  array{referral_code?: ?string, spend_promo_id?: ?int, spend_promo_discount?: ?float, payment_method?: ?string, vehicle_size?: ?string}  $extra
      *         Field tambahan yang dibutuhkan supaya approve() nanti bisa
      *         mereplikasi PERSIS langkah yang sama dengan jalur
      *         full-access langsung di BookingResource (simpan promo +
@@ -112,6 +112,7 @@ class TransactionApprovalService
                     'spend_promo_id' => $payload['spend_promo_id'] ?? null,
                     'spend_promo_discount' => $payload['spend_promo_discount'] ?? null,
                     'payment_method' => $payload['payment_method'] ?? null,
+                    'vehicle_size' => $payload['vehicle_size'] ?? null,
                 ]);
 
                 app(BookingPostingService::class)->sync($booking->refresh());

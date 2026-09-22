@@ -1151,6 +1151,23 @@ class BookingResource extends Resource
                             ->helperText('Dipakai untuk breakdown metode pembayaran di Dashboard Penjualan.')
                             ->native(false),
 
+                        // Nego harga kasir dengan cap % (audit Majoo f31,
+                        // keputusan user 2026-09-22) — dipakai hitung
+                        // harga acuan matriks (PriceCalculator::priceFor())
+                        // supaya sistem tahu berapa % Nominal Transaksi di
+                        // atas terdiskon dari harga normal. Kalau produk
+                        // (film_product_id) atau ukuran ini kosong, staff
+                        // non-full-access SELALU lewat approval biasa
+                        // (tidak bisa diverifikasi = tidak boleh lolos
+                        // sendiri).
+                        Forms\Components\Select::make('vehicle_size')
+                            ->label('Ukuran Kendaraan')
+                            ->options(array_combine(\App\Services\PriceCalculator::VEHICLE_SIZES, \App\Services\PriceCalculator::VEHICLE_SIZES))
+                            ->default(fn (Booking $record) => $record->vehicle_size)
+                            ->visible(fn (Booking $record) => $record->film_product_id !== null)
+                            ->helperText('Dipakai hitung harga acuan matriks untuk cap nego harga (maks ' . Booking::NEGOTIATION_DISCOUNT_MAX_PCT . '% tanpa approval).')
+                            ->native(false),
+
                         Forms\Components\Select::make('spend_promo_id')
                             ->label('Promo Total Pembelian (opsional)')
                             ->options(fn () => \App\Models\SpendPromo::running()->orderBy('name')->get()
@@ -1200,23 +1217,40 @@ class BookingResource extends Resource
                         // TransactionApprovalService & TransactionApprovalRequestResource).
                         // Full-access TETAP proses langsung (self-approval
                         // tidak menambah kontrol apa pun).
-                        if (! (auth()->user()?->isFullAccess() ?? false)) {
+                        //
+                        // PENGECUALIAN (audit Majoo f31, keputusan user
+                        // 2026-09-22): staff boleh proses SENDIRI tanpa
+                        // approval kalau Nominal Transaksi cuma didiskon
+                        // ≤5% dari harga acuan matriks produk+ukuran
+                        // (Booking::isWithinNegotiationCap()) -- nego harga
+                        // kecil di tempat, bukan potongan besar yang tetap
+                        // butuh persetujuan atasan.
+                        $enteredAmount = (float) ($data['transaction_amount'] !== '' ? $data['transaction_amount'] : 0);
+                        $referencePrice = $record->film_product_id
+                            ? \App\Services\PriceCalculator::priceFor($record->filmProduct, $data['vehicle_size'] ?: null)
+                            : null;
+                        $withinNegotiationCap = Booking::isWithinNegotiationCap($referencePrice, $enteredAmount);
+
+                        if (! (auth()->user()?->isFullAccess() ?? false) && ! $withinNegotiationCap) {
                             app(\App\Services\TransactionApprovalService::class)->submitBookingReferral(
                                 $record,
-                                (float) ($data['transaction_amount'] !== '' ? $data['transaction_amount'] : 0),
+                                $enteredAmount,
                                 $data['amount_received'] !== '' ? (float) $data['amount_received'] : null,
                                 [
                                     'referral_code' => $data['referral_code'] ?: null,
                                     'spend_promo_id' => $promoId,
                                     'spend_promo_discount' => $promoId ? $promoDiscount : null,
                                     'payment_method' => $data['payment_method'] ?: null,
+                                    'vehicle_size' => $data['vehicle_size'] ?: null,
                                 ],
                                 auth()->id()
                             );
 
                             Notification::make()
                                 ->title('Menunggu persetujuan')
-                                ->body('Permintaan Proses Referral untuk booking ini sudah dikirim ke admin/direksi untuk disetujui sebelum diposting ke Jurnal Umum.')
+                                ->body($referencePrice !== null
+                                    ? 'Diskon melebihi ' . Booking::NEGOTIATION_DISCOUNT_MAX_PCT . '% dari harga acuan — permintaan ini dikirim ke admin/direksi untuk disetujui sebelum diposting ke Jurnal Umum.'
+                                    : 'Permintaan Proses Referral untuk booking ini sudah dikirim ke admin/direksi untuk disetujui sebelum diposting ke Jurnal Umum.')
                                 ->warning()
                                 ->send();
 
@@ -1240,6 +1274,7 @@ class BookingResource extends Resource
                                     'spend_promo_id'       => $promoId,
                                     'spend_promo_discount' => $promoId ? $promoDiscount : null,
                                     'payment_method'       => $data['payment_method'] ?: null,
+                                    'vehicle_size'         => $data['vehicle_size'] ?: null,
                                 ]);
 
                                 app(BookingPostingService::class)->sync($record->refresh());
