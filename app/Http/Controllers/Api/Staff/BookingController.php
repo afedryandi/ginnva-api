@@ -253,11 +253,25 @@ class BookingController extends Controller
      * status 'confirmed', jadi begitu status berubah slot langsung
      * kebuka lagi tanpa perlu proses tambahan). Installer & partner
      * tidak boleh, sama seperti assignment (lihat authorizeManage()).
+     *
+     * Otorisasi "Void" (audit Majoo vs Ginnva, "Toggle Void sbg
+     * permission terpisah") -- keputusan user 2026-09-22: cuma
+     * store_manager & full-access (super_admin/direksi) yang boleh
+     * membatalkan booking, staff toko biasa TIDAK -- sama gate yang
+     * dipasang di BookingResource::quickCancel() versi Filament, supaya
+     * staff tidak bisa akali batasan itu lewat mobile app. SENGAJA
+     * dicek terpisah dari authorizeManage() (bukan diketatkan di sana)
+     * karena method itu dipakai bersama utk assignment yang memang
+     * masih boleh diakses staff biasa.
      */
     public function cancel(Request $request, int $id)
     {
         $user = $request->user('api');
         $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+
+        if (! $user->isFullAccess() && ! $user->isStoreManager()) {
+            abort(403, 'Cuma Store Manager atau akses penuh yang bisa membatalkan booking.');
+        }
 
         $request->validate([
             'reason' => 'nullable|string|max:500',

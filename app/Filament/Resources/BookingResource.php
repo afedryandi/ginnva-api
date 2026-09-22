@@ -1440,7 +1440,17 @@ class BookingResource extends Resource
                     ->label('Batalkan')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn (Booking $record) => in_array($record->status, ['pending', 'confirmed'], true))
+                    // Otorisasi "Void" (audit Majoo vs Ginnva, "Toggle Void
+                    // sbg permission terpisah") -- sebelumnya SIAPA PUN yang
+                    // bisa lihat menu Booking bisa membatalkan, tanpa syarat
+                    // akses apa pun. Keputusan user 2026-09-22: batasi ke
+                    // store_manager & full-access (super_admin/direksi) saja
+                    // -- staff biasa TIDAK bisa lagi membatalkan booking
+                    // sendiri. Bukan sistem permission granular per-role
+                    // (itu proyek lebih besar, belum diputuskan) -- cuma
+                    // gate role spesifik untuk aksi ini.
+                    ->visible(fn (Booking $record) => in_array($record->status, ['pending', 'confirmed'], true)
+                        && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager()))
                     ->requiresConfirmation()
                     ->modalHeading('Batalkan Booking?')
                     ->modalDescription('Booking ini akan ditandai Dibatalkan. Tindakan ini tidak membatalkan otomatis assignment installer/direksi yang sudah tersimpan.')
