@@ -73,6 +73,10 @@ class Booking extends Model
         // Penanda booking mencakup jasa detailing (sendiri / tambahan).
         // Lihat migrasi 2026_09_10_000003.
         'product_detailing',
+        // Penanda booking mencakup jasa Premium Wash (sendiri / tambahan)
+        // -- pola sama persis product_detailing. Lihat migrasi
+        // 2026_09_22_000002.
+        'product_premium_wash',
         // Varian/SKU FilmProduct spesifik yang dipasang -- opsional,
         // diisi staff/teknisi (biasanya saat booking selesai) supaya
         // laporan "Produk Terlaris" bisa dihitung dari transaksi
@@ -115,6 +119,7 @@ class Booking extends Model
         'product_kaca_film' => 'boolean',
         'product_ppf' => 'boolean',
         'product_detailing' => 'boolean',
+        'product_premium_wash' => 'boolean',
         'spend_promo_discount' => 'decimal:2',
         'duration_days' => 'integer',
         'next_service_reminder_at' => 'date',

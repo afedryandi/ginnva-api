@@ -105,9 +105,10 @@ class FilmProductResource extends Resource
                     Forms\Components\Select::make('product_type')
                         ->label('Tipe Produk')
                         ->options([
-                            'window_film' => 'Kaca Film',
-                            'ppf'         => 'Paint Protection Film (PPF)',
-                            'detailing'   => 'Detailing (jasa, bukan film)',
+                            'window_film'  => 'Kaca Film',
+                            'ppf'          => 'Paint Protection Film (PPF)',
+                            'detailing'    => 'Detailing (jasa, bukan film)',
+                            'premium_wash' => 'Premium Wash (jasa, bukan film)',
                         ])
                         ->live()
                         ->required(),
@@ -144,7 +145,7 @@ class FilmProductResource extends Resource
             // atas base_price untuk ukuran yang diisi. Harga INTERNAL saja.
             Forms\Components\Section::make('Harga Jual per Ukuran Kendaraan')
                 ->description('Isi kalau harga BEDA per ukuran mobil (Platinum / Signature / PPF). Kosongkan untuk produk harga flat — cukup "Harga Jual (Dasar / Flat)" di atas.')
-                ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing'], true))
+                ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing', 'premium_wash'], true))
                 ->schema([
                     Forms\Components\Repeater::make('prices')
                         ->relationship()
@@ -202,6 +203,7 @@ class FilmProductResource extends Resource
                         'window_film'  => 'Kaca Film',
                         'ppf'          => 'PPF',
                         'detailing'    => 'Detailing',
+                        'premium_wash' => 'Premium Wash',
                         'color_change' => 'Ganti Warna',
                         default        => $state,
                     })
@@ -252,9 +254,10 @@ class FilmProductResource extends Resource
                 Tables\Filters\SelectFilter::make('product_type')
                     ->label('Tipe Produk')
                     ->options([
-                        'window_film' => 'Kaca Film',
-                        'ppf'         => 'PPF',
-                        'detailing'   => 'Detailing',
+                        'window_film'  => 'Kaca Film',
+                        'ppf'          => 'PPF',
+                        'detailing'    => 'Detailing',
+                        'premium_wash' => 'Premium Wash',
                     ]),
 
                 Tables\Filters\TernaryFilter::make('is_active')

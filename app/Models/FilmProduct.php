@@ -37,6 +37,16 @@ class FilmProduct extends Model
     }
 
     /**
+     * Produk "Premium Wash" — pola sama persis detailing(), dibuat lewat
+     * migrasi 2026_09_22_000001 (SKU SVC-PREMIUM-WASH). Dipakai auto-isi
+     * Memo Barang saat booking ber-product_premium_wash.
+     */
+    public static function premiumWash(): ?self
+    {
+        return static::where('product_type', 'premium_wash')->first();
+    }
+
+    /**
      * Master Resep (BOM) — bahan standar per 1x pemasangan produk ini.
      * Diminta 2026-09-10. Lihat FilmProductRecipeItem.
      */

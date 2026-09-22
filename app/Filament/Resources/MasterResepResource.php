@@ -96,6 +96,7 @@ class MasterResepResource extends Resource
                             'window_film' => 'Kaca Film',
                             'ppf' => 'PPF',
                             'detailing' => 'Detailing',
+                            'premium_wash' => 'Premium Wash',
                             'color_change' => 'Ganti Warna',
                             default => $record->product_type,
                         }),
@@ -202,6 +203,7 @@ class MasterResepResource extends Resource
                         'window_film' => 'Kaca Film',
                         'ppf' => 'PPF',
                         'detailing' => 'Detailing',
+                        'premium_wash' => 'Premium Wash',
                         'color_change' => 'Ganti Warna',
                         default => $state,
                     })
@@ -238,6 +240,7 @@ class MasterResepResource extends Resource
                         'window_film' => 'Kaca Film',
                         'ppf' => 'PPF',
                         'detailing' => 'Detailing',
+                        'premium_wash' => 'Premium Wash',
                     ]),
                 Tables\Filters\Filter::make('belum_diisi')
                     ->label('Belum ada resep')

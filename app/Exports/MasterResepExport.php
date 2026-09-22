@@ -21,6 +21,7 @@ class MasterResepExport implements FromCollection, WithHeadings, WithStyles
         'window_film' => 'Kaca Film',
         'ppf' => 'PPF',
         'detailing' => 'Detailing',
+        'premium_wash' => 'Premium Wash',
         'color_change' => 'Ganti Warna',
     ];
 

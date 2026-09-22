@@ -301,7 +301,7 @@ class ScrollCodeResource extends Resource
                         Forms\Components\Select::make('film_product_id')
                             ->label('Produk Film')
                             ->options(fn () => FilmProduct::where('is_active', true)
-                                ->where('product_type', '!=', 'detailing')
+                                ->whereNotIn('product_type', ['detailing', 'premium_wash'])
                                 ->get()
                                 ->mapWithKeys(function (FilmProduct $fp) {
                                     $type = $fp->product_type === 'ppf' ? 'PPF' : 'Kaca Film';

@@ -93,7 +93,7 @@ class SalesSnapshotService
                 'COUNT(*) as cnt,'
                 . ' COALESCE(SUM(transaction_amount), 0) as revenue,'
                 . ' COALESCE(SUM(COALESCE(amount_received, transaction_amount)), 0) as received,'
-                . ' COALESCE(SUM(COALESCE(product_kaca_film, 0) + COALESCE(product_ppf, 0) + COALESCE(product_detailing, 0)), 0) as products_sold'
+                . ' COALESCE(SUM(COALESCE(product_kaca_film, 0) + COALESCE(product_ppf, 0) + COALESCE(product_detailing, 0) + COALESCE(product_premium_wash, 0)), 0) as products_sold'
             )
             ->toBase()
             ->first();

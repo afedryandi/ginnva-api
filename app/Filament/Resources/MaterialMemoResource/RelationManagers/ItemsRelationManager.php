@@ -39,9 +39,10 @@ class ItemsRelationManager extends RelationManager
     /**
      * Produk Film yang resepnya bisa dipakai auto-isi memo ini:
      * varian film yang dipasang (film_product_id) + produk "Detailing"
-     * kalau booking-nya ber-product_detailing. Di-unique per id supaya
-     * kalau kebetulan film_product_id itu SVC-DETAILING sendiri tidak
-     * dobel.
+     * kalau booking-nya ber-product_detailing + produk "Premium Wash"
+     * kalau ber-product_premium_wash. Di-unique per id supaya kalau
+     * kebetulan film_product_id itu SVC-DETAILING/SVC-PREMIUM-WASH
+     * sendiri tidak dobel.
      */
     protected function recipeSourceProducts(): Collection
     {
@@ -54,6 +55,7 @@ class ItemsRelationManager extends RelationManager
         return collect([
             $booking->filmProduct,
             $booking->product_detailing ? FilmProduct::detailing() : null,
+            $booking->product_premium_wash ? FilmProduct::premiumWash() : null,
         ])->filter()->unique('id')->values();
     }
 

@@ -362,7 +362,7 @@ class BookingResource extends Resource
                             // di bawah.
                             $query = \App\Models\FilmProduct::query()
                                 ->where('is_active', true)
-                                ->where('product_type', '!=', 'detailing');
+                                ->whereNotIn('product_type', ['detailing', 'premium_wash']);
 
                             $isKacaFilm = in_array($get('service_type'), ['Kaca Film (Window Film)'], true);
                             $isPpf = in_array($get('service_type'), ['Pelindung Cat (PPF)'], true);
@@ -402,7 +402,7 @@ class BookingResource extends Resource
                                 ->label('Varian Produk (SKU)')
                                 ->options(fn () => \App\Models\FilmProduct::query()
                                     ->where('is_active', true)
-                                    ->where('product_type', '!=', 'detailing')
+                                    ->whereNotIn('product_type', ['detailing', 'premium_wash'])
                                     ->orderBy('name')
                                     ->get()
                                     ->mapWithKeys(fn ($product) => [$product->id => "{$product->sku} — {$product->name}"]))
@@ -451,6 +451,13 @@ class BookingResource extends Resource
                     Forms\Components\Toggle::make('product_detailing')
                         ->label('Termasuk Jasa Detailing')
                         ->helperText('Centang kalau booking ini mencakup detailing (poles/coating/cuci interior/dll) — baik dijual sendiri maupun bareng pemasangan film.')
+                        ->default(false),
+
+                    // Premium Wash -- pola sama persis product_detailing
+                    // (dikonfirmasi user 2026-09-22, dijual dua-duanya).
+                    Forms\Components\Toggle::make('product_premium_wash')
+                        ->label('Termasuk Jasa Premium Wash')
+                        ->helperText('Centang kalau booking ini mencakup Premium Wash (cuci premium) — baik dijual sendiri maupun bareng pemasangan film.')
                         ->default(false),
 
                     Forms\Components\DatePicker::make('preferred_date')
@@ -677,6 +684,12 @@ class BookingResource extends Resource
                         ->badge()
                         ->state(fn (Booking $record) => $record->product_detailing ? 'Termasuk' : 'Tidak')
                         ->color(fn (Booking $record) => $record->product_detailing ? 'success' : 'gray'),
+
+                    TextEntry::make('product_premium_wash')
+                        ->label('Jasa Premium Wash')
+                        ->badge()
+                        ->state(fn (Booking $record) => $record->product_premium_wash ? 'Termasuk' : 'Tidak')
+                        ->color(fn (Booking $record) => $record->product_premium_wash ? 'success' : 'gray'),
 
                     TextEntry::make('spendPromo.name')
                         ->label('Promo Total Pembelian')
