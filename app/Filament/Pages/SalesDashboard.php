@@ -2,6 +2,8 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\Booking;
+use App\Models\Technician;
 use App\Services\SalesSnapshotService;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
@@ -236,5 +238,45 @@ class SalesDashboard extends Page
             'growthHasComparison' => $snapshot['growthHasComparison'],
             'pendingCount' => $snapshot['pendingCount'],
         ];
+    }
+
+    /**
+     * "Ranking Teknisi" (audit Majoo, f1: "Penjualan per Kasir / Komisi
+     * per Kasir") — widget ringkas periode berjalan di Dashboard,
+     * pelengkap "Laporan Komisi Teknisi" yang sudah ada (halaman
+     * terpisah, rentang tanggal bebas). Dihitung dari query yang SAMA
+     * (Booking::installers() + journalEntry pada rentang tanggal),
+     * supaya nilai "Penjualan" konsisten dengan laporan itu, hanya
+     * di-scope ke periode dashboard yang sedang aktif & diurutkan
+     * turun berdasar nilai penjualan (bukan alfabetis).
+     *
+     * @return list<array{name: string, jobCount: int, salesTotal: float}>
+     */
+    public function getTechnicianRanking(): array
+    {
+        [$start, $end] = $this->currentRange();
+        $storeId = $this->effectiveStoreId();
+
+        return Technician::query()
+            ->whereNotNull('user_id')
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->get()
+            ->map(function (Technician $technician) use ($start, $end) {
+                $jobsQuery = Booking::query()
+                    ->whereHas('installers', fn ($q) => $q->where('users.id', $technician->user_id))
+                    ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+                    ->where('transaction_amount', '>', 0);
+
+                return [
+                    'name' => $technician->name,
+                    'jobCount' => (clone $jobsQuery)->count(),
+                    'salesTotal' => (float) (clone $jobsQuery)->sum('transaction_amount'),
+                ];
+            })
+            ->filter(fn (array $row) => $row['jobCount'] > 0)
+            ->sortByDesc('salesTotal')
+            ->take(5)
+            ->values()
+            ->all();
     }
 }

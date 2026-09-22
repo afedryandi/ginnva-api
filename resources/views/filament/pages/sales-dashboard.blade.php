@@ -280,6 +280,31 @@
             <x-heroicon-o-arrow-down-tray class="h-4 w-4" />
             Lihat &amp; Export di Ringkasan Penjualan
         </a>
+
+        {{-- "Ranking Teknisi" (audit Majoo f1) — top 5 periode berjalan,
+             diurutkan nilai penjualan tertinggi. Nilai "Penjualan" di sini
+             adalah nilai transaksi booking yang ditugaskan (bukan
+             komisinya) — sama definisi seperti Laporan Komisi Teknisi. --}}
+        @php $ranking = $this->getTechnicianRanking(); @endphp
+        @if (! empty($ranking))
+            <div class="mt-6 border-t border-gray-200 pt-4 dark:border-white/10">
+                <x-metric-label tooltip="Top 5 teknisi periode ini berdasar nilai transaksi booking yang ditugaskan ke mereka (Booking::installers) — bukan nominal komisi. Booking tim dihitung penuh ke masing-masing teknisi, sama pola dengan Laporan Komisi Teknisi.">Ranking Teknisi</x-metric-label>
+                <div class="mt-2 divide-y divide-gray-100 dark:divide-white/5">
+                    @foreach ($ranking as $i => $row)
+                        <div class="flex items-center justify-between gap-3 py-2 text-sm">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-bold text-gray-500 dark:bg-white/10 dark:text-gray-400">{{ $i + 1 }}</span>
+                                <span class="truncate font-medium">{{ $row['name'] }}</span>
+                            </div>
+                            <div class="flex flex-shrink-0 items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                                <span>{{ number_format($row['jobCount'], 0, ',', '.') }} job</span>
+                                <span class="font-semibold tabular-nums text-gray-700 dark:text-gray-200">{{ $rupiah($row['salesTotal']) }}</span>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
         @endif
     </x-filament::section>
 
