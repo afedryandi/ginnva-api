@@ -89,4 +89,60 @@ class JobDurationServiceTest extends TestCase
 
         $this->assertCount(0, $jobs);
     }
+
+    public function test_aggregate_by_service_computes_avg_min_max_and_full_credit_for_combo_jobs(): void
+    {
+        $store = $this->makeStore();
+        $customer = Customer::create(['name' => 'Combo', 'phone_number' => '081200000003']);
+
+        // Job kombo PPF + Detailing, 2 jam -- durasi PENUH masuk ke KEDUA layanan.
+        $comboBooking = Booking::create([
+            'booking_number' => 'BKG-TEST-' . uniqid(),
+            'customer_id' => $customer->id,
+            'store_id' => $store->id,
+            'service_type' => 'PPF+Detailing',
+            'product_ppf' => true,
+            'product_detailing' => true,
+            'preferred_date' => now()->toDateString(),
+            'status' => 'completed',
+        ]);
+        Spk::create([
+            'spk_number' => 'SPK-TEST-' . uniqid(),
+            'store_id' => $store->id,
+            'booking_id' => $comboBooking->id,
+            'customer_name' => 'Combo',
+            'checked_in_at' => now()->subHours(2),
+            'checked_out_at' => now(),
+        ]);
+
+        // Job PPF murni, 1 jam.
+        $ppfOnlyBooking = Booking::create([
+            'booking_number' => 'BKG-TEST-' . uniqid(),
+            'customer_id' => $customer->id,
+            'store_id' => $store->id,
+            'service_type' => 'PPF',
+            'product_ppf' => true,
+            'preferred_date' => now()->toDateString(),
+            'status' => 'completed',
+        ]);
+        Spk::create([
+            'spk_number' => 'SPK-TEST-' . uniqid(),
+            'store_id' => $store->id,
+            'booking_id' => $ppfOnlyBooking->id,
+            'customer_name' => 'Combo',
+            'checked_in_at' => now()->subHour(),
+            'checked_out_at' => now(),
+        ]);
+
+        $rows = app(JobDurationService::class)->aggregateByService(now()->subDay(), now()->addDay())
+            ->keyBy('service');
+
+        $this->assertEquals(2, $rows['PPF']['jobCount']);
+        $this->assertEquals(90.0, $rows['PPF']['avgMinutes']); // (120 + 60) / 2
+        $this->assertEquals(60, $rows['PPF']['minMinutes']);
+        $this->assertEquals(120, $rows['PPF']['maxMinutes']);
+
+        $this->assertEquals(1, $rows['Detailing']['jobCount']);
+        $this->assertEquals(120.0, $rows['Detailing']['avgMinutes']);
+    }
 }

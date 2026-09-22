@@ -65,4 +65,42 @@ class JobDurationService
                 ];
             });
     }
+
+    /**
+     * "Laporan Proses Produk" (audit Majoo, f13: "Agregat durasi
+     * pengerjaan per layanan: rata-rata, tercepat, terlama"). Dibangun
+     * di atas jobs() -- job dengan >1 jenis layanan sekaligus (mis. PPF
+     * + Detailing) menyumbang durasi PENUHNYA ke SETIAP layanan itu
+     * (tidak dibagi), sama konvensi dengan "Produk Terjual" di
+     * SalesDashboard -- bukan bug, tapi berarti total job lintas baris
+     * BISA melebihi jumlah job sungguhan kalau banyak booking kombo.
+     *
+     * @return Collection<int, array{
+     *   service: string, jobCount: int, avgMinutes: float,
+     *   minMinutes: int, maxMinutes: int
+     * }>
+     */
+    public function aggregateByService(Carbon $from, Carbon $to, ?int $storeId = null): Collection
+    {
+        $byService = [];
+
+        foreach ($this->jobs($from, $to, $storeId) as $job) {
+            foreach ($job['services'] as $service) {
+                $byService[$service] ??= [];
+                $byService[$service][] = $job['minutes'];
+            }
+        }
+
+        return collect($byService)
+            ->map(fn (array $durations, string $service) => [
+                'service' => $service,
+                'jobCount' => count($durations),
+                'avgMinutes' => array_sum($durations) / count($durations),
+                'minMinutes' => min($durations),
+                'maxMinutes' => max($durations),
+            ])
+            ->values()
+            ->sortByDesc('jobCount')
+            ->values();
+    }
 }
