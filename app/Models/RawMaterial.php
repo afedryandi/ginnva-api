@@ -21,6 +21,13 @@ class RawMaterial extends Model
         'category',
         'received_date',
         'unit',
+        // Konversi satuan beli → satuan dasar (audit Majoo f38) --
+        // opsional, murni pembantu input di "Catat Stok". `unit` &
+        // `current_stock` TETAP selalu dalam satuan dasar (ml/gram/dst),
+        // tidak pernah dalam purchase_unit. Lihat migrasi
+        // 2026_09_22_000014.
+        'purchase_unit',
+        'purchase_conversion_factor',
         'current_stock',
         'reorder_point',
         'unit_cost',
@@ -33,10 +40,33 @@ class RawMaterial extends Model
         'current_stock' => 'decimal:2',
         'reorder_point' => 'decimal:2',
         'unit_cost'     => 'decimal:2',
+        'purchase_conversion_factor' => 'decimal:4',
         'received_date' => 'date',
         'expiry_date'   => 'date',
         'reviewed_at'   => 'datetime',
     ];
+
+    /**
+     * Konversi input "Catat Stok Masuk" dari satuan BELI ke satuan
+     * DASAR (unit/current_stock) -- audit Majoo f38. Dipakai HANYA saat
+     * staff pilih "Input dalam Satuan Beli" di form Catat Stok; movement
+     * yang tersimpan SELALU dalam satuan dasar seperti biasa, tidak ada
+     * kolom baru di raw_material_movements.
+     *
+     * @return array{quantity: float, unitCost: ?float} quantity dalam
+     *         satuan dasar, unitCost per satuan dasar (null kalau
+     *         $purchaseTotalCost tidak diisi).
+     */
+    public function convertPurchaseToBaseUnit(float $purchaseQuantity, ?float $purchaseTotalCost): array
+    {
+        $factor = (float) ($this->purchase_conversion_factor ?? 1);
+        $quantity = $purchaseQuantity * $factor;
+
+        return [
+            'quantity' => $quantity,
+            'unitCost' => ($purchaseTotalCost !== null && $quantity > 0) ? $purchaseTotalCost / $quantity : null,
+        ];
+    }
 
     /**
      * "Mati" = punya stok tapi TIDAK ADA pergerakan (masuk/keluar/opname)
@@ -349,7 +379,7 @@ class RawMaterial extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'code', 'category', 'received_date', 'unit', 'current_stock', 'reorder_point', 'unit_cost', 'expiry_date', 'notes'])
+            ->logOnly(['name', 'code', 'category', 'received_date', 'unit', 'purchase_unit', 'purchase_conversion_factor', 'current_stock', 'reorder_point', 'unit_cost', 'expiry_date', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('raw_material')

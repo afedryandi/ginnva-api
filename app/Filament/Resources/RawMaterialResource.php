@@ -109,10 +109,29 @@ class RawMaterialResource extends Resource
                         ->placeholder('Mis. Adhesive, Backing Paper, Packaging'),
 
                     Forms\Components\TextInput::make('unit')
-                        ->label('Satuan')
+                        ->label('Satuan Dasar (Stok & Konsumsi)')
                         ->required()
                         ->maxLength(20)
-                        ->placeholder('Mis. liter, meter, kg, pcs, roll'),
+                        ->placeholder('Mis. ml, gram, meter, pcs'),
+
+                    // Konversi satuan beli (audit Majoo f38) — opsional,
+                    // murni pembantu input di "Catat Stok". Stok tetap
+                    // selalu dalam Satuan Dasar di atas.
+                    Forms\Components\TextInput::make('purchase_unit')
+                        ->label('Satuan Beli (opsional)')
+                        ->maxLength(20)
+                        ->placeholder('Mis. Galon, Liter, Dus')
+                        ->helperText('Isi kalau bahan ini dibeli dalam satuan besar tapi dipakai/dicatat dalam Satuan Dasar yang lebih kecil (mis. beli per Galon, pakai per ml).')
+                        ->live(),
+
+                    Forms\Components\TextInput::make('purchase_conversion_factor')
+                        ->label('1 Satuan Beli = Berapa Satuan Dasar')
+                        ->numeric()
+                        ->minValue(0.0001)
+                        ->placeholder('Mis. 3785 (kalau 1 Galon = 3785 ml)')
+                        ->visible(fn (Forms\Get $get) => filled($get('purchase_unit')))
+                        ->required(fn (Forms\Get $get) => filled($get('purchase_unit')))
+                        ->live(),
 
                     // BUKAN "Tanggal Masuk Batch Ini" di "Catat Stok" —
                     // field itu yang benar-benar menentukan urutan FIFO.
@@ -404,12 +423,43 @@ class RawMaterialResource extends Resource
                             ->required()
                             ->live(),
 
+                        // Input dalam Satuan Beli (audit Majoo f38) --
+                        // cuma tampil kalau bahan ini punya purchase_unit
+                        // dikonfigurasi & jenisnya "Masuk" (konversi
+                        // satuan cuma masuk akal utk stok masuk, bukan
+                        // keluar/konsumsi yang SELALU dicatat dlm Satuan
+                        // Dasar apa adanya).
+                        Forms\Components\Toggle::make('use_purchase_unit')
+                            ->label(fn (RawMaterial $record) => 'Input dalam Satuan Beli (' . $record->purchase_unit . ')')
+                            ->visible(fn (RawMaterial $record, Forms\Get $get) => $get('type') === 'in' && filled($record->purchase_unit))
+                            ->live()
+                            ->default(false),
+
+                        Forms\Components\TextInput::make('purchase_quantity')
+                            ->label(fn (RawMaterial $record) => 'Jumlah (' . $record->purchase_unit . ')')
+                            ->numeric()
+                            ->minValue(0.01)
+                            ->required()
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in' && $get('use_purchase_unit'))
+                            ->helperText(fn (RawMaterial $record) => $record->purchase_conversion_factor
+                                ? '1 ' . $record->purchase_unit . ' = ' . rtrim(rtrim(number_format((float) $record->purchase_conversion_factor, 4, '.', ''), '0'), '.') . ' ' . $record->unit
+                                : null),
+
+                        Forms\Components\TextInput::make('purchase_total_cost')
+                            ->label('Total Harga Beli (opsional)')
+                            ->numeric()
+                            ->prefix('Rp')
+                            ->minValue(0)
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in' && $get('use_purchase_unit'))
+                            ->helperText('Total harga utk seluruh jumlah di atas (bukan per satuan) — sistem otomatis hitung harga per ' . '"Satuan Dasar" dari sini.'),
+
                         Forms\Components\TextInput::make('quantity')
                             ->label('Jumlah')
                             ->numeric()
-                            ->required()
+                            ->required(fn (Forms\Get $get) => ! $get('use_purchase_unit'))
                             ->minValue(0.01)
-                            ->suffix(fn (RawMaterial $record) => $record->unit),
+                            ->suffix(fn (RawMaterial $record) => $record->unit)
+                            ->visible(fn (Forms\Get $get) => ! $get('use_purchase_unit')),
 
                         // Setiap "Masuk" jadi 1 batch baru (tanggal masuk +
                         // kedaluwarsa sendiri) — dipakai untuk konsumsi FIFO
@@ -442,22 +492,39 @@ class RawMaterialResource extends Resource
                             ->minValue(0)
                             ->default(fn (RawMaterial $record) => $record->unit_cost)
                             ->helperText('Opsional — kosongkan untuk pakai harga terakhir tersimpan. Untuk estimasi nilai stok di Dashboard Inventaris.')
-                            ->visible(fn (Forms\Get $get) => $get('type') === 'in'),
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'in' && ! $get('use_purchase_unit')),
 
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan')
                             ->placeholder('Mis. nomor PO, nama supplier, dipakai untuk booking apa'),
                     ])
                     ->action(function (RawMaterial $record, array $data) {
+                        // Input dalam Satuan Beli (audit Majoo f38) --
+                        // konversi ke Satuan Dasar SEBELUM dikirim ke
+                        // recordMovement(), supaya movement yang tersimpan
+                        // tetap 100% dalam satuan dasar seperti biasa
+                        // (tidak ada perubahan skema raw_material_movements).
+                        if (! empty($data['use_purchase_unit'])) {
+                            $converted = $record->convertPurchaseToBaseUnit(
+                                (float) $data['purchase_quantity'],
+                                isset($data['purchase_total_cost']) && $data['purchase_total_cost'] !== '' ? (float) $data['purchase_total_cost'] : null,
+                            );
+                            $quantity = $converted['quantity'];
+                            $unitCost = $converted['unitCost'];
+                        } else {
+                            $quantity = (float) $data['quantity'];
+                            $unitCost = isset($data['unit_cost']) && $data['unit_cost'] !== '' ? (float) $data['unit_cost'] : null;
+                        }
+
                         try {
                             $record->recordMovement(
                                 $data['type'],
-                                (float) $data['quantity'],
+                                $quantity,
                                 auth()->id(),
                                 $data['note'] ?? null,
                                 $data['received_date'] ?? null,
                                 $data['expiry_date'] ?? null,
-                                isset($data['unit_cost']) && $data['unit_cost'] !== '' ? (float) $data['unit_cost'] : null,
+                                $unitCost,
                             );
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()
@@ -469,7 +536,13 @@ class RawMaterialResource extends Resource
                             return;
                         }
 
-                        Notification::make()->title('Stok dicatat')->success()->send();
+                        Notification::make()
+                            ->title('Stok dicatat')
+                            ->body(! empty($data['use_purchase_unit'])
+                                ? 'Dikonversi jadi ' . number_format($quantity, 2, ',', '.') . ' ' . $record->unit . '.'
+                                : null)
+                            ->success()
+                            ->send();
                     }),
             ])
             ->bulkActions([
