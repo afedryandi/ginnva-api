@@ -28,6 +28,8 @@ class ProductSalesReportExport implements FromArray, WithHeadings, WithStyles
             'Penjualan %',
             'Jumlah Refund',
             'Refund',
+            'HPP',
+            'Laba Kotor',
         ];
     }
 
@@ -44,6 +46,8 @@ class ProductSalesReportExport implements FromArray, WithHeadings, WithStyles
                 round($row['revenuePct'], 1) . '%',
                 $row['refundCount'],
                 $row['refundAmount'],
+                $row['cogs'] . ($row['hasMissingCost'] ? ' *' : ''),
+                $row['grossProfit'],
             ])
             ->values()
             ->all();

@@ -16,6 +16,12 @@
         </div>
     @endif
 
+    @if ($result['hasMissingCost'])
+        <div class="rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+            Sebagian bahan (gulungan film/bahan pendukung) yang dipakai belum diisi harga belinya — HPP & Laba Kotor pada baris bertanda * adalah MINIMUM, bisa lebih rendah dari sebenarnya.
+        </div>
+    @endif
+
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <x-filament::section>
@@ -35,6 +41,16 @@
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Refund</div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-danger-600 dark:text-danger-400">{{ $rupiah($result['totalRefundAmount']) }}</div>
         </x-filament::section>
+
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total HPP</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums text-danger-600 dark:text-danger-400">{{ $rupiah($result['totalCogs']) }}</div>
+        </x-filament::section>
+
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total Laba Kotor (Penjualan − Komisi − Refund − HPP)</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums {{ $result['totalGrossProfit'] < 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}">{{ $rupiah($result['totalGrossProfit']) }}</div>
+        </x-filament::section>
     </div>
 
     {{--
@@ -53,7 +69,6 @@
         <x-slot name="description">
             Diurutkan dari penjualan tertinggi. "Departemen"/"Kategori" ala Majoo tidak ditampilkan —
             katalog Ginnva tidak pakai struktur itu (SKU langsung di bawah Jenis Produk PPF/Kaca Film).
-            Laba Kotor/HPP tidak ditampilkan — masih blocked (butuh HPP, sama seperti laporan Penjualan lain).
         </x-slot>
 
         <div class="overflow-x-auto">
@@ -68,7 +83,9 @@
                         <th class="py-2 pr-3 text-right">Penjualan</th>
                         <th class="py-2 pr-3 text-right">Penjualan %</th>
                         <th class="py-2 pr-3 text-right">Jumlah Refund</th>
-                        <th class="py-2 pl-3 text-right">Refund</th>
+                        <th class="py-2 pr-3 text-right">Refund</th>
+                        <th class="py-2 pr-3 text-right">HPP</th>
+                        <th class="py-2 pl-3 text-right">Laba Kotor</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -82,10 +99,15 @@
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['revenue']) }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ number_format($row['revenuePct'], 1) }}%</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['refundCount'] > 0 ? $row['refundCount'] : '—' }}</td>
-                            <td class="py-2 pl-3 text-right tabular-nums {{ $row['refundAmount'] > 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $row['refundAmount'] > 0 ? '(' . $rupiah($row['refundAmount']) . ')' : '—' }}</td>
+                            <td class="py-2 pr-3 text-right tabular-nums {{ $row['refundAmount'] > 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $row['refundAmount'] > 0 ? '(' . $rupiah($row['refundAmount']) . ')' : '—' }}</td>
+                            <td class="py-2 pr-3 text-right tabular-nums">
+                                {{ $row['cogs'] > 0 ? '(' . $rupiah($row['cogs']) . ')' : '—' }}
+                                @if ($row['hasMissingCost'])<span title="Ada bahan di baris ini belum diisi harga belinya — HPP minimum.">*</span>@endif
+                            </td>
+                            <td class="py-2 pl-3 text-right font-semibold tabular-nums {{ $row['grossProfit'] < 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $rupiah($row['grossProfit']) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada data pada rentang ini.</td></tr>
+                        <tr><td colspan="11" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada data pada rentang ini.</td></tr>
                     @endforelse
                 </tbody>
             </table>

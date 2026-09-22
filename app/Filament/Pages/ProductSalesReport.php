@@ -175,8 +175,17 @@ class ProductSalesReport extends Page implements HasForms
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->with('filmProduct:id,sku,name,product_type')
+            ->with(['filmProduct:id,sku,name,product_type', 'installers:id'])
             ->get(['id', 'transaction_amount', 'film_product_id']);
+
+        // HPP + Komisi per booking (audit Majoo f14, "Laporan
+        // per-layanan lengkap ... + HPP + Laba Kotor") -- "Laba Kotor"
+        // di sini SAMA formula dengan SalesByPeriodReport (Penjualan −
+        // Komisi − Refund − HPP), supaya istilah ini konsisten artinya
+        // di seluruh laporan Penjualan, cuma levelnya per-SKU di sini.
+        // Lihat BookingCogsService untuk rincian & batasan perkiraan HPP.
+        $cogsByBookingId = app(\App\Services\BookingCogsService::class)->forBookings($bookings->pluck('id')->all());
+        $commissionByUserId = \App\Models\Technician::query()->whereNotNull('user_id')->pluck('commission_amount', 'user_id');
 
         $totalRevenue = (float) $bookings->sum('transaction_amount');
         $totalCount = $bookings->count();
@@ -197,9 +206,33 @@ class ProductSalesReport extends Page implements HasForms
             ->map(fn ($group) => ['count' => $group->count(), 'amount' => (float) $group->sum('amount')]);
 
         $rows = $bookings->groupBy('film_product_id')
-            ->map(function ($group, $filmProductId) use ($refundByProductId) {
+            ->map(function ($group, $filmProductId) use ($refundByProductId, $cogsByBookingId, $commissionByUserId) {
                 $filmProduct = $group->first()->filmProduct;
                 $refundRow = $refundByProductId->get($filmProductId ?: null, ['count' => 0, 'amount' => 0.0]);
+
+                $cogs = 0.0;
+                $hasMissingCost = false;
+                $commission = 0.0;
+                $hasUnratedJob = false;
+
+                foreach ($group as $booking) {
+                    $bookingCogs = $cogsByBookingId[$booking->id] ?? ['cost' => 0.0, 'hasMissingCost' => false];
+                    $cogs += $bookingCogs['cost'];
+                    if ($bookingCogs['hasMissingCost']) {
+                        $hasMissingCost = true;
+                    }
+
+                    foreach ($booking->installers as $installer) {
+                        $rate = $commissionByUserId[$installer->id] ?? null;
+                        if ($rate !== null) {
+                            $commission += (float) $rate;
+                        } elseif ($booking->installers->isNotEmpty()) {
+                            $hasUnratedJob = true;
+                        }
+                    }
+                }
+
+                $revenue = (float) $group->sum('transaction_amount');
 
                 return [
                     'product' => $filmProduct,
@@ -214,9 +247,14 @@ class ProductSalesReport extends Page implements HasForms
                         default => '—',
                     },
                     'count' => $group->count(),
-                    'revenue' => (float) $group->sum('transaction_amount'),
+                    'revenue' => $revenue,
                     'refundCount' => $refundRow['count'],
                     'refundAmount' => $refundRow['amount'],
+                    'commission' => $commission,
+                    'hasUnratedJob' => $hasUnratedJob,
+                    'cogs' => $cogs,
+                    'hasMissingCost' => $hasMissingCost,
+                    'grossProfit' => $revenue - $commission - $refundRow['amount'] - $cogs,
                 ];
             })
             ->sortByDesc(fn ($row) => $row['product'] === null ? -1 : $row['revenue']) // "Belum Diisi SKU" selalu di bawah, biar tidak dikira produk terlaris
@@ -251,6 +289,10 @@ class ProductSalesReport extends Page implements HasForms
             'totalRefundAmount' => $totalRefundAmount,
             'unassignedCount' => $unassignedCount,
             'unassignedPct' => $totalCount > 0 ? $unassignedCount / $totalCount * 100 : 0,
+            'totalCogs' => $rows->sum('cogs'),
+            'totalCommission' => $rows->sum('commission'),
+            'totalGrossProfit' => $rows->sum('grossProfit'),
+            'hasMissingCost' => $rows->contains('hasMissingCost', true),
         ];
     }
 }
