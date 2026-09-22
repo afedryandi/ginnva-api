@@ -23,7 +23,10 @@ return new class extends Migration
             $table->decimal('price', 12, 2);
             $table->timestamps();
 
-            $table->unique(['film_product_id', 'customer_group_id']);
+            // Nama index dipendekkan manual -- nama otomatis Laravel
+            // (film_product_group_prices_film_product_id_customer_group_id_unique)
+            // melebihi batas 64 karakter identifier MySQL.
+            $table->unique(['film_product_id', 'customer_group_id'], 'fpgp_product_group_unique');
         });
     }
 
