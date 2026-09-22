@@ -236,6 +236,27 @@ class AdminPanelProvider extends PanelProvider
                     .fi-sidebar-group-label {
                         color: #ffffff !important;
                     }
+                    /* Ronde 8 (2026-09-22, user lapor label grup sub-nav
+                       Cluster nyaris tak kelihat di LIGHT mode saja --
+                       dark mode kebetulan masih kebaca karena background
+                       gelap bawaan Filament). Root cause: sub-navigasi di
+                       dalam Cluster (mis. "Laporan Penjualan" di
+                       PenjualanCluster) dirender Filament dengan struktur
+                       & class BEDA dari sidebar utama --
+                       ".fi-page-sub-navigation-sidebar-ctn" /
+                       ".fi-page-sub-navigation-sidebar" (dikonfirmasi
+                       Inspect Element user), BUKAN ".fi-sidebar-nav".
+                       Rule background di atas TIDAK PERNAH match struktur
+                       ini, tapi rule teks putih (".fi-sidebar-group-label")
+                       tetap match (Filament pakai ulang nama class label
+                       yang sama) -- teks putih di atas background terang
+                       bawaan = tidak kebaca. Fix: background merah brand
+                       yang sama juga diterapkan ke struktur sub-navigasi
+                       Cluster ini. */
+                    .fi-page-sub-navigation-sidebar-ctn,
+                    .fi-page-sub-navigation-sidebar {
+                        background-color: #ED1651 !important;
+                    }
                     .fi-sidebar-item-active {
                         background-color: rgba(255, 255, 255, 0.15) !important;
                     }
