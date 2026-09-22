@@ -61,6 +61,14 @@ class Booking extends Model
     // Stok-Ginnva.docx"): harga customer SUDAH inclusive PPN 11%.
     public const PPN_RATE = 0.11;
 
+    /** Label kanal pembayaran (audit Majoo f3, "Breakdown Metode Pembayaran"). */
+    public const PAYMENT_METHOD_LABELS = [
+        'tunai' => 'Tunai',
+        'transfer' => 'Transfer Bank',
+        'qris' => 'QRIS',
+        'edc' => 'EDC (Kartu Debit/Kredit)',
+    ];
+
     protected $fillable = [
         'booking_number',
         'customer_id',
@@ -100,6 +108,11 @@ class Booking extends Model
         'dpp_amount',
         'ppn_amount',
         'amount_received',
+        // Kanal pembayaran (tunai/transfer/qris/edc) -- diisi saat Proses
+        // Referral bareng nominal, opsional (nullable) supaya booking
+        // lama tidak dipaksa punya nilai. Lihat migrasi
+        // 2026_09_22_000009.
+        'payment_method',
         'partner_id',
         'voucher_claim_id',
         // Promo Per Total Pembelian (potongan flat, diterapkan manual).

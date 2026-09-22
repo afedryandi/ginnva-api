@@ -1144,6 +1144,13 @@ class BookingResource extends Resource
                         // untuk booking yang nominal KOTOR-nya >= ambang.
                         // "Nominal Transaksi" di atas diisi angka NET (sudah
                         // dipotong); sistem cek net + potongan >= minimal.
+                        Forms\Components\Select::make('payment_method')
+                            ->label('Metode Pembayaran')
+                            ->options(Booking::PAYMENT_METHOD_LABELS)
+                            ->default(fn (Booking $record) => $record->payment_method)
+                            ->helperText('Dipakai untuk breakdown metode pembayaran di Dashboard Penjualan.')
+                            ->native(false),
+
                         Forms\Components\Select::make('spend_promo_id')
                             ->label('Promo Total Pembelian (opsional)')
                             ->options(fn () => \App\Models\SpendPromo::running()->orderBy('name')->get()
@@ -1202,6 +1209,7 @@ class BookingResource extends Resource
                                     'referral_code' => $data['referral_code'] ?: null,
                                     'spend_promo_id' => $promoId,
                                     'spend_promo_discount' => $promoId ? $promoDiscount : null,
+                                    'payment_method' => $data['payment_method'] ?: null,
                                 ],
                                 auth()->id()
                             );
@@ -1231,6 +1239,7 @@ class BookingResource extends Resource
                                     'referral_code'       => $data['referral_code'] ?: null,
                                     'spend_promo_id'       => $promoId,
                                     'spend_promo_discount' => $promoId ? $promoDiscount : null,
+                                    'payment_method'       => $data['payment_method'] ?: null,
                                 ]);
 
                                 app(BookingPostingService::class)->sync($record->refresh());

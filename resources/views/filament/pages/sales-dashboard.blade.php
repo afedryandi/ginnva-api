@@ -325,6 +325,7 @@
     <div class="grid grid-cols-1 gap-6">
         @livewire(\App\Filament\Widgets\BookingRevenueTrendChart::class, ['storeId' => $effectiveStoreId], key('sales-dashboard-trend-' . ($effectiveStoreId ?? 'all')))
         @livewire(\App\Filament\Widgets\BookingRevenueByCategoryChart::class, ['storeId' => $effectiveStoreId], key('sales-dashboard-category-' . ($effectiveStoreId ?? 'all')))
+        @livewire(\App\Filament\Widgets\BookingRevenueByPaymentMethodChart::class, ['storeId' => $effectiveStoreId], key('sales-dashboard-payment-method-' . ($effectiveStoreId ?? 'all')))
     </div>
 
     {{--
