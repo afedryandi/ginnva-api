@@ -26,6 +26,19 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'base_salary',
         'contract_end_date',
         'employee_type_id',
+        // Profil HRIS (audit Majoo f54) — data personalia formal,
+        // semua opsional/nullable. Lihat migrasi
+        // 2026_09_22_000020_add_hris_fields_to_users_table.
+        'nik',
+        'npwp',
+        'bpjs_kesehatan_number',
+        'bpjs_ketenagakerjaan_number',
+        'emergency_contact_name',
+        'emergency_contact_phone',
+        'emergency_contact_relationship',
+        'bank_name',
+        'bank_account_number',
+        'bank_account_holder_name',
         'password',
         'store_id',
         'menu_access',
@@ -195,6 +208,11 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     public function financeDashboardWidgets()
     {
         return $this->hasMany(FinanceDashboardWidget::class);
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(EmployeeDocument::class);
     }
 
     /**

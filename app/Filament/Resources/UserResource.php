@@ -447,6 +447,79 @@ class UserResource extends Resource
                         ->helperText('Ulangi password yang sama persis.'),
                 ]),
 
+            // "Profil karyawan HRIS lengkap" (audit Majoo f54), dibangun
+            // 2026-09-22. TERBATAS full-access — data personalia formal
+            // (NIK/NPWP/BPJS/rekening) adalah data sensitif, sama
+            // filosofi dgn komisi/gaji pokok. Semua field opsional,
+            // diisi bertahap.
+            Forms\Components\Section::make('Data Personalia (HRIS)')
+                ->description('Data formal untuk keperluan payroll & kepatuhan (BPJS/pajak) — opsional, diisi bertahap. Hanya bisa diubah full-access.')
+                ->collapsed()
+                ->columns(2)
+                ->schema([
+                    Forms\Components\TextInput::make('nik')
+                        ->label('NIK (KTP)')
+                        ->maxLength(20)
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('npwp')
+                        ->label('NPWP')
+                        ->maxLength(25)
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('bpjs_kesehatan_number')
+                        ->label('No. BPJS Kesehatan')
+                        ->maxLength(20)
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('bpjs_ketenagakerjaan_number')
+                        ->label('No. BPJS Ketenagakerjaan')
+                        ->maxLength(20)
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('emergency_contact_name')
+                        ->label('Nama Kontak Darurat')
+                        ->maxLength(255)
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('emergency_contact_phone')
+                        ->label('No. HP Kontak Darurat')
+                        ->tel()
+                        ->maxLength(255)
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('emergency_contact_relationship')
+                        ->label('Hubungan dgn Kontak Darurat')
+                        ->placeholder('mis. Orang Tua, Pasangan, Saudara')
+                        ->maxLength(255)
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('bank_name')
+                        ->label('Nama Bank (Rekening Gaji)')
+                        ->maxLength(255)
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('bank_account_number')
+                        ->label('No. Rekening')
+                        ->maxLength(255)
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('bank_account_holder_name')
+                        ->label('Nama Pemilik Rekening')
+                        ->maxLength(255)
+                        ->disabled(fn () => ! auth()->user()?->isFullAccess())
+                        ->dehydrated(),
+                ]),
+
             Forms\Components\Section::make('Akses Menu')
                 ->description('Khusus role staff/divisi (bukan Direksi). Kosongkan semua (jangan centang apa pun) supaya user otomatis dapat akses penuh ke semua menu di bawah — cara paling aman kalau belum yakin. Centang menu tertentu untuk MEMBATASI hanya ke menu itu saja.')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
@@ -626,6 +699,13 @@ class UserResource extends Resource
         // sekarang khusus akun internal perusahaan.
         return parent::getEloquentQuery()
             ->whereDoesntHave('roles', fn (Builder $q) => $q->where('name', 'partner'));
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            \App\Filament\Resources\UserResource\RelationManagers\DocumentsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
