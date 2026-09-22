@@ -175,7 +175,7 @@ class TechnicianCommissionReport extends Page implements HasForms
 
         $technicians = Technician::query()
             ->whereNotNull('user_id')
-            ->with('store:id,name')
+            ->with(['store:id,name', 'serviceRates'])
             ->orderBy('name')
             ->get()
             ->map(function (Technician $technician) use ($from, $to) {
@@ -187,22 +187,48 @@ class TechnicianCommissionReport extends Page implements HasForms
                 // masing-masing", BUKAN dibagi) -- jadi total kolom ini
                 // lintas teknisi BISA melebihi total Penjualan sungguhan
                 // kalau ada booking tim (disengaja, bukan bug).
-                $jobsQuery = Booking::query()
+                $jobs = Booking::query()
                     ->whereHas('installers', fn ($q) => $q->where('users.id', $technician->user_id))
                     ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
-                    ->where('transaction_amount', '>', 0);
+                    ->where('transaction_amount', '>', 0)
+                    ->get(['id', 'transaction_amount', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash']);
 
-                $jobCount = (clone $jobsQuery)->count();
-                $salesTotal = (float) (clone $jobsQuery)->sum('transaction_amount');
+                $jobCount = $jobs->count();
+                $salesTotal = (float) $jobs->sum('transaction_amount');
 
-                $rate = $technician->commission_amount !== null ? (float) $technician->commission_amount : null;
+                // "Tarif berbeda per teknisi utk layanan yang sama" (audit
+                // Majoo f34) -- komisi dihitung PER BOOKING lewat
+                // Technician::commissionForBooking(), bukan lagi flat
+                // rate * jumlah job (itu asumsi lama yang tidak berlaku
+                // lagi begitu teknisi punya tarif per-layanan). Booking
+                // yang commissionForBooking()-nya null (tarif belum
+                // lengkap utk jenis layanan itu) TIDAK ikut disumkan,
+                // ditandai hasUnratedJob -- sama filosofi dengan mode flat
+                // lama (BUKAN dihitung Rp 0 yang menyesatkan).
+                $hasUnratedJob = false;
+                $totalCommission = null;
+                foreach ($jobs as $job) {
+                    $commission = $technician->commissionForBooking($job);
+                    if ($commission === null) {
+                        $hasUnratedJob = true;
+
+                        continue;
+                    }
+
+                    $totalCommission = ($totalCommission ?? 0) + $commission;
+                }
+
+                $usesServiceRates = $technician->serviceRates->isNotEmpty();
+                $flatRate = ! $usesServiceRates && $technician->commission_amount !== null ? (float) $technician->commission_amount : null;
 
                 return [
                     'technician' => $technician,
                     'jobCount' => $jobCount,
                     'salesTotal' => $salesTotal,
-                    'rate' => $rate,
-                    'totalCommission' => $rate !== null ? $rate * $jobCount : null,
+                    'usesServiceRates' => $usesServiceRates,
+                    'rate' => $flatRate,
+                    'totalCommission' => $totalCommission,
+                    'hasUnratedJob' => $hasUnratedJob,
                 ];
             })
             ->sortByDesc(fn ($row) => $row['totalCommission'] ?? -1)
@@ -213,7 +239,7 @@ class TechnicianCommissionReport extends Page implements HasForms
             'to' => $to,
             'rows' => $technicians,
             'totalCommission' => $technicians->sum(fn ($row) => $row['totalCommission'] ?? 0),
-            'unratedCount' => $technicians->where('rate', null)->where('jobCount', '>', 0)->count(),
+            'unratedCount' => $technicians->filter(fn ($row) => $row['jobCount'] > 0 && $row['hasUnratedJob'])->count(),
         ];
     }
 }

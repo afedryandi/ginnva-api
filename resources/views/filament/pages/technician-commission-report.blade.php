@@ -27,9 +27,10 @@
     <x-filament::section>
         <x-slot name="heading">Komisi per Teknisi</x-slot>
         <x-slot name="description">
-            Nominal tetap per pekerjaan × jumlah booking (sudah terbayar/tercatat di Jurnal Umum) yang ditugaskan ke teknisi tersebut.
-            Kalau 1 booking dikerjakan >1 teknisi, masing-masing dihitung PENUH (tidak dibagi) — termasuk kolom "Penjualan", jadi
-            totalnya lintas teknisi bisa melebihi total Penjualan sungguhan kalau ada booking tim (disengaja, bukan salah hitung).
+            Teknisi tanpa tarif per-layanan pakai nominal FLAT per pekerjaan. Teknisi yang sudah punya tarif per-layanan (menu Teknisi →
+            "Tarif per Layanan") dihitung per booking — booking dgn beberapa jenis layanan sekaligus (mis. PPF + Detailing) menjumlahkan
+            tarif kedua jenis itu. Kalau 1 booking dikerjakan >1 teknisi, masing-masing dihitung PENUH (tidak dibagi) — termasuk kolom
+            "Penjualan", jadi totalnya lintas teknisi bisa melebihi total Penjualan sungguhan kalau ada booking tim (disengaja).
         </x-slot>
 
         <div class="overflow-x-auto">
@@ -40,7 +41,7 @@
                         <th class="py-2 pr-3">Toko</th>
                         <th class="py-2 pr-3 text-right">Jumlah Pekerjaan</th>
                         <th class="py-2 pr-3 text-right">Penjualan</th>
-                        <th class="py-2 pr-3 text-right">Komisi/Pekerjaan</th>
+                        <th class="py-2 pr-3 text-right">Skema Tarif</th>
                         <th class="py-2 pl-3 text-right">Total Komisi</th>
                     </tr>
                 </thead>
@@ -51,11 +52,13 @@
                             <td class="py-2 pr-3">{{ $row['technician']->store?->name ?? '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['jobCount'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['salesTotal']) }}</td>
-                            @if ($row['rate'] !== null)
-                                <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['rate']) }}</td>
+                            <td class="py-2 pr-3 text-right text-xs text-gray-500 dark:text-gray-400">
+                                {{ $row['usesServiceRates'] ? 'Per Layanan' : ($row['rate'] !== null ? 'Flat ' . $rupiah($row['rate']) . '/job' : 'Belum diatur') }}
+                                @if ($row['hasUnratedJob'])<span title="Ada booking di periode ini dgn jenis layanan yang tarifnya belum diatur — belum ikut disumkan.">*</span>@endif
+                            </td>
+                            @if ($row['totalCommission'] !== null)
                                 <td class="py-2 pl-3 text-right tabular-nums font-medium">{{ $rupiah($row['totalCommission']) }}</td>
                             @else
-                                <td class="py-2 pr-3 text-right italic text-gray-400 dark:text-gray-500">Belum diatur</td>
                                 <td class="py-2 pl-3 text-right italic text-gray-400 dark:text-gray-500">Belum diatur</td>
                             @endif
                         </tr>

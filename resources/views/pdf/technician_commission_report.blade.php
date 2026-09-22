@@ -34,7 +34,7 @@
                 <th>Toko</th>
                 <th>Jumlah Pekerjaan</th>
                 <th>Penjualan</th>
-                <th>Komisi/Pekerjaan</th>
+                <th>Skema Tarif</th>
                 <th>Total Komisi</th>
             </tr>
         </thead>
@@ -45,7 +45,7 @@
                     <td>{{ $row['technician']->store?->name ?? '-' }}</td>
                     <td>{{ number_format($row['jobCount'], 0, ',', '.') }}</td>
                     <td>{{ $rupiah($row['salesTotal']) }}</td>
-                    <td>{{ $row['rate'] !== null ? $rupiah($row['rate']) : 'Belum diatur' }}</td>
+                    <td>{{ $row['usesServiceRates'] ? 'Per Layanan' : ($row['rate'] !== null ? 'Flat ' . $rupiah($row['rate']) . '/job' : 'Belum diatur') }}{{ $row['hasUnratedJob'] ? ' *' : '' }}</td>
                     <td>{{ $row['totalCommission'] !== null ? $rupiah($row['totalCommission']) : 'Belum diatur' }}</td>
                 </tr>
             @endforeach

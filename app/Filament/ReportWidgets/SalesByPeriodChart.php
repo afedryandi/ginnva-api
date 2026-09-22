@@ -88,12 +88,14 @@ class SalesByPeriodChart extends ChartWidget
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['journalEntry:id,entry_date', 'installers:id'])
-            ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf']);
+            ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
 
         // "Laba Kotor" (audit Majoo f7/f8) — SAMA formula dengan
         // SalesByPeriodReport (Penjualan − Komisi − Pengembalian − HPP),
         // supaya garis di grafik ini konsisten dengan tabel di bawahnya.
-        $commissionByUserId = Technician::query()->whereNotNull('user_id')->pluck('commission_amount', 'user_id');
+        // Komisi lewat Technician::commissionForBooking() (audit Majoo
+        // f34, flat ATAU per-jenis-layanan).
+        $technicianByUserId = Technician::query()->whereNotNull('user_id')->with('serviceRates')->get()->keyBy('user_id');
         $cogsByBookingId = app(BookingCogsService::class)->forBookings($bookings->pluck('id')->all());
 
         $buckets = [];
@@ -121,9 +123,10 @@ class SalesByPeriodChart extends ChartWidget
             $buckets[$key]['products'] += ($booking->product_kaca_film ? 1 : 0) + ($booking->product_ppf ? 1 : 0);
 
             foreach ($booking->installers as $installer) {
-                $rate = $commissionByUserId[$installer->id] ?? null;
-                if ($rate !== null) {
-                    $buckets[$key]['commission'] += (float) $rate;
+                $technician = $technicianByUserId->get($installer->id);
+                $commission = $technician?->commissionForBooking($booking);
+                if ($commission !== null) {
+                    $buckets[$key]['commission'] += $commission;
                 }
             }
 

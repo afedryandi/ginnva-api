@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\TechnicianResource\Pages;
+use App\Filament\Resources\TechnicianResource\RelationManagers\ServiceRatesRelationManager;
 use App\Models\Technician;
 use App\Models\User;
 use Filament\Forms;
@@ -161,7 +162,7 @@ class TechnicianResource extends Resource
                         ->numeric()
                         ->minValue(0)
                         ->prefix('Rp')
-                        ->helperText('Nominal tetap yang didapat teknisi ini per booking yang dia kerjakan (bukan persentase). Kalau 1 booking dikerjakan >1 teknisi, masing-masing dapat nominal penuh ini, bukan dibagi. Kosongkan kalau belum ada aturan komisi untuk teknisi ini.')
+                        ->helperText('Nominal tetap yang didapat teknisi ini per booking yang dia kerjakan (bukan persentase). Kalau 1 booking dikerjakan >1 teknisi, masing-masing dapat nominal penuh ini, bukan dibagi. Kosongkan kalau belum ada aturan komisi untuk teknisi ini. DIABAIKAN begitu teknisi ini punya minimal 1 baris di tab "Tarif per Layanan" (setelah disimpan) -- lihat tab itu untuk tarif berbeda per jenis layanan.')
                         ->disabled(fn () => ! auth()->user()?->isFullAccess())
                         ->dehydrated(),
 
@@ -350,6 +351,13 @@ class TechnicianResource extends Resource
     }
 
     protected static ?string $navigationBadgeColor = 'warning';
+
+    public static function getRelations(): array
+    {
+        return [
+            ServiceRatesRelationManager::class,
+        ];
+    }
 
     public static function getPages(): array
     {

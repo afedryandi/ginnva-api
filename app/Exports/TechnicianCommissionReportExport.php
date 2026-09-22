@@ -24,7 +24,7 @@ class TechnicianCommissionReportExport implements FromArray, WithHeadings, WithS
             'Toko',
             'Jumlah Pekerjaan',
             'Penjualan',
-            'Komisi/Pekerjaan',
+            'Skema Tarif',
             'Total Komisi',
         ];
     }
@@ -37,7 +37,7 @@ class TechnicianCommissionReportExport implements FromArray, WithHeadings, WithS
                 $row['technician']->store?->name ?? '-',
                 $row['jobCount'],
                 $row['salesTotal'],
-                $row['rate'] ?? 'Belum diatur',
+                ($row['usesServiceRates'] ? 'Per Layanan' : ($row['rate'] !== null ? 'Flat ' . $row['rate'] . '/job' : 'Belum diatur')) . ($row['hasUnratedJob'] ? ' *' : ''),
                 $row['totalCommission'] ?? 'Belum diatur',
             ])
             ->values()

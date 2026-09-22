@@ -221,18 +221,20 @@ class SalesByPeriodReport extends Page implements HasForms
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['journalEntry:id,entry_date', 'installers:id'])
-            ->get(['id', 'transaction_amount', 'amount_received', 'journal_entry_id', 'product_kaca_film', 'product_ppf']);
+            ->get(['id', 'transaction_amount', 'amount_received', 'journal_entry_id', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
 
-        // commission_amount per user_id teknisi -- dipakai hitung kolom
-        // "Komisi", nominal TETAP per pekerjaan, FULL ke masing-masing
-        // teknisi (bukan dibagi), sama aturan yang dikonfirmasi user di
-        // TechnicianCommissionReport. Teknisi tanpa commission_amount
-        // (NULL) TIDAK ikut disumkan -- ditandai lewat $hasUnratedJob
-        // per bucket supaya angka Komisi tidak menyesatkan seolah sudah
-        // final untuk semua booking.
-        $commissionByUserId = Technician::query()
+        // Teknisi per user_id -- dipakai hitung kolom "Komisi" lewat
+        // Technician::commissionForBooking() (audit Majoo f34: flat ATAU
+        // per-jenis-layanan, tergantung apakah teknisi punya
+        // serviceRates). Booking yang commissionForBooking()-nya null
+        // (belum diatur utk jenis layanan itu) TIDAK ikut disumkan --
+        // ditandai lewat $hasUnratedJob per bucket supaya angka Komisi
+        // tidak menyesatkan seolah sudah final untuk semua booking.
+        $technicianByUserId = Technician::query()
             ->whereNotNull('user_id')
-            ->pluck('commission_amount', 'user_id');
+            ->with('serviceRates')
+            ->get()
+            ->keyBy('user_id');
 
         // HPP per booking (audit Majoo f7, "Kolom Laba Kotor") — film +
         // bahan pendukung, lihat BookingCogsService untuk rincian &
@@ -277,10 +279,11 @@ class SalesByPeriodReport extends Page implements HasForms
             $buckets[$key]['products'] += ($booking->product_kaca_film ? 1 : 0) + ($booking->product_ppf ? 1 : 0);
 
             foreach ($booking->installers as $installer) {
-                $rate = $commissionByUserId[$installer->id] ?? null;
-                if ($rate !== null) {
-                    $buckets[$key]['commission'] += (float) $rate;
-                } elseif ($booking->installers->isNotEmpty()) {
+                $technician = $technicianByUserId->get($installer->id);
+                $commission = $technician?->commissionForBooking($booking);
+                if ($commission !== null) {
+                    $buckets[$key]['commission'] += $commission;
+                } else {
                     $buckets[$key]['hasUnratedJob'] = true;
                 }
             }

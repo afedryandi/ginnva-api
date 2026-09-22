@@ -176,7 +176,7 @@ class ProductSalesReport extends Page implements HasForms
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['filmProduct:id,sku,name,product_type', 'installers:id'])
-            ->get(['id', 'transaction_amount', 'film_product_id']);
+            ->get(['id', 'transaction_amount', 'film_product_id', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash']);
 
         // HPP + Komisi per booking (audit Majoo f14, "Laporan
         // per-layanan lengkap ... + HPP + Laba Kotor") -- "Laba Kotor"
@@ -184,8 +184,10 @@ class ProductSalesReport extends Page implements HasForms
         // Komisi − Refund − HPP), supaya istilah ini konsisten artinya
         // di seluruh laporan Penjualan, cuma levelnya per-SKU di sini.
         // Lihat BookingCogsService untuk rincian & batasan perkiraan HPP.
+        // Komisi dihitung lewat Technician::commissionForBooking() (audit
+        // Majoo f34, flat ATAU per-jenis-layanan).
         $cogsByBookingId = app(\App\Services\BookingCogsService::class)->forBookings($bookings->pluck('id')->all());
-        $commissionByUserId = \App\Models\Technician::query()->whereNotNull('user_id')->pluck('commission_amount', 'user_id');
+        $technicianByUserId = \App\Models\Technician::query()->whereNotNull('user_id')->with('serviceRates')->get()->keyBy('user_id');
 
         $totalRevenue = (float) $bookings->sum('transaction_amount');
         $totalCount = $bookings->count();
@@ -206,7 +208,7 @@ class ProductSalesReport extends Page implements HasForms
             ->map(fn ($group) => ['count' => $group->count(), 'amount' => (float) $group->sum('amount')]);
 
         $rows = $bookings->groupBy('film_product_id')
-            ->map(function ($group, $filmProductId) use ($refundByProductId, $cogsByBookingId, $commissionByUserId) {
+            ->map(function ($group, $filmProductId) use ($refundByProductId, $cogsByBookingId, $technicianByUserId) {
                 $filmProduct = $group->first()->filmProduct;
                 $refundRow = $refundByProductId->get($filmProductId ?: null, ['count' => 0, 'amount' => 0.0]);
 
@@ -223,10 +225,11 @@ class ProductSalesReport extends Page implements HasForms
                     }
 
                     foreach ($booking->installers as $installer) {
-                        $rate = $commissionByUserId[$installer->id] ?? null;
-                        if ($rate !== null) {
-                            $commission += (float) $rate;
-                        } elseif ($booking->installers->isNotEmpty()) {
+                        $technician = $technicianByUserId->get($installer->id);
+                        $bookingCommission = $technician?->commissionForBooking($booking);
+                        if ($bookingCommission !== null) {
+                            $commission += $bookingCommission;
+                        } else {
                             $hasUnratedJob = true;
                         }
                     }
