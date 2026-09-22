@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\StoreResource\Pages;
+use App\Models\Attendance;
 use App\Models\Store;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -101,7 +102,8 @@ class StoreResource extends Resource
                         ->label('Radius Absen (meter)')
                         ->helperText('Jarak maksimum dari lokasi toko ini supaya absen dari app dianggap wajar. Kosongkan untuk pakai default sistem (150 m).')
                         ->numeric()
-                        ->minValue(10),
+                        ->minValue(10)
+                        ->live(onBlur: true),
 
                     Forms\Components\TextInput::make('late_tolerance_minutes')
                         ->label('Toleransi Telat / Bulan (menit)')
@@ -192,11 +194,35 @@ class StoreResource extends Resource
 
                     Forms\Components\TextInput::make('latitude')
                         ->label('Latitude')
-                        ->numeric(),
+                        ->numeric()
+                        ->live(onBlur: true),
 
                     Forms\Components\TextInput::make('longitude')
                         ->label('Longitude')
-                        ->numeric(),
+                        ->numeric()
+                        ->live(onBlur: true),
+
+                    // Pratinjau peta radius absen (audit Majoo vs Ginnva,
+                    // "Radius Absensi diset via peta interaktif") --
+                    // fungsi radius per-toko SUDAH ADA sejak awal
+                    // (attendance_radius_meters di bawah, dipakai
+                    // Attendance::assertWithinRadius()), yang belum cuma
+                    // VISUALISASINYA. Live re-render tiap latitude/
+                    // longitude/attendance_radius_meters berubah (lihat
+                    // ->live() di field-field itu) -- Leaflet+OpenStreetMap
+                    // (gratis, tanpa API key) dimuat dari CDN, marker +
+                    // lingkaran radius digambar ulang tiap render lewat
+                    // Alpine x-init + wire:key acak supaya elemen selalu
+                    // dianggap baru oleh Livewire (script tag mentah tidak
+                    // reliable dieksekusi ulang lewat morphdom).
+                    Forms\Components\Placeholder::make('attendance_radius_map_preview')
+                        ->label('Pratinjau Radius di Peta')
+                        ->columnSpanFull()
+                        ->content(fn (Forms\Get $get) => view('filament.forms.components.attendance-radius-map', [
+                            'lat' => $get('latitude'),
+                            'lng' => $get('longitude'),
+                            'radius' => $get('attendance_radius_meters') ?: Attendance::DEFAULT_RADIUS_METERS,
+                        ])),
 
                     Forms\Components\Toggle::make('is_active')
                         ->label('Aktif (tampil di web publik)')
