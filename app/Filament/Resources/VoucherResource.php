@@ -46,12 +46,20 @@ class VoucherResource extends Resource
      */
     public static function canCreate(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        // hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+        // default FALSE (tetap ketat spt sebelumnya, isFullAccess()-only).
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'create', false));
     }
 
     public static function canEdit($record): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'update', false));
     }
 
     /**
@@ -70,7 +78,12 @@ class VoucherResource extends Resource
      */
     public static function canDelete($record): bool
     {
-        return (auth()->user()?->isFullAccess() ?? false) && $record->claimed_count === 0;
+        $user = auth()->user();
+
+        $allowed = $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+
+        return $allowed && $record->claimed_count === 0;
     }
 
     public static function form(Form $form): Form

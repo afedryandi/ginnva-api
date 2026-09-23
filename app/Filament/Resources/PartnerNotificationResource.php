@@ -51,7 +51,8 @@ class PartnerNotificationResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'view', true);
     }
 
     public static function table(Table $table): Table

@@ -134,6 +134,15 @@ class PayrollResource extends Resource
                     ->money('IDR', locale: 'id')
                     ->color(fn (Payroll $record) => $record->total_deduction > 0 ? 'danger' : 'gray'),
 
+                Tables\Columns\TextColumn::make('total_commission')
+                    ->label('Komisi')
+                    ->money('IDR', locale: 'id')
+                    ->color(fn (Payroll $record) => $record->total_commission > 0 ? 'success' : 'gray')
+                    ->description(fn (Payroll $record) => $record->has_unrated_commission
+                        ? 'Ada job dgn tarif belum diatur, belum ikut disumkan'
+                        : null)
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('net_pay')
                     ->label('Gaji Bersih')
                     ->money('IDR', locale: 'id')

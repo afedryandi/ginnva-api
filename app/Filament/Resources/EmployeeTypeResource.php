@@ -57,27 +57,33 @@ class EmployeeTypeResource extends Resource
 
     public static function canCreate(): bool
     {
-        return static::accessGate();
+        return static::accessGate()
+            && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
     }
 
     public static function canView($record): bool
     {
-        return static::accessGate();
+        return static::accessGate()
+            && (auth()->user()?->hasModuleAction(static::class, 'view', true) ?? false);
     }
 
     public static function canEdit($record): bool
     {
-        return static::accessGate();
+        return static::accessGate()
+            && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
     }
 
     public static function canDelete($record): bool
     {
-        return static::accessGate() && ! $record->users()->exists();
+        return static::accessGate()
+            && ! $record->users()->exists()
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
     }
 
     public static function canDeleteAny(): bool
     {
-        return static::accessGate();
+        return static::accessGate()
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
     }
 
     public static function form(Form $form): Form

@@ -64,7 +64,8 @@ class ScrollCodeResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'view', true);
     }
 
     /**
@@ -77,7 +78,12 @@ class ScrollCodeResource extends Resource
      */
     public static function canDelete($record): bool
     {
-        return (auth()->user()?->isFullAccess() ?? false) && $record->status === 'unallocated';
+        $user = auth()->user();
+
+        $allowed = $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+
+        return $allowed && $record->status === 'unallocated';
     }
 
     /**

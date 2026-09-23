@@ -58,7 +58,8 @@ class MaterialMemoResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'create', true);
     }
 
     public static function canEdit($record): bool
@@ -66,7 +67,8 @@ class MaterialMemoResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'update', true);
     }
 
     public static function getEloquentQuery(): Builder

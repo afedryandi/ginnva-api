@@ -66,8 +66,14 @@ class TechnicianResource extends Resource
     {
         $user = auth()->user();
 
+        // hasModuleAction(..., true) (audit Majoo f64, 2026-09-23) —
+        // default TRUE karena SEBELUMNYA aksi ini sama longgarnya dengan
+        // canViewAny(), supaya tidak ada akun yang diam-diam kehilangan
+        // kemampuan yang sudah biasa mereka pakai; admin baru bisa
+        // MEMPERKETAT lewat "Hak Akses Detail" kalau perlu.
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'create', true);
     }
 
     public static function canView($record): bool
@@ -75,7 +81,8 @@ class TechnicianResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'view', true);
     }
 
     public static function canEdit($record): bool
@@ -83,7 +90,8 @@ class TechnicianResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'update', true);
     }
 
     public static function canDelete($record): bool
@@ -91,7 +99,8 @@ class TechnicianResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'delete', true);
     }
 
     public static function canDeleteAny(): bool
@@ -99,7 +108,8 @@ class TechnicianResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'delete', true);
     }
 
     public static function form(Form $form): Form

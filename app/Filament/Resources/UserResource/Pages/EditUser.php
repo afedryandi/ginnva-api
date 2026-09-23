@@ -28,7 +28,9 @@ class EditUser extends EditRecord
     // menampilkan centang yang benar saat form edit dibuka.
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        return UserResource::splitMenuAccessIntoFields($data);
+        $data = UserResource::splitMenuAccessIntoFields($data);
+
+        return UserResource::splitMenuPermissionsIntoFields($data);
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
@@ -44,7 +46,9 @@ class EditUser extends EditRecord
         $this->record->pendingTransferReason = $data['transfer_reason'] ?? null;
         unset($data['transfer_reason']);
 
-        return UserResource::mergeMenuAccessFields($data);
+        $data = UserResource::mergeMenuAccessFields($data);
+
+        return UserResource::mergeMenuPermissionFields($data);
     }
 
     protected function afterSave(): void

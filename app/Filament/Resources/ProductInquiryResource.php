@@ -69,13 +69,19 @@ class ProductInquiryResource extends Resource
      */
     public static function canEdit($record): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
     }
 
     public static function canDelete($record): bool
     {
-        // Sama seperti Warranty/Quotation — hapus data dibatasi super_admin saja.
-        return auth()->user()?->isFullAccess() ?? false;
+        // Sama seperti Warranty/Quotation — hapus data dibatasi super_admin
+        // saja, KECUALI diberi izin granular eksplisit (audit Majoo f64,
+        // 2026-09-23, default FALSE).
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     public static function form(Form $form): Form

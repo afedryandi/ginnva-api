@@ -53,7 +53,12 @@ class StoreReviewResource extends Resource
     // lain ke resource ini.
     public static function canDelete($record): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        // hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+        // default FALSE (tetap ketat spt sebelumnya, isFullAccess()-only).
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     /**

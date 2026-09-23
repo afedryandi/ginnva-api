@@ -63,7 +63,8 @@ class RewardRedemptionResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'update', true);
     }
 
     public static function form(Form $form): Form

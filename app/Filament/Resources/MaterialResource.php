@@ -48,22 +48,26 @@ class MaterialResource extends Resource
      */
     public static function canCreate(): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
     }
 
     public static function canEdit($record): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
     }
 
     public static function canDelete($record): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
     }
 
     public static function canDeleteAny(): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
     }
 
     public static function form(Form $form): Form

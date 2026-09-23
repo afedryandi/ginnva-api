@@ -43,17 +43,22 @@ class SpendPromoResource extends Resource
 
     public static function canCreate(): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
     }
 
     public static function canEdit($record): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
     }
 
     public static function canDelete($record): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     public static function form(Form $form): Form

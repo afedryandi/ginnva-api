@@ -24,6 +24,8 @@ class Payroll extends Model
         'late_violation_days',
         'alpha_days',
         'alpha_deduction',
+        'total_commission',
+        'has_unrated_commission',
         'deduction_per_violation',
         'total_deduction',
         'net_pay',
@@ -42,6 +44,8 @@ class Payroll extends Model
         'late_violation_days'        => 'integer',
         'alpha_days'                 => 'integer',
         'alpha_deduction'            => 'decimal:2',
+        'total_commission'           => 'decimal:2',
+        'has_unrated_commission'     => 'boolean',
         'deduction_per_violation'    => 'decimal:2',
         'total_deduction'            => 'decimal:2',
         'net_pay'                    => 'decimal:2',
@@ -96,6 +100,18 @@ class Payroll extends Model
      * DISETUJUI (entry_type 'leave') SENGAJA TIDAK memotong apa pun —
      * dianggap tetap dibayar penuh, konsisten dengan Cuti yang memang
      * berbayar menurut UU.
+     *
+     * Komisi teknisi (integrasi 2026-09-23) -- kalau $user punya baris
+     * Technician (Technician::user_id), komisi dari SELURUH booking yang
+     * ditugaskan ke dia (installers()) dengan journal entry di periode
+     * ini DITAMBAHKAN ke net_pay. Aturan hitungnya SAMA PERSIS dengan
+     * Laporan Komisi Teknisi (Technician::commissionForBooking(), sumber
+     * booking whereHas('journalEntry') + transaction_amount > 0) supaya
+     * angkanya konsisten di mana pun ditampilkan. Booking yang tarif
+     * komisinya belum lengkap diatur TIDAK ikut disumkan (ditandai
+     * has_unrated_commission, BUKAN dihitung Rp 0 yang menyesatkan).
+     * Karyawan yang bukan Technician (mis. admin/kasir) -> total_commission
+     * tetap 0, tidak ada query tambahan.
      *
      * Baris yang sudah 'paid' TIDAK bisa di-generate ulang (harus dibatalkan
      * status paid-nya dulu secara manual kalau memang perlu dikoreksi) —
@@ -189,12 +205,35 @@ class Payroll extends Model
             $lateDeduction = $violationDays * $deductionPerViolation;
             $totalDeduction = $alphaDeduction + $lateDeduction;
 
+            $totalCommission = 0.0;
+            $hasUnratedCommission = false;
+
+            $technician = Technician::where('user_id', $user->id)->first();
+            if ($technician) {
+                $jobs = Booking::query()
+                    ->whereHas('installers', fn ($q) => $q->where('users.id', $user->id))
+                    ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$periodStart->toDateString(), $periodEnd->toDateString()]))
+                    ->where('transaction_amount', '>', 0)
+                    ->get(['id', 'transaction_amount', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash']);
+
+                foreach ($jobs as $job) {
+                    $commission = $technician->commissionForBooking($job);
+                    if ($commission === null) {
+                        $hasUnratedCommission = true;
+
+                        continue;
+                    }
+
+                    $totalCommission += $commission;
+                }
+            }
+
             // Potongan tidak boleh bikin gaji bersih negatif — sekadar
             // jaring pengaman tampilan, bukan validasi bisnis; kalau
             // sampai kejadian, itu tetap perlu ditinjau admin lewat kolom
             // total_deduction vs prorated_base_salary yang keduanya tetap
             // tersimpan apa adanya.
-            $netPay = max(0, $proratedBaseSalary - $totalDeduction);
+            $netPay = max(0, $proratedBaseSalary - $totalDeduction + $totalCommission);
 
             $attributes = [
                 'store_id'                 => $user->store_id,
@@ -205,6 +244,8 @@ class Payroll extends Model
                 'late_violation_days'      => $violationDays,
                 'alpha_days'               => $alphaDaysCount,
                 'alpha_deduction'          => $alphaDeduction,
+                'total_commission'         => $totalCommission,
+                'has_unrated_commission'   => $hasUnratedCommission,
                 'deduction_per_violation'  => $deductionPerViolation,
                 'total_deduction'          => $totalDeduction,
                 'net_pay'                  => $netPay,
@@ -227,7 +268,7 @@ class Payroll extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'net_pay', 'total_deduction', 'alpha_days', 'alpha_deduction', 'paid_by'])
+            ->logOnly(['status', 'net_pay', 'total_deduction', 'alpha_days', 'alpha_deduction', 'total_commission', 'paid_by'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('payroll')

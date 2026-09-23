@@ -12,27 +12,30 @@ use RuntimeException;
  * "Dibayar" (bukan saat digenerate — payroll 'draft' bisa direvisi/
  * dihapus, belum jadi fakta keuangan sampai benar-benar dibayar).
  *
- * 2 pola jurnal tergantung ada tidaknya potongan:
- * - TANPA potongan (total_deduction = 0): 2 baris —
+ * Pola jurnal (baris komisi ditambahkan 2026-09-23, integrasi Komisi
+ * Teknisi → Payroll):
+ * - TANPA potongan & TANPA komisi (kasus lama): 2 baris —
  *     Debit 6110 Beban Gaji Pokok = net_pay
  *     Kredit 1101 Kas = net_pay
- * - DENGAN potongan: 3 baris — gaji POKOK (gross, sebelum potongan)
- *   dan potongannya ditampilkan TERPISAH sebagai 2 baris kredit,
+ * - DENGAN potongan dan/atau komisi: gaji POKOK (gross, sebelum
+ *   potongan), komisi, dan potongannya ditampilkan TERPISAH per baris —
  *   bukan langsung dinetkan jadi net_pay di 1 baris — supaya laporan
  *   per-akun tetap bisa lihat "berapa total gaji kotor" vs "berapa
- *   yang dipotong karena telat/alpha" secara terpisah, konsisten
- *   dengan deskripsi akun 6120 di ChartOfAccountSeeder:
+ *   komisi" vs "berapa yang dipotong karena telat/alpha" secara
+ *   terpisah, konsisten dengan deskripsi akun 6120 di ChartOfAccountSeeder:
  *     Debit 6110 Beban Gaji Pokok = prorated_base_salary (gross)
- *     Kredit 6120 Beban Potongan Telat/Alpha = total_deduction
+ *     Debit 5300 Upah Langsung Teknisi = total_commission (kalau > 0)
+ *     Kredit 6120 Beban Potongan Telat/Alpha = total_deduction (kalau > 0)
  *     Kredit 1101 Kas = net_pay
- *   (6110 − 6120 = net_pay, balance terjaga: total debit = total kredit
- *   = prorated_base_salary)
+ *   (total debit = prorated_base_salary + total_commission = total
+ *   kredit = total_deduction + net_pay, balance terjaga)
  */
 class PayrollPostingService
 {
     private const CASH_ACCOUNT_CODE = '1101';
     private const GAJI_POKOK_ACCOUNT_CODE = '6110';
     private const POTONGAN_ACCOUNT_CODE = '6120';
+    private const KOMISI_TEKNISI_ACCOUNT_CODE = '5300';
 
     /**
      * @throws RuntimeException kalau payroll ini sudah pernah diposting
@@ -49,20 +52,31 @@ class PayrollPostingService
         $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
         $gajiPokok = ChartOfAccount::where('code', self::GAJI_POKOK_ACCOUNT_CODE)->first();
         $potongan = ChartOfAccount::where('code', self::POTONGAN_ACCOUNT_CODE)->first();
+        $komisiTeknisi = ChartOfAccount::where('code', self::KOMISI_TEKNISI_ACCOUNT_CODE)->first();
 
-        if (! $cash || ! $gajiPokok || ($payroll->total_deduction > 0 && ! $potongan)) {
-            throw new RuntimeException('Akun Bagan Akun yang dibutuhkan (Kas/Beban Gaji Pokok/Beban Potongan) tidak ditemukan — periksa menu Bagan Akun.');
+        $deduction = (float) $payroll->total_deduction;
+        $commission = (float) $payroll->total_commission;
+
+        if (! $cash || ! $gajiPokok || ($deduction > 0 && ! $potongan) || ($commission > 0 && ! $komisiTeknisi)) {
+            throw new RuntimeException('Akun Bagan Akun yang dibutuhkan (Kas/Beban Gaji Pokok/Beban Potongan/Upah Langsung Teknisi) tidak ditemukan — periksa menu Bagan Akun.');
         }
 
         $netPay = (float) $payroll->net_pay;
-        $deduction = (float) $payroll->total_deduction;
 
-        if ($deduction > 0) {
+        if ($deduction > 0 || $commission > 0) {
             $lines = [
                 ['chart_of_account_id' => $gajiPokok->id, 'debit' => (float) $payroll->prorated_base_salary],
-                ['chart_of_account_id' => $potongan->id, 'credit' => $deduction],
-                ['chart_of_account_id' => $cash->id, 'credit' => $netPay],
             ];
+
+            if ($commission > 0) {
+                $lines[] = ['chart_of_account_id' => $komisiTeknisi->id, 'debit' => $commission];
+            }
+
+            if ($deduction > 0) {
+                $lines[] = ['chart_of_account_id' => $potongan->id, 'credit' => $deduction];
+            }
+
+            $lines[] = ['chart_of_account_id' => $cash->id, 'credit' => $netPay];
         } else {
             $lines = [
                 ['chart_of_account_id' => $gajiPokok->id, 'debit' => $netPay],

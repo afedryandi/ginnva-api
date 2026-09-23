@@ -55,7 +55,8 @@ class AttendanceCorrectionRequestResource extends Resource
 
     public static function canView($record): bool
     {
-        return static::accessGate();
+        return static::accessGate()
+            && (auth()->user()?->hasModuleAction(static::class, 'view', true) ?? false);
     }
 
     public static function canEdit($record): bool

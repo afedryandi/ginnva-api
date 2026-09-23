@@ -56,7 +56,10 @@ class PartnerPointTransactionResource extends Resource
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'create', false));
     }
 
     public static function canEdit($record): bool
@@ -85,7 +88,8 @@ class PartnerPointTransactionResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'view', true);
     }
 
     public static function form(Form $form): Form

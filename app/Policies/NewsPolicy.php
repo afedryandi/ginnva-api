@@ -27,16 +27,21 @@ class NewsPolicy
 
     public function create(User $user): bool
     {
-        return $this->viewAny($user);
+        return $this->viewAny($user)
+            && $user->hasModuleAction(NewsResource::class, 'create', true);
     }
 
     public function update(User $user, News $news): bool
     {
-        return $this->viewAny($user);
+        return $this->viewAny($user)
+            && $user->hasModuleAction(NewsResource::class, 'update', true);
     }
 
+    // hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) — default
+    // FALSE (tetap ketat spt sebelumnya, isFullAccess()-only).
     public function delete(User $user, News $news): bool
     {
-        return $user->isFullAccess();
+        return $user->isFullAccess()
+            || ($user->hasMenuAccess(NewsResource::class) && $user->hasModuleAction(NewsResource::class, 'delete', false));
     }
 }

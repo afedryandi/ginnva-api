@@ -48,7 +48,8 @@ class FinanceCategoryResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'create', true);
     }
 
     public static function canEdit($record): bool
@@ -56,7 +57,8 @@ class FinanceCategoryResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'update', true);
     }
 
     /**
@@ -69,12 +71,14 @@ class FinanceCategoryResource extends Resource
      */
     public static function canDelete($record): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
     }
 
     public static function canDeleteAny(): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
     }
 
     public static function form(Form $form): Form

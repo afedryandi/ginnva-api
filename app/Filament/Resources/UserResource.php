@@ -271,6 +271,72 @@ class UserResource extends Resource
         return $data;
     }
 
+    /**
+     * Aksi granular yang bisa diatur per modul di "Hak Akses Detail"
+     * (audit Majoo f64, 2026-09-23) — lihat User::hasModuleAction().
+     * 'void' cuma relevan utk modul yang benar-benar punya konsep
+     * pembatalan (Booking dkk), tapi SENGAJA ditawarkan di semua modul
+     * (bukan whitelist per-modul) supaya daftar modul di sini tetap 1
+     * sumber kebenaran (menuAccessOptions()) — mencentang Void di modul
+     * yang tidak punya aksi Void sama sekali cuma tidak berefek apa-apa,
+     * bukan bug.
+     */
+    private const MODULE_ACTIONS = [
+        'view' => 'Lihat',
+        'create' => 'Buat',
+        'update' => 'Ubah',
+        'delete' => 'Hapus',
+        'void' => 'Void',
+    ];
+
+    /**
+     * Sama pola dgn menuAccessFieldKey() — field sementara per MODUL
+     * (bukan per grup, lebih detail), digabung balik jadi 1 kolom
+     * `menu_permissions` lewat mergeMenuPermissionFields().
+     */
+    public static function menuPermissionFieldKey(string $moduleKey): string
+    {
+        return 'menu_permissions_' . Str::slug($moduleKey, '_');
+    }
+
+    public static function mergeMenuPermissionFields(array $data): array
+    {
+        $merged = [];
+        foreach (self::menuAccessOptions() as $options) {
+            foreach (array_keys($options) as $moduleKey) {
+                $key = self::menuPermissionFieldKey($moduleKey);
+                $actions = $data[$key] ?? [];
+                unset($data[$key]);
+
+                if (! empty($actions)) {
+                    $merged[$moduleKey] = array_values($actions);
+                }
+            }
+        }
+
+        // Kosong total = NULL (belum pernah diatur granular sama sekali,
+        // lihat default per-aksi di User::hasModuleAction()) — BUKAN
+        // array kosong, supaya beda makna dgn "modul ini sudah diatur
+        // tapi sengaja tidak ada aksi yang diizinkan sama sekali".
+        $data['menu_permissions'] = empty($merged) ? null : $merged;
+
+        return $data;
+    }
+
+    public static function splitMenuPermissionsIntoFields(array $data): array
+    {
+        $selected = $data['menu_permissions'] ?? [];
+
+        foreach (self::menuAccessOptions() as $options) {
+            foreach (array_keys($options) as $moduleKey) {
+                $key = self::menuPermissionFieldKey($moduleKey);
+                $data[$key] = $selected[$moduleKey] ?? [];
+            }
+        }
+
+        return $data;
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -542,6 +608,38 @@ class UserResource extends Resource
                             ->options($options)
                             ->bulkToggleable()
                             ->columns(2)
+                    )->values()->all()
+                ),
+
+            // "Hak Akses Detail" (audit Majoo f64, 2026-09-23) — LEBIH
+            // HALUS dari "Akses Menu" di atas: section itu cuma
+            // menentukan boleh/tidak LIHAT sebuah menu sama sekali,
+            // section ini menentukan APA SAJA yang boleh dilakukan
+            // (Lihat/Buat/Ubah/Hapus/Void) di menu yang sudah bisa
+            // dilihat. Dikelompokkan sama seperti "Akses Menu" (per
+            // Fieldset per modul, bukan grid raksasa 1 tabel) supaya
+            // tetap bisa dibaca meski modulnya banyak. Kosongkan semua =
+            // ikut default per-aksi (lihat User::hasModuleAction()) —
+            // TIDAK otomatis berarti "boleh semua", beda dari "Akses
+            // Menu" di atas, supaya migrasi fitur ini tidak diam-diam
+            // menaikkan hak akses siapa pun (lihat migrasi
+            // 2026_09_23_000002_add_menu_permissions_to_users_table).
+            Forms\Components\Section::make('Hak Akses Detail (Lihat/Buat/Ubah/Hapus/Void)')
+                ->description('Opsional, lebih detail dari "Akses Menu" di atas. Kosongkan modul tertentu untuk memakai perilaku default (Lihat/Buat/Ubah tetap jalan seperti biasa, Hapus & Void TIDAK aktif sampai dicentang eksplisit di sini). Baru berlaku penuh di Resource yang sudah menerapkan pengecekan ini — belum semua modul, mulai dari Booking.')
+                ->collapsed()
+                ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
+                ->schema(
+                    collect(self::menuAccessOptions())->map(
+                        fn (array $options, string $group) => Forms\Components\Fieldset::make($group)
+                            ->schema(
+                                collect($options)->map(
+                                    fn (string $label, string $moduleKey) => Forms\Components\CheckboxList::make(self::menuPermissionFieldKey($moduleKey))
+                                        ->label($label)
+                                        ->options(self::MODULE_ACTIONS)
+                                        ->bulkToggleable()
+                                        ->columns(5)
+                                )->values()->all()
+                            )
                     )->values()->all()
                 ),
         ]);

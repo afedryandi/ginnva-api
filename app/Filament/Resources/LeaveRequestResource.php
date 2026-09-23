@@ -57,7 +57,8 @@ class LeaveRequestResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'create', true);
     }
 
     public static function canEdit($record): bool
@@ -65,13 +66,22 @@ class LeaveRequestResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'update', true);
     }
 
+    /**
+     * hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+     * default FALSE, guard status='pending' TETAP DIPERTAHANKAN.
+     */
     public static function canDelete($record): bool
     {
-        return (auth()->user()?->isFullAccess() ?? false)
-            && $record->status === 'pending';
+        $user = auth()->user();
+
+        $allowed = $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+
+        return $allowed && $record->status === 'pending';
     }
 
     public static function getEloquentQuery(): Builder

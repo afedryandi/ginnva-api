@@ -53,7 +53,12 @@ class ReceivableResource extends Resource
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        // hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+        // sama pola dgn PayableResource, default FALSE (tetap ketat).
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'create', false));
     }
 
     public static function canEdit($record): bool

@@ -72,12 +72,22 @@ class CustomerResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'view', true);
     }
 
+    /**
+     * hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+     * default FALSE karena SEBELUMNYA hardcode isFullAccess()-only,
+     * admin sekarang bisa memberi izin Hapus ke staff tertentu lewat
+     * "Hak Akses Detail" tanpa harus jadi full-access.
+     */
     public static function canDelete($record): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     /**

@@ -13,6 +13,8 @@ class CreateUser extends CreateRecord
     {
         // Password sudah otomatis di-hash lewat cast 'password' => 'hashed'
         // di model User, jadi tidak perlu Hash::make() manual di sini.
-        return UserResource::mergeMenuAccessFields($data);
+        $data = UserResource::mergeMenuAccessFields($data);
+
+        return UserResource::mergeMenuPermissionFields($data);
     }
 }

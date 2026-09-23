@@ -66,22 +66,29 @@ class FilmProductResource extends Resource
      */
     public static function canCreate(): bool
     {
-        return static::canViewAny();
+        // hasModuleAction(..., true) (audit Majoo f64, 2026-09-23) —
+        // default TRUE, sama luasnya dgn canViewAny() spt sebelumnya;
+        // admin baru bisa MEMPERKETAT lewat "Hak Akses Detail" kalau perlu.
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
     }
 
     public static function canEdit($record): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
     }
 
     public static function canDelete($record): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
     }
 
     public static function canDeleteAny(): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
     }
 
     public static function form(Form $form): Form

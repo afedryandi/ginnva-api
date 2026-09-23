@@ -116,18 +116,36 @@ class BookingResource extends Resource
     {
         $user = auth()->user();
 
+        // hasModuleAction('update', default TRUE) — pengecekan granular
+        // (audit Majoo f64, 2026-09-23) ditambahkan DI ATAS pengecekan
+        // lama, bukan pengganti. Default TRUE supaya akun yang belum
+        // pernah diatur di "Hak Akses Detail" TIDAK kehilangan kemampuan
+        // Ubah yang sudah biasa mereka pakai — cuma jadi restriktif kalau
+        // admin secara eksplisit meng-uncheck "Ubah" untuk user itu.
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'update', true);
     }
 
     public static function canDelete($record): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        // hasModuleAction('delete', default FALSE) — SEBELUMNYA cuma
+        // isFullAccess()-only, jadi default-nya HARUS tetap tidak boleh
+        // (bukan default TRUE spt canEdit di atas) supaya migrasi fitur
+        // ini tidak diam-diam memberi kemampuan Hapus baru ke siapa pun
+        // sebelum admin mencentangnya eksplisit di "Hak Akses Detail".
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     public static function canDeleteAny(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     public static function form(Form $form): Form
@@ -1502,13 +1520,16 @@ class BookingResource extends Resource
                     // sbg permission terpisah") -- sebelumnya SIAPA PUN yang
                     // bisa lihat menu Booking bisa membatalkan, tanpa syarat
                     // akses apa pun. Keputusan user 2026-09-22: batasi ke
-                    // store_manager & full-access (super_admin/direksi) saja
-                    // -- staff biasa TIDAK bisa lagi membatalkan booking
-                    // sendiri. Bukan sistem permission granular per-role
-                    // (itu proyek lebih besar, belum diputuskan) -- cuma
-                    // gate role spesifik untuk aksi ini.
+                    // store_manager & full-access (super_admin/direksi) saja.
+                    // Diperluas 2026-09-23 (matriks Hak Akses granular,
+                    // audit f64) -- staff LAIN sekarang BISA diberi izin
+                    // Void juga, TAPI HARUS dicentang eksplisit admin di
+                    // "Hak Akses Detail" (default FALSE, additive di atas
+                    // 2 role yang sudah pasti boleh, bukan pengganti).
                     ->visible(fn (Booking $record) => in_array($record->status, ['pending', 'confirmed'], true)
-                        && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager()))
+                        && (auth()->user()?->isFullAccess()
+                            || auth()->user()?->isStoreManager()
+                            || (auth()->user()?->hasMenuAccess(static::class) && auth()->user()?->hasModuleAction(static::class, 'void', false))))
                     ->requiresConfirmation()
                     ->modalHeading('Batalkan Booking?')
                     ->modalDescription('Booking ini akan ditandai Dibatalkan. Tindakan ini tidak membatalkan otomatis assignment installer/direksi yang sudah tersimpan.')

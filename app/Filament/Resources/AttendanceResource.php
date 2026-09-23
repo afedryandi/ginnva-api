@@ -48,29 +48,46 @@ class AttendanceResource extends Resource
      * seperti sebelumnya (siapa pun dengan akses menu bisa langsung
      * ubah data absensi tanpa jejak approval).
      */
-    private static function canEditDirectly(): bool
+    private static function canEditDirectly(string $action): bool
     {
         $user = auth()->user();
 
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && ($user->isFullAccess() || $user->isStoreManager());
+        if (! ($user?->canAccessStaffArea() && $user->hasMenuAccess(static::class))) {
+            return false;
+        }
+
+        // hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+        // default FALSE (tetap ketat spt sebelumnya) supaya staff biasa
+        // tetap wajib lewat "Ajukan Koreksi"; admin bisa memberi izin
+        // entri/edit LANGSUNG ke staff tertentu lewat "Hak Akses Detail"
+        // tanpa harus menaikkan mereka jadi store_manager/full-access.
+        return $user->isFullAccess() || $user->isStoreManager() || $user->hasModuleAction(static::class, $action, false);
     }
 
     public static function canCreate(): bool
     {
-        return static::canEditDirectly();
+        return static::canEditDirectly('create');
     }
 
     public static function canEdit($record): bool
     {
-        return static::canEditDirectly();
+        return static::canEditDirectly('update');
     }
 
+    /**
+     * hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+     * default FALSE, guard entry_type !== 'clock' TETAP DIPERTAHANKAN
+     * (baris clock-in/out tidak boleh dihapus siapa pun, termasuk yang
+     * diberi izin granular).
+     */
     public static function canDelete($record): bool
     {
-        return (auth()->user()?->isFullAccess() ?? false)
-            && $record->entry_type !== 'clock';
+        $user = auth()->user();
+
+        $allowed = $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+
+        return $allowed && $record->entry_type !== 'clock';
     }
 
     public static function getEloquentQuery(): Builder

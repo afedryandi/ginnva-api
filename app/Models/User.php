@@ -75,6 +75,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'password',
         'store_id',
         'menu_access',
+        'menu_permissions',
         'is_active',
     ];
 
@@ -87,6 +88,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'menu_access' => 'array',
+        'menu_permissions' => 'array',
         'join_date' => 'date',
         'base_salary' => 'decimal:2',
         'contract_end_date' => 'date',
@@ -311,6 +313,53 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     }
 
     /**
+     * Matriks Hak Akses granular per-aksi (audit Majoo f64, 2026-09-23)
+     * — lapisan LEBIH HALUS di ATAS hasMenuAccess(), bukan pengganti.
+     * hasMenuAccess() cuma jawab "boleh lihat resource ini sama sekali
+     * atau tidak"; method ini jawab "kalau boleh lihat, boleh $action
+     * ('view'/'create'/'update'/'delete'/'void') juga atau tidak".
+     *
+     * $defaultWhenUnset menentukan sikap kalau resource ini BELUM PERNAH
+     * diatur granular sama sekali (entah menu_permissions NULL total,
+     * atau resource-nya tidak ada di dalam map) — WAJIB diisi eksplisit
+     * oleh pemanggil per-aksi, BUKAN 1 default global, supaya migrasi
+     * fitur ini tidak diam-diam mengubah hak akses siapa pun:
+     * - Aksi yang SEBELUMNYA sudah otomatis mengikuti hasMenuAccess()
+     *   (view/create/update di kebanyakan Resource) -> panggil dengan
+     *   default TRUE, supaya akun lama tidak kehilangan kemampuan yang
+     *   sudah biasa mereka pakai sebelum fitur ini ada.
+     * - Aksi yang SEBELUMNYA lebih ketat dari sekadar hasMenuAccess()
+     *   (mis. Booking::canDelete() yang cuma isFullAccess()-only, atau
+     *   Void yang memang belum ada sama sekali) -> panggil dengan
+     *   default FALSE, supaya staff biasa TIDAK diam-diam mendapat
+     *   kemampuan baru (hapus/void) cuma karena tabel ini masih kosong
+     *   — harus dicentang eksplisit oleh admin dulu di form User.
+     */
+    public function hasModuleAction(string $resourceClass, string $action, bool $defaultWhenUnset): bool
+    {
+        if ($this->isFullAccess()) {
+            return true;
+        }
+
+        if (! $this->hasMenuAccess($resourceClass)) {
+            return false;
+        }
+
+        if ($this->menu_permissions === null) {
+            return $defaultWhenUnset;
+        }
+
+        $basename = class_basename($resourceClass);
+        $allowed = $this->menu_permissions[$resourceClass] ?? $this->menu_permissions[$basename] ?? null;
+
+        if ($allowed === null) {
+            return $defaultWhenUnset;
+        }
+
+        return in_array($action, $allowed, true);
+    }
+
+    /**
      * Dipakai app mobile staff untuk memutuskan halaman awal setelah
      * login (lihat AuthController::transform()) — installer SELALU true
      * di sini walau canAccessStaffArea()-nya false (installer tidak
@@ -419,8 +468,13 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         // simpan representasi password di log manapun. 'menu_access' SENGAJA
         // dimasukkan — ini perubahan hak akses, salah satu hal paling
         // sensitif yang perlu diaudit (siapa mengubah akses menu siapa).
+        // 'base_salary' ditambahkan 2026-09-23 (audit Majoo f60) — gaji
+        // pokok adalah data HR paling sensitif, sebelumnya perubahannya
+        // (siapa/kapan/dari-berapa-ke-berapa) sama sekali tidak tercatat,
+        // sama pola gap-nya dgn Technician::commission_amount sebelum
+        // diperbaiki (lihat App\Models\Technician).
         return LogOptions::defaults()
-            ->logOnly(['name', 'email', 'store_id', 'menu_access'])
+            ->logOnly(['name', 'email', 'store_id', 'menu_access', 'menu_permissions', 'base_salary'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('user')

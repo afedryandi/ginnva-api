@@ -57,7 +57,12 @@ class PointTransactionResource extends Resource
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        // hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+        // default FALSE (tetap ketat spt sebelumnya, isFullAccess()-only).
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'create', false));
     }
 
     public static function canEdit($record): bool
@@ -87,7 +92,8 @@ class PointTransactionResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'view', true);
     }
 
     public static function form(Form $form): Form

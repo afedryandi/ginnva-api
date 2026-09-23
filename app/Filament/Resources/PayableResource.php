@@ -62,7 +62,14 @@ class PayableResource extends Resource
      */
     public static function canCreate(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        // hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+        // default FALSE (tetap ketat spt sebelumnya, isFullAccess()-only)
+        // supaya tidak ada yang diam-diam bisa mencatat tagihan manual;
+        // admin bisa memberi izin eksplisit lewat "Hak Akses Detail".
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'create', false));
     }
 
     /**

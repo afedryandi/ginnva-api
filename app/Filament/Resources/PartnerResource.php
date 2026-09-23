@@ -51,7 +51,12 @@ class PartnerResource extends Resource
      */
     public static function canCreate(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        // hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+        // default FALSE (tetap ketat spt sebelumnya, isFullAccess()-only).
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'create', false));
     }
 
     /**
@@ -65,7 +70,12 @@ class PartnerResource extends Resource
      */
     public static function canDelete($record): bool
     {
-        return (auth()->user()?->isFullAccess() ?? false) && ! $record->hasHistory();
+        $user = auth()->user();
+
+        $allowed = $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+
+        return $allowed && ! $record->hasHistory();
     }
 
     /**
@@ -82,7 +92,8 @@ class PartnerResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'update', true);
     }
 
     public static function form(Form $form): Form
