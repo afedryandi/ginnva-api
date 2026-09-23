@@ -319,11 +319,24 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
      * atau tidak"; method ini jawab "kalau boleh lihat, boleh $action
      * ('view'/'create'/'update'/'delete'/'void') juga atau tidak".
      *
-     * $defaultWhenUnset menentukan sikap kalau resource ini BELUM PERNAH
-     * diatur granular sama sekali (entah menu_permissions NULL total,
-     * atau resource-nya tidak ada di dalam map) — WAJIB diisi eksplisit
-     * oleh pemanggil per-aksi, BUKAN 1 default global, supaya migrasi
-     * fitur ini tidak diam-diam mengubah hak akses siapa pun:
+     * SETIAP aksi berdiri SENDIRI-SENDIRI (diubah 2026-09-23 dari model
+     * allowlist-per-modul yang lama) — centang di "Hak Akses Detail"
+     * cuma MENAMBAH izin untuk aksi itu spesifik, TIDAK PERNAH
+     * mempengaruhi aksi lain di modul yang sama. Model lama (begitu 1
+     * aksi dicentang, seluruh modul jadi allowlist & aksi lain yang
+     * tidak dicentang otomatis terkunci) ternyata jadi jebakan: admin
+     * yang niatnya cuma menambah izin Hapus tanpa sadar mencabut Lihat/
+     * Buat/Ubah karena lupa ikut mencentangnya. Konsekuensinya:
+     * checklist ini SEKARANG cuma bisa dipakai utk MENAMBAH izin di atas
+     * default, bukan MEMBATASI aksi yang defaultnya sudah boleh — kalau
+     * suatu saat perlu pembatasan per-user itu perlu mekanisme terpisah.
+     *
+     * $defaultWhenUnset menentukan sikap kalau aksi ini TIDAK dicentang
+     * di checklist (menu_permissions NULL total, resource tidak ada di
+     * map, atau ada di map tapi $action-nya tidak dicentang) — WAJIB
+     * diisi eksplisit oleh pemanggil per-aksi, BUKAN 1 default global,
+     * supaya migrasi fitur ini tidak diam-diam mengubah hak akses siapa
+     * pun:
      * - Aksi yang SEBELUMNYA sudah otomatis mengikuti hasMenuAccess()
      *   (view/create/update di kebanyakan Resource) -> panggil dengan
      *   default TRUE, supaya akun lama tidak kehilangan kemampuan yang
@@ -332,7 +345,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
      *   (mis. Booking::canDelete() yang cuma isFullAccess()-only, atau
      *   Void yang memang belum ada sama sekali) -> panggil dengan
      *   default FALSE, supaya staff biasa TIDAK diam-diam mendapat
-     *   kemampuan baru (hapus/void) cuma karena tabel ini masih kosong
+     *   kemampuan baru (hapus/void) cuma karena belum pernah dicentang
      *   — harus dicentang eksplisit oleh admin dulu di form User.
      */
     public function hasModuleAction(string $resourceClass, string $action, bool $defaultWhenUnset): bool
@@ -345,18 +358,15 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
             return false;
         }
 
-        if ($this->menu_permissions === null) {
-            return $defaultWhenUnset;
-        }
-
         $basename = class_basename($resourceClass);
-        $allowed = $this->menu_permissions[$resourceClass] ?? $this->menu_permissions[$basename] ?? null;
+        $menuPermissions = $this->menu_permissions ?? [];
+        $allowed = $menuPermissions[$resourceClass] ?? $menuPermissions[$basename] ?? [];
 
-        if ($allowed === null) {
-            return $defaultWhenUnset;
+        if (in_array($action, $allowed, true)) {
+            return true;
         }
 
-        return in_array($action, $allowed, true);
+        return $defaultWhenUnset;
     }
 
     /**

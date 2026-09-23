@@ -634,13 +634,21 @@ class UserResource extends Resource
             // Toggle; begitu dicentang, checklist Lihat/Buat/Ubah/Hapus/
             // Void modul itu langsung muncul persis di bawahnya
             // (->visible() baca state Toggle via Get, ->live() di Toggle
-            // supaya reaktif). Kosongkan toggle modul tertentu = ikut
-            // default per-aksi (lihat User::hasModuleAction()) — TIDAK
-            // otomatis berarti "boleh semua" utk Hapus/Void, cuma utk
-            // akses lihat-menunya saja (lihat migrasi
-            // 2026_09_23_000002_add_menu_permissions_to_users_table).
+            // supaya reaktif).
+            //
+            // Checklist CRUD ini GRANT-ONLY (diubah 2026-09-23 dari model
+            // allowlist-per-modul, lihat User::hasModuleAction()) — tiap
+            // kotak MENAMBAH izin utk aksi itu spesifik, TIDAK PERNAH
+            // mencabut/membatasi aksi lain yang tidak dicentang. Model
+            // allowlist lama adalah jebakan: admin yang niatnya cuma mau
+            // menambah izin Hapus, tapi lupa ikut mencentang Lihat/Buat/
+            // Ubah, tanpa sadar mencabut ketiganya. Konsekuensinya:
+            // checklist ini SEKARANG TIDAK BISA dipakai utk membatasi
+            // aksi yang defaultnya sudah boleh (mis. "boleh lihat tapi
+            // jangan boleh ubah") — kalau nanti perlu itu, butuh mekanisme
+            // terpisah, bukan checklist yang sama.
             Forms\Components\Section::make('Akses Menu & Hak Akses Detail')
-                ->description('Khusus role staff/divisi (bukan Direksi). Kosongkan semua (jangan centang apa pun) supaya user otomatis dapat akses penuh ke semua menu — cara paling aman kalau belum yakin. Centang modul tertentu untuk MEMBATASI hanya ke modul itu saja, lalu atur Lihat/Buat/Ubah/Hapus/Void yang muncul di bawahnya (opsional — kosongkan untuk perilaku default: Lihat/Buat/Ubah tetap jalan seperti biasa, Hapus & Void TIDAK aktif sampai dicentang eksplisit).')
+                ->description('Khusus role staff/divisi (bukan Direksi). Kosongkan semua (jangan centang apa pun) supaya user otomatis dapat akses penuh ke semua menu — cara paling aman kalau belum yakin. Centang modul tertentu untuk MEMBATASI hanya ke modul itu saja, lalu atur Lihat/Buat/Ubah/Hapus/Void yang muncul di bawahnya kalau perlu MENAMBAH izin (mis. izin Hapus) — setiap kotak berdiri sendiri, TIDAK mencabut aksi lain yang tidak dicentang. Kosongkan checklist CRUD = ikut perilaku default (Lihat/Buat/Ubah tetap jalan seperti biasa, Hapus & Void TIDAK aktif sampai dicentang eksplisit).')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
                 ->columns(2)
                 ->schema(
