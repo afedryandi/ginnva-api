@@ -669,7 +669,7 @@ class UserResource extends Resource
                                             ->label('Hak Akses: ' . $label)
                                             ->options(self::MODULE_ACTIONS)
                                             ->bulkToggleable()
-                                            ->columns(5)
+                                            ->columns(1)
                                             ->visible(fn (Forms\Get $get) => (bool) $get($toggleKey)),
                                         // ->columnSpan(2) (bukan 'full') supaya konsisten dgn grid
                                         // 2-kolom milik Section induk — 2 kolom di 2-kolom = full width.
