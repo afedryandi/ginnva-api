@@ -645,6 +645,7 @@ class UserResource extends Resource
                 ->schema(
                     collect(self::menuAccessOptions())->map(
                         fn (array $options, string $group) => Forms\Components\Section::make($group)
+                            ->columns(2)
                             ->schema(
                                 collect($options)->map(function (string $label, string $moduleKey) {
                                     $toggleKey = self::moduleAccessFieldKey($moduleKey);
@@ -660,7 +661,9 @@ class UserResource extends Resource
                                             ->bulkToggleable()
                                             ->columns(5)
                                             ->visible(fn (Forms\Get $get) => (bool) $get($toggleKey)),
-                                    ])->columnSpanFull();
+                                        // ->columnSpan(2) (bukan 'full') supaya konsisten dgn grid
+                                        // 2-kolom milik Section induk — 2 kolom di 2-kolom = full width.
+                                    ])->columnSpan(fn (Forms\Get $get) => $get($toggleKey) ? 2 : 1);
                                 })->values()->all()
                             )
                             ->collapsed()
