@@ -642,6 +642,7 @@ class UserResource extends Resource
             Forms\Components\Section::make('Akses Menu & Hak Akses Detail')
                 ->description('Khusus role staff/divisi (bukan Direksi). Kosongkan semua (jangan centang apa pun) supaya user otomatis dapat akses penuh ke semua menu — cara paling aman kalau belum yakin. Centang modul tertentu untuk MEMBATASI hanya ke modul itu saja, lalu atur Lihat/Buat/Ubah/Hapus/Void yang muncul di bawahnya (opsional — kosongkan untuk perilaku default: Lihat/Buat/Ubah tetap jalan seperti biasa, Hapus & Void TIDAK aktif sampai dicentang eksplisit).')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
+                ->columns(2)
                 ->schema(
                     collect(self::menuAccessOptions())->map(
                         fn (array $options, string $group) => Forms\Components\Section::make($group)
