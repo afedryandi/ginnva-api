@@ -49,17 +49,29 @@ class InvoiceResource extends Resource
 
     public static function canCreate(): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
     }
 
     public static function canEdit($record): bool
     {
-        return static::canViewAny() && $record->isEditable();
+        return static::canViewAny()
+            && $record->isEditable()
+            && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
     }
 
+    /**
+     * hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+     * default FALSE (tetap ketat spt sebelumnya, isFullAccess()-only).
+     */
     public static function canDelete($record): bool
     {
-        return (auth()->user()?->isFullAccess() ?? false) && $record->status === 'draft';
+        $user = auth()->user();
+
+        $allowed = $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+
+        return $allowed && $record->status === 'draft';
     }
 
     public static function getEloquentQuery(): Builder

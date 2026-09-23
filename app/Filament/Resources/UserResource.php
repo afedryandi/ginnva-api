@@ -94,6 +94,15 @@ class UserResource extends Resource
                 'TechnicianResource' => 'Teknisi',
                 'WarrantyResource' => 'Garansi',
                 'StoreReviewResource' => 'Review Toko',
+                // Invoice/SPK SEBELUMNYA sudah pakai hasMenuAccess() di
+                // canViewAny() masing-masing (siap didelegasikan) tapi
+                // KELUPAAN tidak pernah dimasukkan ke daftar ini — checkbox-
+                // nya tidak pernah muncul di form User, jadi staff mustahil
+                // diberi akses selain lewat isFullAccess(). Ditambahkan
+                // 2026-09-23 (audit Majoo f64, susulan) — bukan keputusan
+                // bisnis baru, cuma menutup celah checklist yang tertinggal.
+                'InvoiceResource' => 'Invoice',
+                'SpkResource' => 'SPK',
             ],
             'Penjualan' => [
                 // Cluster "Produk" di bawah grup top-nav "Penjualan"
@@ -108,6 +117,11 @@ class UserResource extends Resource
                 'FilmProductResource' => 'Daftar Produk',
                 'MasterResepResource' => 'Master Resep',
                 'ProductImportLogResource' => 'Riwayat Impor Produk',
+                // Sama kelupaan dgn Invoice/SPK di grup 'Booking' —
+                // SalesResource ('Detail Penjualan') sudah pakai
+                // hasMenuAccess() di kode tapi belum pernah masuk daftar
+                // ini, ditambahkan 2026-09-23 (audit Majoo f64, susulan).
+                'SalesResource' => 'Detail Penjualan',
             ],
             // Cluster "Inventori" (dulu "Inventaris") sekarang di bawah
             // grup top-nav "Penjualan" (2026-09-10, ikut struktur Majoo)
@@ -125,6 +139,11 @@ class UserResource extends Resource
                 'PurchaseRequestResource' => 'Permohonan Pembelian',
                 'StockCardReport' => 'Daftar Stok (Kartu Stok)',
                 'StockWriteOffResource' => 'Stok Terbuang',
+                // Sama kelupaan dgn Invoice/SPK/Sales — StockOpnameResource
+                // sudah pakai hasMenuAccess() lewat canAccess() tapi belum
+                // pernah masuk daftar ini, ditambahkan 2026-09-23 (audit
+                // Majoo f64, susulan).
+                'StockOpnameResource' => 'Stok Opname',
             ],
             'Karyawan' => [
                 'EmployeeTypeResource' => 'Tipe Karyawan',
@@ -229,26 +248,33 @@ class UserResource extends Resource
     }
 
     /**
-     * CheckboxList tidak bisa dipakai berkali-kali dengan nama field yang
-     * sama (5 grup akan saling menimpa state satu sama lain kalau semua
-     * dinamai 'menu_access') — jadi tiap grup punya field SEMENTARA
-     * sendiri (mis. 'menu_access_penjualan'), lalu digabung jadi satu
-     * kolom `menu_access` beneran lewat mergeMenuAccessFields() di
-     * CreateUser/EditUser, dan dipecah balik lewat splitMenuAccessIntoFields()
-     * saat form dibuka untuk edit.
+     * Toggle per MODUL (bukan lagi 1 CheckboxList per grup) — diubah
+     * 2026-09-23 supaya "Akses Menu" & "Hak Akses Detail" bisa digabung
+     * jadi 1 tampilan (centang modul -> langsung muncul checklist CRUD-
+     * nya di bawah, lihat form() di bawah), bukan 2 section terpisah yang
+     * membingungkan. Tiap modul punya field boolean SEMENTARA sendiri
+     * (mis. 'menu_access_bookingresource'), digabung jadi array
+     * `menu_access` beneran lewat mergeMenuAccessFields() di
+     * CreateUser/EditUser, dipecah balik lewat splitMenuAccessIntoFields().
      */
-    public static function menuAccessFieldKey(string $group): string
+    public static function moduleAccessFieldKey(string $moduleKey): string
     {
-        return 'menu_access_' . Str::slug($group, '_');
+        return 'menu_access_' . Str::slug($moduleKey, '_');
     }
 
     public static function mergeMenuAccessFields(array $data): array
     {
         $merged = [];
-        foreach (array_keys(self::menuAccessOptions()) as $group) {
-            $key = self::menuAccessFieldKey($group);
-            $merged = array_merge($merged, $data[$key] ?? []);
-            unset($data[$key]);
+        foreach (self::menuAccessOptions() as $options) {
+            foreach (array_keys($options) as $moduleKey) {
+                $key = self::moduleAccessFieldKey($moduleKey);
+                $checked = (bool) ($data[$key] ?? false);
+                unset($data[$key]);
+
+                if ($checked) {
+                    $merged[] = $moduleKey;
+                }
+            }
         }
 
         // Tidak ada yang dicentang sama sekali = NULL (akses penuh) —
@@ -263,9 +289,10 @@ class UserResource extends Resource
     {
         $selected = $data['menu_access'] ?? [];
 
-        foreach (self::menuAccessOptions() as $group => $options) {
-            $key = self::menuAccessFieldKey($group);
-            $data[$key] = array_values(array_intersect($selected, array_keys($options)));
+        foreach (self::menuAccessOptions() as $options) {
+            foreach (array_keys($options) as $moduleKey) {
+                $data[self::moduleAccessFieldKey($moduleKey)] = in_array($moduleKey, $selected, true);
+            }
         }
 
         return $data;
@@ -290,8 +317,8 @@ class UserResource extends Resource
     ];
 
     /**
-     * Sama pola dgn menuAccessFieldKey() — field sementara per MODUL
-     * (bukan per grup, lebih detail), digabung balik jadi 1 kolom
+     * Sama pola dgn moduleAccessFieldKey() — field sementara per MODUL,
+     * digabung balik jadi 1 kolom
      * `menu_permissions` lewat mergeMenuPermissionFields().
      */
     public static function menuPermissionFieldKey(string $moduleKey): string
@@ -598,48 +625,45 @@ class UserResource extends Resource
                         ->dehydrated(),
                 ]),
 
-            Forms\Components\Section::make('Akses Menu')
-                ->description('Khusus role staff/divisi (bukan Direksi). Kosongkan semua (jangan centang apa pun) supaya user otomatis dapat akses penuh ke semua menu di bawah — cara paling aman kalau belum yakin. Centang menu tertentu untuk MEMBATASI hanya ke menu itu saja.')
-                ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
-                ->schema(
-                    collect(self::menuAccessOptions())->map(
-                        fn (array $options, string $group) => Forms\Components\CheckboxList::make(self::menuAccessFieldKey($group))
-                            ->label($group)
-                            ->options($options)
-                            ->bulkToggleable()
-                            ->columns(2)
-                    )->values()->all()
-                ),
-
-            // "Hak Akses Detail" (audit Majoo f64, 2026-09-23) — LEBIH
-            // HALUS dari "Akses Menu" di atas: section itu cuma
-            // menentukan boleh/tidak LIHAT sebuah menu sama sekali,
-            // section ini menentukan APA SAJA yang boleh dilakukan
-            // (Lihat/Buat/Ubah/Hapus/Void) di menu yang sudah bisa
-            // dilihat. Dikelompokkan sama seperti "Akses Menu" (per
-            // Fieldset per modul, bukan grid raksasa 1 tabel) supaya
-            // tetap bisa dibaca meski modulnya banyak. Kosongkan semua =
-            // ikut default per-aksi (lihat User::hasModuleAction()) —
-            // TIDAK otomatis berarti "boleh semua", beda dari "Akses
-            // Menu" di atas, supaya migrasi fitur ini tidak diam-diam
-            // menaikkan hak akses siapa pun (lihat migrasi
+            // "Akses Menu" + "Hak Akses Detail" DIGABUNG jadi 1 tampilan
+            // (keputusan user 2026-09-23) — SEBELUMNYA 2 section terpisah
+            // (checklist ringkas "boleh lihat menu ini atau tidak", lalu
+            // section kedua yang menampilkan checklist CRUD utk SEMUA ~40
+            // modul sekaligus, kepanjangan & tidak fokus krn kebanyakan
+            // modulnya belum tentu dicentang). Sekarang tiap modul jadi 1
+            // Toggle; begitu dicentang, checklist Lihat/Buat/Ubah/Hapus/
+            // Void modul itu langsung muncul persis di bawahnya
+            // (->visible() baca state Toggle via Get, ->live() di Toggle
+            // supaya reaktif). Kosongkan toggle modul tertentu = ikut
+            // default per-aksi (lihat User::hasModuleAction()) — TIDAK
+            // otomatis berarti "boleh semua" utk Hapus/Void, cuma utk
+            // akses lihat-menunya saja (lihat migrasi
             // 2026_09_23_000002_add_menu_permissions_to_users_table).
-            Forms\Components\Section::make('Hak Akses Detail (Lihat/Buat/Ubah/Hapus/Void)')
-                ->description('Opsional, lebih detail dari "Akses Menu" di atas. Kosongkan modul tertentu untuk memakai perilaku default (Lihat/Buat/Ubah tetap jalan seperti biasa, Hapus & Void TIDAK aktif sampai dicentang eksplisit di sini). Baru berlaku penuh di Resource yang sudah menerapkan pengecekan ini — belum semua modul, mulai dari Booking.')
-                ->collapsed()
+            Forms\Components\Section::make('Akses Menu & Hak Akses Detail')
+                ->description('Khusus role staff/divisi (bukan Direksi). Kosongkan semua (jangan centang apa pun) supaya user otomatis dapat akses penuh ke semua menu — cara paling aman kalau belum yakin. Centang modul tertentu untuk MEMBATASI hanya ke modul itu saja, lalu atur Lihat/Buat/Ubah/Hapus/Void yang muncul di bawahnya (opsional — kosongkan untuk perilaku default: Lihat/Buat/Ubah tetap jalan seperti biasa, Hapus & Void TIDAK aktif sampai dicentang eksplisit).')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
                 ->schema(
                     collect(self::menuAccessOptions())->map(
-                        fn (array $options, string $group) => Forms\Components\Fieldset::make($group)
+                        fn (array $options, string $group) => Forms\Components\Section::make($group)
                             ->schema(
-                                collect($options)->map(
-                                    fn (string $label, string $moduleKey) => Forms\Components\CheckboxList::make(self::menuPermissionFieldKey($moduleKey))
-                                        ->label($label)
-                                        ->options(self::MODULE_ACTIONS)
-                                        ->bulkToggleable()
-                                        ->columns(5)
-                                )->values()->all()
+                                collect($options)->map(function (string $label, string $moduleKey) {
+                                    $toggleKey = self::moduleAccessFieldKey($moduleKey);
+
+                                    return Forms\Components\Group::make([
+                                        Forms\Components\Toggle::make($toggleKey)
+                                            ->label($label)
+                                            ->live(),
+
+                                        Forms\Components\CheckboxList::make(self::menuPermissionFieldKey($moduleKey))
+                                            ->label('Hak Akses: ' . $label)
+                                            ->options(self::MODULE_ACTIONS)
+                                            ->bulkToggleable()
+                                            ->columns(5)
+                                            ->visible(fn (Forms\Get $get) => (bool) $get($toggleKey)),
+                                    ])->columnSpanFull();
+                                })->values()->all()
                             )
+                            ->collapsed()
                     )->values()->all()
                 ),
         ]);

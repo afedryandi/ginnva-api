@@ -46,12 +46,20 @@ class SpkResource extends Resource
 
     public static function canCreate(): bool
     {
-        return static::canViewAny();
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
     }
 
+    /**
+     * hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
+     * default FALSE (tetap ketat spt sebelumnya, isFullAccess()-only).
+     */
     public static function canDelete($record): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     public static function getEloquentQuery(): Builder
