@@ -671,9 +671,11 @@ class UserResource extends Resource
                                             ->bulkToggleable()
                                             ->columns(1)
                                             ->visible(fn (Forms\Get $get) => (bool) $get($toggleKey)),
-                                        // ->columnSpan(2) (bukan 'full') supaya konsisten dgn grid
-                                        // 2-kolom milik Section induk — 2 kolom di 2-kolom = full width.
-                                    ])->columnSpan(fn (Forms\Get $get) => $get($toggleKey) ? 2 : 1);
+                                        // TETAP 1 kolom walau CRUD-nya aktif (checklist-nya sendiri
+                                        // sudah ditumpuk vertikal, tidak butuh lebar penuh) — supaya
+                                        // modul di sebelahnya (kolom 2 grid ini, mis. "Booking
+                                        // Instalasi") tidak ikut turun posisinya saat modul ini expand.
+                                    ])->columnSpan(1);
                                 })->values()->all()
                             )
                             ->collapsed()
