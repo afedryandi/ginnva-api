@@ -364,6 +364,52 @@ class UserResource extends Resource
         return $data;
     }
 
+    /**
+     * Bagi $items jadi 2 TUMPUKAN independen (bukan berpasangan per
+     * baris) — ditambahkan 2026-09-23 karena grid biasa (->columns(2)
+     * + auto-placement) memaksa baris berikutnya nunggu baris tertinggi
+     * kelar dulu utk KEDUA kolom, jadi begitu 1 modul di-expand (checklist
+     * CRUD-nya muncul), modul-modul SETELAHNYA di kolom manapun ikut
+     * turun mengikuti tinggi modul yang expand itu — bukan cuma modul di
+     * kolom yang sama. Dengan membagi rata jadi 2 Group terpisah (separuh
+     * pertama vs separuh kedua, masing-masing 1 kolom penuh), tiap Group
+     * menumpuk sendiri secara independen — modul di Group lain tidak
+     * pernah ikut bergeser walau modul di Group ini expand.
+     */
+    private static function twoColumnStacks(array $items, \Closure $render): array
+    {
+        $rendered = collect($items)->map($render)->values()->all();
+
+        if (count($rendered) < 2) {
+            return $rendered;
+        }
+
+        $half = (int) ceil(count($rendered) / 2);
+
+        return [
+            Forms\Components\Group::make(array_slice($rendered, 0, $half))->columnSpan(1),
+            Forms\Components\Group::make(array_slice($rendered, $half))->columnSpan(1),
+        ];
+    }
+
+    private static function moduleAccessGroup(string $label, string $moduleKey): Forms\Components\Group
+    {
+        $toggleKey = self::moduleAccessFieldKey($moduleKey);
+
+        return Forms\Components\Group::make([
+            Forms\Components\Toggle::make($toggleKey)
+                ->label($label)
+                ->live(),
+
+            Forms\Components\CheckboxList::make(self::menuPermissionFieldKey($moduleKey))
+                ->label('Hak Akses: ' . $label)
+                ->options(self::MODULE_ACTIONS)
+                ->bulkToggleable()
+                ->columns(1)
+                ->visible(fn (Forms\Get $get) => (bool) $get($toggleKey)),
+        ]);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -652,34 +698,19 @@ class UserResource extends Resource
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
                 ->columns(2)
                 ->schema(
-                    collect(self::menuAccessOptions())->map(
+                    self::twoColumnStacks(
+                        self::menuAccessOptions(),
                         fn (array $options, string $group) => Forms\Components\Section::make($group)
                             ->columnSpan(1)
                             ->columns(2)
                             ->schema(
-                                collect($options)->map(function (string $label, string $moduleKey) {
-                                    $toggleKey = self::moduleAccessFieldKey($moduleKey);
-
-                                    return Forms\Components\Group::make([
-                                        Forms\Components\Toggle::make($toggleKey)
-                                            ->label($label)
-                                            ->live(),
-
-                                        Forms\Components\CheckboxList::make(self::menuPermissionFieldKey($moduleKey))
-                                            ->label('Hak Akses: ' . $label)
-                                            ->options(self::MODULE_ACTIONS)
-                                            ->bulkToggleable()
-                                            ->columns(1)
-                                            ->visible(fn (Forms\Get $get) => (bool) $get($toggleKey)),
-                                        // TETAP 1 kolom walau CRUD-nya aktif (checklist-nya sendiri
-                                        // sudah ditumpuk vertikal, tidak butuh lebar penuh) — supaya
-                                        // modul di sebelahnya (kolom 2 grid ini, mis. "Booking
-                                        // Instalasi") tidak ikut turun posisinya saat modul ini expand.
-                                    ])->columnSpan(1);
-                                })->values()->all()
+                                self::twoColumnStacks(
+                                    $options,
+                                    fn (string $label, string $moduleKey) => static::moduleAccessGroup($label, $moduleKey)
+                                )
                             )
                             ->collapsed()
-                    )->values()->all()
+                    )
                 ),
         ]);
     }
