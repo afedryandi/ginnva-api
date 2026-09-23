@@ -646,6 +646,7 @@ class UserResource extends Resource
                 ->schema(
                     collect(self::menuAccessOptions())->map(
                         fn (array $options, string $group) => Forms\Components\Section::make($group)
+                            ->columnSpan(1)
                             ->columns(2)
                             ->schema(
                                 collect($options)->map(function (string $label, string $moduleKey) {
