@@ -2,11 +2,13 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\FinanceReportExport;
 use App\Models\ChartOfAccount;
 use App\Models\FinanceDashboardWidget;
 use App\Models\FinanceTransaction;
 use App\Models\Store;
 use App\Services\FinancialStatementService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -16,6 +18,7 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Laporan Keuangan" — ringkasan bulanan (total Pemasukan/Pengeluaran/
@@ -124,18 +127,58 @@ class FinanceReport extends Page implements HasForms
     }
 
     /**
-     * "Tambah Widget" (audit Majoo f46) — TERBATAS full-access, sama
-     * filosofi ChartOfAccountResource/JournalEntryResource: saldo akun
-     * COA individual (mis. rekening bank spesifik) adalah data kontrol
-     * finansial perusahaan, bukan operasional harian toko.
+     * Bungkus getTotals()/getBreakdown()/getPinnedAccountBalances() jadi
+     * 1 array untuk export -- method-method itu sendiri TIDAK diubah
+     * supaya tidak menyentuh blade view yang sudah ada.
      */
+    private function getResult(): array
+    {
+        $breakdown = $this->getBreakdown();
+
+        return [
+            'month' => $this->selectedMonth(),
+            'totals' => $this->getTotals(),
+            'income' => $breakdown->where('type', 'in')->values(),
+            'expense' => $breakdown->where('type', 'out')->values(),
+            'pinnedAccounts' => $this->getPinnedAccountBalances(),
+        ];
+    }
+
     protected function getHeaderActions(): array
     {
+        $exportActions = [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new FinanceReportExport($this->getResult()),
+                    'laporan-keuangan-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.finance_report', ['result' => $result])->setPaper('a4', 'portrait');
+                    $filename = 'laporan-keuangan-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
+
         if (! (auth()->user()?->isFullAccess() ?? false)) {
-            return [];
+            return $exportActions;
         }
 
         return [
+            ...$exportActions,
+            // "Tambah Widget" (audit Majoo f46) — TERBATAS full-access, sama
+            // filosofi ChartOfAccountResource/JournalEntryResource: saldo akun
+            // COA individual (mis. rekening bank spesifik) adalah data kontrol
+            // finansial perusahaan, bukan operasional harian toko.
             Action::make('manageWidgets')
                 ->label('Kelola Widget')
                 ->icon('heroicon-o-squares-plus')

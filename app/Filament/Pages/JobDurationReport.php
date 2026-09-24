@@ -2,8 +2,11 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\JobDurationExport;
 use App\Models\Store;
 use App\Services\JobDurationService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -13,6 +16,7 @@ use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Url;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Laporan Proses Order" — audit Majoo f12 ("laporan durasi pengerjaan
@@ -132,5 +136,45 @@ class JobDurationReport extends Page implements HasForms
             Carbon::parse($this->to)->endOfDay(),
             $storeId,
         );
+    }
+
+    /**
+     * Bungkus getJobs() + rentang tanggal jadi 1 array untuk export --
+     * getJobs() sendiri sudah dipakai blade (return Collection polos),
+     * jadi TIDAK diubah supaya tidak menyentuh view yang sudah ada.
+     */
+    private function getResult(): array
+    {
+        return [
+            'from' => Carbon::parse($this->from)->startOfDay(),
+            'to' => Carbon::parse($this->to)->endOfDay(),
+            'jobs' => $this->getJobs(),
+        ];
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new JobDurationExport($this->getResult()),
+                    'laporan-proses-order-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.job_duration_report', ['result' => $result])->setPaper('a4', 'landscape');
+                    $filename = 'laporan-proses-order-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
     }
 }

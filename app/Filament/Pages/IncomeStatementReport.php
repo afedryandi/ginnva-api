@@ -2,8 +2,11 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\IncomeStatementExport;
 use App\Models\Store;
 use App\Services\FinancialStatementService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -11,6 +14,7 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Laporan Laba Rugi — untuk 1 RENTANG periode (beda dari Neraca Saldo
@@ -77,6 +81,32 @@ class IncomeStatementReport extends Page implements HasForms
             ])
             ->statePath('data')
             ->columns(3);
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new IncomeStatementExport($this->getResult()),
+                    'laporan-laba-rugi-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.income_statement_report', ['result' => $result])->setPaper('a4', 'portrait');
+                    $filename = 'laporan-laba-rugi-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
     }
 
     public function getResult(): array

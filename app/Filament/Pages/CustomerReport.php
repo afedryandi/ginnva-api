@@ -2,13 +2,17 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\CustomerReportExport;
 use App\Models\Customer;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Laporan Pelanggan" — diminta 2026-09-08, analog "Laporan Pelanggan"
@@ -73,6 +77,36 @@ class CustomerReport extends Page implements HasForms
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
         ])->columns(2)->statePath('data');
+    }
+
+    /**
+     * "Ekspor Laporan" -- pola sama laporan Penjualan lain (SalesSummaryReport/
+     * VoidReport).
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new CustomerReportExport($this->getResult()),
+                    'laporan-pelanggan-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.customer_report', ['result' => $result])->setPaper('a4', 'portrait');
+                    $filename = 'laporan-pelanggan-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
     }
 
     public function getResult(): array
@@ -157,6 +191,12 @@ class CustomerReport extends Page implements HasForms
             ->count();
 
         return [
+            // 'from'/'to' ditambahkan untuk header periode di file
+            // Export/PDF (sama pola dengan laporan Keuangan) -- halaman
+            // web sendiri tidak menampilkan rentang tanggal literal di
+            // luar form, tapi file export perlu 1 array self-contained.
+            'from' => $from,
+            'to' => $to,
             'newCustomers' => $newCustomers,
             'repeatCount' => $repeatCount,
             'topCustomers' => $topCustomers,

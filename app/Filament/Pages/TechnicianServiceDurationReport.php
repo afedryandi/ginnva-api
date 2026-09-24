@@ -2,8 +2,11 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\TechnicianServiceDurationExport;
 use App\Models\Store;
 use App\Services\TechnicianServiceDurationService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -13,6 +16,7 @@ use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Url;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * "Akumulasi Durasi Servis Teknisi" — temuan PRIORITAS TINGGI dari
@@ -130,5 +134,45 @@ class TechnicianServiceDurationReport extends Page implements HasForms
             Carbon::parse($this->to)->endOfDay(),
             $storeId,
         );
+    }
+
+    /**
+     * Bungkus getRows() + rentang tanggal jadi satu array supaya Export/PDF
+     * bisa dibangun dari SATU sumber yang sama dengan yang tampil di layar
+     * (pola sama dengan laporan Penjualan — lihat SalesSummaryReport).
+     */
+    protected function getResult(): array
+    {
+        return [
+            'from' => Carbon::parse($this->from),
+            'to' => Carbon::parse($this->to),
+            'rows' => $this->getRows(),
+        ];
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new TechnicianServiceDurationExport($this->getResult()),
+                    'durasi-servis-teknisi-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.technician_service_duration_report', ['result' => $result])->setPaper('a4', 'portrait');
+                    $filename = 'durasi-servis-teknisi-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
     }
 }

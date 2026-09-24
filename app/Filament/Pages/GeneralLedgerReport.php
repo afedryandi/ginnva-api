@@ -2,16 +2,21 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\GeneralLedgerExport;
 use App\Models\ChartOfAccount;
 use App\Models\Store;
 use App\Services\FinancialStatementService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Buku Besar — rincian TIAP baris jurnal yang menyentuh 1 akun terpilih
@@ -93,6 +98,53 @@ class GeneralLedgerReport extends Page implements HasForms
             ->columns(3);
     }
 
+    /**
+     * "Ekspor Laporan" -- pola sama laporan Penjualan/Keuangan lain.
+     * getResult() bisa null kalau belum pilih akun (lihat form()) --
+     * di-guard dengan notifikasi gagal, BUKAN dibiarkan lempar error ke
+     * Excel::download()/Pdf::loadView() dengan null.
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    if (! $result) {
+                        Notification::make()->title('Pilih akun dulu untuk export.')->danger()->send();
+
+                        return;
+                    }
+
+                    return Excel::download(
+                        new GeneralLedgerExport($result),
+                        'buku-besar-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    if (! $result) {
+                        Notification::make()->title('Pilih akun dulu untuk export.')->danger()->send();
+
+                        return;
+                    }
+
+                    $pdf = Pdf::loadView('pdf.general_ledger_report', ['result' => $result])->setPaper('a4', 'landscape');
+                    $filename = 'buku-besar-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
+    }
+
     public function getResult(): ?array
     {
         $accountId = $this->data['chart_of_account_id'] ?? null;
@@ -109,6 +161,15 @@ class GeneralLedgerReport extends Page implements HasForms
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
         $storeId = $this->data['store_id'] ?? null;
 
-        return app(FinancialStatementService::class)->generalLedger($account, $from, $to, $storeId);
+        $result = app(FinancialStatementService::class)->generalLedger($account, $from, $to, $storeId);
+
+        // 'from'/'to' ditambahkan di sini untuk header periode di file
+        // Export/PDF (sama pola dengan CashFlowReport) -- generalLedger()
+        // sendiri tidak butuh tahu rentang tanggal sebagai output, cuma
+        // sebagai filter query.
+        $result['from'] = $from;
+        $result['to'] = $to;
+
+        return $result;
     }
 }

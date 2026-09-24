@@ -2,8 +2,11 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\CashFlowExport;
 use App\Models\Store;
 use App\Services\FinancialStatementService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -11,6 +14,7 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Laporan Arus Kas — metode LANGSUNG (direct method), dikelompokkan
@@ -81,12 +85,55 @@ class CashFlowReport extends Page implements HasForms
             ->columns(3);
     }
 
+    /**
+     * "Ekspor Laporan" -- pola sama laporan Penjualan (SalesSummaryReport/
+     * VoidReport), Excel & PDF dibangun dari getResult() yang sama persis
+     * dipakai halaman web. Landscape (bukan portrait seperti Ringkasan
+     * Penjualan) karena tiap section bisa punya banyak baris transaksi
+     * per kategori arus kas.
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(fn () => Excel::download(
+                    new CashFlowExport($this->getResult()),
+                    'laporan-arus-kas-' . now()->format('Ymd-His') . '.xlsx'
+                )),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $result = $this->getResult();
+                    $pdf = Pdf::loadView('pdf.cash_flow_report', ['result' => $result])->setPaper('a4', 'landscape');
+                    $filename = 'laporan-arus-kas-' . now()->format('Ymd-His') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+        ];
+    }
+
     public function getResult(): array
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
         $storeId = $this->data['store_id'] ?? null;
 
-        return app(FinancialStatementService::class)->cashFlowStatement($from, $to, $storeId);
+        $result = app(FinancialStatementService::class)->cashFlowStatement($from, $to, $storeId);
+
+        // 'from'/'to' ditambahkan di sini (BUKAN dari cashFlowStatement())
+        // khusus untuk header periode di file Export -- halaman web sudah
+        // punya $this->data['from']/['to'] sendiri lewat form, jadi tidak
+        // butuh field ini untuk render, tapi Export/PDF butuh 1 sumber
+        // array yang self-contained.
+        $result['from'] = $from;
+        $result['to'] = $to;
+
+        return $result;
     }
 }
