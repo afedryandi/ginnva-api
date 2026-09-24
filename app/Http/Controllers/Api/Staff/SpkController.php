@@ -176,12 +176,23 @@ class SpkController extends Controller
 
         $data = $this->extractSpkData($request);
 
-        $spk = app(SpkService::class)->update(
-            $spk,
-            $data,
-            $request->input('checklist_items', []),
-            $request->has('damage_marks') ? $request->input('damage_marks', []) : null
-        );
+        try {
+            $spk = app(SpkService::class)->update(
+                $spk,
+                $data,
+                $request->input('checklist_items', []),
+                $request->has('damage_marks') ? $request->input('damage_marks', []) : null
+            );
+        } catch (RuntimeException $e) {
+            // Ditambahkan bareng gate tracks_batch (f28, 2026-09-24) --
+            // SEBELUMNYA update() di sini tidak pernah bisa melempar
+            // RuntimeException (SpkService::update() cuma bisa gagal
+            // lewat store()/create() dulu), jadi try/catch ini memang
+            // belum ada. Tanpa ini, staff yang coba selesaikan SPK lewat
+            // app mobile tanpa Catat Pemakaian dulu akan dapat 500 error
+            // mentah, bukan pesan yang jelas.
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
 
         return response()->json([
             'success' => true,

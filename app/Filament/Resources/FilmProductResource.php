@@ -144,6 +144,17 @@ class FilmProductResource extends Resource
                     Forms\Components\Toggle::make('is_active')
                         ->label('Aktif (tampil di pilihan quotation)')
                         ->default(true),
+
+                    // f28 — opt-in per produk (default false, tidak
+                    // mengubah perilaku produk yang sudah ada). Kalau
+                    // aktif, SPK booking yang memakai produk ini TIDAK
+                    // bisa ditandai selesai (checked_out_at) sebelum ada
+                    // minimal 1 "Catat Pemakaian" roll yang tertaut ke
+                    // booking itu — lihat SpkService::assertBatchTrackingSatisfied().
+                    Forms\Components\Toggle::make('tracks_batch')
+                        ->label('Wajib Lacak Roll (Batch Number)')
+                        ->helperText('Kalau aktif: SPK booking yang memakai produk ini tidak bisa ditandai selesai sebelum staff mencatat roll gulungan yang dipakai (menu Kode Gulungan/Inventaris → Catat Pemakaian) untuk booking tersebut.')
+                        ->default(false),
                 ]),
 
             // Matriks harga per ukuran kendaraan (film_product_prices).

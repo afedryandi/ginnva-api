@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Spk;
+use App\Models\ScrollCodeUsage;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -17,6 +18,14 @@ class SpkService
      * @param  array{store_id:int, booking_id:int, customer_name:string, phone_number:?string, address:?string, vehicle_plate:?string, vehicle_vin:?string, vehicle_brand:?string, vehicle_year:?string, vehicle_type:?string, vehicle_km:?int, fuel_level:?string, battery_note:?string, checked_in_at:?string, checked_out_at:?string, notes:?string}  $data
      * @param  array<int, array{category:string, label:string, is_checked:bool}>  $checklistItems
      * @param  ?array<int, array{x_percent:float, y_percent:float, code:string, note:?string}>  $damageMarks  null = tidak disentuh (lihat catatan di syncDamageMarks)
+     *
+     * f28 SENGAJA tidak dicek di sini: alur nyata di lapangan (createFromBooking(),
+     * form Filament CreateSpk, dan endpoint mobile POST .../spks) selalu bikin SPK
+     * BARU pada saat checked-in -- checked_out_at belum pernah terisi di titik ini,
+     * "SPK ditandai selesai" baru terjadi belakangan lewat update(). Kalaupun ada
+     * yang nekat mengirim checked_out_at langsung saat create, tidak ada kerugian
+     * traceability nyata (SPK itu sendiri baru lahir, belum ada histori apa pun
+     * untuk diaudit) -- jadi gate cukup di update() saja.
      */
     public function create(array $data, array $checklistItems, ?int $createdBy, ?array $damageMarks = null): Spk
     {
@@ -39,8 +48,18 @@ class SpkService
      * @param  array<int, array{category:string, label:string, is_checked:bool}>  $checklistItems
      * @param  ?array<int, array{x_percent:float, y_percent:float, code:string, note:?string}>  $damageMarks  null = tidak disentuh (lihat catatan di syncDamageMarks)
      */
+    /**
+     * @throws RuntimeException lihat assertBatchTrackingSatisfied() -- SPK
+     *         belum boleh ditandai selesai kalau produk booking-nya wajib
+     *         lacak roll (f28) tapi belum ada pemakaian roll tercatat.
+     */
     public function update(Spk $spk, array $data, array $checklistItems, ?array $damageMarks = null): Spk
     {
+        // Dicek DI LUAR transaction (murni SELECT, tidak ada write yang
+        // perlu di-rollback kalau gagal) supaya pesan errornya keluar
+        // secepat mungkin sebelum SPK & checklist-nya disentuh sama sekali.
+        $this->assertBatchTrackingSatisfied($spk, $data);
+
         return DB::transaction(function () use ($spk, $data, $checklistItems, $damageMarks) {
             $spk->update($data);
 
@@ -49,6 +68,57 @@ class SpkService
 
             return $spk->fresh(['checklistItems', 'damageMarks']);
         });
+    }
+
+    /**
+     * f28 "Toggle Batch Number PER PRODUK" -- traceability gap: staff bisa
+     * menandai SPK selesai (checked_out_at) tanpa pernah mencatat roll mana
+     * yang dipakai (ScrollCode::recordUsage() sepenuhnya independen dari
+     * siklus SPK), jadi kalau ada recall roll cacat, booking yang lupa
+     * dicatat tidak akan muncul di ScrollCode::usages()/warranties().
+     *
+     * Cek ini SENGAJA cuma jalan pas transisi checked_out_at null -> terisi
+     * (momen "SPK ditandai selesai" yang sebenarnya) -- bukan tiap kali SPK
+     * yang SUDAH selesai diedit ulang (mis. staff perbaiki typo catatan),
+     * supaya tidak memblokir edit yang tidak relevan sama sekali dengan
+     * pertanyaan "roll sudah dicatat atau belum".
+     *
+     * Sengaja ditaruh di SpkService (bukan diulang di EditSpk.php DAN
+     * SpkController.php) karena keduanya funnel ke method update() yang
+     * sama ini -- taruh sekali di sini otomatis berlaku utk kedua jalur.
+     */
+    private function assertBatchTrackingSatisfied(Spk $spk, array $data): void
+    {
+        $isCompleting = $spk->checked_out_at === null && ! empty($data['checked_out_at'] ?? null);
+
+        if (! $isCompleting) {
+            return;
+        }
+
+        $booking = $spk->booking;
+
+        if (! $booking) {
+            // SPK tanpa booking (seharusnya tidak mungkin lewat jalur resmi
+            // createFromBooking(), tapi booking_id memang nullable di
+            // fillable) -- tidak ada produk yang bisa dicek, biarkan lolos.
+            return;
+        }
+
+        $filmProducts = collect([$booking->filmProduct])
+            ->merge($booking->filmProducts->pluck('filmProduct'))
+            ->filter();
+
+        $requiresBatchTracking = $filmProducts->contains(fn ($product) => (bool) $product->tracks_batch);
+
+        if (! $requiresBatchTracking) {
+            return;
+        }
+
+        $hasRecordedUsage = ScrollCodeUsage::where('booking_id', $booking->id)->exists();
+
+        if (! $hasRecordedUsage) {
+            throw new RuntimeException('Pilih dulu roll yang dipakai (Catat Pemakaian di menu Kode Gulungan/Inventaris) sebelum SPK ini bisa ditandai selesai — produk pada booking ini wajib lacak roll.');
+        }
     }
 
     /**

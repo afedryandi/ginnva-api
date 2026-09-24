@@ -23,11 +23,13 @@ class FilmProduct extends Model
         'position',
         'base_price',
         'is_active',
+        'tracks_batch',
     ];
 
     protected $casts = [
         'base_price' => 'decimal:2',
         'is_active'  => 'boolean',
+        'tracks_batch' => 'boolean',
     ];
 
     public function quotationItems()
@@ -91,7 +93,7 @@ class FilmProduct extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['sku', 'name', 'product_type', 'position', 'base_price', 'is_active'])
+            ->logOnly(['sku', 'name', 'product_type', 'position', 'base_price', 'is_active', 'tracks_batch'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('film_product')
