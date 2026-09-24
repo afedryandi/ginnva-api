@@ -62,19 +62,32 @@ class ChartOfAccountResource extends Resource
         'pajak' => 'gray',
     ];
 
+    // Diperluas 2026-09-24 (keputusan user) — spv_finance boleh, tapi
+    // tetap lewat hasMenuAccess() (harus dicentang eksplisit di "Akses
+    // Menu"), dan create/edit tetap default FALSE via hasModuleAction()
+    // supaya view saja tidak otomatis termasuk hak ubah struktur akun.
     public static function canViewAny(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class));
     }
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'create', false));
     }
 
     public static function canEdit($record): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'update', false));
     }
 
     /**
@@ -85,8 +98,12 @@ class ChartOfAccountResource extends Resource
      */
     public static function canDelete($record): bool
     {
-        return (auth()->user()?->isFullAccess() ?? false)
-            && ! $record->children()->exists();
+        $user = auth()->user();
+
+        $allowed = $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+
+        return $allowed && ! $record->children()->exists();
     }
 
     public static function form(Form $form): Form

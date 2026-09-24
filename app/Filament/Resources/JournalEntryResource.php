@@ -48,14 +48,25 @@ class JournalEntryResource extends Resource
 
     protected static ?int $navigationSort = 4;
 
+    // Diperluas 2026-09-24 (keputusan user) — spv_finance boleh, tapi
+    // tetap lewat hasMenuAccess() (harus dicentang eksplisit di "Akses
+    // Menu"), dan create/edit/delete tetap default FALSE via
+    // hasModuleAction() supaya view saja tidak otomatis termasuk hak
+    // tulis pembukuan.
     public static function canViewAny(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class));
     }
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'create', false));
     }
 
     /**
@@ -64,16 +75,26 @@ class JournalEntryResource extends Resource
      * draft, tampilan read-only untuk posted, lihat form() di bawah)
      * supaya tidak perlu halaman View terpisah. Penguncian aktualnya
      * ada di ->disabled() per-field + JournalEntryService::update()
-     * yang menolak kalau statusnya sudah bukan draft.
+     * yang menolak kalau statusnya sudah bukan draft. Sama untuk
+     * spv_finance — akses Edit page dibuka via hasModuleAction('update'),
+     * penguncian read-only untuk posted tetap sama persis.
      */
     public static function canEdit($record): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'update', false));
     }
 
     public static function canDelete($record): bool
     {
-        return (auth()->user()?->isFullAccess() ?? false) && $record->isDraft();
+        $user = auth()->user();
+
+        $allowed = $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+
+        return $allowed && $record->isDraft();
     }
 
     public static function form(Form $form): Form

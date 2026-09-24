@@ -158,9 +158,12 @@ class UserResource extends Resource
                 // akses lewat canAccess()+menu_access null = boleh.
                 'ShiftResource' => 'Daftar Shift',
                 'WorkScheduleResource' => 'Daftar Jadwal Kerja',
-                // PayrollResource SENGAJA tidak dimasukkan di sini — lihat
-                // komentar di PayrollResource::canViewAny(), selalu
-                // isFullAccess-only, tidak pernah lewat menu_access.
+                // PayrollResource dibuka 2026-09-24 (keputusan user) —
+                // TAPI beda dari resource lain di grup ini, akses hanya
+                // efektif utk role spv_finance (lihat
+                // PayrollResource::canViewAny()), centang di sini TIDAK
+                // cukup utk role lain.
+                'PayrollResource' => 'Payroll',
             ],
             'Keuangan' => [
                 'FinanceCategoryResource' => 'Kategori Keuangan',
@@ -169,14 +172,15 @@ class UserResource extends Resource
                 'PayableResource' => 'Hutang Usaha',
                 'ReceivableResource' => 'Piutang Usaha',
                 // ChartOfAccountResource, JournalEntryResource &
-                // BankStatementLineResource SENGAJA tidak dimasukkan di
-                // sini — sama pola dengan PayrollResource, selalu
-                // isFullAccess()-only (lihat canViewAny() masing-masing),
-                // tidak pernah lewat menu_access. Struktur akun, jurnal
-                // berpasangan, & rekonsiliasi bank adalah keputusan
-                // akuntansi yang mempengaruhi laporan seluruh
-                // perusahaan, bukan operasional harian yang cocok
-                // didelegasikan ke store_manager.
+                // BankStatementLineResource dibuka 2026-09-24 (keputusan
+                // user) — TAPI beda dari resource lain di grup ini, akses
+                // hanya efektif utk role spv_finance (lihat canViewAny()
+                // masing-masing resource), centang di sini TIDAK cukup
+                // utk role lain (mis. store_manager tetap tidak bisa
+                // meski dicentang, karena bukan spv_finance).
+                'ChartOfAccountResource' => 'Bagan Akun',
+                'JournalEntryResource' => 'Jurnal Umum',
+                'BankStatementLineResource' => 'Rekonsiliasi Bank',
             ],
             // Cluster "Pelanggan" (Penjualan > Pelanggan) — CustomerResource
             // dipindah kemari dari Marketing/Konten (2026-09-10).

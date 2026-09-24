@@ -47,11 +47,20 @@ class BankStatementLineResource extends Resource
     // renumber beruntun akibat tabrakan sort lain di cluster ini.
     protected static ?int $navigationSort = 14;
 
+    // Diperluas 2026-09-24 (keputusan user) — spv_finance boleh, tapi
+    // tetap lewat hasMenuAccess() (harus dicentang eksplisit di "Akses
+    // Menu"), delete tetap default FALSE via hasModuleAction().
     public static function canViewAny(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class));
     }
 
+    // TETAP false utk semua — mutasi bank cuma diimpor (Excel) atau
+    // ditandai status lewat aksi tabel, tidak pernah lewat form Edit
+    // biasa (business rule, bukan soal hak akses).
     public static function canEdit($record): bool
     {
         return false;
@@ -59,7 +68,10 @@ class BankStatementLineResource extends Resource
 
     public static function canDelete($record): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     /**

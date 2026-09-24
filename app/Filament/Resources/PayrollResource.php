@@ -35,17 +35,28 @@ class PayrollResource extends Resource
 
     protected static ?int $navigationSort = 50;
 
-    // Uang gaji karyawan — SENGAJA lebih ketat dari resource Karyawan
-    // lain (Absensi/Izin bisa dilihat store_manager untuk toko sendiri),
-    // cuma isFullAccess() yang boleh buka sama sekali. Tidak dikontrol
-    // lewat hasMenuAccess()/menuAccessOptions() seperti resource lain,
-    // supaya tidak ada kemungkinan store_manager kecentang aksesnya secara
-    // tidak sengaja lewat checklist "Akses Menu".
+    /**
+     * Uang gaji karyawan — SEBELUMNYA cuma isFullAccess() yang boleh
+     * buka sama sekali, TIDAK lewat hasMenuAccess()/menuAccessOptions()
+     * spt resource lain (sengaja, supaya tidak ada kemungkinan
+     * store_manager kecentang aksesnya tidak sengaja). Diperluas
+     * 2026-09-24 (keputusan user) — spv_finance sekarang BOLEH, tapi
+     * TETAP lewat hasMenuAccess() (harus dicentang eksplisit di "Akses
+     * Menu", tidak otomatis) supaya admin full-access masih pegang
+     * kendali siapa persisnya yang benar-benar dapat akses.
+     */
     public static function canViewAny(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class));
     }
 
+    // TETAP false — baris Payroll cuma dibuat lewat aksi "Generate
+    // Payroll Bulanan" (Payroll::generateForMonth()), tidak pernah lewat
+    // form Create biasa, jadi bukan soal hak akses (tetap sama utk
+    // spv_finance maupun full-access).
     public static function canCreate(): bool
     {
         return false;
@@ -61,15 +72,28 @@ class PayrollResource extends Resource
      * bisa dihapus & digenerate ulang. Disamakan persis dengan guard
      * ->visible() yang sudah ada (status draft) + breadth canViewAny()
      * (isFullAccess() saja).
+     *
+     * hasModuleAction(..., false) (audit Majoo f64, diperluas 2026-09-24
+     * utk spv_finance) — default FALSE, spv_finance HARUS dicentang
+     * eksplisit di "Hak Akses Detail" dulu baru boleh hapus, view saja
+     * tidak otomatis termasuk hak hapus.
      */
     public static function canDelete($record): bool
     {
-        return (auth()->user()?->isFullAccess() ?? false) && $record->status === 'draft';
+        $user = auth()->user();
+
+        $allowed = $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+
+        return $allowed && $record->status === 'draft';
     }
 
     public static function canDeleteAny(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return $user?->isFullAccess()
+            || ($user?->hasRole('spv_finance') && $user->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     /**
