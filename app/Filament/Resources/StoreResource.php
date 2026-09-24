@@ -103,6 +103,29 @@ class StoreResource extends Resource
                         ->default(3)
                         ->required(),
 
+                    // f18 "Metrik Utilisasi Bay/Stall" (2026-09-24) — beda
+                    // dari install_capacity_per_day di atas (1 angka
+                    // instalasi/hari agregat), 2 field ini kapasitas FISIK
+                    // per ZONA (Detailing & Persiapan / Instalasi & QC),
+                    // dipakai laporan "Laporan Utilisasi Zona/Bay" yang
+                    // hitung durasi nyata dari log perpindahan tahap
+                    // booking. Nullable & boleh dikosongkan — toko yang
+                    // belum diisi otomatis dilewati dari laporan itu
+                    // (BUKAN dianggap 0 slot).
+                    Forms\Components\TextInput::make('detailing_slot_count')
+                        ->label('Jumlah Slot Detailing')
+                        ->helperText('Kapasitas fisik Zona Detailing & Persiapan (Cuci/Pembersihan/Pemanasan/Detailing) toko ini. Kosongkan kalau belum ditentukan — laporan "Laporan Utilisasi Zona/Bay" akan melewati toko ini sampai diisi.')
+                        ->numeric()
+                        ->minValue(0)
+                        ->nullable(),
+
+                    Forms\Components\TextInput::make('instalasi_qc_slot_count')
+                        ->label('Jumlah Slot Instalasi & QC')
+                        ->helperText('Kapasitas fisik Zona Instalasi & QC toko ini. Kosongkan kalau belum ditentukan — laporan "Laporan Utilisasi Zona/Bay" akan melewati toko ini sampai diisi.')
+                        ->numeric()
+                        ->minValue(0)
+                        ->nullable(),
+
                     Forms\Components\TextInput::make('attendance_radius_meters')
                         ->label('Radius Absen (meter)')
                         ->helperText('Jarak maksimum dari lokasi toko ini supaya absen dari app dianggap wajar. Kosongkan untuk pakai default sistem (150 m).')

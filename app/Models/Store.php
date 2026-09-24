@@ -21,6 +21,11 @@ class Store extends Model
         'google_place_id',
         'is_active',
         'install_capacity_per_day',
+        // f18 "Metrik Utilisasi Bay/Stall" (2026-09-24) — jumlah slot fisik
+        // per zona, BEDA per toko, nullable = belum dikonfigurasi (lihat
+        // migration add_slot_counts_to_stores_table & BayZoneUtilizationService).
+        'detailing_slot_count',
+        'instalasi_qc_slot_count',
         'attendance_radius_meters',
         'late_tolerance_minutes',
         'late_deduction_amount',
@@ -31,6 +36,8 @@ class Store extends Model
         'longitude'     => 'float',
         'is_active'     => 'boolean',
         'install_capacity_per_day' => 'integer',
+        'detailing_slot_count' => 'integer',
+        'instalasi_qc_slot_count' => 'integer',
         'attendance_radius_meters' => 'integer',
         'late_tolerance_minutes'   => 'integer',
         'late_deduction_amount'    => 'decimal:2',
