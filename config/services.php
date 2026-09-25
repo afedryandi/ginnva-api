@@ -82,4 +82,16 @@ return [
         'retention_days' => env('BACKUP_RETENTION_DAYS', 14),
     ],
 
+    // Kalkulator "Price List Kaca Film" (halaman terpisah di ginnva-web)
+    // — fitur berdiri sendiri, tidak berhubungan dengan auth staff Ginnva.
+    // Data harga/ukuran/allow-list semua dibaca live dari Google Sheet
+    // yang dikelola owner. File service account (untuk baca Sheet secara
+    // read-only) harus ditaruh manual di storage/app/google/ karena berisi
+    // private key — tidak bisa lewat env var.
+    'google_pricelist' => [
+        'spreadsheet_id' => env('GOOGLE_PRICELIST_SPREADSHEET_ID', '1CkgZwBduVechS69CGXVJiDvCo7yD8P4AmiXzGZ3y4fI'),
+        'oauth_client_id' => env('GOOGLE_PRICELIST_OAUTH_CLIENT_ID', '57970143794-r8eq5l809f3ait3d67ra3iqsunjdag04.apps.googleusercontent.com'),
+        'service_account_path' => storage_path('app/google/pricelist-service-account.json'),
+    ],
+
 ];

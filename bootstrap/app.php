@@ -30,7 +30,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // Ganti middleware 'auth' bawaan dengan versi yang tidak pernah
         // coba redirect ke route('login') — lihat App\Http\Middleware\
         // Authenticate untuk alasannya (project ini API-only).
-        $middleware->alias(['auth' => \App\Http\Middleware\Authenticate::class]);
+        $middleware->alias([
+            'auth' => \App\Http\Middleware\Authenticate::class,
+            // Auth khusus API Price List Kaca Film — token HMAC stateless,
+            // sama sekali terpisah dari guard 'auth:api'/'auth:customer'.
+            'pricelist.auth' => \App\Http\Middleware\VerifyPricelistToken::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Kirim semua exception yang lolos ke Sentry (error tracking).

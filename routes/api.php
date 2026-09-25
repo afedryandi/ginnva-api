@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\PointController;
 use App\Http\Controllers\Api\RewardController;
 use App\Http\Controllers\Api\VoucherController;
 use App\Http\Controllers\Api\Partner\PartnerController;
+use App\Http\Controllers\Api\PricelistController;
 
 Route::get('/carousels', [CarouselController::class, 'index']);
 Route::get('/featured-products', [FeaturedProductController::class, 'index']);
@@ -436,4 +437,24 @@ Route::middleware('auth:customer')->group(function () {
     Route::post('/customer/notifications/read-all', [NotificationController::class, 'markAllRead'])
         ->middleware('throttle:20,1');
     Route::get('/customer/points', [PointController::class, 'index']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Price List Kaca Film — kalkulator internal untuk tim sales (halaman
+| terpisah di ginnva-web). Login "Sign in with Google" + allow-list yang
+| SEMUANYA hidup di Google Sheet (tab "Akses"), tidak ada tabel akun di
+| database — sengaja 100% independen dari sistem auth staff (User/Sanctum).
+|--------------------------------------------------------------------------
+*/
+Route::prefix('pricelist')->group(function () {
+    Route::post('/login', [PricelistController::class, 'login'])
+        ->middleware('throttle:20,1');
+
+    Route::middleware('pricelist.auth')->group(function () {
+        Route::get('/brands', [PricelistController::class, 'brands']);
+        Route::get('/models', [PricelistController::class, 'models']);
+        Route::get('/car', [PricelistController::class, 'car']);
+        Route::get('/prices', [PricelistController::class, 'prices']);
+    });
 });
