@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\WarrantyResource\RelationManagers;
 
+use App\Services\PushNotificationService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -102,6 +103,17 @@ class ClaimsRelationManager extends RelationManager
             ->actions([
                 // Pass/Reject hanya untuk super_admin, sama seperti review
                 // QA Certificate di WarrantyResource.
+                //
+                // BUG DIPERBAIKI 2026-09-25 (audit Garansi): SEBELUMNYA
+                // cuma Notification::make() in-app (untuk admin yang
+                // klik), tidak ada push ke CUSTOMER pemilik klaim --
+                // beda dari Warranty::approve/reject sendiri yang sudah
+                // benar (lihat WarrantyObserver::updated()). Customer
+                // baru tahu klaimnya diputuskan kalau buka manual
+                // "Riwayat Klaim" di app. Tidak ada Observer terpisah
+                // untuk WarrantyClaim, jadi push dikirim langsung di sini
+                // (satu-satunya jalur pass/reject, tidak ada jalur lain
+                // yang perlu diselaraskan).
                 Tables\Actions\Action::make('pass')
                     ->label('Pass')
                     ->icon('heroicon-o-check-circle')
@@ -115,6 +127,15 @@ class ClaimsRelationManager extends RelationManager
                             'reviewed_by' => auth()->id(),
                             'reviewed_at' => now(),
                         ]);
+
+                        $customerId = $this->getOwnerRecord()->customer_id;
+                        if ($customerId) {
+                            app(PushNotificationService::class)->sendToCustomer(
+                                $customerId,
+                                'Klaim After-Sales Disetujui',
+                                "Klaim #{$record->claim_number} Anda telah disetujui (pass)."
+                            );
+                        }
 
                         Notification::make()
                             ->title('Klaim disetujui (pass)')
@@ -139,6 +160,15 @@ class ClaimsRelationManager extends RelationManager
                             'reviewed_by' => auth()->id(),
                             'reviewed_at' => now(),
                         ]);
+
+                        $customerId = $this->getOwnerRecord()->customer_id;
+                        if ($customerId) {
+                            app(PushNotificationService::class)->sendToCustomer(
+                                $customerId,
+                                'Klaim After-Sales Ditolak',
+                                "Klaim #{$record->claim_number} Anda ditolak: {$data['rejection_reason']}"
+                            );
+                        }
 
                         Notification::make()
                             ->title('Klaim ditolak')

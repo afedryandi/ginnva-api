@@ -148,16 +148,33 @@ class WarrantyResource extends Resource
                         ->content(fn (?Warranty $record) => $record?->warranty_code
                             ?? 'Otomatis begitu Detail Instalasi di bawah diisi'),
 
+                    // BUG DIPERBAIKI 2026-09-25 (audit Garansi): SEBELUMNYA
+                    // field inti sertifikat (customer_name, car_plate, vin,
+                    // dealer_name, product_series, installation_date, dst)
+                    // TIDAK PERNAH dikunci berdasar review_status -- staff/
+                    // super_admin bisa edit bebas SETELAH garansi 'approved'
+                    // & PDF-nya sudah didownload customer, membuat dokumen
+                    // fisik/PDF yang sudah beredar tidak sinkron dengan
+                    // database, tanpa re-review atau notifikasi apa pun.
+                    // Dikunci PENUH (bukan cuma full-access) begitu approved
+                    // -- konsisten dengan pola booking_id di SPK/Invoice
+                    // sesi ini (kalau memang salah input, revoke/buat baru,
+                    // bukan edit diam-diam; revoke belum ada, dicatat
+                    // sebagai gap terpisah). expiry_date TETAP bisa diubah
+                    // lewat aksi "Perpanjang Garansi" (performExtend(),
+                    // tidak lewat form ini sama sekali).
                     Forms\Components\TextInput::make('customer_name')
                         ->label('Nama Pelanggan')
                         ->required()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     Forms\Components\TextInput::make('phone_number')
                         ->label('No. Telepon')
                         ->tel()
                         ->required()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     Forms\Components\Select::make('customer_id')
                         ->label('Akun Customer (opsional)')
@@ -176,18 +193,21 @@ class WarrantyResource extends Resource
                     Forms\Components\TextInput::make('car_plate')
                         ->label('Plat Nomor')
                         ->required()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     Forms\Components\TextInput::make('car_type')
                         ->label('Tipe Mobil')
                         ->required()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     Forms\Components\TextInput::make('product_series')
                         ->label('Seri Produk')
                         ->placeholder('Contoh: A70')
                         ->required()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     Forms\Components\Select::make('product_category')
                         ->label('Kategori Produk')
@@ -196,17 +216,20 @@ class WarrantyResource extends Resource
                             'ppf'         => 'PPF',
                         ])
                         ->live()
-                        ->required(),
+                        ->required()
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     Forms\Components\TextInput::make('vin')
                         ->label('VIN (Nomor Rangka)')
                         ->helperText('Berbeda dari plat nomor — VIN permanen, penting untuk garansi jangka panjang.')
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     Forms\Components\TextInput::make('dealer_name')
                         ->label('Nama Dealer (teks bebas)')
                         ->required()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     // Hanya super_admin yang bisa pindah-pindahkan garansi
                     // antar store. Admin toko otomatis ke store miliknya.
@@ -229,7 +252,8 @@ class WarrantyResource extends Resource
                     Forms\Components\DatePicker::make('installation_date')
                         ->label('Tanggal Pasang')
                         ->live()
-                        ->required(),
+                        ->required()
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     // SEBELUMNYA tidak ada validasi sama sekali yang
                     // mengaitkan expiry_date ke installation_date — beda
@@ -244,7 +268,11 @@ class WarrantyResource extends Resource
                         ->after('installation_date')
                         ->validationMessages([
                             'after' => 'Tanggal Berakhir harus setelah Tanggal Pasang.',
-                        ]),
+                        ])
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved')
+                        ->helperText(fn (?Warranty $record) => $record?->review_status === 'approved'
+                            ? 'Sudah disetujui — pakai tombol "Perpanjang Garansi" di atas untuk mengubah tanggal ini.'
+                            : null),
                 ]),
 
             // Field kondisional berdasarkan kategori produk — supaya
