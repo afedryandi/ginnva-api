@@ -125,6 +125,7 @@ class BlockedDateResource extends Resource
                 ->unique(
                     table: 'blocked_dates',
                     column: 'date',
+                    ignoreRecord: true,
                     modifyRuleUsing: fn ($rule, Forms\Get $get) => $rule->where('store_id', $get('store_id')),
                 )
                 ->validationMessages([
@@ -148,7 +149,13 @@ class BlockedDateResource extends Resource
                 // untuk membentuk rentang tanggal, lalu dibuang manual
                 // sebelum dikirim ke BlockedDate::create() di sana (kolom
                 // ini tidak ada di tabel blocked_dates).
-                ->dehydrated(),
+                ->dehydrated()
+                // Disembunyikan saat edit (BUG DIPERBAIKI 2026-09-25,
+                // audit "Tanggal Tidak Tersedia" -- halaman Edit baru
+                // ditambahkan sesi ini) -- 1 baris BlockedDate = 1
+                // tanggal, "buat rentang" cuma masuk akal saat membuat
+                // baris baru, bukan mengedit 1 baris yang sudah ada.
+                ->visible(fn (?BlockedDate $record) => $record === null),
 
             // Info non-blocking — supaya staff tahu dulu ada berapa booking
             // confirmed di rentang ini SEBELUM menutup slot baru, bukan
@@ -157,6 +164,7 @@ class BlockedDateResource extends Resource
             Forms\Components\Placeholder::make('overlap_warning')
                 ->label('')
                 ->columnSpanFull()
+                ->visible(fn (?BlockedDate $record) => $record === null)
                 ->content(function (Forms\Get $get) {
                     $storeId = $get('store_id');
                     $startStr = $get('date');
@@ -234,6 +242,13 @@ class BlockedDateResource extends Resource
                     ->default(),
             ])
             ->actions([
+                // BUG DIPERBAIKI 2026-09-25 (audit Tanggal Tidak
+                // Tersedia): SEBELUMNYA canEdit() sudah lengkap tapi
+                // tidak ada EditAction maupun halaman Edit sama sekali --
+                // toggle permission "update" di matrix hak akses jadi
+                // placebo, satu-satunya cara ubah tanggal/alasan yang
+                // salah ketik adalah hapus lalu buat ulang.
+                Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
@@ -249,6 +264,7 @@ class BlockedDateResource extends Resource
         return [
             'index'  => Pages\ListBlockedDates::route('/'),
             'create' => Pages\CreateBlockedDate::route('/create'),
+            'edit'   => Pages\EditBlockedDate::route('/{record}/edit'),
         ];
     }
 }
