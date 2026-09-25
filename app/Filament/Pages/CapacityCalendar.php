@@ -88,8 +88,43 @@ class CapacityCalendar extends Page
         return Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all();
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku setelah aturan akses — SATU-SATUNYA
+     * cara yang boleh dipakai membaca toko di method lain di class ini
+     * (openDay/saveCapacity/clearOverride/getCalendarDays), TIDAK PERNAH
+     * langsung baca $this->storeId mentah.
+     *
+     * BUG KEAMANAN DIPERBAIKI 2026-09-25 (ditemukan audit lanjutan
+     * setelah redesain kapasitas): mount() SEBELUMNYA cuma mengunci
+     * $this->storeId ke toko staff SEKALI di awal (page load pertama).
+     * $storeId adalah public Livewire property biasa (#[Url]) — request
+     * Livewire BERIKUTNYA (mis. payload wire:model/snapshot dimanipulasi
+     * lewat DevTools) bisa menimpa nilainya lagi, dan updatedStoreId()
+     * SEBELUMNYA tidak mengunci ulang, cuma reset editingDate. Staff
+     * toko non-full-access jadi BISA mengubah kapasitas toko LAIN kalau
+     * memanipulasi request secara manual. Pola perbaikan SAMA PERSIS
+     * dengan SalesDashboard::effectiveStoreId() (sudah terbukti aman di
+     * situ): full-access boleh pilih bebas (null = belum pilih toko),
+     * non-full-access SELALU dipaksa ke store_id akunnya sendiri apa pun
+     * isi $this->storeId saat method ini dipanggil.
+     */
+    public function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        return ($user?->isFullAccess() ?? false) ? $this->storeId : $user?->store_id;
+    }
+
     public function updatedStoreId(): void
     {
+        // Non-full-access TIDAK BOLEH mengubah toko lewat cara apa pun —
+        // timpa balik ke toko sendiri setiap kali property ini berubah,
+        // bukan cuma mengandalkan mount(). Lihat catatan effectiveStoreId().
+        $user = auth()->user();
+        if (! ($user?->isFullAccess() ?? false)) {
+            $this->storeId = $user?->store_id;
+        }
+
         $this->editingDate = null;
     }
 
@@ -122,8 +157,10 @@ class CapacityCalendar extends Page
             return;
         }
 
+        $storeId = $this->effectiveStoreId();
+
         $this->editingDate = $date;
-        $this->editingCapacity = $this->storeId ? Booking::capacityForDate($this->storeId, Carbon::parse($date)) : null;
+        $this->editingCapacity = $storeId ? Booking::capacityForDate($storeId, Carbon::parse($date)) : null;
     }
 
     public function closeEdit(): void
@@ -133,12 +170,14 @@ class CapacityCalendar extends Page
 
     public function saveCapacity(): void
     {
-        if (! $this->storeId || ! $this->editingDate || ! $this->editingCapacity || $this->editingCapacity < 1) {
+        $storeId = $this->effectiveStoreId();
+
+        if (! $storeId || ! $this->editingDate || ! $this->editingCapacity || $this->editingCapacity < 1) {
             return;
         }
 
         StoreCapacityOverride::updateOrCreate(
-            ['store_id' => $this->storeId, 'date' => $this->editingDate],
+            ['store_id' => $storeId, 'date' => $this->editingDate],
             ['capacity' => $this->editingCapacity, 'updated_by' => auth()->id()],
         );
 
@@ -148,11 +187,13 @@ class CapacityCalendar extends Page
     /** Hapus override — tanggal itu kembali pakai default toko. */
     public function clearOverride(): void
     {
-        if (! $this->storeId || ! $this->editingDate) {
+        $storeId = $this->effectiveStoreId();
+
+        if (! $storeId || ! $this->editingDate) {
             return;
         }
 
-        StoreCapacityOverride::where('store_id', $this->storeId)
+        StoreCapacityOverride::where('store_id', $storeId)
             ->where('date', $this->editingDate)
             ->delete();
 
@@ -168,11 +209,13 @@ class CapacityCalendar extends Page
      */
     public function getCalendarDays(): array
     {
-        if (! $this->storeId) {
+        $storeId = $this->effectiveStoreId();
+
+        if (! $storeId) {
             return [];
         }
 
-        $store = Store::find($this->storeId);
+        $store = Store::find($storeId);
         $monthStart = Carbon::parse($this->month . '-01');
         $monthEnd = $monthStart->copy()->endOfMonth();
 
@@ -182,7 +225,7 @@ class CapacityCalendar extends Page
         $gridStart = $monthStart->copy()->subDays($monthStart->dayOfWeekIso - 1);
         $gridEnd = $monthEnd->copy()->addDays(7 - $monthEnd->dayOfWeekIso);
 
-        $overrides = StoreCapacityOverride::where('store_id', $this->storeId)
+        $overrides = StoreCapacityOverride::where('store_id', $storeId)
             ->whereBetween('date', [$gridStart->toDateString(), $gridEnd->toDateString()])
             ->get()
             ->keyBy(fn (StoreCapacityOverride $o) => $o->date->toDateString());
@@ -200,7 +243,7 @@ class CapacityCalendar extends Page
                 'inMonth'     => $cursor->month === $monthStart->month,
                 'closed'      => $closed,
                 'capacity'    => $overrides->has($dateStr) ? $overrides[$dateStr]->capacity : (int) ($store?->install_capacity_per_day ?: 3),
-                'used'        => $closed ? 0 : Booking::confirmedOverlapCount($this->storeId, $cursor->copy()),
+                'used'        => $closed ? 0 : Booking::confirmedOverlapCount($storeId, $cursor->copy()),
                 'hasOverride' => $overrides->has($dateStr),
                 'isPast'      => $cursor->lt($today),
                 'isToday'     => $cursor->isSameDay($today),
