@@ -518,7 +518,12 @@ class Booking extends Model
      */
     public function filmProduct()
     {
-        return $this->belongsTo(FilmProduct::class);
+        // withTrashed() (audit Daftar Produk 2026-09-25, sejak FilmProduct
+        // pakai SoftDeletes) -- booking lama tetap tampilkan nama produk
+        // asli walau produknya sudah "dihapus" dari katalog aktif. Beda
+        // dari Customer (PII, sengaja disembunyikan) -- data produk bukan
+        // privasi, jadi tidak perlu placeholder generik.
+        return $this->belongsTo(FilmProduct::class)->withTrashed();
     }
 
     /**

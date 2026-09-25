@@ -33,6 +33,8 @@ class InvoiceItem extends Model
 
     public function filmProduct(): BelongsTo
     {
-        return $this->belongsTo(FilmProduct::class);
+        // withTrashed() (audit Daftar Produk 2026-09-25) -- lihat catatan
+        // di Booking::filmProduct().
+        return $this->belongsTo(FilmProduct::class)->withTrashed();
     }
 }

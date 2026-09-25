@@ -317,6 +317,11 @@ class FilmProductResource extends Resource
 
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Status Aktif'),
+
+                // SoftDeletes ditambahkan 2026-09-25 (audit Daftar Produk) --
+                // supaya produk yang dihapus tetap bisa dicari & dipulihkan
+                // dari sini, bukan hilang tanpa jejak dari sisi Filament.
+                Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -341,6 +346,16 @@ class FilmProductResource extends Resource
 
                         Notification::make()->title('Produk dihapus')->success()->send();
                     }),
+
+                // Muncul hanya untuk baris yang sudah soft-deleted (lewat
+                // filter "Deleted records" di atas) -- supaya staff bisa
+                // pulihkan produk yang salah hapus tanpa perlu ke database.
+                // RestoreAction TIDAK auto-wired ke Gate/canDelete (beda
+                // dari DeleteAction) -- ->visible() eksplisit di sini
+                // supaya tetap setara hak akses "delete", bukan terbuka ke
+                // siapapun yang bisa lihat menu ini.
+                Tables\Actions\RestoreAction::make()
+                    ->visible(fn () => static::canDeleteAny()),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

@@ -52,7 +52,10 @@ class ScrollCode extends Model
 
     public function filmProduct()
     {
-        return $this->belongsTo(FilmProduct::class);
+        // withTrashed() (audit Daftar Produk 2026-09-25) -- riwayat/
+        // traceability roll garansi tetap tampilkan nama produk asli
+        // walau produknya sudah dihapus dari katalog aktif.
+        return $this->belongsTo(FilmProduct::class)->withTrashed();
     }
 
     public function store()

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -11,10 +12,18 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * perubahan harga/nama/status aktif produk sama sekali tidak punya
  * jejak audit (siapa ubah apa kapan, sebelum/sesudah), padahal harga
  * adalah data yang sering diubah & berdampak langsung ke penjualan.
+ *
+ * SoftDeletes ditambahkan 2026-09-25 (audit Daftar Produk, gap "standar
+ * enterprise") — sebelumnya hanya restrictOnDelete() DB-level yang
+ * mencegah hard-delete produk yang masih dipakai quotation/booking/
+ * warranty lama (cukup aman, tapi produk yang staff mau "hapus" dari
+ * katalog aktif TETAP tersimpan utuh untuk riwayat, bukan pola formal
+ * seperti Customer). Delete lewat Filament sekarang soft-delete.
  */
 class FilmProduct extends Model
 {
     use LogsActivity;
+    use SoftDeletes;
 
     protected $fillable = [
         'sku',
