@@ -102,6 +102,25 @@ class BlockedDateResource extends Resource
         $isSuperAdmin = auth()->user()?->isFullAccess();
 
         return $form->schema([
+            // GAP DIPERBAIKI 2026-09-25 (audit Tanggal Tidak Tersedia) --
+            // SEBELUMNYA tidak ada penjelasan apa pun di sini yang
+            // membedakan halaman ini (blokir SATU-KALI, mis. libur
+            // nasional/maintenance) dari libur RUTIN mingguan (diatur
+            // terpisah total di form Jam Operasional pada halaman Toko).
+            // Staff yang mau tutup "setiap hari Minggu setahun ke depan"
+            // bisa saja mencoba blokir 52 tanggal satu-satu di sini kalau
+            // tidak diarahkan ke tempat yang benar.
+            Forms\Components\Placeholder::make('recurring_vs_oneoff_note')
+                ->label('')
+                ->columnSpanFull()
+                ->content(new \Illuminate\Support\HtmlString(
+                    '<div style="font-size:0.8rem;color:#6b7280">'
+                    . 'Halaman ini untuk blokir tanggal <strong>satu-kali</strong> (libur nasional, maintenance, dsb). '
+                    . 'Kalau mau tutup <strong>rutin tiap minggu</strong> (mis. selalu libur hari Minggu), atur di menu '
+                    . '<strong>Toko → Jam Operasional</strong>, bukan di sini.'
+                    . '</div>'
+                )),
+
             Forms\Components\Select::make('store_id')
                 ->label('Toko / Workshop')
                 ->options(fn () => Store::where('is_active', true)->pluck('name', 'id'))

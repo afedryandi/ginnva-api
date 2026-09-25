@@ -16,4 +16,14 @@ class ListBlockedDates extends ListRecords
             Actions\CreateAction::make()->label('Blokir Tanggal'),
         ];
     }
+
+    // Gap "tampilan kalender ringkas" diperbaiki 2026-09-25 (audit
+    // Tanggal Tidak Tersedia) -- lihat App\Filament\Widgets\
+    // BlockedDateCalendarWidget.
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            \App\Filament\Widgets\BlockedDateCalendarWidget::class,
+        ];
+    }
 }
