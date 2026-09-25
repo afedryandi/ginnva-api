@@ -10,6 +10,7 @@ use App\Models\FilmProduct;
 use App\Models\ScrollCode;
 use App\Models\Store;
 use App\Models\Warranty;
+use App\Models\WarrantyOwnershipTransfer;
 use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -162,6 +163,74 @@ class WarrantyResource extends Resource
         Notification::make()->title('Garansi dibatalkan (revoked)')->warning()->send();
     }
 
+    /**
+     * Gap DIPERBAIKI 2026-09-25 (audit Garansi, "transfer garansi ke
+     * pemilik baru tidak dipertimbangkan sama sekali") -- wajar terjadi
+     * di industri PPF/WF (mobil dijual, pemilik baru klaim sisa masa
+     * berlaku). Keputusan user: staff-only, penerima BOLEH tanpa akun
+     * (customer_id opsional, sama pola dengan garansi baru), riwayat
+     * pemilik lama tercatat eksplisit di WarrantyOwnershipTransfer
+     * (bukan cuma activity_log mentah) supaya bisa ditampilkan sebagai
+     * timeline di halaman View.
+     *
+     * BUKAN mengedit customer_name/phone_number/customer_id langsung
+     * lewat form biasa -- field itu SUDAH DIKUNCI begitu approved (lihat
+     * fix sesi ini sebelumnya), transfer ini SATU-SATUNYA jalan resmi
+     * mengubahnya setelah approved, supaya setiap perpindahan kepemilikan
+     * SELALU tercatat sebagai transfer (bukan edit diam-diam yang tidak
+     * ketahuan apakah itu koreksi typo atau ganti pemilik sungguhan).
+     *
+     * Dibungkus lockForUpdate() -- sama pola kehati-hatian dengan
+     * performExtend(), mencegah 2 transfer nyaris bersamaan saling timpa.
+     */
+    public static function performOwnershipTransfer(Warranty $warranty, array $data): void
+    {
+        DB::transaction(function () use ($warranty, $data) {
+            $locked = Warranty::where('id', $warranty->id)->lockForUpdate()->first();
+
+            WarrantyOwnershipTransfer::create([
+                'warranty_id'             => $locked->id,
+                'previous_customer_id'    => $locked->customer_id,
+                'previous_customer_name'  => $locked->customer_name,
+                'previous_phone_number'   => $locked->phone_number,
+                'new_customer_id'         => $data['new_customer_id'] ?? null,
+                'new_customer_name'       => $data['new_customer_name'],
+                'new_phone_number'        => $data['new_phone_number'] ?? null,
+                'note'                    => $data['note'] ?? null,
+                'transferred_by'          => auth()->id(),
+                'transferred_at'          => now(),
+            ]);
+
+            $oldCustomerId = $locked->customer_id;
+
+            $locked->update([
+                'customer_id'    => $data['new_customer_id'] ?? null,
+                'customer_name'  => $data['new_customer_name'],
+                'phone_number'   => $data['new_phone_number'] ?? $locked->phone_number,
+            ]);
+
+            $push = app(\App\Services\PushNotificationService::class);
+
+            if ($oldCustomerId) {
+                $push->sendToCustomer(
+                    $oldCustomerId,
+                    'Kepemilikan Garansi Dipindahkan',
+                    "Garansi #{$locked->warranty_code} sudah dipindahkan kepemilikannya ke pemilik baru dan tidak lagi muncul di akun Anda."
+                );
+            }
+
+            if (! empty($data['new_customer_id'])) {
+                $push->sendToCustomer(
+                    $data['new_customer_id'],
+                    'Garansi Baru di Akun Anda',
+                    "Garansi #{$locked->warranty_code} sudah dipindahkan kepemilikannya ke akun Anda."
+                );
+            }
+        });
+
+        Notification::make()->title('Kepemilikan garansi berhasil dipindahkan.')->success()->send();
+    }
+
     public static function form(Form $form): Form
     {
         $isSuperAdmin = auth()->user()?->isFullAccess();
@@ -219,7 +288,42 @@ class WarrantyResource extends Resource
                         ->searchable()
                         ->nullable()
                         ->columnSpanFull()
-                        ->helperText('Garansi akan langsung muncul di "Garansi Saya" pada mobile app customer tersebut.'),
+                        ->helperText('Garansi akan langsung muncul di "Garansi Saya" pada mobile app customer tersebut.')
+                        // Dikunci begitu approved (2026-09-25, dibarengi
+                        // fitur transfer kepemilikan) -- KALAU field ini
+                        // tetap bebas diedit, staff bisa ganti pemilik
+                        // lewat sini tanpa tercatat di
+                        // WarrantyOwnershipTransfer sama sekali, membuat
+                        // seluruh mekanisme transfer & riwayatnya
+                        // percuma. Aksi "Transfer Kepemilikan" adalah
+                        // SATU-SATUNYA jalan resmi ganti pemilik setelah
+                        // approved.
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
+
+                    // Riwayat kepemilikan (audit Garansi 2026-09-25, gap
+                    // "transfer ke pemilik baru") -- MURNI baca, ditampilkan
+                    // langsung di sini (bukan halaman/infolist terpisah)
+                    // karena WarrantyResource memang tidak punya infolist()
+                    // sendiri, ViewWarranty jatuh ke form disabled bawaan.
+                    Forms\Components\Placeholder::make('ownership_history')
+                        ->label('Riwayat Kepemilikan')
+                        ->columnSpanFull()
+                        ->visible(fn (?Warranty $record) => $record && $record->ownershipTransfers->isNotEmpty())
+                        ->content(function (?Warranty $record) {
+                            if (! $record) {
+                                return '';
+                            }
+
+                            $lines = $record->ownershipTransfers->map(function (WarrantyOwnershipTransfer $t) {
+                                $when = $t->transferred_at?->format('d M Y H:i');
+                                $by = $t->transferredBy?->name ?? 'Sistem';
+
+                                return "{$t->previous_customer_name} → {$t->new_customer_name} ({$when}, oleh {$by})"
+                                    . ($t->note ? " — {$t->note}" : '');
+                            })->all();
+
+                            return new \Illuminate\Support\HtmlString(implode('<br>', array_map('e', $lines)));
+                        }),
 
                     Forms\Components\TextInput::make('car_plate')
                         ->label('Plat Nomor')
@@ -776,6 +880,50 @@ class WarrantyResource extends Resource
                     ->requiresConfirmation()
                     ->modalDescription('Garansi yang dibatalkan TIDAK bisa diaktifkan lagi lewat aksi ini — riwayatnya tetap tersimpan (beda dari Delete).')
                     ->action(fn (Warranty $record, array $data) => static::performRevoke($record, $data['revoke_reason'])),
+
+                // Gap "transfer ke pemilik baru" diperbaiki 2026-09-25
+                // (audit Garansi) -- lihat performOwnershipTransfer().
+                Tables\Actions\Action::make('transfer_ownership')
+                    ->label('Transfer Kepemilikan')
+                    ->icon('heroicon-o-arrow-path-rounded-square')
+                    ->color('gray')
+                    ->visible(fn (Warranty $record) => auth()->user()?->isFullAccess()
+                        && $record->review_status === 'approved'
+                        && $record->status !== 'revoked')
+                    ->form(fn (Warranty $record) => [
+                        Forms\Components\Placeholder::make('current_owner_info')
+                            ->label('Pemilik Saat Ini')
+                            ->content($record->display_customer_name . ($record->display_phone_number !== '—' ? " ({$record->display_phone_number})" : '')),
+
+                        Forms\Components\TextInput::make('new_customer_name')
+                            ->label('Nama Pemilik Baru')
+                            ->required()
+                            ->maxLength(255),
+
+                        Forms\Components\TextInput::make('new_phone_number')
+                            ->label('No. Telepon Pemilik Baru')
+                            ->tel()
+                            ->maxLength(255),
+
+                        Forms\Components\Select::make('new_customer_id')
+                            ->label('Akun Customer Baru (opsional)')
+                            ->placeholder('Pilih kalau pemilik baru sudah punya akun app')
+                            ->options(fn () => Customer::orderBy('name')
+                                ->get()
+                                ->mapWithKeys(fn (Customer $c) => [
+                                    $c->id => trim(($c->name ?? 'Tanpa Nama') . ' — ' . $c->email),
+                                ])
+                            )
+                            ->searchable()
+                            ->helperText('Kalau diisi, garansi ini akan otomatis muncul di "Garansi Saya" akun tersebut.'),
+
+                        Forms\Components\Textarea::make('note')
+                            ->label('Catatan (opsional)')
+                            ->placeholder('Contoh: bukti jual-beli kwitansi No. 123'),
+                    ])
+                    ->requiresConfirmation()
+                    ->modalDescription('Kepemilikan garansi akan dipindahkan dari pemilik saat ini ke pemilik baru. Riwayat pemilik lama tetap tersimpan.')
+                    ->action(fn (Warranty $record, array $data) => static::performOwnershipTransfer($record, $data)),
 
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),

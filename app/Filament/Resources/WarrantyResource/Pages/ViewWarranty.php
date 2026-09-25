@@ -61,6 +61,51 @@ class ViewWarranty extends ViewRecord
                     $this->refreshFormData(['status', 'revoke_reason', 'revoked_at']);
                 }),
 
+            // Gap "transfer ke pemilik baru" diperbaiki 2026-09-25 (audit
+            // Garansi) -- lihat WarrantyResource::performOwnershipTransfer().
+            Actions\Action::make('transfer_ownership')
+                ->label('Transfer Kepemilikan')
+                ->icon('heroicon-o-arrow-path-rounded-square')
+                ->color('gray')
+                ->visible(fn () => auth()->user()?->isFullAccess()
+                    && $this->record->review_status === 'approved'
+                    && $this->record->status !== 'revoked')
+                ->form(fn () => [
+                    Forms\Components\Placeholder::make('current_owner_info')
+                        ->label('Pemilik Saat Ini')
+                        ->content($this->record->display_customer_name . ($this->record->display_phone_number !== '—' ? " ({$this->record->display_phone_number})" : '')),
+
+                    Forms\Components\TextInput::make('new_customer_name')
+                        ->label('Nama Pemilik Baru')
+                        ->required()
+                        ->maxLength(255),
+
+                    Forms\Components\TextInput::make('new_phone_number')
+                        ->label('No. Telepon Pemilik Baru')
+                        ->tel()
+                        ->maxLength(255),
+
+                    Forms\Components\Select::make('new_customer_id')
+                        ->label('Akun Customer Baru (opsional)')
+                        ->placeholder('Pilih kalau pemilik baru sudah punya akun app')
+                        ->options(fn () => \App\Models\Customer::orderBy('name')
+                            ->get()
+                            ->mapWithKeys(fn ($c) => [$c->id => trim(($c->name ?? 'Tanpa Nama') . ' — ' . $c->email)])
+                        )
+                        ->searchable()
+                        ->helperText('Kalau diisi, garansi ini akan otomatis muncul di "Garansi Saya" akun tersebut.'),
+
+                    Forms\Components\Textarea::make('note')
+                        ->label('Catatan (opsional)')
+                        ->placeholder('Contoh: bukti jual-beli kwitansi No. 123'),
+                ])
+                ->requiresConfirmation()
+                ->modalDescription('Kepemilikan garansi akan dipindahkan dari pemilik saat ini ke pemilik baru. Riwayat pemilik lama tetap tersimpan.')
+                ->action(function (array $data) {
+                    WarrantyResource::performOwnershipTransfer($this->record, $data);
+                    $this->refreshFormData(['customer_id', 'customer_name', 'phone_number']);
+                }),
+
             Actions\Action::make('extend')
                 ->label('Perpanjang Garansi')
                 ->icon('heroicon-o-calendar-days')

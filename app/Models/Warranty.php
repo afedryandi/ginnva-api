@@ -202,6 +202,16 @@ class Warranty extends Model
     }
 
     /**
+     * Riwayat transfer kepemilikan (audit Garansi 2026-09-25, gap
+     * "transfer ke pemilik baru") -- diurutkan terbaru dulu supaya
+     * pemilik SAAT INI selalu di baris paling atas kalau ditampilkan.
+     */
+    public function ownershipTransfers()
+    {
+        return $this->hasMany(WarrantyOwnershipTransfer::class)->orderByDesc('transferred_at');
+    }
+
+    /**
      * remaining_days TIDAK disimpan di kolom database — dihitung otomatis
      * setiap kali data diambil, supaya selalu akurat tanpa perlu update manual setiap hari.
      */
