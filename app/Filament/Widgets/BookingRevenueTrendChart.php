@@ -169,20 +169,55 @@ class BookingRevenueTrendChart extends ChartWidget
 
     protected function getOptions(): array
     {
-        return [
-            'plugins' => [
-                'legend' => ['display' => true, 'position' => 'top', 'align' => 'end'],
-            ],
-            'scales' => [
-                'y' => [
-                    'beginAtZero' => true,
-                    'ticks' => ['precision' => 0],
-                    'grid' => ['color' => 'rgba(148, 163, 184, 0.12)'],
-                ],
-                'x' => [
-                    'grid' => ['display' => false],
-                ],
-            ],
-        ];
+        // SENGAJA kosong -- 'plugins'/'scales' dipindah SELURUHNYA ke
+        // extraJsOptions() di bawah (audit 2026-09-25, format Rupiah di
+        // tooltip/sumbu). getOptions() cuma JSON biasa (tidak bisa bawa
+        // function JS utk callback tooltip/ticks), extraJsOptions() JS
+        // mentah yang digabung Filament ke config Chart.js. TIDAK
+        // dipisah sebagian di sini sebagian di extraJsOptions() supaya
+        // tidak ada risiko key 'scales'/'plugins' saling menimpa kalau
+        // mekanisme gabungnya bukan deep-merge.
+        return [];
+    }
+
+    /**
+     * JS mentah (bukan array PHP biasa) -- satu-satunya cara kasih
+     * fungsi callback ke Chart.js lewat Filament ChartWidget, karena
+     * getOptions() cuma di-JSON-encode. Rupiah di tooltip & sumbu-Y
+     * (audit 2026-09-25, "gap dibanding standar enterprise dashboard" —
+     * sebelumnya angka mentah tanpa "Rp").
+     */
+    protected function extraJsOptions(): ?string
+    {
+        return <<<'JS'
+        {
+            plugins: {
+                legend: { display: true, position: 'top', align: 'end' },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            const value = context.parsed.y ?? 0;
+                            return context.dataset.label + ': Rp' + new Intl.NumberFormat('id-ID').format(value);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0,
+                        callback: function (value) {
+                            return 'Rp' + new Intl.NumberFormat('id-ID', { notation: 'compact', compactDisplay: 'short' }).format(value);
+                        }
+                    },
+                    grid: { color: 'rgba(148, 163, 184, 0.12)' }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+        JS;
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Technician;
 use App\Services\SalesSnapshotService;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Url;
 
 /**
@@ -244,11 +245,27 @@ class SalesDashboard extends Page
      * "Ranking Teknisi" (audit Majoo, f1: "Penjualan per Kasir / Komisi
      * per Kasir") — widget ringkas periode berjalan di Dashboard,
      * pelengkap "Laporan Komisi Teknisi" yang sudah ada (halaman
-     * terpisah, rentang tanggal bebas). Dihitung dari query yang SAMA
+     * terpisah, rentang tanggal bebas). Dihitung dari sumber yang SAMA
      * (Booking::installers() + journalEntry pada rentang tanggal),
      * supaya nilai "Penjualan" konsisten dengan laporan itu, hanya
      * di-scope ke periode dashboard yang sedang aktif & diurutkan
      * turun berdasar nilai penjualan (bukan alfabetis).
+     *
+     * SEBELUMNYA (audit 2026-09-25): 1 query per teknisi × 2 (count +
+     * sum) = 2N query total, tidak scalable kalau jumlah teknisi
+     * bertambah banyak. Sekarang 1 query agregat SQL (JOIN booking_installers
+     * + bookings + journal_entries, GROUP BY user_id) menghitung
+     * jobCount/salesTotal semua teknisi sekaligus, lalu dicocokkan ke
+     * daftar Technician yang eligible di PHP (murni lookup di memori,
+     * bukan query lagi).
+     *
+     * CATATAN PERILAKU (dipertahankan persis dari versi lama, BUKAN
+     * perubahan scope): filter cabang ($storeId) cuma membatasi TEKNISI
+     * mana yang ditampilkan (teknisi milik toko itu), TIDAK membatasi
+     * booking yang dihitung ke toko yang sama — kalau teknisi kebetulan
+     * mengerjakan booking di toko lain, itu tetap ikut ke total
+     * penjualannya. Ini quirk yang sudah ada sebelum optimasi ini, sengaja
+     * tidak diubah supaya angka tidak tiba-tiba beda dari sebelumnya.
      *
      * @return list<array{name: string, jobCount: int, salesTotal: float}>
      */
@@ -257,20 +274,42 @@ class SalesDashboard extends Page
         [$start, $end] = $this->currentRange();
         $storeId = $this->effectiveStoreId();
 
-        return Technician::query()
+        $technicians = Technician::query()
             ->whereNotNull('user_id')
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->get(['id', 'user_id', 'name']);
+
+        if ($technicians->isEmpty()) {
+            return [];
+        }
+
+        $userIds = $technicians->pluck('user_id')->all();
+
+        // 1 query agregat utk SEMUA teknisi eligible sekaligus -- gantikan
+        // 2N query (lihat catatan class di atas). JOIN ke booking_installers
+        // secara alami memberi kredit PENUH per installer per booking (1
+        // baris per pasangan booking-installer), sama seperti perilaku
+        // whereHas('installers', ...) yang dipakai versi lama & konsisten
+        // dgn kebijakan komisi tim (lihat project_installer_commission_policy).
+        $aggregates = DB::table('booking_installers')
+            ->join('bookings', 'bookings.id', '=', 'booking_installers.booking_id')
+            ->join('journal_entries', 'journal_entries.id', '=', 'bookings.journal_entry_id')
+            ->whereIn('booking_installers.user_id', $userIds)
+            ->whereBetween('journal_entries.entry_date', [$start->toDateString(), $end->toDateString()])
+            ->where('bookings.transaction_amount', '>', 0)
+            ->groupBy('booking_installers.user_id')
+            ->selectRaw('booking_installers.user_id, COUNT(*) as job_count, COALESCE(SUM(bookings.transaction_amount), 0) as sales_total')
             ->get()
-            ->map(function (Technician $technician) use ($start, $end) {
-                $jobsQuery = Booking::query()
-                    ->whereHas('installers', fn ($q) => $q->where('users.id', $technician->user_id))
-                    ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
-                    ->where('transaction_amount', '>', 0);
+            ->keyBy('user_id');
+
+        return $technicians
+            ->map(function (Technician $technician) use ($aggregates) {
+                $row = $aggregates->get($technician->user_id);
 
                 return [
                     'name' => $technician->name,
-                    'jobCount' => (clone $jobsQuery)->count(),
-                    'salesTotal' => (float) (clone $jobsQuery)->sum('transaction_amount'),
+                    'jobCount' => (int) ($row->job_count ?? 0),
+                    'salesTotal' => (float) ($row->sales_total ?? 0),
                 ];
             })
             ->filter(fn (array $row) => $row['jobCount'] > 0)

@@ -115,21 +115,46 @@ class BookingRevenueByCategoryChart extends ChartWidget
 
     protected function getOptions(): array
     {
+        // 'indexAxis' tetap di sini (bukan JS/function, aman) --
+        // 'plugins'/'scales' dipindah ke extraJsOptions(), lihat catatan
+        // lengkap di BookingRevenueTrendChart::getOptions().
         return [
             'indexAxis' => 'y',
-            'plugins' => [
-                'legend' => ['display' => false],
-            ],
-            'scales' => [
-                'x' => [
-                    'beginAtZero' => true,
-                    'ticks' => ['precision' => 0],
-                    'grid' => ['color' => 'rgba(148, 163, 184, 0.12)'],
-                ],
-                'y' => [
-                    'grid' => ['display' => false],
-                ],
-            ],
         ];
+    }
+
+    /** Rupiah di tooltip & sumbu-X (bar horizontal, nilai di sumbu X) — lihat catatan di BookingRevenueTrendChart. */
+    protected function extraJsOptions(): ?string
+    {
+        return <<<'JS'
+        {
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            const value = context.parsed.x ?? 0;
+                            return 'Rp' + new Intl.NumberFormat('id-ID').format(value);
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0,
+                        callback: function (value) {
+                            return 'Rp' + new Intl.NumberFormat('id-ID', { notation: 'compact', compactDisplay: 'short' }).format(value);
+                        }
+                    },
+                    grid: { color: 'rgba(148, 163, 184, 0.12)' }
+                },
+                y: {
+                    grid: { display: false }
+                }
+            }
+        }
+        JS;
     }
 }
