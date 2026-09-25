@@ -39,7 +39,11 @@ class MyWarrantyController extends Controller
         // Lihat audit modul Garansi 2026-08-27.
         $warranty = $request->user('customer')
             ->warranties()
-            ->with(['store:id,name,phone', 'claims' => fn ($q) => $q->orderByDesc('created_at')])
+            ->with([
+                'store:id,name,phone',
+                'claims' => fn ($q) => $q->orderByDesc('created_at'),
+                'maintenanceVisits',
+            ])
             ->findOrFail($id);
 
         return response()->json([
@@ -82,6 +86,12 @@ class MyWarrantyController extends Controller
             'status'            => $w->status,
             'remaining_days'    => $w->remaining_days,
             'review_status'     => $w->review_status,
+            // Fitur "Kuota Maintenance" (2026-09-25) -- null kalau garansi
+            // ini memang tidak ditawarkan maintenance (lihat
+            // Warranty::getMaintenanceRemainingAttribute()).
+            'maintenance_quota'     => $w->maintenance_quota,
+            'maintenance_used'      => $w->maintenance_quota !== null ? $w->maintenance_used : null,
+            'maintenance_remaining' => $w->maintenance_remaining,
         ];
     }
 
@@ -108,6 +118,11 @@ class MyWarrantyController extends Controller
                 'status'            => $c->status,
                 'rejection_reason'  => $c->rejection_reason,
                 'created_at'        => $c->created_at,
+            ]),
+            // Fitur "Kuota Maintenance" (2026-09-25).
+            'maintenance_visits'            => $w->maintenanceVisits->map(fn ($v) => [
+                'visited_at' => optional($v->visited_at)->format('Y-m-d'),
+                'note'       => $v->note,
             ]),
         ]);
     }

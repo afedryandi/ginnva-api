@@ -106,6 +106,34 @@ class ViewWarranty extends ViewRecord
                     $this->refreshFormData(['customer_id', 'customer_name', 'phone_number']);
                 }),
 
+            // Fitur "Kuota Maintenance" (2026-09-25) -- lihat
+            // WarrantyResource::performRecordMaintenanceVisit().
+            Actions\Action::make('record_maintenance_visit')
+                ->label('Catat Kunjungan Maintenance')
+                ->icon('heroicon-o-wrench-screwdriver')
+                ->color('success')
+                ->visible(fn () => $this->record->review_status === 'approved'
+                    && $this->record->status !== 'revoked'
+                    && $this->record->maintenance_quota !== null
+                    && $this->record->maintenance_remaining > 0)
+                ->form([
+                    Forms\Components\DatePicker::make('visited_at')
+                        ->label('Tanggal Kunjungan')
+                        ->required()
+                        ->default(now())
+                        ->maxDate(now()),
+
+                    Forms\Components\Textarea::make('note')
+                        ->label('Catatan (opsional)')
+                        ->placeholder('Contoh: cek kondisi PPF area kap mesin'),
+                ])
+                ->requiresConfirmation()
+                ->modalDescription(fn () => "Sisa kuota saat ini: {$this->record->maintenance_remaining}/{$this->record->maintenance_quota} kunjungan.")
+                ->action(function (array $data) {
+                    WarrantyResource::performRecordMaintenanceVisit($this->record, $data);
+                    $this->refreshFormData(['maintenance_quota']);
+                }),
+
             Actions\Action::make('extend')
                 ->label('Perpanjang Garansi')
                 ->icon('heroicon-o-calendar-days')

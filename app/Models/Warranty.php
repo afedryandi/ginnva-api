@@ -43,6 +43,7 @@ class Warranty extends Model
         'revoke_reason',
         'revoked_by',
         'revoked_at',
+        'maintenance_quota',
     ];
 
     protected $casts = [
@@ -53,7 +54,13 @@ class Warranty extends Model
         'revoked_at'           => 'datetime',
     ];
 
-    // Field tambahan yang otomatis ikut saat model di-convert ke JSON / array
+    // Field tambahan yang otomatis ikut saat model di-convert ke JSON / array.
+    // maintenance_used/maintenance_remaining SENGAJA TIDAK ditaruh di sini
+    // (beda dari remaining_days) -- accessornya query COUNT relasi kalau
+    // belum di-withCount(), jadi kalau di-appends bakal jalan otomatis di
+    // SETIAP serialisasi (termasuk listing Filament/API lain yang tidak
+    // butuh field ini) dan berpotensi N+1. Diakses eksplisit lewat
+    // $warranty->maintenance_used di tempat yang benar-benar butuh saja.
     protected $appends = ['remaining_days'];
 
     /**
@@ -212,6 +219,46 @@ class Warranty extends Model
     }
 
     /**
+     * Riwayat kunjungan maintenance (fitur "Kuota Maintenance", 2026-09-25)
+     * -- diurutkan terbaru dulu, sama pola dengan ownershipTransfers().
+     */
+    public function maintenanceVisits()
+    {
+        return $this->hasMany(WarrantyMaintenanceVisit::class)->orderByDesc('visited_at');
+    }
+
+    /**
+     * Prioritas: relasi yang sudah di-eager-load (MyWarrantyController::show())
+     * > maintenance_visits_count dari withCount() (WarrantyResource tabel) >
+     * fallback query count() langsung -- supaya tidak ada query tambahan
+     * kalau salah satu sudah tersedia.
+     */
+    public function getMaintenanceUsedAttribute(): int
+    {
+        if ($this->relationLoaded('maintenanceVisits')) {
+            return $this->maintenanceVisits->count();
+        }
+
+        return $this->maintenance_visits_count ?? $this->maintenanceVisits()->count();
+    }
+
+    /**
+     * Null kalau maintenance_quota belum diisi (garansi ini memang tidak
+     * ditawarkan maintenance) -- beda dari 0 yang berarti "kuota habis".
+     * Tidak pernah negatif walau (secara teori, harusnya tidak mungkin
+     * berkat lockForUpdate() di performRecordMaintenanceVisit()) jumlah
+     * kunjungan melebihi kuota.
+     */
+    public function getMaintenanceRemainingAttribute(): ?int
+    {
+        if ($this->maintenance_quota === null) {
+            return null;
+        }
+
+        return max(0, (int) $this->maintenance_quota - $this->maintenance_used);
+    }
+
+    /**
      * remaining_days TIDAK disimpan di kolom database — dihitung otomatis
      * setiap kali data diambil, supaya selalu akurat tanpa perlu update manual setiap hari.
      */
@@ -263,7 +310,7 @@ class Warranty extends Model
         // 'status' (itu computed accessor, bukan nilai mentah, gampang
         // membingungkan kalau ditampilkan sebagai "sebelum/sesudah" di log).
         return LogOptions::defaults()
-            ->logOnly(['review_status', 'rejection_reason', 'reviewed_by', 'extension_years', 'expiry_date', 'store_id', 'status', 'revoke_reason', 'revoked_by'])
+            ->logOnly(['review_status', 'rejection_reason', 'reviewed_by', 'extension_years', 'expiry_date', 'store_id', 'status', 'revoke_reason', 'revoked_by', 'maintenance_quota'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('warranty')

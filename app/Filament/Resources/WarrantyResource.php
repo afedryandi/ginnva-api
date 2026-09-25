@@ -10,6 +10,7 @@ use App\Models\FilmProduct;
 use App\Models\ScrollCode;
 use App\Models\Store;
 use App\Models\Warranty;
+use App\Models\WarrantyMaintenanceVisit;
 use App\Models\WarrantyOwnershipTransfer;
 use Carbon\Carbon;
 use Filament\Forms;
@@ -44,7 +45,11 @@ class WarrantyResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        // withCount('maintenanceVisits') (fitur Kuota Maintenance,
+        // 2026-09-25) -- supaya kolom "Maintenance" di tabel bisa hitung
+        // sisa kuota tanpa N+1 query per baris (Warranty::getMaintenanceUsedAttribute()
+        // pakai maintenance_visits_count ini kalau sudah tersedia).
+        $query = parent::getEloquentQuery()->withCount('maintenanceVisits');
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -231,6 +236,73 @@ class WarrantyResource extends Resource
         Notification::make()->title('Kepemilikan garansi berhasil dipindahkan.')->success()->send();
     }
 
+    /**
+     * Fitur "Kuota Maintenance" (2026-09-25) -- customer instalasi PPF/WF
+     * diberi kesempatan datang maintenance sampai N kali (maintenance_quota,
+     * diisi staff per garansi). Dipanggil staff tiap customer datang
+     * walk-in ke toko untuk maintenance (bukan lewat alur booking/jadwal
+     * terpisah, per keputusan user).
+     *
+     * Dibungkus DB::transaction() + lockForUpdate() -- SAMA pola kehati-
+     * hatian dengan performOwnershipTransfer()/performExtend(): mencegah 2
+     * klik "Catat Kunjungan" nyaris bersamaan (2 tab/2 staff) sama-sama
+     * lolos cek "kuota masih sisa" sebelum salah satu commit duluan, yang
+     * bisa membuat jumlah kunjungan tercatat MELEBIHI kuota yang
+     * dijanjikan. Validasi sisa kuota dicek ULANG di dalam lock (bukan
+     * cuma di ->visible() action, yang cuma pengecekan UI longgar).
+     */
+    public static function performRecordMaintenanceVisit(Warranty $warranty, array $data): void
+    {
+        DB::transaction(function () use ($warranty, $data) {
+            $locked = Warranty::where('id', $warranty->id)->lockForUpdate()->first();
+
+            if ($locked->maintenance_quota === null) {
+                Notification::make()
+                    ->title('Garansi ini belum punya kuota maintenance')
+                    ->danger()
+                    ->send();
+
+                return;
+            }
+
+            $used = $locked->maintenanceVisits()->count();
+            if ($used >= $locked->maintenance_quota) {
+                Notification::make()
+                    ->title('Kuota maintenance sudah habis')
+                    ->body("Garansi #{$locked->warranty_code} sudah memakai {$used}/{$locked->maintenance_quota} kunjungan.")
+                    ->danger()
+                    ->send();
+
+                return;
+            }
+
+            WarrantyMaintenanceVisit::create([
+                'warranty_id'  => $locked->id,
+                'visited_at'   => $data['visited_at'],
+                'note'         => $data['note'] ?? null,
+                'recorded_by'  => auth()->id(),
+            ]);
+
+            $remaining = $locked->maintenance_quota - ($used + 1);
+
+            if ($locked->customer_id) {
+                app(\App\Services\PushNotificationService::class)->sendToCustomer(
+                    $locked->customer_id,
+                    'Kunjungan Maintenance Tercatat',
+                    $remaining > 0
+                        ? "Kunjungan maintenance garansi #{$locked->warranty_code} tercatat. Sisa {$remaining} kunjungan lagi."
+                        : "Kunjungan maintenance garansi #{$locked->warranty_code} tercatat. Kuota maintenance Anda sudah habis."
+                );
+            }
+
+            Notification::make()
+                ->title('Kunjungan maintenance dicatat')
+                ->body("Sisa kuota: {$remaining}/{$locked->maintenance_quota}")
+                ->success()
+                ->send();
+        });
+    }
+
     public static function form(Form $form): Form
     {
         $isSuperAdmin = auth()->user()?->isFullAccess();
@@ -323,6 +395,44 @@ class WarrantyResource extends Resource
                             })->all();
 
                             return new \Illuminate\Support\HtmlString(implode('<br>', array_map('e', $lines)));
+                        }),
+
+                    // Fitur "Kuota Maintenance" (2026-09-25) -- berapa kali
+                    // customer ini boleh datang maintenance setelah
+                    // instalasi. Nullable (kosongkan kalau garansi ini
+                    // memang tidak ditawarkan maintenance) -- TETAP bisa
+                    // diedit kapan saja (tidak dikunci seperti field
+                    // sertifikat lain) supaya staff bisa naikkan kuota
+                    // untuk kasus goodwill tanpa perlu aksi terpisah.
+                    Forms\Components\TextInput::make('maintenance_quota')
+                        ->label('Kuota Maintenance (kali)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->nullable()
+                        ->helperText('Berapa kali customer boleh datang maintenance setelah instalasi. Kosongkan kalau garansi ini tidak menawarkan maintenance.'),
+
+                    Forms\Components\Placeholder::make('maintenance_history')
+                        ->label('Riwayat Kunjungan Maintenance')
+                        ->columnSpanFull()
+                        ->visible(fn (?Warranty $record) => $record && $record->maintenanceVisits->isNotEmpty())
+                        ->content(function (?Warranty $record) {
+                            if (! $record) {
+                                return '';
+                            }
+
+                            $used = $record->maintenanceVisits->count();
+                            $quota = $record->maintenance_quota;
+
+                            $lines = $record->maintenanceVisits->map(function (WarrantyMaintenanceVisit $v) {
+                                $when = $v->visited_at?->format('d M Y');
+                                $by = $v->recordedBy?->name ?? 'Sistem';
+
+                                return "{$when} (dicatat oleh {$by})" . ($v->note ? " — {$v->note}" : '');
+                            })->all();
+
+                            $header = "Terpakai {$used}/{$quota} kunjungan:";
+
+                            return new \Illuminate\Support\HtmlString($header . '<br>' . implode('<br>', array_map('e', $lines)));
                         }),
 
                     Forms\Components\TextInput::make('car_plate')
@@ -705,6 +815,17 @@ class WarrantyResource extends Resource
                         ? 'warning'
                         : null),
 
+                // Fitur "Kuota Maintenance" (2026-09-25). Pakai
+                // maintenance_visits_count dari getEloquentQuery()
+                // withCount() -- HINDARI panggil accessor
+                // getMaintenanceUsedAttribute() langsung di sini, yang
+                // fallback ke query per-baris kalau count belum tersedia.
+                Tables\Columns\TextColumn::make('maintenance_quota')
+                    ->label('Maintenance')
+                    ->placeholder('—')
+                    ->formatStateUsing(fn (?int $state, $record) => $state === null ? null : "{$record->maintenance_visits_count}/{$state} dipakai")
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Diajukan')
                     ->dateTime('d M Y')
@@ -924,6 +1045,34 @@ class WarrantyResource extends Resource
                     ->requiresConfirmation()
                     ->modalDescription('Kepemilikan garansi akan dipindahkan dari pemilik saat ini ke pemilik baru. Riwayat pemilik lama tetap tersimpan.')
                     ->action(fn (Warranty $record, array $data) => static::performOwnershipTransfer($record, $data)),
+
+                // Fitur "Kuota Maintenance" (2026-09-25) -- lihat
+                // performRecordMaintenanceVisit(). Cuma tampil kalau
+                // maintenance_quota sudah diisi DAN masih ada sisa --
+                // pengecekan sisa nyata tetap di dalam performRecordMaintenanceVisit()
+                // (lockForUpdate()), ini cuma UI convenience.
+                Tables\Actions\Action::make('record_maintenance_visit')
+                    ->label('Catat Kunjungan Maintenance')
+                    ->icon('heroicon-o-wrench-screwdriver')
+                    ->color('success')
+                    ->visible(fn (Warranty $record) => $record->review_status === 'approved'
+                        && $record->status !== 'revoked'
+                        && $record->maintenance_quota !== null
+                        && $record->maintenance_remaining > 0)
+                    ->form([
+                        Forms\Components\DatePicker::make('visited_at')
+                            ->label('Tanggal Kunjungan')
+                            ->required()
+                            ->default(now())
+                            ->maxDate(now()),
+
+                        Forms\Components\Textarea::make('note')
+                            ->label('Catatan (opsional)')
+                            ->placeholder('Contoh: cek kondisi PPF area kap mesin'),
+                    ])
+                    ->requiresConfirmation()
+                    ->modalDescription(fn (Warranty $record) => "Sisa kuota saat ini: {$record->maintenance_remaining}/{$record->maintenance_quota} kunjungan.")
+                    ->action(fn (Warranty $record, array $data) => static::performRecordMaintenanceVisit($record, $data)),
 
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
