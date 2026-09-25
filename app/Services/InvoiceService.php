@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Invoice;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -21,30 +22,49 @@ class InvoiceService
      *
      * @throws RuntimeException kalau tidak ada item sama sekali.
      */
+    /**
+     * BUG DIPERBAIKI 2026-09-25 (audit Invoice) -- SEBELUMNYA tidak ada
+     * penanganan sama sekali untuk tabrakan invoice_number (unique di
+     * DB, lihat migrasi create_invoices_table). Race dua invoice dibuat
+     * nyaris bersamaan untuk toko & hari yang sama (mis. double-tap
+     * tombol simpan) bisa lolos dari do-while(exists()) di
+     * generateNumberForStore() kalau jendela race-nya sangat sempit --
+     * QueryException mentah (raw 500) keluar ke staff tanpa pesan yang
+     * jelas. Sekarang dibungkus sama pola dengan SpkService::create()
+     * (diperbaiki lebih dulu sesi ini).
+     */
     public function create(array $data, array $items, ?int $createdBy, string $status = 'unpaid'): Invoice
     {
         if (empty($items)) {
             throw new RuntimeException('Invoice harus punya minimal 1 baris produk.');
         }
 
-        return DB::transaction(function () use ($data, $items, $createdBy, $status) {
-            $invoiceNumber = Invoice::generateNumberForStore($data['store_id']);
+        try {
+            return DB::transaction(function () use ($data, $items, $createdBy, $status) {
+                $invoiceNumber = Invoice::generateNumberForStore($data['store_id']);
 
-            $invoice = Invoice::create(array_merge($data, [
-                'invoice_number' => $invoiceNumber,
-                'created_by' => $createdBy,
-                'status' => $status,
-            ]));
+                $invoice = Invoice::create(array_merge($data, [
+                    'invoice_number' => $invoiceNumber,
+                    'created_by' => $createdBy,
+                    'status' => $status,
+                ]));
 
-            foreach ($items as $item) {
-                $lineTotal = $this->lineTotal($item);
-                $invoice->items()->create(array_merge($item, ['total' => $lineTotal]));
+                foreach ($items as $item) {
+                    $lineTotal = $this->lineTotal($item);
+                    $invoice->items()->create(array_merge($item, ['total' => $lineTotal]));
+                }
+
+                $this->recalculateTotals($invoice);
+
+                return $invoice->fresh('items');
+            });
+        } catch (QueryException $e) {
+            if ((string) $e->getCode() === '23000') {
+                throw new RuntimeException('Invoice tidak bisa disimpan — kemungkinan nomor invoice bentrok dengan yang baru saja dibuat staff lain. Coba simpan lagi.');
             }
 
-            $this->recalculateTotals($invoice);
-
-            return $invoice->fresh('items');
-        });
+            throw $e;
+        }
     }
 
     /**

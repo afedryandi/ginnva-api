@@ -102,6 +102,19 @@ class InvoiceResource extends Resource
 
                     Forms\Components\Select::make('booking_id')
                         ->label('Referensi Booking (opsional)')
+                        // BUG DIPERBAIKI 2026-09-25 (audit Invoice): SEBELUMNYA
+                        // field ini TIDAK PERNAH dikunci saat edit (sama pola
+                        // bug yang diperbaiki lebih dulu di SPK). Invoice
+                        // adalah dokumen tagihan finansial — staff bisa tanpa
+                        // sengaja mengganti referensi booking-nya setelah
+                        // invoice dibuat (& sudah dikirim/dicetak ke
+                        // customer), merusak traceability invoice-ke-booking
+                        // tanpa jejak audit eksplisit (booking_id TIDAK
+                        // termasuk kolom yang di-log, lihat
+                        // getActivitylogOptions()). Kalau referensinya
+                        // memang salah, buat invoice baru — bukan edit diam-
+                        // diam yang tak tercatat.
+                        ->disabledOn('edit')
                         ->searchable()
                         ->getSearchResultsUsing(fn (string $search) => Booking::where('booking_number', 'like', "%{$search}%")
                             ->orWhere('customer_name', 'like', "%{$search}%")
@@ -312,6 +325,16 @@ class InvoiceResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
+                // BUG DIPERBAIKI 2026-09-25 (audit Invoice): canDelete()
+                // di atas (baris ~67) SUDAH punya logika otorisasi lengkap
+                // (full-access, atau hasModuleAction 'delete', DAN status
+                // harus 'draft') tapi TIDAK PERNAH terpasang jadi tombol —
+                // dead code, tidak ada cara hapus invoice draft dari UI
+                // sama sekali. DeleteAction otomatis menghormati
+                // canDelete() static resource ini (Filament v3 memanggilnya
+                // sebagai sumber otorisasi kalau tidak ada Policy class
+                // terdaftar untuk model Invoice).
+                Tables\Actions\DeleteAction::make(),
 
                 Tables\Actions\Action::make('mark_paid')
                     ->label('Tandai Lunas')

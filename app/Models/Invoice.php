@@ -41,7 +41,6 @@ class Invoice extends Model
         'due_date',
         'status',
         'subtotal',
-        'product_discount',
         'transaction_discount_type',
         'transaction_discount_value',
         'shipping_cost',
@@ -57,7 +56,6 @@ class Invoice extends Model
         'issue_date' => 'date',
         'due_date' => 'date',
         'subtotal' => 'decimal:2',
-        'product_discount' => 'decimal:2',
         'transaction_discount_value' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
         'other_cost' => 'decimal:2',
@@ -106,16 +104,26 @@ class Invoice extends Model
     }
 
     /**
-     * Dipanggil di dalam DB::transaction() oleh InvoiceService supaya
-     * tidak race-condition dobel nomor -- sama pola dengan
-     * StockWriteOff::generateNumber()/Refund::generateRefundNumber().
+     * BUG DIPERBAIKI 2026-09-25 (audit Invoice) -- SEBELUMNYA murni
+     * count()+1 (rawan tabrakan kalau 2 invoice dibuat nyaris bersamaan
+     * untuk toko & hari yang sama -- transaction DB saja tidak cukup
+     * mencegah ini tanpa locking eksplisit). Sekarang do-while(exists())
+     * sama pola dengan Booking::generateBookingNumber()/Spk::
+     * generateNumberForStore() (diperbaiki lebih dulu sesi ini) --
+     * dipasangkan dengan jaring pengaman terakhir di
+     * InvoiceService::create() (catch QueryException).
      */
     public static function generateNumberForStore(int $storeId): string
     {
         $prefix = 'INV/' . $storeId . '/' . now()->format('ymd') . '/';
-        $todayCount = self::where('invoice_number', 'like', $prefix . '%')->count();
+        $sequence = self::where('invoice_number', 'like', $prefix . '%')->count() + 1;
 
-        return $prefix . str_pad((string) ($todayCount + 1), 4, '0', STR_PAD_LEFT);
+        do {
+            $candidate = $prefix . str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+            $sequence++;
+        } while (self::where('invoice_number', $candidate)->exists());
+
+        return $candidate;
     }
 
     public function getActivitylogOptions(): LogOptions
