@@ -223,15 +223,7 @@ class BookingResource extends Resource
                         ->live()
                         ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id)
                         ->disabled(! $isSuperAdmin)
-                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) {
-                            $set('installers', []);
-                            // Ganti toko SELALU timpa (tidak lewat guard
-                            // regenerateCapacitiesIfDatesChanged) — kapasitas
-                            // default beda per toko walau kebetulan susunan
-                            // tanggalnya sama, jadi baris lama tetap tidak
-                            // relevan lagi.
-                            $set('capacities', static::defaultCapacityRows($get));
-                        }),
+                        ->afterStateUpdated(fn (Forms\Set $set) => $set('installers', [])),
 
                     Forms\Components\Select::make('installers')
                         ->label('Installer Bertugas')
@@ -502,8 +494,7 @@ class BookingResource extends Resource
                         // validasi (nilai date-picker dianggap jam 00:00,
                         // selalu "sebelum" now() yang sudah lewat jam 00:00).
                         // Ditemukan lewat laporan user 2026-09-15.
-                        ->minDate(fn () => $form->getOperation() === 'create' ? now()->startOfDay() : null)
-                        ->afterStateUpdated(fn (Forms\Set $set, Forms\Get $get) => static::regenerateCapacitiesIfDatesChanged($get, $set)),
+                        ->minDate(fn () => $form->getOperation() === 'create' ? now()->startOfDay() : null),
 
                     Forms\Components\TextInput::make('preferred_time')
                         ->label('Jam Diinginkan')
@@ -518,18 +509,28 @@ class BookingResource extends Resource
                         ->default(Booking::DEFAULT_DURATION_DAYS_DEFAULT)
                         ->live()
                         ->required()
-                        ->afterStateUpdated(fn (Forms\Set $set, Forms\Get $get) => static::regenerateCapacitiesIfDatesChanged($get, $set))
                         ->helperText('Berapa hari mobil ini makan slot instalasi (dipakai cek kapasitas). Default PPF 3 hari, lainnya 1 hari — sesuaikan kalau instalasi ini diperkirakan lebih cepat/lama.'),
 
-                    // Info rentang tanggal TERMASUK hari libur — supaya
-                    // staff tahu kenapa ada lompatan tanggal di daftar
-                    // kapasitas di bawah (mis. 08 → 10 karena 09 libur),
-                    // bukan dikira sistem salah hitung. Cuma informasi,
-                    // TIDAK ada input di sini.
+                    // Redesain 2026-09-25 (diminta user langsung, audit
+                    // Booking Instalasi) — SEBELUMNYA ada Repeater
+                    // 'capacities' di sini yang mewajibkan staff MENGETIK
+                    // ULANG angka kapasitas dari nol setiap kali approve
+                    // booking yang menyentuh suatu tanggal (default toko,
+                    // tapi bisa diedit bebas tanpa disimpan ke mana pun —
+                    // staff lain bisa isi angka berbeda untuk tanggal yang
+                    // sama tanpa sistem menegur). Sekarang kapasitas
+                    // adalah SATU sumber kebenaran (Store::install_capacity_
+                    // per_day, atau override lewat StoreCapacityOverride —
+                    // dikelola di kalender kapasitas, lihat
+                    // App\Filament\Pages\CapacityCalendar), placeholder ini
+                    // MURNI baca (tidak ada input sama sekali) — validasi
+                    // penuh tetap terjadi otomatis saat submit lewat
+                    // Booking::fullDatesInRange() (CreateBooking/EditBooking),
+                    // staff tidak perlu isi apa pun secara manual lagi.
                     Forms\Components\Placeholder::make('date_range_preview')
-                        ->label('Rentang Tanggal Pengerjaan')
+                        ->label('Rentang Tanggal & Kapasitas Instalasi')
                         ->columnSpanFull()
-                        ->content(function (Forms\Get $get) {
+                        ->content(function (Forms\Get $get, ?Booking $record) {
                             $storeId = $get('store_id');
                             $dateStr = $get('preferred_date');
 
@@ -540,49 +541,35 @@ class BookingResource extends Resource
                             $duration = max(1, (int) ($get('duration_days') ?: 1));
                             $walk = Booking::calendarWalkWithClosedDays((int) $storeId, \Illuminate\Support\Carbon::parse($dateStr), $duration);
 
-                            $lines = collect($walk['dates'])->map(function (array $row) {
+                            $lines = collect($walk['dates'])->map(function (array $row) use ($storeId, $record) {
                                 $day = \Illuminate\Support\Carbon::parse($row['date']);
+                                $label = $day->format('d M Y (l)');
 
-                                return $row['closed']
-                                    ? $day->format('d M Y') . ': Toko libur'
-                                    : $day->format('d M Y') . ': hari kerja';
+                                if ($row['closed']) {
+                                    return "{$label}: Toko libur";
+                                }
+
+                                $capacity = Booking::capacityForDate((int) $storeId, $day);
+                                $used = Booking::confirmedOverlapCount((int) $storeId, $day, $record?->id);
+                                $penuh = $used >= $capacity ? ' — <strong style="color:#dc2626">PENUH</strong>' : '';
+
+                                return "{$label}: {$used}/{$capacity} slot terpakai{$penuh}";
                             })->all();
 
                             if (! $walk['complete']) {
                                 $lines[] = 'Toko ini sepertinya tutup terus-menerus (>90 hari) — cek lagi Jam Operasional toko di menu Toko.';
                             }
 
-                            return new \Illuminate\Support\HtmlString(implode('<br>', array_map('e', $lines)));
-                        }),
-
-                    // Kapasitas tim instalasi bisa BEDA-BEDA tiap tanggal
-                    // (mis. 1 tim masih ngerjain mobil dari hari sebelumnya,
-                    // atau installer izin) — makanya per-baris tanggal,
-                    // bukan 1 angka global. Baris otomatis dibuat ulang
-                    // (defaultCapacityRows()) tiap toko/tanggal/durasi
-                    // berubah — SEMENTARA tidak ada cara pintar buat
-                    // pertahankan angka yang sudah diedit staff kalau cuma
-                    // sebagian tanggal yang berubah, staff perlu isi ulang.
-                    // Field ini SENDIRI tidak disimpan ke database — dibuang
-                    // dari $data sebelum sampai ke Booking::create()/
-                    // update(), lihat CreateBooking/EditBooking.
-                    Forms\Components\Repeater::make('capacities')
-                        ->label('Kapasitas Instalasi per Tanggal')
-                        ->columnSpanFull()
-                        ->addable(false)
-                        ->deletable(false)
-                        ->reorderable(false)
-                        ->live()
-                        ->default(fn (Forms\Get $get) => static::defaultCapacityRows($get))
-                        ->schema([
-                            Forms\Components\Hidden::make('date'),
-                            Forms\Components\TextInput::make('capacity')
-                                ->label(fn (Forms\Get $get, ?Booking $record) => static::capacityRowLabel($get('date'), $get('../../store_id'), $record?->id))
-                                ->numeric()
-                                ->minValue(1)
-                                ->required(),
-                        ])
-                        ->helperText('Default dari setting toko — sesuaikan per tanggal kalau tim yang available beda dari biasanya. Tidak mengubah setting toko.'),
+                            // TIDAK di-escape (beda dari versi lama) —
+                            // SEMUA isi $lines di sini murni dari
+                            // Carbon::format()/angka integer (label toko
+                            // libur/kapasitas/terpakai), tidak ada input
+                            // bebas pengguna yang ikut masuk ke string ini,
+                            // jadi aman menyisipkan <strong> untuk highlight
+                            // "PENUH" tanpa risiko XSS.
+                            return new \Illuminate\Support\HtmlString(implode('<br>', $lines));
+                        })
+                        ->helperText('Kapasitas dikelola terpusat lewat Kalender Kapasitas (menu Booking) — bukan diisi di sini lagi. Approve akan ditolak otomatis kalau salah satu tanggal di atas sudah PENUH.'),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
@@ -597,6 +584,18 @@ class BookingResource extends Resource
                             'completed' => 'Selesai',
                             'cancelled' => 'Dibatalkan',
                         ])
+                        // Default 'confirmed' DI SINI SENGAJA beda dari booking
+                        // yang masuk lewat mobile app (selalu mulai 'pending',
+                        // lihat Api/Customer/BookingController.php) — booking
+                        // yang staff input manual di Filament (WA/walk-in)
+                        // asumsinya sudah deal PASTI (staff yang mengetik ini
+                        // sudah bicara langsung dengan customer), tidak perlu
+                        // tahap triase "Menunggu" lagi seperti submission
+                        // online yang belum pernah dikontak sama sekali. Staff
+                        // tetap bisa turunkan manual ke 'pending' kalau memang
+                        // booking-nya masih tentatif. Didokumentasikan eksplisit
+                        // 2026-09-25 (audit Booking Instalasi) — sebelumnya
+                        // perbedaan ini tidak dijelaskan di mana pun.
                         ->default('confirmed')
                         ->required(),
 
@@ -606,7 +605,7 @@ class BookingResource extends Resource
                     // sistem. Command terjadwal (SendServiceReminders) yang
                     // otomatis kirim WhatsApp+Push+Email begitu tanggal ini tiba.
                     Forms\Components\DatePicker::make('next_service_reminder_at')
-                        ->label('Tanggal Reminder Servis')
+                        ->label('Tanggal Reminder Maintenance')
                         ->helperText('Kosongkan kalau belum perlu reminder. Sistem otomatis kirim WhatsApp/Push/Email ke customer pada tanggal ini.')
                         // SEBELUMNYA ->minDate(now()) divalidasi ULANG setiap
                         // kali form disimpan, termasuk saat staff sama sekali
@@ -745,7 +744,7 @@ class BookingResource extends Resource
                     TextEntry::make('preferred_time')->label('Jam Diinginkan')->placeholder('—'),
                     TextEntry::make('notes')->label('Catatan')->placeholder('—')->columnSpanFull(),
                     TextEntry::make('next_service_reminder_at')
-                        ->label('Reminder Servis')
+                        ->label('Reminder Maintenance')
                         ->date('d M Y')
                         ->placeholder('—')
                         ->helperText(fn (Booking $record) => $record->next_service_reminder_at
@@ -800,73 +799,6 @@ class BookingResource extends Resource
     }
 
     /**
-     * Baris default Repeater 'capacities' — 1 baris per tanggal KERJA
-     * (hari libur toko dilewati, lihat Booking::workingDatesInRange())
-     * dalam rentang lama pengerjaan, kapasitas default diambil dari
-     * setting toko. Dipanggil ulang tiap toko/tanggal/durasi berubah.
-     */
-    private static function defaultCapacityRows(Forms\Get $get): array
-    {
-        return static::computeCapacityRows($get('store_id'), $get('preferred_date'), $get('duration_days'));
-    }
-
-    /**
-     * Diekstrak dari defaultCapacityRows() supaya bisa dipanggil dengan
-     * nilai mentah (bukan cuma dari runtime form Forms\Get) — dipakai
-     * dari EditBooking::mutateFormDataBeforeFill() untuk isi Repeater
-     * SAAT HALAMAN DIBUKA, bukan cuma lewat ->default() (yang TERNYATA
-     * cuma jalan di form Create, TIDAK PERNAH dipanggil Filament untuk
-     * form Edit record yang sudah ada) atau nunggu staff sentuh field
-     * lain dulu (afterStateUpdated). SEBELUMNYA staff buka booking untuk
-     * di-approve, Repeater kapasitas kosong sama sekali sampai staff
-     * tidak sengaja sentuh field Tanggal/Durasi — kalau staff langsung
-     * ubah Status ke Confirmed & Simpan tanpa sadar itu, validasi
-     * cross-check (lihat CreateBooking/EditBooking) menolak submit
-     * (BENAR, itu memang harus ditolak kalau kosong) tapi staff jadi
-     * bingung "isi di mana" karena kolomnya memang tidak pernah muncul.
-     * Ditemukan & diperbaiki 2026-08-28.
-     */
-    public static function computeCapacityRows($storeId, $dateStr, $duration): array
-    {
-        $duration = max(1, (int) ($duration ?: 1));
-
-        if (! $storeId || ! $dateStr) {
-            return [];
-        }
-
-        $defaultCapacity = Store::find($storeId)?->install_capacity_per_day ?: 3;
-
-        try {
-            $dates = Booking::workingDatesInRange((int) $storeId, \Illuminate\Support\Carbon::parse($dateStr), $duration);
-        } catch (\Throwable $e) {
-            return [];
-        }
-
-        return collect($dates)
-            ->map(fn (string $date) => ['date' => $date, 'capacity' => $defaultCapacity])
-            ->all();
-    }
-
-    /**
-     * Timpa baris 'capacities' HANYA kalau susunan tanggalnya benar-benar
-     * berubah — dipanggil dari afterStateUpdated() field preferred_date &
-     * duration_days. Tanpa pengecekan ini, form yang punya BANYAK field
-     * live() lain bisa memicu re-render yang diam-diam mereset angka
-     * kapasitas yang sudah staff edit padahal rentang tanggalnya sama
-     * persis (mis. re-render dari field tidak terkait).
-     */
-    private static function regenerateCapacitiesIfDatesChanged(Forms\Get $get, Forms\Set $set): void
-    {
-        $newRows = static::defaultCapacityRows($get);
-        $currentDates = collect($get('capacities') ?? [])->pluck('date')->all();
-        $newDates = collect($newRows)->pluck('date')->all();
-
-        if ($newDates !== $currentDates) {
-            $set('capacities', $newRows);
-        }
-    }
-
-    /**
      * Kirim email "Anda ditugaskan memantau booking ini" ke direksi yang
      * BARU ditambahkan sebagai watcher — dipanggil dari CreateBooking/
      * EditBooking supaya perilakunya SAMA PERSIS dengan assign watcher
@@ -899,29 +831,6 @@ class BookingResource extends Resource
                 ]);
             }
         }
-    }
-
-    /**
-     * Label baris kapasitas — tanggal + berapa booking 'confirmed' lain
-     * yang sudah menempati tanggal itu, supaya staff tahu konteksnya
-     * tanpa perlu hitung manual dari Placeholder ringkasan di bawahnya.
-     */
-    private static function capacityRowLabel(?string $dateStr, mixed $storeId, ?int $excludeBookingId): string
-    {
-        if (! $dateStr) {
-            return 'Kapasitas';
-        }
-
-        $day = \Illuminate\Support\Carbon::parse($dateStr);
-        $label = $day->format('d M Y (l)');
-
-        if (! $storeId) {
-            return $label;
-        }
-
-        $used = Booking::confirmedOverlapCount((int) $storeId, $day, $excludeBookingId);
-
-        return "{$label} — {$used} booking confirmed";
     }
 
     public static function table(Table $table): Table
@@ -1014,7 +923,7 @@ class BookingResource extends Resource
                     }),
 
                 Tables\Columns\TextColumn::make('next_service_reminder_at')
-                    ->label('Reminder Servis')
+                    ->label('Reminder Maintenance')
                     ->date('d M Y')
                     ->placeholder('—')
                     ->description(fn ($record) => $record->next_service_reminder_at
@@ -1459,7 +1368,7 @@ class BookingResource extends Resource
                     ->modalHeading('Kirim Pengingat Maintenance')
                     ->modalDescription(fn (Booking $record) => $record->service_reminder_sent_at
                         ? 'Pengingat sebelumnya terkirim pada ' . $record->service_reminder_sent_at->format('d M Y H:i') . '. Kirim lagi sekarang?'
-                        : 'Kirim pengingat servis berkala ke customer lewat WhatsApp, Push, dan Email?')
+                        : 'Kirim pengingat maintenance berkala ke customer lewat WhatsApp, Push, dan Email?')
                     ->action(function (Booking $record) {
                         $results = app(ServiceReminderService::class)->sendFor($record, force: true);
                         $sent = array_keys(array_filter($results));

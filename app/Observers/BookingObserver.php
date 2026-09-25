@@ -79,34 +79,66 @@ class BookingObserver
      */
     public function updated(Booking $booking): void
     {
-        if (! $booking->wasChanged('status') || ! $booking->customer_id) {
+        if (! $booking->customer_id) {
             return;
         }
 
         $tanggal = $booking->preferred_date?->format('d M Y');
 
-        match ($booking->status) {
-            'confirmed' => $this->push->sendToCustomer(
+        if ($booking->wasChanged('status')) {
+            match ($booking->status) {
+                'confirmed' => $this->push->sendToCustomer(
+                    $booking->customer_id,
+                    'Booking Dikonfirmasi',
+                    "Booking #{$booking->booking_number} Anda sudah dikonfirmasi toko untuk tanggal {$tanggal}.",
+                    [
+                        'type'       => 'booking_confirmed',
+                        'booking_id' => $booking->id,
+                        'route'      => "/booking/{$booking->id}/chat",
+                    ]
+                ),
+                'cancelled' => $this->push->sendToCustomer(
+                    $booking->customer_id,
+                    'Booking Dibatalkan',
+                    "Booking #{$booking->booking_number} Anda ({$tanggal}) telah dibatalkan. Hubungi toko untuk info lebih lanjut.",
+                    [
+                        'type'       => 'booking_cancelled',
+                        'booking_id' => $booking->id,
+                        'route'      => "/booking/{$booking->id}/chat",
+                    ]
+                ),
+                default => null,
+            };
+        }
+
+        // Reschedule (audit modul Booking Instalasi 2026-09-25, gap
+        // "standar enterprise"): SEBELUMNYA mengubah preferred_date pada
+        // booking yang sudah 'confirmed' TIDAK memicu notifikasi apa pun
+        // — customer cuma tahu kalau kebetulan buka app atau dihubungi
+        // manual. 'confirmed' saja yang relevan diberi tahu — booking
+        // 'pending' belum pasti tanggalnya di mata customer (bisa masih
+        // berubah saat triase), dan 'completed'/'cancelled' sudah final
+        // (tidak masuk akal notif reschedule utk booking yang sudah
+        // kelar/batal). SENGAJA method notifikasi TERPISAH (bukan ditumpuk
+        // ke match status di atas) — status TIDAK berubah di sini, cuma
+        // tanggalnya, jadi keduanya independen dan bisa terjadi sekaligus
+        // dalam 1 update (mis. staff ganti tanggal SEKALIGUS approve).
+        if ($booking->wasChanged('preferred_date') && $booking->status === 'confirmed') {
+            $tanggalLama = $booking->getOriginal('preferred_date');
+            $tanggalLama = $tanggalLama ? \Illuminate\Support\Carbon::parse($tanggalLama)->format('d M Y') : null;
+
+            $this->push->sendToCustomer(
                 $booking->customer_id,
-                'Booking Dikonfirmasi',
-                "Booking #{$booking->booking_number} Anda sudah dikonfirmasi toko untuk tanggal {$tanggal}.",
+                'Jadwal Booking Berubah',
+                $tanggalLama
+                    ? "Booking #{$booking->booking_number} Anda dijadwal ulang dari {$tanggalLama} ke {$tanggal}."
+                    : "Booking #{$booking->booking_number} Anda dijadwal ulang ke {$tanggal}.",
                 [
-                    'type'       => 'booking_confirmed',
+                    'type'       => 'booking_rescheduled',
                     'booking_id' => $booking->id,
                     'route'      => "/booking/{$booking->id}/chat",
                 ]
-            ),
-            'cancelled' => $this->push->sendToCustomer(
-                $booking->customer_id,
-                'Booking Dibatalkan',
-                "Booking #{$booking->booking_number} Anda ({$tanggal}) telah dibatalkan. Hubungi toko untuk info lebih lanjut.",
-                [
-                    'type'       => 'booking_cancelled',
-                    'booking_id' => $booking->id,
-                    'route'      => "/booking/{$booking->id}/chat",
-                ]
-            ),
-            default => null,
-        };
+            );
+        }
     }
 }

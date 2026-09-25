@@ -341,30 +341,50 @@ class Booking extends Model
     }
 
     /**
+     * Kapasitas instalasi 1 toko di 1 tanggal spesifik — SATU sumber
+     * kebenaran (redesain 2026-09-25, diminta user langsung, audit
+     * Booking Instalasi): override tersimpan (StoreCapacityOverride) kalau
+     * ada, kalau tidak fallback ke Store::install_capacity_per_day.
+     * SEBELUMNYA angka ini TIDAK PERNAH disimpan sama sekali — staff
+     * mengetik ulang dari nol setiap kali approve booking yang menyentuh
+     * tanggal itu (lewat Repeater 'capacities' di form Booking / payload
+     * 'capacities' endpoint mobile /confirm), sehingga staff berbeda bisa
+     * mengisi angka BERBEDA untuk tanggal yang SAMA tanpa sistem menegur
+     * inkonsistensi. Sekarang kapasitas dikelola terpusat lewat kalender
+     * (App\Filament\Pages\CapacityCalendar), booking tinggal membacanya.
+     */
+    public static function capacityForDate(int $storeId, Carbon $date): int
+    {
+        $override = StoreCapacityOverride::where('store_id', $storeId)
+            ->whereDate('date', $date)
+            ->first();
+
+        if ($override) {
+            return $override->capacity;
+        }
+
+        return max(1, (int) (Store::find($storeId)?->install_capacity_per_day ?: 3));
+    }
+
+    /**
      * Cek kapasitas SETIAP HARI KERJA dalam rentang $durationDays hari
      * kerja mulai $startDate di toko $storeId — dipakai sebelum booking
      * di-approve jadi 'confirmed' (BookingResource maupun endpoint mobile
      * /confirm) supaya tidak mungkin lolos approve kalau salah satu
-     * harinya sudah penuh.
-     *
-     * $capacityByDate = [tanggal Y-m-d => kapasitas hari itu] — SENGAJA
-     * per tanggal (bukan 1 angka global) karena kapasitas tim instalasi
-     * riil bisa beda tiap hari (mis. 1 tim masih ngerjain mobil dari hari
-     * sebelumnya, atau izin). Staff input manual tiap kali approve (lihat
-     * form Booking di Filament & payload POST .../confirm) — TIDAK
-     * pernah jadi setting tetap tersimpan. Tanggal yang tidak ada di
-     * $capacityByDate fallback ke $defaultCapacity.
+     * harinya sudah penuh. Kapasitas tiap tanggal dibaca dari
+     * capacityForDate() di atas — BUKAN lagi parameter yang diisi manual
+     * staff tiap panggilan (lihat catatan lengkap di capacityForDate()).
      *
      * Return array tanggal (Y-m-d) yang SUDAH PENUH; array kosong =
      * seluruh rentang masih ada slot.
      */
-    public static function fullDatesInRange(int $storeId, Carbon $startDate, int $durationDays, array $capacityByDate, int $defaultCapacity = 3, ?int $excludeBookingId = null): array
+    public static function fullDatesInRange(int $storeId, Carbon $startDate, int $durationDays, ?int $excludeBookingId = null): array
     {
         $fullDates = [];
 
         foreach (self::workingDatesInRange($storeId, $startDate, $durationDays) as $dateStr) {
-            $capacity = max(1, (int) ($capacityByDate[$dateStr] ?? $defaultCapacity));
             $day = Carbon::parse($dateStr);
+            $capacity = self::capacityForDate($storeId, $day);
 
             if (self::confirmedOverlapCount($storeId, $day, $excludeBookingId) >= $capacity) {
                 $fullDates[] = $dateStr;

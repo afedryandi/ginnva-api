@@ -25,8 +25,12 @@ class CreateBooking extends CreateRecord
      * beforeCreate(), yang ternyata TIDAK bisa diandalkan mencerminkan
      * submit terbaru (bug: validasi selalu ke-skip diam-diam, booking
      * 'confirmed' yang bentrok kapasitas tetap lolos tersimpan tanpa
-     * pernah ditolak). capacities (kapasitas per tanggal) juga ditangkap
-     * & dibuang di sini sekalian karena bukan kolom di tabel bookings.
+     * pernah ditolak).
+     *
+     * Redesain 2026-09-25 — TIDAK ADA LAGI 'capacities' yang ditangkap/
+     * dibuang di sini: kapasitas sekarang dibaca otomatis dari
+     * Booking::capacityForDate() (Store::install_capacity_per_day atau
+     * StoreCapacityOverride), bukan lagi diisi manual staff tiap submit.
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
@@ -43,42 +47,19 @@ class CreateBooking extends CreateRecord
             $data['store_id'] = $user->store_id;
         }
 
-        $capacityByDate = collect($data['capacities'] ?? [])
-            ->filter(fn ($row) => ! empty($row['date']))
-            ->mapWithKeys(fn ($row) => [Carbon::parse($row['date'])->toDateString() => max(1, (int) ($row['capacity'] ?? 1))])
-            ->all();
-        unset($data['capacities']);
-
         if (($data['status'] ?? null) === 'confirmed') {
             $durationDays = max(1, (int) ($data['duration_days'] ?? 1));
-
-            // Sama pengaman dengan EditBooking — lihat komentar di sana
-            // untuk penjelasan bug yang ditutup ini.
-            $expectedDates = Booking::workingDatesInRange((int) $data['store_id'], Carbon::parse($data['preferred_date']), $durationDays);
-            $missingDates = array_diff($expectedDates, array_keys($capacityByDate));
-
-            if (! empty($missingDates)) {
-                Notification::make()
-                    ->title('Kapasitas belum lengkap')
-                    ->body('Kapasitas untuk tanggal berikut belum terisi: ' . implode(', ', $missingDates) . '. Muat ulang halaman lalu isi kapasitas semua tanggal kerja sebelum konfirmasi.')
-                    ->danger()
-                    ->persistent()
-                    ->send();
-
-                throw new Halt();
-            }
 
             $fullDates = Booking::fullDatesInRange(
                 (int) $data['store_id'],
                 Carbon::parse($data['preferred_date']),
                 $durationDays,
-                $capacityByDate,
             );
 
             if (! empty($fullDates)) {
                 Notification::make()
                     ->title('Kapasitas instalasi penuh')
-                    ->body('Tanggal berikut sudah mencapai kapasitas maksimal toko: ' . implode(', ', $fullDates) . '. Pilih tanggal lain, atau simpan dulu sebagai "Menunggu Konfirmasi" sampai ada slot yang kosong.')
+                    ->body('Tanggal berikut sudah mencapai kapasitas maksimal toko: ' . implode(', ', $fullDates) . '. Pilih tanggal lain, sesuaikan kapasitas lewat Kalender Kapasitas, atau simpan dulu sebagai "Menunggu Konfirmasi" sampai ada slot yang kosong.')
                     ->danger()
                     ->persistent()
                     ->send();

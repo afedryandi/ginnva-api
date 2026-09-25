@@ -224,6 +224,12 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:20,1');
 
         Route::get('/bookings', [StaffBookingController::class, 'index']);
+        // Ringkasan kapasitas N hari ke depan (bukan per-booking) — WAJIB
+        // didaftarkan SEBELUM '/bookings/{id}' di bawah, atau
+        // 'capacity-overview' akan tertangkap sebagai {id} dan salah
+        // route ke show(). Lihat catatan lengkap di
+        // StaffBookingController::capacityOverview().
+        Route::get('/bookings/capacity-overview', [StaffBookingController::class, 'capacityOverview']);
         Route::get('/bookings/{id}', [StaffBookingController::class, 'show']);
         // Approve booking pending -> confirmed langsung dari app (Store
         // Manager/Direksi/Super Admin) — dicek kapasitas slot instalasi

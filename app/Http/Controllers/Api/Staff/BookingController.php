@@ -103,16 +103,103 @@ class BookingController extends Controller
     }
 
     /**
+     * GET /api/staff/bookings/capacity-overview?days=14
+     *
+     * Ringkasan kapasitas instalasi N hari ke depan (default 14, maks 30)
+     * untuk toko staff yang login — TIDAK terikat 1 booking tertentu,
+     * beda dari capacityPreview() di bawah yang perlu {id} booking dulu.
+     * Dibuat supaya staff bisa lihat toko sedang padat di tanggal mana
+     * SEBELUM membuka booking pending tertentu dan memutuskan mau
+     * approve tanggal berapa — sebelumnya sinyal kapasitas baru muncul
+     * sebagai validasi SETELAH staff menekan "Konfirmasi", bukan sebagai
+     * overview di awal (audit modul Booking Instalasi 2026-09-25, gap
+     * "standar enterprise" — Filament sudah punya ini secara implisit
+     * lewat ->defaultGroup('preferred_date') di tabel, mobile belum).
+     *
+     * Full-access (super_admin/direksi) WAJIB kirim ?store_id= — mereka
+     * tidak terikat 1 toko, dan mobile app belum punya picker toko untuk
+     * kasus ini (tidak dirender di UI staff full-access untuk saat ini,
+     * endpoint tetap benar/lengkap kalau suatu saat dipakai).
+     */
+    public function capacityOverview(Request $request)
+    {
+        $user = $request->user('api');
+
+        if ($user->hasRole('partner')) {
+            abort(403, 'Partner tidak punya akses ke booking toko.');
+        }
+
+        $storeId = $user->isFullAccess() ? $request->integer('store_id') : $user->store_id;
+
+        if (! $storeId) {
+            abort(422, 'Toko tidak diketahui — sertakan store_id.');
+        }
+
+        $store = \App\Models\Store::find($storeId);
+
+        if (! $store) {
+            abort(404, 'Toko tidak ditemukan.');
+        }
+
+        $request->validate([
+            'days' => 'sometimes|integer|min:1|max:30',
+        ]);
+
+        $days = $request->filled('days') ? (int) $request->days : 14;
+
+        $today = \Illuminate\Support\Carbon::today();
+        $dates = [];
+
+        for ($i = 0; $i < $days; $i++) {
+            $day = $today->copy()->addDays($i);
+
+            if ($store->isClosedOn($day)) {
+                $dates[] = ['date' => $day->toDateString(), 'closed' => true];
+
+                continue;
+            }
+
+            // 'pending' juga dihitung terpisah di sini (used cuma
+            // 'confirmed', SAMA seperti confirmedOverlapCount()) — supaya
+            // staff bisa lihat ada berapa lead yang MASIH minta tanggal
+            // ini (belum tentu kepakai semua, bisa saja hangus/pindah
+            // tanggal saat triase), bukan disamakan dengan slot yang
+            // sudah pasti terpakai.
+            $used = Booking::confirmedOverlapCount($storeId, $day);
+            $pending = Booking::where('store_id', $storeId)
+                ->where('status', 'pending')
+                ->whereDate('preferred_date', $day)
+                ->count();
+
+            $dates[] = [
+                'date'             => $day->toDateString(),
+                'closed'           => false,
+                'used'             => $used,
+                // Redesain 2026-09-25 — dibaca dari capacityForDate() (ikut
+                // StoreCapacityOverride kalau ada), bukan langsung
+                // install_capacity_per_day mentah lagi, supaya override
+                // yang diatur lewat Kalender Kapasitas ikut tercermin di
+                // strip mobile ini.
+                'default_capacity' => Booking::capacityForDate($storeId, $day),
+                'pending_count'    => $pending,
+            ];
+        }
+
+        return response()->json(['success' => true, 'data' => $dates]);
+    }
+
+    /**
      * GET /api/staff/bookings/{id}/capacity-preview?duration_days=3
      *
      * Daftar tanggal (TERMASUK hari libur, ditandai closed=true) untuk
      * rentang lama pengerjaan tertentu — hari libur cuma ditampilkan
      * sebagai konteks (kenapa ada lompatan tanggal), tidak ikut divalidasi
      * kapasitas. Tanggal kerja disertai berapa slot sudah terpakai
-     * (booking 'confirmed' lain) dan kapasitas default toko — dipakai
-     * mobile app buat render 1 input kapasitas PER TANGGAL sebelum
-     * approve (tim instalasi bisa beda jumlah tiap hari, mis. 1 tim masih
-     * ngerjain mobil dari hari sebelumnya).
+     * (booking 'confirmed' lain) dan kapasitas tanggal itu (redesain
+     * 2026-09-25: dari Booking::capacityForDate(), BUKAN lagi 1 angka
+     * default polos) — MURNI informasi buat staff sebelum tap "Konfirmasi",
+     * tidak ada input kapasitas lagi di sisi klien (lihat catatan lengkap
+     * di confirm() & Booking::capacityForDate()).
      */
     public function capacityPreview(Request $request, int $id)
     {
@@ -127,20 +214,20 @@ class BookingController extends Controller
             ? (int) $request->duration_days
             : ($booking->duration_days ?? $booking->effective_duration_days);
 
-        $defaultCapacity = $booking->store?->install_capacity_per_day ?: 3;
-
         $walk = Booking::calendarWalkWithClosedDays($booking->store_id, $booking->preferred_date->copy(), $durationDays);
 
-        $dates = collect($walk['dates'])->map(function (array $row) use ($booking, $defaultCapacity) {
+        $dates = collect($walk['dates'])->map(function (array $row) use ($booking) {
             if ($row['closed']) {
                 return ['date' => $row['date'], 'closed' => true];
             }
 
+            $day = \Illuminate\Support\Carbon::parse($row['date']);
+
             return [
                 'date'             => $row['date'],
                 'closed'           => false,
-                'used'             => Booking::confirmedOverlapCount($booking->store_id, \Illuminate\Support\Carbon::parse($row['date']), $booking->id),
-                'default_capacity' => $defaultCapacity,
+                'used'             => Booking::confirmedOverlapCount($booking->store_id, $day, $booking->id),
+                'default_capacity' => Booking::capacityForDate($booking->store_id, $day),
             ];
         })->values();
 
@@ -162,6 +249,13 @@ class BookingController extends Controller
      * jalur mobile ini tidak jadi celah buat lolos over-booking tim
      * instalasi. Installer & partner tidak boleh approve, sama seperti
      * assignment (lihat authorizeManage()).
+     *
+     * Redesain 2026-09-25 — TIDAK ADA LAGI payload 'capacities' yang wajib
+     * dikirim klien: kapasitas sekarang dibaca otomatis dari
+     * Booking::capacityForDate() (satu sumber kebenaran, dikelola lewat
+     * Kalender Kapasitas), bukan lagi diketik ulang staff tiap approve —
+     * sebelumnya staff bisa isi angka berbeda-beda untuk tanggal yang
+     * sama tanpa sistem menegur.
      */
     public function confirm(Request $request, int $id)
     {
@@ -172,14 +266,7 @@ class BookingController extends Controller
             // Staff boleh sesuaikan lama pengerjaan saat approve (mis. tahu
             // dari konsultasi customer ternyata butuh lebih/kurang dari
             // default) — sama seperti field "Lama Pengerjaan" di Filament.
-            'duration_days'   => 'sometimes|integer|min:1|max:14',
-            // Kapasitas PER TANGGAL (tim instalasi bisa beda-beda jumlahnya
-            // tiap hari) — bukan 1 angka global lagi. Staff input manual
-            // tiap approve (sama seperti Filament), TIDAK pernah jadi
-            // setting tetap tersimpan.
-            'capacities'            => 'required|array|min:1',
-            'capacities.*.date'     => 'required|date',
-            'capacities.*.capacity' => 'required|integer|min:1',
+            'duration_days' => 'sometimes|integer|min:1|max:14',
         ]);
 
         return DB::transaction(function () use ($booking, $request) {
@@ -197,35 +284,15 @@ class BookingController extends Controller
                 ? (int) $request->duration_days
                 : $locked->duration_days;
 
-            $capacityByDate = collect($request->capacities)
-                ->mapWithKeys(fn (array $row) => [\Illuminate\Support\Carbon::parse($row['date'])->toDateString() => (int) $row['capacity']])
-                ->all();
-
-            // Cross-check jumlah tanggal yang dikirim klien terhadap hari
-            // kerja SEBENARNYA untuk $durationDays ini — SEBELUMNYA kalau
-            // ada tanggal yang hilang dari payload (bug klien lama, race
-            // durasi berubah tapi capacities belum di-reload), tanggal itu
-            // diam-diam fallback ke $defaultCapacity di
-            // fullDatesInRange() alih-alih ditolak, jadi kapasitas
-            // tanggal itu tidak benar-benar dicek sesuai yang staff lihat
-            // di layar. Lihat audit modul Booking 2026-08-27.
-            $expectedDates = Booking::workingDatesInRange($locked->store_id, $locked->preferred_date->copy(), $durationDays);
-            $missingDates = array_diff($expectedDates, array_keys($capacityByDate));
-
-            if (! empty($missingDates)) {
-                abort(422, 'Kapasitas untuk tanggal berikut belum diisi: ' . implode(', ', $missingDates) . '. Muat ulang halaman lalu isi kapasitas semua tanggal kerja sebelum konfirmasi.');
-            }
-
             $fullDates = Booking::fullDatesInRange(
                 $locked->store_id,
                 $locked->preferred_date->copy(),
                 $durationDays,
-                $capacityByDate,
                 excludeBookingId: $locked->id,
             );
 
             if (! empty($fullDates)) {
-                abort(422, 'Kapasitas instalasi toko sudah penuh di tanggal: ' . implode(', ', $fullDates) . '. Pilih tanggal lain, atau selesaikan/batalkan booking lain yang bentrok dulu.');
+                abort(422, 'Kapasitas instalasi toko sudah penuh di tanggal: ' . implode(', ', $fullDates) . '. Pilih tanggal lain, sesuaikan kapasitas lewat Kalender Kapasitas, atau selesaikan/batalkan booking lain yang bentrok dulu.');
             }
 
             $locked->update([

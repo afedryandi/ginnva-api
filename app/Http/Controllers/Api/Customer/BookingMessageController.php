@@ -8,6 +8,7 @@ use App\Models\BookingMessage;
 use App\Models\CustomerGalleryPhoto;
 use App\Models\StoreReview;
 use Illuminate\Http\Request;
+use Spatie\Activitylog\Models\Activity;
 
 class BookingMessageController extends Controller
 {
@@ -38,6 +39,17 @@ class BookingMessageController extends Controller
         return response()->json([
             'success' => true,
             'data'    => [
+                'status'            => $booking->status,
+                // Riwayat status (audit modul Booking Instalasi 2026-09-25,
+                // gap "standar enterprise": customer sebelumnya cuma dapat
+                // push notif SEKALI saat status berubah, tidak ada timeline
+                // yang bisa dilihat ulang kalau notifnya terlewat/dimatikan.
+                // Data ini SUDAH ADA dari dulu lewat Booking::LogsActivity
+                // (logOnly 'status', lihat getActivitylogOptions()) — cuma
+                // belum pernah disurfacekan ke customer, jadi tidak perlu
+                // mekanisme pencatatan baru, cukup dibaca dari activity_log
+                // yang sudah tercatat sejak lama.
+                'status_history'    => $this->statusHistory($booking),
                 'current_stage'     => $booking->current_stage,
                 'secondary_stage'   => $booking->secondary_stage,
                 'product_kaca_film' => $booking->product_kaca_film,
@@ -169,6 +181,34 @@ class BookingMessageController extends Controller
             'success' => true,
             'data'    => $this->transform($message),
         ], 201);
+    }
+
+    /**
+     * @return list<array{status: string, changed_at: string}>
+     *
+     * Dibaca dari activity_log (log_name='booking'), bukan tabel/kolom
+     * baru — LogOptions::logOnly(['status', ...]) di Booking model sudah
+     * mencatat 1 entri tiap kali status berubah (termasuk transisi
+     * pending->confirmed pertama kali record dibuat, karena
+     * logOnlyDirty() tetap mencatat 'created' event kalau status ada di
+     * $fillable saat create). Diurutkan lama->baru supaya tampil sebagai
+     * timeline kronologis di mobile.
+     */
+    private function statusHistory(Booking $booking): array
+    {
+        return Activity::where('subject_type', Booking::class)
+            ->where('subject_id', $booking->id)
+            ->where('log_name', 'booking')
+            ->orderBy('created_at')
+            ->get()
+            ->map(function (Activity $activity) {
+                $status = $activity->properties['attributes']['status'] ?? null;
+
+                return $status ? ['status' => $status, 'changed_at' => $activity->created_at] : null;
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 
     private function transform(BookingMessage $m): array

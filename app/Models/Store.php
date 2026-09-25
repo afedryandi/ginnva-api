@@ -323,4 +323,13 @@ class Store extends Model
     {
         return $this->hasMany(Technician::class);
     }
+
+    /**
+     * Override kapasitas instalasi per tanggal spesifik -- lihat
+     * StoreCapacityOverride & Booking::capacityForDate().
+     */
+    public function capacityOverrides()
+    {
+        return $this->hasMany(StoreCapacityOverride::class);
+    }
 }
