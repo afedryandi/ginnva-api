@@ -120,113 +120,167 @@
     </x-filament::section>
 
     {{--
-        Panel edit — BUG DIPERBAIKI 2026-09-25 (laporan user, "pop up
-        rusak desainnya"): SEBELUMNYA modal ini dibangun manual dengan
-        div `fixed inset-0 z-50 ...` + Tailwind classes custom (max-w-sm,
-        shadow-xl, bg-black/40, dst). Root cause: proyek ini TIDAK punya
-        Filament theme kustom (tidak ada resources/css/filament/**,
-        panel pakai CSS bawaan Filament yang di-precompile vendor,
-        BUKAN di-build ulang dari tailwind.config.js proyek ini) — jadi
-        class Tailwind yang cuma dipakai di file INI (tidak pernah
-        dipakai file Filament lain mana pun, dikonfirmasi grep) tidak
-        pernah ter-compile ke CSS yang benar-benar dimuat browser,
-        modal tampil tanpa background/border/posisi sama sekali.
-        Diganti pakai <x-filament::modal> resmi -- komponen inti
-        Filament yang sudah pasti ter-compile (dipakai di seluruh
-        panel admin), bukan lagi Tailwind mentah buatan sendiri.
-        closeByClickingAway/closeByEscaping DIMATIKAN sengaja -- state
-        "terbuka" murni dikontrol Livewire ($editingDate), bukan Alpine
-        lokal, supaya tidak ada jalur tutup yang lupa reset properti PHP.
+        Panel edit — BUG DIPERBAIKI 2026-09-25 (laporan user, dua ronde):
+        Ronde 1 ("pop up rusak desainnya") — modal manual pakai class
+        Tailwind eksotis (fixed, inset-0, z-50, bg-black/40, shadow-xl,
+        max-w-sm) yang TIDAK PERNAH ter-compile ke CSS Filament (proyek
+        ini tidak punya theme kustom, panel pakai CSS precompiled
+        vendor). Percobaan pertama diganti <x-filament::modal> resmi.
+        Ronde 2 ("tanggal tidak bisa diklik") — TERNYATA prop `visible`
+        di <x-filament::modal> cuma "initial visibility", TIDAK reaktif
+        tiap Livewire re-render (Alpine state-nya dipertahankan morph,
+        bukan dievaluasi ulang dari Blade) — backdrop modal nyangkut
+        menutupi SELURUH halaman & memblokir klik kalender walau
+        $editingDate sudah null lagi.
+        FIX FINAL: kembali ke @if($editingDate)/div manual (dijamin
+        BENAR-BENAR tidak ada di DOM saat tertutup, mustahil memblokir
+        klik apa pun), styling pakai CSS POLOS di <style> di bawah
+        (bukan class Tailwind) -- CSS polos SELALU berlaku di browser
+        apa pun isi compiled Tailwind bundle-nya, tidak bergantung pada
+        proses build/purge apa pun.
     --}}
-    <x-filament::modal id="capacity-edit-modal" :visible="$editingDate !== null" width="sm" :close-by-clicking-away="false" :close-by-escaping="false" :close-button="false">
-        <x-slot name="heading">
-            @if ($editingDate)
-                Kapasitas {{ \Illuminate\Support\Carbon::parse($editingDate)->translatedFormat('d F Y (l)') }}
-            @endif
-        </x-slot>
+    <style>
+        .capacity-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.4);
+            padding: 1rem;
+        }
+        .capacity-modal-card {
+            width: 100%;
+            max-width: 24rem;
+            border-radius: 0.75rem;
+            background-color: #ffffff;
+            padding: 1.25rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+        :root.dark .capacity-modal-card {
+            background-color: #111827;
+        }
+    </style>
 
-        @if ($editingDate)
-            @php
-                $editingUsed = collect($days)->firstWhere('date', $editingDate)['used'] ?? 0;
-            @endphp
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ $editingUsed }} booking confirmed sudah menempati tanggal ini.
-            </p>
+    @if ($editingDate)
+        <div class="capacity-modal-backdrop" x-data x-on:keydown.escape.window="$wire.closeEdit()">
+            <div class="capacity-modal-card">
+                <h3 class="text-sm font-bold text-gray-900 dark:text-white">
+                    Kapasitas {{ \Illuminate\Support\Carbon::parse($editingDate)->translatedFormat('d F Y (l)') }}
+                </h3>
 
-            {{-- Gap "siapa & kapan" (audit Kalender Kapasitas 2026-09-25)
-                 — sebelumnya staff harus gali activity_log manual untuk
-                 tahu siapa yang terakhir mengubah kapasitas tanggal ini. --}}
-            @if ($editingOverrideInfo)
-                <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-                    Diubah oleh {{ $editingOverrideInfo['name'] }} pada {{ $editingOverrideInfo['at'] }}.
+                @php
+                    $editingUsed = collect($days)->firstWhere('date', $editingDate)['used'] ?? 0;
+                @endphp
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{ $editingUsed }} booking confirmed sudah menempati tanggal ini.
                 </p>
-            @else
-                <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">Belum pernah di-override — masih pakai default toko.</p>
-            @endif
 
-            <label class="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">Kapasitas</label>
-            <input
-                type="number"
-                min="1"
-                wire:model="editingCapacity"
-                class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-800 dark:text-white"
-            />
-        @endif
+                {{-- Gap "siapa & kapan" (audit Kalender Kapasitas 2026-09-25)
+                     — sebelumnya staff harus gali activity_log manual
+                     untuk tahu siapa yang terakhir mengubah kapasitas
+                     tanggal ini. --}}
+                @if ($editingOverrideInfo)
+                    <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                        Diubah oleh {{ $editingOverrideInfo['name'] }} pada {{ $editingOverrideInfo['at'] }}.
+                    </p>
+                @else
+                    <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">Belum pernah di-override — masih pakai default toko.</p>
+                @endif
 
-        <x-slot name="footerActions">
-            @if ($editingDate)
-                <button
-                    type="button"
-                    wire:click="clearOverride"
-                    class="text-xs font-medium text-gray-500 hover:text-danger-600 dark:text-gray-400 dark:hover:text-danger-400"
-                >
-                    Hapus override (pakai default)
-                </button>
-                <x-filament::button wire:click="closeEdit" color="gray" size="sm">Batal</x-filament::button>
-                <x-filament::button wire:click="saveCapacity" size="sm">Simpan</x-filament::button>
-            @endif
-        </x-slot>
-    </x-filament::modal>
-
-    {{-- Panel "Atur Rentang Tanggal" (gap bulk-edit, audit Kalender
-         Kapasitas 2026-09-25) — pola sama persis (<x-filament::modal>). --}}
-    <x-filament::modal id="capacity-range-modal" :visible="$rangeEditorOpen" width="sm" :close-by-clicking-away="false" :close-by-escaping="false" :close-button="false">
-        <x-slot name="heading">Atur Kapasitas Rentang Tanggal</x-slot>
-
-        <p class="text-xs text-gray-500 dark:text-gray-400">
-            Terapkan 1 angka kapasitas ke semua tanggal dalam rentang ini sekaligus (mis. "minggu depan kapasitas turun jadi 2 karena kurang installer"). Tanggal lampau dalam rentang dilewati otomatis.
-        </p>
-
-        <div class="mt-4 grid grid-cols-2 gap-3">
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-300">Dari Tanggal</label>
+                <label class="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">Kapasitas</label>
                 <input
-                    type="date"
-                    wire:model="rangeFrom"
-                    class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-800 dark:text-white dark:[color-scheme:dark]"
+                    type="number"
+                    min="1"
+                    wire:model="editingCapacity"
+                    class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-800 dark:text-white"
                 />
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-300">Sampai Tanggal</label>
-                <input
-                    type="date"
-                    wire:model="rangeTo"
-                    class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-800 dark:text-white dark:[color-scheme:dark]"
-                />
+
+                <div class="mt-5 flex items-center justify-between gap-2">
+                    <button
+                        type="button"
+                        wire:click="clearOverride"
+                        class="text-xs font-medium text-gray-500 hover:text-danger-600 dark:text-gray-400 dark:hover:text-danger-400"
+                    >
+                        Hapus override (pakai default)
+                    </button>
+                    <div class="flex gap-2">
+                        <button
+                            type="button"
+                            wire:click="closeEdit"
+                            class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 dark:border-white/10 dark:text-gray-300"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="button"
+                            wire:click="saveCapacity"
+                            class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-500"
+                        >
+                            Simpan
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
+    @endif
 
-        <label class="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">Kapasitas</label>
-        <input
-            type="number"
-            min="1"
-            wire:model="rangeCapacity"
-            class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-800 dark:text-white"
-        />
+    {{-- Panel "Atur Rentang Tanggal" (gap bulk-edit, audit Kalender
+         Kapasitas 2026-09-25) — pola & styling sama persis panel edit
+         di atas (div manual + CSS polos). --}}
+    @if ($rangeEditorOpen)
+        <div class="capacity-modal-backdrop" x-data x-on:keydown.escape.window="$wire.closeRangeEditor()">
+            <div class="capacity-modal-card">
+                <h3 class="text-sm font-bold text-gray-900 dark:text-white">Atur Kapasitas Rentang Tanggal</h3>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Terapkan 1 angka kapasitas ke semua tanggal dalam rentang ini sekaligus (mis. "minggu depan kapasitas turun jadi 2 karena kurang installer"). Tanggal lampau dalam rentang dilewati otomatis.
+                </p>
 
-        <x-slot name="footerActions">
-            <x-filament::button wire:click="closeRangeEditor" color="gray" size="sm">Batal</x-filament::button>
-            <x-filament::button wire:click="applyRangeCapacity" size="sm">Terapkan</x-filament::button>
-        </x-slot>
-    </x-filament::modal>
+                <div class="mt-4 grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300">Dari Tanggal</label>
+                        <input
+                            type="date"
+                            wire:model="rangeFrom"
+                            class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-800 dark:text-white dark:[color-scheme:dark]"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300">Sampai Tanggal</label>
+                        <input
+                            type="date"
+                            wire:model="rangeTo"
+                            class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-800 dark:text-white dark:[color-scheme:dark]"
+                        />
+                    </div>
+                </div>
+
+                <label class="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">Kapasitas</label>
+                <input
+                    type="number"
+                    min="1"
+                    wire:model="rangeCapacity"
+                    class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-800 dark:text-white"
+                />
+
+                <div class="mt-5 flex items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        wire:click="closeRangeEditor"
+                        class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 dark:border-white/10 dark:text-gray-300"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="applyRangeCapacity"
+                        class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-500"
+                    >
+                        Terapkan
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
 </x-filament-panels::page>
