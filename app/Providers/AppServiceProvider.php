@@ -8,6 +8,7 @@ use App\Models\PartnershipInquiry;
 use App\Models\ProductInquiry;
 use App\Models\Quotation;
 use App\Models\RewardRedemption;
+use App\Models\Spk;
 use App\Models\StoreReview;
 use App\Models\Warranty;
 use App\Observers\BookingMessageObserver;
@@ -16,6 +17,7 @@ use App\Observers\PartnershipInquiryObserver;
 use App\Observers\ProductInquiryObserver;
 use App\Observers\QuotationObserver;
 use App\Observers\RewardRedemptionObserver;
+use App\Observers\SpkObserver;
 use App\Observers\StoreReviewObserver;
 use App\Observers\WarrantyObserver;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -50,6 +52,7 @@ class AppServiceProvider extends ServiceProvider
         StoreReview::observe(StoreReviewObserver::class);
         ProductInquiry::observe(ProductInquiryObserver::class);
         PartnershipInquiry::observe(PartnershipInquiryObserver::class);
+        Spk::observe(SpkObserver::class);
 
         if ($this->app->environment('production')) {
             URL::forceScheme('https');

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Spk;
 use App\Models\ScrollCodeUsage;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -27,21 +28,58 @@ class SpkService
      * traceability nyata (SPK itu sendiri baru lahir, belum ada histori apa pun
      * untuk diaudit) -- jadi gate cukup di update() saja.
      */
+    /**
+     * BUG DIPERBAIKI 2026-09-25 (audit SPK): SEBELUMNYA pengecekan "booking
+     * ini sudah punya SPK" cuma ada di createFromBooking(), sedangkan
+     * Filament CreateSpk & endpoint mobile SpkController::store() sama-sama
+     * memanggil create() ini LANGSUNG (bukan lewat createFromBooking()),
+     * jadi lolos tanpa dicek sama sekali di 2 jalur nyata yang paling
+     * sering dipakai. Constraint unik di DB (booking_id) tetap mencegah
+     * data ganda tersimpan, TAPI pelanggarannya keluar sebagai
+     * QueryException mentah (raw 500) — bukan pesan ramah — karena
+     * pemanggil di Filament/mobile cuma menangkap RuntimeException.
+     * Sekarang dicek DI SINI (satu-satunya jalur create SPK yang sebenarnya
+     * dipakai semua pemanggil) supaya otomatis berlaku di mana pun, PLUS
+     * transaction dibungkus try/catch QueryException sebagai jaring
+     * pengaman terakhir untuk race condition murni (dua request nyaris
+     * bersamaan lolos dari exists() check yang sama-sama masih true,
+     * mis. double-tap tombol simpan saat koneksi lambat).
+     */
     public function create(array $data, array $checklistItems, ?int $createdBy, ?array $damageMarks = null): Spk
     {
-        return DB::transaction(function () use ($data, $checklistItems, $createdBy, $damageMarks) {
-            $spkNumber = Spk::generateNumberForStore($data['store_id']);
+        if (! empty($data['booking_id']) && Spk::where('booking_id', $data['booking_id'])->exists()) {
+            throw new RuntimeException('Booking ini sudah punya SPK.');
+        }
 
-            $spk = Spk::create(array_merge($data, [
-                'spk_number' => $spkNumber,
-                'created_by' => $createdBy,
-            ]));
+        try {
+            return DB::transaction(function () use ($data, $checklistItems, $createdBy, $damageMarks) {
+                $spkNumber = Spk::generateNumberForStore($data['store_id']);
 
-            $this->syncChecklistItems($spk, $checklistItems);
-            $this->syncDamageMarks($spk, $damageMarks);
+                $spk = Spk::create(array_merge($data, [
+                    'spk_number' => $spkNumber,
+                    'created_by' => $createdBy,
+                ]));
 
-            return $spk->fresh(['checklistItems', 'damageMarks']);
-        });
+                $this->syncChecklistItems($spk, $checklistItems);
+                $this->syncDamageMarks($spk, $damageMarks);
+
+                return $spk->fresh(['checklistItems', 'damageMarks']);
+            });
+        } catch (QueryException $e) {
+            // 23000 = pelanggaran integrity constraint (unique/foreign key)
+            // di MySQL/SQLite — kemungkinan besar booking_id bentrok (race
+            // dua request) atau spk_number bentrok (lihat
+            // Spk::generateNumberForStore(), masih pakai count()+1, bukan
+            // pola do-while(...exists()) seperti Booking/Quotation — gap
+            // terpisah, belum diperbaiki di sini). Pesan generik karena
+            // tidak bisa dipastikan kolom mana yang bentrok tanpa parsing
+            // teks error driver DB yang rapuh.
+            if ((string) $e->getCode() === '23000') {
+                throw new RuntimeException('SPK tidak bisa disimpan — booking ini kemungkinan sudah punya SPK (dibuat staff lain barusan). Muat ulang halaman lalu cek lagi.');
+            }
+
+            throw $e;
+        }
     }
 
     /**
@@ -138,9 +176,10 @@ class SpkService
             throw new RuntimeException('SPK cuma bisa dibuat dari booking yang sudah dikonfirmasi.');
         }
 
-        if (Spk::where('booking_id', $booking->id)->exists()) {
-            throw new RuntimeException('Booking ini sudah punya SPK.');
-        }
+        // Pengecekan "sudah punya SPK" SEKARANG ditegakkan di create()
+        // (dipanggil di akhir method ini) — satu sumber kebenaran untuk
+        // SEMUA jalur create SPK, bukan cuma jalur ini. Lihat catatan
+        // lengkap di SpkService::create().
 
         $checklist = [];
         foreach (Spk::DEFAULT_CHECKLIST as $category => $labels) {

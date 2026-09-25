@@ -152,6 +152,16 @@ class SpkResource extends Resource
 
                     Forms\Components\Select::make('booking_id')
                         ->label('Booking')
+                        // BUG DIPERBAIKI 2026-09-25 (audit SPK): SEBELUMNYA
+                        // field ini TIDAK PERNAH dikunci saat edit, beda
+                        // dari store_id di atas yang sudah benar. Padahal
+                        // endpoint mobile (Api\Staff\SpkController::update())
+                        // sudah eksplisit melarang booking_id diubah setelah
+                        // SPK dibuat ("1 booking = 1 SPK", invarian bisnis).
+                        // Tanpa ini, admin bisa memindahkan SPK yang sudah
+                        // dicetak/ditandatangani fisik ke booking lain lewat
+                        // Filament — merusak jejak dokumen fisik vs digital.
+                        ->disabledOn('edit')
                         ->searchable()
                         ->getSearchResultsUsing(fn (string $search, ?Spk $record) => Booking::where('status', 'confirmed')
                             ->when(! (auth()->user()?->isFullAccess() ?? false), fn (Builder $q) => $q->where('store_id', auth()->user()?->store_id))

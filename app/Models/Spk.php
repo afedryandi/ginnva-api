@@ -13,6 +13,19 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * Digitalisasi form kertas "Surat Perintah Kerja" (SPK) -- 2026-09-16,
  * V1 murni dokumen isi + cetak PDF (analog pola Invoice), lihat
  * migrasi create_spks_table untuk alasan lengkap & keterbatasan.
+ *
+ * KEPUTUSAN DIDOKUMENTASIKAN EKSPLISIT 2026-09-25 (audit SPK, sebelumnya
+ * cuma tersirat dari scope migrasi, tidak pernah ditulis sebagai
+ * keputusan produk): SPK SENGAJA tidak sinkron ke Booking::status sama
+ * sekali -- checked_out_at terisi ("kendaraan keluar") TIDAK mengubah
+ * status booking terkait (mis. tidak otomatis jadi 'completed'), dan
+ * sebaliknya. Keduanya independen: Booking::status mewakili siklus
+ * hidup JADWAL/kapasitas (pending/confirmed/completed/cancelled, lihat
+ * Booking::fullDatesInRange()), sedangkan Spk mewakili dokumen kerja
+ * FISIK per kunjungan (checklist, kondisi kendaraan, jam masuk/keluar).
+ * Staff tetap menyelesaikan Booking secara terpisah lewat "Proses
+ * Referral" (lihat BookingPostingService) -- SPK selesai bukan sinyal
+ * bahwa pendapatan sudah tercatat.
  */
 class Spk extends Model
 {
@@ -194,16 +207,32 @@ class Spk extends Model
     }
 
     /**
-     * Dipanggil di dalam DB::transaction() oleh SpkService supaya tidak
-     * race-condition dobel nomor -- sama pola dengan
-     * Invoice::generateNumberForStore().
+     * GAP DIPERBAIKI 2026-09-25 (audit SPK) -- SEBELUMNYA murni
+     * count()+1 (sama pola dengan Invoice::generateNumberForStore()),
+     * beda dari Booking::generateBookingNumber()/Quotation::
+     * generateQuotationNumber() yang sudah pakai do-while(...exists())
+     * di codebase ini sendiri. count()+1 rawan tabrakan kalau 2 SPK
+     * dibuat nyaris bersamaan untuk toko & hari yang sama (dua-duanya
+     * baca count() yang sama SEBELUM salah satu commit) -- transaction
+     * DB saja TIDAK cukup mencegah ini tanpa locking eksplisit. Sekarang
+     * pakai do-while(exists()) supaya kalau kandidat nomor sudah
+     * terpakai (baris lain sempat commit duluan), otomatis coba nomor
+     * berikutnya alih-alih diam-diam mengulang nomor yang sama --
+     * dipasangkan dengan jaring pengaman terakhir di SpkService::create()
+     * (catch QueryException) untuk race yang sangat sempit yang tetap
+     * lolos dari loop ini.
      */
     public static function generateNumberForStore(int $storeId): string
     {
         $prefix = 'SPK/' . $storeId . '/' . now()->format('ymd') . '/';
-        $todayCount = self::where('spk_number', 'like', $prefix . '%')->count();
+        $sequence = self::where('spk_number', 'like', $prefix . '%')->count() + 1;
 
-        return $prefix . str_pad((string) ($todayCount + 1), 4, '0', STR_PAD_LEFT);
+        do {
+            $candidate = $prefix . str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+            $sequence++;
+        } while (self::where('spk_number', $candidate)->exists());
+
+        return $candidate;
     }
 
     public function getActivitylogOptions(): LogOptions
