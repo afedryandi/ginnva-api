@@ -35,6 +35,20 @@ class BookingRevenueStatsWidget extends BaseWidget
 
     protected static ?int $sort = 0;
 
+    /**
+     * Override filter cabang (audit Dashboard Utama 2026-09-25) — SAMA
+     * pola dengan BookingRevenueTrendChart/ByCategoryChart/ByPaymentMethodChart:
+     * diisi lewat @livewire(..., ['storeId' => ...]) dari
+     * dashboard-home.blade.php supaya kartu ini ikut filter cabang
+     * terpusat, bukan lagi selalu company-wide untuk full-access.
+     */
+    public ?int $storeId = null;
+
+    public function mount(?int $storeId = null): void
+    {
+        $this->storeId = $storeId;
+    }
+
     public static function canView(): bool
     {
         return auth()->user()?->hasMenuAccess(BookingResource::class) ?? false;
@@ -118,6 +132,8 @@ class BookingRevenueStatsWidget extends BaseWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         return (float) $query->sum('transaction_amount');
@@ -134,6 +150,8 @@ class BookingRevenueStatsWidget extends BaseWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         return $query->count();
@@ -159,6 +177,8 @@ class BookingRevenueStatsWidget extends BaseWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         $received = 0.0;

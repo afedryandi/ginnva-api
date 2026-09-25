@@ -25,6 +25,15 @@ class LayananChart extends ChartWidget
 
     protected static ?string $heading = 'Grafik Jenis Order';
 
+    // Sort ditambahkan 2026-09-25 (audit Dashboard Utama) — SEBELUMNYA
+    // widget ini TIDAK PUNYA $sort sama sekali, beda dari 12 widget lain
+    // di folder ini yang semuanya eksplisit diberi angka 0-10. Posisinya
+    // di antara widget lain jadi tidak terprediksi (tie-break ke urutan
+    // discovery class). Ditaruh paling akhir (setelah MasterDataStatsWidget
+    // = 10) karena full-width, wajar jadi penutup grid. Lihat urutan
+    // lengkap di BookingRevenueByCategoryChart.php.
+    protected static ?int $sort = 11;
+
     // Full-width (diminta 2026-09-14) — di Dashboard utama /admin, widget
     // ini SEKARANG jadi salah satu dari cuma 2 chart yang tersisa (4
     // lainnya dipindah ke App\Filament\ReportWidgets, lihat audit "Tab
@@ -37,6 +46,20 @@ class LayananChart extends ChartWidget
     // (canvas Chart.js ikut melebar proporsional) — dibatasi supaya
     // proporsinya wajar (diminta 2026-09-14).
     protected static ?string $maxHeight = '280px';
+
+    /**
+     * Override filter cabang (audit Dashboard Utama 2026-09-25) — SEBELUMNYA
+     * full-access SELALU lihat company-wide di sini, tidak ada cara
+     * override sama sekali (beda dari chart lain yang sudah dapat
+     * $storeId lewat mount()). Sekarang diisi lewat
+     * @livewire(..., ['storeId' => ...]) dari dashboard-home.blade.php.
+     */
+    public ?int $storeId = null;
+
+    public function mount(?int $storeId = null): void
+    {
+        $this->storeId = $storeId;
+    }
 
     public static function canView(): bool
     {
@@ -63,7 +86,7 @@ class LayananChart extends ChartWidget
         // toko — manajer toko manapun lihat tren company-wide, baik dari
         // Laporan Jasa maupun Laporan Jenis Order (widget yang sama).
         $user = auth()->user();
-        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+        $storeId = ($user?->isFullAccess() ?? false) ? $this->storeId : $user?->store_id;
 
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))

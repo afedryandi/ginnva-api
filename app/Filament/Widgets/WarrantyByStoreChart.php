@@ -14,9 +14,11 @@ class WarrantyByStoreChart extends ChartWidget
 
     protected static ?string $heading = 'Garansi per Toko';
 
-    // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — lihat
-    // catatan urutan lengkap di BookingRevenueByCategoryChart.php.
-    protected static ?int $sort = 5;
+    // Direnumber 2026-09-25 (audit Dashboard Utama) — digeser +1 karena
+    // WarrantyTrendChart naik dari 4 ke 5 (perbaikan tabrakan sort dengan
+    // BookingRevenueByPaymentMethodChart). Lihat catatan urutan lengkap
+    // di BookingRevenueByCategoryChart.php.
+    protected static ?int $sort = 6;
 
     /**
      * Sesuai mind map "data statistics" > "Statistics by store".

@@ -34,6 +34,19 @@ class BookingStatsWidget extends BaseWidget
     protected static ?int $sort = 1;
 
     /**
+     * Override filter cabang (audit Dashboard Utama 2026-09-25) — diisi
+     * lewat @livewire(..., ['storeId' => ...]) dari dashboard-home.blade.php,
+     * sama pola dengan BookingRevenueStatsWidget. null = company-wide
+     * untuk full-access (perilaku lama, tetap default).
+     */
+    public ?int $storeId = null;
+
+    public function mount(?int $storeId = null): void
+    {
+        $this->storeId = $storeId;
+    }
+
+    /**
      * store_manager (admin toko) hanya melihat angka Warranty & Quotation
      * milik tokonya sendiri (+ data lama yang store_id-nya masih null),
      * sama persis dengan scope yang dipakai di WarrantyResource &
@@ -115,6 +128,8 @@ class BookingStatsWidget extends BaseWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         $rows = $query
@@ -139,6 +154,8 @@ class BookingStatsWidget extends BaseWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         // status dihitung manual di sini (bukan accessor model) karena
@@ -157,6 +174,8 @@ class BookingStatsWidget extends BaseWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         return $query->count();
@@ -171,6 +190,8 @@ class BookingStatsWidget extends BaseWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         return $query->where('created_at', '>=', now()->subDays(7))->count();
@@ -188,6 +209,8 @@ class BookingStatsWidget extends BaseWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         return $query->count();
@@ -206,6 +229,8 @@ class BookingStatsWidget extends BaseWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         return $query->count();

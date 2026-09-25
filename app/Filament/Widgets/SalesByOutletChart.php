@@ -30,6 +30,12 @@ class SalesByOutletChart extends ChartWidget
 
     protected static ?string $pollingInterval = null;
 
+    // Sort ditambahkan 2026-09-25 (audit Dashboard Utama) — sama temuan
+    // dengan LayananChart.php (lihat catatan lengkap di sana): widget ini
+    // juga TIDAK PUNYA $sort sama sekali sebelumnya. Ditaruh setelah
+    // LayananChart (11) karena keduanya sama-sama full-width.
+    protected static ?int $sort = 12;
+
     // Full-width (diminta 2026-09-14) — sama alasan LayananChart, lihat
     // catatan di sana.
     protected int|string|array $columnSpan = 'full';

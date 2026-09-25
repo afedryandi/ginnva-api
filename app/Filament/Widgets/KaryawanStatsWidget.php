@@ -22,9 +22,21 @@ class KaryawanStatsWidget extends BaseWidget
 
     protected ?string $heading = 'Karyawan';
 
-    // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — lihat
-    // catatan urutan lengkap di BookingRevenueByCategoryChart.php.
-    protected static ?int $sort = 8;
+    // Direnumber 2026-09-25 (audit Dashboard Utama) — digeser +1, lihat
+    // catatan di WarrantyByStoreChart.php. Urutan lengkap di
+    // BookingRevenueByCategoryChart.php.
+    protected static ?int $sort = 9;
+
+    /**
+     * Override filter cabang (audit Dashboard Utama 2026-09-25) — sama
+     * pola dengan BookingStatsWidget/BookingRevenueStatsWidget.
+     */
+    public ?int $storeId = null;
+
+    public function mount(?int $storeId = null): void
+    {
+        $this->storeId = $storeId;
+    }
 
     protected function getStats(): array
     {
@@ -55,7 +67,11 @@ class KaryawanStatsWidget extends BaseWidget
             // cuma partner (mitra referral eksternal, bukan karyawan)
             // yang dikecualikan, sama pola dengan
             // KaryawanStatsWidget::todayAttendanceRatio() di atas.
-            $stats[] = Stat::make('Total User Admin', User::whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))->count())
+            $totalUserQuery = User::whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'));
+            if ($this->storeId) {
+                $totalUserQuery->where('store_id', $this->storeId);
+            }
+            $stats[] = Stat::make('Total User Admin', $totalUserQuery->count())
                 ->description('Semua akun staff/admin & teknisi Ginnva (tidak termasuk partner)')
                 ->descriptionIcon('heroicon-m-users')
                 ->color('gray')
@@ -91,6 +107,8 @@ class KaryawanStatsWidget extends BaseWidget
             ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'));
         if (! $isSuperAdmin) {
             $employeeQuery->where('store_id', $user->store_id);
+        } elseif ($this->storeId) {
+            $employeeQuery->where('store_id', $this->storeId);
         }
         $total = $employeeQuery->count();
 
@@ -98,6 +116,8 @@ class KaryawanStatsWidget extends BaseWidget
             ->whereIn('entry_type', ['clock', 'manual', 'field_duty']);
         if (! $isSuperAdmin) {
             $presentQuery->where('store_id', $user->store_id);
+        } elseif ($this->storeId) {
+            $presentQuery->where('store_id', $this->storeId);
         }
         $present = $presentQuery->count();
 

@@ -22,9 +22,10 @@ class MasterDataStatsWidget extends BaseWidget
 
     protected ?string $heading = 'Master Data';
 
-    // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — lihat
-    // catatan urutan lengkap di BookingRevenueByCategoryChart.php.
-    protected static ?int $sort = 9;
+    // Direnumber 2026-09-25 (audit Dashboard Utama) — digeser +1, lihat
+    // catatan di WarrantyByStoreChart.php. Urutan lengkap di
+    // BookingRevenueByCategoryChart.php.
+    protected static ?int $sort = 10;
 
     protected function getStats(): array
     {

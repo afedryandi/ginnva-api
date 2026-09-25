@@ -6,7 +6,6 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -155,11 +154,16 @@ class AdminPanelProvider extends PanelProvider
                 // ->collapsed() tidak relevan untuk level itu).
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
+            // Pages\Dashboard::class (bawaan Filament) TIDAK LAGI didaftarkan
+            // eksplisit di sini sejak 2026-09-25 (audit "Dashboard Utama",
+            // gap "standar enterprise dashboard" -- filter cabang terpusat)
+            // -- diganti App\Filament\Pages\DashboardHome (extends
+            // Filament\Pages\Dashboard, routePath '/' ikut ter-inherit),
+            // yang otomatis ketemu lewat discoverPages() di bawah karena
+            // memang hidup di folder ini sekarang. Lihat catatan lengkap
+            // di DashboardHome.php & dashboard-home.blade.php.
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->discoverClusters(in: app_path('Filament/Clusters'), for: 'App\\Filament\\Clusters')
-            ->pages([
-                Pages\Dashboard::class,
-            ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 Widgets\AccountWidget::class,

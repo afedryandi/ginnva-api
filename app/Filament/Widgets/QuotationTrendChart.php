@@ -16,9 +16,21 @@ class QuotationTrendChart extends ChartWidget
 
     protected static ?string $heading = 'Tren Quotation';
 
-    // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — lihat
-    // catatan urutan lengkap di BookingRevenueByCategoryChart.php.
-    protected static ?int $sort = 6;
+    // Direnumber 2026-09-25 (audit Dashboard Utama) — digeser +1, lihat
+    // catatan di WarrantyByStoreChart.php. Urutan lengkap di
+    // BookingRevenueByCategoryChart.php.
+    protected static ?int $sort = 7;
+
+    /**
+     * Override filter cabang (audit Dashboard Utama 2026-09-25) — sama
+     * pola dengan BookingRevenueTrendChart.
+     */
+    public ?int $storeId = null;
+
+    public function mount(?int $storeId = null): void
+    {
+        $this->storeId = $storeId;
+    }
 
     /**
      * Sama temuan dengan WarrantyTrendChart — sebelumnya tidak ada
@@ -56,6 +68,8 @@ class QuotationTrendChart extends ChartWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         $rows = $query

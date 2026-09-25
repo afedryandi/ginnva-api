@@ -16,10 +16,23 @@ class WarrantyTrendChart extends ChartWidget
 
     protected static ?string $heading = 'Tren Pengajuan Garansi';
 
-    // Direnumber 2026-09-14 (audit "urutan metrics Dashboard") — SEBELUMNYA
-    // sort=2 bentrok dengan BookingRevenueByCategoryChart. Lihat catatan
-    // urutan lengkap di BookingRevenueByCategoryChart.php.
-    protected static ?int $sort = 4;
+    // Direnumber 2026-09-25 (audit Dashboard Utama) — SEBELUMNYA sort=4
+    // bentrok lagi dengan BookingRevenueByPaymentMethodChart (juga 4),
+    // padahal komentar ini sendiri sudah mendokumentasikan 2 tabrakan
+    // sebelumnya (sort=1 & sort=2) yang diperbaiki 2026-09-14. Lihat
+    // catatan urutan lengkap di BookingRevenueByCategoryChart.php.
+    protected static ?int $sort = 5;
+
+    /**
+     * Override filter cabang (audit Dashboard Utama 2026-09-25) — sama
+     * pola dengan BookingRevenueTrendChart.
+     */
+    public ?int $storeId = null;
+
+    public function mount(?int $storeId = null): void
+    {
+        $this->storeId = $storeId;
+    }
 
     /**
      * SEBELUMNYA tidak ada canView() sama sekali di sini — beda dari
@@ -63,6 +76,8 @@ class WarrantyTrendChart extends ChartWidget
                 $q->where('store_id', $user->store_id)
                     ->orWhereNull('store_id');
             });
+        } elseif ($this->storeId) {
+            $query->where('store_id', $this->storeId);
         }
 
         $rows = $query
