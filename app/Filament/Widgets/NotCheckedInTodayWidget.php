@@ -55,7 +55,21 @@ class NotCheckedInTodayWidget extends BaseWidget
      */
     public static function canView(): bool
     {
-        return request()->routeIs('filament.admin.resources.attendances.index');
+        // BUG DIPERBAIKI 2026-09-25 (laporan user, "tidak ada tampilan
+        // karyawan mana yang belum absen"): SEBELUMNYA mengecek
+        // routeIs('filament.admin.resources.attendances.index') -- nama
+        // route itu TIDAK PERNAH cocok karena AttendanceResource ada di
+        // dalam KaryawanCluster (lihat $cluster di AttendanceResource.php),
+        // dan Filament menambah prefix cluster ke nama route resource
+        // yang di-cluster (jadi resources.karyawan.attendances.index,
+        // bukan resources.attendances.index polos) -- diverifikasi ke
+        // source Resource::getRouteBaseName() Filament v3.3.54.
+        // Akibatnya widget ini TIDAK PERNAH tampil sejak dibuat, untuk
+        // siapa pun (bukan cuma user full-access seperti dugaan awal).
+        // Sekarang pakai AttendanceResource::getRouteBaseName()
+        // langsung -- otomatis tetap benar kalau resource ini
+        // pindah/keluar cluster lagi nanti.
+        return request()->routeIs(\App\Filament\Resources\AttendanceResource::getRouteBaseName() . '.index');
     }
 
     public function table(Table $table): Table
