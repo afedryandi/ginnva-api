@@ -68,51 +68,78 @@
     </div>
 
     <x-filament::section>
-        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
-            Klik tanggal (hari ini atau ke depan) untuk mengatur kapasitas instalasi hari itu. Tanpa override, kapasitas ikut default toko. Badge <span class="font-semibold text-primary-600 dark:text-primary-400">oranye</span> menandai tanggal yang sudah di-override manual.
-        </p>
+        {{-- Legenda pakai swatch warna sungguhan (bukan cuma teks) —
+             dirapikan 2026-09-25 (laporan user, "layout & UI kalender
+             jelek") supaya langsung kebaca sekilas tanpa perlu baca
+             kalimat panjang. --}}
+        <div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-primary-500"></span> Hari ini</span>
+            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full border-2 border-primary-500"></span> Sudah di-override</span>
+            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-danger-500"></span> Kapasitas penuh</span>
+            <span class="ml-auto text-gray-400 dark:text-gray-500">Klik tanggal (hari ini/ke depan) untuk atur kapasitas.</span>
+        </div>
 
-        <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
-            @foreach ($dayLabels as $label)
-                <div class="py-1">{{ $label }}</div>
+        <div class="grid grid-cols-7 gap-1.5 text-center text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+            @foreach ($dayLabels as $i => $label)
+                <div @class(['pb-2', 'text-danger-400 dark:text-danger-400/70' => $i >= 5])>{{ $label }}</div>
             @endforeach
         </div>
 
-        <div class="grid grid-cols-7 gap-1">
-            @foreach ($days as $day)
+        <div class="grid grid-cols-7 gap-1.5">
+            @foreach ($days as $i => $day)
                 @php
                     $dayNum = \Illuminate\Support\Carbon::parse($day['date'])->day;
                     $isFull = ! $day['closed'] && $day['used'] >= $day['capacity'];
+                    $isWeekend = ($i % 7) >= 5;
                     $clickable = $day['inMonth'] && ! $day['isPast'] && ! $day['closed'];
+                    $fillPct = (! $day['closed'] && $day['capacity'] > 0) ? min(100, round($day['used'] / $day['capacity'] * 100)) : 0;
                 @endphp
                 <button
                     type="button"
                     @if ($clickable) wire:click="openDay('{{ $day['date'] }}')" @else disabled @endif
                     @class([
-                        'flex min-h-[64px] flex-col items-start rounded-lg border p-1.5 text-left transition',
-                        'border-gray-200 dark:border-white/10' => ! $isFull,
-                        'border-danger-300 dark:border-danger-500/40' => $isFull,
+                        'relative flex min-h-[80px] flex-col items-start gap-1.5 rounded-xl border p-2.5 text-left transition',
+                        'border-gray-200 dark:border-white/10' => ! $isFull && ! $day['isToday'],
+                        'bg-gray-50/60 dark:bg-white/[0.02]' => $isWeekend && ! $isFull && ! $day['isToday'] && $day['inMonth'],
+                        'border-primary-300 bg-primary-50/70 dark:border-primary-500/40 dark:bg-primary-500/10' => $day['isToday'] && ! $isFull,
+                        'border-danger-300 bg-danger-50/70 dark:border-danger-500/40 dark:bg-danger-500/10' => $isFull,
                         'opacity-40' => ! $day['inMonth'] || $day['isPast'],
-                        'ring-2 ring-primary-500' => $day['isToday'],
-                        'cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5' => $clickable,
+                        'cursor-pointer hover:border-primary-300 hover:shadow-sm dark:hover:border-primary-500/50' => $clickable,
                         'cursor-default' => ! $clickable,
                     ])
                 >
-                    <span class="text-xs font-semibold {{ $day['isToday'] ? 'text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-200' }}">
-                        {{ $dayNum }}
-                    </span>
+                    <div class="flex w-full items-center justify-between">
+                        <span @class([
+                            'flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold',
+                            'bg-primary-600 text-white' => $day['isToday'],
+                            'text-gray-700 dark:text-gray-200' => ! $day['isToday'],
+                        ])>
+                            {{ $dayNum }}
+                        </span>
+
+                        @if ($day['hasOverride'])
+                            <span title="Sudah di-override manual" class="h-2 w-2 flex-shrink-0 rounded-full border-2 border-primary-500 dark:border-primary-400"></span>
+                        @endif
+                    </div>
 
                     @if ($day['closed'])
-                        <span class="mt-1 text-[10px] text-gray-400 dark:text-gray-500">Libur</span>
+                        <span class="text-[11px] font-medium text-gray-400 dark:text-gray-500">Libur</span>
                     @else
-                        <span class="mt-1 text-[11px] font-bold tabular-nums {{ $isFull ? 'text-danger-600 dark:text-danger-400' : 'text-gray-600 dark:text-gray-300' }}">
-                            {{ $day['used'] }}/{{ $day['capacity'] }}
-                        </span>
-                        @if ($day['hasOverride'])
-                            <span class="mt-0.5 rounded-full bg-primary-100 px-1.5 py-0.5 text-[9px] font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-300">
-                                Override
+                        <div class="mt-auto w-full">
+                            <span @class([
+                                'text-sm font-bold tabular-nums',
+                                'text-danger-600 dark:text-danger-400' => $isFull,
+                                'text-gray-700 dark:text-gray-200' => ! $isFull,
+                            ])>
+                                {{ $day['used'] }}<span class="text-gray-400 dark:text-gray-500">/{{ $day['capacity'] }}</span>
                             </span>
-                        @endif
+                            <div class="mt-1 h-1 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
+                                <div
+                                    class="h-full rounded-full {{ $isFull ? 'bg-danger-500' : 'bg-primary-400' }}"
+                                    style="width: {{ $fillPct }}%"
+                                ></div>
+                            </div>
+                        </div>
                     @endif
                 </button>
             @endforeach
