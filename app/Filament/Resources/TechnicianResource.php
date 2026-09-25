@@ -9,7 +9,9 @@ use App\Models\User;
 use App\Services\PushNotificationService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\ViewEntry;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
@@ -35,7 +37,9 @@ class TechnicianResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        // 'user.roles' diikutkan supaya isRoleOrphaned() (dipakai kolom
+        // tabel & infolist di bawah) tidak N+1 per baris.
+        $query = parent::getEloquentQuery()->with('user.roles');
         $user  = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -209,6 +213,12 @@ class TechnicianResource extends Resource
             TextEntry::make('name')->label('Nama Teknisi'),
             TextEntry::make('store.name')->label('Toko'),
             TextEntry::make('user.name')->label('Akun Installer')->placeholder('Belum terhubung'),
+            TextEntry::make('role_orphan_warning')
+                ->label('')
+                ->state('⚠ Akun ini sudah bukan installer lagi — tidak akan muncul di pilihan assignment booking manapun.')
+                ->color('danger')
+                ->visible(fn (Technician $record) => $record->isRoleOrphaned())
+                ->columnSpanFull(),
             TextEntry::make('phone')->label('No. Telepon / HP')->placeholder('—'),
             TextEntry::make('level')
                 ->label('Level Sertifikasi')
@@ -241,6 +251,17 @@ class TechnicianResource extends Resource
                 ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
             TextEntry::make('notes')->label('Catatan')->placeholder('—')->columnSpanFull(),
             TextEntry::make('created_at')->label('Ditambahkan')->dateTime('d M Y H:i'),
+
+            // GAP DIPERBAIKI 2026-09-25 (audit Teknisi) -- sebelumnya
+            // admin harus loncat ke Laporan Komisi/Utilisasi Teknisi
+            // terpisah untuk lihat riwayat 1 teknisi tertentu.
+            InfolistSection::make('Riwayat Pekerjaan (10 Terbaru)')
+                ->visible(fn (Technician $record) => (bool) $record->user_id)
+                ->schema([
+                    ViewEntry::make('job_history')
+                        ->label('')
+                        ->view('filament.infolists.technician-job-history'),
+                ]),
         ]);
     }
 
@@ -261,6 +282,10 @@ class TechnicianResource extends Resource
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Akun Installer')
                     ->placeholder('Belum terhubung')
+                    ->description(fn (Technician $record) => $record->isRoleOrphaned()
+                        ? '⚠ Akun ini sudah bukan installer lagi'
+                        : null)
+                    ->color(fn (Technician $record) => $record->isRoleOrphaned() ? 'danger' : null)
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('store.name')

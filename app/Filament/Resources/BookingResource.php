@@ -262,11 +262,29 @@ class BookingResource extends Resource
                                 'mentor'       => 'Mentor',
                             ];
 
-                            return $record->technician?->level
+                            $label = $record->technician?->level
                                 ? "{$record->name} ({$levelLabels[$record->technician->level]})"
                                 : $record->name;
+
+                            // GAP DIPERBAIKI 2026-09-25 (audit Teknisi,
+                            // "assignment tetap blind terhadap beban
+                            // kerja") -- SEBELUMNYA staff cuma lihat level
+                            // sertifikasi saat memilih installer, tidak
+                            // tahu berapa banyak booking confirmed yang
+                            // sudah dipegang installer itu SAAT INI (data
+                            // ini sudah ada di Laporan Utilisasi Teknisi
+                            // terpisah, tapi tidak pernah tampil di titik
+                            // assignment itu sendiri). Dihitung ringan
+                            // (COUNT, bukan tarik semua baris) -- daftar
+                            // opsi ini sudah dibatasi installer 1 toko
+                            // (biasanya belasan), bukan skala listing.
+                            $activeJobs = Booking::whereHas('installers', fn ($q) => $q->where('users.id', $record->id))
+                                ->where('status', 'confirmed')
+                                ->count();
+
+                            return $activeJobs > 0 ? "{$label} — {$activeJobs} job aktif" : $label;
                         })
-                        ->helperText('Bisa pilih lebih dari 1 installer. Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app. Installer dari toko lain, atau berstatus "Menunggu Review"/"Nonaktif" di roster Teknisi, tidak muncul di sini.')
+                        ->helperText('Bisa pilih lebih dari 1 installer. "X job aktif" = jumlah booking confirmed yang sedang dipegang installer itu saat ini. Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app. Installer dari toko lain, atau berstatus "Menunggu Review"/"Nonaktif" di roster Teknisi, tidak muncul di sini.')
                         ->multiple()
                         ->searchable()
                         ->preload()

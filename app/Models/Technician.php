@@ -96,6 +96,27 @@ class Technician extends Model
      *   (ditandai "belum diatur" oleh pemanggil, BUKAN dihitung
      *   sebagian/Rp 0 yang menyesatkan).
      */
+    /**
+     * GAP DIPERBAIKI 2026-09-25 (audit Teknisi) -- SEBELUMNYA tidak ada
+     * indikator apa pun di UI kalau akun User yang tertaut sudah tidak
+     * punya role 'installer' lagi (mis. dipindah jadi staff toko/admin).
+     * Secara FUNGSIONAL aman (BookingResource & API mobile sudah
+     * memfilter berdasarkan role 'installer' saat assignment, baris ini
+     * otomatis tidak pernah muncul di pilihan), tapi baris Technician-nya
+     * sendiri jadi "hantu" tanpa peringatan — admin bisa salah kira
+     * teknisi ini masih aktif dipakai. user_id sendiri TIDAK PERNAH jadi
+     * null-FK-orphan (migrasi pakai nullOnDelete()), jadi cek ini murni
+     * soal role, bukan soal akun terhapus.
+     */
+    public function isRoleOrphaned(): bool
+    {
+        if (! $this->user_id) {
+            return false;
+        }
+
+        return ! ($this->user?->hasRole('installer') ?? false);
+    }
+
     public function commissionForBooking(Booking $booking): ?float
     {
         if ($this->serviceRates->isEmpty()) {
