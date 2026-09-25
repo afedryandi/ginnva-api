@@ -348,6 +348,16 @@ class StoreResource extends Resource
                     ->label('Aktif')
                     ->boolean(),
 
+                // Gap kecil diperbaiki 2026-09-25 (audit Review Toko) --
+                // sebelumnya staff harus buka menu Review Toko terpisah
+                // untuk lihat skor agregat per toko, padahal mobile app
+                // sudah menampilkannya (lihat Store::getPositiveRatePercentAttribute()).
+                Tables\Columns\TextColumn::make('positive_rate_percent')
+                    ->label('Skor Review')
+                    ->placeholder('Belum ada ulasan')
+                    ->formatStateUsing(fn (?int $state, $record) => $state === null ? null : "{$state}% positif ({$record->reviews_count} ulasan)")
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Dibuat')
                     ->dateTime('d M Y')
