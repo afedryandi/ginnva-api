@@ -11,8 +11,8 @@ use Symfony\Component\HttpFoundation\Response;
  * Gerbang auth khusus API Price List Kaca Film — sengaja terpisah total
  * dari middleware 'auth:api'/'auth:customer' milik sistem staff, karena
  * token di sini bukan Sanctum/JWT staff, cuma token HMAC stateless (lihat
- * PricelistTokenService). Allow-list Google Sheet hanya dicek sekali saat
- * login, bukan di setiap request — sesuai desain "sesi valid 8 jam".
+ * PricelistTokenService). Login pakai 1 akun bersama (username+password
+ * di .env), dicek sekali saat login saja -- sesuai desain "sesi valid 8 jam".
  */
 class VerifyPricelistToken
 {
@@ -29,13 +29,10 @@ class VerifyPricelistToken
         }
 
         $token = substr($header, 7);
-        $email = $this->tokens->verify($token);
 
-        if ($email === null) {
+        if (! $this->tokens->verify($token)) {
             return $this->unauthorized();
         }
-
-        $request->attributes->set('pricelist_email', $email);
 
         return $next($request);
     }

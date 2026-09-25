@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\GoogleIdTokenVerifier;
 use App\Services\PricelistDataService;
 use App\Services\PricelistTokenService;
 use Illuminate\Http\Request;
@@ -11,16 +10,20 @@ use RuntimeException;
 use Throwable;
 
 /**
- * API untuk kalkulator "Price List Kaca Film" (dipakai tim sales lewat
- * halaman kalkulator terpisah di ginnva-web). TIDAK berhubungan dengan
- * sistem auth staff Ginnva (User/Sanctum) — login lewat Google ID token,
- * allow-list & data harga/ukuran semuanya dibaca live dari Google Sheet
- * yang dikelola owner, bukan dari database.
+ * API untuk kalkulator "Price List Kaca Film" (dipakai tim sales internal
+ * & dealer lewat halaman kalkulator terpisah di ginnva-web). TIDAK
+ * berhubungan dengan sistem auth staff Ginnva (User/Sanctum) — login
+ * pakai 1 akun BERSAMA (username+password di .env, lihat PRICELIST_USERNAME/
+ * PRICELIST_PASSWORD), bukan identitas per-orang. Kalau ada staff resign,
+ * admin ganti password ini di .env supaya akses lama otomatis tidak
+ * berlaku lagi (sesi lama tetap jalan sampai token-nya kedaluwarsa 8 jam,
+ * TIDAK langsung dicabut -- lihat PricelistTokenService, stateless jadi
+ * tidak ada mekanisme revoke paksa per-token). Data harga/ukuran tetap
+ * dibaca live dari Google Sheet yang dikelola owner.
  */
 class PricelistController extends Controller
 {
     public function __construct(
-        private GoogleIdTokenVerifier $googleVerifier,
         private PricelistTokenService $tokens,
         private PricelistDataService $data,
     ) {
@@ -28,39 +31,36 @@ class PricelistController extends Controller
 
     /**
      * POST /api/pricelist/login
-     * Body: { credential: <Google ID token dari Sign in with Google> }
+     * Body: { username: string, password: string }
      */
     public function login(Request $request)
     {
         $request->validate([
-            'credential' => 'required|string',
+            'username' => 'required|string',
+            'password' => 'required|string',
         ]);
 
-        $email = $this->googleVerifier->verify($request->input('credential'));
+        $validUsername = (string) config('services.google_pricelist.username');
+        $validPassword = (string) config('services.google_pricelist.password');
 
-        if ($email === null) {
+        // hash_equals() dua kali (username & password terpisah) supaya
+        // waktu perbandingan tidak bocorin informasi lewat timing attack
+        // -- meski threat model fitur ini rendah (1 akun bersama internal/
+        // dealer), tetap murah utk dilakukan benar sejak awal.
+        $usernameMatches = $validUsername !== '' && hash_equals($validUsername, (string) $request->input('username'));
+        $passwordMatches = $validPassword !== '' && hash_equals($validPassword, (string) $request->input('password'));
+
+        if (! $usernameMatches || ! $passwordMatches) {
             return response()->json([
                 'success' => false,
-                'message' => 'Login Google tidak valid atau sudah kedaluwarsa. Silakan coba lagi.',
-            ], 422);
+                'message' => 'Username atau password salah.',
+            ], 401);
         }
 
-        return $this->withSheetsErrorHandling(function () use ($email) {
-            if (! $this->data->isEmailAllowed($email)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Email ini belum terdaftar untuk akses kalkulator ini. Hubungi admin Ginnva.',
-                ], 403);
-            }
-
-            $token = $this->tokens->issue($email);
-
-            return response()->json([
-                'success' => true,
-                'token' => $token,
-                'email' => $email,
-            ]);
-        });
+        return response()->json([
+            'success' => true,
+            'token' => $this->tokens->issue(),
+        ]);
     }
 
     /**

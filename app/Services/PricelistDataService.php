@@ -30,28 +30,6 @@ class PricelistDataService
         });
     }
 
-    public function getAllowedEmails(): array
-    {
-        return Cache::remember('pricelist_akses_emails', now()->addMinutes(self::CACHE_TTL_MINUTES), function () {
-            $rows = $this->sheets->getValues('Akses!A2:A1000');
-
-            $emails = [];
-            foreach ($rows as $row) {
-                $email = trim((string) ($row[0] ?? ''));
-                if ($email !== '') {
-                    $emails[] = strtolower($email);
-                }
-            }
-
-            return array_values(array_unique($emails));
-        });
-    }
-
-    public function isEmailAllowed(string $email): bool
-    {
-        return in_array(strtolower(trim($email)), $this->getAllowedEmails(), true);
-    }
-
     public function getBrands(): array
     {
         $brands = [];

@@ -7,15 +7,19 @@ namespace App\Services;
  * Sanctum/JWT library, karena fitur ini tidak berhubungan dengan sistem
  * auth staff (tabel users) sama sekali. Ditandatangani HMAC pakai APP_KEY,
  * jadi bisa diverifikasi tanpa query database sama sekali.
+ *
+ * Login pakai 1 akun bersama (username+password di .env, lihat
+ * PricelistController::login()), bukan identitas per-orang -- jadi token
+ * di sini murni menandakan "sudah login sah", tidak menyimpan siapa.
  */
 class PricelistTokenService
 {
     private const TTL_SECONDS = 8 * 60 * 60; // 8 jam
 
-    public function issue(string $email): string
+    public function issue(): string
     {
         $payload = json_encode([
-            'email' => strtolower(trim($email)),
+            'sub' => 'pricelist-shared-account',
             'exp' => time() + self::TTL_SECONDS,
         ]);
 
@@ -26,14 +30,14 @@ class PricelistTokenService
     }
 
     /**
-     * Return email yang tervalidasi, atau null kalau token tidak
-     * valid/format salah/signature tidak cocok/sudah kedaluwarsa.
+     * Return true kalau token valid (signature cocok & belum
+     * kedaluwarsa), false kalau tidak.
      */
-    public function verify(string $token): ?string
+    public function verify(string $token): bool
     {
         $lastDot = strrpos($token, '.');
         if ($lastDot === false) {
-            return null;
+            return false;
         }
 
         $encodedPayload = substr($token, 0, $lastDot);
@@ -42,20 +46,16 @@ class PricelistTokenService
         $expectedSignature = $this->sign($encodedPayload);
 
         if (! hash_equals($expectedSignature, $signature)) {
-            return null;
+            return false;
         }
 
         $decoded = json_decode($this->base64UrlDecode($encodedPayload), true);
 
-        if (! is_array($decoded) || empty($decoded['email']) || empty($decoded['exp'])) {
-            return null;
+        if (! is_array($decoded) || empty($decoded['exp'])) {
+            return false;
         }
 
-        if ((int) $decoded['exp'] < time()) {
-            return null;
-        }
-
-        return strtolower((string) $decoded['email']);
+        return (int) $decoded['exp'] >= time();
     }
 
     private function sign(string $encodedPayload): string
