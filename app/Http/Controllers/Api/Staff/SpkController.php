@@ -19,11 +19,26 @@ use RuntimeException;
  */
 class SpkController extends Controller
 {
+    /**
+     * Installer DIBUKA 2026-09-25 (audit SPK, keputusan user langsung:
+     * "baca + isi, tidak bisa hapus/pindah booking") -- SEBELUMNYA
+     * diblokir total (403) sama seperti partner, padahal SPK justru
+     * dibuat untuk "isi form inspeksi kendaraan langsung dari HP di
+     * lapangan" (lihat docblock class ini), pekerjaan yang secara fisik
+     * dilakukan installer. Tidak ada endpoint hapus SPK sama sekali di
+     * controller mobile ini (hapus cuma ada lewat Filament DeleteAction,
+     * installer tidak akses Filament), dan booking_id sudah terkunci
+     * untuk SEMUA role (lihat unset($rules['booking_id']) di update()) --
+     * jadi cukup buka authorize() di sini, scoping "cuma SPK booking yang
+     * ditugaskan ke installer itu" ditegakkan per-method lewat
+     * canAccessAsInstaller() (index/show/update/updateDamageMarks) &
+     * pengecekan eksplisit di store().
+     */
     private function authorize(Request $request): bool
     {
         $user = $request->user('api');
 
-        return (bool) ($user && ! $user->hasRole('partner') && ! $user->hasRole('installer'));
+        return (bool) ($user && ! $user->hasRole('partner'));
     }
 
     /**
@@ -40,7 +55,13 @@ class SpkController extends Controller
         $query = Spk::query()->with(['booking:id,booking_number', 'store:id,name', 'damageMarks'])
             ->orderByDesc('created_at');
 
-        if (! $user->isFullAccess()) {
+        // Installer HANYA lihat SPK dari booking yang dirinya ditugaskan
+        // sebagai installer -- bukan seluruh SPK tokonya (beda dari
+        // store_manager dkk.), sama pola scoping dengan
+        // BookingController::index() untuk role ini.
+        if ($user->hasRole('installer')) {
+            $query->whereHas('booking.installers', fn ($q) => $q->where('users.id', $user->id));
+        } elseif (! $user->isFullAccess()) {
             $query->where('store_id', $user->store_id);
         }
 
@@ -114,13 +135,17 @@ class SpkController extends Controller
             ], 422);
         }
 
-        $booking = Booking::find($request->booking_id);
+        $booking = Booking::with('installers')->find($request->booking_id);
 
         if (! $booking || $booking->status !== 'confirmed') {
             return response()->json(['success' => false, 'message' => 'Booking tidak valid atau belum dikonfirmasi.'], 422);
         }
 
-        if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
+        if ($user->hasRole('installer')) {
+            if (! $booking->installers->contains('id', $user->id)) {
+                return response()->json(['success' => false, 'message' => 'Booking ini tidak ditugaskan ke Anda.'], 403);
+            }
+        } elseif (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
             return response()->json(['success' => false, 'message' => 'Booking ini milik toko lain.'], 403);
         }
 
@@ -249,6 +274,10 @@ class SpkController extends Controller
     private function canAccess(Request $request, Spk $spk): bool
     {
         $user = $request->user('api');
+
+        if ($user->hasRole('installer')) {
+            return $spk->booking?->installers->contains('id', $user->id) ?? false;
+        }
 
         return $user->isFullAccess() || $spk->store_id === $user->store_id;
     }
