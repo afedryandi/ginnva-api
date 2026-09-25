@@ -6,10 +6,12 @@ use App\Filament\Resources\TechnicianResource\Pages;
 use App\Filament\Resources\TechnicianResource\RelationManagers\ServiceRatesRelationManager;
 use App\Models\Technician;
 use App\Models\User;
+use App\Services\PushNotificationService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -332,6 +334,13 @@ class TechnicianResource extends Resource
                     ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->actions([
+                // BUG DIPERBAIKI 2026-09-25 (audit Teknisi): SEBELUMNYA
+                // cuma update status, tidak ada notifikasi apa pun ke
+                // installer yang bersangkutan -- dia tidak tahu akunnya
+                // sudah bisa ditugaskan ke booking sampai kebetulan buka
+                // app. Pola notifikasi disamakan dengan
+                // LeaveRequestResource (approve/reject sudah benar di
+                // sana sejak awal).
                 Tables\Actions\Action::make('approve')
                     ->label('Aktifkan')
                     ->icon('heroicon-o-check-circle')
@@ -339,7 +348,60 @@ class TechnicianResource extends Resource
                     ->visible(fn (Technician $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending_review')
                     ->requiresConfirmation()
-                    ->action(fn (Technician $record) => $record->update(['status' => 'active'])),
+                    ->action(function (Technician $record) {
+                        $record->update(['status' => 'active']);
+
+                        if ($record->user_id) {
+                            app(PushNotificationService::class)->sendToUsers(
+                                [$record->user_id],
+                                'Akun Teknisi Diaktifkan',
+                                'Akun teknisi Anda sudah diaktifkan — sekarang Anda bisa ditugaskan ke booking.'
+                            );
+                        }
+
+                        Notification::make()->title('Teknisi diaktifkan.')->success()->send();
+                    }),
+
+                // BUG DIPERBAIKI 2026-09-25 (audit Teknisi): SEBELUMNYA
+                // tidak ada aksi tolak/nonaktifkan yang simetris dengan
+                // "Aktifkan" -- staff harus buka form Edit penuh untuk
+                // menolak pendaftaran teknisi baru.
+                Tables\Actions\Action::make('reject')
+                    ->label('Tolak')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn (Technician $record) => auth()->user()?->isFullAccess()
+                        && $record->status === 'pending_review')
+                    ->form([
+                        Forms\Components\Textarea::make('review_note')
+                            ->label('Alasan Ditolak')
+                            ->required()
+                            ->rows(2),
+                    ])
+                    ->action(function (Technician $record, array $data) {
+                        // Alasan penolakan disimpan ke 'notes' (kolom yang
+                        // sudah ada) -- bukan cuma dikirim sekali lewat
+                        // notifikasi lalu hilang, supaya bisa dicek ulang
+                        // nanti (mis. installer daftar ulang, admin lupa
+                        // kenapa ditolak sebelumnya).
+                        $existingNotes = trim((string) $record->notes);
+                        $rejectionNote = now()->format('d M Y') . ' — Ditolak: ' . $data['review_note'];
+
+                        $record->update([
+                            'status' => 'inactive',
+                            'notes'  => $existingNotes !== '' ? "{$existingNotes}\n{$rejectionNote}" : $rejectionNote,
+                        ]);
+
+                        if ($record->user_id) {
+                            app(PushNotificationService::class)->sendToUsers(
+                                [$record->user_id],
+                                'Pendaftaran Teknisi Ditolak',
+                                "Pendaftaran teknisi Anda ditolak: {$data['review_note']}"
+                            );
+                        }
+
+                        Notification::make()->title('Teknisi ditolak.')->warning()->send();
+                    }),
 
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
