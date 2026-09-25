@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\BookingResource;
 use App\Models\Booking;
+use Filament\Support\RawJs;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
 
@@ -167,29 +168,20 @@ class BookingRevenueTrendChart extends ChartWidget
         return 'line';
     }
 
-    protected function getOptions(): array
-    {
-        // SENGAJA kosong -- 'plugins'/'scales' dipindah SELURUHNYA ke
-        // extraJsOptions() di bawah (audit 2026-09-25, format Rupiah di
-        // tooltip/sumbu). getOptions() cuma JSON biasa (tidak bisa bawa
-        // function JS utk callback tooltip/ticks), extraJsOptions() JS
-        // mentah yang digabung Filament ke config Chart.js. TIDAK
-        // dipisah sebagian di sini sebagian di extraJsOptions() supaya
-        // tidak ada risiko key 'scales'/'plugins' saling menimpa kalau
-        // mekanisme gabungnya bukan deep-merge.
-        return [];
-    }
-
     /**
-     * JS mentah (bukan array PHP biasa) -- satu-satunya cara kasih
-     * fungsi callback ke Chart.js lewat Filament ChartWidget, karena
-     * getOptions() cuma di-JSON-encode. Rupiah di tooltip & sumbu-Y
-     * (audit 2026-09-25, "gap dibanding standar enterprise dashboard" —
-     * sebelumnya angka mentah tanpa "Rp").
+     * RawJs (bukan array PHP biasa) -- diperbaiki 2026-09-25: percobaan
+     * pertama pakai method extraJsOptions() yang TERNYATA tidak ada di
+     * Filament v3.3.54 (verifikasi ke source asli, dicek langsung ke
+     * GitHub filamentphp/filament tag v3.3.54 -- signature getOptions()
+     * yg benar adalah `array|RawJs|null`). RawJs::make() dipakai supaya
+     * callback tooltip/ticks (fungsi JS, tidak bisa lewat array PHP yang
+     * di-JSON-encode) bisa dikirim ke Chart.js. Rupiah di tooltip &
+     * sumbu-Y (audit 2026-09-25, "gap dibanding standar enterprise
+     * dashboard" — sebelumnya angka mentah tanpa "Rp").
      */
-    protected function extraJsOptions(): ?string
+    protected function getOptions(): array|RawJs|null
     {
-        return <<<'JS'
+        return RawJs::make(<<<'JS'
         {
             plugins: {
                 legend: { display: true, position: 'top', align: 'end' },
@@ -218,6 +210,6 @@ class BookingRevenueTrendChart extends ChartWidget
                 }
             }
         }
-        JS;
+        JS);
     }
 }

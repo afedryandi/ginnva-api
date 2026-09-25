@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\BookingResource;
 use App\Models\Booking;
+use Filament\Support\RawJs;
 use Filament\Widgets\ChartWidget;
 
 /**
@@ -113,21 +114,19 @@ class BookingRevenueByCategoryChart extends ChartWidget
         return 'bar';
     }
 
-    protected function getOptions(): array
+    /**
+     * RawJs -- diperbaiki 2026-09-25 (lihat catatan lengkap di
+     * BookingRevenueTrendChart::getOptions(), percobaan pertama pakai
+     * extraJsOptions() yang ternyata tidak ada di Filament v3.3.54).
+     * 'indexAxis' ikut masuk sini juga (bar horizontal, nilai di sumbu X)
+     * karena getOptions() cuma boleh return SATU tipe (array ATAU RawJs,
+     * tidak bisa dipecah dua method lagi).
+     */
+    protected function getOptions(): array|RawJs|null
     {
-        // 'indexAxis' tetap di sini (bukan JS/function, aman) --
-        // 'plugins'/'scales' dipindah ke extraJsOptions(), lihat catatan
-        // lengkap di BookingRevenueTrendChart::getOptions().
-        return [
-            'indexAxis' => 'y',
-        ];
-    }
-
-    /** Rupiah di tooltip & sumbu-X (bar horizontal, nilai di sumbu X) — lihat catatan di BookingRevenueTrendChart. */
-    protected function extraJsOptions(): ?string
-    {
-        return <<<'JS'
+        return RawJs::make(<<<'JS'
         {
+            indexAxis: 'y',
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -155,6 +154,6 @@ class BookingRevenueByCategoryChart extends ChartWidget
                 }
             }
         }
-        JS;
+        JS);
     }
 }
