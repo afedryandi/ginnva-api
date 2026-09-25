@@ -89,6 +89,13 @@ class BookingController extends Controller
             'store:id,name,install_capacity_per_day',
             'installers:id,name',
             'watchers:id,name',
+            // Gap UX diperbaiki 2026-09-25 (audit SPK) — SEBELUMNYA relasi
+            // ini tidak diikutkan sama sekali, mobile tidak tahu booking
+            // ini sudah punya SPK atau belum tanpa buka menu SPK terpisah
+            // & cari manual (Filament sudah 1-klik lewat ini di
+            // ViewBooking/EditBooking, mobile belum). Cuma id yang
+            // dibutuhkan (dipakai buat rute "Lihat SPK").
+            'spk:id,booking_id',
         ])->findOrFail($id);
 
         if ($user->hasRole('installer')) {
