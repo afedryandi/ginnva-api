@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\BookingResource\Pages;
 
 use App\Filament\Resources\BookingResource;
+use App\Filament\Resources\SpkResource;
 use App\Models\Booking;
+use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Exceptions\Halt;
@@ -12,6 +14,23 @@ use Illuminate\Support\Carbon;
 class EditBooking extends EditRecord
 {
     protected static string $resource = BookingResource::class;
+
+    /**
+     * Sama tombol dengan ViewBooking -- lihat catatan di sana. Booking
+     * bisa dibuka langsung ke halaman Edit (bukan cuma lewat View
+     * dulu), jadi tombolnya perlu ada di kedua halaman.
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Actions\Action::make('lihatSpk')
+                ->label('Lihat SPK')
+                ->icon('heroicon-o-clipboard-document-check')
+                ->color('gray')
+                ->visible(fn () => $this->record->spk !== null)
+                ->url(fn () => $this->record->spk ? SpkResource::getUrl('edit', ['record' => $this->record->spk]) : null),
+        ];
+    }
 
     /**
      * Form sudah ->disabled() total di BookingResource::form() begitu

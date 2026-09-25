@@ -629,7 +629,7 @@ Tanggal Settlement.
 
 | Fitur Majoo | Status | Catatan |
 |---|---|---|
-| Rekonsiliasi QRIS: penjualan bruto vs settlement bersih (dikurangi MDR) + status pencairan | **Belum Ada — Relevan (kalau Ginnva terima QRIS)** | Kalau Ginnva menerima pembayaran via QRIS, ini berguna utk rekonsiliasi keuangan (uang yg benar2 masuk ke rekening = penjualan − MDR, dan kapan cair). Referensi QRIS/MDR sudah disebut di `SalesSummaryReport.php`/`SalesSummaryExport.php` (lihat temuan di atas) — perlu dicek apakah sudah cukup atau butuh laporan status-settlement terpisah. |
+| Rekonsiliasi QRIS: penjualan bruto vs settlement bersih (dikurangi MDR) + status pencairan | **Ditunda — user belum tahu status QRIS, 2026-09-24** | Ditanya ke user apakah Ginnva sekarang terima QRIS — jawaban: belum tahu. Konsisten dgn [[project_qris_reconciliation_pending]] (Ginnva belum/tidak pakai QRIS per 2026-09-22). Tanya lagi kalau sudah pasti pakai QRIS + tahu provider & MDR-nya. |
 
 ---
 
@@ -1281,7 +1281,7 @@ Satuan, Harga, Diskon, Total, Serial Number per baris) + Promo.
 | Fitur Majoo | Status | Catatan |
 |---|---|---|
 | Invoice B2B multi-item (banyak produk per invoice, alamat kirim terpisah) | **Sudah Tercatat — Tidak Relevan (arsitektur sama dgn Promo Per Produk)** | `project_penjualan_majoo_blocked_items`: "Rantai dokumen B2B mayoritas ❌ tidak cocok Ginnva (jasa pasang, bukan distribusi)... Invoice PDF booking DIBANGUN ✅ — 1 baris layanan (gross)". Kemampuan multi-line-item ini butuh struktur `booking_items` yg sama dgn gap "Promo Per Produk" sebelumnya — kalau nanti itu dibangun, invoice multi-item bisa ikut nyusul sekalian, bukan proyek terpisah. |
-| Kirim Email invoice langsung dari sistem | **Belum Ada — Relevan kecil** | Invoice PDF booking Ginnva saat ini cuma "Cetak"/download, blm ada aksi kirim langsung ke email customer. Nice-to-have kecil. |
+| Kirim Email invoice langsung dari sistem | **Ditunda — dikonfirmasi user 2026-09-24** | Invoice PDF booking Ginnva saat ini cuma "Cetak"/download, blm ada aksi kirim langsung ke email customer. Ditanya ke user, jawaban: tunda. |
 
 ---
 
@@ -1953,7 +1953,7 @@ Departemen (mis. "Sales").
 
 | Fitur Majoo | Status | Catatan |
 |---|---|---|
-| Struktur organisasi Departemen/Posisi berjenjang, terpisah dari "Tingkat Jabatan" | **Belum Ada — Relevan sedang, satu kategori dgn temuan Tingkat Jabatan** | Majoo pisahkan 2 dimensi organisasi: **Tingkat Jabatan** (level hierarki umum: BOD→Manager→Staff) vs **Organisasi/Departemen** (unit kerja: Sales, Finance, Operasional). Karyawan biasanya py 1 Tingkat Jabatan + 1 Departemen (2 sumbu berbeda). Kalau Ginnva mau bangun struktur organisasi formal, disarankan ikuti pemisahan 2-sumbu ini drpd digabung jadi 1 field "posisi" saja — supaya laporan bisa di-slice per-departemen ATAU per-level scr independen. |
+| Struktur organisasi Departemen/Posisi berjenjang, terpisah dari "Tingkat Jabatan" | **Tidak Perlu — ditunda, dikonfirmasi user 2026-09-24** | Satu kategori dgn temuan Tingkat Jabatan (sudah ditunda) — akar masalahnya sama (Ginnva belum punya entitas Jabatan/Departemen formal, cuma role akses + store_id). Ditanya ke user, jawaban: catat tunda dulu, sama seperti Tingkat Jabatan. |
 | CATATAN JANGAN DISALAHARTIKAN: "Departemen" di sini (HR/organisasi) BEDA dari "Departemen" di Produk (Penjualan/Produk/Daftar Departemen — kategori produk PPF/Kaca Film) | **Perlu kehati-hatian penamaan** | Majoo sendiri pakai istilah "Departemen" utk 2 konsep berbeda total (unit kerja karyawan vs kategori produk) — kalau Ginnva mengadopsi salah satu/kedua konsep ini, sebaiknya pakai nama tabel/field yang jelas beda (mis. `employee_departments` vs `product_departments`) supaya tidak membingungkan di kode. |
 
 ## Karyawan / Pengaturan Master / Tipe Karyawan
