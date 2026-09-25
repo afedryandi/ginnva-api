@@ -304,6 +304,56 @@ class Booking extends Model
     }
 
     /**
+     * GAP DIPERBAIKI 2026-09-25 (audit Kalender Kapasitas) -- versi batch
+     * confirmedOverlapCount() di atas, khusus untuk kebutuhan grid
+     * kalender bulan penuh (App\Filament\Pages\CapacityCalendar). Method
+     * di atas 1 query per tanggal -- kalau dipanggil dalam loop 35-42
+     * hari (1 grid kalender), jadi 35-42 query terpisah tiap kali halaman
+     * dibuka. Method ini SATU query untuk seluruh rentang, lalu hitung
+     * overlap tiap tanggal di PHP (murah, cuma iterasi array, bukan query
+     * DB lagi).
+     *
+     * @return array<string, int> [tanggal Y-m-d => jumlah booking confirmed yang overlap]
+     */
+    public static function confirmedOverlapCountsForRange(int $storeId, Carbon $rangeStart, Carbon $rangeEnd, ?int $excludeBookingId = null): array
+    {
+        $store = Store::find($storeId);
+
+        $counts = [];
+        $cursor = $rangeStart->copy();
+        while ($cursor->lte($rangeEnd)) {
+            $counts[$cursor->toDateString()] = 0;
+            $cursor->addDay();
+        }
+
+        $bookings = static::query()
+            ->where('store_id', $storeId)
+            ->where('status', 'confirmed')
+            ->when($excludeBookingId, fn ($q) => $q->where('id', '!=', $excludeBookingId))
+            ->whereDate('preferred_date', '<=', $rangeEnd)
+            ->whereDate('preferred_date', '>=', $rangeStart->copy()->subDays(45))
+            ->get(['id', 'preferred_date', 'duration_days', 'product_ppf']);
+
+        foreach ($bookings as $booking) {
+            $bookingStart = $booking->preferred_date->copy();
+            $bookingEnd = self::nthWorkingDay($store, $bookingStart->copy(), $booking->duration_days ?? $booking->effective_duration_days);
+
+            $day = $bookingStart->greaterThan($rangeStart) ? $bookingStart->copy() : $rangeStart->copy();
+            $last = $bookingEnd->lessThan($rangeEnd) ? $bookingEnd->copy() : $rangeEnd->copy();
+
+            while ($day->lte($last)) {
+                $key = $day->toDateString();
+                if (array_key_exists($key, $counts)) {
+                    $counts[$key]++;
+                }
+                $day->addDay();
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
      * Daftar tanggal (Y-m-d) HARI KERJA saja (hari libur toko dilewati)
      * dalam rentang $durationDays hari kerja mulai $startDate di toko
      * $storeId — dasar untuk minta staff isi kapasitas PER TANGGAL (tim
