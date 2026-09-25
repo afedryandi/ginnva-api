@@ -35,7 +35,7 @@ class GoogleSheetsService
             ]);
 
             if (! $response->successful()) {
-                throw new RuntimeException('Gagal mendapatkan access token Google Sheets: '.$response->status());
+                throw new RuntimeException('Gagal mendapatkan access token Google Sheets: HTTP '.$response->status().' -- '.$response->body());
             }
 
             $accessToken = $response->json('access_token');
@@ -122,7 +122,7 @@ class GoogleSheetsService
         ]);
 
         if (! $response->successful()) {
-            throw new RuntimeException('Gagal membaca Google Sheet range "'.$range.'": HTTP '.$response->status());
+            throw new RuntimeException('Gagal membaca Google Sheet range "'.$range.'": HTTP '.$response->status().' -- '.$response->body());
         }
 
         return $response->json('values') ?? [];
