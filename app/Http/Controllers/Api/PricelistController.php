@@ -7,6 +7,8 @@ use App\Services\GoogleIdTokenVerifier;
 use App\Services\PricelistDataService;
 use App\Services\PricelistTokenService;
 use Illuminate\Http\Request;
+use RuntimeException;
+use Throwable;
 
 /**
  * API untuk kalkulator "Price List Kaca Film" (dipakai tim sales lewat
@@ -43,20 +45,22 @@ class PricelistController extends Controller
             ], 422);
         }
 
-        if (! $this->data->isEmailAllowed($email)) {
+        return $this->withSheetsErrorHandling(function () use ($email) {
+            if (! $this->data->isEmailAllowed($email)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email ini belum terdaftar untuk akses kalkulator ini. Hubungi admin Ginnva.',
+                ], 403);
+            }
+
+            $token = $this->tokens->issue($email);
+
             return response()->json([
-                'success' => false,
-                'message' => 'Email ini belum terdaftar untuk akses kalkulator ini. Hubungi admin Ginnva.',
-            ], 403);
-        }
-
-        $token = $this->tokens->issue($email);
-
-        return response()->json([
-            'success' => true,
-            'token' => $token,
-            'email' => $email,
-        ]);
+                'success' => true,
+                'token' => $token,
+                'email' => $email,
+            ]);
+        });
     }
 
     /**
@@ -64,10 +68,10 @@ class PricelistController extends Controller
      */
     public function brands()
     {
-        return response()->json([
+        return $this->withSheetsErrorHandling(fn () => response()->json([
             'success' => true,
             'data' => $this->data->getBrands(),
-        ]);
+        ]));
     }
 
     /**
@@ -79,10 +83,10 @@ class PricelistController extends Controller
             'brand' => 'required|string',
         ]);
 
-        return response()->json([
+        return $this->withSheetsErrorHandling(fn () => response()->json([
             'success' => true,
             'data' => $this->data->getModels($request->query('brand')),
-        ]);
+        ]));
     }
 
     /**
@@ -95,19 +99,21 @@ class PricelistController extends Controller
             'tipe' => 'required|string',
         ]);
 
-        $sqm = $this->data->getCarSqm($request->query('brand'), $request->query('tipe'));
+        return $this->withSheetsErrorHandling(function () use ($request) {
+            $sqm = $this->data->getCarSqm($request->query('brand'), $request->query('tipe'));
 
-        if ($sqm === null) {
+            if ($sqm === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data ukuran untuk mobil ini tidak ditemukan.',
+                ], 404);
+            }
+
             return response()->json([
-                'success' => false,
-                'message' => 'Data ukuran untuk mobil ini tidak ditemukan.',
-            ], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $sqm,
-        ]);
+                'success' => true,
+                'data' => $sqm,
+            ]);
+        });
     }
 
     /**
@@ -115,9 +121,38 @@ class PricelistController extends Controller
      */
     public function prices()
     {
-        return response()->json([
+        return $this->withSheetsErrorHandling(fn () => response()->json([
             'success' => true,
             'data' => $this->data->getHargaMap(),
-        ]);
+        ]));
+    }
+
+    /**
+     * GoogleSheetsService/PricelistDataService melempar RuntimeException
+     * mentah (pesan HTTP Google Sheets API, mis. "HTTP 403") kalau gagal
+     * baca sheet -- itu detail teknis yang TIDAK boleh ditampilkan ke
+     * sales (bukan salah mereka, dan tidak membantu mereka), tapi WAJIB
+     * dicatat ke log supaya admin bisa diagnosa (mis. Sheet belum
+     * di-share ke service account, atau Sheets API belum aktif).
+     */
+    private function withSheetsErrorHandling(\Closure $callback)
+    {
+        try {
+            return $callback();
+        } catch (RuntimeException $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Server sedang bermasalah mengambil data. Coba beberapa saat lagi, atau hubungi admin Ginnva.',
+            ], 502);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan tak terduga. Coba beberapa saat lagi, atau hubungi admin Ginnva.',
+            ], 500);
+        }
     }
 }
