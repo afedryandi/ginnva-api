@@ -107,6 +107,40 @@ class InvoiceService
         $invoice->update(['status' => 'paid', 'amount_paid' => $invoice->total]);
     }
 
+    /**
+     * GAP DIPERBAIKI 2026-09-25 (audit Invoice) -- SEBELUMNYA satu-satunya
+     * aksi pembayaran adalah markPaid() (langsung set amount_paid = total
+     * penuh), padahal skema data (amount_paid, remainingAmount()) sudah
+     * mengisyaratkan dukungan pembayaran bertahap/DP -- tidak ada aksi
+     * apa pun buat mencatat cicilan. $amount di sini SELALU DITAMBAHKAN
+     * ke amount_paid yang sudah ada (bukan menimpa), supaya beberapa kali
+     * catat pembayaran terus terakumulasi dengan benar. Status naik ke
+     * 'paid' OTOMATIS begitu amount_paid >= total (dibulatkan 2 desimal
+     * supaya sisa recehan pembulatan tidak bikin status nyangkut di
+     * 'unpaid' selamanya).
+     */
+    public function recordPayment(Invoice $invoice, float $amount): void
+    {
+        if (! in_array($invoice->status, ['unpaid', 'draft'], true)) {
+            throw new RuntimeException('Invoice ini tidak dalam status yang bisa dicatat pembayarannya.');
+        }
+
+        if ($amount <= 0) {
+            throw new RuntimeException('Nominal pembayaran harus lebih dari 0.');
+        }
+
+        $newAmountPaid = round((float) $invoice->amount_paid + $amount, 2);
+
+        if ($newAmountPaid > (float) $invoice->total + 0.01) {
+            throw new RuntimeException('Nominal pembayaran melebihi sisa tagihan (' . 'Rp' . number_format($invoice->remainingAmount(), 0, ',', '.') . ').');
+        }
+
+        $invoice->update([
+            'amount_paid' => $newAmountPaid,
+            'status' => $newAmountPaid >= (float) $invoice->total - 0.01 ? 'paid' : 'unpaid',
+        ]);
+    }
+
     public function void(Invoice $invoice): void
     {
         if ($invoice->status === 'void') {

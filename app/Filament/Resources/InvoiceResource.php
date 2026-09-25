@@ -76,7 +76,15 @@ class InvoiceResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->with(['store', 'customer', 'booking', 'items']);
+        // GAP DIPERBAIKI 2026-09-25 (audit Invoice) -- 'items' SEBELUMNYA
+        // ikut di-eager-load di sini, padahal tidak satu pun kolom tabel
+        // index (invoice_number, customer_name, store.name, total,
+        // remaining, status) butuh data item. Halaman yang genuinely
+        // butuh (cetak PDF) sudah loadMissing(['items', ...]) sendiri
+        // (lihat action 'print' di bawah) -- dihapus dari sini supaya
+        // listing tidak menarik data item yang tidak dipakai tiap kali
+        // dibuka.
+        $query = parent::getEloquentQuery()->with(['store', 'customer', 'booking']);
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -336,12 +344,44 @@ class InvoiceResource extends Resource
                 // terdaftar untuk model Invoice).
                 Tables\Actions\DeleteAction::make(),
 
+                // GAP DIPERBAIKI 2026-09-25 (audit Invoice) -- SEBELUMNYA
+                // cuma ada "Tandai Lunas" (langsung set amount_paid =
+                // total penuh), tidak ada cara mencatat pembayaran
+                // bertahap/DP padahal skema data (amount_paid) sudah
+                // mendukungnya. Lihat InvoiceService::recordPayment().
+                Tables\Actions\Action::make('record_payment')
+                    ->label('Catat Pembayaran')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('info')
+                    ->visible(fn (Invoice $r) => in_array($r->status, ['draft', 'unpaid'], true))
+                    ->form([
+                        Forms\Components\TextInput::make('amount')
+                            ->label('Nominal Dibayar')
+                            ->numeric()
+                            ->minValue(0.01)
+                            ->required()
+                            ->prefix('Rp')
+                            ->helperText(fn (Invoice $r) => 'Sisa tagihan saat ini: Rp' . number_format($r->remainingAmount(), 0, ',', '.')),
+                    ])
+                    ->action(function (Invoice $r, array $data) {
+                        try {
+                            app(InvoiceService::class)->recordPayment($r, (float) $data['amount']);
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Gagal')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Pembayaran dicatat.')->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('mark_paid')
                     ->label('Tandai Lunas')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->visible(fn (Invoice $r) => in_array($r->status, ['draft', 'unpaid'], true))
                     ->requiresConfirmation()
+                    ->modalDescription('Menandai LUNAS langsung mengisi sisa tagihan penuh. Kalau pembayarannya bertahap/DP, pakai "Catat Pembayaran" alih-alih ini.')
                     ->action(function (Invoice $r) {
                         try {
                             app(InvoiceService::class)->markPaid($r);

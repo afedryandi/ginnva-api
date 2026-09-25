@@ -7,12 +7,14 @@ use App\Models\BookingMessage;
 use App\Models\PartnershipInquiry;
 use App\Models\ProductInquiry;
 use App\Models\Quotation;
+use App\Models\Invoice;
 use App\Models\RewardRedemption;
 use App\Models\Spk;
 use App\Models\StoreReview;
 use App\Models\Warranty;
 use App\Observers\BookingMessageObserver;
 use App\Observers\BookingObserver;
+use App\Observers\InvoiceObserver;
 use App\Observers\PartnershipInquiryObserver;
 use App\Observers\ProductInquiryObserver;
 use App\Observers\QuotationObserver;
@@ -53,6 +55,7 @@ class AppServiceProvider extends ServiceProvider
         ProductInquiry::observe(ProductInquiryObserver::class);
         PartnershipInquiry::observe(PartnershipInquiryObserver::class);
         Spk::observe(SpkObserver::class);
+        Invoice::observe(InvoiceObserver::class);
 
         if ($this->app->environment('production')) {
             URL::forceScheme('https');

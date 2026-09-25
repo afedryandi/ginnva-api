@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\WarrantyController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\BookingController;
 use App\Http\Controllers\Api\Customer\BookingMessageController;
+use App\Http\Controllers\Api\Customer\InvoiceController;
 use App\Http\Controllers\Api\Customer\MyWarrantyController;
 use App\Http\Controllers\Api\Customer\StoreReviewController;
 use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
@@ -184,6 +185,14 @@ Route::prefix('customer')->group(function () {
 
         // Galeri pemasangan personal — foto dari booking milik customer sendiri
         Route::get('/my-gallery', [BookingMessageController::class, 'gallery']);
+
+        // Portal Invoice (gap "standar enterprise" diperbaiki 2026-09-25,
+        // audit Invoice) — sebelumnya customer sama sekali tidak bisa
+        // lihat/unduh invoice sendiri, sepenuhnya bergantung staff kirim
+        // PDF manual. Lihat App\Http\Controllers\Api\Customer\InvoiceController.
+        Route::get('/invoices', [InvoiceController::class, 'index']);
+        Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
+        Route::get('/invoices/{id}/download', [InvoiceController::class, 'download']);
 
         // Partnership Referral — redeem reward pakai poin loyalty
         Route::post('/rewards/{id}/redeem', [RewardController::class, 'redeemAsCustomer'])
