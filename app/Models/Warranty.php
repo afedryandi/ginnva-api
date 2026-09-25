@@ -40,6 +40,9 @@ class Warranty extends Model
         'reviewed_at',
         'extension_years',
         'original_expiry_date',
+        'revoke_reason',
+        'revoked_by',
+        'revoked_at',
     ];
 
     protected $casts = [
@@ -47,6 +50,7 @@ class Warranty extends Model
         'expiry_date'          => 'date',
         'original_expiry_date' => 'date',
         'reviewed_at'          => 'datetime',
+        'revoked_at'           => 'datetime',
     ];
 
     // Field tambahan yang otomatis ikut saat model di-convert ke JSON / array
@@ -227,6 +231,15 @@ class Warranty extends Model
             return 'rejected';
         }
 
+        // Gap DIPERBAIKI 2026-09-25 (audit Garansi, "tidak ada mekanisme
+        // revoke/void") -- dicek SEBELUM expired supaya garansi yang
+        // di-revoke SEKALIGUS kebetulan sudah lewat expiry_date tetap
+        // tampil 'revoked' (alasan pembatalannya tetap kelihatan),
+        // bukan tertutupi jadi 'expired' begitu saja.
+        if ($value === 'revoked') {
+            return 'revoked';
+        }
+
         if ($this->expiry_date && Carbon::now()->greaterThan($this->expiry_date)) {
             return 'expired';
         }
@@ -240,7 +253,7 @@ class Warranty extends Model
         // 'status' (itu computed accessor, bukan nilai mentah, gampang
         // membingungkan kalau ditampilkan sebagai "sebelum/sesudah" di log).
         return LogOptions::defaults()
-            ->logOnly(['review_status', 'rejection_reason', 'reviewed_by', 'extension_years', 'expiry_date', 'store_id'])
+            ->logOnly(['review_status', 'rejection_reason', 'reviewed_by', 'extension_years', 'expiry_date', 'store_id', 'status', 'revoke_reason', 'revoked_by'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('warranty')

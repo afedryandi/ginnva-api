@@ -40,6 +40,27 @@ class EditWarranty extends EditRecord
                     $this->refreshFormData(['review_status', 'reviewed_at', 'rejection_reason']);
                 }),
 
+            // Gap "revoke/void" diperbaiki 2026-09-25 (audit Garansi) --
+            // lihat WarrantyResource::performRevoke().
+            Actions\Action::make('revoke')
+                ->label('Batalkan Garansi (Revoke)')
+                ->icon('heroicon-o-no-symbol')
+                ->color('danger')
+                ->visible(fn () => auth()->user()?->isFullAccess()
+                    && $this->record->review_status === 'approved'
+                    && $this->record->status !== 'revoked')
+                ->form([
+                    Forms\Components\Textarea::make('revoke_reason')
+                        ->label('Alasan Pembatalan')
+                        ->required(),
+                ])
+                ->requiresConfirmation()
+                ->modalDescription('Garansi yang dibatalkan TIDAK bisa diaktifkan lagi lewat aksi ini — riwayatnya tetap tersimpan (beda dari Delete). Yakin lanjutkan?')
+                ->action(function (array $data) {
+                    WarrantyResource::performRevoke($this->record, $data['revoke_reason']);
+                    $this->refreshFormData(['status', 'revoke_reason', 'revoked_at']);
+                }),
+
             Actions\Action::make('extend')
                 ->label('Perpanjang Garansi')
                 ->icon('heroicon-o-calendar-days')

@@ -131,6 +131,37 @@ class WarrantyResource extends Resource
         Notification::make()->title("Garansi diperpanjang +{$years} tahun")->success()->send();
     }
 
+    /**
+     * Gap DIPERBAIKI 2026-09-25 (audit Garansi, "tidak ada mekanisme
+     * revoke/void") -- SEBELUMNYA satu-satunya jalan membatalkan garansi
+     * yang sudah approved adalah Delete permanen, tidak ada status yang
+     * menjaga riwayat. Revoke MENYIMPAN baris & seluruh riwayatnya (beda
+     * dari Delete), status raw kolom `status` di-set 'revoked' (lihat
+     * migrasi add_revoke_to_warranties_table & Warranty::
+     * getStatusAttribute() yang memprioritaskan nilai ini). Customer
+     * pemilik dikirim push -- konsisten dengan pola notifikasi yang
+     * diperbaiki di ClaimsRelationManager & TechnicianResource sesi ini.
+     */
+    public static function performRevoke(Warranty $warranty, string $reason): void
+    {
+        $warranty->update([
+            'status'        => 'revoked',
+            'revoke_reason' => $reason,
+            'revoked_by'    => auth()->id(),
+            'revoked_at'    => now(),
+        ]);
+
+        if ($warranty->customer_id) {
+            app(\App\Services\PushNotificationService::class)->sendToCustomer(
+                $warranty->customer_id,
+                'Garansi Dibatalkan',
+                "Garansi #{$warranty->warranty_code} Anda telah dibatalkan: {$reason}"
+            );
+        }
+
+        Notification::make()->title('Garansi dibatalkan (revoked)')->warning()->send();
+    }
+
     public static function form(Form $form): Form
     {
         $isSuperAdmin = auth()->user()?->isFullAccess();
@@ -534,9 +565,10 @@ class WarrantyResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status Garansi')
+                    ->formatStateUsing(fn (string $state): string => $state === 'revoked' ? 'Revoked' : $state)
                     ->colors([
                         'success' => 'active',
-                        'danger'  => fn ($state) => in_array($state, ['expired', 'rejected']),
+                        'danger'  => fn ($state) => in_array($state, ['expired', 'rejected', 'revoked']),
                         // 'pending' DIHAPUS dari sini — kolom mentah `status`
                         // di database cuma pernah diisi 'active' (lihat
                         // WarrantyController::submit()), tidak ada alur
@@ -641,6 +673,9 @@ class WarrantyResource extends Resource
                         'expired'        => 'Expired',
                         'pending_review' => 'Pending Review',
                         'rejected'       => 'Rejected',
+                        // 'revoked' ditambah 2026-09-25 (gap "revoke/void"
+                        // diperbaiki, audit Garansi) — lihat performRevoke().
+                        'revoked'        => 'Revoked',
                         // 'pending' DIHAPUS — kolom mentah `status` di
                         // database tidak pernah diisi nilai itu di alur
                         // manapun, opsi ini mubazir/tidak pernah
@@ -653,7 +688,10 @@ class WarrantyResource extends Resource
                         return match ($value) {
                             'pending_review' => $query->where('review_status', 'pending_review'),
                             'rejected'       => $query->where('review_status', 'rejected'),
+                            'revoked'        => $query->where('review_status', 'approved')
+                                ->where('status', 'revoked'),
                             'expired'        => $query->where('review_status', 'approved')
+                                ->where('status', '!=', 'revoked')
                                 ->whereDate('expiry_date', '<', now()),
                             'active'         => $query->where('review_status', 'approved')
                                 ->where('status', 'active')
@@ -720,6 +758,24 @@ class WarrantyResource extends Resource
                             ->required(),
                     ])
                     ->action(fn (Warranty $record, array $data) => static::performReject($record, $data['rejection_reason'])),
+
+                // Gap "revoke/void" diperbaiki 2026-09-25 (audit Garansi)
+                // -- lihat performRevoke() di atas.
+                Tables\Actions\Action::make('revoke')
+                    ->label('Revoke')
+                    ->icon('heroicon-o-no-symbol')
+                    ->color('danger')
+                    ->visible(fn (Warranty $record) => auth()->user()?->isFullAccess()
+                        && $record->review_status === 'approved'
+                        && $record->status !== 'revoked')
+                    ->form([
+                        Forms\Components\Textarea::make('revoke_reason')
+                            ->label('Alasan Pembatalan')
+                            ->required(),
+                    ])
+                    ->requiresConfirmation()
+                    ->modalDescription('Garansi yang dibatalkan TIDAK bisa diaktifkan lagi lewat aksi ini — riwayatnya tetap tersimpan (beda dari Delete).')
+                    ->action(fn (Warranty $record, array $data) => static::performRevoke($record, $data['revoke_reason'])),
 
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),

@@ -405,6 +405,19 @@ class WarrantyController extends Controller
             ], 403);
         }
 
+        // Gap DIPERBAIKI 2026-09-25 (audit Garansi, mekanisme revoke baru
+        // ditambahkan) -- review_status TETAP 'approved' untuk garansi
+        // yang di-revoke (revoke murni menandai status raw kolom, bukan
+        // membatalkan hasil review QA), jadi cek review_status di atas
+        // SAJA tidak cukup mencegah PDF garansi yang sudah dibatalkan
+        // tetap bisa diunduh publik.
+        if ($warranty->status === 'revoked') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sertifikat garansi ini telah dibatalkan (revoked) dan tidak bisa diunduh lagi.',
+            ], 403);
+        }
+
         // QR code berisi LINK ke halaman cek garansi publik di web
         // (bukan cuma teks kode polos), supaya kalau di-scan pakai
         // kamera HP manapun (tidak harus app Ginnva), langsung terbuka
