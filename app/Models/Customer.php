@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 /**
@@ -18,6 +20,16 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
 class Customer extends Model implements Authenticatable, JWTSubject
 {
     use AuthenticatableTrait;
+
+    // LogsActivity ditambahkan 2026-09-26 (audit Daftar Pelanggan) --
+    // SEBELUMNYA tidak ada sama sekali, padahal 2 jalur admin (action
+    // "Data Pribadi" di CustomerResource ubah gender/address, dan action
+    // "Direferensikan Partner"/"Ajak Teman" ubah referred_by_*) adalah
+    // SATU-SATUNYA cara field ini diubah manual staff -- tanpa ini,
+    // perubahan PII customer oleh staff sama sekali tidak terlacak siapa/
+    // kapan. Pola sama dengan gap yang ditemukan & diperbaiki di audit
+    // "audit trail sweep" sebelumnya (Technician, BankStatementLine).
+    use LogsActivity;
 
     // Audit framework 2026-09-14, "Penanganan data pribadi (PII)
     // pelanggan" -- kolom deleted_at SUDAH ADA sejak migrasi
@@ -147,5 +159,20 @@ class Customer extends Model implements Authenticatable, JWTSubject
         // ter-decode di tempat yang salah, jelas terlihat ini token
         // customer, bukan admin — memudahkan debugging & logging.
         return ['guard' => 'customer'];
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['name', 'phone_number', 'gender', 'address', 'customer_group_id', 'referred_by_customer_id', 'referred_by_partner_id'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('customer')
+            ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
+                'created' => "Pelanggan \"{$this->name}\" terdaftar",
+                'updated' => "Data pelanggan \"{$this->name}\" diubah",
+                'deleted' => "Akun pelanggan \"{$this->name}\" dihapus",
+                default   => "Pelanggan \"{$this->name}\" — {$eventName}",
+            });
     }
 }

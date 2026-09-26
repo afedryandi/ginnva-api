@@ -91,6 +91,25 @@ class CustomerResource extends Resource
     }
 
     /**
+     * Gap diperbaiki 2026-09-26 (audit Daftar Pelanggan) -- SEBELUMNYA
+     * tidak ada override eksplisit di sini. Dampaknya kecil (tidak ada
+     * EditRecord/EditAction terdaftar sama sekali di resource ini --
+     * satu-satunya field yang benar-benar bisa diubah, customer_group_id,
+     * lewat bulk action "Ubah Grup Pelanggan" di table() yang sudah punya
+     * guard ->visible() sendiri, bukan lewat Gate canEdit()), tapi
+     * ditambahkan untuk konsisten dengan pola eksplisit di resource lain
+     * (jaga-jaga kalau nanti ada EditAction/inline-edit ditambahkan).
+     */
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+
+        return $user?->canAccessStaffArea()
+            && $user->hasMenuAccess(static::class)
+            && $user->hasModuleAction(static::class, 'update', true);
+    }
+
+    /**
      * Aksi khusus untuk set referral MANUAL — dipakai sebelum app rilis
      * (belum ada jalur mobile buat customer isi kode referral sendiri),
      * atau untuk koreksi data. SENGAJA dipisah dari form() resource ini

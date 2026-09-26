@@ -95,10 +95,29 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $customer = Customer::firstOrCreate(
-            ['email' => $request->email],
-            ['email_verified_at' => now()]
-        );
+        // Bug diperbaiki 2026-09-26 (audit Daftar Pelanggan) --
+        // SEBELUMNYA firstOrCreate() polos tanpa penanganan race: kalau 2
+        // request verify-otp untuk email yang sama (OTP sama-sama valid)
+        // benar-benar race persis di celah SELECT-lalu-INSERT (keduanya
+        // lolos cek "belum ada" sebelum salah satu commit), request kedua
+        // akan lempar QueryException unique-constraint mentah (500),
+        // bukan tetap berhasil login. email sudah unique() di DB
+        // (migrasi awal) jadi TIDAK ADA baris dobel yang tercipta --
+        // exception di sini murni ditangkap supaya request kedua tetap
+        // sukses login ke baris yang barusan dibuat proses lain, bukan
+        // gagal 500.
+        try {
+            $customer = Customer::firstOrCreate(
+                ['email' => $request->email],
+                ['email_verified_at' => now()]
+            );
+        } catch (\Illuminate\Database\QueryException $e) {
+            $customer = Customer::where('email', $request->email)->first();
+
+            if (! $customer) {
+                throw $e;
+            }
+        }
 
         $isNew = $customer->wasRecentlyCreated;
 
@@ -157,10 +176,16 @@ class AuthController extends Controller
             // sampai ke DB unique constraint dan errornya (SQL mentah, host
             // DB, dll) bocor ke user lewat handler generik. Divalidasi di
             // sini dulu supaya pesannya jelas & tidak pernah nyampe ke DB.
-            'phone_number'  => 'required|string|max:20|unique:customers,phone_number,' . $customer->id,
+            // Gap diperbaiki 2026-09-26 (audit Daftar Pelanggan) --
+            // SEBELUMNYA cuma string|max:20, huruf/simbol bisa lolos ke
+            // kolom yang diasumsikan nomor telepon murni (UI edit-profile.tsx
+            // tampilkan prefix "+62" statis lalu kirim sisa digitnya saja,
+            // tanpa "+"/"0"/spasi). Regex 8-15 digit angka murni.
+            'phone_number'  => ['required', 'string', 'max:20', 'regex:/^[0-9]{8,15}$/', 'unique:customers,phone_number,' . $customer->id],
             'referral_code' => 'nullable|string|max:20',
         ], [
             'phone_number.unique' => 'Nomor WhatsApp ini sudah terdaftar di akun lain.',
+            'phone_number.regex'  => 'Nomor WhatsApp harus berupa angka saja (tanpa spasi, +, atau 0 di depan), 8-15 digit.',
         ]);
 
         if ($validator->fails()) {
