@@ -47,6 +47,18 @@ class RewardRedemptionResource extends Resource
     }
 
     /**
+     * Gap diperbaiki 2026-09-26 (audit Katalog Reward) -- kolom
+     * 'reward.name' (dot-notation) di table() TIDAK auto-eager-load
+     * sendiri di Filament v3 (pola yang sama ditemukan di 13 resource
+     * lain, audit "N+1 eager loading sweep" 2026-09-14), jadi tanpa ini
+     * 1 query tambahan per baris.
+     */
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()->with('reward:id,name');
+    }
+
+    /**
      * SEBELUMNYA tidak ada override di sini dan tidak ada
      * RewardRedemptionPolicy terdaftar — canEdit() bawaan Resource selalu
      * FALSE untuk siapa pun tanpa policy (default-deny Laravel). Ini

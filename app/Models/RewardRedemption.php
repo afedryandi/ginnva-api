@@ -30,12 +30,32 @@ class RewardRedemption extends Model
     }
 
     /**
+     * Cache statis per (type,id) diperbaiki 2026-09-26 (audit Katalog
+     * Reward, gap N+1) -- redeemer_type/redeemer_id bukan morphTo Eloquent
+     * standar (2 tabel tanpa base class sama), jadi tidak bisa
+     * di-eager-load lewat ->with() biasa. Tabel Filament (RewardRedemptionResource)
+     * memanggil redeemer() (lewat getRedeemerNameAttribute()) sekali per
+     * baris -- cache ini setidaknya mencegah query DUPLIKAT kalau
+     * customer/partner yang sama muncul di banyak baris pada 1 halaman
+     * yang sama (kasus umum: 1 customer redeem reward berkali-kali).
+     *
+     * @var array<string, Partner|Customer|null>
+     */
+    private static array $redeemerCache = [];
+
+    /**
      * Bukan morphTo Eloquent standar — redeemer_type cuma 'partner' atau
      * 'customer', dua tabel yang tidak share base class. Resolve manual.
      */
     public function redeemer(): Partner|Customer|null
     {
-        return match ($this->redeemer_type) {
+        $cacheKey = "{$this->redeemer_type}:{$this->redeemer_id}";
+
+        if (array_key_exists($cacheKey, static::$redeemerCache)) {
+            return static::$redeemerCache[$cacheKey];
+        }
+
+        return static::$redeemerCache[$cacheKey] = match ($this->redeemer_type) {
             'partner'  => Partner::find($this->redeemer_id),
             'customer' => Customer::find($this->redeemer_id),
             default    => null,

@@ -102,7 +102,19 @@ class RewardResource extends Resource
                         ->label('Harga (Poin)')
                         ->numeric()
                         ->required()
-                        ->minValue(1),
+                        ->minValue(1)
+                        // Gap diperbaiki 2026-09-26 (audit Katalog Reward)
+                        // -- riwayat penukaran LAMA tetap aman (points_spent
+                        // sudah di-snapshot ke RewardRedemption, TIDAK
+                        // retroaktif berubah), tapi staff sebelumnya tidak
+                        // diberi peringatan apa pun kalau reward yang
+                        // sedang diedit ini sudah pernah ditukar customer
+                        // -- mengubah harga tanpa sadar itu memengaruhi
+                        // ekspektasi customer yang sudah lihat harga lama
+                        // di katalog.
+                        ->helperText(fn (?Reward $record) => ($record && $record->redemptions()->exists())
+                            ? '⚠️ Reward ini sudah pernah ditukar customer. Riwayat lama tidak berubah, tapi customer yang sudah lihat harga lama di katalog bisa bingung kalau harga berubah.'
+                            : null),
 
                     Forms\Components\TextInput::make('stock')
                         ->label('Stok')

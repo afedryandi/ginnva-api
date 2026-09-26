@@ -2,10 +2,12 @@
 
 namespace App\Observers;
 
+use App\Models\Customer;
 use App\Models\Partner;
 use App\Models\PartnerPointTransaction;
 use App\Models\PointTransaction;
 use App\Models\RewardRedemption;
+use App\Services\PushNotificationService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -33,6 +35,26 @@ class RewardRedemptionObserver
             $this->adjustBalance($redemption, refund: true);
         } elseif ($from === 'cancelled' && $to !== 'cancelled') {
             $this->adjustBalance($redemption, refund: false);
+        }
+
+        // Bug diperbaiki 2026-09-26 (audit Katalog Reward) -- SEBELUMNYA
+        // tidak ada push notifikasi sama sekali saat status redemption
+        // berubah, padahal SEMUA modul lain yang punya alur status-change
+        // customer-facing sesi ini (Warranty, dst) selalu push. Customer
+        // harus buka app & cek "Riwayat Tukar Reward" manual untuk tahu
+        // reward-nya sudah "Sudah Dikirim" atau dibatalkan. Partner TIDAK
+        // dikirim push -- tidak ada dukungan push notification untuk
+        // Partner sama sekali di codebase ini (portal terpisah).
+        if ($redemption->redeemer_type === 'customer' && in_array($to, ['fulfilled', 'cancelled'], true)) {
+            $customer = Customer::find($redemption->redeemer_id);
+            if ($customer) {
+                $title = $to === 'fulfilled' ? 'Reward Sudah Dikirim' : 'Penukaran Reward Dibatalkan';
+                $body = $to === 'fulfilled'
+                    ? "Reward \"{$redemption->reward?->name}\" Anda sudah diproses toko."
+                    : "Penukaran reward \"{$redemption->reward?->name}\" dibatalkan, poin Anda sudah dikembalikan.";
+
+                app(PushNotificationService::class)->sendToCustomer($customer->id, $title, $body);
+            }
         }
     }
 
