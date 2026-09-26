@@ -31,7 +31,15 @@ class FilmProductRecipeItem extends Model
 
     public function filmProduct(): BelongsTo
     {
-        return $this->belongsTo(FilmProduct::class);
+        // withTrashed() (gap diperbaiki 2026-09-26, audit Master Resep) --
+        // FilmProduct pakai SoftDeletes sejak 2026-09-25 (lihat audit
+        // Daftar Produk). Sama pola dengan relasi filmProduct() lain
+        // (Booking/BookingFilmProduct/InvoiceItem/QuotationItem/
+        // ScrollCode) -- tanpa ini, baris resep produk yang sudah
+        // di-soft-delete otomatis balik null begitu diakses langsung dari
+        // sisi FilmProductRecipeItem (bukan lewat FilmProduct::with('recipeItems')),
+        // padahal resep bukan data privasi yang perlu disembunyikan.
+        return $this->belongsTo(FilmProduct::class)->withTrashed();
     }
 
     /**

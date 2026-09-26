@@ -113,6 +113,39 @@ class MasterResepResource extends Resource
                         ->reorderable(false)
                         ->defaultItems(0)
                         ->columns(12)
+                        // Bug diperbaiki 2026-09-26 (audit Master Resep) --
+                        // SEBELUMNYA tidak ada yang mencegah bahan yang
+                        // sama (item_type+item_id sama) dimasukkan 2x
+                        // dengan qty berbeda -- BOM ambigu, bakal
+                        // membingungkan begitu auto-deduct stok (Memo
+                        // Barang auto-fill) dibangun nanti. TIDAK pakai
+                        // ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                        // di field item_id saja -- itu cuma bandingkan
+                        // nilai item_id MENTAH lintas baris, padahal
+                        // item_id raw_material & consumable_item berasal
+                        // dari TABEL BERBEDA (bisa kebetulan sama-sama ID
+                        // 3), jadi akan salah blokir kombinasi yang
+                        // sebenarnya BEDA bahan. Closure ini cek kombinasi
+                        // item_type+item_id (film_roll dilewati, tidak
+                        // ada item_id).
+                        ->rules([
+                            function () {
+                                return function (string $attribute, $value, \Closure $fail) {
+                                    $seen = [];
+                                    foreach ((array) $value as $row) {
+                                        if (($row['item_type'] ?? null) === 'film_roll' || empty($row['item_id'])) {
+                                            continue;
+                                        }
+                                        $key = $row['item_type'].':'.$row['item_id'];
+                                        if (isset($seen[$key])) {
+                                            $fail('Ada bahan yang sama dipilih lebih dari sekali dalam resep ini.');
+                                            return;
+                                        }
+                                        $seen[$key] = true;
+                                    }
+                                };
+                            },
+                        ])
                         ->itemLabel(fn (array $state): ?string => filled($state['item_name'] ?? null)
                             ? trim(($state['item_name']).' — '.($state['standard_qty'] ?? 0).' '.($state['unit'] ?? ''))
                             : 'Bahan baru')
@@ -166,7 +199,11 @@ class MasterResepResource extends Resource
                             Forms\Components\TextInput::make('standard_qty')
                                 ->label('Jumlah')
                                 ->numeric()
-                                ->minValue(0)
+                                // Bug diperbaiki 2026-09-26 (audit Master
+                                // Resep) -- SEBELUMNYA minValue(0), baris
+                                // resep dengan qty 0 tidak ada gunanya
+                                // (BOM harusnya wajib > 0).
+                                ->minValue(0.01)
                                 ->required()
                                 ->suffix(fn (Forms\Get $get) => $get('unit') ?: null)
                                 ->columnSpan(2),
