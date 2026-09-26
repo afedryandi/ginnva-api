@@ -50,40 +50,59 @@ class PartnerController extends Controller
     }
 
     /**
-     * GET /api/partner/points
+     * GET /api/partner/points?page=1
      * Requires: auth:api, role partner
+     *
+     * Bug diperbaiki 2026-09-26 (audit Riwayat Poin Partner) --
+     * SEBELUMNYA ->limit(50) hardcoded tanpa pagination, sama persis
+     * gap yang sudah ditutup untuk customer (PointController::index())
+     * di audit sesi ini, tapi ketinggalan untuk partner. Pola response
+     * disamakan: 'transactions' tetap array polos (backward compatible),
+     * ditambah has_more/current_page/total.
      */
     public function points(Request $request)
     {
         $partner = $this->partnerOrAbort($request);
 
-        $transactions = PartnerPointTransaction::where('partner_id', $partner->id)
+        $paginated = PartnerPointTransaction::where('partner_id', $partner->id)
             ->orderByDesc('created_at')
-            ->limit(50)
-            ->get();
+            ->paginate(50, ['*'], 'page', (int) $request->query('page', 1));
 
         return response()->json([
             'success'      => true,
             'balance'      => $partner->points_balance,
-            'transactions' => $transactions,
+            'transactions' => $paginated->items(),
+            'current_page' => $paginated->currentPage(),
+            'has_more'     => $paginated->hasMorePages(),
+            'total'        => $paginated->total(),
         ]);
     }
 
     /**
-     * GET /api/partner/redemptions
+     * GET /api/partner/redemptions?page=1
      * Requires: auth:api, role partner
+     *
+     * Bug diperbaiki 2026-09-26 (audit Riwayat Poin Partner) --
+     * SEBELUMNYA tidak ada limit/pagination SAMA SEKALI (ambil semua
+     * baris tanpa batas) -- gap yang sama kelasnya, ditutup sekalian.
      */
     public function redemptions(Request $request)
     {
         $partner = $this->partnerOrAbort($request);
 
-        $redemptions = RewardRedemption::with('reward')
+        $paginated = RewardRedemption::with('reward')
             ->where('redeemer_type', 'partner')
             ->where('redeemer_id', $partner->id)
             ->orderByDesc('created_at')
-            ->get();
+            ->paginate(50, ['*'], 'page', (int) $request->query('page', 1));
 
-        return response()->json(['success' => true, 'data' => $redemptions]);
+        return response()->json([
+            'success'      => true,
+            'data'         => $paginated->items(),
+            'current_page' => $paginated->currentPage(),
+            'has_more'     => $paginated->hasMorePages(),
+            'total'        => $paginated->total(),
+        ]);
     }
 
     /**
@@ -103,10 +122,12 @@ class PartnerController extends Controller
     {
         $partner = $this->partnerOrAbort($request);
 
-        $bookings = $partner->bookings()
+        // Bug diperbaiki 2026-09-26 (audit Riwayat Poin Partner) --
+        // SEBELUMNYA ->limit(50) hardcoded, sama kelas gap dengan points()
+        // di atas.
+        $paginated = $partner->bookings()
             ->orderByDesc('created_at')
-            ->limit(50)
-            ->get();
+            ->paginate(50, ['*'], 'page', (int) $request->query('page', 1));
 
         // Ambil poin per booking dari ledger asli (bukan dihitung ulang
         // dari transaction_amount) — supaya angka yang ditampilkan selalu
@@ -118,7 +139,7 @@ class PartnerController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $bookings->map(fn (Booking $b) => [
+            'data' => collect($paginated->items())->map(fn (Booking $b) => [
                 'id'                 => $b->id,
                 'booking_number'     => $b->booking_number,
                 'customer_name'      => $b->customer_name,
@@ -127,6 +148,9 @@ class PartnerController extends Controller
                 'points_earned'      => $pointsByBooking[$b->id] ?? 0,
                 'created_at'         => $b->created_at,
             ]),
+            'current_page' => $paginated->currentPage(),
+            'has_more'     => $paginated->hasMorePages(),
+            'total'        => $paginated->total(),
         ]);
     }
 

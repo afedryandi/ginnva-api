@@ -133,7 +133,9 @@ class PartnerPointTransactionResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with('partner');
+        // ->with('createdBy') ditambah 2026-09-26 (audit Riwayat Poin
+        // Partner) -- kolom dot-notation createdBy.name baru.
+        return parent::getEloquentQuery()->with(['partner', 'createdBy']);
     }
 
     public static function table(Table $table): Table
@@ -175,6 +177,13 @@ class PartnerPointTransactionResource extends Resource
                     ->label('Keterangan')
                     ->limit(50)
                     ->searchable(),
+
+                // Gap ditutup 2026-09-26 (audit Riwayat Poin Partner) --
+                // sama pola dengan PointTransactionResource (customer).
+                Tables\Columns\TextColumn::make('createdBy.name')
+                    ->label('Dibuat Oleh')
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Tanggal')

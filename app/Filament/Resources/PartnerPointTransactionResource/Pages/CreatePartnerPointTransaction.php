@@ -23,6 +23,9 @@ class CreatePartnerPointTransaction extends CreateRecord
     {
         $data['reference_type'] = 'manual';
         $data['reference_id'] = null;
+        // Gap ditutup 2026-09-26 (audit Riwayat Poin Partner) -- jejak
+        // "siapa" staf, sama pola dengan CreatePointTransaction (customer).
+        $data['created_by'] = auth()->id();
 
         return $data;
     }
