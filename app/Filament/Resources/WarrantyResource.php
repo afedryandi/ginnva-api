@@ -45,11 +45,13 @@ class WarrantyResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        // withCount('maintenanceVisits') (fitur Kuota Maintenance,
-        // 2026-09-25) -- supaya kolom "Maintenance" di tabel bisa hitung
-        // sisa kuota tanpa N+1 query per baris (Warranty::getMaintenanceUsedAttribute()
-        // pakai maintenance_visits_count ini kalau sudah tersedia).
-        $query = parent::getEloquentQuery()->withCount('maintenanceVisits');
+        // withCount('activeMaintenanceVisits') (fitur Kuota Maintenance,
+        // 2026-09-25; disesuaikan 2026-09-26 supaya kunjungan yang
+        // di-cancel tidak ikut terhitung) -- supaya kolom "Maintenance" di
+        // tabel bisa hitung sisa kuota tanpa N+1 query per baris
+        // (Warranty::getMaintenanceUsedAttribute() pakai
+        // active_maintenance_visits_count ini kalau sudah tersedia).
+        $query = parent::getEloquentQuery()->withCount('activeMaintenanceVisits');
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -265,7 +267,7 @@ class WarrantyResource extends Resource
                 return;
             }
 
-            $used = $locked->maintenanceVisits()->count();
+            $used = $locked->activeMaintenanceVisits()->count();
             if ($used >= $locked->maintenance_quota) {
                 Notification::make()
                     ->title('Kuota maintenance sudah habis')
@@ -300,6 +302,53 @@ class WarrantyResource extends Resource
                 ->body("Sisa kuota: {$remaining}/{$locked->maintenance_quota}")
                 ->success()
                 ->send();
+        });
+    }
+
+    /**
+     * Gap "koreksi kunjungan salah catat" diperbaiki 2026-09-26 (audit
+     * ulang Garansi) -- SEBELUMNYA kunjungan yang salah catat (salah
+     * tanggal/salah pilih garansi) tidak bisa dikoreksi sama sekali, kuota
+     * customer berkurang permanen akibat kesalahan staff. Full-access
+     * only (beda dari performRecordMaintenanceVisit() yang memang untuk
+     * staff toko biasa) -- membatalkan kunjungan mengembalikan kuota,
+     * bukan aksi operasional rutin. SOFT-cancel (baris tetap ada, ditandai
+     * batal) -- bukan hard-delete, supaya riwayat kesalahan tetap
+     * tercatat (lihat WarrantyMaintenanceVisit::isCancelled()).
+     */
+    public static function performCancelMaintenanceVisit(Warranty $warranty, array $data): void
+    {
+        DB::transaction(function () use ($warranty, $data) {
+            $visit = WarrantyMaintenanceVisit::where('id', $data['visit_id'])
+                ->where('warranty_id', $warranty->id)
+                ->whereNull('cancelled_at')
+                ->lockForUpdate()
+                ->first();
+
+            if (! $visit) {
+                Notification::make()
+                    ->title('Kunjungan tidak ditemukan atau sudah dibatalkan')
+                    ->danger()
+                    ->send();
+
+                return;
+            }
+
+            $visit->update([
+                'cancelled_at'   => now(),
+                'cancelled_by'   => auth()->id(),
+                'cancel_reason'  => $data['cancel_reason'],
+            ]);
+
+            if ($warranty->customer_id) {
+                app(\App\Services\PushNotificationService::class)->sendToCustomer(
+                    $warranty->customer_id,
+                    'Kunjungan Maintenance Dibatalkan',
+                    "Pencatatan kunjungan maintenance tanggal {$visit->visited_at->format('d M Y')} pada garansi #{$warranty->warranty_code} dibatalkan (kesalahan input). Kuota Anda sudah dikembalikan."
+                );
+            }
+
+            Notification::make()->title('Kunjungan dibatalkan, kuota dikembalikan')->success()->send();
         });
     }
 
@@ -420,12 +469,18 @@ class WarrantyResource extends Resource
                                 return '';
                             }
 
-                            $used = $record->maintenanceVisits->count();
+                            $used = $record->maintenanceVisits->whereNull('cancelled_at')->count();
                             $quota = $record->maintenance_quota;
 
                             $lines = $record->maintenanceVisits->map(function (WarrantyMaintenanceVisit $v) {
                                 $when = $v->visited_at?->format('d M Y');
                                 $by = $v->recordedBy?->name ?? 'Sistem';
+
+                                if ($v->isCancelled()) {
+                                    $cancelledBy = $v->cancelledBy?->name ?? 'Sistem';
+
+                                    return "{$when} (dicatat oleh {$by}) — DIBATALKAN oleh {$cancelledBy}: {$v->cancel_reason}";
+                                }
 
                                 return "{$when} (dicatat oleh {$by})" . ($v->note ? " — {$v->note}" : '');
                             })->all();
@@ -816,14 +871,14 @@ class WarrantyResource extends Resource
                         : null),
 
                 // Fitur "Kuota Maintenance" (2026-09-25). Pakai
-                // maintenance_visits_count dari getEloquentQuery()
+                // active_maintenance_visits_count dari getEloquentQuery()
                 // withCount() -- HINDARI panggil accessor
                 // getMaintenanceUsedAttribute() langsung di sini, yang
                 // fallback ke query per-baris kalau count belum tersedia.
                 Tables\Columns\TextColumn::make('maintenance_quota')
                     ->label('Maintenance')
                     ->placeholder('—')
-                    ->formatStateUsing(fn (?int $state, $record) => $state === null ? null : "{$record->maintenance_visits_count}/{$state} dipakai")
+                    ->formatStateUsing(fn (?int $state, $record) => $state === null ? null : "{$record->active_maintenance_visits_count}/{$state} dipakai")
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('created_at')
@@ -1064,7 +1119,14 @@ class WarrantyResource extends Resource
                             ->label('Tanggal Kunjungan')
                             ->required()
                             ->default(now())
-                            ->maxDate(now()),
+                            ->maxDate(now())
+                            // Gap diperbaiki 2026-09-26 (audit ulang Garansi)
+                            // -- SEBELUMNYA tidak dibatasi, staff bisa input
+                            // kunjungan maintenance SEBELUM tanggal
+                            // instalasi, tidak masuk akal untuk bisnis
+                            // instalasi PPF/WF (maintenance selalu setelah
+                            // pemasangan).
+                            ->minDate(fn (Warranty $record) => $record->installation_date),
 
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan (opsional)')
@@ -1073,6 +1135,43 @@ class WarrantyResource extends Resource
                     ->requiresConfirmation()
                     ->modalDescription(fn (Warranty $record) => "Sisa kuota saat ini: {$record->maintenance_remaining}/{$record->maintenance_quota} kunjungan.")
                     ->action(fn (Warranty $record, array $data) => static::performRecordMaintenanceVisit($record, $data)),
+
+                // Gap "koreksi kunjungan salah catat" diperbaiki 2026-09-26
+                // -- lihat performCancelMaintenanceVisit(). Full-access
+                // only, beda dari catat kunjungan yang untuk staff toko
+                // biasa.
+                Tables\Actions\Action::make('cancel_maintenance_visit')
+                    ->label('Batalkan Kunjungan Maintenance')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    // Pakai active_maintenance_visits_count dari
+                    // getEloquentQuery() withCount() (BUKAN
+                    // activeMaintenanceVisits()->exists(), yang akan jadi
+                    // query tambahan per baris tabel -- beda dari
+                    // Edit/ViewWarranty yang cuma render 1 record, di situ
+                    // ->exists() aman).
+                    ->visible(fn (Warranty $record) => auth()->user()?->isFullAccess()
+                        && $record->active_maintenance_visits_count > 0)
+                    ->form(fn (Warranty $record) => [
+                        Forms\Components\Select::make('visit_id')
+                            ->label('Kunjungan yang Dibatalkan')
+                            ->options(fn () => $record->activeMaintenanceVisits()
+                                ->orderByDesc('visited_at')
+                                ->get()
+                                ->mapWithKeys(fn (WarrantyMaintenanceVisit $v) => [
+                                    $v->id => $v->visited_at->format('d M Y') . ($v->note ? " — {$v->note}" : ''),
+                                ])
+                            )
+                            ->required(),
+
+                        Forms\Components\Textarea::make('cancel_reason')
+                            ->label('Alasan Pembatalan')
+                            ->placeholder('Contoh: salah pilih garansi / salah tanggal')
+                            ->required(),
+                    ])
+                    ->requiresConfirmation()
+                    ->modalDescription('Kunjungan yang dibatalkan mengembalikan kuota customer. Riwayatnya tetap tersimpan (ditandai batal), bukan dihapus.')
+                    ->action(fn (Warranty $record, array $data) => static::performCancelMaintenanceVisit($record, $data)),
 
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),

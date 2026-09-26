@@ -17,10 +17,14 @@ class WarrantyMaintenanceVisit extends Model
         'visited_at',
         'note',
         'recorded_by',
+        'cancelled_at',
+        'cancelled_by',
+        'cancel_reason',
     ];
 
     protected $casts = [
-        'visited_at' => 'date',
+        'visited_at'   => 'date',
+        'cancelled_at' => 'datetime',
     ];
 
     public function warranty()
@@ -31,5 +35,19 @@ class WarrantyMaintenanceVisit extends Model
     public function recordedBy()
     {
         return $this->belongsTo(User::class, 'recorded_by');
+    }
+
+    /**
+     * Gap "koreksi kunjungan salah catat" diperbaiki 2026-09-26 -- lihat
+     * WarrantyResource::performCancelMaintenanceVisit().
+     */
+    public function cancelledBy()
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->cancelled_at !== null;
     }
 }

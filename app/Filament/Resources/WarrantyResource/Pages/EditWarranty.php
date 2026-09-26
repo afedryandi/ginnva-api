@@ -121,7 +121,8 @@ class EditWarranty extends EditRecord
                         ->label('Tanggal Kunjungan')
                         ->required()
                         ->default(now())
-                        ->maxDate(now()),
+                        ->maxDate(now())
+                        ->minDate(fn () => $this->record->installation_date),
 
                     Forms\Components\Textarea::make('note')
                         ->label('Catatan (opsional)')
@@ -131,6 +132,48 @@ class EditWarranty extends EditRecord
                 ->modalDescription(fn () => "Sisa kuota saat ini: {$this->record->maintenance_remaining}/{$this->record->maintenance_quota} kunjungan.")
                 ->action(function (array $data) {
                     WarrantyResource::performRecordMaintenanceVisit($this->record, $data);
+                    // refresh() (bug diperbaiki 2026-09-26, audit ulang
+                    // Garansi) -- SEBELUMNYA cuma refreshFormData(), tidak
+                    // me-reset relasi maintenanceVisits yang sudah
+                    // ter-cache di properti Eloquent kalau Placeholder
+                    // "Riwayat Kunjungan Maintenance" sudah pernah
+                    // me-lazy-load-nya -- visible()/modalDescription()
+                    // action ini tetap baca maintenance_remaining LAMA
+                    // sampai staff reload manual halaman.
+                    $this->record->refresh();
+                    $this->refreshFormData(['maintenance_quota']);
+                }),
+
+            // Gap "koreksi kunjungan salah catat" diperbaiki 2026-09-26 --
+            // lihat WarrantyResource::performCancelMaintenanceVisit().
+            Actions\Action::make('cancel_maintenance_visit')
+                ->label('Batalkan Kunjungan Maintenance')
+                ->icon('heroicon-o-x-circle')
+                ->color('danger')
+                ->visible(fn () => auth()->user()?->isFullAccess()
+                    && $this->record->activeMaintenanceVisits()->exists())
+                ->form(fn () => [
+                    Forms\Components\Select::make('visit_id')
+                        ->label('Kunjungan yang Dibatalkan')
+                        ->options(fn () => $this->record->activeMaintenanceVisits()
+                            ->orderByDesc('visited_at')
+                            ->get()
+                            ->mapWithKeys(fn (\App\Models\WarrantyMaintenanceVisit $v) => [
+                                $v->id => $v->visited_at->format('d M Y') . ($v->note ? " — {$v->note}" : ''),
+                            ])
+                        )
+                        ->required(),
+
+                    Forms\Components\Textarea::make('cancel_reason')
+                        ->label('Alasan Pembatalan')
+                        ->placeholder('Contoh: salah pilih garansi / salah tanggal')
+                        ->required(),
+                ])
+                ->requiresConfirmation()
+                ->modalDescription('Kunjungan yang dibatalkan mengembalikan kuota customer. Riwayatnya tetap tersimpan (ditandai batal), bukan dihapus.')
+                ->action(function (array $data) {
+                    WarrantyResource::performCancelMaintenanceVisit($this->record, $data);
+                    $this->record->refresh();
                     $this->refreshFormData(['maintenance_quota']);
                 }),
 

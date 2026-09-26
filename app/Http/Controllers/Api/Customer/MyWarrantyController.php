@@ -14,8 +14,18 @@ class MyWarrantyController extends Controller
      */
     public function index(Request $request)
     {
+        // withCount('activeMaintenanceVisits') (bug N+1 diperbaiki
+        // 2026-09-26, audit ulang Garansi; disesuaikan lagi begitu gap
+        // "koreksi kunjungan salah catat" ditambahkan supaya kunjungan
+        // yang dibatalkan staff tidak ikut terhitung sebagai kuota
+        // terpakai) -- SEBELUMNYA transformSummary() akses
+        // maintenance_used/maintenance_remaining tanpa ini, jadi
+        // Warranty::getMaintenanceUsedAttribute() jatuh ke fallback query
+        // count() TERPISAH per baris (1 query tambahan per warranty
+        // ber-kuota). show() di bawah sudah benar eager-load relasinya.
         $warranties = $request->user('customer')
             ->warranties()
+            ->withCount('activeMaintenanceVisits')
             ->orderByDesc('created_at')
             ->get();
 
@@ -119,11 +129,17 @@ class MyWarrantyController extends Controller
                 'rejection_reason'  => $c->rejection_reason,
                 'created_at'        => $c->created_at,
             ]),
-            // Fitur "Kuota Maintenance" (2026-09-25).
-            'maintenance_visits'            => $w->maintenanceVisits->map(fn ($v) => [
-                'visited_at' => optional($v->visited_at)->format('Y-m-d'),
-                'note'       => $v->note,
-            ]),
+            // Fitur "Kuota Maintenance" (2026-09-25) -- kunjungan yang
+            // dibatalkan staff (koreksi salah catat, 2026-09-26) SENGAJA
+            // difilter dari sini, customer tidak perlu tahu detail koreksi
+            // internal staff, cukup lihat kuota tersisanya sudah benar.
+            'maintenance_visits'            => $w->maintenanceVisits
+                ->whereNull('cancelled_at')
+                ->map(fn ($v) => [
+                    'visited_at' => optional($v->visited_at)->format('Y-m-d'),
+                    'note'       => $v->note,
+                ])
+                ->values(),
         ]);
     }
 }

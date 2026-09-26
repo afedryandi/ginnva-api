@@ -228,18 +228,32 @@ class Warranty extends Model
     }
 
     /**
-     * Prioritas: relasi yang sudah di-eager-load (MyWarrantyController::show())
-     * > maintenance_visits_count dari withCount() (WarrantyResource tabel) >
+     * Gap "koreksi kunjungan salah catat" diperbaiki 2026-09-26 -- baris
+     * yang di-cancel (lihat performCancelMaintenanceVisit()) TETAP ada di
+     * riwayat (maintenanceVisits() di atas, buat transparansi), tapi TIDAK
+     * dihitung sebagai kuota terpakai. Relasi TERPISAH ini yang dipakai
+     * untuk withCount()/perhitungan kuota (getMaintenanceUsedAttribute()).
+     */
+    public function activeMaintenanceVisits()
+    {
+        return $this->hasMany(WarrantyMaintenanceVisit::class)->whereNull('cancelled_at');
+    }
+
+    /**
+     * Prioritas: relasi 'maintenanceVisits' yang sudah di-eager-load
+     * (MyWarrantyController::show()) — difilter cancelled_at di sini
+     * (bukan query ulang) > active_maintenance_visits_count dari
+     * withCount('activeMaintenanceVisits') (WarrantyResource tabel) >
      * fallback query count() langsung -- supaya tidak ada query tambahan
      * kalau salah satu sudah tersedia.
      */
     public function getMaintenanceUsedAttribute(): int
     {
         if ($this->relationLoaded('maintenanceVisits')) {
-            return $this->maintenanceVisits->count();
+            return $this->maintenanceVisits->whereNull('cancelled_at')->count();
         }
 
-        return $this->maintenance_visits_count ?? $this->maintenanceVisits()->count();
+        return $this->active_maintenance_visits_count ?? $this->activeMaintenanceVisits()->count();
     }
 
     /**
