@@ -18,6 +18,10 @@ class CreatePointTransaction extends CreateRecord
     {
         $data['reference_type'] = 'manual';
         $data['reference_id'] = null;
+        // Gap ditutup 2026-09-26 (audit Riwayat Poin Customer) -- jejak
+        // "siapa" staf yang melakukan adjustment manual, terstruktur
+        // (bukan cuma description bebas teks).
+        $data['created_by'] = auth()->id();
 
         return $data;
     }
@@ -54,6 +58,19 @@ class CreatePointTransaction extends CreateRecord
             } else {
                 $customer->decrement('loyalty_points', $data['points']);
             }
+
+            // Push notifikasi ditambahkan 2026-09-26 (audit Riwayat Poin
+            // Customer) -- SEBELUMNYA adjustment manual admin tidak
+            // memberi tahu customer sama sekali, tidak konsisten dengan
+            // Warranty/Reward yang sudah push saat customer dapat/
+            // kehilangan poin.
+            app(\App\Services\PushNotificationService::class)->sendToCustomer(
+                $customer->id,
+                $data['type'] === 'earn' ? 'Poin Bertambah' : 'Poin Berkurang',
+                $data['type'] === 'earn'
+                    ? "Anda mendapat {$data['points']} poin: {$data['description']}"
+                    : "{$data['points']} poin Anda dikurangi: {$data['description']}"
+            );
 
             return $record;
         });

@@ -137,7 +137,10 @@ class PointTransactionResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with('customer');
+        // ->with('createdBy') ditambah 2026-09-26 (audit Riwayat Poin
+        // Customer) -- kolom dot-notation createdBy.name baru, sama
+        // pola N+1 yang harus dieager-load eksplisit.
+        return parent::getEloquentQuery()->with(['customer', 'createdBy']);
     }
 
     public static function table(Table $table): Table
@@ -181,6 +184,15 @@ class PointTransactionResource extends Resource
                     ->label('Deskripsi')
                     ->limit(50)
                     ->searchable(),
+
+                // Gap ditutup 2026-09-26 (audit Riwayat Poin Customer) --
+                // jejak "siapa" staf untuk entri manual admin. '—' untuk
+                // entri otomatis (booking/warranty/referral/reward), yang
+                // memang tidak punya staf pelaku per-baris.
+                Tables\Columns\TextColumn::make('createdBy.name')
+                    ->label('Dibuat Oleh')
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Tanggal')

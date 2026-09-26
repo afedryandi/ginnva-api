@@ -109,15 +109,33 @@ class ReferralPointService
             // Poin untuk customer (kalau booking ini terikat akun customer —
             // booking manual/walk-in dari staff tidak selalu punya customer_id)
             if ($booking->customer_id) {
+                // lockForUpdate() ditambahkan 2026-09-26 (audit Riwayat Poin
+                // Customer) -- SEBELUMNYA increment() langsung tanpa lock,
+                // tidak konsisten dengan pola di awardForCustomerReferral()
+                // di bawah (yang sudah lock $referrer). increment() sendiri
+                // atomic di level SQL jadi tidak salah hitung, tapi disamakan
+                // demi konsistensi & jaga-jaga kalau nanti ada validasi
+                // tambahan sebelum increment.
+                $lockedCustomer = Customer::where('id', $booking->customer_id)->lockForUpdate()->first();
+
                 PointTransaction::create([
-                    'customer_id'    => $booking->customer_id,
+                    'customer_id'    => $lockedCustomer->id,
                     'type'           => 'earn',
                     'points'         => $points,
                     'description'    => "Booking #{$booking->booking_number} (kode referral {$lockedPartner->referral_code})",
                     'reference_type' => 'booking',
                     'reference_id'   => $booking->id,
                 ]);
-                $booking->customer()->increment('loyalty_points', $points);
+                $lockedCustomer->increment('loyalty_points', $points);
+
+                // Push notifikasi ditambahkan 2026-09-26 (audit Riwayat
+                // Poin Customer) -- SEBELUMNYA tidak ada sama sekali,
+                // tidak konsisten dengan Warranty/Reward yang sudah push.
+                app(\App\Services\PushNotificationService::class)->sendToCustomer(
+                    $lockedCustomer->id,
+                    'Poin Bertambah',
+                    "Anda mendapat {$points} poin dari booking #{$booking->booking_number}."
+                );
             }
 
             return $lockedPartner;
@@ -187,6 +205,14 @@ class ReferralPointService
                 'reference_id'   => $booking->id,
             ]);
             $lockedReferrer->increment('loyalty_points', $points);
+
+            // Push notifikasi ditambahkan 2026-09-26 (audit Riwayat Poin
+            // Customer) -- lihat catatan di awardForBooking().
+            app(\App\Services\PushNotificationService::class)->sendToCustomer(
+                $lockedReferrer->id,
+                'Bonus Ajak Teman',
+                "Anda mendapat {$points} poin bonus ajak teman dari booking {$customer->name}."
+            );
 
             return $lockedReferrer;
         });
