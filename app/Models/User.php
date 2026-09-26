@@ -483,8 +483,14 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         // (siapa/kapan/dari-berapa-ke-berapa) sama sekali tidak tercatat,
         // sama pola gap-nya dgn Technician::commission_amount sebelum
         // diperbaiki (lihat App\Models\Technician).
+        // 'is_active' ditambahkan 2026-09-26 (audit fitur User) --
+        // menonaktifkan akun (mencabut akses login sepenuhnya, lihat
+        // toggleActive() di UserResource) SEBELUMNYA tidak tercatat sama
+        // sekali di sini, padahal sama sensitifnya dengan perubahan
+        // role/menu_access -- siapa-menonaktifkan-siapa-kapan wajib
+        // terlacak untuk akun yang jadi fondasi otorisasi sistem.
         return LogOptions::defaults()
-            ->logOnly(['name', 'email', 'store_id', 'menu_access', 'menu_permissions', 'base_salary'])
+            ->logOnly(['name', 'email', 'store_id', 'menu_access', 'menu_permissions', 'base_salary', 'is_active'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('user')

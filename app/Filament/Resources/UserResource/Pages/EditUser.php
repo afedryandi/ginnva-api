@@ -3,8 +3,11 @@
 namespace App\Filament\Resources\UserResource\Pages;
 
 use App\Filament\Resources\UserResource;
+use App\Models\User;
 use Filament\Actions;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Spatie\Permission\Models\Role;
 
 class EditUser extends EditRecord
 {
@@ -33,9 +36,54 @@ class EditUser extends EditRecord
         return UserResource::splitMenuPermissionsIntoFields($data);
     }
 
+    /**
+     * Bug KRITIS diperbaiki 2026-09-26 (audit fitur User) -- SEBELUMNYA
+     * canEdit() cuma cek isFullAccess(), tidak ada pengecualian
+     * "$record->id === auth()->id()" seperti canDelete()/toggleActive()
+     * yang sudah punya proteksi itu. Akibatnya seorang super_admin bisa
+     * buka form edit akunnya SENDIRI dan mencabut role super_admin/
+     * direksi dari dirinya sendiri tanpa guard apa pun -- kalau itu
+     * satu-satunya akun full-access aktif, SELURUH sistem kehilangan
+     * admin (tidak ada siapa pun lagi yang bisa buka menu User/Role
+     * untuk mengoreksi). Guard ini dicek di sini (bukan cuma canEdit())
+     * karena masalahnya spesifik ke PERUBAHAN ROLE, bukan akses form
+     * edit itu sendiri (field lain seperti nama/password tetap wajar
+     * bisa diedit sendiri).
+     */
+    private function guardLastFullAccessAccount(array $data): void
+    {
+        $newRoleIds = $data['roles'] ?? [];
+        $newRoleNames = Role::whereIn('id', $newRoleIds)->pluck('name')->all();
+
+        $wasFullAccess = collect($this->rolesBeforeSave)->intersect(['super_admin', 'direksi'])->isNotEmpty();
+        $willBeFullAccess = collect($newRoleNames)->intersect(['super_admin', 'direksi'])->isNotEmpty();
+
+        if (! $wasFullAccess || $willBeFullAccess) {
+            return;
+        }
+
+        $otherFullAccessCount = User::where('id', '!=', $this->record->id)
+            ->where('is_active', true)
+            ->whereHas('roles', fn ($q) => $q->whereIn('name', ['super_admin', 'direksi']))
+            ->count();
+
+        if ($otherFullAccessCount === 0) {
+            Notification::make()
+                ->title('Tidak bisa disimpan')
+                ->body('Akun ini adalah satu-satunya akun full-access (super_admin/direksi) yang AKTIF di sistem. Mencabut role ini akan membuat tidak ada satu pun admin yang bisa mengelola hak akses lagi. Tambahkan atau aktifkan akun full-access lain dulu sebelum mengubah role akun ini.')
+                ->danger()
+                ->persistent()
+                ->send();
+
+            $this->halt();
+        }
+    }
+
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $this->rolesBeforeSave = $this->record->roles()->pluck('name')->all();
+
+        $this->guardLastFullAccessAccount($data);
 
         // "Riwayat Karir" (audit Majoo f57) — alasan perpindahan toko,
         // field TRANSIEN (bukan kolom users, lihat User::$pendingTransferReason)

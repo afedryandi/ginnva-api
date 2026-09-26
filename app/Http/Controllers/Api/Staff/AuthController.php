@@ -167,7 +167,12 @@ class AuthController extends Controller
         $request->validate([
             'email'    => 'required|email',
             'code'     => 'required|string|size:6',
-            'password' => 'required|string|min:8|confirmed',
+            // Gap diperbaiki 2026-09-26 (audit fitur User) -- disamakan
+            // dengan syarat password di UserResource (Filament): wajib
+            // huruf besar, huruf kecil, dan angka, bukan cuma panjang.
+            'password' => ['required', 'string', 'min:8', 'confirmed', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).+$/'],
+        ], [
+            'password.regex' => 'Password harus mengandung huruf besar, huruf kecil, dan angka.',
         ]);
 
         $isValid = OtpCode::verify($request->email, 'staff_reset_password', $request->code);
@@ -190,6 +195,44 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Password berhasil diubah. Silakan masuk dengan password baru.',
+        ]);
+    }
+
+    /**
+     * POST /api/staff/auth/change-password
+     * Requires: auth:api
+     *
+     * Gap ditutup 2026-09-26 (audit fitur User) -- SEBELUMNYA staff yang
+     * SUDAH login sama sekali tidak punya cara ganti password dari app
+     * (satu-satunya jalur adalah forgotPassword()/resetPassword() SEBELUM
+     * login). Sama pola dengan Partner\PartnerController::changePassword()
+     * -- wajib verifikasi password lama dulu supaya sesi yang ke-hijack
+     * tidak bisa diam-diam ambil alih akun dengan ganti password tanpa
+     * tahu password aslinya.
+     */
+    public function changePassword(Request $request)
+    {
+        $user = $request->user('api');
+
+        $request->validate([
+            'current_password' => 'required|string',
+            'password'          => ['required', 'string', 'min:8', 'confirmed', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).+$/'],
+        ], [
+            'password.regex' => 'Password harus mengandung huruf besar, huruf kecil, dan angka.',
+        ]);
+
+        if (! Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Password lama yang Anda masukkan salah.',
+            ], 422);
+        }
+
+        $user->update(['password' => Hash::make($request->password)]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password berhasil diubah.',
         ]);
     }
 

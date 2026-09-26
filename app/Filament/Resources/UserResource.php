@@ -578,6 +578,13 @@ class UserResource extends Resource
                         ->required(fn (string $context): bool => $context === 'create')
                         ->dehydrated(fn ($state) => filled($state))
                         ->minLength(8)
+                        // Gap diperbaiki 2026-09-26 (audit fitur User) --
+                        // SEBELUMNYA cuma minLength(8), tidak ada syarat
+                        // kompleksitas sama sekali. Akun di resource ini
+                        // adalah fondasi otorisasi SELURUH sistem
+                        // (termasuk super_admin) -- wajar diberi syarat
+                        // lebih ketat daripada akun customer/partner biasa.
+                        ->regex('/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).+$/')
                         ->same('passwordConfirmation')
                         // Default Laravel untuk rule 'same' cuma separuh
                         // diterjemahkan Filament ("The password field must
@@ -587,11 +594,12 @@ class UserResource extends Resource
                         // checklist User, dilaporkan pengguna.
                         ->validationMessages([
                             'same' => 'Password dan Konfirmasi Password harus sama persis.',
+                            'regex' => 'Password harus mengandung huruf besar, huruf kecil, dan angka.',
                         ])
                         ->live(debounce: 500)
                         ->helperText(fn (string $context) => $context === 'edit'
                             ? 'Kosongkan kalau tidak mau mengubah password.'
-                            : 'Minimal 8 karakter.'),
+                            : 'Minimal 8 karakter, wajib ada huruf besar, huruf kecil, dan angka.'),
 
                     Forms\Components\TextInput::make('passwordConfirmation')
                         ->label('Konfirmasi Password')

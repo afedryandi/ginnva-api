@@ -224,6 +224,10 @@ Route::prefix('staff')->group(function () {
     Route::middleware('auth:api')->group(function () {
         Route::get('/auth/me', [StaffAuthController::class, 'me']);
         Route::post('/auth/logout', [StaffAuthController::class, 'logout']);
+        // Gap ditutup 2026-09-26 (audit fitur User) -- staff SEBELUMNYA
+        // tidak punya cara ganti password selain forgot-password sebelum
+        // login.
+        Route::post('/auth/change-password', [StaffAuthController::class, 'changePassword']);
 
         // Lead Quotation — SEBELUMNYA tidak ada visibilitas mobile sama
         // sekali, lihat audit modul Quotation 2026-08-27.
