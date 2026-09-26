@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\FilmProduct;
 use App\Models\ProductImportLog;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
@@ -31,6 +32,20 @@ class ProductBulkImportService
         $skippedCount = 0;
         $errors = [];
 
+        // Bug diperbaiki 2026-09-26 (audit Riwayat Impor Produk) --
+        // SEBELUMNYA seluruh loop update per baris TIDAK dibungkus
+        // transaction: kalau exception di tengah proses (mis. baris
+        // ke-500 dari 1000), baris sebelumnya SUDAH ter-update permanen
+        // di database, tapi ProductImportLog di bawah tidak pernah
+        // sempat dibuat (exception ditangkap di action Filament pemanggil,
+        // cuma tampilkan notifikasi) -- hasilnya ada perubahan harga
+        // produk NYATA tanpa jejak riwayat sama sekali. Dibungkus
+        // DB::transaction() supaya SEMUA-ATAU-TIDAK-SAMA-SEKALI: exception
+        // mid-loop membatalkan seluruh update di file itu (termasuk yang
+        // sudah sukses sebelumnya), staff tinggal perbaiki filenya & impor
+        // ulang dari awal -- tidak ada lagi kondisi harga berubah tanpa
+        // log.
+        return DB::transaction(function () use ($rows, $userId, $originalFilename, &$updatedCount, &$skippedCount, &$errors) {
         foreach ($rows as $i => $row) {
             $lineNumber = $i + 2; // +1 balik ke 1-based, +1 lagi krn header sudah dibuang
 
@@ -60,7 +75,12 @@ class ProductBulkImportService
             $priceRaw = isset($row[2]) ? trim((string) $row[2]) : '';
             if ($priceRaw !== '') {
                 $price = (float) str_replace(['Rp', '.', ',', ' '], ['', '', '.', ''], $priceRaw);
-                if ($price < 0) {
+                // Batas atas ditambahkan 2026-09-26 (audit Riwayat Impor
+                // Produk) -- SEBELUMNYA cuma dicek < 0, harga hasil salah
+                // parse koma/titik (mis. staff tulis "1.500.000,00" dengan
+                // format beda dari asumsi replace di atas) bisa lolos jadi
+                // angka raksasa tanpa peringatan sama sekali.
+                if ($price < 0 || $price > 1_000_000_000) {
                     $errors[] = "Baris {$lineNumber}: harga \"{$priceRaw}\" tidak valid, kolom harga dilewati (kolom lain di baris ini tetap diproses).";
                 } else {
                     $update['base_price'] = $price;
@@ -83,16 +103,17 @@ class ProductBulkImportService
             $updatedCount++;
         }
 
-        return ProductImportLog::create([
-            'user_id' => $userId,
-            'filename' => $originalFilename,
-            'total_rows' => count($rows),
-            'updated_count' => $updatedCount,
-            'skipped_count' => $skippedCount,
-            // Cap 100 pesan -- file dengan ribuan error tidak perlu
-            // menyimpan semuanya, cukup sampel yang cukup untuk staff
-            // tahu pola masalahnya.
-            'errors' => array_slice($errors, 0, 100),
-        ]);
+            return ProductImportLog::create([
+                'user_id' => $userId,
+                'filename' => $originalFilename,
+                'total_rows' => count($rows),
+                'updated_count' => $updatedCount,
+                'skipped_count' => $skippedCount,
+                // Cap 100 pesan -- file dengan ribuan error tidak perlu
+                // menyimpan semuanya, cukup sampel yang cukup untuk staff
+                // tahu pola masalahnya.
+                'errors' => array_slice($errors, 0, 100),
+            ]);
+        });
     }
 }
