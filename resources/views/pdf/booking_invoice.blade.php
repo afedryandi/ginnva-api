@@ -118,6 +118,12 @@
             <td class="text-right negative">- Rp {{ number_format($discount, 0, ',', '.') }}</td>
         </tr>
         @endif
+        @if ($voucherDiscount > 0)
+        <tr>
+            <td>Potongan Voucher{{ $voucherCode ? ' (' . $voucherCode . ')' : '' }}</td>
+            <td class="text-right negative">- Rp {{ number_format($voucherDiscount, 0, ',', '.') }}</td>
+        </tr>
+        @endif
         <tr class="grand">
             <td>TOTAL</td>
             <td class="text-right">Rp {{ number_format($net, 0, ',', '.') }}</td>

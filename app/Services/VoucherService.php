@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Booking;
 use App\Models\Voucher;
 use App\Models\VoucherClaim;
 use Illuminate\Support\Facades\DB;
@@ -45,6 +46,66 @@ class VoucherService
             'walkin_name'  => $name,
             'walkin_phone' => $phone,
             'booking_id'   => $bookingId,
+        ]);
+    }
+
+    /**
+     * Gap ditutup 2026-09-26 (audit Voucher Promo) -- SEBELUMNYA voucher
+     * murni status tracking (ditandai "Terpakai" lewat menu Voucher),
+     * tidak pernah benar-benar memotong nominal booking. Dipanggil dari
+     * BookingResource::process_referral & TransactionApprovalService::approve()
+     * (jalur full-access langsung MAUPUN jalur approval staff non-full-
+     * access, supaya konsisten) -- WAJIB dalam DB::transaction() milik
+     * pemanggil (booking juga di-lockForUpdate() di sana), lockForUpdate()
+     * di sini mengunci baris claim itu sendiri.
+     *
+     * @throws RuntimeException kalau klaim sudah dipakai/tertaut booking
+     *         LAIN sejak staff memilihnya di form (race condition 2 staff
+     *         pilih kode yang sama nyaris bersamaan).
+     */
+    public function applyToBooking(int $voucherClaimId, Booking $booking): float
+    {
+        $claim = VoucherClaim::where('id', $voucherClaimId)->lockForUpdate()->first();
+
+        if (! $claim) {
+            throw new RuntimeException('Kode voucher tidak ditemukan.');
+        }
+
+        if ($claim->status !== 'active' && $claim->booking_id !== $booking->id) {
+            throw new RuntimeException("Kode voucher {$claim->code} sudah dipakai/dipilih di transaksi lain.");
+        }
+
+        $claim->loadMissing('voucher:id,discount_amount');
+        $discount = (float) ($claim->voucher?->discount_amount ?? 0);
+
+        $claim->update([
+            'status'     => 'used',
+            'used_at'    => $claim->used_at ?? now(),
+            'booking_id' => $booking->id,
+        ]);
+
+        return $discount;
+    }
+
+    /**
+     * Lawan applyToBooking() -- dipanggil saat staff MELEPAS pilihan
+     * voucher dari booking ini (ganti ke voucher lain, atau kosongkan).
+     * Klaim dikembalikan jadi 'active' & lepas dari booking, supaya bisa
+     * dipilih lagi di transaksi lain -- bukan hangus permanen cuma
+     * karena sempat salah pilih.
+     */
+    public function releaseFromBooking(int $voucherClaimId): void
+    {
+        $claim = VoucherClaim::where('id', $voucherClaimId)->lockForUpdate()->first();
+
+        if (! $claim) {
+            return;
+        }
+
+        $claim->update([
+            'status'     => 'active',
+            'used_at'    => null,
+            'booking_id' => null,
         ]);
     }
 

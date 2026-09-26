@@ -108,7 +108,26 @@ class VoucherResource extends Resource
                         ->label('Nominal Potongan (Rp)')
                         ->numeric()
                         ->required()
-                        ->minValue(1),
+                        ->minValue(1)
+                        // Bug diperbaiki 2026-09-26 (audit Voucher Promo) --
+                        // SEBELUMNYA tetap bisa diedit bebas kapan saja.
+                        // VoucherClaim TIDAK punya kolom discount_amount
+                        // sendiri (selalu baca live lewat relasi
+                        // ->voucher.discount_amount, baik di mobile
+                        // maupun laporan Filament) -- begitu voucher fisik
+                        // sudah di-assign ke customer (claimed_count > 0),
+                        // mengubah nominal di sini akan mengubah nilai
+                        // yang tampil di "Voucher Saya" customer DAN
+                        // laporan retroaktif untuk voucher yang sudah
+                        // beredar. Dikunci begitu ada 1+ klaim -- beda
+                        // dari total_stock yang dikunci sejak record
+                        // pertama dibuat, di sini masih boleh dikoreksi
+                        // sebelum ada satu pun voucher fisik di-assign.
+                        ->disabled(fn (?Voucher $record) => $record !== null && $record->claimed_count > 0)
+                        ->dehydrated()
+                        ->helperText(fn (?Voucher $record) => ($record && $record->claimed_count > 0)
+                            ? "Sudah di-assign ke {$record->claimed_count} customer — nominal tidak bisa diubah lagi supaya tidak mengacaukan nilai yang sudah beredar."
+                            : null),
 
                     Forms\Components\TextInput::make('total_stock')
                         ->label('Total Stok (jumlah voucher fisik dicetak)')

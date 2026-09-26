@@ -746,6 +746,14 @@ class BookingResource extends Resource
                         ->state(fn (Booking $record) => $record->spend_promo_id
                             ? ($record->spendPromo?->name ?? '(promo dihapus)') . ' — potong Rp' . number_format((float) $record->spend_promo_discount, 0, ',', '.')
                             : null),
+
+                    // Gap ditutup 2026-09-26 (audit Voucher Promo).
+                    TextEntry::make('voucherClaim.code')
+                        ->label('Kode Voucher')
+                        ->placeholder('Tidak ada')
+                        ->state(fn (Booking $record) => $record->voucher_claim_id
+                            ? ($record->voucherClaim?->code ?? '(klaim dihapus)') . ' — potong Rp' . number_format((float) $record->voucher_discount, 0, ',', '.')
+                            : null),
                     // BUG (500 error): ->date('d M Y') dipakai BARENGAN
                     // dengan ->state() yang sudah mengembalikan string
                     // terformat sendiri — Filament coba Carbon::parse()
@@ -1134,7 +1142,40 @@ class BookingResource extends Resource
                                     $p->id => "{$p->name} — min Rp" . number_format((float) $p->min_purchase_amount, 0, ',', '.') . ' → potong Rp' . number_format((float) $p->discount_amount, 0, ',', '.'),
                                 ]))
                             ->default(fn (Booking $record) => $record->spend_promo_id)
-                            ->helperText('"Nominal Transaksi" diisi angka SETELAH potongan. Sistem cek: (Nominal + potongan promo) harus ≥ minimal pembelian promo.'),
+                            ->helperText('"Nominal Transaksi" diisi angka SETELAH potongan. Sistem cek: (Nominal + potongan promo) harus ≥ minimal pembelian promo. Bisa dipakai BERSAMAAN dengan Kode Voucher di bawah (independen, saling tidak mempengaruhi).'),
+
+                        // Gap ditutup 2026-09-26 (audit Voucher Promo) --
+                        // SEBELUMNYA voucher fisik cuma status tracking
+                        // administratif terpisah (menu Voucher > "Tandai
+                        // Terpakai"), tidak pernah benar-benar memotong
+                        // transaction_amount. Sekarang dipilih di sini
+                        // (mirip Promo Total Pembelian di atas) -- begitu
+                        // disimpan, klaim voucher OTOMATIS ditandai
+                        // "Terpakai" & ditautkan ke booking ini, staff
+                        // tidak perlu lagi bolak-balik ke menu Voucher.
+                        // Opsi HANYA klaim yang masih 'active' & belum
+                        // tertaut booking lain, ATAU klaim yang SUDAH
+                        // tertaut booking ini sendiri (supaya form Edit
+                        // tetap menampilkan pilihan semula).
+                        Forms\Components\Select::make('voucher_claim_id')
+                            ->label('Kode Voucher (opsional)')
+                            ->options(function (Booking $record) {
+                                return \App\Models\VoucherClaim::query()
+                                    ->where(function ($q) use ($record) {
+                                        $q->where('status', 'active')
+                                            ->whereNull('booking_id');
+                                    })
+                                    ->orWhere('id', $record->voucher_claim_id)
+                                    ->with('voucher:id,name,discount_amount')
+                                    ->orderByDesc('created_at')
+                                    ->get()
+                                    ->mapWithKeys(fn (\App\Models\VoucherClaim $c) => [
+                                        $c->id => "{$c->code} — {$c->voucher?->name} (Rp" . number_format((float) ($c->voucher?->discount_amount ?? 0), 0, ',', '.') . ')' . ($c->holder_name ? " — {$c->holder_name}" : ''),
+                                    ]);
+                            })
+                            ->default(fn (Booking $record) => $record->voucher_claim_id)
+                            ->searchable()
+                            ->helperText('Memilih kode voucher otomatis menandainya "Terpakai" & memotong Nominal Transaksi (isi angka SETELAH potongan, sama seperti Promo Total Pembelian).'),
 
                         Forms\Components\TextInput::make('referral_code')
                             ->label('Kode Referral Partner')
@@ -1150,6 +1191,16 @@ class BookingResource extends Resource
                     ])
                     ->action(function (Booking $record, array $data) {
                         $messages = [];
+
+                        // Gap ditutup 2026-09-26 (audit Voucher Promo) --
+                        // lihat VoucherService::applyToBooking(). Validasi
+                        // "sudah dipakai orang lain" dicek ULANG di dalam
+                        // lock (lihat blok DB::transaction di bawah &
+                        // TransactionApprovalService::approve()), bukan
+                        // cuma di sini (yang cuma UI convenience, opsi
+                        // dropdown sudah difilter tapi tetap bisa race
+                        // antara form dibuka & disimpan).
+                        $voucherClaimId = $data['voucher_claim_id'] ?: null;
 
                         // Validasi & snapshot Promo Total Pembelian.
                         $promoId = $data['spend_promo_id'] ?: null;
@@ -1199,6 +1250,14 @@ class BookingResource extends Resource
                                     'referral_code' => $data['referral_code'] ?: null,
                                     'spend_promo_id' => $promoId,
                                     'spend_promo_discount' => $promoId ? $promoDiscount : null,
+                                    // voucher_discount SENGAJA TIDAK dikirim
+                                    // di sini -- dihitung ulang & klaimnya
+                                    // baru ditandai "Terpakai" saat BENAR-
+                                    // BENAR di-approve() (bukan saat
+                                    // request diajukan), supaya voucher
+                                    // customer tidak "hangus" duluan kalau
+                                    // ternyata permintaan ini ditolak.
+                                    'voucher_claim_id' => $voucherClaimId,
                                     'payment_method' => $data['payment_method'] ?: null,
                                     'vehicle_size' => $data['vehicle_size'] ?: null,
                                 ],
@@ -1225,13 +1284,26 @@ class BookingResource extends Resource
                         // tersimpan — supaya tidak ada nominal "yatim"
                         // tanpa jurnal di baliknya.
                         try {
-                            DB::transaction(function () use ($record, $data, $promoId, $promoDiscount) {
+                            DB::transaction(function () use ($record, $data, $promoId, $promoDiscount, $voucherClaimId) {
+                                // Lepas klaim voucher LAMA dulu kalau
+                                // dilepas/diganti (gap ditutup 2026-09-26)
+                                // -- lihat VoucherService::releaseFromBooking().
+                                if ($record->voucher_claim_id && $record->voucher_claim_id !== $voucherClaimId) {
+                                    app(\App\Services\VoucherService::class)->releaseFromBooking($record->voucher_claim_id);
+                                }
+
+                                $voucherDiscount = $voucherClaimId
+                                    ? app(\App\Services\VoucherService::class)->applyToBooking($voucherClaimId, $record)
+                                    : null;
+
                                 $record->update([
                                     'transaction_amount' => $data['transaction_amount'] !== '' ? $data['transaction_amount'] : null,
                                     'amount_received'     => $data['amount_received'] !== '' ? $data['amount_received'] : null,
                                     'referral_code'       => $data['referral_code'] ?: null,
                                     'spend_promo_id'       => $promoId,
                                     'spend_promo_discount' => $promoId ? $promoDiscount : null,
+                                    'voucher_claim_id'     => $voucherClaimId,
+                                    'voucher_discount'     => $voucherClaimId ? $voucherDiscount : null,
                                     'payment_method'       => $data['payment_method'] ?: null,
                                     'vehicle_size'         => $data['vehicle_size'] ?: null,
                                 ]);
@@ -1558,11 +1630,17 @@ class BookingResource extends Resource
      */
     public static function downloadInvoicePdf(Booking $record)
     {
-        $record->loadMissing(['store', 'customer', 'filmProduct', 'spendPromo']);
+        $record->loadMissing(['store', 'customer', 'filmProduct', 'spendPromo', 'voucherClaim']);
 
         $net = (float) $record->transaction_amount;
         $discount = (float) ($record->spend_promo_discount ?? 0);
-        $gross = $net + $discount;
+        // Gap ditutup 2026-09-26 (audit Voucher Promo) -- voucher_discount
+        // SEBELUMNYA tidak ada, jadi tidak pernah masuk perhitungan gross
+        // di sini (belum ada kolomnya sama sekali). Sekarang dijumlah
+        // terpisah dari spend_promo_discount supaya invoice tetap
+        // menampilkan rincian 2 baris potongan yang berbeda sumbernya.
+        $voucherDiscount = (float) ($record->voucher_discount ?? 0);
+        $gross = $net + $discount + $voucherDiscount;
         $received = $record->amount_received !== null ? (float) $record->amount_received : $net;
         $outstanding = max(0, round($net - $received, 2));
 
@@ -1575,6 +1653,8 @@ class BookingResource extends Resource
             'gross' => $gross,
             'discount' => $discount,
             'promoName' => $record->spendPromo?->name,
+            'voucherDiscount' => $voucherDiscount,
+            'voucherCode' => $record->voucherClaim?->code,
             'received' => $received,
             'outstanding' => $outstanding,
             // Rincian PPN (Topik 1, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx"

@@ -153,6 +153,11 @@ class Booking extends Model
         'payment_method',
         'partner_id',
         'voucher_claim_id',
+        // Gap ditutup 2026-09-26 (audit Voucher Promo) -- voucher_claim_id
+        // di atas sudah ada sejak 2026-07-13 tapi tidak pernah dipakai;
+        // voucher_discount = snapshot potongan (pola sama spend_promo_discount
+        // di bawah). Lihat migrasi 2026_09_26_000002.
+        'voucher_discount',
         // Promo Per Total Pembelian (potongan flat, diterapkan manual).
         // transaction_amount disimpan NET; spend_promo_discount = snapshot
         // potongan. Lihat migrasi 2026_09_10_000014.
@@ -682,7 +687,7 @@ class Booking extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'next_service_reminder_at'])
+            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('booking')

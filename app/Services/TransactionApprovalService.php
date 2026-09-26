@@ -20,7 +20,7 @@ use RuntimeException;
 class TransactionApprovalService
 {
     /**
-     * @param  array{referral_code?: ?string, spend_promo_id?: ?int, spend_promo_discount?: ?float, payment_method?: ?string, vehicle_size?: ?string}  $extra
+     * @param  array{referral_code?: ?string, spend_promo_id?: ?int, spend_promo_discount?: ?float, voucher_claim_id?: ?int, payment_method?: ?string, vehicle_size?: ?string}  $extra
      *         Field tambahan yang dibutuhkan supaya approve() nanti bisa
      *         mereplikasi PERSIS langkah yang sama dengan jalur
      *         full-access langsung di BookingResource (simpan promo +
@@ -89,9 +89,10 @@ class TransactionApprovalService
 
     /**
      * @throws RuntimeException diteruskan dari BookingPostingService/
-     *         RefundService kalau data sudah tidak valid lagi saat
-     *         akhirnya dieksekusi (mis. booking sudah diubah staff
-     *         lain sejak permintaan diajukan).
+     *         RefundService/VoucherService kalau data sudah tidak valid
+     *         lagi saat akhirnya dieksekusi (mis. booking sudah diubah
+     *         staff lain, atau klaim voucher yang dipilih sudah dipakai
+     *         di transaksi lain, sejak permintaan diajukan).
      */
     public function approve(TransactionApprovalRequest $request, int $approvedBy): void
     {
@@ -105,12 +106,30 @@ class TransactionApprovalService
             if ($request->type === 'booking_referral') {
                 $payload = $request->payload;
 
+                // Gap ditutup 2026-09-26 (audit Voucher Promo) -- klaim
+                // voucher baru BENAR-BENAR ditandai "Terpakai" & dipotong
+                // dari nominal DI SINI (saat approve, bukan saat request
+                // diajukan) -- lihat catatan di BookingResource::process_referral.
+                // Direcheck ulang di dalam lock (VoucherService::applyToBooking())
+                // supaya kalau klaim ternyata sudah dipakai di transaksi
+                // lain sejak staff mengajukan request ini, approval gagal
+                // dengan pesan jelas alih-alih diam-diam menimpa.
+                $newVoucherClaimId = $payload['voucher_claim_id'] ?? null;
+                if ($booking->voucher_claim_id && $booking->voucher_claim_id !== $newVoucherClaimId) {
+                    app(VoucherService::class)->releaseFromBooking($booking->voucher_claim_id);
+                }
+                $voucherDiscount = $newVoucherClaimId
+                    ? app(VoucherService::class)->applyToBooking($newVoucherClaimId, $booking)
+                    : null;
+
                 $booking->update([
                     'transaction_amount' => $payload['transaction_amount'],
                     'amount_received' => $payload['amount_received'],
                     'referral_code' => $payload['referral_code'] ?? null,
                     'spend_promo_id' => $payload['spend_promo_id'] ?? null,
                     'spend_promo_discount' => $payload['spend_promo_discount'] ?? null,
+                    'voucher_claim_id' => $newVoucherClaimId,
+                    'voucher_discount' => $newVoucherClaimId ? $voucherDiscount : null,
                     'payment_method' => $payload['payment_method'] ?? null,
                     'vehicle_size' => $payload['vehicle_size'] ?? null,
                 ]);

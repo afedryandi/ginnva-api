@@ -220,7 +220,35 @@ class ClaimsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalDescription('Tandai kode voucher ini sebagai sudah dipakai? Aksi ini menandakan customer sudah pakai voucher fisiknya saat booking.')
                     ->action(function ($record) {
-                        $record->update(['status' => 'used', 'used_at' => now()]);
+                        // lockForUpdate() + recheck status (bug diperbaiki
+                        // 2026-09-26, audit Voucher Promo) -- SEBELUMNYA
+                        // update() langsung tanpa lock, tidak konsisten
+                        // dengan pola lock ketat di bagian lain fitur ini
+                        // (assign()/delete claim). Dampak sebelumnya rendah
+                        // (idempotent, tidak ada efek keuangan), tapi
+                        // recheck status DI DALAM lock mencegah 2 klik
+                        // nyaris bersamaan sama-sama lolos & keduanya kirim
+                        // notifikasi sukses untuk aksi yang sama.
+                        $marked = DB::transaction(function () use ($record) {
+                            $locked = \App\Models\VoucherClaim::where('id', $record->id)->lockForUpdate()->first();
+
+                            if (! $locked || $locked->status !== 'active') {
+                                return false;
+                            }
+
+                            $locked->update(['status' => 'used', 'used_at' => now()]);
+
+                            return true;
+                        });
+
+                        if (! $marked) {
+                            Notification::make()
+                                ->title('Voucher ini sudah ditandai terpakai sebelumnya')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
 
                         Notification::make()
                             ->title('Voucher ditandai terpakai')
@@ -236,6 +264,17 @@ class ClaimsRelationManager extends RelationManager
                 // satu pengurangan (lost update), claimed_count jadi lebih
                 // besar dari klaim yang sebenarnya masih ada.
                 Tables\Actions\DeleteAction::make()
+                    // Warning tambahan diperbaiki 2026-09-26 (audit Voucher
+                    // Promo) -- SEBELUMNYA hapus klaim 'used' tidak diberi
+                    // peringatan berbeda dari klaim 'active' biasa, padahal
+                    // itu menghapus jejak voucher yang SUDAH dipakai
+                    // customer di booking (masih traceable lewat
+                    // LogsActivity, tapi staff bisa tidak sadar sedang
+                    // menghapus riwayat transaksi, bukan sekadar salah
+                    // input kode).
+                    ->modalDescription(fn ($record) => $record->status === 'used'
+                        ? 'Kode voucher ini SUDAH DITANDAI TERPAKAI oleh customer. Menghapusnya akan menghilangkan jejak pemakaian ini (tetap tercatat di activity log). Yakin lanjutkan?'
+                        : 'Hapus klaim voucher ini? Stok voucher akan dikembalikan.')
                     ->before(function ($record) {
                         DB::transaction(function () use ($record) {
                             $record->voucher()->lockForUpdate()->first()?->decrement('claimed_count');
