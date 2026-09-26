@@ -82,7 +82,11 @@ class SpendPromoResource extends Resource
                         ->helperText('Nilai transaksi SEBELUM potongan harus mencapai angka ini.')
                         ->numeric()
                         ->prefix('Rp')
-                        ->minValue(0)
+                        // Gap diperbaiki 2026-09-26 (audit Promo Total
+                        // Pembelian) -- SEBELUMNYA minValue(0), ambang Rp0
+                        // tidak masuk akal (berarti SEMUA booking otomatis
+                        // "memenuhi syarat").
+                        ->minValue(1)
                         ->required(),
 
                     Forms\Components\TextInput::make('discount_amount')
@@ -90,18 +94,34 @@ class SpendPromoResource extends Resource
                         ->helperText('Potongan flat yang diberikan ke booking yang memenuhi syarat.')
                         ->numeric()
                         ->prefix('Rp')
-                        ->minValue(0)
+                        // Gap diperbaiki 2026-09-26 -- SEBELUMNYA minValue(0),
+                        // potongan Rp0 adalah promo no-op (tidak ada
+                        // gunanya dibuat).
+                        ->minValue(1)
                         ->required(),
 
                     Forms\Components\DatePicker::make('starts_on')
                         ->label('Mulai Berlaku')
                         ->native(false)
-                        ->helperText('Kosongkan = tanpa batas awal.'),
+                        ->helperText('Kosongkan = tanpa batas awal.')
+                        ->live(),
 
                     Forms\Components\DatePicker::make('ends_on')
                         ->label('Berakhir')
                         ->native(false)
-                        ->helperText('Kosongkan = tanpa batas akhir.'),
+                        ->helperText('Kosongkan = tanpa batas akhir.')
+                        // Gap diperbaiki 2026-09-26 -- SEBELUMNYA tidak ada
+                        // validasi ends_on >= starts_on, staff bisa isi
+                        // tanggal berakhir sebelum mulai tanpa peringatan,
+                        // promo itu jadi silently "tidak pernah berjalan"
+                        // (lihat SpendPromo::isRunning()) dan membingungkan
+                        // saat promo tidak muncul di dropdown Booking.
+                        // Verifikasi API: DateTimePicker/DatePicker TIDAK
+                        // punya method afterOrEqual() (dicek langsung ke
+                        // source Filament v3) -- minDate() adalah yang
+                        // menghasilkan rule after_or_equal, dan menerima
+                        // Closure dengan $get untuk baca field sibling.
+                        ->minDate(fn (Forms\Get $get) => $get('starts_on')),
 
                     Forms\Components\Textarea::make('description')
                         ->label('Deskripsi')

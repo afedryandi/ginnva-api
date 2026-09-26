@@ -3,14 +3,24 @@
 namespace App\Filament\ReportWidgets;
 
 use App\Filament\Pages\PromoLoyaltyReport;
+use App\Models\Booking;
 use App\Models\VoucherClaim;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
 
 /**
- * "Grafik Promo" — diminta 2026-09-09, analog Majoo. 1 garis: total
- * nilai voucher dipakai per hari (used_at, status=used, terhubung
- * booking).
+ * "Grafik Promo" — diminta 2026-09-09, analog Majoo. Garis: total nilai
+ * promo (voucher DAN Promo Total Pembelian) dipakai per hari.
+ *
+ * Bug diperbaiki 2026-09-26 (audit fitur Promo Total Pembelian) --
+ * SEBELUMNYA hanya menghitung VoucherClaim, sama sekali tidak
+ * memasukkan SpendPromo (kolom spend_promo_discount di Booking),
+ * padahal widget ini di-embed persis di atas stat card & tabel
+ * "Potongan Promo Total Pembelian" di PromoLoyaltyReport yang sudah
+ * benar datanya sejak 2026-09-14. Bucket per hari SpendPromo pakai
+ * booking.created_at -- SAMA field yang dipakai getData() PromoLoyaltyReport
+ * (baris spendPromoBookings), supaya grafik ini konsisten dengan
+ * angka di tabel/stat card halaman yang sama.
  *
  * SINKRON dengan PromoLoyaltyReport (audit 2026-09-11, temuan A) —
  * SEBELUMNYA widget ini punya filter sendiri (14/30/90 hari terakhir),
@@ -66,11 +76,22 @@ class PromoValueChart extends ChartWidget
             ->with('voucher:id,discount_amount')
             ->get(['id', 'used_at', 'voucher_id']);
 
+        $spendPromoBookings = Booking::query()
+            ->whereNotNull('spend_promo_id')
+            ->whereBetween('created_at', [$start, $end])
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->get(['id', 'store_id', 'spend_promo_discount', 'created_at']);
+
         $byDate = [];
         foreach ($claims as $claim) {
             $date = $claim->used_at?->toDateString();
             if (! $date) continue;
             $byDate[$date] = ($byDate[$date] ?? 0) + (float) ($claim->voucher->discount_amount ?? 0);
+        }
+        foreach ($spendPromoBookings as $booking) {
+            $date = $booking->created_at?->toDateString();
+            if (! $date) continue;
+            $byDate[$date] = ($byDate[$date] ?? 0) + (float) $booking->spend_promo_discount;
         }
 
         $labels = [];
