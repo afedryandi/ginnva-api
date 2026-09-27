@@ -942,7 +942,13 @@ class UserResource extends Resource
         // lengkapnya (nama bisnis, referral code, poin) sudah ada
         // tersendiri di menu Partner (PartnerResource). Menu "User" ini
         // sekarang khusus akun internal perusahaan.
+        // ->with('employeeType') ditambahkan 2026-09-27 (audit Tipe
+        // Karyawan) -- kolom "employeeType.name" di table() sebelumnya
+        // N+1 per baris, ditambahkan 2026-09-22 (bersamaan dengan fitur
+        // Tipe Karyawan) SETELAH sweep N+1 eager-loading proyek ini
+        // selesai, jadi belum sempat kena perbaikan itu.
         return parent::getEloquentQuery()
+            ->with('employeeType')
             ->whereDoesntHave('roles', fn (Builder $q) => $q->where('name', 'partner'));
     }
 
