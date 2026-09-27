@@ -56,6 +56,12 @@ class TechnicianUtilizationReport extends Page implements HasForms
     #[Url(as: 'cabang')]
     public ?int $storeId = null;
 
+    // Gap ditutup 2026-09-27 (audit Utilisasi Teknisi) -- SEBELUMNYA
+    // cuma urut nama, manajemen tidak bisa langsung lihat siapa yang
+    // paling idle/paling overload tanpa scan manual seluruh tabel.
+    #[Url(as: 'urutkan')]
+    public string $sort = 'name';
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -77,6 +83,7 @@ class TechnicianUtilizationReport extends Page implements HasForms
             'from' => $this->from,
             'to' => $this->to,
             'store_id' => $this->storeId,
+            'sort' => $this->sort,
         ]);
     }
 
@@ -99,6 +106,7 @@ class TechnicianUtilizationReport extends Page implements HasForms
             'from' => $this->from = $value,
             'to' => $this->to = $value,
             'store_id' => $this->storeId = $value ? (int) $value : null,
+            'sort' => $this->sort = $value,
             default => null,
         };
     }
@@ -116,7 +124,17 @@ class TechnicianUtilizationReport extends Page implements HasForms
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
-        ])->columns($isFullAccess ? 3 : 2)->statePath('data');
+            Select::make('sort')
+                ->label('Urutkan')
+                ->options([
+                    'name' => 'Nama (A-Z)',
+                    'utilization_desc' => 'Utilisasi Tertinggi',
+                    'utilization_asc' => 'Utilisasi Terendah',
+                ])
+                ->default('name')
+                ->native(false)
+                ->live(),
+        ])->columns($isFullAccess ? 4 : 3)->statePath('data');
     }
 
     /**
@@ -127,11 +145,21 @@ class TechnicianUtilizationReport extends Page implements HasForms
         $user = auth()->user();
         $storeId = $user?->isFullAccess() ? $this->storeId : $user?->store_id;
 
-        return app(TechnicianUtilizationService::class)->summarize(
+        $rows = app(TechnicianUtilizationService::class)->summarize(
             Carbon::parse($this->from)->startOfDay(),
             Carbon::parse($this->to)->endOfDay(),
             $storeId,
         );
+
+        // Teknisi tanpa akun (utilization_percent null, "Belum Terhubung
+        // Akun") SENGAJA selalu ditaruh di bawah baik untuk urutan
+        // tertinggi maupun terendah -- null bukan "0%", jadi tidak masuk
+        // akal disamakan sebagai ekstrem tertinggi/terendah.
+        return match ($this->sort) {
+            'utilization_desc' => $rows->sortByDesc(fn ($r) => $r['utilization_percent'] ?? -1)->values(),
+            'utilization_asc' => $rows->sortBy(fn ($r) => $r['utilization_percent'] ?? PHP_INT_MAX)->values(),
+            default => $rows,
+        };
     }
 
     /**

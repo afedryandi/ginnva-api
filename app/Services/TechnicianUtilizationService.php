@@ -75,12 +75,35 @@ class TechnicianUtilizationService
             ->get()
             ->keyBy('id');
 
+        // Bug diperbaiki 2026-09-27 (audit Utilisasi Teknisi) --
+        // SEBELUMNYA seluruh duration_days booking dihitung penuh begitu
+        // preferred_date lolos filter rentang $from-$to, walau job-nya
+        // menjorok ke hari-hari DI LUAR rentang laporan (mis. booking
+        // mulai H-1 sebelum $to, durasi 5 hari — 4 hari sisanya jatuh di
+        // periode BERIKUTNYA tapi tetap ikut terhitung penuh di laporan
+        // ini). Sekarang di-clip: cuma hari yang BENAR-BENAR overlap
+        // dengan [$from, $to] yang dihitung, dijumlah per-hari (bukan
+        // duration_days x jam hari pertama) supaya jam operasional yang
+        // beda tiap hari (mis. akhir pekan) tetap akurat.
         $jobHoursByUser = [];
         foreach ($bookingRows as $row) {
             $store = $storesById->get($row->store_id);
-            $dailyHours = $this->dailyStandardHours($store, Carbon::parse($row->preferred_date));
-            $jobHoursByUser[$row->user_id] = ($jobHoursByUser[$row->user_id] ?? 0)
-                + (int) ($row->duration_days ?? 1) * $dailyHours;
+            $jobStart = Carbon::parse($row->preferred_date);
+            $jobEnd = $jobStart->copy()->addDays(max(0, (int) ($row->duration_days ?? 1) - 1));
+
+            $overlapStart = $jobStart->greaterThan($from) ? $jobStart : $from->copy();
+            $overlapEnd = $jobEnd->lessThan($to) ? $jobEnd : $to->copy();
+
+            if ($overlapStart->greaterThan($overlapEnd)) {
+                continue;
+            }
+
+            $hours = 0.0;
+            for ($day = $overlapStart->copy(); $day->lte($overlapEnd); $day->addDay()) {
+                $hours += $this->dailyStandardHours($store, $day);
+            }
+
+            $jobHoursByUser[$row->user_id] = ($jobHoursByUser[$row->user_id] ?? 0) + $hours;
         }
 
         return $technicians->map(function (Technician $technician) use ($presentSeconds, $jobHoursByUser) {
