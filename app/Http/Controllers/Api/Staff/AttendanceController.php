@@ -289,23 +289,31 @@ class AttendanceController extends Controller
     }
 
     /**
-     * GET /api/staff/leave-requests
+     * GET /api/staff/leave-requests?page=1
+     * Gap diperbaiki 2026-09-27 (audit ulang Izin & Cuti) -- SEBELUMNYA
+     * ->get() tanpa limit sama sekali, riwayat karyawan lama makin
+     * membesar tanpa batas. Sama pola pagination yang sudah dipakai di
+     * PointController/PartnerController.
      */
     public function leaveRequestsIndex(Request $request)
     {
         $user = $request->user('api');
-        $requests = LeaveRequest::where('user_id', $user->id)
+        $paginated = LeaveRequest::where('user_id', $user->id)
             ->with('reviewer:id,name')
             ->orderByDesc('created_at')
-            ->get();
+            ->paginate(20, ['*'], 'page', (int) $request->query('page', 1));
 
         $year = Carbon::now()->year;
 
         return response()->json([
             'success' => true,
-            'leave_requests' => $requests->map(fn (LeaveRequest $r) => $this->transformLeaveRequest($r)),
+            'leave_requests' => collect($paginated->items())->map(fn (LeaveRequest $r) => $this->transformLeaveRequest($r)),
+            'current_page' => $paginated->currentPage(),
+            'has_more' => $paginated->hasMorePages(),
             // Kuota cuti tahun berjalan — cuma 'cuti' yang dipotong jatah
             // ini (Izin/Sakit tidak), lihat LeaveRequest::annualQuotaFor().
+            // Dihitung dari SELURUH riwayat tahun ini, TIDAK terpengaruh
+            // pagination di atas (query agregat terpisah).
             'cuti_quota' => LeaveRequest::annualQuotaFor($user, $year),
             'cuti_used' => LeaveRequest::usedCutiDaysFor($user, $year),
         ]);
@@ -365,16 +373,35 @@ class AttendanceController extends Controller
             }
         }
 
-        $leaveRequest = LeaveRequest::create([
-            'user_id'    => $user->id,
-            'store_id'   => $user->store_id,
-            'type'       => $request->type,
-            'start_date' => $request->start_date,
-            'end_date'   => $request->end_date,
-            'reason'     => $request->reason,
-            'document'   => $request->hasFile('document') ? $request->file('document')->store('leave-requests', 'public') : null,
-            'status'     => 'pending',
-        ]);
+        // Bug diperbaiki 2026-09-27 (audit ulang Izin & Cuti) -- validasi
+        // di atas (overlap/kuota) tetap dipertahankan sebagai feedback
+        // cepat ke staff (fail-fast tanpa perlu lock), TAPI createLocked()
+        // di bawah adalah penjaga SEBENARNYA -- recheck overlap/kuota
+        // DI DALAM lockForUpdate() tepat sebelum create(), menutup celah
+        // TOCTOU kalau 2 submit dari device berbeda nyaris bersamaan.
+        $documentPath = $request->hasFile('document') ? $request->file('document')->store('leave-requests', 'public') : null;
+
+        try {
+            $leaveRequest = LeaveRequest::createLocked([
+                'user_id'    => $user->id,
+                'store_id'   => $user->store_id,
+                'type'       => $request->type,
+                'start_date' => $request->start_date,
+                'end_date'   => $request->end_date,
+                'reason'     => $request->reason,
+                'document'   => $documentPath,
+                'status'     => 'pending',
+            ]);
+        } catch (\RuntimeException $e) {
+            // Sama pola dengan fitur Foto Selfie Absensi -- hapus lampiran
+            // yang sudah terlanjur ter-upload supaya tidak jadi file
+            // yatim kalau ternyata gagal (race overlap/kuota).
+            if ($documentPath) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($documentPath);
+            }
+
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
 
         return response()->json(['success' => true, 'leave_request' => $this->transformLeaveRequest($leaveRequest)], 201);
     }

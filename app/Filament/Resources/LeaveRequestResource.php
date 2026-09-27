@@ -86,7 +86,10 @@ class LeaveRequestResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        // ->with(['user', 'store']) ditambah 2026-09-27 (audit ulang
+        // Izin & Cuti) -- kolom dot-notation 'user.name'/'store.name' di
+        // table() sebelumnya N+1 per baris.
+        $query = parent::getEloquentQuery()->with(['user', 'store']);
         $user  = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -299,11 +302,17 @@ class LeaveRequestResource extends Resource
                         && $record->status === 'pending')
                     ->requiresConfirmation()
                     ->action(function (LeaveRequest $record) {
-                        $record->update([
-                            'status'      => 'approved',
-                            'reviewed_by' => auth()->id(),
-                            'reviewed_at' => now(),
-                        ]);
+                        // Bug diperbaiki 2026-09-27 (audit ulang Izin &
+                        // Cuti) -- approveLocked() sekarang lockForUpdate()
+                        // + recheck status di dalam DB::transaction(),
+                        // lihat komentar lengkap di LeaveRequest model.
+                        try {
+                            $record = LeaveRequest::approveLocked($record->id, auth()->id());
+                        } catch (\RuntimeException $e) {
+                            Notification::make()->title('Gagal menyetujui')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
 
                         // Kalau izin ini baru disetujui SETELAH sebagian
                         // tanggalnya sudah kadung ditandai 'alpha' oleh
@@ -337,12 +346,13 @@ class LeaveRequestResource extends Resource
                             ->rows(2),
                     ])
                     ->action(function (LeaveRequest $record, array $data) {
-                        $record->update([
-                            'status'      => 'rejected',
-                            'reviewed_by' => auth()->id(),
-                            'reviewed_at' => now(),
-                            'review_note' => $data['review_note'],
-                        ]);
+                        try {
+                            $record = LeaveRequest::rejectLocked($record->id, auth()->id(), $data['review_note']);
+                        } catch (\RuntimeException $e) {
+                            Notification::make()->title('Gagal menolak')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
 
                         app(PushNotificationService::class)->sendToUsers(
                             [$record->user_id],

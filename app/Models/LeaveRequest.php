@@ -6,7 +6,9 @@ use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -150,6 +152,104 @@ class LeaveRequest extends Model
             ->where('start_date', '<=', $endDate)
             ->where('end_date', '>=', $startDate)
             ->exists();
+    }
+
+    /**
+     * Bug diperbaiki 2026-09-27 (audit ulang Izin & Cuti) -- SEBELUMNYA
+     * hasOverlap()/remainingCutiFor() dicek SEBELUM create() (di
+     * controller mobile MAUPUN ->rule() closure form Filament) tanpa
+     * lock, celah TOCTOU: 2 submit nyaris bersamaan untuk user yang sama
+     * (2 device, atau race form Filament) bisa dua-duanya lolos cek
+     * overlap/kuota sebelum salah satu commit. Tidak ada baris "saldo
+     * cuti" tersendiri untuk dikunci, jadi baris User pemohon ITU
+     * SENDIRI dipakai sebagai titik lock (lockForUpdate()) supaya 2
+     * submit untuk user yang sama diserialisasi -- submit kedua akan
+     * menunggu submit pertama commit, baru cek ulang overlap/kuota
+     * dengan data yang SUDAH TERBARU (bukan snapshot sebelum lock).
+     *
+     * @throws RuntimeException kalau overlap atau kuota cuti tidak
+     *         cukup -- dicek ULANG di dalam lock, pesan sama persis
+     *         dengan validasi yang sudah ada di controller/form supaya
+     *         staff tidak melihat pesan baru yang membingungkan.
+     */
+    public static function createLocked(array $data): self
+    {
+        return DB::transaction(function () use ($data) {
+            $user = User::where('id', $data['user_id'])->lockForUpdate()->first();
+
+            if (! $user) {
+                throw new RuntimeException('Karyawan tidak ditemukan.');
+            }
+
+            if (self::hasOverlap($user, $data['start_date'], $data['end_date'], $data['id'] ?? null)) {
+                throw new RuntimeException('Karyawan ini sudah punya pengajuan izin/cuti lain yang tanggalnya tumpang tindih.');
+            }
+
+            if (($data['type'] ?? null) === 'cuti') {
+                $dayCount = Carbon::parse($data['start_date'])->diffInDays(Carbon::parse($data['end_date'])) + 1;
+                $remaining = self::remainingCutiFor($user, Carbon::parse($data['start_date'])->year);
+
+                if ($dayCount > $remaining) {
+                    throw new RuntimeException("Sisa jatah cuti tahun ini tinggal {$remaining} hari, tidak cukup untuk {$dayCount} hari yang diajukan.");
+                }
+            }
+
+            return self::create($data);
+        });
+    }
+
+    /**
+     * Bug diperbaiki 2026-09-27 (audit ulang Izin & Cuti) -- pola SAMA
+     * PERSIS dengan race condition yang baru diperbaiki di
+     * AttendanceCorrectionService (approve()/reject()): SEBELUMNYA action
+     * "Setujui"/"Tolak" di LeaveRequestResource langsung update() tanpa
+     * lock/recheck, ->visible() cuma proteksi UI (status==='pending'
+     * dicek SEKALI saat render tombol, bukan saat action jalan). 2 admin
+     * approve/reject baris yang sama nyaris bersamaan bisa dua-duanya
+     * lolos, staff bisa dapat 2 push notifikasi kontradiktif.
+     *
+     * @throws RuntimeException kalau baris ini sudah diputuskan sebelumnya.
+     */
+    public static function approveLocked(int $id, int $approvedBy): self
+    {
+        return DB::transaction(function () use ($id, $approvedBy) {
+            $locked = self::whereKey($id)->lockForUpdate()->first();
+
+            if (! $locked || $locked->status !== 'pending') {
+                throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
+            }
+
+            $locked->update([
+                'status'      => 'approved',
+                'reviewed_by' => $approvedBy,
+                'reviewed_at' => now(),
+            ]);
+
+            return $locked;
+        });
+    }
+
+    /**
+     * @throws RuntimeException kalau baris ini sudah diputuskan sebelumnya.
+     */
+    public static function rejectLocked(int $id, int $rejectedBy, string $reviewNote): self
+    {
+        return DB::transaction(function () use ($id, $rejectedBy, $reviewNote) {
+            $locked = self::whereKey($id)->lockForUpdate()->first();
+
+            if (! $locked || $locked->status !== 'pending') {
+                throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
+            }
+
+            $locked->update([
+                'status'      => 'rejected',
+                'reviewed_by' => $rejectedBy,
+                'reviewed_at' => now(),
+                'review_note' => $reviewNote,
+            ]);
+
+            return $locked;
+        });
     }
 
     protected static function booted(): void
