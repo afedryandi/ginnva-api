@@ -71,7 +71,11 @@ class AttendanceController extends Controller
             // galeri, lihat app/staff/attendance/index.tsx) -- TIDAK ada
             // deteksi wajah otomatis di sini (keputusan user), foto
             // murni bukti visual buat ditinjau manual admin.
-            'photo'     => 'required|image|max:5120',
+            // dimensions ditambahkan 2026-09-27 (audit ulang, fitur foto)
+            // -- SEBELUMNYA cuma image|max:5120, gambar 1x1 px valid MIME
+            // tetap lolos, tidak berguna sebagai bukti visual yang bisa
+            // ditinjau admin.
+            'photo'     => 'required|image|max:5120|dimensions:min_width=200,min_height=200',
         ]);
 
         $user = $request->user('api');
@@ -86,6 +90,13 @@ class AttendanceController extends Controller
 
         $photoPath = $request->file('photo')->store('attendance-photos', 'public');
 
+        // Bug diperbaiki 2026-09-27 (audit ulang, fitur foto) --
+        // SEBELUMNYA cuma catch InvalidArgumentException (radius/mock),
+        // exception LAIN (DB error, dst) menjalar sebagai 500 TANPA
+        // pernah menghapus foto yang sudah ter-upload -- file yatim
+        // menumpuk permanen di storage tanpa baris Attendance yang
+        // mereferensikannya. catch(\Throwable) + rethrow menjamin foto
+        // SELALU dihapus kalau clockIn() gagal, apapun jenis errornya.
         try {
             $attendance = Attendance::clockIn(
                 $user,
@@ -96,12 +107,13 @@ class AttendanceController extends Controller
                 $photoPath
             );
         } catch (\InvalidArgumentException $e) {
-            // Gagal validasi (di luar radius/mock) -- hapus foto yang
-            // sudah terlanjur ter-upload supaya tidak jadi file yatim
-            // menumpuk di storage untuk absen yang ditolak.
             \Illuminate\Support\Facades\Storage::disk('public')->delete($photoPath);
 
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($photoPath);
+
+            throw $e;
         }
 
         return response()->json(['success' => true, 'attendance' => $this->transform($attendance)]);
@@ -116,7 +128,7 @@ class AttendanceController extends Controller
             'latitude'  => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
             'is_mocked' => 'nullable|boolean',
-            'photo'     => 'required|image|max:5120',
+            'photo'     => 'required|image|max:5120|dimensions:min_width=200,min_height=200',
         ]);
 
         $user = $request->user('api');
@@ -134,6 +146,10 @@ class AttendanceController extends Controller
             \Illuminate\Support\Facades\Storage::disk('public')->delete($photoPath);
 
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($photoPath);
+
+            throw $e;
         }
 
         return response()->json(['success' => true, 'attendance' => $this->transform($attendance)]);

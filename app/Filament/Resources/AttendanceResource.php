@@ -217,6 +217,13 @@ class AttendanceResource extends Resource
                         ->label('Foto Absen Masuk')
                         ->image()
                         ->directory('attendance-photos')
+                        // ->disk('public') eksplisit ditambahkan 2026-09-27
+                        // (audit ulang, fitur foto) -- SEBELUMNYA mengandalkan
+                        // disk default implisit FileUpload, disamakan tegas
+                        // dengan disk yang dipakai controller upload
+                        // (Storage::disk('public')->store()) supaya preview
+                        // dijamin tidak broken.
+                        ->disk('public')
                         ->disabled()
                         ->dehydrated(false)
                         ->visible(fn (?Attendance $record) => (bool) $record?->clock_in_photo),
@@ -225,6 +232,7 @@ class AttendanceResource extends Resource
                         ->label('Foto Absen Keluar')
                         ->image()
                         ->directory('attendance-photos')
+                        ->disk('public')
                         ->disabled()
                         ->dehydrated(false)
                         ->visible(fn (?Attendance $record) => (bool) $record?->clock_out_photo),
