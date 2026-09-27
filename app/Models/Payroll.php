@@ -30,6 +30,8 @@ class Payroll extends Model
         'total_deduction',
         'net_pay',
         'status',
+        'payment_requested_by',
+        'payment_requested_at',
         'paid_by',
         'paid_at',
         'journal_entry_id',
@@ -49,6 +51,7 @@ class Payroll extends Model
         'deduction_per_violation'    => 'decimal:2',
         'total_deduction'            => 'decimal:2',
         'net_pay'                    => 'decimal:2',
+        'payment_requested_at'       => 'datetime',
         'paid_at'                    => 'datetime',
     ];
 
@@ -65,6 +68,11 @@ class Payroll extends Model
     public function payer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'paid_by');
+    }
+
+    public function paymentRequester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'payment_requested_by');
     }
 
     /**
@@ -145,6 +153,16 @@ class Payroll extends Model
             if ($existing && $existing->status === 'paid') {
                 throw new \InvalidArgumentException(
                     "Payroll {$user->name} bulan {$periodStart->translatedFormat('F Y')} sudah ditandai dibayar, tidak bisa digenerate ulang."
+                );
+            }
+
+            // Approval berjenjang (audit 2026-09-27): baris yang sedang
+            // 'pending_approval' juga TIDAK boleh digenerate ulang diam-diam
+            // -- kalau boleh, angka yang sedang ditinjau direksi bisa berubah
+            // tanpa sepengetahuannya sebelum dia sempat approve/tolak.
+            if ($existing && $existing->status === 'pending_approval') {
+                throw new \InvalidArgumentException(
+                    "Payroll {$user->name} bulan {$periodStart->translatedFormat('F Y')} sedang menunggu persetujuan direksi, tidak bisa digenerate ulang."
                 );
             }
 
@@ -268,7 +286,7 @@ class Payroll extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'net_pay', 'total_deduction', 'alpha_days', 'alpha_deduction', 'total_commission', 'paid_by'])
+            ->logOnly(['status', 'net_pay', 'total_deduction', 'alpha_days', 'alpha_deduction', 'total_commission', 'payment_requested_by', 'paid_by'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('payroll')

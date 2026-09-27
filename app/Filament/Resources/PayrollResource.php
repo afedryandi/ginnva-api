@@ -175,13 +175,15 @@ class PayrollResource extends Resource
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
                     ->colors([
-                        'warning' => 'draft',
+                        'gray'    => 'draft',
+                        'warning' => 'pending_approval',
                         'success' => 'paid',
                     ])
                     ->formatStateUsing(fn (string $state) => match ($state) {
-                        'draft' => 'Draft',
-                        'paid'  => 'Sudah Dibayar',
-                        default => $state,
+                        'draft'            => 'Draft',
+                        'pending_approval' => 'Menunggu Persetujuan Direksi',
+                        'paid'             => 'Sudah Dibayar',
+                        default            => $state,
                     }),
 
                 Tables\Columns\TextColumn::make('journalEntry.entry_number')
@@ -193,7 +195,7 @@ class PayrollResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
-                    ->options(['draft' => 'Draft', 'paid' => 'Sudah Dibayar']),
+                    ->options(['draft' => 'Draft', 'pending_approval' => 'Menunggu Persetujuan Direksi', 'paid' => 'Sudah Dibayar']),
 
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
@@ -277,7 +279,7 @@ class PayrollResource extends Resource
                             ->count();
 
                         $bodyLines = ["{$generated} karyawan berhasil digenerate."];
-                        if ($skippedPaid > 0) $bodyLines[] = "{$skippedPaid} dilewati (sudah ditandai dibayar).";
+                        if ($skippedPaid > 0) $bodyLines[] = "{$skippedPaid} dilewati (sudah dibayar / sedang menunggu persetujuan direksi).";
                         if ($missingSalary->isNotEmpty()) $bodyLines[] = 'Belum ada Gaji Pokok: ' . $missingSalary->implode(', ') . '.';
                         if ($missingStore->isNotEmpty()) $bodyLines[] = 'Belum terhubung toko: ' . $missingStore->implode(', ') . '.';
                         if ($inactiveCount > 0) $bodyLines[] = "{$inactiveCount} karyawan nonaktif dilewati (tidak digenerate).";
@@ -294,55 +296,187 @@ class PayrollResource extends Resource
                     ->color('gray')
                     ->action(fn (Payroll $record) => static::downloadPayslipPdf($record)),
 
-                Tables\Actions\Action::make('markPaid')
-                    ->label('Tandai Dibayar')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->visible(fn (Payroll $record) => $record->status === 'draft')
+                /**
+                 * Gap standar enterprise diperbaiki 2026-09-27 (audit
+                 * Penggajian) -- SEBELUMNYA spv_finance sendirian bisa
+                 * generate DAN markPaid, langsung posting ke Jurnal
+                 * Umum, beda dari pola modul finansial lain sesi ini
+                 * (Pengeluaran: staff->store_manager->direksi, lihat
+                 * FinanceTransactionApprovalService). Atasan langsung
+                 * spv_finance adalah direksi (dikonfirmasi user) --
+                 * Payroll cukup 1 tingkat approval (bukan 2 tingkat
+                 * seperti Pengeluaran): spv_finance WAJIB "Ajukan
+                 * Pembayaran" dulu, hanya isFullAccess() (super_admin/
+                 * direksi) yang bisa menyetujui & memposting.
+                 * isFullAccess() TETAP boleh langsung "Tandai Dibayar"
+                 * dari draft tanpa lewat pengajuan -- mereka sudah
+                 * ujung rantai approval, tidak ada gunanya mengajukan
+                 * ke diri sendiri.
+                 */
+                Tables\Actions\Action::make('requestPayment')
+                    ->label('Ajukan Pembayaran')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('warning')
+                    ->visible(fn (Payroll $record) => $record->status === 'draft' && ! auth()->user()?->isFullAccess())
                     ->requiresConfirmation()
-                    ->modalDescription('Pastikan gaji sudah benar-benar ditransfer sebelum menandai ini — status ini mengunci baris payroll dari generate ulang.')
+                    ->modalDescription('Pengajuan ini akan dikirim ke direksi untuk disetujui sebelum benar-benar ditandai dibayar & diposting ke Jurnal Umum.')
                     ->action(function (Payroll $record) {
-                        // Ditandai dibayar SEKALIGUS diposting otomatis ke
-                        // Jurnal Umum (PayrollPostingService), dibungkus 1
-                        // DB transaction — kalau posting gagal (mis. akun
-                        // Bagan Akun yang dibutuhkan belum ada, atau
-                        // periode sudah ditutup), status payroll juga TIDAK
-                        // ikut berubah jadi 'paid', supaya tidak ada
-                        // payroll yang ditandai dibayar tanpa jurnal.
                         try {
                             DB::transaction(function () use ($record) {
-                                $record->update([
-                                    'status'   => 'paid',
-                                    'paid_by'  => auth()->id(),
-                                    'paid_at'  => now(),
-                                ]);
+                                $locked = Payroll::whereKey($record->id)->lockForUpdate()->first();
 
-                                $entry = app(PayrollPostingService::class)->post($record->refresh());
-                                $record->update(['journal_entry_id' => $entry->id]);
+                                if (! $locked || $locked->status !== 'draft') {
+                                    throw new RuntimeException('Payroll ini sudah diajukan atau sudah dibayar sebelumnya.');
+                                }
+
+                                $locked->update([
+                                    'status'                => 'pending_approval',
+                                    'payment_requested_by'  => auth()->id(),
+                                    'payment_requested_at'  => now(),
+                                ]);
                             });
                         } catch (RuntimeException $e) {
-                            Notification::make()
-                                ->title('Gagal menandai payroll dibayar')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
+                            Notification::make()->title('Gagal mengajukan')->body($e->getMessage())->danger()->send();
 
                             return;
                         }
 
-                        app(PushNotificationService::class)->sendToUsers(
-                            [$record->user_id],
-                            'Gaji Sudah Dibayar',
-                            'Gaji periode ' . $record->period_month->translatedFormat('F Y') . ' sudah ditransfer. Buka app untuk lihat rincian.'
-                        );
+                        $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess());
+                        $amountLabel = 'Rp' . number_format((float) $record->net_pay, 0, ',', '.');
+                        foreach ($recipients as $recipient) {
+                            Notification::make()
+                                ->title("Menunggu persetujuan Anda: gaji {$record->user?->name} ({$amountLabel})")
+                                ->warning()
+                                ->sendToDatabase($recipient);
+                        }
 
-                        Notification::make()->title('Payroll ditandai dibayar')->success()->send();
+                        Notification::make()->title('Pengajuan pembayaran dikirim ke direksi')->success()->send();
                     }),
+
+                Tables\Actions\Action::make('approvePayment')
+                    ->label('Setujui & Tandai Dibayar')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (Payroll $record) => $record->status === 'pending_approval' && auth()->user()?->isFullAccess())
+                    ->requiresConfirmation()
+                    ->modalDescription('Pastikan gaji sudah benar-benar ditransfer sebelum menyetujui ini — status ini mengunci baris payroll dari generate ulang.')
+                    ->action(fn (Payroll $record) => static::finalizePayment($record, 'pending_approval')),
+
+                Tables\Actions\Action::make('rejectPayment')
+                    ->label('Tolak Pengajuan')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn (Payroll $record) => $record->status === 'pending_approval' && auth()->user()?->isFullAccess())
+                    ->requiresConfirmation()
+                    ->form([
+                        Forms\Components\Textarea::make('note')->label('Alasan Penolakan')->required(),
+                    ])
+                    ->action(function (Payroll $record, array $data) {
+                        try {
+                            DB::transaction(function () use ($record) {
+                                $locked = Payroll::whereKey($record->id)->lockForUpdate()->first();
+
+                                if (! $locked || $locked->status !== 'pending_approval') {
+                                    throw new RuntimeException('Pengajuan ini sudah diproses sebelumnya.');
+                                }
+
+                                $locked->update([
+                                    'status'                => 'draft',
+                                    'payment_requested_by'  => null,
+                                    'payment_requested_at'  => null,
+                                ]);
+                            });
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Gagal menolak')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        if ($record->payment_requested_by) {
+                            app(PushNotificationService::class)->sendToUsers(
+                                [$record->payment_requested_by],
+                                'Pengajuan Pembayaran Gaji Ditolak',
+                                "Pengajuan gaji {$record->user?->name} periode " . $record->period_month->translatedFormat('F Y') . ' ditolak: ' . $data['note']
+                            );
+                        }
+
+                        Notification::make()->title('Pengajuan ditolak, kembali ke draft')->success()->send();
+                    }),
+
+                Tables\Actions\Action::make('markPaid')
+                    ->label('Tandai Dibayar')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (Payroll $record) => $record->status === 'draft' && auth()->user()?->isFullAccess())
+                    ->requiresConfirmation()
+                    ->modalDescription('Pastikan gaji sudah benar-benar ditransfer sebelum menandai ini — status ini mengunci baris payroll dari generate ulang.')
+                    ->action(fn (Payroll $record) => static::finalizePayment($record, 'draft')),
 
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn (Payroll $record) => $record->status === 'draft'),
             ])
             ->defaultSort('period_month', 'desc');
+    }
+
+    /**
+     * Logika inti "Tandai Dibayar" — dipakai baik oleh isFullAccess()
+     * yang langsung membayar dari 'draft' (markPaid), maupun oleh
+     * isFullAccess() yang menyetujui pengajuan spv_finance dari
+     * 'pending_approval' (approvePayment). $expectedStatus dicek ULANG
+     * di dalam lock supaya dua aksi/dua admin yang nyaris bersamaan
+     * tidak bisa dua-duanya lolos.
+     *
+     * Ditandai dibayar SEKALIGUS diposting otomatis ke Jurnal Umum
+     * (PayrollPostingService), dibungkus 1 DB transaction — kalau
+     * posting gagal (mis. akun Bagan Akun yang dibutuhkan belum ada,
+     * atau periode sudah ditutup), status payroll juga TIDAK ikut
+     * berubah jadi 'paid', supaya tidak ada payroll yang ditandai
+     * dibayar tanpa jurnal.
+     *
+     * Bug diperbaiki 2026-09-27 (audit Penggajian) -- SEBELUMNYA tidak
+     * ada lockForUpdate()/recheck status di dalam transaction (beda
+     * dari generateForMonth() yang sudah benar), pola race yang sama
+     * berulang ditemukan sesi ini
+     * (AttendanceCorrectionService/LeaveRequestResource).
+     */
+    private static function finalizePayment(Payroll $record, string $expectedStatus): void
+    {
+        try {
+            DB::transaction(function () use (&$record, $expectedStatus) {
+                $locked = Payroll::whereKey($record->id)->lockForUpdate()->first();
+
+                if (! $locked || $locked->status !== $expectedStatus) {
+                    throw new RuntimeException('Payroll ini sudah diproses (dibayar/diajukan/ditolak) sebelumnya.');
+                }
+
+                $locked->update([
+                    'status'   => 'paid',
+                    'paid_by'  => auth()->id(),
+                    'paid_at'  => now(),
+                ]);
+
+                $entry = app(PayrollPostingService::class)->post($locked->refresh());
+                $locked->update(['journal_entry_id' => $entry->id]);
+
+                $record = $locked;
+            });
+        } catch (RuntimeException $e) {
+            Notification::make()
+                ->title('Gagal menandai payroll dibayar')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        app(PushNotificationService::class)->sendToUsers(
+            [$record->user_id],
+            'Gaji Sudah Dibayar',
+            'Gaji periode ' . $record->period_month->translatedFormat('F Y') . ' sudah ditransfer. Buka app untuk lihat rincian.'
+        );
+
+        Notification::make()->title('Payroll ditandai dibayar')->success()->send();
     }
 
     /**
