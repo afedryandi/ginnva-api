@@ -55,3 +55,11 @@ Schedule::command('otp:prune-expired')->dailyAt('04:00');
 // Generate tagihan rutin (audit Majoo f48, "Template tagihan rutin")
 // -- lihat App\Console\Commands\GenerateRecurringBills.
 Schedule::command('billing:generate-recurring')->dailyAt('05:00');
+
+// Gap ditutup 2026-09-26 (audit Absensi Karyawan, "tidak ada notifikasi
+// proaktif") -- notif staff lupa clock-out (hari sebelumnya, setelah
+// mark-absences supaya tidak tumpang tindih) & staff yang belum absen
+// padahal shift sudah mulai (cek tiap jam selama jam operasional wajar).
+// Lihat App\Console\Commands\NotifyForgottenClockouts/NotifyMissingClockins.
+Schedule::command('attendance:notify-forgotten-clockouts')->dailyAt('08:00');
+Schedule::command('attendance:notify-missing-clockins')->hourlyAt(5)->between('07:00', '21:00');

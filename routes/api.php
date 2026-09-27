@@ -311,6 +311,13 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:10,1');
         Route::get('/attendance/history', [StaffAttendanceController::class, 'history']);
 
+        // Gap ditutup 2026-09-26 (audit Absensi Karyawan, "tidak ada
+        // jalur pengajuan koreksi dari mobile app") -- lihat
+        // AttendanceCorrectionService (approval berjenjang, tidak berubah).
+        Route::get('/attendance/corrections', [StaffAttendanceController::class, 'correctionsIndex']);
+        Route::post('/attendance/corrections', [StaffAttendanceController::class, 'correctionsStore'])
+            ->middleware('throttle:10,1');
+
         Route::get('/leave-requests', [StaffAttendanceController::class, 'leaveRequestsIndex']);
         Route::post('/leave-requests', [StaffAttendanceController::class, 'leaveRequestsStore'])
             ->middleware('throttle:10,1');

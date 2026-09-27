@@ -52,6 +52,9 @@ class Attendance extends Model
         'clock_out_is_mocked',
         'late_minutes',
         'early_leave_minutes',
+        // Gap ditutup 2026-09-26 (audit Absensi Karyawan) -- lihat
+        // App\Console\Commands\NotifyForgottenClockouts.
+        'forgotten_clockout_notified_at',
         'note',
         'recorded_by',
     ];
@@ -68,6 +71,7 @@ class Attendance extends Model
         'clock_out_is_mocked'  => 'boolean',
         'late_minutes'         => 'integer',
         'early_leave_minutes'  => 'integer',
+        'forgotten_clockout_notified_at' => 'datetime',
         'reviewed_at'          => 'datetime',
     ];
 
@@ -140,7 +144,7 @@ class Attendance extends Model
 
             $now = Carbon::now();
             $distance = $store->distanceMetersTo($lat, $lng);
-            $lateMinutes = self::calculateLateMinutes($store, $today, $now);
+            $lateMinutes = self::calculateLateMinutes($user, $store, $today, $now);
 
             $attributes = [
                 'store_id'                 => $store->id,
@@ -211,25 +215,79 @@ class Attendance extends Model
     }
 
     /**
-     * Selisih menit antara $clockInTime dan jam buka toko di $date, sudah
-     * dikurangi toleransi Store::late_tolerance_minutes (fallback
-     * DEFAULT_LATE_TOLERANCE_MINUTES) — 0 kalau tidak telat atau toko
-     * tidak punya jadwal untuk hari itu (mis. hari libur tapi tetap masuk
-     * lembur, tidak relevan dihitung telat).
+     * Gap DIPERBAIKI 2026-09-26 (audit Absensi Karyawan) -- SEBELUMNYA
+     * jam acuan SELALU jam buka TOKO generik (Store::openingTimeOn()),
+     * bukan jam mulai Shift individual staff dari modul Jadwal Kerja.
+     * Dua staff toko yang sama tapi shift beda (pagi 08:00 vs siang
+     * 14:00) diukur telat terhadap jam buka toko yang SAMA -- staff
+     * shift siang yang datang jam 14:00 bisa tercatat "telat" kalau
+     * toko buka jam 08:00, padahal tepat waktu menurut jadwalnya
+     * sendiri. Padahal AttendancePatternService (modul Jadwal Kerja,
+     * dibangun hari yang sama) SUDAH punya logic resolusi Shift yang
+     * benar -- sebelumnya cuma dipakai untuk kategorisasi laporan
+     * read-only, TIDAK untuk late_minutes yang benar-benar dipakai
+     * potongan gaji (Store::late_deduction_amount). resolveShiftFor()
+     * di bawah pakai prioritas resolusi yang SAMA dengan
+     * AttendancePatternService (override harian > assignment jadwal).
+     * Fallback ke jam toko kalau staff belum di-assign jadwal sama
+     * sekali (konsisten dengan filosofi "Tidak Ada Jadwal" = bukan
+     * error, bukan 0 yang salah kaprah).
      */
-    protected static function calculateLateMinutes(Store $store, Carbon $date, Carbon $clockInTime): int
+    protected static function calculateLateMinutes(User $user, Store $store, Carbon $date, Carbon $clockInTime): int
     {
-        $openingTime = $store->openingTimeOn($date);
-        if ($openingTime === null) {
+        $shift = self::resolveShiftFor($user->id, $date);
+        $expectedStart = $shift
+            ? $date->copy()->setTimeFromTimeString($shift->start_time)
+            : ($store->openingTimeOn($date) !== null ? $date->copy()->setTimeFromTimeString($store->openingTimeOn($date)) : null);
+
+        if ($expectedStart === null) {
             return 0;
         }
 
-        $expectedStart = $date->copy()->setTimeFromTimeString($openingTime);
         $toleranceMinutes = $store->late_tolerance_minutes ?? self::DEFAULT_LATE_TOLERANCE_MINUTES;
 
         $rawLateMinutes = $expectedStart->diffInMinutes($clockInTime, false);
 
         return max(0, $rawLateMinutes - $toleranceMinutes);
+    }
+
+    /**
+     * Resolusi Shift yang berlaku untuk 1 user di 1 tanggal -- SAMA
+     * prioritas dengan AttendancePatternService::classify() (override
+     * harian ScheduleDayOverride menang atas EmployeeScheduleAssignment
+     * biasa), tapi versi SATU-USER (bukan bulk) karena dipanggil sekali
+     * per clock-in/out, bukan dalam loop laporan.
+     */
+    /**
+     * Public (bukan protected) supaya bisa dipakai ulang di luar model ini
+     * -- lihat App\Console\Commands\NotifyMissingClockins (audit Absensi
+     * Karyawan 2026-09-26), yang butuh resolusi Shift yang SAMA persis
+     * tanpa duplikasi logic.
+     */
+    public static function resolveShiftFor(int $userId, Carbon $date): ?\App\Models\Shift
+    {
+        $override = \App\Models\ScheduleDayOverride::where('user_id', $userId)
+            ->whereDate('date', $date)
+            ->first();
+
+        if ($override) {
+            return $override->shift_id ? \App\Models\Shift::find($override->shift_id) : null;
+        }
+
+        $assignment = \App\Models\EmployeeScheduleAssignment::where('user_id', $userId)
+            ->whereDate('effective_from', '<=', $date)
+            ->where(fn ($q) => $q->whereNull('effective_to')->orWhereDate('effective_to', '>=', $date))
+            ->with('workSchedule')
+            ->first();
+
+        if (! $assignment?->workSchedule) {
+            return null;
+        }
+
+        $dayCodes = \App\Models\WorkSchedule::DAYS;
+        $shiftId = $assignment->workSchedule->shiftIdFor($dayCodes[$date->dayOfWeekIso - 1]);
+
+        return $shiftId ? \App\Models\Shift::find($shiftId) : null;
     }
 
     /**
@@ -253,25 +311,30 @@ class Attendance extends Model
 
             $now = Carbon::now();
 
-            // Entri 'manual'/'field_duty'/'alpha'/'leave' TIDAK mungkin
-            // sampai sini lewat app (dibuat admin/sistem langsung, bukan
-            // dari clock-in app), tapi jaga-jaga tetap dicek entry_type
-            // === 'clock' supaya staff yang hari ini tercatat "Dinas Luar"
-            // dsb tidak coba absen-keluar-app lalu ketolak gara-gara
-            // radius/mock-check yang memang tidak relevan buat entri itu.
-            if ($attendance->entry_type === 'clock') {
-                self::assertNotMocked($isMocked);
-                self::assertWithinRadius($attendance->store, $lat, $lng);
-            }
+            // Bug diperbaiki 2026-09-26 (audit Absensi Karyawan) --
+            // SEBELUMNYA validasi radius/mock cuma jalan kalau
+            // entry_type === 'clock', dengan asumsi "entri manual tidak
+            // mungkin sampai sini lewat app". Asumsi itu SALAH: kalau
+            // admin sempat buat entri 'manual' (mis. device toko mati
+            // pagi hari, cuma isi clock_in_at) lalu staff BENAR-BENAR
+            // pakai app untuk absen-keluar di hari yang sama (device
+            // pulih sore), baris ini entry_type-nya sudah terlanjur
+            // 'manual' -- validasi radius/mock jadi ke-skip padahal
+            // request ini SUNGGUHAN datang dari endpoint mobile
+            // (clockOut() cuma dipanggil dari Staff\AttendanceController,
+            // tidak pernah dari Filament). Validasi sekarang SELALU
+            // jalan di sini, lepas dari entry_type baris yang sudah ada
+            // -- yang menentukan relevansinya adalah JALUR PEMANGGILAN
+            // (selalu app), bukan bagaimana clock-in-nya tercatat.
+            self::assertNotMocked($isMocked);
+            self::assertWithinRadius($attendance->store, $lat, $lng);
 
             $attendance->update([
                 'clock_out_at'         => $now,
                 'clock_out_latitude'   => $lat,
                 'clock_out_longitude'  => $lng,
                 'clock_out_is_mocked'  => $isMocked,
-                'early_leave_minutes'  => $attendance->entry_type === 'clock'
-                    ? self::calculateEarlyLeaveMinutes($attendance->store, $today, $now)
-                    : 0,
+                'early_leave_minutes'  => self::calculateEarlyLeaveMinutes($user, $attendance->store, $today, $now),
             ]);
 
             return $attendance;
@@ -279,20 +342,36 @@ class Attendance extends Model
     }
 
     /**
-     * Kebalikan calculateLateMinutes() — selisih jam tutup toko vs jam
+     * Kebalikan calculateLateMinutes() — selisih jam selesai (Shift
+     * individual, fallback jam tutup toko -- sama alasan dengan
+     * calculateLateMinutes(), audit Absensi Karyawan 2026-09-26) vs jam
      * pulang, sudah dikurangi toleransi yang sama (late_tolerance_minutes
      * dipakai ulang, TIDAK ada pengaturan toleransi terpisah untuk pulang
      * cepat — di luar scope yang disepakati). SENGAJA tidak dipakai
      * potongan Payroll — murni data tinjauan admin.
      */
-    protected static function calculateEarlyLeaveMinutes(Store $store, Carbon $date, Carbon $clockOutTime): int
+    protected static function calculateEarlyLeaveMinutes(User $user, Store $store, Carbon $date, Carbon $clockOutTime): int
     {
-        $closingTime = $store->closingTimeOn($date);
-        if ($closingTime === null) {
+        $shift = self::resolveShiftFor($user->id, $date);
+
+        if ($shift) {
+            $shiftStart = $date->copy()->setTimeFromTimeString($shift->start_time);
+            $expectedEnd = $date->copy()->setTimeFromTimeString($shift->end_time);
+            // Shift lintas tengah malam (mis. 22:00-06:00) -- jam selesai
+            // secara kalender jatuh di hari berikutnya, sama pola dengan
+            // AttendancePatternService::buildRow().
+            if ($expectedEnd->lt($shiftStart)) {
+                $expectedEnd->addDay();
+            }
+        } else {
+            $closingTime = $store->closingTimeOn($date);
+            $expectedEnd = $closingTime !== null ? $date->copy()->setTimeFromTimeString($closingTime) : null;
+        }
+
+        if ($expectedEnd === null) {
             return 0;
         }
 
-        $expectedEnd = $date->copy()->setTimeFromTimeString($closingTime);
         $toleranceMinutes = $store->late_tolerance_minutes ?? self::DEFAULT_LATE_TOLERANCE_MINUTES;
 
         $rawEarlyMinutes = $clockOutTime->diffInMinutes($expectedEnd, false);

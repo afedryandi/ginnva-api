@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\AttendanceCorrectionRequest;
 use App\Models\LeaveRequest;
 use App\Models\Store;
+use App\Services\AttendanceCorrectionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -128,6 +130,96 @@ class AttendanceController extends Controller
             // tampilkan sisa toleransi tanpa staff harus jumlahkan manual.
             'total_late_minutes' => $attendances->sum('late_minutes'),
         ]);
+    }
+
+    /**
+     * GET /api/staff/attendance/corrections
+     * Gap ditutup 2026-09-26 (audit Absensi Karyawan, "tidak ada jalur
+     * pengajuan koreksi dari mobile app") -- riwayat pengajuan koreksi
+     * MILIK SENDIRI, supaya staff tahu statusnya tanpa tanya admin.
+     */
+    public function correctionsIndex(Request $request)
+    {
+        $requests = AttendanceCorrectionRequest::where('user_id', $request->user('api')->id)
+            ->with('reviewedBy:id,name')
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'corrections' => $requests->map(fn (AttendanceCorrectionRequest $r) => $this->transformCorrection($r)),
+        ]);
+    }
+
+    /**
+     * POST /api/staff/attendance/corrections
+     * Dibatasi entry_type='manual' saja (lupa absen masuk/keluar, isi
+     * jam manual) -- jenis lain (Dinas Luar/Alpha/Izin) tetap khusus
+     * admin lewat Filament (AttendanceCorrectionRequestResource), sama
+     * seperti sebelumnya. Alur approval TIDAK berubah sama sekali --
+     * cuma titik masuk baru ke AttendanceCorrectionService::submit()
+     * yang sudah ada, dipakai juga oleh Filament.
+     */
+    public function correctionsStore(Request $request)
+    {
+        $request->validate([
+            'date'         => 'required|date|before_or_equal:today',
+            'clock_in_at'  => 'nullable|date_format:H:i',
+            'clock_out_at' => 'nullable|date_format:H:i',
+            'reason'       => 'required|string|max:1000',
+        ]);
+
+        if (! $request->filled('clock_in_at') && ! $request->filled('clock_out_at')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Isi minimal salah satu: jam masuk atau jam keluar.',
+            ], 422);
+        }
+
+        $user = $request->user('api');
+
+        if (! $user->store_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini belum terhubung ke toko mana pun, tidak bisa mengajukan koreksi.',
+            ], 422);
+        }
+
+        $date = Carbon::parse($request->date);
+        $existingAttendance = Attendance::where('user_id', $user->id)->where('date', $date->toDateString())->first();
+
+        $correctionRequest = app(AttendanceCorrectionService::class)->submit([
+            'attendance_id' => $existingAttendance?->id,
+            'user_id'       => $user->id,
+            'store_id'      => $user->store_id,
+            'date'          => $date->toDateString(),
+            'entry_type'    => 'manual',
+            'clock_in_at'   => $request->filled('clock_in_at') ? $date->copy()->setTimeFromTimeString($request->clock_in_at) : null,
+            'clock_out_at'  => $request->filled('clock_out_at') ? $date->copy()->setTimeFromTimeString($request->clock_out_at) : null,
+            'reason'        => $request->reason,
+        ], $user->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pengajuan koreksi terkirim, menunggu persetujuan admin/store manager.',
+            'correction' => $this->transformCorrection($correctionRequest),
+        ], 201);
+    }
+
+    private function transformCorrection(AttendanceCorrectionRequest $r): array
+    {
+        return [
+            'id'            => $r->id,
+            'date'          => $r->date->toDateString(),
+            'clock_in_at'   => $r->clock_in_at?->toIso8601String(),
+            'clock_out_at'  => $r->clock_out_at?->toIso8601String(),
+            'reason'        => $r->reason,
+            'status'        => $r->status,
+            'review_notes'  => $r->review_notes,
+            'reviewer_name' => $r->reviewedBy?->name,
+            'reviewed_at'   => $r->reviewed_at?->toIso8601String(),
+            'created_at'    => $r->created_at->toIso8601String(),
+        ];
     }
 
     /**
