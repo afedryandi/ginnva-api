@@ -25,6 +25,12 @@ Schedule::command('assets:notify-maintenance-due')->dailyAt('07:00');
 // App\Console\Commands\NotifyExpiringContracts.
 Schedule::command('contracts:notify-expiring')->dailyAt('07:00');
 
+// Nonaktifkan otomatis karyawan kontrak yang tanggal akhirnya sudah
+// lewat tanpa diperpanjang — dijadwalkan SETELAH notify-expiring
+// (audit Perpanjang Kontrak 2026-09-27). Lihat
+// App\Console\Commands\DeactivateExpiredContracts.
+Schedule::command('contracts:deactivate-expired')->dailyAt('07:10');
+
 // Tandai Alpha/Izin untuk hari KEMARIN yang belum punya baris Attendance
 // sama sekali — dijadwalkan dini hari supaya "kemarin" sudah pasti hari
 // yang selesai penuh. Lihat App\Console\Commands\MarkAbsences.

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -40,11 +41,27 @@ class ContractExtension extends Model
      * dibungkus transaction+lock supaya previous_end_date yang tersimpan
      * selalu akurat (snapshot nilai SEBELUM diubah), sama pola dengan
      * RawMaterial::recordMovement() menyimpan harga batch.
+     *
+     * Bug diperbaiki 2026-09-27 (audit Perpanjang Kontrak) -- guard
+     * $newEndDate harus LEBIH BARU dari contract_end_date yang sekarang
+     * berlaku ditaruh DI SINI juga (bukan cuma minDate() di form Filament)
+     * supaya invariant "perpanjangan" tidak bisa dilanggar lewat jalur
+     * mana pun yang memanggil method ini, konsisten dengan snapshot
+     * previous_end_date yang diambil dari baris yang SUDAH dikunci.
+     *
+     * @throws \InvalidArgumentException kalau $newEndDate <= contract_end_date karyawan saat ini.
      */
     public static function recordExtension(User $user, string $newEndDate, ?int $extendedBy, ?string $notes = null): self
     {
         return DB::transaction(function () use ($user, $newEndDate, $extendedBy, $notes) {
             $freshUser = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
+
+            $currentEnd = $freshUser->contract_end_date;
+            if ($currentEnd && Carbon::parse($newEndDate)->lte($currentEnd)) {
+                throw new \InvalidArgumentException(
+                    "Tanggal berakhir baru ({$newEndDate}) harus lebih baru dari tanggal akhir kontrak {$freshUser->name} yang sekarang berlaku ({$currentEnd->format('d M Y')})."
+                );
+            }
 
             $extension = self::create([
                 'user_id'            => $freshUser->id,

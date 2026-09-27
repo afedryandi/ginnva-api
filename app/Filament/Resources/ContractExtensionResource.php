@@ -79,9 +79,15 @@ class ContractExtensionResource extends Resource
             || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
+    /**
+     * Eager-load user/extender — kolom "user.name"/"extender.name" di
+     * table() sebelumnya N+1 per baris (audit fitur Perpanjang Kontrak
+     * 2026-09-27, pola sama dengan resource lain yang sudah disapu
+     * sebelumnya, resource ini terlewat).
+     */
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        $query = parent::getEloquentQuery()->with(['user', 'extender']);
         $user  = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -117,10 +123,28 @@ class ContractExtensionResource extends Resource
                                 : 'Karyawan ini belum punya tanggal akhir kontrak tercatat.';
                         }),
 
+                    /**
+                     * Bug diperbaiki 2026-09-27 (audit Perpanjang
+                     * Kontrak) -- SEBELUMNYA minDate() cuma today(),
+                     * admin bisa input tanggal baru yang LEBIH AWAL
+                     * dari contract_end_date karyawan yang sekarang
+                     * (mis. kontrak sampai Des 2026, salah pilih Okt
+                     * 2026) dan tetap tercatat sebagai "perpanjangan"
+                     * tanpa peringatan apa pun -- padahal itu
+                     * memperpendek kontrak. minDate() sekarang
+                     * mengambil yang LEBIH BESAR antara hari ini dan
+                     * contract_end_date karyawan yang dipilih.
+                     */
                     Forms\Components\DatePicker::make('new_end_date')
                         ->label('Tanggal Berakhir Kontrak Baru')
                         ->required()
-                        ->minDate(today()),
+                        ->minDate(function (Forms\Get $get) {
+                            $user = $get('user_id') ? User::find($get('user_id')) : null;
+                            $currentEnd = $user?->contract_end_date;
+
+                            return $currentEnd && $currentEnd->gt(today()) ? $currentEnd : today();
+                        })
+                        ->helperText('Harus lebih baru dari tanggal akhir kontrak yang sekarang berlaku.'),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan (opsional)')

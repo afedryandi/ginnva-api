@@ -767,6 +767,39 @@ class UserResource extends Resource
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                /**
+                 * Gap standar enterprise diperbaiki 2026-09-27 (audit
+                 * Perpanjang Kontrak) -- SEBELUMNYA tidak ada badge
+                 * status kontrak (aktif/akan habis/expired) di mana
+                 * pun, admin tidak bisa lihat sekilas "siapa saja
+                 * kontraknya mau habis" dari daftar karyawan.
+                 */
+                Tables\Columns\TextColumn::make('contract_end_date')
+                    ->label('Status Kontrak')
+                    ->placeholder('—')
+                    ->date('d M Y')
+                    ->description(function (User $record) {
+                        if (! $record->contract_end_date) {
+                            return null;
+                        }
+                        $days = today()->diffInDays($record->contract_end_date, false);
+                        if ($days < 0) return 'Sudah berakhir';
+                        if ($days <= 30) return "{$days} hari lagi";
+
+                        return null;
+                    })
+                    ->color(function (User $record) {
+                        if (! $record->contract_end_date) {
+                            return 'gray';
+                        }
+                        $days = today()->diffInDays($record->contract_end_date, false);
+                        if ($days < 0) return 'danger';
+                        if ($days <= 30) return 'warning';
+
+                        return 'success';
+                    })
+                    ->toggleable(),
+
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Status')
                     ->boolean()
@@ -797,6 +830,26 @@ class UserResource extends Resource
                 Tables\Filters\Filter::make('tanpa_no_karyawan')
                     ->label('Belum ada No. Karyawan')
                     ->query(fn (Builder $query) => $query->whereNull('employee_number')),
+
+                // Gap standar enterprise (audit Perpanjang Kontrak
+                // 2026-09-27) -- filter dasar untuk "siapa saja kontraknya
+                // akan/sudah habis", sebelumnya tidak ada sama sekali.
+                Tables\Filters\SelectFilter::make('contract_status')
+                    ->label('Status Kontrak')
+                    ->options([
+                        'expiring' => 'Akan Habis (30 hari)',
+                        'expired'  => 'Sudah Berakhir',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        return match ($data['value'] ?? null) {
+                            'expiring' => $query->whereNotNull('contract_end_date')
+                                ->whereDate('contract_end_date', '>=', today())
+                                ->whereDate('contract_end_date', '<=', today()->addDays(30)),
+                            'expired' => $query->whereNotNull('contract_end_date')
+                                ->whereDate('contract_end_date', '<', today()),
+                            default => $query,
+                        };
+                    }),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
