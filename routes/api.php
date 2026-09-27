@@ -327,6 +327,7 @@ Route::prefix('staff')->group(function () {
         // Slip gaji mandiri — sama pola dengan Absensi/Izin, tidak
         // dibatasi hasMenuAccess() (lihat catatan PayrollController).
         Route::get('/payroll', [StaffPayrollController::class, 'index']);
+        Route::get('/payroll/{id}/slip', [StaffPayrollController::class, 'slip']);
 
         // Riwayat Surat Peringatan mandiri — sama pola, read-only (lihat
         // catatan WarningLetterController).
