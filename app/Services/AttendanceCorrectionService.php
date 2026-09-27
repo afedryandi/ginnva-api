@@ -54,26 +54,40 @@ class AttendanceCorrectionService
         }
     }
 
+    /**
+     * Bug diperbaiki 2026-09-27 (audit Koreksi Absensi) -- SEBELUMNYA
+     * isPending() dicek DI LUAR lock/transaction, celah TOCTOU: 2 admin
+     * approve/reject permintaan yang sama nyaris bersamaan bisa
+     * dua-duanya lolos cek "masih pending" sebelum salah satu commit,
+     * hasil akhirnya jadi klik TERAKHIR yang menang tanpa jejak jelas
+     * siapa yang benar-benar memutuskan lebih dulu. Pola sama dengan
+     * lockForUpdate() DI DALAM DB::transaction() yang sudah wajib di
+     * modul finansial lain sesi ini (BookingPostingService/RefundService/
+     * dst) -- isPending() sekarang dicek ULANG pada baris yang SUDAH
+     * dikunci, bukan objek $request lama di memori.
+     */
     public function approve(AttendanceCorrectionRequest $request, int $approvedBy, ?string $notes = null): Attendance
     {
-        if (! $request->isPending()) {
-            throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
-        }
-
         return DB::transaction(function () use ($request, $approvedBy, $notes) {
+            $locked = AttendanceCorrectionRequest::whereKey($request->id)->lockForUpdate()->first();
+
+            if (! $locked || ! $locked->isPending()) {
+                throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
+            }
+
             $attendance = Attendance::updateOrCreate(
-                ['user_id' => $request->user_id, 'date' => $request->date->toDateString()],
+                ['user_id' => $locked->user_id, 'date' => $locked->date->toDateString()],
                 [
-                    'store_id' => $request->store_id,
-                    'entry_type' => $request->entry_type,
-                    'clock_in_at' => $request->clock_in_at,
-                    'clock_out_at' => $request->clock_out_at,
-                    'note' => $request->reason,
+                    'store_id' => $locked->store_id,
+                    'entry_type' => $locked->entry_type,
+                    'clock_in_at' => $locked->clock_in_at,
+                    'clock_out_at' => $locked->clock_out_at,
+                    'note' => $locked->reason,
                     'recorded_by' => $approvedBy,
                 ]
             );
 
-            $request->update([
+            $locked->update([
                 'attendance_id' => $attendance->id,
                 'status' => AttendanceCorrectionRequest::STATUS_APPROVED,
                 'reviewed_by' => $approvedBy,
@@ -81,21 +95,47 @@ class AttendanceCorrectionService
                 'review_notes' => $notes,
             ]);
 
+            // Bug diperbaiki 2026-09-27 (audit Koreksi Absensi) --
+            // SEBELUMNYA staff pengaju TIDAK PERNAH diberi tahu hasilnya,
+            // harus buka app manual & cek status sendiri.
+            $this->notifyRequester($locked, approved: true);
+
             return $attendance;
         });
     }
 
     public function reject(AttendanceCorrectionRequest $request, int $rejectedBy, ?string $notes = null): void
     {
-        if (! $request->isPending()) {
-            throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
+        DB::transaction(function () use ($request, $rejectedBy, $notes) {
+            $locked = AttendanceCorrectionRequest::whereKey($request->id)->lockForUpdate()->first();
+
+            if (! $locked || ! $locked->isPending()) {
+                throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
+            }
+
+            $locked->update([
+                'status' => AttendanceCorrectionRequest::STATUS_REJECTED,
+                'reviewed_by' => $rejectedBy,
+                'reviewed_at' => now(),
+                'review_notes' => $notes,
+            ]);
+
+            $this->notifyRequester($locked, approved: false);
+        });
+    }
+
+    private function notifyRequester(AttendanceCorrectionRequest $request, bool $approved): void
+    {
+        if (! $request->requested_by) {
+            return;
         }
 
-        $request->update([
-            'status' => AttendanceCorrectionRequest::STATUS_REJECTED,
-            'reviewed_by' => $rejectedBy,
-            'reviewed_at' => now(),
-            'review_notes' => $notes,
-        ]);
+        $title = $approved ? 'Koreksi Absensi Disetujui' : 'Koreksi Absensi Ditolak';
+        $body = $approved
+            ? "Pengajuan koreksi absensi Anda tanggal {$request->date->format('d M Y')} sudah disetujui."
+            : "Pengajuan koreksi absensi Anda tanggal {$request->date->format('d M Y')} ditolak."
+                . ($request->review_notes ? " Alasan: {$request->review_notes}" : '');
+
+        app(\App\Services\PushNotificationService::class)->sendToUsers([$request->requested_by], $title, $body);
     }
 }

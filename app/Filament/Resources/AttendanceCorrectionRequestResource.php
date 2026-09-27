@@ -81,7 +81,11 @@ class AttendanceCorrectionRequestResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        // ->with(['user', 'requestedBy']) ditambah 2026-09-27 (audit
+        // Koreksi Absensi) -- kolom dot-notation 'user.name'/
+        // 'requestedBy.name' di table() sebelumnya N+1 per baris (resource
+        // ini dibangun 2026-09-22, setelah sweep N+1 2026-09-14, terlewat).
+        $query = parent::getEloquentQuery()->with(['user', 'requestedBy']);
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -170,7 +174,39 @@ class AttendanceCorrectionRequestResource extends Resource
                     ->visible(fn (AttendanceCorrectionRequest $record) => $record->isPending()
                         && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager()))
                     ->requiresConfirmation()
-                    ->form([
+                    // Gap ditutup 2026-09-27 (audit Koreksi Absensi) --
+                    // SEBELUMNYA admin approve "buta": form cuma tampilkan
+                    // field permintaan BARU, tidak ada info baris Attendance
+                    // yang SUDAH ADA untuk tanggal itu (bisa 'leave'/cuti
+                    // resmi, 'alpha', dst) yang akan DITIMPA jadi 'manual'
+                    // begitu disetujui (lihat AttendanceCorrectionService::
+                    // approve(), updateOrCreate()). Placeholder ini kasih
+                    // konteks itu SEBELUM admin klik Setujui.
+                    ->form(fn (AttendanceCorrectionRequest $record) => [
+                        Forms\Components\Placeholder::make('existing_attendance_info')
+                            ->label('Data Absensi Saat Ini (tanggal ini)')
+                            ->content(function () use ($record) {
+                                $existing = \App\Models\Attendance::where('user_id', $record->user_id)
+                                    ->where('date', $record->date->toDateString())
+                                    ->first();
+
+                                if (! $existing) {
+                                    return 'Belum ada baris absensi untuk tanggal ini — koreksi ini akan MEMBUAT baris baru.';
+                                }
+
+                                $label = match ($existing->entry_type) {
+                                    'clock' => 'Normal (App)',
+                                    'leave' => 'Izin/Cuti (resmi disetujui)',
+                                    'alpha' => 'Alpha (Tidak Ada Keterangan)',
+                                    'manual' => 'Manual',
+                                    'field_duty' => 'Dinas Luar',
+                                    default => $existing->entry_type,
+                                };
+
+                                return "Jenis saat ini: {$label}. Menyetujui koreksi ini akan MENIMPA baris tersebut jadi \"Manual\" sesuai jam yang diajukan.";
+                            })
+                            ->columnSpanFull(),
+
                         Forms\Components\Textarea::make('review_notes')
                             ->label('Catatan (opsional)')
                             ->rows(2),

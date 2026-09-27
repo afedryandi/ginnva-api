@@ -233,6 +233,25 @@ class AttendanceController extends Controller
         }
 
         $date = Carbon::parse($request->date);
+
+        // Gap ditutup 2026-09-27 (audit Koreksi Absensi) -- SEBELUMNYA
+        // tidak ada pengecekan sama sekali, staff bisa submit berkali-kali
+        // untuk tanggal yang sama sebelum yang lama diputuskan, membuat
+        // beberapa baris 'pending' untuk tanggal sama yang membingungkan
+        // approver (mana yang harus diputuskan, dan approve salah satu
+        // bisa menimpa hasil approve lainnya tanpa peringatan).
+        $hasPendingForDate = AttendanceCorrectionRequest::where('user_id', $user->id)
+            ->where('date', $date->toDateString())
+            ->where('status', AttendanceCorrectionRequest::STATUS_PENDING)
+            ->exists();
+
+        if ($hasPendingForDate) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda sudah punya pengajuan koreksi untuk tanggal ini yang masih menunggu persetujuan. Tunggu keputusan admin sebelum mengajukan lagi.',
+            ], 422);
+        }
+
         $existingAttendance = Attendance::where('user_id', $user->id)->where('date', $date->toDateString())->first();
 
         $correctionRequest = app(AttendanceCorrectionService::class)->submit([
