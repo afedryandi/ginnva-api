@@ -37,9 +37,15 @@ class WarningLetterResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    /**
+     * Eager-load user/store/issuer — kolom "user.name"/"store.name"/
+     * "issuer.name" di table() sebelumnya N+1 per baris (audit fitur
+     * Surat Peringatan 2026-09-27, pola sama dengan 13 resource lain
+     * yang sudah disapu sebelumnya, resource ini terlewat).
+     */
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        $query = parent::getEloquentQuery()->with(['user', 'store', 'issuer']);
         $user  = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
