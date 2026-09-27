@@ -38,6 +38,28 @@ class WarningLetterController extends Controller
         ]);
     }
 
+    /**
+     * POST /api/staff/warning-letters/{id}/acknowledge
+     * Ditambahkan 2026-09-27 (audit Surat Peringatan, "Gap standar
+     * enterprise") -- SEBELUMNYA tidak ada bukti karyawan sudah
+     * diberi tahu/membaca SP-nya. Idempotent (tap ulang tidak error)
+     * dan `where('user_id', ...)` men-scope ke SP MILIK SENDIRI --
+     * karyawan tidak bisa menandai SP orang lain sudah dibaca.
+     */
+    public function acknowledge(Request $request, int $id)
+    {
+        $letter = WarningLetter::where('user_id', $request->user('api')->id)->findOrFail($id);
+
+        if (! $letter->acknowledged_at) {
+            $letter->update(['acknowledged_at' => now()]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'warning_letter' => $this->transform($letter->fresh(['issuer'])),
+        ]);
+    }
+
     private function transform(WarningLetter $w): array
     {
         return [
@@ -47,6 +69,7 @@ class WarningLetterController extends Controller
             'reason' => $w->reason,
             'issued_date' => $w->issued_date->toDateString(),
             'valid_until' => $w->valid_until?->toDateString(),
+            'acknowledged_at' => $w->acknowledged_at?->toIso8601String(),
             'document_url' => $w->document ? Storage::disk('public')->url($w->document) : null,
             'issuer_name' => $w->issuer?->name,
         ];

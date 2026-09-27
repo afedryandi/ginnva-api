@@ -30,13 +30,15 @@ class WarningLetter extends Model
         'reason',
         'issued_date',
         'valid_until',
+        'acknowledged_at',
         'document',
         'issued_by',
     ];
 
     protected $casts = [
-        'issued_date' => 'date',
-        'valid_until' => 'date',
+        'issued_date'      => 'date',
+        'valid_until'      => 'date',
+        'acknowledged_at'  => 'datetime',
     ];
 
     public function user(): BelongsTo
@@ -75,7 +77,7 @@ class WarningLetter extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['level', 'reason', 'issued_date', 'valid_until'])
+            ->logOnly(['level', 'reason', 'issued_date', 'valid_until', 'acknowledged_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('warning_letter')

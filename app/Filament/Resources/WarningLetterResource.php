@@ -141,7 +141,45 @@ class WarningLetterResource extends Resource
                             ->pluck('name', 'id')
                         )
                         ->searchable()
-                        ->required(),
+                        ->required()
+                        ->live(),
+
+                    /**
+                     * Gap standar enterprise diperbaiki 2026-09-27 (audit
+                     * Surat Peringatan) -- SEBELUMNYA form tidak
+                     * menampilkan riwayat SP karyawan yang sama sama
+                     * sekali, admin bisa menerbitkan SP3 tanpa tahu
+                     * karyawan itu belum pernah dapat SP1/SP2, atau
+                     * menerbitkan SP1 lagi setelah karyawan sudah SP3.
+                     * SENGAJA berupa info, bukan validasi keras/blocking
+                     * -- pelanggaran baru bisa saja memang layak SP3
+                     * langsung tanpa riwayat, keputusan tetap di tangan
+                     * admin, sistem cuma wajib menampilkan konteksnya.
+                     */
+                    Forms\Components\Placeholder::make('warning_history')
+                        ->label('Riwayat SP Karyawan Ini')
+                        ->visible(fn (Forms\Get $get) => filled($get('user_id')))
+                        ->content(function (Forms\Get $get) {
+                            $userId = $get('user_id');
+                            if (! $userId) {
+                                return '—';
+                            }
+
+                            $previous = \App\Models\WarningLetter::where('user_id', $userId)
+                                ->orderByDesc('issued_date')
+                                ->get(['level', 'issued_date', 'warning_number']);
+
+                            if ($previous->isEmpty()) {
+                                return 'Belum pernah menerima SP sebelumnya.';
+                            }
+
+                            $lines = $previous->map(fn ($w) => e(strtoupper(str_replace('sp', 'SP ', $w->level)))
+                                . ' — ' . e($w->warning_number)
+                                . ' (' . e($w->issued_date->translatedFormat('d M Y')) . ')');
+
+                            return new \Illuminate\Support\HtmlString($lines->implode('<br>'));
+                        })
+                        ->columnSpanFull(),
 
                     Forms\Components\Select::make('level')
                         ->label('Tingkat')
@@ -167,6 +205,19 @@ class WarningLetterResource extends Resource
                         ->directory('warning-letters')
                         ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
                         ->maxSize(10240),
+
+                    /**
+                     * Read-only -- HANYA karyawan sendiri yang bisa
+                     * mengisi ini (lewat tombol "Tandai Sudah Dibaca" di
+                     * mobile), admin tidak boleh menandai atas nama
+                     * karyawan (lihat migrasi acknowledged_at).
+                     */
+                    Forms\Components\Placeholder::make('acknowledged_at')
+                        ->label('Dibaca Karyawan')
+                        ->visible(fn (?WarningLetter $record) => $record !== null)
+                        ->content(fn (?WarningLetter $record) => $record?->acknowledged_at
+                            ? $record->acknowledged_at->translatedFormat('d M Y H:i')
+                            : 'Belum dibaca karyawan'),
 
                     Forms\Components\Textarea::make('reason')
                         ->label('Alasan / Pelanggaran')
@@ -223,6 +274,18 @@ class WarningLetterResource extends Resource
                     ->label('Diterbitkan Oleh')
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\IconColumn::make('acknowledged_at')
+                    ->label('Dibaca Karyawan')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-clock')
+                    ->trueColor('success')
+                    ->falseColor('gray')
+                    ->tooltip(fn (WarningLetter $record) => $record->acknowledged_at
+                        ? 'Dibaca ' . $record->acknowledged_at->translatedFormat('d M Y H:i')
+                        : 'Belum dibaca karyawan')
+                    ->toggleable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('level')
@@ -233,6 +296,34 @@ class WarningLetterResource extends Resource
                     ->label('Toko')
                     ->relationship('store', 'name')
                     ->visible(fn () => auth()->user()?->isFullAccess()),
+
+                // Gap standar enterprise (audit 2026-09-27) -- SEBELUMNYA
+                // tidak ada filter per karyawan/rentang tanggal sama
+                // sekali, tidak mungkin membuat rekap SP per karyawan
+                // atau per periode dari tabel ini tanpa filter dasar ini.
+                Tables\Filters\SelectFilter::make('user_id')
+                    ->label('Karyawan')
+                    ->relationship('user', 'name')
+                    ->searchable(),
+
+                Tables\Filters\Filter::make('issued_date')
+                    ->label('Rentang Tanggal Terbit')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')->label('Dari'),
+                        Forms\Components\DatePicker::make('until')->label('Sampai'),
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        return $query
+                            ->when($data['from'] ?? null, fn ($q, $date) => $q->whereDate('issued_date', '>=', $date))
+                            ->when($data['until'] ?? null, fn ($q, $date) => $q->whereDate('issued_date', '<=', $date));
+                    })
+                    ->indicateUsing(function (array $data) {
+                        $indicators = [];
+                        if ($data['from'] ?? null) $indicators[] = 'Dari ' . \Carbon\Carbon::parse($data['from'])->translatedFormat('d M Y');
+                        if ($data['until'] ?? null) $indicators[] = 'Sampai ' . \Carbon\Carbon::parse($data['until'])->translatedFormat('d M Y');
+
+                        return $indicators;
+                    }),
             ])
             ->actions([
                 Tables\Actions\Action::make('viewDocument')

@@ -332,6 +332,7 @@ Route::prefix('staff')->group(function () {
         // Riwayat Surat Peringatan mandiri — sama pola, read-only (lihat
         // catatan WarningLetterController).
         Route::get('/warning-letters', [StaffWarningLetterController::class, 'index']);
+        Route::post('/warning-letters/{id}/acknowledge', [StaffWarningLetterController::class, 'acknowledge']);
 
         // Sistem inventaris — scan QR kardus/barang fisik untuk lihat
         // detail + catat keluar/masuk. Dibatasi ke staff yang akun
