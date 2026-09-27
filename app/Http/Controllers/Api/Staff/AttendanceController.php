@@ -65,6 +65,13 @@ class AttendanceController extends Controller
             // tidak kirim (mis. iOS, yang tidak punya info ini sama
             // sekali) atau versi app lama sebelum field ini ada.
             'is_mocked' => 'nullable|boolean',
+            // Fitur "Foto Selfie Absensi" (2026-09-27, diminta user) --
+            // WAJIB, di ATAS validasi radius yang sudah ada (bukan
+            // pengganti). Mobile app memaksa kamera langsung (bukan
+            // galeri, lihat app/staff/attendance/index.tsx) -- TIDAK ada
+            // deteksi wajah otomatis di sini (keputusan user), foto
+            // murni bukti visual buat ditinjau manual admin.
+            'photo'     => 'required|image|max:5120',
         ]);
 
         $user = $request->user('api');
@@ -77,9 +84,23 @@ class AttendanceController extends Controller
             ], 422);
         }
 
+        $photoPath = $request->file('photo')->store('attendance-photos', 'public');
+
         try {
-            $attendance = Attendance::clockIn($user, $store, (float) $request->latitude, (float) $request->longitude, $request->has('is_mocked') ? $request->boolean('is_mocked') : null);
+            $attendance = Attendance::clockIn(
+                $user,
+                $store,
+                (float) $request->latitude,
+                (float) $request->longitude,
+                $request->has('is_mocked') ? $request->boolean('is_mocked') : null,
+                $photoPath
+            );
         } catch (\InvalidArgumentException $e) {
+            // Gagal validasi (di luar radius/mock) -- hapus foto yang
+            // sudah terlanjur ter-upload supaya tidak jadi file yatim
+            // menumpuk di storage untuk absen yang ditolak.
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($photoPath);
+
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
@@ -95,13 +116,23 @@ class AttendanceController extends Controller
             'latitude'  => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
             'is_mocked' => 'nullable|boolean',
+            'photo'     => 'required|image|max:5120',
         ]);
 
         $user = $request->user('api');
+        $photoPath = $request->file('photo')->store('attendance-photos', 'public');
 
         try {
-            $attendance = Attendance::clockOut($user, (float) $request->latitude, (float) $request->longitude, $request->has('is_mocked') ? $request->boolean('is_mocked') : null);
+            $attendance = Attendance::clockOut(
+                $user,
+                (float) $request->latitude,
+                (float) $request->longitude,
+                $request->has('is_mocked') ? $request->boolean('is_mocked') : null,
+                $photoPath
+            );
         } catch (\InvalidArgumentException $e) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($photoPath);
+
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
@@ -350,6 +381,8 @@ class AttendanceController extends Controller
             'clock_in_at' => $attendance->clock_in_at?->toIso8601String(),
             'clock_out_at' => $attendance->clock_out_at?->toIso8601String(),
             'clock_in_distance_meters' => $attendance->clock_in_distance_meters,
+            'clock_in_photo_url' => $attendance->clock_in_photo ? \Illuminate\Support\Facades\Storage::disk('public')->url($attendance->clock_in_photo) : null,
+            'clock_out_photo_url' => $attendance->clock_out_photo ? \Illuminate\Support\Facades\Storage::disk('public')->url($attendance->clock_out_photo) : null,
             'late_minutes' => $attendance->late_minutes,
             'early_leave_minutes' => $attendance->early_leave_minutes,
             'note' => $attendance->note,

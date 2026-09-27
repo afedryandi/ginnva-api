@@ -46,10 +46,16 @@ class Attendance extends Model
         'clock_in_longitude',
         'clock_in_distance_meters',
         'clock_in_is_mocked',
+        // Fitur "Foto Selfie Absensi" (2026-09-27) -- foto kamera langsung
+        // (bukan galeri), WAJIB diisi controller untuk entri 'clock' dari
+        // app, opsional untuk entri manual admin (lihat migrasi
+        // add_photo_to_attendances_table).
+        'clock_in_photo',
         'clock_out_at',
         'clock_out_latitude',
         'clock_out_longitude',
         'clock_out_is_mocked',
+        'clock_out_photo',
         'late_minutes',
         'early_leave_minutes',
         // Gap ditutup 2026-09-26 (audit Absensi Karyawan) -- lihat
@@ -127,11 +133,11 @@ class Attendance extends Model
      *
      * @throws \InvalidArgumentException kalau sudah ada clock-in hari ini, di luar radius toko, atau lokasi terdeteksi palsu.
      */
-    public static function clockIn(User $user, Store $store, float $lat, float $lng, ?bool $isMocked = null): self
+    public static function clockIn(User $user, Store $store, float $lat, float $lng, ?bool $isMocked = null, ?string $photoPath = null): self
     {
         $today = Carbon::today();
 
-        return DB::transaction(function () use ($user, $store, $lat, $lng, $isMocked, $today) {
+        return DB::transaction(function () use ($user, $store, $lat, $lng, $isMocked, $photoPath, $today) {
             $existing = self::where('user_id', $user->id)->where('date', $today->toDateString())
                 ->lockForUpdate()->first();
 
@@ -154,6 +160,7 @@ class Attendance extends Model
                 'clock_in_longitude'        => $lng,
                 'clock_in_distance_meters'  => $distance !== null ? (int) round($distance) : null,
                 'clock_in_is_mocked'        => $isMocked,
+                'clock_in_photo'            => $photoPath,
                 'late_minutes'              => $lateMinutes,
             ];
 
@@ -256,13 +263,11 @@ class Attendance extends Model
      * prioritas dengan AttendancePatternService::classify() (override
      * harian ScheduleDayOverride menang atas EmployeeScheduleAssignment
      * biasa), tapi versi SATU-USER (bukan bulk) karena dipanggil sekali
-     * per clock-in/out, bukan dalam loop laporan.
-     */
-    /**
-     * Public (bukan protected) supaya bisa dipakai ulang di luar model ini
-     * -- lihat App\Console\Commands\NotifyMissingClockins (audit Absensi
-     * Karyawan 2026-09-26), yang butuh resolusi Shift yang SAMA persis
-     * tanpa duplikasi logic.
+     * per clock-in/out, bukan dalam loop laporan. Public (bukan protected)
+     * supaya bisa dipakai ulang di luar model ini -- lihat
+     * App\Console\Commands\NotifyMissingClockins (audit Absensi Karyawan
+     * 2026-09-26), yang butuh resolusi Shift yang SAMA persis tanpa
+     * duplikasi logic.
      */
     public static function resolveShiftFor(int $userId, Carbon $date): ?\App\Models\Shift
     {
@@ -293,11 +298,11 @@ class Attendance extends Model
     /**
      * @throws \InvalidArgumentException kalau belum absen masuk, sudah absen keluar hari ini, di luar radius toko, atau lokasi terdeteksi palsu.
      */
-    public static function clockOut(User $user, float $lat, float $lng, ?bool $isMocked = null): self
+    public static function clockOut(User $user, float $lat, float $lng, ?bool $isMocked = null, ?string $photoPath = null): self
     {
         $today = Carbon::today();
 
-        return DB::transaction(function () use ($user, $lat, $lng, $isMocked, $today) {
+        return DB::transaction(function () use ($user, $lat, $lng, $isMocked, $photoPath, $today) {
             $attendance = self::where('user_id', $user->id)->where('date', $today->toDateString())
                 ->lockForUpdate()->first();
 
@@ -334,6 +339,7 @@ class Attendance extends Model
                 'clock_out_latitude'   => $lat,
                 'clock_out_longitude'  => $lng,
                 'clock_out_is_mocked'  => $isMocked,
+                'clock_out_photo'      => $photoPath,
                 'early_leave_minutes'  => self::calculateEarlyLeaveMinutes($user, $attendance->store, $today, $now),
             ]);
 

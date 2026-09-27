@@ -206,6 +206,29 @@ class AttendanceResource extends Resource
                             }
                         }),
 
+                    // Fitur "Foto Selfie Absensi" (2026-09-27) -- read-only
+                    // (staff isi lewat app saat clock-in/out, tidak pernah
+                    // via Filament), cuma tampil kalau memang ada (entri
+                    // manual/dinas luar buatan admin tidak punya foto sama
+                    // sekali, itu wajar). ->disabled() TETAP menampilkan
+                    // thumbnail preview file yang sudah ada, cukup untuk
+                    // verifikasi manual tanpa perlu infolist terpisah.
+                    Forms\Components\FileUpload::make('clock_in_photo')
+                        ->label('Foto Absen Masuk')
+                        ->image()
+                        ->directory('attendance-photos')
+                        ->disabled()
+                        ->dehydrated(false)
+                        ->visible(fn (?Attendance $record) => (bool) $record?->clock_in_photo),
+
+                    Forms\Components\FileUpload::make('clock_out_photo')
+                        ->label('Foto Absen Keluar')
+                        ->image()
+                        ->directory('attendance-photos')
+                        ->disabled()
+                        ->dehydrated(false)
+                        ->visible(fn (?Attendance $record) => (bool) $record?->clock_out_photo),
+
                     Forms\Components\Textarea::make('note')
                         ->label(fn (?Attendance $record) => $record && in_array($record->entry_type, ['clock', 'alpha', 'leave']) ? 'Alasan Koreksi (wajib)' : 'Alasan / Catatan')
                         ->required()
