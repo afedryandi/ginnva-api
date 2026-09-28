@@ -26,8 +26,25 @@ use RuntimeException;
  */
 class FinanceTransactionApprovalService
 {
+    /**
+     * @throws RuntimeException kalau kategori tidak ada/nonaktif atau belum
+     *         terhubung ke akun Bagan Akun. Dicek SAAT PENGAJUAN (audit
+     *         Kategori Keuangan 2026-09-28) -- sebelumnya kegagalan baru
+     *         muncul saat direksi menyetujui, setelah pengajuan melewati
+     *         dua level approval.
+     */
     public function submit(array $data, User $requester): FinanceTransactionApprovalRequest
     {
+        $category = \App\Models\FinanceCategory::find($data['finance_category_id'] ?? null);
+
+        if (! $category || ! $category->is_active) {
+            throw new RuntimeException('Kategori tidak ditemukan atau sudah nonaktif.');
+        }
+
+        if (! $category->chart_of_account_id) {
+            throw new RuntimeException("Kategori \"{$category->name}\" belum terhubung ke akun Bagan Akun, pengajuan tidak bisa dibuat. Hubungi admin keuangan.");
+        }
+
         $status = $requester->isStoreManager() ? 'pending_direksi' : 'pending_manager';
 
         $request = FinanceTransactionApprovalRequest::create([

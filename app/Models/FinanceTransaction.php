@@ -42,6 +42,25 @@ class FinanceTransaction extends Model
     }
 
     /**
+     * SNAPSHOT akun kategori saat transaksi dibuat / kategorinya diganti
+     * (audit Kategori Keuangan 2026-09-28) -- laporan berbasis akun tidak
+     * lagi bergantung pada akun kategori "saat ini".
+     */
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'chart_of_account_id');
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (FinanceTransaction $transaction) {
+            if (! $transaction->exists || $transaction->isDirty('finance_category_id') || ! $transaction->chart_of_account_id) {
+                $transaction->chart_of_account_id = FinanceCategory::where('id', $transaction->finance_category_id)->value('chart_of_account_id');
+            }
+        });
+    }
+
+    /**
      * Jurnal Umum yang otomatis dibuat dari transaksi ini — lihat
      * FinanceTransactionPostingService. Null kalau transaksi ini dibuat
      * sebelum Fase 3 (integrasi otomatis) ada, sampai transaksinya

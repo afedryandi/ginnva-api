@@ -47,10 +47,33 @@ class EditFinanceTransaction extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        $category = FinanceCategory::find($data['finance_category_id']);
-        if ($category) {
-            $data['type'] = $category->type;
+        // Kategori harus ada; harus AKTIF kecuali tidak diganti dari yang
+        // sudah melekat di transaksi ini (kategori yang belakangan
+        // dinonaktifkan tidak boleh mengunci edit transaksi lama).
+        $category = FinanceCategory::find($data['finance_category_id'] ?? null);
+        $unchanged = $category && (int) $category->id === (int) $this->record->finance_category_id;
+
+        if (! $category || (! $category->is_active && ! $unchanged)) {
+            Notification::make()
+                ->title('Kategori tidak valid')
+                ->body('Pilih kategori yang aktif.')
+                ->danger()
+                ->send();
+
+            $this->halt();
         }
+
+        if ($category->is_group) {
+            Notification::make()
+                ->title('Kategori tidak valid')
+                ->body('Kategori grup tidak bisa dipakai untuk transaksi; pilih kategori di bawahnya.')
+                ->danger()
+                ->send();
+
+            $this->halt();
+        }
+
+        $data['type'] = $category->type;
 
         return $data;
     }

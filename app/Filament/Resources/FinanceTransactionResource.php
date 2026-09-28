@@ -133,10 +133,16 @@ class FinanceTransactionResource extends Resource
 
                     Forms\Components\Select::make('finance_category_id')
                         ->label('Kategori')
-                        ->options(fn (Forms\Get $get) => FinanceCategory::where('is_active', true)
-                            ->where('type', $get('type') ?? 'out')
+                        // Kategori NONAKTIF yang sudah melekat di transaksi ini tetap
+                        // jadi opsi (berlabel) -- sebelumnya label kosong & transaksi
+                        // lama tidak bisa disimpan tanpa memilih ulang (audit
+                        // Kategori Keuangan 2026-09-28).
+                        ->options(fn (Forms\Get $get) => FinanceCategory::where('type', $get('type') ?? 'out')
+                            ->where('is_group', false)
+                            ->where(fn ($q) => $q->where('is_active', true)->orWhere('id', $get('finance_category_id')))
                             ->orderBy('sort_order')
-                            ->pluck('name', 'id'))
+                            ->get()
+                            ->mapWithKeys(fn (FinanceCategory $c) => [$c->id => $c->name . ($c->is_active ? '' : ' (nonaktif)')]))
                         ->searchable()
                         ->required()
                         ->helperText(fn (Forms\Get $get) => FinanceCategory::where('is_active', true)->where('type', $get('type') ?? 'out')->exists()

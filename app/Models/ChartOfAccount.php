@@ -132,6 +132,7 @@ class ChartOfAccount extends Model
             'jurnal' => DB::table('journal_entry_lines')->where('chart_of_account_id', $this->id)->count(),
             'mutasi bank' => DB::table('bank_statement_lines')->where('chart_of_account_id', $this->id)->count(),
             'kategori keuangan' => DB::table('finance_categories')->where('chart_of_account_id', $this->id)->count(),
+            'transaksi keuangan' => DB::table('finance_transactions')->where('chart_of_account_id', $this->id)->count(),
             'aset tetap' => DB::table('assets')
                 ->where(fn ($q) => $q->where('chart_of_account_id', $this->id)->orWhere('accumulated_depreciation_account_id', $this->id))
                 ->count(),

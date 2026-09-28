@@ -35,10 +35,31 @@ class CreateFinanceTransaction extends CreateRecord
         // ketidaksinkronan state form (mis. race saat ganti tipe cepat),
         // supaya transaksi tidak pernah tersimpan dengan type yang beda
         // dari kategori aslinya.
-        $category = FinanceCategory::find($data['finance_category_id']);
-        if ($category) {
-            $data['type'] = $category->type;
+        // Validasi SERVER (audit Kategori Keuangan 2026-09-28): kategori harus
+        // ada dan AKTIF -- sebelumnya id palsu/nonaktif lolos dan type
+        // dibiarkan dari input.
+        $category = FinanceCategory::find($data['finance_category_id'] ?? null);
+        if (! $category || ! $category->is_active) {
+            Notification::make()
+                ->title('Kategori tidak valid')
+                ->body('Pilih kategori yang aktif.')
+                ->danger()
+                ->send();
+
+            $this->halt();
         }
+
+        if ($category->is_group) {
+            Notification::make()
+                ->title('Kategori tidak valid')
+                ->body('Kategori grup tidak bisa dipakai untuk transaksi; pilih kategori di bawahnya.')
+                ->danger()
+                ->send();
+
+            $this->halt();
+        }
+
+        $data['type'] = $category->type;
 
         return $data;
     }
@@ -56,7 +77,17 @@ class CreateFinanceTransaction extends CreateRecord
         $user = auth()->user();
 
         if ($data['type'] === 'out' && ! ($user?->isFullAccess() ?? false)) {
-            $request = app(FinanceTransactionApprovalService::class)->submit($data, $user);
+            try {
+                $request = app(FinanceTransactionApprovalService::class)->submit($data, $user);
+            } catch (RuntimeException $e) {
+                Notification::make()
+                    ->title('Pengajuan tidak bisa dibuat')
+                    ->body($e->getMessage())
+                    ->danger()
+                    ->send();
+
+                $this->halt();
+            }
 
             Notification::make()
                 ->title('Menunggu persetujuan')

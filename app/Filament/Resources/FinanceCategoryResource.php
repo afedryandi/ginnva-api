@@ -72,7 +72,8 @@ class FinanceCategoryResource extends Resource
     public static function canDelete($record): bool
     {
         return static::canViewAny()
-            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false)
+            && ! $record->hasTransactions();
     }
 
     public static function canDeleteAny(): bool
@@ -84,10 +85,21 @@ class FinanceCategoryResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
+            Forms\Components\TextInput::make('code')
+                ->label('Kode Kategori (opsional)')
+                ->maxLength(20)
+                ->unique(ignoreRecord: true)
+                ->placeholder('Mis. OPS-01'),
+
             Forms\Components\TextInput::make('name')
                 ->label('Nama Kategori')
                 ->required()
-                ->unique(ignoreRecord: true)
+                // Unik per (tipe, nama) -- constraint DB ada di migrasi
+                // add_unique_type_name_to_finance_categories_table.
+                ->unique(
+                    ignoreRecord: true,
+                    modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule, Forms\Get $get) => $rule->where('type', $get('type'))
+                )
                 ->maxLength(255)
                 ->placeholder('Mis. Sewa Toko, Listrik & Air, Booking/Penjualan'),
 
@@ -99,7 +111,42 @@ class FinanceCategoryResource extends Resource
                 ])
                 ->required()
                 ->live()
-                ->afterStateUpdated(fn (Forms\Set $set) => $set('chart_of_account_id', null)),
+                ->afterStateUpdated(fn (Forms\Set $set) => $set('chart_of_account_id', null))
+                // Terkunci setelah kategori dipakai transaksi (audit
+                // Kategori Keuangan 2026-09-28) -- mengubah tipe membalik
+                // transaksi lama saat diedit & memindah laporan per-kategori.
+                ->disabled(fn (?FinanceCategory $record) => $record?->hasTransactions() ?? false)
+                ->dehydrated()
+                ->helperText(fn (?FinanceCategory $record) => ($record?->hasTransactions() ?? false)
+                    ? 'Terkunci: kategori ini sudah dipakai transaksi. Buat kategori baru dan nonaktifkan yang lama kalau perlu tipe berbeda.'
+                    : null),
+
+            // Hierarki 1 tingkat (audit Kategori Keuangan 2026-09-28): kategori
+            // GRUP membungkus kategori anak untuk pengelompokan tampilan;
+            // grup tidak menerima transaksi dan tidak punya akun.
+            Forms\Components\Toggle::make('is_group')
+                ->label('Kategori Grup (pembungkus)')
+                ->live()
+                ->default(false)
+                ->disabled(fn (?FinanceCategory $record) => $record !== null && ($record->hasTransactions() || $record->children()->exists()))
+                ->dehydrated()
+                ->helperText('Grup hanya untuk mengelompokkan kategori lain (mis. "Beban Toko"): tidak bisa dipilih di transaksi dan tidak punya akun.'),
+
+            Forms\Components\Select::make('parent_id')
+                ->label('Induk Grup (opsional)')
+                ->options(fn (Forms\Get $get, ?FinanceCategory $record) => FinanceCategory::where('is_group', true)
+                    ->where('type', $get('type'))
+                    ->when($record, fn ($q) => $q->where('id', '!=', $record->id))
+                    ->orderBy('sort_order')
+                    ->pluck('name', 'id'))
+                ->visible(fn (Forms\Get $get) => ! $get('is_group'))
+                ->searchable()
+                ->placeholder('— Tidak ada (tingkat atas) —'),
+
+            Forms\Components\Textarea::make('description')
+                ->label('Deskripsi (opsional)')
+                ->rows(2)
+                ->columnSpanFull(),
 
             // Menghubungkan kategori ini ke akun Bagan Akun — dipakai
             // FinanceTransactionPostingService supaya transaksi dengan
@@ -111,14 +158,36 @@ class FinanceCategoryResource extends Resource
                 ->label('Akun Bagan Akun')
                 ->options(fn (Forms\Get $get) => ChartOfAccount::where('is_postable', true)
                     ->where('is_active', true)
-                    ->whereIn('type', $get('type') === 'in'
-                        ? ['pendapatan', 'pendapatan_lain']
-                        : ['beban_pokok', 'beban_operasional', 'beban_lain', 'pajak'])
+                    ->whereIn('type', FinanceCategory::ACCOUNT_TYPES[$get('type') === 'in' ? 'in' : 'out'])
                     ->orderBy('code')
                     ->get()
                     ->mapWithKeys(fn (ChartOfAccount $a) => [$a->id => $a->display_name]))
                 ->searchable()
-                ->helperText('Wajib diisi supaya transaksi kategori ini bisa otomatis tercatat di Jurnal Umum.'),
+                ->visible(fn (Forms\Get $get) => ! $get('is_group'))
+                ->required(fn (?FinanceCategory $record, Forms\Get $get) => $record === null && ! $get('is_group'))
+                // Validasi SERVER (bukan cuma opsi dropdown): akun harus
+                // aktif, postable, dan klasifikasinya sesuai tipe kategori.
+                ->rules([
+                    fn (Forms\Get $get) => function (string $attribute, $value, \Closure $fail) use ($get) {
+                        if ($error = FinanceCategory::validateAccount($value ? (int) $value : null, $get('type'))) {
+                            $fail($error);
+                        }
+                    },
+                ])
+                ->disabled(fn (?FinanceCategory $record) => $record?->hasTransactions() ?? false)
+                ->dehydrated()
+                ->helperText(fn (?FinanceCategory $record) => ($record?->hasTransactions() ?? false)
+                    ? 'Terkunci: kategori ini sudah dipakai transaksi (jurnal lama menunjuk akun ini).'
+                    : 'Wajib untuk kategori baru, supaya transaksi kategori ini otomatis tercatat di Jurnal Umum.'),
+
+            // Peringatan untuk kategori LAMA yang belum terhubung akun
+            // (gap audit Kategori Keuangan 2026-09-28): transaksi kategori
+            // ini akan ditolak saat diposting ke Jurnal Umum.
+            Forms\Components\Placeholder::make('no_account_warning')
+                ->label('')
+                ->visible(fn (?FinanceCategory $record) => $record !== null && ! $record->is_group && ! $record->chart_of_account_id)
+                ->content('Peringatan: kategori ini belum terhubung ke akun Bagan Akun. Transaksi dengan kategori ini akan ditolak sampai akun dipilih.')
+                ->columnSpanFull(),
 
             Forms\Components\TextInput::make('sort_order')
                 ->label('Urutan Tampil')
@@ -141,17 +210,27 @@ class FinanceCategoryResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with('account');
+        return parent::getEloquentQuery()->with(['account', 'parent']);
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('code')
+                    ->label('Kode')
+                    ->searchable()
+                    ->placeholder('—')
+                    ->fontFamily('mono')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama Kategori')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->formatStateUsing(fn (FinanceCategory $record, string $state) => ($record->parent_id ? '— ' : '') . $state)
+                    ->weight(fn (FinanceCategory $record) => $record->is_group ? 'bold' : 'normal')
+                    ->description(fn (FinanceCategory $record) => $record->is_group ? 'Grup' : $record->parent?->name),
 
                 Tables\Columns\BadgeColumn::make('type')
                     ->label('Tipe')
@@ -172,7 +251,8 @@ class FinanceCategoryResource extends Resource
                 Tables\Columns\TextColumn::make('account.display_name')
                     ->label('Akun Bagan Akun')
                     ->placeholder('Belum dihubungkan')
-                    ->color(fn (FinanceCategory $record) => $record->chart_of_account_id ? null : 'danger')
+                    ->placeholder(fn (FinanceCategory $record) => $record->is_group ? '(grup, tanpa akun)' : 'Belum dihubungkan')
+                    ->color(fn (FinanceCategory $record) => ($record->chart_of_account_id || $record->is_group) ? null : 'danger')
                     ->toggleable(),
 
                 Tables\Columns\IconColumn::make('is_active')
@@ -188,6 +268,13 @@ class FinanceCategoryResource extends Resource
                 Tables\Filters\SelectFilter::make('type')
                     ->label('Tipe')
                     ->options(['in' => 'Pemasukan', 'out' => 'Pengeluaran']),
+
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Aktif'),
+
+                Tables\Filters\Filter::make('tanpa_akun')
+                    ->label('Belum terhubung akun')
+                    ->query(fn (Builder $query) => $query->whereNull('chart_of_account_id')->where('is_group', false)),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
