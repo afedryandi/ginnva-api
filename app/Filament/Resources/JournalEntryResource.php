@@ -623,9 +623,10 @@ class JournalEntryResource extends Resource
     public static function getPages(): array
     {
         return [
-            'view' => Pages\ViewJournalEntry::route('/{record}'),
             'index' => Pages\ListJournalEntries::route('/'),
             'create' => Pages\CreateJournalEntry::route('/create'),
+            // HARUS setelah 'create': '/{record}' akan menelan '/create' kalau didaftarkan lebih dulu.
+            'view' => Pages\ViewJournalEntry::route('/{record}'),
             'edit' => Pages\EditJournalEntry::route('/{record}/edit'),
         ];
     }
