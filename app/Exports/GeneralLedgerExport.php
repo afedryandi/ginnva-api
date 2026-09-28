@@ -27,6 +27,8 @@ class GeneralLedgerExport implements FromArray, WithHeadings, WithStyles
             'Debit',
             'Kredit',
             'Saldo Berjalan',
+            'Sumber',
+            'Pembuat',
         ];
     }
 
@@ -35,16 +37,19 @@ class GeneralLedgerExport implements FromArray, WithHeadings, WithStyles
         $r = $this->result;
         $rows = [];
 
-        $rows[] = ['Saldo Awal', '', '', '', '', (float) $r['opening_balance']];
+        $rows[] = ['Saldo Awal', '', '', '', '', (float) $r['opening_balance'], '', ''];
 
         foreach ($r['rows'] as $row) {
             $rows[] = [
                 $row['entry_date']->format('Y-m-d'),
                 $row['entry_number'],
                 $row['description'],
-                $row['debit'] > 0 ? (float) $row['debit'] : '—',
-                $row['credit'] > 0 ? (float) $row['credit'] : '—',
+                // Kosong (bukan teks "—") supaya kolom tetap numerik dan bisa dijumlah/difilter di Excel.
+                $row['debit'] > 0 ? (float) $row['debit'] : '',
+                $row['credit'] > 0 ? (float) $row['credit'] : '',
                 (float) $row['running_balance'],
+                $row['source'] ?? '',
+                $row['creator'] ?? '',
             ];
         }
 
@@ -53,14 +58,21 @@ class GeneralLedgerExport implements FromArray, WithHeadings, WithStyles
             (float) $r['total_debit'],
             (float) $r['total_credit'],
             (float) $r['closing_balance'],
+            '', '',
         ];
+
+        $rows[] = [];
+        $rows[] = ['Akun', $r['account']->display_name];
+        $rows[] = ['Periode', $r['from']->format('d M Y') . ' - ' . $r['to']->format('d M Y')];
+        $rows[] = ['Toko', $r['store_label'] ?? 'Semua Toko'];
 
         return $rows;
     }
 
     public function styles(Worksheet $sheet): array
     {
-        $lastRow = 2 + count($this->result['rows']);
+        // Baris: 1 heading, 2 Saldo Awal, 3..(2+n) mutasi, lalu Total di (3+n).
+        $lastRow = 3 + count($this->result['rows']);
 
         return [
             1 => [

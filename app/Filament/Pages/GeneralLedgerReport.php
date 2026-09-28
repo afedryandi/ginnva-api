@@ -10,20 +10,24 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Buku Besar — rincian TIAP baris jurnal yang menyentuh 1 akun terpilih
  * dalam 1 rentang tanggal, dengan saldo berjalan per baris. Pelengkap
  * Neraca Saldo yang cuma kasih 1 angka saldo akhir per akun — ini yang
- * dipakai untuk "ngecek kenapa saldo akun ini segini". TERBATAS
- * full-access, sama filosofi dengan TrialBalanceReport/IncomeStatementReport.
+ * dipakai untuk "ngecek kenapa saldo akun ini segini". TERBATAS full-access;
+ * Spv Finance dst. bisa diberi izin baca lewat Hak Akses Detail ('view', default ditolak) dan yang
+ * punya toko dikunci ke tokonya (audit Buku Besar 2026-09-29).
  */
 class GeneralLedgerReport extends Page implements HasForms
 {
@@ -47,7 +51,17 @@ class GeneralLedgerReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return ($user?->isFullAccess() ?? false)
+            || ($user?->canAccessStaffArea()
+                && $user->hasMenuAccess(static::class)
+                && $user->hasModuleAction(static::class, 'view', false));
+    }
+
+    private function isRestricted(): bool
+    {
+        return ! (auth()->user()?->isFullAccess() ?? false);
     }
 
     public function mount(): void
@@ -61,8 +75,19 @@ class GeneralLedgerReport extends Page implements HasForms
                 : ChartOfAccount::where('is_postable', true)->where('is_active', true)->orderBy('code')->value('id'),
             'from' => $validDate($query['from'] ?? null) ?? now()->startOfMonth()->toDateString(),
             'to' => $validDate($query['to'] ?? null) ?? now()->endOfMonth()->toDateString(),
-            'store_id' => isset($query['store_id']) && is_numeric($query['store_id']) ? (int) $query['store_id'] : null,
+            'store_id' => $this->isRestricted() && auth()->user()?->store_id !== null
+                ? auth()->user()->store_id
+                : (isset($query['store_id']) && is_numeric($query['store_id']) ? (int) $query['store_id'] : null),
         ]);
+    }
+
+    private function accountOptions(): array
+    {
+        return ChartOfAccount::where('is_postable', true)->where('is_active', true)
+            ->orderBy('code')
+            ->get()
+            ->mapWithKeys(fn (ChartOfAccount $a) => [$a->id => $a->display_name])
+            ->all();
     }
 
     public function form(Form $form): Form
@@ -71,14 +96,38 @@ class GeneralLedgerReport extends Page implements HasForms
             ->schema([
                 Select::make('chart_of_account_id')
                     ->label('Akun')
-                    ->options(fn () => ChartOfAccount::where('is_postable', true)->where('is_active', true)
-                        ->orderBy('code')
-                        ->get()
-                        ->mapWithKeys(fn (ChartOfAccount $a) => [$a->id => $a->display_name]))
+                    ->options(fn () => $this->accountOptions())
                     ->searchable()
                     ->required()
                     ->live()
                     ->columnSpanFull(),
+
+                Select::make('preset')
+                    ->label('Periode Cepat')
+                    ->options([
+                        'this_month' => 'Bulan ini',
+                        'last_month' => 'Bulan lalu',
+                        'this_quarter' => 'Kuartal ini',
+                        'ytd' => 'Tahun ini (s.d. hari ini)',
+                        'last_year' => 'Tahun lalu',
+                    ])
+                    ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                    ->live()
+                    ->afterStateUpdated(function (?string $state, Set $set) {
+                        $range = match ($state) {
+                            'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                            'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                            'this_quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+                            'ytd' => [now()->startOfYear(), now()],
+                            'last_year' => [now()->subYear()->startOfYear(), now()->subYear()->endOfYear()],
+                            default => null,
+                        };
+
+                        if ($range) {
+                            $set('from', $range[0]->toDateString());
+                            $set('to', $range[1]->toDateString());
+                        }
+                    }),
 
                 DatePicker::make('from')
                     ->label('Dari Tanggal')
@@ -94,14 +143,76 @@ class GeneralLedgerReport extends Page implements HasForms
 
                 Select::make('store_id')
                     ->label('Toko')
-                    ->options(fn () => [\App\Services\FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
+                    ->options(fn () => [FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
                     ->helperText('Memilih toko TIDAK mencakup jurnal pusat (tanpa toko, mis. gaji pusat/penyusutan) — pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan untuk semua.')
                     ->placeholder('Semua Toko')
                     ->searchable()
-                    ->live(),
+                    ->live()
+                    ->disabled(fn () => $this->isRestricted() && auth()->user()?->store_id !== null),
+
+                TextInput::make('search')
+                    ->label('Cari di Mutasi')
+                    ->placeholder('no. jurnal, keterangan, sumber, pembuat')
+                    ->live(debounce: 400)
+                    ->helperText('Hanya memfilter tampilan; saldo dan ekspor tetap seluruh mutasi.'),
             ])
             ->statePath('data')
             ->columns(3);
+    }
+
+    private function storeId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($this->isRestricted() && $user?->store_id !== null) {
+            return (int) $user->store_id;
+        }
+
+        return isset($this->data['store_id']) && $this->data['store_id'] !== '' ? (int) $this->data['store_id'] : null;
+    }
+
+    private function storeLabel(): string
+    {
+        $id = $this->storeId();
+
+        return match (true) {
+            $id === null => 'Semua Toko',
+            $id === FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko',
+            default => Store::whereKey($id)->value('name') ?? 'Toko #' . $id,
+        };
+    }
+
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'general_ledger', 'format' => $format, 'account_id' => $this->data['chart_of_account_id'] ?? null, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->storeId()])
+                ->log('Ekspor Buku Besar (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /** Pindah ke akun sebelum/sesudahnya (urut kode) di antara akun aktif yang bisa diposting. */
+    private function stepAccount(int $direction): void
+    {
+        $ids = array_keys($this->accountOptions());
+        $current = array_search((int) ($this->data['chart_of_account_id'] ?? 0), $ids, true);
+
+        if ($current === false) {
+            return;
+        }
+
+        $next = $ids[$current + $direction] ?? null;
+
+        if ($next === null) {
+            Notification::make()->title($direction < 0 ? 'Ini akun pertama.' : 'Ini akun terakhir.')->warning()->send();
+
+            return;
+        }
+
+        $this->data['chart_of_account_id'] = $next;
     }
 
     /**
@@ -113,6 +224,19 @@ class GeneralLedgerReport extends Page implements HasForms
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('prevAccount')
+                ->label('Akun Sebelumnya')
+                ->icon('heroicon-o-chevron-left')
+                ->color('gray')
+                ->action(fn () => $this->stepAccount(-1)),
+
+            Action::make('nextAccount')
+                ->label('Akun Berikutnya')
+                ->icon('heroicon-o-chevron-right')
+                ->iconPosition('after')
+                ->color('gray')
+                ->action(fn () => $this->stepAccount(1)),
+
             Action::make('exportExcel')
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -124,6 +248,8 @@ class GeneralLedgerReport extends Page implements HasForms
 
                         return;
                     }
+
+                    $this->logExport('xlsx');
 
                     return Excel::download(
                         new GeneralLedgerExport($result),
@@ -143,6 +269,8 @@ class GeneralLedgerReport extends Page implements HasForms
                         return;
                     }
 
+                    $this->logExport('pdf');
+
                     $pdf = Pdf::loadView('pdf.general_ledger_report', ['result' => $result])->setPaper('a4', 'landscape');
                     $filename = 'buku-besar-' . now()->format('Ymd-His') . '.pdf';
 
@@ -157,10 +285,10 @@ class GeneralLedgerReport extends Page implements HasForms
         $from = $this->data['from'] ?? null;
         $to = $this->data['to'] ?? null;
 
-        if ($from && $to && \Illuminate\Support\Carbon::parse($to)->lt(\Illuminate\Support\Carbon::parse($from))) {
+        if ($from && $to && Carbon::parse($to)->lt(Carbon::parse($from))) {
             $this->data['to'] = $from;
 
-            \Filament\Notifications\Notification::make()
+            Notification::make()
                 ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
                 ->body('Diset sama dengan tanggal "Dari".')
                 ->warning()
@@ -168,13 +296,27 @@ class GeneralLedgerReport extends Page implements HasForms
         }
     }
 
+    /** Baris mutasi untuk TAMPILAN, difilter kotak pencarian (saldo/total/ekspor tetap seluruh baris). */
+    public function getDisplayRows(array $result): Collection
+    {
+        $search = mb_strtolower(trim((string) ($this->data['search'] ?? '')));
+
+        if ($search === '') {
+            return $result['rows'];
+        }
+
+        return $result['rows']->filter(fn (array $row) => str_contains(
+            mb_strtolower($row['entry_number'] . ' ' . $row['description'] . ' ' . ($row['source'] ?? '') . ' ' . ($row['creator'] ?? '')),
+            $search
+        ))->values();
+    }
 
     public function getNotices(): array
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
 
-        return app(FinancialStatementService::class)->reportNotices($from, $to, $this->data['store_id'] ?? null);
+        return app(FinancialStatementService::class)->reportNotices($from, $to, $this->storeId());
     }
 
     public function getResult(): ?array
@@ -191,16 +333,14 @@ class GeneralLedgerReport extends Page implements HasForms
 
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
-        $storeId = $this->data['store_id'] ?? null;
 
-        $result = app(FinancialStatementService::class)->generalLedger($account, $from, $to, $storeId);
+        $result = app(FinancialStatementService::class)->generalLedger($account, $from, $to, $this->storeId());
 
-        // 'from'/'to' ditambahkan di sini untuk header periode di file
-        // Export/PDF (sama pola dengan CashFlowReport) -- generalLedger()
-        // sendiri tidak butuh tahu rentang tanggal sebagai output, cuma
-        // sebagai filter query.
+        // 'from'/'to'/'store_label' ditambahkan di sini untuk header di halaman/Export/PDF --
+        // generalLedger() sendiri cuma memakai rentang tanggal & toko sebagai filter query.
         $result['from'] = $from;
         $result['to'] = $to;
+        $result['store_label'] = $this->storeLabel();
 
         return $result;
     }

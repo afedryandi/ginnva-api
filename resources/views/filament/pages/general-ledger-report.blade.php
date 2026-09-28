@@ -15,11 +15,28 @@
             <p class="text-sm text-gray-500 dark:text-gray-400">Pilih akun dulu untuk melihat Buku Besar-nya.</p>
         </x-filament::section>
     @else
+        @php
+            $displayRows = $this->getDisplayRows($result);
+        @endphp
+
         <x-filament::section>
             <x-slot name="heading">{{ $result['account']->display_name }}</x-slot>
             <x-slot name="description">
+                Toko: {{ $result['store_label'] ?? 'Semua Toko' }} · {{ $result['from']->format('d M Y') }} – {{ $result['to']->format('d M Y') }} · {{ $result['rows']->count() }} mutasi.
                 Rincian mutasi jurnal posted dalam rentang tanggal yang dipilih, dengan saldo berjalan.
             </x-slot>
+
+            @if ($result['opening_reset_from'] ?? null)
+                <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                    Akun Laba Rugi: Saldo Awal dihitung sejak {{ $result['opening_reset_from']->format('d M Y') }} (awal tahun), sama dengan Neraca Saldo dan Laporan Laba Rugi.
+                </p>
+            @endif
+
+            @if ($displayRows->count() < $result['rows']->count())
+                <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                    Menampilkan {{ $displayRows->count() }} dari {{ $result['rows']->count() }} mutasi (filter pencarian). Saldo berjalan dan total tetap seluruh mutasi.
+                </p>
+            @endif
 
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -27,39 +44,45 @@
                         <tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500 dark:border-white/10 dark:text-gray-400">
                             <th class="py-2 pr-4">Tanggal</th>
                             <th class="py-2 pr-4">No. Jurnal</th>
+                            <th class="py-2 pr-4">Sumber</th>
                             <th class="py-2 pr-4">Keterangan</th>
                             <th class="py-2 pr-4 text-right">Debit</th>
                             <th class="py-2 pr-4 text-right">Kredit</th>
                             <th class="py-2 pr-4 text-right">Saldo Berjalan</th>
+                            <th class="py-2 pr-4">Pembuat</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr class="border-b border-gray-100 bg-gray-50 dark:border-white/5 dark:bg-white/5">
-                            <td class="py-2 pr-4" colspan="5"><em>Saldo Awal</em></td>
+                            <td class="py-2 pr-4" colspan="6"><em>Saldo Awal</em></td>
                             <td class="py-2 pr-4 text-right font-semibold tabular-nums">{{ $rupiah($result['opening_balance']) }}</td>
+                            <td></td>
                         </tr>
 
-                        @forelse ($result['rows'] as $row)
+                        @forelse ($displayRows as $row)
                             <tr class="border-b border-gray-100 dark:border-white/5">
                                 <td class="py-2 pr-4 whitespace-nowrap">{{ $row['entry_date']->format('d M Y') }}</td>
                                 <td class="py-2 pr-4 font-mono text-xs text-gray-500 dark:text-gray-400"><a href="{{ \App\Filament\Resources\JournalEntryResource::getUrl('view', ['record' => $row['entry_id']]) }}" class="hover:underline" title="Lihat jurnal">{{ $row['entry_number'] }}</a></td>
+                                <td class="py-2 pr-4 text-xs text-gray-500 dark:text-gray-400">{{ $row['source'] }}</td>
                                 <td class="py-2 pr-4">{{ $row['description'] }}</td>
                                 <td class="py-2 pr-4 text-right tabular-nums">{{ $row['debit'] > 0 ? $rupiah($row['debit']) : '—' }}</td>
                                 <td class="py-2 pr-4 text-right tabular-nums">{{ $row['credit'] > 0 ? $rupiah($row['credit']) : '—' }}</td>
                                 <td class="py-2 pr-4 text-right tabular-nums">{{ $rupiah($row['running_balance']) }}</td>
+                                <td class="py-2 pr-4 text-xs text-gray-500 dark:text-gray-400">{{ $row['creator'] }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="py-4 text-sm text-gray-500 dark:text-gray-400" colspan="6">Tidak ada mutasi di rentang tanggal ini.</td>
+                                <td class="py-4 text-sm text-gray-500 dark:text-gray-400" colspan="8">Tidak ada mutasi di rentang tanggal ini.</td>
                             </tr>
                         @endforelse
                     </tbody>
                     <tfoot>
                         <tr class="border-t-2 border-gray-300 font-bold dark:border-white/20">
-                            <td class="py-2 pr-4" colspan="3">Total Mutasi Periode Ini</td>
+                            <td class="py-2 pr-4" colspan="4">Total Mutasi Periode Ini</td>
                             <td class="py-2 pr-4 text-right tabular-nums">{{ $rupiah($result['total_debit']) }}</td>
                             <td class="py-2 pr-4 text-right tabular-nums">{{ $rupiah($result['total_credit']) }}</td>
                             <td class="py-2 pr-4 text-right tabular-nums">{{ $rupiah($result['closing_balance']) }}</td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 </table>

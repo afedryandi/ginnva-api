@@ -21,7 +21,7 @@
 
     <h1>Buku Besar</h1>
     <div class="period">{{ $result['account']->display_name }}</div>
-    <div class="period">Periode: {{ $result['from']->format('d M Y') }} - {{ $result['to']->format('d M Y') }}</div>
+    <div class="period">Periode: {{ $result['from']->format('d M Y') }} - {{ $result['to']->format('d M Y') }} · Toko: {{ $result['store_label'] ?? 'Semua Toko' }}</div>
 
     <table>
         <thead>
@@ -32,12 +32,15 @@
                 <th class="value">Debit</th>
                 <th class="value">Kredit</th>
                 <th class="value">Saldo Berjalan</th>
+                <th>Sumber</th>
+                <th>Pembuat</th>
             </tr>
         </thead>
         <tbody>
             <tr class="opening">
                 <td colspan="5">Saldo Awal</td>
                 <td class="value">{{ $rupiah($result['opening_balance']) }}</td>
+                <td colspan="2"></td>
             </tr>
 
             @forelse ($result['rows'] as $row)
@@ -48,9 +51,11 @@
                     <td class="value">{{ $row['debit'] > 0 ? $rupiah($row['debit']) : '—' }}</td>
                     <td class="value">{{ $row['credit'] > 0 ? $rupiah($row['credit']) : '—' }}</td>
                     <td class="value">{{ $rupiah($row['running_balance']) }}</td>
+                    <td>{{ $row['source'] ?? '' }}</td>
+                    <td>{{ $row['creator'] ?? '' }}</td>
                 </tr>
             @empty
-                <tr><td colspan="6">Tidak ada mutasi di rentang tanggal ini.</td></tr>
+                <tr><td colspan="8">Tidak ada mutasi di rentang tanggal ini.</td></tr>
             @endforelse
         </tbody>
         <tfoot>
@@ -59,6 +64,7 @@
                 <td class="value">{{ $rupiah($result['total_debit']) }}</td>
                 <td class="value">{{ $rupiah($result['total_credit']) }}</td>
                 <td class="value">{{ $rupiah($result['closing_balance']) }}</td>
+                <td colspan="2"></td>
             </tr>
         </tfoot>
     </table>

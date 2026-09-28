@@ -33,6 +33,19 @@ class FinancialStatementService
      */
     public const COMPANY_WIDE = -1;
 
+    /** Label sumber jurnal (journal_entries.reference_type) untuk kolom "Sumber" di Buku Besar. */
+    public const SOURCE_LABELS = [
+        'manual' => 'Manual',
+        'reversal' => 'Pembalik',
+        'booking' => 'Booking',
+        'refund' => 'Refund',
+        'payable' => 'Hutang Usaha',
+        'payable_payment' => 'Bayar Hutang',
+        'receivable' => 'Piutang Usaha',
+        'receivable_payment' => 'Pelunasan Piutang',
+        'finance_transaction' => 'Transaksi Keuangan',
+    ];
+
     /** Urutan & label tipe akun untuk pengelompokan laporan (urutan standar Neraca -> Laba Rugi). */
     public const TYPE_LABELS = [
         'aset' => 'Aset',
@@ -351,11 +364,17 @@ class FinancialStatementService
      */
     public function generalLedger(ChartOfAccount $account, Carbon $from, Carbon $to, ?int $storeId = null): array
     {
+        // Akun Laba Rugi (pendapatan/beban): saldo awal dihitung sejak 1 Januari tahun $from, bukan sejak
+        // awal pencatatan -- sama dengan Neraca Saldo & Laporan Laba Rugi (belum ada jurnal penutup tahunan).
+        $resetOpening = in_array($account->type, self::INCOME_STATEMENT_TYPES, true);
+        $yearStart = Carbon::create($from->year, 1, 1);
+
         $opening = JournalEntryLine::query()
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
             ->where('journal_entries.status', 'posted')
             ->where('journal_entry_lines.chart_of_account_id', $account->id)
             ->where('journal_entries.entry_date', '<', $from->toDateString())
+            ->when($resetOpening, fn ($q) => $q->where('journal_entries.entry_date', '>=', $yearStart->toDateString()))
             ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'journal_entries.store_id'))
             ->selectRaw('SUM(journal_entry_lines.debit) as debit, SUM(journal_entry_lines.credit) as credit')
             ->first();
@@ -378,22 +397,31 @@ class FinancialStatementService
                 'journal_entry_lines.credit',
                 'journal_entry_lines.description as line_description',
                 'journal_entries.id as entry_id',
+                'journal_entries.reference_type',
+                'journal_entries.created_by',
                 'journal_entries.entry_number',
                 'journal_entries.entry_date',
                 'journal_entries.description as entry_description',
             ]);
 
-        $running = $openingBalance;
-        $rows = $lines->map(function ($line) use (&$running, $account) {
+        $creators = \App\Models\User::whereIn('id', $lines->pluck('created_by')->filter()->unique())->pluck('name', 'id');
+
+        // Saldo berjalan dijumlah dalam SEN (integer) supaya tidak ada drift float di volume besar.
+        $runningCents = $this->cents($openingBalance);
+        $rows = $lines->map(function ($line) use (&$runningCents, $account, $creators) {
             $debit = (float) $line->debit;
             $credit = (float) $line->credit;
-            $delta = $account->isDebitNormal() ? $debit - $credit : $credit - $debit;
-            $running += $delta;
+            $runningCents += $account->isDebitNormal()
+                ? $this->cents($debit) - $this->cents($credit)
+                : $this->cents($credit) - $this->cents($debit);
+            $running = $runningCents / 100;
 
             return [
                 'entry_date' => Carbon::parse($line->entry_date),
                 'entry_id' => $line->entry_id,
                 'entry_number' => $line->entry_number,
+                'source' => self::SOURCE_LABELS[$line->reference_type ?? 'manual'] ?? ucfirst(str_replace('_', ' ', (string) $line->reference_type)),
+                'creator' => $line->created_by ? ($creators[$line->created_by] ?? '—') : 'Sistem',
                 'description' => $line->line_description ?: $line->entry_description,
                 'debit' => $debit,
                 'credit' => $credit,
@@ -404,8 +432,9 @@ class FinancialStatementService
         return [
             'account' => $account,
             'opening_balance' => $openingBalance,
+            'opening_reset_from' => $resetOpening ? $yearStart : null,
             'rows' => $rows,
-            'closing_balance' => $running,
+            'closing_balance' => $runningCents / 100,
             'total_debit' => (float) $rows->sum('debit'),
             'total_credit' => (float) $rows->sum('credit'),
         ];

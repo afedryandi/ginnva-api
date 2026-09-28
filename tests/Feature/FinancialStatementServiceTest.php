@@ -209,6 +209,63 @@ class FinancialStatementServiceTest extends TestCase
         $this->assertEquals(50.0, $revenueRow[4]);
     }
 
+    public function test_general_ledger_opening_for_profit_loss_account_resets_each_year(): void
+    {
+        $this->post('2026-06-10', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 1_000_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 1_000_000],
+        ]);
+        $this->post('2027-02-10', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 300_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 300_000],
+        ]);
+
+        $ledger = $this->service->generalLedger(ChartOfAccount::find($this->revenueId()), Carbon::parse('2027-03-01'), Carbon::parse('2027-03-31'));
+
+        // Saldo awal Maret 2027 = pendapatan Jan-Feb 2027 saja (300.000), bukan + 1.000.000 dari 2026.
+        $this->assertEquals(300_000.0, $ledger['opening_balance']);
+        $this->assertNotNull($ledger['opening_reset_from']);
+
+        // Akun neraca (kas) tetap kumulatif sejak awal.
+        $cash = $this->service->generalLedger(ChartOfAccount::find($this->cashId()), Carbon::parse('2027-03-01'), Carbon::parse('2027-03-31'));
+        $this->assertEquals(1_300_000.0, $cash['opening_balance']);
+        $this->assertNull($cash['opening_reset_from']);
+    }
+
+    public function test_general_ledger_export_bolds_total_row_and_keeps_numeric_columns(): void
+    {
+        $this->post('2026-09-05', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 10_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 10_000],
+        ]);
+
+        $ledger = $this->service->generalLedger(ChartOfAccount::find($this->cashId()), Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+        $ledger['from'] = Carbon::parse('2026-09-01');
+        $ledger['to'] = Carbon::parse('2026-09-30');
+
+        $export = new \App\Exports\GeneralLedgerExport($ledger);
+        $rows = $export->array();
+
+        // Baris kredit kosong (bukan teks), dan baris Total ada di posisi yang di-bold (3 + jumlah mutasi = 4).
+        $this->assertSame('', $rows[1][4]);
+        $this->assertSame('Total Mutasi Periode Ini', $rows[2][0]);
+        $this->assertArrayHasKey(4, $export->styles(new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet()));
+    }
+
+    public function test_general_ledger_rows_carry_source_and_creator(): void
+    {
+        $this->post('2026-09-05', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 10_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 10_000],
+        ]);
+
+        $ledger = $this->service->generalLedger(ChartOfAccount::find($this->cashId()), Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+        $row = $ledger['rows']->first();
+
+        $this->assertSame('Manual', $row['source']);
+        $this->assertSame('Sistem', $row['creator']); // jurnal uji dibuat tanpa user
+    }
+
     public function test_report_notices_flag_draft_journals(): void
     {
         $journal = app(JournalEntryService::class);
