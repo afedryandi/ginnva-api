@@ -59,21 +59,29 @@ class TrialBalanceReport extends Page implements HasForms
     {
         return $form
             ->schema([
+                DatePicker::make('from')
+                    ->label('Dari Tanggal (opsional)')
+                    ->native(false)
+                    ->live()
+                    ->helperText('Diisi = tampil Saldo Awal, Mutasi Debit/Kredit periode, dan Saldo Akhir per akun.'),
+
                 DatePicker::make('as_of')
                     ->label('Per Tanggal')
                     ->native(false)
                     ->required()
-                    ->live(),
+                    ->live()
+                    ->afterOrEqual('from'),
 
                 Select::make('store_id')
                     ->label('Toko')
-                    ->options(fn () => Store::pluck('name', 'id'))
+                    ->options(fn () => [\App\Services\FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
+                    ->helperText('Memilih toko TIDAK mencakup jurnal pusat (tanpa toko, mis. gaji pusat/penyusutan) — pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan untuk semua.')
                     ->placeholder('Semua Toko')
                     ->searchable()
                     ->live(),
             ])
             ->statePath('data')
-            ->columns(2);
+            ->columns(3);
     }
 
     protected function getHeaderActions(): array
@@ -107,6 +115,15 @@ class TrialBalanceReport extends Page implements HasForms
         $asOf = Carbon::parse($this->data['as_of'] ?? now()->toDateString());
         $storeId = $this->data['store_id'] ?? null;
 
-        return app(FinancialStatementService::class)->trialBalance($asOf, $storeId);
+        $from = ! empty($this->data['from']) ? Carbon::parse($this->data['from']) : null;
+
+        return app(FinancialStatementService::class)->trialBalance($asOf, $storeId, $from && $from->lte($asOf) ? $from : null);
+    }
+
+    public function getNotices(): array
+    {
+        $asOf = Carbon::parse($this->data['as_of'] ?? now()->toDateString());
+
+        return app(FinancialStatementService::class)->reportNotices(Carbon::create(1970, 1, 1), $asOf, $this->data['store_id'] ?? null, false, true);
     }
 }

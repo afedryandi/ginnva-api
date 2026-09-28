@@ -55,5 +55,6 @@
             Berbeda dari saldo aktual akun kas ({{ $rupiah($result['closing_cash_actual']) }}) — periksa jurnal.
         @endif
     </p>
+    @include('pdf.partials.report-footer')
 </body>
 </html>

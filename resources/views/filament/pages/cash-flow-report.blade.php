@@ -3,6 +3,8 @@
         {{ $this->form }}
     </x-filament::section>
 
+    <x-report-notices :notices="$this->getNotices()" />
+
     @php
         $result = $this->getResult();
         $sections = $result['sections'];
@@ -66,6 +68,17 @@
             @else
                 <div class="rounded-lg border border-danger-300 bg-danger-50 p-3 text-sm text-danger-700 dark:border-danger-700 dark:bg-danger-950 dark:text-danger-300">
                     ✗ Saldo akhir hasil perhitungan ({{ $rupiah($result['closing_cash']) }}) berbeda dari saldo aktual akun kas ({{ $rupiah($result['closing_cash_actual']) }}) — periksa jurnal.
+                </div>
+            @endif
+
+            @if (! empty($result['warnings']))
+                <div class="mt-3 rounded-lg border border-warning-300 bg-warning-50 p-3 text-sm text-warning-700 dark:border-warning-700 dark:bg-warning-950 dark:text-warning-300">
+                    <div class="font-semibold">Perlu diperiksa (klasifikasi arus kas):</div>
+                    <ul class="mt-1 list-disc ps-5">
+                        @foreach ($result['warnings'] as $warning)
+                            <li>{{ $warning }}</li>
+                        @endforeach
+                    </ul>
                 </div>
             @endif
         </div>

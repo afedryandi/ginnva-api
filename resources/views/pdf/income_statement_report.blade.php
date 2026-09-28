@@ -58,5 +58,6 @@
 
     {!! $renderSection($sections['pajak']) !!}
     {!! $renderSubtotal('Laba Bersih', $result['laba_bersih']) !!}
+    @include('pdf.partials.report-footer')
 </body>
 </html>

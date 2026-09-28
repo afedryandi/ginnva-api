@@ -52,11 +52,16 @@ class GeneralLedgerReport extends Page implements HasForms
 
     public function mount(): void
     {
+        $query = request()->query();
+        $validDate = fn ($v) => is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $v) ? $v : null;
+
         $this->form->fill([
-            'chart_of_account_id' => ChartOfAccount::where('is_postable', true)->orderBy('code')->value('id'),
-            'from' => now()->startOfMonth()->toDateString(),
-            'to' => now()->endOfMonth()->toDateString(),
-            'store_id' => null,
+            'chart_of_account_id' => (isset($query['chart_of_account_id']) && ChartOfAccount::whereKey((int) $query['chart_of_account_id'])->exists())
+                ? (int) $query['chart_of_account_id']
+                : ChartOfAccount::where('is_postable', true)->where('is_active', true)->orderBy('code')->value('id'),
+            'from' => $validDate($query['from'] ?? null) ?? now()->startOfMonth()->toDateString(),
+            'to' => $validDate($query['to'] ?? null) ?? now()->endOfMonth()->toDateString(),
+            'store_id' => isset($query['store_id']) && is_numeric($query['store_id']) ? (int) $query['store_id'] : null,
         ]);
     }
 
@@ -66,7 +71,7 @@ class GeneralLedgerReport extends Page implements HasForms
             ->schema([
                 Select::make('chart_of_account_id')
                     ->label('Akun')
-                    ->options(fn () => ChartOfAccount::where('is_postable', true)
+                    ->options(fn () => ChartOfAccount::where('is_postable', true)->where('is_active', true)
                         ->orderBy('code')
                         ->get()
                         ->mapWithKeys(fn (ChartOfAccount $a) => [$a->id => $a->display_name]))
@@ -89,7 +94,8 @@ class GeneralLedgerReport extends Page implements HasForms
 
                 Select::make('store_id')
                     ->label('Toko')
-                    ->options(fn () => Store::pluck('name', 'id'))
+                    ->options(fn () => [\App\Services\FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
+                    ->helperText('Memilih toko TIDAK mencakup jurnal pusat (tanpa toko, mis. gaji pusat/penyusutan) — pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan untuk semua.')
                     ->placeholder('Semua Toko')
                     ->searchable()
                     ->live(),
@@ -143,6 +149,32 @@ class GeneralLedgerReport extends Page implements HasForms
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);
                 }),
         ];
+    }
+
+    /** Tanggal 'Sampai' tidak boleh sebelum 'Dari' (audit Laporan Keuangan 2026-09-29): dikoreksi + diberi tahu. */
+    public function updatedData(): void
+    {
+        $from = $this->data['from'] ?? null;
+        $to = $this->data['to'] ?? null;
+
+        if ($from && $to && \Illuminate\Support\Carbon::parse($to)->lt(\Illuminate\Support\Carbon::parse($from))) {
+            $this->data['to'] = $from;
+
+            \Filament\Notifications\Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
+    }
+
+
+    public function getNotices(): array
+    {
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
+        $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
+
+        return app(FinancialStatementService::class)->reportNotices($from, $to, $this->data['store_id'] ?? null);
     }
 
     public function getResult(): ?array

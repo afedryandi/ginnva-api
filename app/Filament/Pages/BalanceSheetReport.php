@@ -66,13 +66,20 @@ class BalanceSheetReport extends Page implements HasForms
 
                 Select::make('store_id')
                     ->label('Toko')
-                    ->options(fn () => Store::pluck('name', 'id'))
+                    ->options(fn () => [\App\Services\FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
+                    ->helperText('Memilih toko TIDAK mencakup jurnal pusat (tanpa toko, mis. gaji pusat/penyusutan) — pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan untuk semua.')
                     ->placeholder('Semua Toko')
                     ->searchable()
                     ->live(),
+
+                \Filament\Forms\Components\Select::make('compare')
+                    ->label('Bandingkan Dengan')
+                    ->options(['prev_month' => 'Sebulan sebelumnya', 'prev_year' => 'Tahun lalu (tanggal yang sama)'])
+                    ->placeholder('Tanpa pembanding')
+                    ->live(),
             ])
             ->statePath('data')
-            ->columns(2);
+            ->columns(3);
     }
 
     protected function getHeaderActions(): array
@@ -106,6 +113,39 @@ class BalanceSheetReport extends Page implements HasForms
         $asOf = Carbon::parse($this->data['as_of'] ?? now()->toDateString());
         $storeId = $this->data['store_id'] ?? null;
 
-        return app(FinancialStatementService::class)->balanceSheet($asOf, $storeId);
+        $service = app(FinancialStatementService::class);
+        $result = $service->balanceSheet($asOf, $storeId);
+
+        $mode = $this->data['compare'] ?? null;
+        $prevAsOf = match ($mode) {
+            'prev_month' => $asOf->copy()->subMonthNoOverflow(),
+            'prev_year' => $asOf->copy()->subYear(),
+            default => null,
+        };
+        $result['compare'] = $prevAsOf ? $service->balanceSheet($prevAsOf, $storeId) : null;
+        $result['compare_label'] = $prevAsOf?->format('d M Y');
+
+        return $result;
+    }
+
+    /** Link drill-down ke Buku Besar (dari awal tahun berjalan sampai tanggal neraca). */
+    public function ledgerUrl(int $accountId): string
+    {
+        $asOf = Carbon::parse($this->data['as_of'] ?? now()->toDateString());
+
+        return GeneralLedgerReport::getUrl([
+            'chart_of_account_id' => $accountId,
+            'from' => $asOf->copy()->startOfYear()->toDateString(),
+            'to' => $asOf->toDateString(),
+            'store_id' => $this->data['store_id'] ?? null,
+        ]);
+    }
+
+    public function getNotices(): array
+    {
+        $asOf = Carbon::parse($this->data['as_of'] ?? now()->toDateString());
+
+        // Neraca kumulatif: draft sejak awal; daftar periode tertutup tidak relevan (semua periode lampau).
+        return app(FinancialStatementService::class)->reportNotices(Carbon::create(1970, 1, 1), $asOf, $this->data['store_id'] ?? null, false, true);
     }
 }

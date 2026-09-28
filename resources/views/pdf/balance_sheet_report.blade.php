@@ -54,6 +54,9 @@
         @empty
             <tr class="muted"><td class="indent">Belum ada saldo modal.</td><td class="value">-</td></tr>
         @endforelse
+        @if (abs($result['modal']['laba_tahun_lalu']) >= 0.005)
+            <tr><td class="indent">Laba (Rugi) Tahun-Tahun Sebelumnya (belum ditutup)</td><td class="value">{{ $rupiah($result['modal']['laba_tahun_lalu']) }}</td></tr>
+        @endif
         <tr><td class="indent">Laba (Rugi) Tahun Berjalan</td><td class="value">{{ $rupiah($result['modal']['laba_tahun_berjalan']) }}</td></tr>
         <tr class="total"><td>Total Modal</td><td class="value">{{ $rupiah($result['modal']['total']) }}</td></tr>
         <tr class="grand-total"><td>Total Kewajiban + Modal</td><td class="value">{{ $rupiah($result['total_kewajiban_modal']) }}</td></tr>
@@ -64,5 +67,6 @@
     @else
         <div class="status unbalanced">TIDAK balance — Total Aset ({{ $rupiah($result['aset']['total']) }}) berbeda dari Total Kewajiban + Modal ({{ $rupiah($result['total_kewajiban_modal']) }}). Periksa jurnal yang mungkin belum lengkap.</div>
     @endif
+    @include('pdf.partials.report-footer')
 </body>
 </html>

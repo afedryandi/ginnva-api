@@ -57,6 +57,9 @@ class BalanceSheetExport implements FromArray, WithStyles
         foreach ($r['modal']['rows'] as $row) {
             $rows[] = ['    ' . $row['account']->name, (float) $row['balance']];
         }
+        if (abs((float) $r['modal']['laba_tahun_lalu']) >= 0.005) {
+            $rows[] = ['    Laba (Rugi) Tahun-Tahun Sebelumnya (belum ditutup)', (float) $r['modal']['laba_tahun_lalu']];
+        }
         $rows[] = ['    Laba (Rugi) Tahun Berjalan', (float) $r['modal']['laba_tahun_berjalan']];
         $this->totalRowIndexes[] = count($rows) + 1;
         $rows[] = ['Total Modal', (float) $r['modal']['total']];

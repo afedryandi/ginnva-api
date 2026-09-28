@@ -3,6 +3,8 @@
         {{ $this->form }}
     </x-filament::section>
 
+    <x-report-notices :notices="$this->getNotices()" />
+
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp ' . number_format($n, 0, ',', '.');
@@ -40,7 +42,7 @@
                         @forelse ($result['rows'] as $row)
                             <tr class="border-b border-gray-100 dark:border-white/5">
                                 <td class="py-2 pr-4 whitespace-nowrap">{{ $row['entry_date']->format('d M Y') }}</td>
-                                <td class="py-2 pr-4 font-mono text-xs text-gray-500 dark:text-gray-400">{{ $row['entry_number'] }}</td>
+                                <td class="py-2 pr-4 font-mono text-xs text-gray-500 dark:text-gray-400"><a href="{{ \App\Filament\Resources\JournalEntryResource::getUrl('view', ['record' => $row['entry_id']]) }}" class="hover:underline" title="Lihat jurnal">{{ $row['entry_number'] }}</a></td>
                                 <td class="py-2 pr-4">{{ $row['description'] }}</td>
                                 <td class="py-2 pr-4 text-right tabular-nums">{{ $row['debit'] > 0 ? $rupiah($row['debit']) : '—' }}</td>
                                 <td class="py-2 pr-4 text-right tabular-nums">{{ $row['credit'] > 0 ? $rupiah($row['credit']) : '—' }}</td>

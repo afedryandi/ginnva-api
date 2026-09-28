@@ -112,15 +112,19 @@ class FinanceTransaction extends Model
      */
     public static function totalsForMonth(Carbon $month, ?int $storeId = null): array
     {
-        $query = static::query()
-            ->whereYear('transaction_date', $month->year)
-            ->whereMonth('transaction_date', $month->month)
-            ->when($storeId, fn ($q) => $q->where('store_id', $storeId));
+        // Rentang tanggal (bukan whereYear/whereMonth) supaya index transaction_date terpakai,
+        // dan 1 query untuk masuk+keluar (audit Laporan Keuangan 2026-09-29).
+        $row = static::query()
+            ->whereBetween('transaction_date', [$month->copy()->startOfMonth()->toDateString(), $month->copy()->endOfMonth()->toDateString()])
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'in' THEN amount ELSE 0 END), 0) as total_in, COALESCE(SUM(CASE WHEN type = 'out' THEN amount ELSE 0 END), 0) as total_out")
+            ->toBase()
+            ->first();
 
-        $in = (float) (clone $query)->where('type', 'in')->sum('amount');
-        $out = (float) (clone $query)->where('type', 'out')->sum('amount');
+        $in = (float) ($row->total_in ?? 0);
+        $out = (float) ($row->total_out ?? 0);
 
-        return ['in' => $in, 'out' => $out, 'net' => $in - $out];
+        return ['in' => $in, 'out' => $out, 'net' => round($in - $out, 2)];
     }
 
     /**
@@ -134,8 +138,7 @@ class FinanceTransaction extends Model
     {
         return static::query()
             ->selectRaw('finance_category_id, type, SUM(amount) as total')
-            ->whereYear('transaction_date', $month->year)
-            ->whereMonth('transaction_date', $month->month)
+            ->whereBetween('transaction_date', [$month->copy()->startOfMonth()->toDateString(), $month->copy()->endOfMonth()->toDateString()])
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->when($type, fn ($q) => $q->where('type', $type))
             ->groupBy('finance_category_id', 'type')

@@ -55,5 +55,6 @@
             @endforeach
         </table>
     @endif
+    @include('pdf.partials.report-footer')
 </body>
 </html>

@@ -74,13 +74,20 @@ class IncomeStatementReport extends Page implements HasForms
 
                 Select::make('store_id')
                     ->label('Toko')
-                    ->options(fn () => Store::pluck('name', 'id'))
+                    ->options(fn () => [\App\Services\FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
+                    ->helperText('Memilih toko TIDAK mencakup jurnal pusat (tanpa toko, mis. gaji pusat/penyusutan) — pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan untuk semua.')
                     ->placeholder('Semua Toko')
                     ->searchable()
                     ->live(),
+
+                \Filament\Forms\Components\Select::make('compare')
+                    ->label('Bandingkan Dengan')
+                    ->options(['prev_period' => 'Periode sebelumnya (durasi sama)', 'prev_year' => 'Periode yang sama tahun lalu'])
+                    ->placeholder('Tanpa pembanding')
+                    ->live(),
             ])
             ->statePath('data')
-            ->columns(3);
+            ->columns(4);
     }
 
     protected function getHeaderActions(): array
@@ -109,12 +116,83 @@ class IncomeStatementReport extends Page implements HasForms
         ];
     }
 
+    /** Tanggal 'Sampai' tidak boleh sebelum 'Dari' (audit Laporan Keuangan 2026-09-29): dikoreksi + diberi tahu. */
+    public function updatedData(): void
+    {
+        $from = $this->data['from'] ?? null;
+        $to = $this->data['to'] ?? null;
+
+        if ($from && $to && \Illuminate\Support\Carbon::parse($to)->lt(\Illuminate\Support\Carbon::parse($from))) {
+            $this->data['to'] = $from;
+
+            \Filament\Notifications\Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
+    }
+
+
     public function getResult(): array
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
         $storeId = $this->data['store_id'] ?? null;
 
-        return app(FinancialStatementService::class)->incomeStatement($from, $to, $storeId);
+        $service = app(FinancialStatementService::class);
+        $result = $service->incomeStatement($from, $to, $storeId);
+
+        [$prevFrom, $prevTo] = $this->comparisonRange($from, $to);
+        $result['compare'] = $prevFrom ? $service->incomeStatement($prevFrom, $prevTo, $storeId) : null;
+        $result['compare_label'] = $prevFrom ? $prevFrom->format('d M Y') . ' – ' . $prevTo->format('d M Y') : null;
+
+        return $result;
+    }
+
+    /** @return array{0: ?Carbon, 1: ?Carbon} */
+    private function comparisonRange(Carbon $from, Carbon $to): array
+    {
+        $mode = $this->data['compare'] ?? null;
+
+        if ($mode === 'prev_year') {
+            return [$from->copy()->subYear(), $to->copy()->subYear()];
+        }
+
+        if ($mode === 'prev_period') {
+            // Rentang bulan penuh -> mundur sejumlah bulan yang sama; selain itu mundur sejumlah hari yang sama.
+            if ($from->isSameDay($from->copy()->startOfMonth()) && $to->isSameDay($to->copy()->endOfMonth())) {
+                $months = $from->diffInMonths($to->copy()->addDay()->startOfMonth());
+                $prevFrom = $from->copy()->subMonthsNoOverflow($months);
+
+                return [$prevFrom, $prevFrom->copy()->addMonthsNoOverflow($months)->subDay()];
+            }
+
+            $days = $from->diffInDays($to) + 1;
+            $prevTo = $from->copy()->subDay();
+
+            return [$prevTo->copy()->subDays($days - 1), $prevTo];
+        }
+
+        return [null, null];
+    }
+
+    /** Link drill-down ke Buku Besar untuk 1 akun di rentang/toko yang sedang dilihat. */
+    public function ledgerUrl(int $accountId): string
+    {
+        return GeneralLedgerReport::getUrl([
+            'chart_of_account_id' => $accountId,
+            'from' => $this->data['from'] ?? null,
+            'to' => $this->data['to'] ?? null,
+            'store_id' => $this->data['store_id'] ?? null,
+        ]);
+    }
+
+    public function getNotices(): array
+    {
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
+        $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
+
+        return app(FinancialStatementService::class)->reportNotices($from, $to, $this->data['store_id'] ?? null);
     }
 }

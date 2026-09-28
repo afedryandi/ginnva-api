@@ -56,5 +56,6 @@
     @if (round($result['total_debit'], 2) !== round($result['total_credit'], 2))
         <div class="warning">Total debit dan kredit tidak sama — segera periksa jurnal.</div>
     @endif
+    @include('pdf.partials.report-footer')
 </body>
 </html>

@@ -53,8 +53,32 @@ class FinanceReport extends Page implements HasForms
     {
         $user = auth()->user();
 
+        // Non-full-access wajib punya toko: tanpa store_id filter toko dilewati dan data SEMUA
+        // toko akan terlihat (audit Laporan Keuangan 2026-09-29).
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && ($user->isFullAccess() || $user->store_id !== null);
+    }
+
+    public function getSubheading(): ?string
+    {
+        $text = 'Ringkasan Transaksi Keuangan (pemasukan/pengeluaran yang dicatat di menu Transaksi Keuangan) — BUKAN laba rugi dan bukan arus kas. '
+            . 'Transaksi Booking/DP/Refund/Piutang/Hutang yang dijurnal otomatis tidak ikut di sini; untuk angka resmi lihat Laporan Laba Rugi, Neraca, dan Arus Kas.';
+
+        // Rekonsiliasi kasar terhadap jurnal: transaksi yang belum tertaut ke jurnal posted tidak
+        // akan muncul di laporan berbasis jurnal.
+        $month = $this->selectedMonth();
+        $unjournaled = FinanceTransaction::query()
+            ->whereNull('journal_entry_id')
+            ->whereBetween('transaction_date', [$month->copy()->startOfMonth()->toDateString(), $month->copy()->endOfMonth()->toDateString()])
+            ->when($this->selectedStoreId(), fn ($q, $store) => $q->where('store_id', $store))
+            ->count();
+
+        if ($unjournaled > 0) {
+            $text .= " ⚠ {$unjournaled} transaksi bulan ini belum tertaut ke jurnal, jadi belum ikut di Laporan Laba Rugi/Neraca/Arus Kas.";
+        }
+
+        return $text;
     }
 
     public function mount(): void
@@ -110,7 +134,8 @@ class FinanceReport extends Page implements HasForms
     {
         $user = auth()->user();
         if (! ($user?->isFullAccess() ?? false)) {
-            return $user?->store_id;
+            // Defensif: tanpa toko => -1 (tidak cocok toko mana pun), BUKAN null (= semua toko).
+            return $user?->store_id ?? -1;
         }
 
         return $this->data['store_id'] ?? null;

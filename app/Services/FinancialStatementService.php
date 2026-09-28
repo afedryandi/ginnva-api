@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AccountingPeriod;
 use App\Models\ChartOfAccount;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
@@ -25,6 +26,78 @@ use Illuminate\Support\Carbon;
  */
 class FinancialStatementService
 {
+    /**
+     * Nilai khusus "store_id" untuk filter jurnal PUSAT (journal_entries.store_id IS NULL):
+     * jurnal company-wide (gaji pusat, penyusutan, setoran modal) tidak ikut saat memilih
+     * toko tertentu, jadi perlu bisa dilihat terpisah (audit Laporan Keuangan 2026-09-29).
+     */
+    public const COMPANY_WIDE = -1;
+
+    private function applyStore($query, int $storeId, string $column)
+    {
+        return $storeId === self::COMPANY_WIDE
+            ? $query->whereNull($column)
+            : $query->where($column, $storeId);
+    }
+
+    /**
+     * Catatan konteks di atas laporan (audit Laporan Keuangan 2026-09-29): periode yang sudah
+     * ditutup, jurnal DRAFT yang belum masuk angka (draft sengaja dikecualikan), dan selisih
+     * saldo akun kontrol vs subledger Piutang/Hutang.
+     *
+     * @return array<int, array{type: string, text: string}> type: info|warning
+     */
+    public function reportNotices(Carbon $from, Carbon $to, ?int $storeId = null, bool $listClosed = true, bool $subledger = false): array
+    {
+        $notices = [];
+
+        if ($listClosed) {
+            $closed = AccountingPeriod::whereBetween('period_month', [$from->copy()->startOfMonth()->toDateString(), $to->copy()->endOfMonth()->toDateString()])
+                ->orderBy('period_month')
+                ->get()
+                ->map(fn ($p) => $p->period_month->translatedFormat('M Y'));
+
+            if ($closed->isNotEmpty()) {
+                $notices[] = ['type' => 'info', 'text' => 'Periode sudah ditutup (terkunci): ' . $closed->implode(', ') . '.'];
+            }
+        }
+
+        $drafts = JournalEntry::query()
+            ->where('status', 'draft')
+            ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
+            ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'store_id'))
+            ->withSum('lines', 'debit')
+            ->get();
+
+        if ($drafts->isNotEmpty()) {
+            $notices[] = [
+                'type' => 'warning',
+                'text' => $drafts->count() . ' jurnal DRAFT (total Rp ' . number_format((float) $drafts->sum('lines_sum_debit'), 0, ',', '.') . ') di rentang ini belum masuk laporan — laporan hanya menghitung jurnal yang sudah diposting.',
+            ];
+        }
+
+        if ($subledger && ! $storeId && $to->gte(today())) {
+            $ar = app(ReceivableService::class)->reconcile();
+            $ap = app(PayableService::class)->reconcile();
+
+            if (abs($ar['diff']) >= 0.01) {
+                $notices[] = ['type' => 'warning', 'text' => 'Saldo Piutang Usaha (1110) di buku besar berbeda Rp ' . number_format(abs($ar['diff']), 0, ',', '.') . ' dari subledger Piutang — cek menu Piutang Usaha › Cek Rekonsiliasi.'];
+            }
+
+            if (abs($ap['diff']) >= 0.01) {
+                $notices[] = ['type' => 'warning', 'text' => 'Saldo Hutang Usaha (2110) di buku besar berbeda Rp ' . number_format(abs($ap['diff']), 0, ',', '.') . ' dari subledger Hutang — cek menu Hutang Usaha › Cek Rekonsiliasi.'];
+            }
+        }
+
+        return $notices;
+    }
+
+    /** Nominal -> sen (integer): perbandingan/penjumlahan bebas dari error float. */
+    private function cents(float|int|string|null $amount): int
+    {
+        return (int) round(((float) $amount) * 100);
+    }
+
     private const INCOME_STATEMENT_TYPES = [
         'pendapatan',
         'beban_pokok',
@@ -55,8 +128,8 @@ class FinancialStatementService
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
             ->where('journal_entries.status', 'posted')
             ->where('journal_entry_lines.chart_of_account_id', $account->id)
-            ->whereDate('journal_entries.entry_date', '<=', $asOf->toDateString())
-            ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
+            ->where('journal_entries.entry_date', '<=', $asOf->toDateString())
+            ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'journal_entries.store_id'))
             ->selectRaw('COALESCE(SUM(debit), 0) as debit, COALESCE(SUM(credit), 0) as credit')
             ->first();
 
@@ -66,24 +139,32 @@ class FinancialStatementService
         return $account->isDebitNormal() ? $debit - $credit : $credit - $debit;
     }
 
-    public function trialBalance(Carbon $asOf, ?int $storeId = null): array
+    public function trialBalance(Carbon $asOf, ?int $storeId = null, ?Carbon $from = null): array
     {
+        // Kalau $from diisi: tiap baris juga membawa saldo awal (sebelum $from) dan mutasi periode
+        // ($from..$asOf) -- format Neraca Saldo standar (Saldo Awal | Mutasi | Saldo Akhir).
+        $periodSelect = $from
+            ? ", SUM(CASE WHEN journal_entries.entry_date < ? THEN journal_entry_lines.debit ELSE 0 END) as open_debit"
+              . ", SUM(CASE WHEN journal_entries.entry_date < ? THEN journal_entry_lines.credit ELSE 0 END) as open_credit"
+            : '';
+        $bindings = $from ? [$from->toDateString(), $from->toDateString()] : [];
+
         $sums = JournalEntryLine::query()
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
             ->where('journal_entries.status', 'posted')
-            ->whereDate('journal_entries.entry_date', '<=', $asOf->toDateString())
-            ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
-            ->selectRaw('journal_entry_lines.chart_of_account_id, SUM(journal_entry_lines.debit) as debit, SUM(journal_entry_lines.credit) as credit')
+            ->where('journal_entries.entry_date', '<=', $asOf->toDateString())
+            ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'journal_entries.store_id'))
+            ->selectRaw('journal_entry_lines.chart_of_account_id, SUM(journal_entry_lines.debit) as debit, SUM(journal_entry_lines.credit) as credit' . $periodSelect, $bindings)
             ->groupBy('journal_entry_lines.chart_of_account_id')
             ->get()
             ->keyBy('chart_of_account_id');
 
-        $accounts = ChartOfAccount::whereIn('id', $sums->keys())
+        $accounts = ChartOfAccount::with('parent')->whereIn('id', $sums->keys())
             ->orderBy('code')
             ->get()
             ->keyBy('id');
 
-        $rows = $sums->map(function ($sum) use ($accounts) {
+        $rows = $sums->map(function ($sum) use ($accounts, $from) {
             $account = $accounts[$sum->chart_of_account_id];
             $debit = (float) $sum->debit;
             $credit = (float) $sum->credit;
@@ -93,18 +174,31 @@ class FinancialStatementService
             // kredit-normal (Kewajiban/Modal/Pendapatan) = kredit - debit.
             $balance = $account->isDebitNormal() ? $debit - $credit : $credit - $debit;
 
-            return [
+            $row = [
                 'account' => $account,
                 'debit' => $debit,
                 'credit' => $credit,
                 'balance' => $balance,
             ];
+
+            if ($from) {
+                $openDebit = (float) $sum->open_debit;
+                $openCredit = (float) $sum->open_credit;
+                $row['opening_balance'] = $account->isDebitNormal() ? $openDebit - $openCredit : $openCredit - $openDebit;
+                $row['period_debit'] = round($debit - $openDebit, 2);
+                $row['period_credit'] = round($credit - $openCredit, 2);
+            }
+
+            return $row;
         })->sortBy(fn ($row) => $row['account']->code)->values();
 
         return [
             'rows' => $rows,
             'total_debit' => (float) $rows->sum('debit'),
             'total_credit' => (float) $rows->sum('credit'),
+            'is_balanced' => $this->cents($rows->sum('debit')) === $this->cents($rows->sum('credit')),
+            'has_period' => $from !== null,
+            'from' => $from,
         ];
     }
 
@@ -123,13 +217,13 @@ class FinancialStatementService
             ->where('journal_entries.status', 'posted')
             ->whereBetween('journal_entries.entry_date', [$from->toDateString(), $to->toDateString()])
             ->whereIn('chart_of_accounts.type', self::INCOME_STATEMENT_TYPES)
-            ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
+            ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'journal_entries.store_id'))
             ->selectRaw('journal_entry_lines.chart_of_account_id, SUM(journal_entry_lines.debit) as debit, SUM(journal_entry_lines.credit) as credit')
             ->groupBy('journal_entry_lines.chart_of_account_id')
             ->get()
             ->keyBy('chart_of_account_id');
 
-        $accounts = ChartOfAccount::whereIn('id', $sums->keys())->get()->keyBy('id');
+        $accounts = ChartOfAccount::with('parent')->whereIn('id', $sums->keys())->get()->keyBy('id');
 
         $labels = [
             'pendapatan' => 'Pendapatan',
@@ -196,8 +290,8 @@ class FinancialStatementService
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
             ->where('journal_entries.status', 'posted')
             ->where('journal_entry_lines.chart_of_account_id', $account->id)
-            ->whereDate('journal_entries.entry_date', '<', $from->toDateString())
-            ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
+            ->where('journal_entries.entry_date', '<', $from->toDateString())
+            ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'journal_entries.store_id'))
             ->selectRaw('SUM(journal_entry_lines.debit) as debit, SUM(journal_entry_lines.credit) as credit')
             ->first();
 
@@ -210,13 +304,15 @@ class FinancialStatementService
             ->where('journal_entries.status', 'posted')
             ->where('journal_entry_lines.chart_of_account_id', $account->id)
             ->whereBetween('journal_entries.entry_date', [$from->toDateString(), $to->toDateString()])
-            ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
+            ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'journal_entries.store_id'))
             ->orderBy('journal_entries.entry_date')
             ->orderBy('journal_entries.id')
+            ->orderBy('journal_entry_lines.id')
             ->get([
                 'journal_entry_lines.debit',
                 'journal_entry_lines.credit',
                 'journal_entry_lines.description as line_description',
+                'journal_entries.id as entry_id',
                 'journal_entries.entry_number',
                 'journal_entries.entry_date',
                 'journal_entries.description as entry_description',
@@ -231,6 +327,7 @@ class FinancialStatementService
 
             return [
                 'entry_date' => Carbon::parse($line->entry_date),
+                'entry_id' => $line->entry_id,
                 'entry_number' => $line->entry_number,
                 'description' => $line->line_description ?: $line->entry_description,
                 'debit' => $debit,
@@ -285,7 +382,15 @@ class FinancialStatementService
         $fiscalYearStart = Carbon::create($asOf->year, 1, 1);
         $labaTahunBerjalan = $this->incomeStatement($fiscalYearStart, $asOf, $storeId)['laba_bersih'];
 
-        $totalModal = $totalModalPosted + $labaTahunBerjalan;
+        // Laba SEMUA tahun sebelum tahun berjalan yang belum dipindahkan ke Laba Ditahan (3200):
+        // belum ada jurnal penutup tahunan, jadi tanpa baris ini Neraca tidak balance mulai
+        // tahun buku kedua (audit Laporan Keuangan 2026-09-29). Kalau kelak ada jurnal penutup
+        // (akun P&L dinolkan + 3200 dikredit), angka ini otomatis mengecil -- tidak dobel.
+        $labaTahunLalu = $fiscalYearStart->copy()->subDay()->year >= 1970
+            ? $this->incomeStatement(Carbon::create(1970, 1, 1), $fiscalYearStart->copy()->subDay(), $storeId)['laba_bersih']
+            : 0.0;
+
+        $totalModal = $totalModalPosted + $labaTahunLalu + $labaTahunBerjalan;
         $totalKewajibanModal = $totalKewajiban + $totalModal;
 
         return [
@@ -295,11 +400,12 @@ class FinancialStatementService
             'modal' => [
                 'rows' => $modal,
                 'total_posted' => $totalModalPosted,
+                'laba_tahun_lalu' => $labaTahunLalu,
                 'laba_tahun_berjalan' => $labaTahunBerjalan,
                 'total' => $totalModal,
             ],
             'total_kewajiban_modal' => $totalKewajibanModal,
-            'is_balanced' => round($totalAset, 2) === round($totalKewajibanModal, 2),
+            'is_balanced' => $this->cents($totalAset) === $this->cents($totalKewajibanModal),
         ];
     }
 
@@ -334,7 +440,7 @@ class FinancialStatementService
         $entries = JournalEntry::query()
             ->where('status', 'posted')
             ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
-            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'store_id'))
             ->whereHas('lines', fn ($q) => $q->whereIn('chart_of_account_id', $cashAccountIds))
             ->with('lines.account')
             ->orderBy('entry_date')
@@ -348,6 +454,7 @@ class FinancialStatementService
         ];
 
         $buckets = ['operasional' => collect(), 'investasi' => collect(), 'pendanaan' => collect()];
+        $warnings = [];
 
         foreach ($entries as $entry) {
             $cashLines = $entry->lines->filter(fn ($l) => $cashAccountIds->contains($l->chart_of_account_id));
@@ -364,6 +471,17 @@ class FinancialStatementService
 
             $primary = $nonCashLines->sortByDesc(fn ($l) => max((float) $l->debit, (float) $l->credit))->first();
             $category = $primary->account->cash_flow_category ?? 'operasional';
+
+            // Transparansi klasifikasi (audit 2026-09-29): akun tanpa kategori arus kas tidak lagi
+            // diam-diam jadi "operasional", dan jurnal yang mencampur kategori ditandai.
+            if ($primary->account->cash_flow_category === null) {
+                $warnings['nocat-' . $primary->account->id] = "Akun {$primary->account->code} {$primary->account->name} belum punya kategori arus kas — dihitung sebagai Operasional (mis. jurnal {$entry->entry_number}). Lengkapi di Bagan Akun.";
+            }
+
+            $categories = $nonCashLines->map(fn ($l) => $l->account->cash_flow_category ?? 'operasional')->unique();
+            if ($categories->count() > 1) {
+                $warnings['mixed-' . $entry->id] = "Jurnal {$entry->entry_number} mencampur kategori arus kas (" . $categories->implode(', ') . ") — seluruhnya dihitung sebagai {$category}.";
+            }
 
             $buckets[$category]->push([
                 'entry_date' => $entry->entry_date,
@@ -397,7 +515,8 @@ class FinancialStatementService
             // klasifikasi di atas tidak "membocorkan"/menduplikasi kas,
             // seharusnya SELALU sama dengan closing_cash.
             'closing_cash_actual' => $closingCashActual,
-            'is_reconciled' => round($closingCash, 2) === round($closingCashActual, 2),
+            'is_reconciled' => $this->cents($closingCash) === $this->cents($closingCashActual),
+            'warnings' => array_values($warnings),
         ];
     }
 
@@ -414,8 +533,8 @@ class FinancialStatementService
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
             ->whereIn('journal_entry_lines.chart_of_account_id', $cashAccountIds)
             ->where('journal_entries.status', 'posted')
-            ->whereDate('journal_entries.entry_date', '<=', $asOf->toDateString())
-            ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
+            ->where('journal_entries.entry_date', '<=', $asOf->toDateString())
+            ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'journal_entries.store_id'))
             ->selectRaw('COALESCE(SUM(journal_entry_lines.debit - journal_entry_lines.credit), 0) as balance')
             ->value('balance');
     }

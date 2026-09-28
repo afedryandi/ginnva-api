@@ -76,7 +76,8 @@ class CashFlowReport extends Page implements HasForms
 
                 Select::make('store_id')
                     ->label('Toko')
-                    ->options(fn () => Store::pluck('name', 'id'))
+                    ->options(fn () => [\App\Services\FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
+                    ->helperText('Memilih toko TIDAK mencakup jurnal pusat (tanpa toko, mis. gaji pusat/penyusutan) — pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan untuk semua.')
                     ->placeholder('Semua Toko')
                     ->searchable()
                     ->live(),
@@ -116,6 +117,32 @@ class CashFlowReport extends Page implements HasForms
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);
                 }),
         ];
+    }
+
+    /** Tanggal 'Sampai' tidak boleh sebelum 'Dari' (audit Laporan Keuangan 2026-09-29): dikoreksi + diberi tahu. */
+    public function updatedData(): void
+    {
+        $from = $this->data['from'] ?? null;
+        $to = $this->data['to'] ?? null;
+
+        if ($from && $to && \Illuminate\Support\Carbon::parse($to)->lt(\Illuminate\Support\Carbon::parse($from))) {
+            $this->data['to'] = $from;
+
+            \Filament\Notifications\Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
+    }
+
+
+    public function getNotices(): array
+    {
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
+        $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
+
+        return app(FinancialStatementService::class)->reportNotices($from, $to, $this->data['store_id'] ?? null);
     }
 
     public function getResult(): array

@@ -62,5 +62,6 @@
             </tr>
         </tfoot>
     </table>
+    @include('pdf.partials.report-footer')
 </body>
 </html>
