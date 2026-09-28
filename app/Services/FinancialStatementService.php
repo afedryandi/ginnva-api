@@ -33,6 +33,19 @@ class FinancialStatementService
      */
     public const COMPANY_WIDE = -1;
 
+    /** Urutan & label tipe akun untuk pengelompokan laporan (urutan standar Neraca -> Laba Rugi). */
+    public const TYPE_LABELS = [
+        'aset' => 'Aset',
+        'kewajiban' => 'Kewajiban',
+        'modal' => 'Modal',
+        'pendapatan' => 'Pendapatan',
+        'beban_pokok' => 'Beban Pokok Penjualan (HPP)',
+        'beban_operasional' => 'Beban Operasional',
+        'pendapatan_lain' => 'Pendapatan Lain-lain',
+        'beban_lain' => 'Beban Lain-lain',
+        'pajak' => 'Beban Pajak',
+    ];
+
     private function applyStore($query, int $storeId, string $column)
     {
         return $storeId === self::COMPANY_WIDE
@@ -139,8 +152,15 @@ class FinancialStatementService
         return $account->isDebitNormal() ? $debit - $credit : $credit - $debit;
     }
 
-    public function trialBalance(Carbon $asOf, ?int $storeId = null, ?Carbon $from = null): array
+    /**
+     * @param bool $resetProfitLoss true (dipakai halaman Neraca Saldo): akun Laba Rugi (pendapatan/beban)
+     *        HANYA dihitung dari 1 Januari tahun $asOf, dan laba tahun-tahun sebelumnya (yang belum ditutup ke
+     *        Laba Ditahan) ditampilkan sebagai 1 baris ekuitas -- supaya angka per akun cocok dengan Laporan
+     *        Laba Rugi dan total tetap seimbang. false (default, dipakai Neraca): perilaku kumulatif lama.
+     */
+    public function trialBalance(Carbon $asOf, ?int $storeId = null, ?Carbon $from = null, bool $resetProfitLoss = false): array
     {
+        $yearStart = Carbon::create($asOf->year, 1, 1);
         // Kalau $from diisi: tiap baris juga membawa saldo awal (sebelum $from) dan mutasi periode
         // ($from..$asOf) -- format Neraca Saldo standar (Saldo Awal | Mutasi | Saldo Akhir).
         $periodSelect = $from
@@ -153,6 +173,11 @@ class FinancialStatementService
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
             ->where('journal_entries.status', 'posted')
             ->where('journal_entries.entry_date', '<=', $asOf->toDateString())
+            ->when($resetProfitLoss, fn ($q) => $q
+                ->join('chart_of_accounts', 'chart_of_accounts.id', '=', 'journal_entry_lines.chart_of_account_id')
+                ->where(fn ($w) => $w
+                    ->whereNotIn('chart_of_accounts.type', self::INCOME_STATEMENT_TYPES)
+                    ->orWhere('journal_entries.entry_date', '>=', $yearStart->toDateString())))
             ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'journal_entries.store_id'))
             ->selectRaw('journal_entry_lines.chart_of_account_id, SUM(journal_entry_lines.debit) as debit, SUM(journal_entry_lines.credit) as credit' . $periodSelect, $bindings)
             ->groupBy('journal_entry_lines.chart_of_account_id')
@@ -192,7 +217,43 @@ class FinancialStatementService
             return $row;
         })->sortBy(fn ($row) => $row['account']->code)->values();
 
+        // Laba tahun-tahun sebelumnya yang belum ditutup: 1 baris ekuitas sintetis (bukan akun nyata).
+        $priorProfit = 0.0;
+        if ($resetProfitLoss) {
+            $priorProfit = $this->incomeStatement(Carbon::create(1970, 1, 1), $yearStart->copy()->subDay(), $storeId)['laba_bersih'];
+
+            if (abs($priorProfit) >= 0.005) {
+                $retained = new ChartOfAccount();
+                $retained->forceFill([
+                    'code' => '3200*',
+                    'name' => 'Laba Ditahan Tahun Sebelumnya (belum ditutup)',
+                    'type' => 'modal',
+                    'normal_balance' => 'credit',
+                ]);
+                $retained->setRelation('parent', null);
+
+                $row = [
+                    'account' => $retained,
+                    'debit' => $priorProfit < 0 ? abs($priorProfit) : 0.0,
+                    'credit' => $priorProfit > 0 ? $priorProfit : 0.0,
+                    'balance' => $priorProfit,
+                ];
+
+                if ($from) {
+                    $beforeYear = $from->lte($yearStart);
+                    $row['opening_balance'] = $beforeYear ? 0.0 : $priorProfit;
+                    $row['period_debit'] = $beforeYear ? $row['debit'] : 0.0;
+                    $row['period_credit'] = $beforeYear ? $row['credit'] : 0.0;
+                }
+
+                $rows = $rows->push($row)->sortBy(fn ($r) => $r['account']->code)->values();
+            }
+        }
+
         return [
+            'as_of' => $asOf,
+            'reset_profit_loss' => $resetProfitLoss,
+            'prior_profit' => $priorProfit,
             'rows' => $rows,
             'total_debit' => (float) $rows->sum('debit'),
             'total_credit' => (float) $rows->sum('credit'),

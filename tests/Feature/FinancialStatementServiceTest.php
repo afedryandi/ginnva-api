@@ -127,6 +127,42 @@ class FinancialStatementServiceTest extends TestCase
         $this->assertEquals(500_000.0, $cash['balance']);
     }
 
+    public function test_trial_balance_resets_profit_loss_each_year_and_stays_balanced(): void
+    {
+        $this->post('2026-06-10', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 1_000_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 1_000_000],
+        ]);
+        $this->post('2027-02-10', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 300_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 300_000],
+        ]);
+
+        $trial = $this->service->trialBalance(Carbon::parse('2027-03-31'), null, null, true);
+
+        $revenue = $trial['rows']->first(fn ($r) => $r['account']->id === $this->revenueId());
+        $retained = $trial['rows']->first(fn ($r) => $r['account']->code === '3200*');
+
+        $this->assertEquals(300_000.0, $revenue['balance'], 'Pendapatan hanya tahun berjalan (2027).');
+        $this->assertNotNull($retained);
+        $this->assertEquals(1_000_000.0, $retained['balance']);
+        $this->assertTrue($trial['is_balanced']);
+        $this->assertArrayHasKey('as_of', $trial);
+    }
+
+    public function test_default_trial_balance_stays_cumulative_for_balance_sheet(): void
+    {
+        $this->post('2026-06-10', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 1_000_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 1_000_000],
+        ]);
+
+        $trial = $this->service->trialBalance(Carbon::parse('2027-03-31'));
+
+        $this->assertNull($trial['rows']->first(fn ($r) => $r['account']->code === '3200*'));
+        $this->assertEquals(1_000_000.0, $trial['rows']->first(fn ($r) => $r['account']->id === $this->revenueId())['balance']);
+    }
+
     public function test_report_notices_flag_draft_journals(): void
     {
         $journal = app(JournalEntryService::class);

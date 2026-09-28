@@ -13,42 +13,46 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * sumbernya array hasil FinancialStatementService::trialBalance() (rows
  * berisi model Account + saldo), bukan Eloquent Builder biasa. Baris
  * "Total" ditambahkan di akhir array, di-bold lewat styles().
+ *
+ * Mengikuti tampilan halaman (audit Neraca Saldo 2026-09-29): kalau laporan dibuat dengan
+ * "Dari Tanggal" (has_period), kolomnya Saldo Awal | Mutasi Debit | Mutasi Kredit | Saldo Akhir.
  */
 class TrialBalanceExport implements FromArray, WithHeadings, WithStyles
 {
     public function __construct(private array $result) {}
 
+    private function hasPeriod(): bool
+    {
+        return (bool) ($this->result['has_period'] ?? false);
+    }
+
     public function headings(): array
     {
-        return [
-            'Kode',
-            'Nama Akun',
-            'Debit',
-            'Kredit',
-            'Saldo',
-        ];
+        return $this->hasPeriod()
+            ? ['Kode', 'Nama Akun', 'Tipe', 'Saldo Awal', 'Mutasi Debit', 'Mutasi Kredit', 'Saldo Akhir']
+            : ['Kode', 'Nama Akun', 'Tipe', 'Debit', 'Kredit', 'Saldo'];
     }
 
     public function array(): array
     {
+        $hasPeriod = $this->hasPeriod();
+
         $rows = collect($this->result['rows'])
-            ->map(fn (array $row) => [
-                $row['account']->code,
-                $row['account']->name,
-                (float) $row['debit'],
-                (float) $row['credit'],
-                (float) $row['balance'],
-            ])
+            ->map(function (array $row) use ($hasPeriod) {
+                $name = $row['account']->name . ($row['account']->is_contra ? ' (pengurang)' : '');
+
+                $type = \App\Services\FinancialStatementService::TYPE_LABELS[$row['account']->type] ?? $row['account']->type;
+
+                return $hasPeriod
+                    ? [$row['account']->code, $name, $type, (float) $row['opening_balance'], (float) $row['period_debit'], (float) $row['period_credit'], (float) $row['balance']]
+                    : [$row['account']->code, $name, $type, (float) $row['debit'], (float) $row['credit'], (float) $row['balance']];
+            })
             ->values()
             ->all();
 
-        $rows[] = [
-            '',
-            'Total',
-            (float) $this->result['total_debit'],
-            (float) $this->result['total_credit'],
-            '',
-        ];
+        $rows[] = $hasPeriod
+            ? ['', 'Total', '', '', (float) collect($this->result['rows'])->sum('period_debit'), (float) collect($this->result['rows'])->sum('period_credit'), '']
+            : ['', 'Total', '', (float) $this->result['total_debit'], (float) $this->result['total_credit'], ''];
 
         return $rows;
     }
