@@ -1033,12 +1033,22 @@ class BookingResource extends Resource
                         // -- konsisten dengan process_referral/process_refund
                         // di bawah, DP tetap uang sungguhan yang berpindah.
                         if (! (auth()->user()?->isFullAccess() ?? false)) {
-                            app(\App\Services\TransactionApprovalService::class)->submitDownPayment(
-                                $record,
-                                (float) $data['amount'],
-                                $data['notes'] ?: null,
-                                auth()->id()
-                            );
+                            try {
+                                app(\App\Services\TransactionApprovalService::class)->submitDownPayment(
+                                    $record,
+                                    (float) $data['amount'],
+                                    $data['notes'] ?: null,
+                                    auth()->id()
+                                );
+                            } catch (RuntimeException $e) {
+                                Notification::make()
+                                    ->title('Pengajuan tidak bisa dibuat')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
 
                             Notification::make()
                                 ->title('Menunggu persetujuan')
@@ -1242,27 +1252,37 @@ class BookingResource extends Resource
                         $withinNegotiationCap = Booking::isWithinNegotiationCap($referencePrice, $enteredAmount);
 
                         if (! (auth()->user()?->isFullAccess() ?? false) && ! $withinNegotiationCap) {
-                            app(\App\Services\TransactionApprovalService::class)->submitBookingReferral(
-                                $record,
-                                $enteredAmount,
-                                $data['amount_received'] !== '' ? (float) $data['amount_received'] : null,
-                                [
-                                    'referral_code' => $data['referral_code'] ?: null,
-                                    'spend_promo_id' => $promoId,
-                                    'spend_promo_discount' => $promoId ? $promoDiscount : null,
-                                    // voucher_discount SENGAJA TIDAK dikirim
-                                    // di sini -- dihitung ulang & klaimnya
-                                    // baru ditandai "Terpakai" saat BENAR-
-                                    // BENAR di-approve() (bukan saat
-                                    // request diajukan), supaya voucher
-                                    // customer tidak "hangus" duluan kalau
-                                    // ternyata permintaan ini ditolak.
-                                    'voucher_claim_id' => $voucherClaimId,
-                                    'payment_method' => $data['payment_method'] ?: null,
-                                    'vehicle_size' => $data['vehicle_size'] ?: null,
-                                ],
-                                auth()->id()
-                            );
+                            try {
+                                app(\App\Services\TransactionApprovalService::class)->submitBookingReferral(
+                                    $record,
+                                    $enteredAmount,
+                                    $data['amount_received'] !== '' ? (float) $data['amount_received'] : null,
+                                    [
+                                        'referral_code' => $data['referral_code'] ?: null,
+                                        'spend_promo_id' => $promoId,
+                                        'spend_promo_discount' => $promoId ? $promoDiscount : null,
+                                        // voucher_discount SENGAJA TIDAK dikirim
+                                        // di sini -- dihitung ulang & klaimnya
+                                        // baru ditandai "Terpakai" saat BENAR-
+                                        // BENAR di-approve() (bukan saat
+                                        // request diajukan), supaya voucher
+                                        // customer tidak "hangus" duluan kalau
+                                        // ternyata permintaan ini ditolak.
+                                        'voucher_claim_id' => $voucherClaimId,
+                                        'payment_method' => $data['payment_method'] ?: null,
+                                        'vehicle_size' => $data['vehicle_size'] ?: null,
+                                    ],
+                                    auth()->id()
+                                );
+                            } catch (RuntimeException $e) {
+                                Notification::make()
+                                    ->title('Pengajuan tidak bisa dibuat')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
 
                             Notification::make()
                                 ->title('Menunggu persetujuan')
@@ -1392,12 +1412,22 @@ class BookingResource extends Resource
                         // -- lihat catatan sama di action process_referral
                         // di atas.
                         if (! (auth()->user()?->isFullAccess() ?? false)) {
-                            app(\App\Services\TransactionApprovalService::class)->submitRefund(
-                                $record,
-                                (float) $data['amount'],
-                                $data['reason'] ?: null,
-                                auth()->id()
-                            );
+                            try {
+                                app(\App\Services\TransactionApprovalService::class)->submitRefund(
+                                    $record,
+                                    (float) $data['amount'],
+                                    $data['reason'] ?: null,
+                                    auth()->id()
+                                );
+                            } catch (RuntimeException $e) {
+                                Notification::make()
+                                    ->title('Pengajuan tidak bisa dibuat')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
 
                             Notification::make()
                                 ->title('Menunggu persetujuan')

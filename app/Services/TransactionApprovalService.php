@@ -29,16 +29,10 @@ class TransactionApprovalService
      */
     public function submitBookingReferral(Booking $booking, float $transactionAmount, ?float $amountReceived, array $extra, int $requestedBy): TransactionApprovalRequest
     {
-        $request = TransactionApprovalRequest::create([
-            'type' => 'booking_referral',
-            'booking_id' => $booking->id,
-            'payload' => array_merge([
-                'transaction_amount' => $transactionAmount,
-                'amount_received' => $amountReceived,
-            ], $extra),
-            'status' => 'pending',
-            'requested_by' => $requestedBy,
-        ]);
+        $request = $this->createRequest($booking, 'booking_referral', array_merge([
+            'transaction_amount' => $transactionAmount,
+            'amount_received' => $amountReceived,
+        ], $extra), $requestedBy);
 
         $this->notifyFullAccess($booking, $request);
 
@@ -47,16 +41,10 @@ class TransactionApprovalService
 
     public function submitRefund(Booking $booking, float $amount, ?string $reason, int $requestedBy): TransactionApprovalRequest
     {
-        $request = TransactionApprovalRequest::create([
-            'type' => 'refund',
-            'booking_id' => $booking->id,
-            'payload' => [
-                'amount' => $amount,
-                'reason' => $reason,
-            ],
-            'status' => 'pending',
-            'requested_by' => $requestedBy,
-        ]);
+        $request = $this->createRequest($booking, 'refund', [
+            'amount' => $amount,
+            'reason' => $reason,
+        ], $requestedBy);
 
         $this->notifyFullAccess($booking, $request);
 
@@ -71,16 +59,10 @@ class TransactionApprovalService
      */
     public function submitDownPayment(Booking $booking, float $amount, ?string $notes, int $requestedBy): TransactionApprovalRequest
     {
-        $request = TransactionApprovalRequest::create([
-            'type' => 'booking_down_payment',
-            'booking_id' => $booking->id,
-            'payload' => [
-                'amount' => $amount,
-                'notes' => $notes,
-            ],
-            'status' => 'pending',
-            'requested_by' => $requestedBy,
-        ]);
+        $request = $this->createRequest($booking, 'booking_down_payment', [
+            'amount' => $amount,
+            'notes' => $notes,
+        ], $requestedBy);
 
         $this->notifyFullAccess($booking, $request);
 
@@ -88,23 +70,92 @@ class TransactionApprovalService
     }
 
     /**
+     * 1 pengajuan PENDING per (booking, jenis) -- audit Persetujuan Transaksi
+     * 2026-09-29: sebelumnya staff bisa mengajukan berulang untuk booking yang
+     * sama (dua refund pending yang totalnya melebihi sisa, DP ganda). Booking
+     * dikunci (lockForUpdate) supaya dua submit bersamaan tidak sama-sama lolos.
+     *
+     * @throws RuntimeException
+     */
+    private function createRequest(Booking $booking, string $type, array $payload, int $requestedBy): TransactionApprovalRequest
+    {
+        return DB::transaction(function () use ($booking, $type, $payload, $requestedBy) {
+            Booking::whereKey($booking->id)->lockForUpdate()->first();
+
+            $label = TransactionApprovalRequest::TYPE_LABELS[$type] ?? $type;
+
+            if (TransactionApprovalRequest::where('booking_id', $booking->id)->where('type', $type)->where('status', 'pending')->exists()) {
+                throw new RuntimeException("Sudah ada pengajuan \"{$label}\" untuk booking ini yang masih menunggu persetujuan. Tunggu keputusannya dulu.");
+            }
+
+            return TransactionApprovalRequest::create([
+                'type' => $type,
+                'booking_id' => $booking->id,
+                'payload' => $payload,
+                'status' => 'pending',
+                'requested_by' => $requestedBy,
+            ]);
+        });
+    }
+
+    /**
+     * Otorisasi & segregation of duties di SERVICE (bukan cuma visible() di
+     * resource): approver harus full-access dan BUKAN pengaju pengajuan itu.
+     *
+     * @throws RuntimeException
+     */
+    private function assertMayDecide(?User $approver, TransactionApprovalRequest $request): void
+    {
+        if (! $approver || ! $approver->isFullAccess()) {
+            throw new RuntimeException('Anda tidak berwenang memutuskan pengajuan ini.');
+        }
+
+        if ((int) $request->requested_by === (int) $approver->id) {
+            throw new RuntimeException('Anda tidak boleh memutuskan pengajuan yang Anda ajukan sendiri.');
+        }
+    }
+
+    /**
+     * approve() memakai lockForUpdate() pada baris PENGAJUAN (dan booking) di
+     * dalam DB::transaction() + recheck status pada baris terkunci -- dua
+     * approver yang mengklik bersamaan tidak lagi mencatat DP/referral ganda,
+     * dan reject yang bertabrakan tidak bisa menimpa approve yang jurnalnya
+     * sudah terposting.
+     *
+     * @return string[] peringatan non-fatal (mis. poin referral gagal diberikan)
+     *
      * @throws RuntimeException diteruskan dari BookingPostingService/
      *         RefundService/VoucherService kalau data sudah tidak valid
      *         lagi saat akhirnya dieksekusi (mis. booking sudah diubah
      *         staff lain, atau klaim voucher yang dipilih sudah dipakai
      *         di transaksi lain, sejak permintaan diajukan).
      */
-    public function approve(TransactionApprovalRequest $request, int $approvedBy): void
+    public function approve(TransactionApprovalRequest $request, int $approvedBy): array
     {
-        if (! $request->isPending()) {
-            throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
-        }
+        $approver = User::find($approvedBy);
+        $warnings = [];
+        $locked = null;
 
-        DB::transaction(function () use ($request, $approvedBy) {
-            $booking = $request->booking()->lockForUpdate()->firstOrFail();
+        DB::transaction(function () use ($request, $approver, $approvedBy, &$warnings, &$locked) {
+            $locked = TransactionApprovalRequest::whereKey($request->id)->lockForUpdate()->first();
 
-            if ($request->type === 'booking_referral') {
-                $payload = $request->payload;
+            if (! $locked || ! $locked->isPending()) {
+                throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
+            }
+
+            $this->assertMayDecide($approver, $locked);
+
+            $booking = $locked->booking()->lockForUpdate()->firstOrFail();
+
+            if ($locked->type === 'booking_referral') {
+                $payload = $locked->payload;
+
+                // Nominal transaksi yang sudah punya refund tidak boleh
+                // ditimpa (sisa refund bisa jadi negatif) -- dicek ulang di
+                // dalam lock, bukan asumsi kondisi saat diajukan.
+                if ($booking->refunds()->exists()) {
+                    throw new RuntimeException('Booking ini sudah punya refund, nominal transaksinya tidak bisa diubah lewat pengajuan referral. Tolak pengajuan ini.');
+                }
 
                 // Gap ditutup 2026-09-26 (audit Voucher Promo) -- klaim
                 // voucher baru BENAR-BENAR ditandai "Terpakai" & dipotong
@@ -139,64 +190,138 @@ class TransactionApprovalService
                 // Kasih poin referral SETELAH nominal ter-posting --
                 // sama urutan dengan jalur full-access langsung di
                 // BookingResource. Kegagalan di sini TIDAK membatalkan
-                // approval (nominal/jurnal sudah sah), cuma dicatat.
+                // approval (nominal/jurnal sudah sah), tapi TIDAK lagi
+                // ditelan diam-diam: dilaporkan ke log/Sentry dan
+                // dikembalikan sebagai peringatan (audit 2026-09-29).
                 $referralService = app(ReferralPointService::class);
                 if (! empty($payload['referral_code'])) {
                     try {
                         $referralService->awardForBooking($booking->fresh());
                     } catch (RuntimeException $e) {
-                        // Sengaja diabaikan -- sama toleransi dengan
-                        // BookingResource, poin partner bukan syarat sah
-                        // approval nominal transaksi.
+                        report($e);
+                        $warnings[] = 'Poin referral partner gagal diberikan: ' . $e->getMessage();
                     }
                 }
                 try {
                     $referralService->awardForCustomerReferral($booking->fresh());
                 } catch (RuntimeException $e) {
-                    // Sengaja diabaikan, lihat catatan di atas.
+                    report($e);
+                    $warnings[] = 'Poin referral pelanggan gagal diberikan: ' . $e->getMessage();
                 }
-            } elseif ($request->type === 'refund') {
+            } elseif ($locked->type === 'refund') {
                 app(RefundService::class)->process(
                     $booking,
-                    (float) $request->payload['amount'],
-                    $request->payload['reason'] ?? null,
-                    $request->requested_by // pemohon asli tercatat sebagai created_by Refund, approver tercatat di kolom decided_by request ini
+                    (float) $locked->payload['amount'],
+                    $locked->payload['reason'] ?? null,
+                    $locked->requested_by // pemohon asli tercatat sebagai created_by Refund, approver tercatat di kolom decided_by request ini
                 );
-            } elseif ($request->type === 'booking_down_payment') {
+            } elseif ($locked->type === 'booking_down_payment') {
                 app(DownPaymentService::class)->receive(
                     $booking,
-                    (float) $request->payload['amount'],
-                    $request->payload['notes'] ?? null,
-                    $request->requested_by // sama pola dengan refund di atas -- pemohon asli tercatat sebagai created_by DP
+                    (float) $locked->payload['amount'],
+                    $locked->payload['notes'] ?? null,
+                    $locked->requested_by // sama pola dengan refund di atas -- pemohon asli tercatat sebagai created_by DP
                 );
             }
 
-            $request->update([
+            $locked->update([
                 'status' => 'approved',
                 'decided_by' => $approvedBy,
                 'decided_at' => now(),
             ]);
         });
+
+        $this->notifyRequesterOfDecision($locked, approved: true);
+
+        return $warnings;
     }
 
+    /**
+     * @throws RuntimeException kalau bukan berwenang, pengaju sendiri, sudah
+     *         diputuskan, atau alasan kosong (alasan penolakan WAJIB).
+     */
     public function reject(TransactionApprovalRequest $request, int $approvedBy, ?string $note): void
     {
-        if (! $request->isPending()) {
-            throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
+        if (blank($note)) {
+            throw new RuntimeException('Alasan penolakan wajib diisi.');
         }
 
-        $request->update([
-            'status' => 'rejected',
-            'decided_by' => $approvedBy,
-            'decided_at' => now(),
-            'decision_note' => $note,
-        ]);
+        $approver = User::find($approvedBy);
+
+        $locked = DB::transaction(function () use ($request, $approver, $approvedBy, $note) {
+            $locked = TransactionApprovalRequest::whereKey($request->id)->lockForUpdate()->first();
+
+            if (! $locked || ! $locked->isPending()) {
+                throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
+            }
+
+            $this->assertMayDecide($approver, $locked);
+
+            $locked->update([
+                'status' => 'rejected',
+                'decided_by' => $approvedBy,
+                'decided_at' => now(),
+                'decision_note' => $note,
+            ]);
+
+            return $locked;
+        });
+
+        $this->notifyRequesterOfDecision($locked, approved: false);
+    }
+
+    /**
+     * Pengaju diberi tahu hasil keputusan (database + push), SETELAH commit
+     * dan tidak boleh menggagalkan keputusan yang sudah sah -- audit
+     * Persetujuan Transaksi 2026-09-29 (sebelumnya pengaju tidak pernah tahu).
+     */
+    private function notifyRequesterOfDecision(TransactionApprovalRequest $request, bool $approved): void
+    {
+        try {
+            $requester = User::find($request->requested_by);
+            if (! $requester) {
+                return;
+            }
+
+            $label = TransactionApprovalRequest::TYPE_LABELS[$request->type] ?? $request->type;
+            $booking = $request->booking?->booking_number ?? '—';
+            $title = $approved ? "{$label} disetujui" : "{$label} ditolak";
+            $body = "Booking {$booking} — Rp" . number_format($request->amount(), 0, ',', '.')
+                . ($approved ? ' sudah diposting.' : ' ditolak: ' . $request->decision_note);
+
+            $notification = Notification::make()->title($title)->body($body);
+            $approved ? $notification->success() : $notification->danger();
+            $notification->sendToDatabase($requester);
+
+            app(PushNotificationService::class)->sendToUsers([$requester->id], $title, $body);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * Pengaju diberi tahu pengajuannya TERTAHAN saat approver mencoba
+     * menyetujui tapi gagal (mis. periode ditutup, refund melebihi sisa).
+     */
+    public function notifyRequesterStuck(TransactionApprovalRequest $request, string $reason): void
+    {
+        try {
+            if ($requester = User::find($request->requested_by)) {
+                Notification::make()
+                    ->title('Pengajuan Anda tertahan')
+                    ->body(($request->booking?->booking_number ?? '') . ': ' . $reason)
+                    ->warning()
+                    ->sendToDatabase($requester);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     private function notifyFullAccess(Booking $booking, TransactionApprovalRequest $request): void
     {
         $label = TransactionApprovalRequest::TYPE_LABELS[$request->type] ?? $request->type;
-        $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess());
+        $recipients = User::where('is_active', true)->where('id', '!=', $request->requested_by)->get()->filter(fn (User $u) => $u->isFullAccess());
 
         foreach ($recipients as $recipient) {
             Notification::make()
@@ -204,6 +329,18 @@ class TransactionApprovalService
                 ->body("Booking {$booking->booking_number} — perlu persetujuan Anda sebelum diposting ke Jurnal Umum.")
                 ->warning()
                 ->sendToDatabase($recipient);
+        }
+
+        // Push ke approver (sebelumnya cuma notifikasi database); kegagalan
+        // kirim tidak boleh menggagalkan pengajuan.
+        try {
+            app(PushNotificationService::class)->sendToUsers(
+                $recipients->pluck('id'),
+                "Menunggu persetujuan: {$label}",
+                "Booking {$booking->booking_number} — perlu persetujuan Anda."
+            );
+        } catch (\Throwable $e) {
+            report($e);
         }
     }
 }

@@ -121,22 +121,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
      */
     public function isFullAccess(): bool
     {
-        return $this->hasAnyRole(['super_admin', 'direksi', 'cfo']);
-    }
-
-    /**
-     * Pemegang PERSETUJUAN KEUANGAN (keputusan user 2026-09-28, mengacu ke
-     * struktur organisasi): pengeluaran tahap akhir & pembayaran Payroll
-     * hanya boleh disetujui CFO, bukan semua akun full-access (CEO/CCO
-     * tetap full-access untuk hal lain, tapi tidak untuk approval uang).
-     * super_admin SENGAJA tetap termasuk sebagai cadangan (break-glass) --
-     * tanpa itu, selama role 'cfo' belum diberikan ke siapa pun, tidak ada
-     * yang bisa menyetujui apa pun. Kalau mau ketat, hapus 'super_admin'
-     * dari daftar ini.
-     */
-    public function isFinanceApprover(): bool
-    {
-        return $this->hasAnyRole(['cfo', 'super_admin']);
+        return $this->hasAnyRole(['super_admin', 'direksi']);
     }
 
     /**

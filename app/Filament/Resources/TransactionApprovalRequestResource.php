@@ -6,6 +6,7 @@ use App\Filament\Resources\TransactionApprovalRequestResource\Pages;
 use App\Models\TransactionApprovalRequest;
 use App\Services\TransactionApprovalService;
 use Filament\Forms;
+use Filament\Infolists;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -41,6 +42,11 @@ class TransactionApprovalRequestResource extends Resource
     public static function canViewAny(): bool
     {
         return auth()->user()?->isFullAccess() ?? false;
+    }
+
+    public static function canView($record): bool
+    {
+        return static::canViewAny();
     }
 
     public static function canCreate(): bool
@@ -93,13 +99,7 @@ class TransactionApprovalRequestResource extends Resource
 
                 Tables\Columns\TextColumn::make('nominal')
                     ->label('Nominal Diajukan')
-                    ->getStateUsing(function (TransactionApprovalRequest $record): string {
-                        $amount = in_array($record->type, ['refund', 'booking_down_payment'], true)
-                            ? ($record->payload['amount'] ?? 0)
-                            : ($record->payload['transaction_amount'] ?? 0);
-
-                        return 'Rp' . number_format((float) $amount, 0, ',', '.');
-                    }),
+                    ->getStateUsing(fn (TransactionApprovalRequest $record): string => 'Rp' . number_format($record->amount(), 0, ',', '.')),
 
                 Tables\Columns\TextColumn::make('requester.name')
                     ->label('Diajukan Oleh')
@@ -112,12 +112,7 @@ class TransactionApprovalRequestResource extends Resource
                         'success' => 'approved',
                         'danger' => 'rejected',
                     ])
-                    ->formatStateUsing(fn (string $state) => match ($state) {
-                        'pending' => 'Menunggu',
-                        'approved' => 'Disetujui',
-                        'rejected' => 'Ditolak',
-                        default => $state,
-                    }),
+                    ->formatStateUsing(fn (string $state) => TransactionApprovalRequest::STATUS_LABELS[$state] ?? $state),
 
                 Tables\Columns\TextColumn::make('approver.name')
                     ->label('Diputuskan Oleh')
@@ -131,54 +126,103 @@ class TransactionApprovalRequestResource extends Resource
             ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
-                    ->options([
-                        'pending' => 'Menunggu',
-                        'approved' => 'Disetujui',
-                        'rejected' => 'Ditolak',
-                    ])
+                    ->options(TransactionApprovalRequest::STATUS_LABELS)
                     ->default('pending'),
+
+                Tables\Filters\SelectFilter::make('type')
+                    ->label('Jenis')
+                    ->options(TransactionApprovalRequest::TYPE_LABELS),
             ])
             ->actions([
+                // Detail + riwayat keputusan (audit Persetujuan Transaksi
+                // 2026-09-29): payload, alasan, siapa/kapan memutuskan.
+                Tables\Actions\ViewAction::make()
+                    ->label('Detail')
+                    ->modalHeading(fn (TransactionApprovalRequest $r) => 'Pengajuan #' . $r->id . ' — ' . (TransactionApprovalRequest::TYPE_LABELS[$r->type] ?? $r->type))
+                    ->infolist(fn (TransactionApprovalRequest $r) => [
+                        Infolists\Components\Section::make('Pengajuan')->columns(2)->schema([
+                            Infolists\Components\TextEntry::make('summary')->label('Ringkasan')->state($r->summaryLine())->columnSpanFull(),
+                            Infolists\Components\TextEntry::make('status')->label('Status')->state(TransactionApprovalRequest::STATUS_LABELS[$r->status] ?? $r->status)->badge(),
+                            Infolists\Components\TextEntry::make('diajukan')->label('Diajukan')->state($r->created_at?->format('d M Y H:i')),
+                            Infolists\Components\TextEntry::make('alasan')->label('Alasan / Catatan Pengaju')
+                                ->state($r->payload['reason'] ?? $r->payload['notes'] ?? '—')->columnSpanFull(),
+                            Infolists\Components\TextEntry::make('metode')->label('Metode Pembayaran')->state($r->payload['payment_method'] ?? '—'),
+                            Infolists\Components\TextEntry::make('kode')->label('Kode Referral')->state($r->payload['referral_code'] ?? '—'),
+                        ]),
+                        Infolists\Components\Section::make('Keputusan')->columns(2)->schema([
+                            Infolists\Components\TextEntry::make('oleh')->label('Diputuskan Oleh')->state($r->approver?->name ?? '—'),
+                            Infolists\Components\TextEntry::make('kapan')->label('Waktu Keputusan')->state($r->decided_at?->format('d M Y H:i') ?? '—'),
+                            Infolists\Components\TextEntry::make('catatan')->label('Catatan Keputusan')->state($r->decision_note ?: '—')->columnSpanFull(),
+                        ]),
+                    ]),
+
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (TransactionApprovalRequest $record) => $record->isPending())
+                    ->visible(fn (TransactionApprovalRequest $record) => $record->isPending()
+                        && (int) $record->requested_by !== (int) auth()->id())
                     ->requiresConfirmation()
-                    ->modalDescription('Nominal akan langsung diposting ke Jurnal Umum. Lanjutkan?')
+                    ->modalHeading(fn (TransactionApprovalRequest $record) => 'Setujui ' . (TransactionApprovalRequest::TYPE_LABELS[$record->type] ?? 'pengajuan') . '?')
+                    // Teks konfirmasi sesuai JENIS -- sebelumnya selalu "diposting ke
+                    // Jurnal Umum" walau referral juga memberi poin dan DP dicatat
+                    // sebagai Pendapatan Diterima Dimuka.
+                    ->modalDescription(fn (TransactionApprovalRequest $record) => $record->summaryLine() . '. ' . match ($record->type) {
+                        'booking_referral' => 'Nominal transaksi booking akan diperbarui dan diposting ke Jurnal Umum, serta poin referral diberikan kalau ada kode referral.',
+                        'refund' => 'Refund akan diposting ke Jurnal Umum (kas keluar ke pelanggan).',
+                        'booking_down_payment' => 'DP akan dicatat sebagai Pendapatan Diterima Dimuka (belum pendapatan) di Jurnal Umum.',
+                        default => 'Pengajuan akan dieksekusi.',
+                    })
                     ->action(function (TransactionApprovalRequest $record) {
+                        $service = app(TransactionApprovalService::class);
+
                         try {
-                            app(TransactionApprovalService::class)->approve($record, auth()->id());
+                            $warnings = $service->approve($record, auth()->id());
                         } catch (RuntimeException $e) {
                             Notification::make()
-                                ->title('Tidak bisa disetujui')
-                                ->body($e->getMessage())
+                                ->title('Tidak bisa disetujui — pengajuan tertahan')
+                                ->body($e->getMessage() . ' Perbaiki penyebabnya, atau tolak pengajuan ini dengan alasan.')
                                 ->danger()
+                                ->persistent()
                                 ->send();
+
+                            // Pengaju diberi tahu pengajuannya tertahan.
+                            $service->notifyRequesterStuck($record, $e->getMessage());
 
                             return;
                         }
 
                         Notification::make()
-                            ->title('Permintaan disetujui & sudah diposting.')
+                            ->title(match ($record->type) {
+                                'booking_down_payment' => 'DP disetujui & dicatat.',
+                                'booking_referral' => 'Referral disetujui & nominal diposting.',
+                                default => 'Refund disetujui & diposting.',
+                            })
                             ->success()
                             ->send();
+
+                        foreach ($warnings as $warning) {
+                            Notification::make()->title('Perhatian')->body($warning)->warning()->persistent()->send();
+                        }
                     }),
 
                 Tables\Actions\Action::make('reject')
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn (TransactionApprovalRequest $record) => $record->isPending())
+                    ->visible(fn (TransactionApprovalRequest $record) => $record->isPending()
+                        && (int) $record->requested_by !== (int) auth()->id())
+                    ->modalDescription(fn (TransactionApprovalRequest $record) => $record->summaryLine())
                     ->form([
                         Forms\Components\Textarea::make('decision_note')
                             ->label('Alasan Penolakan')
+                            ->required()
                             ->rows(2)
                             ->maxLength(500),
                     ])
                     ->action(function (TransactionApprovalRequest $record, array $data) {
                         try {
-                            app(TransactionApprovalService::class)->reject($record, auth()->id(), $data['decision_note'] ?: null);
+                            app(TransactionApprovalService::class)->reject($record, auth()->id(), $data['decision_note']);
                         } catch (RuntimeException $e) {
                             Notification::make()
                                 ->title('Tidak bisa ditolak')

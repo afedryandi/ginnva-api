@@ -46,7 +46,7 @@ class RoleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Role / Divisi';
 
-    private const PROTECTED_ROLES = ['super_admin', 'direksi', 'cfo', 'installer', 'partner', 'store_manager'];
+    private const PROTECTED_ROLES = ['super_admin', 'direksi', 'installer', 'partner', 'store_manager'];
 
     public static function canViewAny(): bool
     {
