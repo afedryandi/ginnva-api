@@ -26,8 +26,14 @@ class ChartOfAccountSeeder extends Seeder
     {
         $accounts = $this->accounts();
 
+        // firstOrCreate (audit Bagan Akun 2026-09-28): SEBELUMNYA
+        // updateOrCreate menimpa name/type/is_postable/is_active/klasifikasi
+        // setiap seeder dijalankan ulang -- re-seed di production (mis.
+        // untuk menambah akun 6520 yang hilang) mengaktifkan kembali akun
+        // yang sengaja dinonaktifkan dan menimpa edit admin. Sekarang HANYA
+        // membuat akun yang belum ada; akun yang sudah ada tidak disentuh.
         foreach ($accounts as $data) {
-            ChartOfAccount::updateOrCreate(
+            ChartOfAccount::firstOrCreate(
                 ['code' => $data['code']],
                 [
                     'name' => $data['name'],
@@ -36,19 +42,22 @@ class ChartOfAccountSeeder extends Seeder
                     'is_postable' => $data['postable'] ?? true,
                     'is_active' => true,
                     'is_cash' => $data['cash'] ?? false,
+                    'is_contra' => in_array($data['code'], ['1211', '1221', '1231', '1241', '4900'], true),
                     'cash_flow_category' => $data['flow'] ?? null,
                     'description' => $data['description'] ?? null,
                 ]
             );
         }
 
+        // Induk hanya diisi kalau akun BELUM punya induk (tidak menimpa
+        // penataan ulang hierarki oleh admin).
         foreach ($accounts as $data) {
             if (empty($data['parent'])) {
                 continue;
             }
 
             $parentId = ChartOfAccount::where('code', $data['parent'])->value('id');
-            ChartOfAccount::where('code', $data['code'])->update(['parent_id' => $parentId]);
+            ChartOfAccount::where('code', $data['code'])->whereNull('parent_id')->update(['parent_id' => $parentId]);
         }
     }
 
