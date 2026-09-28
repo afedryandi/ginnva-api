@@ -17,11 +17,13 @@ class AccountingPeriod extends Model
         'closed_by',
         'closed_at',
         'notes',
+        'snapshot',
     ];
 
     protected $casts = [
         'period_month' => 'date',
         'closed_at' => 'datetime',
+        'snapshot' => 'array',
     ];
 
     public function closer(): BelongsTo

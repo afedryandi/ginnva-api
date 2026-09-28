@@ -695,6 +695,12 @@ class FinancialStatementService
         return $result;
     }
 
+    /** Saldo gabungan akun kas per tanggal (publik: dipakai ringkasan penutupan periode). */
+    public function cashBalanceAt(Carbon $asOf, ?int $storeId = null): float
+    {
+        return $this->cashBalanceAsOf($asOf, $storeId);
+    }
+
     /**
      * Saldo gabungan semua akun is_cash=true per tanggal cutoff —
      * dipakai sebagai saldo awal/akhir Laporan Arus Kas DAN sebagai

@@ -7,6 +7,8 @@ use App\Services\AccountingPeriodService;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -108,6 +110,7 @@ class ClosePeriodPage extends Page implements HasActions, HasForms
                 'date' => $date,
                 'is_closed' => $period !== null,
                 'period' => $period,
+                'snapshot' => $period?->snapshot,
                 'is_future' => $date->greaterThan(now()->startOfMonth()),
                 'posted_count' => (int) ($stats[$m]->posted ?? 0),
                 'draft_count' => (int) ($stats[$m]->draft ?? 0),
@@ -118,13 +121,156 @@ class ClosePeriodPage extends Page implements HasActions, HasForms
         return $months;
     }
 
-    public function closeMonth(int $year, int $month): void
+    /** Riwayat tutup/buka kembali terbaru (tabel accounting_period_events, tidak ikut terhapus saat reopen). */
+    public function getEvents(): \Illuminate\Support\Collection
+    {
+        return \App\Models\AccountingPeriodEvent::with('user')->orderByDesc('id')->limit(15)->get();
+    }
+
+    /** Form pratinjau daftar periksa: item pemblokir/peringatan + checkbox konfirmasi kalau ada peringatan. */
+    private function checklistFormFor(Carbon $month): array
+    {
+        $items = collect(app(AccountingPeriodService::class)->checklist($month));
+        $blockers = $items->where('severity', 'block');
+        $warnings = $items->where('severity', 'warn');
+
+        $fields = [];
+
+        if ($items->isEmpty()) {
+            $fields[] = Placeholder::make('checklist_ok')->label('Daftar periksa')->content('✓ Tidak ada jurnal draft, debit = kredit, dan tidak ada pengajuan/payroll/penyusutan/mutasi bank yang tertunda.');
+        }
+
+        if ($blockers->isNotEmpty()) {
+            $fields[] = Placeholder::make('checklist_block')
+                ->label('Harus diselesaikan dulu (memblokir penutupan)')
+                ->content(new \Illuminate\Support\HtmlString('<ul style="list-style:disc;padding-left:1.2rem;color:#b91c1c">' . $blockers->map(fn ($i) => '<li>' . e($i['text']) . '</li>')->implode('') . '</ul>'));
+        }
+
+        if ($warnings->isNotEmpty()) {
+            $fields[] = Placeholder::make('checklist_warn')
+                ->label('Perlu diperiksa (peringatan)')
+                ->content(new \Illuminate\Support\HtmlString('<ul style="list-style:disc;padding-left:1.2rem;color:#b45309">' . $warnings->map(fn ($i) => '<li>' . e($i['text']) . '</li>')->implode('') . '</ul>'));
+            $fields[] = Checkbox::make('acknowledge')->label('Saya sudah memeriksa peringatan di atas dan tetap menutup periode ini')->accepted();
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Tutup periode lewat modal: daftar periksa (pemblokir & peringatan), catatan opsional, dan pesan yang jelas
+     * untuk error database (mis. tabrakan penutupan bersamaan). Direksi lain diberi tahu setelah berhasil.
+     */
+    public function closePeriodAction(): Action
+    {
+        return Action::make('closePeriod')
+            ->modalHeading(fn (array $arguments) => 'Tutup periode ' . Carbon::create((int) $arguments['year'], (int) $arguments['month'], 1)->translatedFormat('F Y') . '?')
+            ->modalDescription('Jurnal dengan tanggal di bulan ini tidak akan bisa dibuat/diubah/diposting lagi sampai periodenya dibuka kembali. Periode harus ditutup berurutan dari yang paling lama.')
+            ->modalSubmitActionLabel('Tutup Periode')
+            ->color('danger')
+            ->form(fn (array $arguments) => array_merge(
+                $this->checklistFormFor(Carbon::create((int) $arguments['year'], (int) $arguments['month'], 1)),
+                [Textarea::make('notes')->label('Catatan penutupan (opsional)')->rows(2)->maxLength(500)]
+            ))
+            ->action(function (array $arguments, array $data) {
+                $month = Carbon::create((int) $arguments['year'], (int) $arguments['month'], 1);
+
+                try {
+                    app(AccountingPeriodService::class)->close($month, auth()->id(), $data['notes'] ?? null, (bool) ($data['acknowledge'] ?? false));
+
+                    Notification::make()->title('Periode ditutup')->success()->send();
+                    $this->notifyOthers('Periode ' . $month->translatedFormat('F Y') . ' ditutup', $data['notes'] ?? null);
+                } catch (RuntimeException|\Illuminate\Database\QueryException $e) {
+                    Notification::make()
+                        ->title('Gagal menutup periode')
+                        ->body($e instanceof \Illuminate\Database\QueryException ? 'Terjadi konflik data. Muat ulang halaman lalu coba lagi.' : $e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    /** Tutup beberapa bulan sekaligus (berurutan dari yang tertua sampai bulan yang dipilih); berhenti di kegagalan pertama. */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('closeUntil')
+                ->label('Tutup Beberapa Bulan')
+                ->icon('heroicon-o-lock-closed')
+                ->color('danger')
+                ->modalDescription('Menutup semua bulan terbuka mulai dari yang paling lama sampai bulan yang dipilih, berurutan. Berhenti di bulan pertama yang gagal (draft/tidak seimbang/peringatan belum dikonfirmasi).')
+                ->form([
+                    Select::make('until')
+                        ->label('Tutup sampai bulan')
+                        ->options(function () {
+                            $options = [];
+                            for ($i = 1; $i <= 12; $i++) {
+                                $d = now()->subMonthsNoOverflow($i)->startOfMonth();
+                                if (! AccountingPeriod::isClosedFor($d)) {
+                                    $options[$d->toDateString()] = $d->translatedFormat('F Y');
+                                }
+                            }
+
+                            return $options;
+                        })
+                        ->required(),
+                    Checkbox::make('acknowledge')->label('Saya sudah memeriksa daftar periksa tiap bulan (peringatan boleh diabaikan)')->accepted(),
+                    Textarea::make('notes')->label('Catatan (opsional, dipakai untuk semua bulan)')->rows(2)->maxLength(500),
+                ])
+                ->action(function (array $data) {
+                    $until = Carbon::parse($data['until'])->startOfMonth();
+                    $service = app(AccountingPeriodService::class);
+
+                    // Mulai dari bulan tertua yang punya jurnal & belum ditutup, sampai bulan pilihan.
+                    $first = \App\Models\JournalEntry::where('status', 'posted')->min('entry_date');
+                    $cursor = $first ? Carbon::parse($first)->startOfMonth() : $until->copy();
+
+                    $closed = [];
+                    while ($cursor->lte($until)) {
+                        if (! AccountingPeriod::isClosedFor($cursor)) {
+                            try {
+                                $service->close($cursor->copy(), auth()->id(), $data['notes'] ?? null, true);
+                                $closed[] = $cursor->translatedFormat('F Y');
+                            } catch (RuntimeException|\Illuminate\Database\QueryException $e) {
+                                Notification::make()
+                                    ->title('Berhenti di ' . $cursor->translatedFormat('F Y'))
+                                    ->body(($closed ? count($closed) . ' bulan sudah ditutup. ' : '') . ($e instanceof \Illuminate\Database\QueryException ? 'Terjadi konflik data.' : $e->getMessage()))
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+
+                                if ($closed) {
+                                    $this->notifyOthers(count($closed) . ' periode ditutup', implode(', ', $closed));
+                                }
+
+                                return;
+                            }
+                        }
+
+                        $cursor->addMonthNoOverflow();
+                    }
+
+                    Notification::make()->title(count($closed) . ' periode ditutup')->body(implode(', ', $closed))->success()->send();
+
+                    if ($closed) {
+                        $this->notifyOthers(count($closed) . ' periode ditutup', implode(', ', $closed) . ($data['notes'] ? ' — ' . $data['notes'] : ''));
+                    }
+                }),
+        ];
+    }
+
+    /** Beri tahu direksi LAIN (bukan pelaku): tutup/buka periode adalah keputusan pembukuan yang harus terlihat. */
+    private function notifyOthers(string $title, ?string $body = null): void
     {
         try {
-            app(AccountingPeriodService::class)->close(Carbon::create($year, $month, 1), auth()->id());
-            Notification::make()->title('Periode ditutup')->success()->send();
-        } catch (RuntimeException $e) {
-            Notification::make()->title('Gagal menutup periode')->body($e->getMessage())->danger()->send();
+            foreach (\App\Models\User::where('is_active', true)->where('id', '!=', auth()->id())->get()->filter(fn ($u) => $u->isFullAccess()) as $user) {
+                Notification::make()
+                    ->title($title)
+                    ->body(auth()->user()->name . ($body ? ': ' . $body : ''))
+                    ->info()
+                    ->sendToDatabase($user);
+            }
+        } catch (\Throwable $e) {
+            report($e);
         }
     }
 
