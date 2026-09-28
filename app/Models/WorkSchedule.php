@@ -64,6 +64,55 @@ class WorkSchedule extends Model
         return $row['shift_id'] ?? null;
     }
 
+    /**
+     * Validasi SERVER isi `days` (audit Daftar Jadwal Kerja 2026-09-28):
+     * sebelumnya cuma dibatasi lewat UI Repeater, payload Livewire yang
+     * dimanipulasi bisa menyimpan jumlah hari salah, hari ganda, atau
+     * shift_id milik toko lain / id sembarang (kolom JSON tanpa FK).
+     * Return pesan error, atau null kalau valid.
+     */
+    public static function validateDays(mixed $days, ?int $storeId): ?string
+    {
+        if (! is_array($days) || count($days) !== 7) {
+            return 'Pola harus berisi tepat 7 hari.';
+        }
+
+        $codes = collect($days)->pluck('day')->all();
+        if (collect($codes)->sort()->values()->all() !== collect(self::DAYS)->sort()->values()->all()) {
+            return 'Tiap hari (Senin-Minggu) harus muncul tepat satu kali.';
+        }
+
+        $shiftIds = collect($days)->pluck('shift_id')->filter()->unique()->values();
+        if ($shiftIds->isNotEmpty()) {
+            $valid = Shift::withoutGlobalScopes()->where('store_id', $storeId)->whereIn('id', $shiftIds)->count();
+            if ($valid !== $shiftIds->count()) {
+                return 'Ada shift yang tidak ditemukan atau bukan milik toko ini.';
+            }
+        }
+
+        return null;
+    }
+
+    /** Karyawan dengan penugasan yang masih berlaku (hari ini atau ke depan). */
+    public function activeAssigneeIds(): array
+    {
+        return $this->assignments()
+            ->where(fn ($q) => $q->whereNull('effective_to')->orWhereDate('effective_to', '>=', today()))
+            ->pluck('user_id')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected static function booted(): void
+    {
+        static::deleting(function (WorkSchedule $schedule) {
+            if ($schedule->assignments()->exists()) {
+                throw new \RuntimeException("Jadwal Kerja \"{$schedule->name}\" punya riwayat penugasan karyawan, tidak bisa dihapus (riwayat ikut hilang). Nonaktifkan saja.");
+            }
+        });
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

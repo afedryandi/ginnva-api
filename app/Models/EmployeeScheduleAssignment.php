@@ -52,6 +52,9 @@ class EmployeeScheduleAssignment extends Model
         return $this->belongsTo(User::class, 'assigned_by');
     }
 
+    /** Batas mundur tanggal efektif penugasan (hari). */
+    public const MAX_BACKDATE_DAYS = 31;
+
     /**
      * Terapkan 1 WorkSchedule ke BANYAK karyawan sekaligus (audit Majoo,
      * "Template jadwal kerja mingguan direuse ke banyak karyawan") mulai
@@ -61,29 +64,57 @@ class EmployeeScheduleAssignment extends Model
      * pernah ada 2 penugasan aktif tumpang-tindih utk 1 karyawan yang
      * sama, dan histori lama tetap utuh (bukan ditimpa/dihapus).
      *
+     * Diperketat 2026-09-28 (audit Daftar Jadwal Kerja): validasi SERVER
+     * (bukan cuma opsi dropdown UI) -- template harus aktif, karyawan
+     * harus aktif/non-partner/toko yang sama, tanggal efektif tidak
+     * boleh lebih dari MAX_BACKDATE_DAYS ke belakang; baris User
+     * dikunci (lockForUpdate) supaya dua request paralel utk karyawan
+     * yang sama tidak sama-sama membuat penugasan terbuka; penugasan
+     * yang dimulai SETELAH tanggal efektif baru menolak (bukan dihapus
+     * diam-diam), hanya penugasan dgn effective_from SAMA yang diganti.
+     *
      * @param  int[]  $userIds
+     * @throws \InvalidArgumentException
      */
     public static function assignBulk(WorkSchedule $workSchedule, array $userIds, Carbon $effectiveFrom, ?int $assignedBy): int
     {
+        if (! $workSchedule->is_active) {
+            throw new \InvalidArgumentException('Jadwal Kerja ini nonaktif, tidak bisa diterapkan ke karyawan.');
+        }
+
+        if ($effectiveFrom->lt(Carbon::today()->subDays(static::MAX_BACKDATE_DAYS))) {
+            throw new \InvalidArgumentException('Tanggal efektif tidak boleh lebih dari ' . static::MAX_BACKDATE_DAYS . ' hari ke belakang.');
+        }
+
         $count = 0;
 
         DB::transaction(function () use ($workSchedule, $userIds, $effectiveFrom, $assignedBy, &$count) {
             foreach (array_unique($userIds) as $userId) {
-                $open = static::where('user_id', $userId)
-                    ->whereNull('effective_to')
-                    ->lockForUpdate()
-                    ->first();
+                $user = User::where('id', $userId)->lockForUpdate()->first();
 
-                if ($open) {
-                    // Kalau kebetulan penugasan lama BELUM MULAI (effective_from
-                    // di masa depan >= tanggal efektif baru), timpa saja
-                    // (bukan ditutup dgn tanggal mundur yang tidak masuk akal).
-                    if ($open->effective_from->gte($effectiveFrom)) {
-                        $open->delete();
-                    } else {
-                        $open->update(['effective_to' => $effectiveFrom->copy()->subDay()]);
-                    }
+                if (! $user || ! $user->is_active || $user->store_id !== $workSchedule->store_id || $user->hasRole('partner')) {
+                    throw new \InvalidArgumentException('Karyawan harus aktif dan berada di toko yang sama dengan Jadwal Kerja ini.');
                 }
+
+                $later = static::where('user_id', $userId)
+                    ->whereDate('effective_from', '>', $effectiveFrom)
+                    ->exists();
+
+                if ($later) {
+                    throw new \InvalidArgumentException("{$user->name} sudah punya penugasan jadwal yang dimulai setelah tanggal efektif ini. Pilih tanggal yang lebih baru.");
+                }
+
+                // Penugasan dengan effective_from SAMA = koreksi hari yang
+                // sama, diganti. Penugasan yang sedang berlaku (mulai lebih
+                // awal, masih terbuka/belum lewat) ditutup sehari sebelumnya.
+                static::where('user_id', $userId)->whereDate('effective_from', $effectiveFrom)->lockForUpdate()->get()->each->delete();
+
+                static::where('user_id', $userId)
+                    ->whereDate('effective_from', '<', $effectiveFrom)
+                    ->where(fn ($q) => $q->whereNull('effective_to')->orWhereDate('effective_to', '>=', $effectiveFrom))
+                    ->lockForUpdate()
+                    ->get()
+                    ->each(fn (self $row) => $row->update(['effective_to' => $effectiveFrom->copy()->subDay()]));
 
                 static::create([
                     'user_id' => $userId,

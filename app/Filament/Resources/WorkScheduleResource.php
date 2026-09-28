@@ -86,10 +86,13 @@ class WorkScheduleResource extends Resource
             && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
     }
 
+    // Tidak bisa dihapus kalau punya riwayat penugasan (FK cascade
+    // menghapus semua riwayatnya) -- audit Daftar Jadwal Kerja 2026-09-28.
     public static function canDelete($record): bool
     {
         return static::accessGate()
-            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false)
+            && ! $record->assignments()->exists();
     }
 
     public static function canDeleteAny(): bool
@@ -105,7 +108,10 @@ class WorkScheduleResource extends Resource
                 ->label('Toko')
                 ->relationship('store', 'name')
                 ->default(fn () => auth()->user()?->store_id)
-                ->disabled(fn () => ! (auth()->user()?->isFullAccess() ?? false))
+                // Terkunci saat EDIT: memindah template ke toko lain membuat
+                // days menunjuk shift toko lama & penugasan lama tetap di
+                // toko asal (audit Daftar Jadwal Kerja 2026-09-28).
+                ->disabled(fn (?WorkSchedule $record) => $record !== null || ! (auth()->user()?->isFullAccess() ?? false))
                 ->dehydrated()
                 ->live()
                 ->required(),
@@ -114,7 +120,11 @@ class WorkScheduleResource extends Resource
                 ->label('Nama Jadwal')
                 ->placeholder('mis. Jadwal Toko A — Reguler')
                 ->required()
-                ->maxLength(100),
+                ->maxLength(100)
+                ->unique(
+                    ignoreRecord: true,
+                    modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule, Get $get) => $rule->where('store_id', $get('store_id'))
+                ),
 
             // 7 baris TETAP (tidak bisa ditambah/dihapus staff) — 1 baris
             // per hari, "Libur" = shift_id dikosongkan. Struktur ini
@@ -128,6 +138,13 @@ class WorkScheduleResource extends Resource
                 ->reorderable(false)
                 ->columns(2)
                 ->itemLabel(fn (array $state): ?string => WorkSchedule::DAY_LABELS[$state['day'] ?? ''] ?? null)
+                ->rules([
+                    fn (Get $get) => function (string $attribute, $value, \Closure $fail) use ($get) {
+                        if ($error = WorkSchedule::validateDays($value, $get('store_id') ? (int) $get('store_id') : null)) {
+                            $fail($error);
+                        }
+                    },
+                ])
                 ->schema([
                     Forms\Components\Hidden::make('day'),
                     Forms\Components\Placeholder::make('day_label')
@@ -136,16 +153,22 @@ class WorkScheduleResource extends Resource
                     Forms\Components\Select::make('shift_id')
                         ->label('Shift')
                         ->placeholder('Libur')
+                        // Shift NONAKTIF yang sedang terpilih tetap jadi opsi
+                        // (diberi label) -- sebelumnya hilang dari dropdown
+                        // lalu tertimpa null (Libur) diam-diam saat menyimpan
+                        // edit lain (audit 2026-09-28).
                         ->options(fn (Get $get) => Shift::query()
                             ->where('store_id', $get('../../store_id'))
-                            ->where('is_active', true)
-                            ->pluck('name', 'id'))
+                            ->where(fn ($q) => $q->where('is_active', true)->orWhere('id', $get('shift_id')))
+                            ->get()
+                            ->mapWithKeys(fn (Shift $s) => [$s->id => $s->name . ($s->is_active ? '' : ' (nonaktif)')]))
                         ->helperText('Kosongkan untuk menandai hari ini libur.'),
                 ])
                 ->columnSpanFull(),
 
             Forms\Components\Toggle::make('is_active')
                 ->label('Aktif')
+                ->helperText('Nonaktif = template tidak bisa diterapkan ke karyawan BARU; penugasan yang sudah berjalan tetap memakai jadwal ini.')
                 ->default(true),
         ]);
     }
@@ -162,20 +185,32 @@ class WorkScheduleResource extends Resource
                 Tables\Columns\TextColumn::make('days')
                     ->label('Pola')
                     ->state(function (WorkSchedule $record) {
-                        $shiftNames = Shift::whereIn('id', collect($record->days)->pluck('shift_id')->filter())->pluck('name', 'id');
+                        // Nama shift dimuat SEKALI per request (bukan per
+                        // baris -- sebelumnya N+1) dan mencakup shift
+                        // nonaktif; id yang benar-benar hilang tampil
+                        // "(shift dihapus)" bukan "?".
+                        static $shiftNames = null;
+                        $shiftNames ??= Shift::withoutGlobalScopes()->pluck('name', 'id');
 
                         return collect($record->days)
                             ->map(fn ($row) => mb_substr(WorkSchedule::DAY_LABELS[$row['day']] ?? '?', 0, 3)
-                                . ': ' . ($row['shift_id'] ? ($shiftNames[$row['shift_id']] ?? '?') : 'Libur'))
+                                . ': ' . ($row['shift_id'] ? ($shiftNames[$row['shift_id']] ?? '(shift dihapus)') : 'Libur'))
                             ->implode(' · ');
                     })
                     ->wrap()
                     ->limit(80),
 
-                Tables\Columns\TextColumn::make('assignments_count')
-                    ->label('Karyawan Ter-assign')
-                    ->counts('assignments')
+                // Karyawan yang penugasannya MASIH berlaku, bukan semua baris
+                // riwayat (sebelumnya satu karyawan bisa terhitung berkali-kali).
+                Tables\Columns\TextColumn::make('active_assignments_count')
+                    ->label('Karyawan Aktif')
+                    ->state(fn (WorkSchedule $record) => count($record->activeAssigneeIds()))
                     ->badge(),
+
+                Tables\Columns\TextColumn::make('work_days')
+                    ->label('Hari Kerja')
+                    ->state(fn (WorkSchedule $record) => collect($record->days)->filter(fn ($row) => ! empty($row['shift_id']))->count() . ' / 7 hari')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
@@ -188,6 +223,11 @@ class WorkScheduleResource extends Resource
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Status Aktif'),
+
+                Tables\Filters\SelectFilter::make('store_id')
+                    ->label('Toko')
+                    ->relationship('store', 'name')
+                    ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->actions([
                 // "Terapkan ke Karyawan" (audit Majoo, inti temuan ini) --
@@ -209,21 +249,65 @@ class WorkScheduleResource extends Resource
                                 ->where('is_active', true)
                                 ->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['partner']))
                                 ->pluck('name', 'id'))
-                            ->required(),
+                            ->required()
+                            ->live(),
+
+                        // Pratinjau dampak sebelum diterapkan (gap audit
+                        // Daftar Jadwal Kerja 2026-09-28): SEBELUMNYA admin
+                        // tidak melihat penugasan lama siapa yang akan
+                        // ditutup. Info saja, keputusan tetap di admin.
+                        Forms\Components\Placeholder::make('preview')
+                            ->label('Dampak')
+                            ->visible(fn (Get $get) => filled($get('user_ids')))
+                            ->content(function (Get $get) {
+                                $date = filled($get('effective_from')) ? Carbon::parse($get('effective_from')) : today();
+                                $users = User::whereIn('id', $get('user_ids') ?? [])->pluck('name', 'id');
+
+                                $lines = $users->map(function ($name, $id) use ($date) {
+                                    $current = EmployeeScheduleAssignment::activeFor((int) $id, $date);
+
+                                    return e($name) . ': ' . ($current?->workSchedule
+                                        ? 'jadwal lama "' . e($current->workSchedule->name) . '" berakhir ' . $date->copy()->subDay()->translatedFormat('d M Y')
+                                        : 'belum punya jadwal');
+                                });
+
+                                return new \Illuminate\Support\HtmlString($lines->implode('<br>'));
+                            }),
 
                         Forms\Components\DatePicker::make('effective_from')
                             ->label('Berlaku Mulai Tanggal')
                             ->default(now()->toDateString())
                             ->native(false)
                             ->required()
+                            ->minDate(today()->subDays(EmployeeScheduleAssignment::MAX_BACKDATE_DAYS))
                             ->helperText('Penugasan jadwal lama karyawan (kalau ada) otomatis berakhir sehari sebelum tanggal ini — riwayatnya tetap tersimpan, tidak dihapus.'),
                     ])
+                    // Gate sendiri (audit Daftar Jadwal Kerja 2026-09-28):
+                    // sebelumnya siapa pun yang bisa melihat menu ini bisa
+                    // menugaskan jadwal, walau tidak punya hak edit.
+                    ->visible(fn (WorkSchedule $record) => static::canEdit($record) && $record->is_active)
                     ->action(function (WorkSchedule $record, array $data) {
-                        $count = EmployeeScheduleAssignment::assignBulk(
-                            $record,
+                        try {
+                            $count = EmployeeScheduleAssignment::assignBulk(
+                                $record,
+                                $data['user_ids'],
+                                Carbon::parse($data['effective_from']),
+                                auth()->id(),
+                            );
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()
+                                ->title('Jadwal tidak bisa diterapkan')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        app(\App\Services\PushNotificationService::class)->sendToUsers(
                             $data['user_ids'],
-                            Carbon::parse($data['effective_from']),
-                            auth()->id(),
+                            'Jadwal Kerja Baru',
+                            "Anda ditugaskan ke jadwal \"{$record->name}\" mulai " . Carbon::parse($data['effective_from'])->translatedFormat('d M Y') . '.'
                         );
 
                         Notification::make()
@@ -233,11 +317,46 @@ class WorkScheduleResource extends Resource
                     }),
 
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->modalDescription('Jadwal yang punya riwayat penugasan karyawan tidak bisa dihapus (tombol ini tidak muncul) -- nonaktifkan saja.'),
             ])
             ->bulkActions([
-                Tables\Actions\DeleteBulkAction::make(),
+                // Bulk delete Filament cuma cek canDeleteAny(), tidak
+                // re-cek canDelete() per record -- BulkAction kustom yang
+                // melewati jadwal yang punya riwayat penugasan.
+                Tables\Actions\BulkAction::make('deleteUnused')
+                    ->label('Hapus yang dipilih')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalDescription('Jadwal yang punya riwayat penugasan karyawan akan DILEWATI, bukan dihapus.')
+                    ->visible(fn () => static::canDeleteAny())
+                    ->deselectRecordsAfterCompletion()
+                    ->action(function (\Illuminate\Support\Collection $records) {
+                        $deleted = 0;
+                        $skipped = 0;
+                        foreach ($records as $schedule) {
+                            if ($schedule->assignments()->exists()) {
+                                $skipped++;
+                                continue;
+                            }
+                            $schedule->delete();
+                            $deleted++;
+                        }
+
+                        $notification = Notification::make()
+                            ->title("{$deleted} jadwal dihapus" . ($skipped ? ", {$skipped} dilewati (punya riwayat penugasan)" : ''));
+                        $skipped ? $notification->warning() : $notification->success();
+                        $notification->send();
+                    }),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            WorkScheduleResource\RelationManagers\AssignmentsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

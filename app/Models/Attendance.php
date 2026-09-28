@@ -283,6 +283,7 @@ class Attendance extends Model
             ->whereDate('effective_from', '<=', $date)
             ->where(fn ($q) => $q->whereNull('effective_to')->orWhereDate('effective_to', '>=', $date))
             ->with('workSchedule')
+            ->orderByDesc('effective_from')
             ->first();
 
         if (! $assignment?->workSchedule) {
