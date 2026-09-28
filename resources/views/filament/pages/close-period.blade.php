@@ -27,6 +27,15 @@
                                 @endif
                             </div>
                         @endif
+                        @if ($m['posted_count'] || $m['draft_count'])
+                            <div class="text-xs text-gray-500 dark:text-gray-400">
+                                {{ $m['posted_count'] }} jurnal posted
+                                @if ($m['draft_count'])
+                                    · <span class="text-warning-600">{{ $m['draft_count'] }} draft (harus diposting/dihapus sebelum tutup)</span>
+                                @endif
+                                · @if ($m['balanced']) <span class="text-success-600">debit = kredit</span> @else <span class="text-danger-600">debit ≠ kredit</span> @endif
+                            </div>
+                        @endif
                     </div>
 
                     <div class="flex items-center gap-3">
@@ -35,13 +44,13 @@
                             <x-filament::button
                                 size="sm"
                                 color="warning"
-                                wire:click="reopenMonth({{ $year }}, {{ $m['month'] }})"
-                                wire:confirm="Yakin buka kembali periode {{ $m['date']->translatedFormat('F Y') }}? Jurnal dengan tanggal di bulan ini akan bisa dibuat/diubah/diposting lagi."
+                                wire:click="mountAction('reopenPeriod', { year: {{ $year }}, month: {{ $m['month'] }} })"
                             >
                                 Buka Kembali
                             </x-filament::button>
-                        @elseif ($m['is_future'])
-                            <x-filament::badge color="gray">Belum Terjadi</x-filament::badge>
+                        @elseif ($m['date']->greaterThanOrEqualTo(now()->startOfMonth()))
+                            {{-- Bulan berjalan & masa depan belum boleh ditutup (lihat AccountingPeriodService::close()). --}}
+                            <x-filament::badge color="gray">{{ $m['is_future'] ? 'Belum Terjadi' : 'Belum Berakhir' }}</x-filament::badge>
                         @else
                             <x-filament::badge color="gray">Terbuka</x-filament::badge>
                             <x-filament::button

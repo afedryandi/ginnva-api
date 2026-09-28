@@ -4,7 +4,11 @@ namespace App\Filament\Pages;
 
 use App\Models\AccountingPeriod;
 use App\Services\AccountingPeriodService;
+use Filament\Actions\Action;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Actions\Contracts\HasActions;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
@@ -22,8 +26,9 @@ use RuntimeException;
  * TERBATAS full-access, sama filosofi dengan resource/halaman Keuangan
  * lain yang menyentuh Jurnal Umum.
  */
-class ClosePeriodPage extends Page implements HasForms
+class ClosePeriodPage extends Page implements HasActions, HasForms
 {
+    use InteractsWithActions;
     use InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-lock-closed';
@@ -76,6 +81,23 @@ class ClosePeriodPage extends Page implements HasForms
         $year = (int) ($this->data['year'] ?? now()->year);
         $periods = AccountingPeriod::whereYear('period_month', $year)->get()->keyBy(fn ($p) => $p->period_month->month);
 
+        // Pratinjau per bulan (audit Jurnal Umum 2026-09-29): jumlah jurnal posted,
+        // draft yang menghalangi, dan apakah total debit = kredit.
+        $stats = \Illuminate\Support\Facades\DB::table('journal_entries')
+            ->whereYear('entry_date', $year)
+            ->selectRaw("MONTH(entry_date) as m, SUM(status = 'posted') as posted, SUM(status = 'draft') as draft")
+            ->groupBy('m')
+            ->get()
+            ->keyBy('m');
+        $balances = \Illuminate\Support\Facades\DB::table('journal_entry_lines as l')
+            ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
+            ->whereYear('e.entry_date', $year)
+            ->where('e.status', 'posted')
+            ->selectRaw('MONTH(e.entry_date) as m, ROUND(SUM(l.debit) * 100) as d, ROUND(SUM(l.credit) * 100) as c')
+            ->groupBy('m')
+            ->get()
+            ->keyBy('m');
+
         $months = [];
         for ($m = 1; $m <= 12; $m++) {
             $date = Carbon::create($year, $m, 1);
@@ -87,6 +109,9 @@ class ClosePeriodPage extends Page implements HasForms
                 'is_closed' => $period !== null,
                 'period' => $period,
                 'is_future' => $date->greaterThan(now()->startOfMonth()),
+                'posted_count' => (int) ($stats[$m]->posted ?? 0),
+                'draft_count' => (int) ($stats[$m]->draft ?? 0),
+                'balanced' => (int) ($balances[$m]->d ?? 0) === (int) ($balances[$m]->c ?? 0),
             ];
         }
 
@@ -103,15 +128,52 @@ class ClosePeriodPage extends Page implements HasForms
         }
     }
 
-    public function reopenMonth(int $year, int $month): void
+    /**
+     * Buka kembali periode WAJIB dengan alasan (audit Jurnal Umum 2026-09-29):
+     * sebelumnya cuma wire:confirm tanpa alasan, dan periode dihapus tanpa jejak.
+     * Alasan tercatat di activity log.
+     */
+    public function reopenPeriodAction(): Action
     {
-        $period = AccountingPeriod::where('period_month', Carbon::create($year, $month, 1)->toDateString())->first();
+        return Action::make('reopenPeriod')
+            ->modalHeading(fn (array $arguments) => 'Buka kembali periode ' . Carbon::create((int) $arguments['year'], (int) $arguments['month'], 1)->translatedFormat('F Y') . '?')
+            ->modalDescription('Jurnal dengan tanggal di bulan ini akan bisa dibuat/diubah/diposting lagi. Keputusan ini tercatat beserta alasannya.')
+            ->modalSubmitActionLabel('Buka Kembali')
+            ->color('danger')
+            ->form([
+                Textarea::make('reason')->label('Alasan membuka kembali')->required()->rows(2)->maxLength(500),
+            ])
+            ->action(function (array $arguments, array $data) {
+                $period = AccountingPeriod::where('period_month', Carbon::create((int) $arguments['year'], (int) $arguments['month'], 1)->toDateString())->first();
 
-        if (! $period) {
-            return;
-        }
+                if (! $period) {
+                    return;
+                }
 
-        app(AccountingPeriodService::class)->reopen($period);
-        Notification::make()->title('Periode dibuka kembali')->success()->send();
+                try {
+                    app(AccountingPeriodService::class)->reopen($period, auth()->id(), $data['reason']);
+                } catch (RuntimeException $e) {
+                    Notification::make()->title('Gagal membuka periode')->body($e->getMessage())->danger()->send();
+
+                    return;
+                }
+
+                // Dual-control ringan: direksi LAIN diberi tahu (tidak ada yang bisa
+                // membuka periode tanpa terlihat). Kegagalan kirim tak menggagalkan aksi.
+                try {
+                    $label = Carbon::create((int) $arguments['year'], (int) $arguments['month'], 1)->translatedFormat('F Y');
+                    foreach (\App\Models\User::where('is_active', true)->where('id', '!=', auth()->id())->get()->filter(fn ($u) => $u->isFullAccess()) as $user) {
+                        Notification::make()
+                            ->title("Periode {$label} dibuka kembali")
+                            ->body(auth()->user()->name . ': ' . $data['reason'])
+                            ->warning()
+                            ->sendToDatabase($user);
+                    }
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+
+                Notification::make()->title('Periode dibuka kembali')->success()->send();
+            });
     }
 }

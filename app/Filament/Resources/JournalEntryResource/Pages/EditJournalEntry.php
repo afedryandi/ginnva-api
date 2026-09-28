@@ -20,6 +20,16 @@ class EditJournalEntry extends EditRecord
 {
     protected static string $resource = JournalEntryResource::class;
 
+    /** Jurnal posted dibuka di halaman View (bukan Edit yang di-disable). */
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+
+        if (! $this->record->isDraft()) {
+            $this->redirect(JournalEntryResource::getUrl('view', ['record' => $this->record]));
+        }
+    }
+
     public function getTitle(): string
     {
         return $this->record->status === 'posted'
@@ -79,6 +89,7 @@ class EditJournalEntry extends EditRecord
                     'entry_date' => $data['entry_date'],
                     'store_id' => $data['store_id'] ?? null,
                     'description' => $data['description'],
+                    'attachment' => $data['attachment'] ?? null,
                 ],
                 $data['lines'] ?? []
             );

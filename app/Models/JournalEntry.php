@@ -25,6 +25,7 @@ class JournalEntry extends Model
         'entry_date',
         'store_id',
         'description',
+        'attachment',
         'reference_type',
         'reference_id',
         'status',
@@ -82,23 +83,57 @@ class JournalEntry extends Model
 
     public function totalDebit(): float
     {
+        // Pakai hasil withSum('lines', 'debit') kalau sudah di-load (tabel) --
+        // menghindari 1 query sum() per baris (audit Jurnal Umum 2026-09-29).
+        if (array_key_exists('lines_sum_debit', $this->attributes)) {
+            return (float) $this->attributes['lines_sum_debit'];
+        }
+
         return (float) $this->lines()->sum('debit');
     }
 
     public function totalCredit(): float
     {
+        if (array_key_exists('lines_sum_credit', $this->attributes)) {
+            return (float) $this->attributes['lines_sum_credit'];
+        }
+
         return (float) $this->lines()->sum('credit');
     }
 
     public function isBalanced(): bool
     {
-        return round($this->totalDebit(), 2) === round($this->totalCredit(), 2);
+        // Dibandingkan dalam SEN (integer), bukan float.
+        return (int) round($this->totalDebit() * 100) === (int) round($this->totalCredit() * 100);
+    }
+
+    /**
+     * Guard di level MODEL (audit Jurnal Umum 2026-09-29): jurnal POSTED
+     * tidak boleh diubah tanggal/toko/status/keterangan/nomornya atau
+     * dihapus lewat jalur mana pun (tinker, job, kode baru) -- sebelumnya cuma
+     * dijaga UI & service. reference_type/reference_id sengaja masih boleh
+     * (PayableService/ReceivableService mengisi reference_id setelah dibuat);
+     * transisi draft->posted tetap boleh (status lama = draft).
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (JournalEntry $entry) {
+            if ($entry->getOriginal('status') === 'posted' && $entry->isDirty(['entry_date', 'store_id', 'status', 'description', 'entry_number'])) {
+                throw new \RuntimeException("Jurnal {$entry->entry_number} sudah diposting dan terkunci — gunakan jurnal pembalik untuk koreksi.");
+            }
+        });
+
+        static::deleting(function (JournalEntry $entry) {
+            if ($entry->status === 'posted') {
+                throw new \RuntimeException("Jurnal {$entry->entry_number} sudah diposting dan tidak boleh dihapus — gunakan jurnal pembalik.");
+            }
+        });
     }
 
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'entry_date', 'description', 'store_id'])
+            ->logOnly(['status', 'entry_date', 'description', 'store_id', 'posted_by', 'posted_at', 'reference_type', 'reference_id'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('journal_entry')
