@@ -16,12 +16,16 @@ use RuntimeException;
 
 /**
  * Audit framework 2026-09-14, "Segregation of duties finansial" --
- * antrean persetujuan untuk "Proses Referral"/"Proses Refund" yang
- * diajukan staff non-full-access dari BookingResource. TERBATAS
- * full-access (super_admin/direksi) SAJA, sama filosofi dengan
- * JournalEntryResource/PayrollResource -- keputusan approve/reject
- * SENGAJA tidak bisa didelegasikan ke store_manager, supaya
- * pemisahan tugas (yang input ≠ yang menyetujui) benar-benar tertegak.
+ * antrean persetujuan untuk "Proses Referral"/"Proses Refund"/"DP" yang
+ * diajukan staff non-full-access dari BookingResource. KEPUTUSAN approve/
+ * reject TERBATAS full-access (super_admin/direksi), SENGAJA tidak bisa
+ * didelegasikan ke store_manager, supaya pemisahan tugas (yang input ≠
+ * yang menyetujui) benar-benar tertegak.
+ *
+ * Sejak 2026-09-29 (gap audit Persetujuan Transaksi): staff & store manager
+ * BOLEH MELIHAT pengajuan (miliknya sendiri / tokonya) untuk melacak status
+ * dan membatalkan/mengajukan ulang -- tapi tombol Setujui/Tolak tetap hanya
+ * full-access (visible() + otorisasi di service).
  */
 class TransactionApprovalRequestResource extends Resource
 {
@@ -41,7 +45,10 @@ class TransactionApprovalRequestResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return ($user?->isFullAccess() ?? false)
+            || (($user?->canAccessStaffArea() ?? false) && $user->hasMenuAccess(BookingResource::class));
     }
 
     public static function canView($record): bool
@@ -66,12 +73,30 @@ class TransactionApprovalRequestResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with(['booking', 'requester', 'approver']);
+        $query = parent::getEloquentQuery()->with(['booking', 'requester', 'approver']);
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            return $query;
+        }
+
+        // store_manager melihat semua pengajuan tokonya (kolom store_id biasa,
+        // bukan JSON); staff biasa hanya pengajuan miliknya sendiri.
+        if ($user?->isStoreManager() ?? false) {
+            return $query->where('store_id', $user->store_id);
+        }
+
+        return $query->where('requested_by', $user?->id);
     }
 
     public static function getNavigationBadge(): ?string
     {
-        $count = static::getEloquentQuery()->where('status', 'pending')->count();
+        // Badge "menunggu" hanya untuk yang berwenang memutuskan.
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            return null;
+        }
+
+        $count = static::getEloquentQuery()->withoutEagerLoads()->where('status', 'pending')->count();
 
         return $count > 0 ? (string) $count : null;
     }
@@ -85,6 +110,13 @@ class TransactionApprovalRequestResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('request_number')
+                    ->label('No. Pengajuan')
+                    ->searchable()
+                    ->fontFamily('mono')
+                    ->placeholder('—')
+                    ->copyable(),
+
                 Tables\Columns\TextColumn::make('type')
                     ->label('Jenis')
                     ->formatStateUsing(fn (string $state) => TransactionApprovalRequest::TYPE_LABELS[$state] ?? $state)
@@ -111,12 +143,14 @@ class TransactionApprovalRequestResource extends Resource
                         'warning' => 'pending',
                         'success' => 'approved',
                         'danger' => 'rejected',
+                        'gray' => 'cancelled',
                     ])
                     ->formatStateUsing(fn (string $state) => TransactionApprovalRequest::STATUS_LABELS[$state] ?? $state),
 
                 Tables\Columns\TextColumn::make('approver.name')
                     ->label('Diputuskan Oleh')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Diajukan')
@@ -124,10 +158,11 @@ class TransactionApprovalRequestResource extends Resource
                     ->sortable(),
             ])
             ->defaultSort('created_at', 'desc')
+            ->emptyStateHeading('Belum ada pengajuan')
+            ->emptyStateDescription('Pengajuan Proses Referral, Refund, dan Catat DP dari staff muncul di sini.')
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
-                    ->options(TransactionApprovalRequest::STATUS_LABELS)
-                    ->default('pending'),
+                    ->options(TransactionApprovalRequest::STATUS_LABELS),
 
                 Tables\Filters\SelectFilter::make('type')
                     ->label('Jenis')
@@ -142,6 +177,8 @@ class TransactionApprovalRequestResource extends Resource
                     ->infolist(fn (TransactionApprovalRequest $r) => [
                         Infolists\Components\Section::make('Pengajuan')->columns(2)->schema([
                             Infolists\Components\TextEntry::make('summary')->label('Ringkasan')->state($r->summaryLine())->columnSpanFull(),
+                            Infolists\Components\TextEntry::make('nomor')->label('No. Pengajuan')->state($r->request_number ?? '—'),
+                            Infolists\Components\TextEntry::make('resub')->label('Diajukan Ulang')->state($r->resubmitted_at?->format('d M Y H:i') ?? '—'),
                             Infolists\Components\TextEntry::make('status')->label('Status')->state(TransactionApprovalRequest::STATUS_LABELS[$r->status] ?? $r->status)->badge(),
                             Infolists\Components\TextEntry::make('diajukan')->label('Diajukan')->state($r->created_at?->format('d M Y H:i')),
                             Infolists\Components\TextEntry::make('alasan')->label('Alasan / Catatan Pengaju')
@@ -156,11 +193,52 @@ class TransactionApprovalRequestResource extends Resource
                         ]),
                     ]),
 
+                Tables\Actions\Action::make('cancelRequest')
+                    ->label('Batalkan Pengajuan')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('gray')
+                    ->visible(fn (TransactionApprovalRequest $r) => $r->isPending() && (int) $r->requested_by === (int) auth()->id())
+                    ->requiresConfirmation()
+                    ->modalDescription(fn (TransactionApprovalRequest $r) => 'Batalkan pengajuan: ' . $r->summaryLine())
+                    ->action(function (TransactionApprovalRequest $r) {
+                        try {
+                            app(TransactionApprovalService::class)->cancel($r, auth()->user());
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Tidak bisa dibatalkan')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Pengajuan dibatalkan.')->success()->send();
+                    }),
+
+                Tables\Actions\Action::make('resubmit')
+                    ->label('Ajukan Ulang')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->visible(fn (TransactionApprovalRequest $r) => (int) $r->requested_by === (int) auth()->id()
+                        && in_array($r->status, ['rejected', 'cancelled'], true)
+                        && $r->resubmitted_at === null)
+                    ->requiresConfirmation()
+                    ->modalDescription('Data yang sama diajukan lagi sebagai pengajuan baru (sekali saja per pengajuan).')
+                    ->action(function (TransactionApprovalRequest $r) {
+                        try {
+                            app(TransactionApprovalService::class)->resubmit($r, auth()->user());
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Tidak bisa diajukan ulang')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Pengajuan dikirim ulang.')->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->visible(fn (TransactionApprovalRequest $record) => $record->isPending()
+                        && (auth()->user()?->isFullAccess() ?? false)
                         && (int) $record->requested_by !== (int) auth()->id())
                     ->requiresConfirmation()
                     ->modalHeading(fn (TransactionApprovalRequest $record) => 'Setujui ' . (TransactionApprovalRequest::TYPE_LABELS[$record->type] ?? 'pengajuan') . '?')
@@ -211,6 +289,7 @@ class TransactionApprovalRequestResource extends Resource
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->visible(fn (TransactionApprovalRequest $record) => $record->isPending()
+                        && (auth()->user()?->isFullAccess() ?? false)
                         && (int) $record->requested_by !== (int) auth()->id())
                     ->modalDescription(fn (TransactionApprovalRequest $record) => $record->summaryLine())
                     ->form([

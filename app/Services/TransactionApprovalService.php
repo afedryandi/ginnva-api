@@ -84,6 +84,20 @@ class TransactionApprovalService
 
             $label = TransactionApprovalRequest::TYPE_LABELS[$type] ?? $type;
 
+            // Payload di-WHITELIST per jenis (field liar tidak ikut tersimpan)
+            // dan nominal divalidasi (audit Persetujuan Transaksi 2026-09-29).
+            $allowed = [
+                'booking_referral' => ['transaction_amount', 'amount_received', 'referral_code', 'spend_promo_id', 'spend_promo_discount', 'voucher_claim_id', 'payment_method', 'vehicle_size'],
+                'refund' => ['amount', 'reason'],
+                'booking_down_payment' => ['amount', 'notes'],
+            ][$type] ?? [];
+            $payload = array_intersect_key($payload, array_flip($allowed));
+
+            $amountKey = $type === 'booking_referral' ? 'transaction_amount' : 'amount';
+            if (! is_numeric($payload[$amountKey] ?? null) || (float) $payload[$amountKey] < 0 || ($type !== 'booking_referral' && (float) $payload[$amountKey] <= 0)) {
+                throw new RuntimeException('Nominal pengajuan tidak valid.');
+            }
+
             if (TransactionApprovalRequest::where('booking_id', $booking->id)->where('type', $type)->where('status', 'pending')->exists()) {
                 throw new RuntimeException("Sudah ada pengajuan \"{$label}\" untuk booking ini yang masih menunggu persetujuan. Tunggu keputusannya dulu.");
             }
@@ -113,6 +127,76 @@ class TransactionApprovalService
         if ((int) $request->requested_by === (int) $approver->id) {
             throw new RuntimeException('Anda tidak boleh memutuskan pengajuan yang Anda ajukan sendiri.');
         }
+    }
+
+    /**
+     * Pengaju membatalkan pengajuannya sendiri selama masih menunggu (lock +
+     * recheck status). Efek samping belum terjadi (baru terjadi saat approve),
+     * jadi cukup ubah status.
+     *
+     * @throws RuntimeException kalau bukan pengaju atau sudah diputuskan.
+     */
+    public function cancel(TransactionApprovalRequest $request, User $actor): void
+    {
+        DB::transaction(function () use ($request, $actor) {
+            $locked = TransactionApprovalRequest::whereKey($request->id)->lockForUpdate()->first();
+
+            if (! $locked || (int) $locked->requested_by !== (int) $actor->id) {
+                throw new RuntimeException('Cuma pengaju yang boleh membatalkan pengajuan ini.');
+            }
+
+            if (! $locked->isPending()) {
+                throw new RuntimeException('Pengajuan ini sudah diputuskan, tidak bisa dibatalkan.');
+            }
+
+            $locked->update(['status' => 'cancelled']);
+        });
+    }
+
+    /**
+     * Ajukan ulang pengajuan yang DITOLAK/DIBATALKAN dengan data yang sama
+     * (sekali saja, ditandai resubmitted_at) lewat jalur submit yang sama
+     * sehingga validasi & guard pengajuan ganda ikut berjalan.
+     *
+     * @throws RuntimeException
+     */
+    public function resubmit(TransactionApprovalRequest $request, User $actor): TransactionApprovalRequest
+    {
+        if ((int) $request->requested_by !== (int) $actor->id) {
+            throw new RuntimeException('Cuma pengaju asli yang boleh mengajukan ulang.');
+        }
+
+        if (! in_array($request->status, ['rejected', 'cancelled'], true)) {
+            throw new RuntimeException('Cuma pengajuan yang ditolak/dibatalkan yang bisa diajukan ulang.');
+        }
+
+        if ($request->resubmitted_at) {
+            throw new RuntimeException('Pengajuan ini sudah pernah diajukan ulang.');
+        }
+
+        $booking = $request->booking;
+        if (! $booking) {
+            throw new RuntimeException('Booking pada pengajuan ini sudah tidak ada.');
+        }
+
+        $p = $request->payload;
+
+        $new = match ($request->type) {
+            'booking_referral' => $this->submitBookingReferral(
+                $booking,
+                (float) ($p['transaction_amount'] ?? 0),
+                isset($p['amount_received']) ? (float) $p['amount_received'] : null,
+                array_diff_key($p, array_flip(['transaction_amount', 'amount_received'])),
+                $actor->id
+            ),
+            'refund' => $this->submitRefund($booking, (float) ($p['amount'] ?? 0), $p['reason'] ?? null, $actor->id),
+            'booking_down_payment' => $this->submitDownPayment($booking, (float) ($p['amount'] ?? 0), $p['notes'] ?? null, $actor->id),
+            default => throw new RuntimeException('Jenis pengajuan tidak dikenal.'),
+        };
+
+        $request->update(['resubmitted_at' => now()]);
+
+        return $new;
     }
 
     /**

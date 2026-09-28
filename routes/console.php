@@ -36,6 +36,11 @@ Schedule::command('contracts:deactivate-expired')->dailyAt('07:10');
 // Transaksi Keuangan 2026-09-28).
 Schedule::command('finance:remind-pending-approvals')->dailyAt('08:30');
 
+// Ingatkan direksi soal pengajuan Referral/Refund/DP yang menunggu > 2 hari —
+// lihat App\Console\Commands\RemindPendingTransactionApprovals (audit
+// Persetujuan Transaksi 2026-09-29).
+Schedule::command('transactions:remind-pending-approvals')->dailyAt('08:35');
+
 // Tandai Alpha/Izin untuk hari KEMARIN yang belum punya baris Attendance
 // sama sekali — dijadwalkan dini hari supaya "kemarin" sudah pasti hari
 // yang selesai penuh. Lihat App\Console\Commands\MarkAbsences.

@@ -27,9 +27,13 @@ class TransactionApprovalRequest extends Model
         'pending' => 'Menunggu',
         'approved' => 'Disetujui',
         'rejected' => 'Ditolak',
+        'cancelled' => 'Dibatalkan Pengaju',
     ];
 
     protected $fillable = [
+        'request_number',
+        'store_id',
+        'resubmitted_at',
         'type',
         'booking_id',
         'payload',
@@ -43,7 +47,32 @@ class TransactionApprovalRequest extends Model
     protected $casts = [
         'payload' => 'array',
         'decided_at' => 'datetime',
+        'resubmitted_at' => 'datetime',
     ];
+
+    /** Nomor pengajuan APR-YYYYMM-XXXX, collision-safe (audit Persetujuan Transaksi 2026-09-29). */
+    public static function generateRequestNumber(): string
+    {
+        do {
+            $candidate = 'APR-' . now()->format('Ym') . '-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(4));
+        } while (static::where('request_number', $candidate)->exists());
+
+        return $candidate;
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (TransactionApprovalRequest $request) {
+            if (empty($request->request_number)) {
+                $request->request_number = static::generateRequestNumber();
+            }
+
+            // store_id dari booking -- scoping store manager tanpa join.
+            if (empty($request->store_id) && $request->booking_id) {
+                $request->store_id = Booking::withoutGlobalScopes()->where('id', $request->booking_id)->value('store_id');
+            }
+        });
+    }
 
     public function booking(): BelongsTo
     {
@@ -89,7 +118,7 @@ class TransactionApprovalRequest extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'decided_by', 'decision_note'])
+            ->logOnly(['status', 'payload', 'decided_by', 'decision_note', 'resubmitted_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('transaction_approval_request');
