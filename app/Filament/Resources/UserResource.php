@@ -171,6 +171,7 @@ class UserResource extends Resource
                 'FinanceReport' => 'Laporan Keuangan',
                 'PayableResource' => 'Hutang Usaha',
                 'SupplierResource' => 'Supplier',
+                'RecurringBillTemplateResource' => 'Template Tagihan Rutin',
                 'ReceivableResource' => 'Piutang Usaha',
                 // ChartOfAccountResource, JournalEntryResource &
                 // BankStatementLineResource dibuka 2026-09-24 (keputusan

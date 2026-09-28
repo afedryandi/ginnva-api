@@ -10,6 +10,9 @@ use Illuminate\Console\Command;
  * Dijadwalkan harian (lihat routes/console.php) -- generate SEMUA
  * template aktif yang jatuh tempo, langsung posting (keputusan user
  * 2026-09-22: tidak perlu approval ulang tiap bulan).
+ *
+ * Audit Template Tagihan Rutin 2026-09-29: template yang gagal dicantumkan di output dan
+ * command keluar FAILURE (terlihat di monitoring), bukan diam-diam "0 di-generate".
  */
 class GenerateRecurringBills extends Command
 {
@@ -23,6 +26,12 @@ class GenerateRecurringBills extends Command
 
         $this->info("{$generated->count()} tagihan rutin di-generate.");
 
-        return self::SUCCESS;
+        $failures = $service->getFailures();
+
+        foreach ($failures as $failure) {
+            $this->error("GAGAL template #{$failure['template']->id} \"{$failure['template']->name}\": {$failure['error']}");
+        }
+
+        return $failures === [] ? self::SUCCESS : self::FAILURE;
     }
 }

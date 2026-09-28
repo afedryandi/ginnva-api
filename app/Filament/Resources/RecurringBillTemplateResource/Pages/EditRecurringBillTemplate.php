@@ -13,7 +13,9 @@ class EditRecurringBillTemplate extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            // Template yang sudah pernah menghasilkan tagihan tidak bisa dihapus (nonaktifkan saja).
+            Actions\DeleteAction::make()
+                ->visible(fn () => ! $this->record->generatedPayables()->exists()),
         ];
     }
 }
