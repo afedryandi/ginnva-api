@@ -8,8 +8,11 @@
     @php
         $result = $this->getResult();
         $compare = $result['compare'] ?? null;
-        $rupiah = fn ($n) => 'Rp ' . number_format($n, 0, ',', '.');
+        // Negatif (mis. akun pengurang) dengan kurung, konsisten dengan Laporan Laba Rugi.
+        $rupiah = fn ($n) => ($n < 0 ? '(' : '') . 'Rp ' . number_format(abs($n), 0, ',', '.') . ($n < 0 ? ')' : '');
         $drill = fn ($account) => $this->ledgerUrl($account->id);
+        // Dasar persentase (common-size): Total Aset.
+        $base = (float) $result['aset']['total'];
 
         // Peta id akun => saldo pembanding (lintas Aset/Kewajiban/Modal).
         $prevMap = null;
@@ -39,6 +42,7 @@
     <x-filament::section>
         <x-slot name="heading">Neraca per {{ $result['as_of']->format('d M Y') }}</x-slot>
         <x-slot name="description">
+            Toko: {{ $result['store_label'] ?? 'Semua Toko' }}. Persentase kecil di kanan = porsi terhadap Total Aset.
             Dari Jurnal Umum berstatus posted. "Laba (Rugi) Tahun Berjalan" dihitung otomatis dari 1 Januari {{ $result['as_of']->year }} s.d. tanggal ini, dan laba tahun-tahun sebelumnya yang belum dipindahkan ke Laba Ditahan ditampilkan terpisah. Klik nama akun untuk melihat Buku Besar-nya.
             @if ($compare)
                 Kolom kiri = pembanding ({{ $result['compare_label'] }}), lalu selisih %, lalu saldo saat ini.
@@ -140,5 +144,32 @@
                 </div>
             @endif
         </div>
+
+        {{-- Rasio keuangan dasar (Lancar = akun berinduk 1100 Aset Lancar / 2100 Kewajiban Lancar) --}}
+        @if (! empty($result['ratios']))
+            @php $x = $result['ratios']; @endphp
+            <div class="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Rasio Lancar</div>
+                    <div class="text-lg font-semibold tabular-nums">{{ $x['current_ratio'] === null ? '—' : number_format($x['current_ratio'], 2, ',', '.') . 'x' }}</div>
+                    <div class="text-xs text-gray-400">Aset Lancar ÷ Kewajiban Lancar</div>
+                </div>
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Modal Kerja</div>
+                    <div class="text-lg font-semibold tabular-nums">{{ $rupiah($x['working_capital']) }}</div>
+                    <div class="text-xs text-gray-400">Aset Lancar − Kewajiban Lancar</div>
+                </div>
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Kewajiban ÷ Modal</div>
+                    <div class="text-lg font-semibold tabular-nums">{{ $x['debt_to_equity'] === null ? '—' : number_format($x['debt_to_equity'], 2, ',', '.') . 'x' }}</div>
+                    <div class="text-xs text-gray-400">Total Kewajiban ÷ Total Modal</div>
+                </div>
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Kewajiban ÷ Aset</div>
+                    <div class="text-lg font-semibold tabular-nums">{{ $x['debt_to_assets'] === null ? '—' : number_format($x['debt_to_assets'], 1, ',', '.') . '%' }}</div>
+                    <div class="text-xs text-gray-400">Porsi aset yang dibiayai utang</div>
+                </div>
+            </div>
+        @endif
     </x-filament::section>
 </x-filament-panels::page>

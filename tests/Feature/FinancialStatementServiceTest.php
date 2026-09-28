@@ -266,6 +266,81 @@ class FinancialStatementServiceTest extends TestCase
         $this->assertSame('Sistem', $row['creator']); // jurnal uji dibuat tanpa user
     }
 
+    public function test_balance_sheet_stays_balanced_when_filtered_by_store_or_head_office(): void
+    {
+        $store = Store::create(['name' => 'Toko A', 'is_active' => true]);
+
+        // Setoran modal pusat (tanpa toko) dan penjualan tunai toko A.
+        $capitalId = ChartOfAccount::where('type', 'modal')->where('is_postable', true)->orderBy('code')->value('id');
+        $this->post('2026-09-01', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 5_000_000],
+            ['chart_of_account_id' => $capitalId, 'credit' => 5_000_000],
+        ], null);
+        $this->post('2026-09-05', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 200_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 200_000],
+        ], $store->id);
+
+        $all = $this->service->balanceSheet(Carbon::parse('2026-09-30'));
+        $scoped = $this->service->balanceSheet(Carbon::parse('2026-09-30'), $store->id);
+        $pusat = $this->service->balanceSheet(Carbon::parse('2026-09-30'), FinancialStatementService::COMPANY_WIDE);
+
+        // Tiap jurnal punya 1 toko dan sudah seimbang, jadi setiap potongan per toko/pusat juga seimbang.
+        // Kalau salah satunya TIDAK balance, itu tanda data bermasalah -- bukan hal yang wajar.
+        $this->assertTrue($all['is_balanced']);
+        $this->assertTrue($scoped['is_balanced']);
+        $this->assertTrue($pusat['is_balanced']);
+    }
+
+    public function test_balance_sheet_ratios_use_current_and_total_figures(): void
+    {
+        $capitalId = ChartOfAccount::where('code', '3100')->value('id');
+        $payableId = ChartOfAccount::where('code', '2110')->value('id'); // Kewajiban Lancar (induk 2100)
+
+        $this->post('2026-09-01', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 1_000_000],   // Aset Lancar (induk 1100)
+            ['chart_of_account_id' => $capitalId, 'credit' => 800_000],
+            ['chart_of_account_id' => $payableId, 'credit' => 200_000],
+        ]);
+
+        $sheet = $this->service->balanceSheet(Carbon::parse('2026-09-30'));
+        $ratios = $sheet['ratios'];
+
+        $this->assertEquals(1_000_000.0, $ratios['current_assets']);
+        $this->assertEquals(200_000.0, $ratios['current_liabilities']);
+        $this->assertEquals(5.0, $ratios['current_ratio']);
+        $this->assertEquals(800_000.0, $ratios['working_capital']);
+        $this->assertEquals(0.25, $ratios['debt_to_equity']);
+        $this->assertEquals(20.0, $ratios['debt_to_assets']);
+    }
+
+    public function test_balance_sheet_export_with_comparison_has_percentage_and_delta_columns(): void
+    {
+        $this->post('2026-08-05', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 100_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 100_000],
+        ]);
+        $this->post('2026-09-05', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 100_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 100_000],
+        ]);
+
+        $current = $this->service->balanceSheet(Carbon::parse('2026-09-30'));
+        $current['store_label'] = 'Semua Toko';
+        $current['compare'] = $this->service->balanceSheet(Carbon::parse('2026-08-31'));
+        $current['compare_label'] = '31 Aug 2026';
+
+        $rows = (new \App\Exports\BalanceSheetExport($current))->array();
+
+        $this->assertSame(['Akun', 'Saldo', '% Total Aset', 'Pembanding', 'Selisih %'], $rows[5]);
+
+        $totalAset = collect($rows)->first(fn ($r) => is_array($r) && ($r[0] ?? '') === 'Total Aset');
+        $this->assertEquals(200_000.0, $totalAset[1]);
+        $this->assertEquals(100.0, $totalAset[2]);
+        $this->assertEquals(100_000.0, $totalAset[3]);
+        $this->assertEquals(100.0, $totalAset[4]);
+    }
+
     public function test_report_notices_flag_draft_journals(): void
     {
         $journal = app(JournalEntryService::class);

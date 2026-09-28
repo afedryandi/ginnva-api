@@ -487,8 +487,22 @@ class FinancialStatementService
         $totalModal = $totalModalPosted + $labaTahunLalu + $labaTahunBerjalan;
         $totalKewajibanModal = $totalKewajiban + $totalModal;
 
+        // Rasio keuangan dasar (audit Neraca 2026-09-29). "Lancar" = akun dengan induk 1100 (Aset Lancar) /
+        // 2100 (Kewajiban Lancar) di Bagan Akun standar. null kalau pembaginya nol.
+        $currentAssets = (float) $aset->filter(fn ($r) => $r['account']->parent?->code === '1100')->sum('balance');
+        $currentLiabilities = (float) $kewajiban->filter(fn ($r) => $r['account']->parent?->code === '2100')->sum('balance');
+        $ratios = [
+            'current_assets' => $currentAssets,
+            'current_liabilities' => $currentLiabilities,
+            'working_capital' => round($currentAssets - $currentLiabilities, 2),
+            'current_ratio' => $currentLiabilities > 0.004 ? round($currentAssets / $currentLiabilities, 2) : null,
+            'debt_to_equity' => $totalModal > 0.004 ? round($totalKewajiban / $totalModal, 2) : null,
+            'debt_to_assets' => $totalAset > 0.004 ? round($totalKewajiban / $totalAset * 100, 1) : null,
+        ];
+
         return [
             'as_of' => $asOf,
+            'ratios' => $ratios,
             'aset' => ['rows' => $aset, 'total' => $totalAset],
             'kewajiban' => ['rows' => $kewajiban, 'total' => $totalKewajiban],
             'modal' => [

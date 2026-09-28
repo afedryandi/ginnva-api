@@ -12,14 +12,16 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Forms\Set;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Neraca (Balance Sheet) — Aset = Kewajiban + Modal per tanggal cutoff.
- * TERBATAS full-access, sama filosofi dengan laporan Keuangan lain yang
- * bersumber dari Jurnal Umum (Neraca Saldo, Laba Rugi, Buku Besar).
+ * TERBATAS full-access; Spv Finance dst. bisa diberi izin baca lewat Hak Akses Detail ('view',
+ * default ditolak) dan yang punya toko dikunci ke tokonya (audit Neraca 2026-09-29).
  */
 class BalanceSheetReport extends Page implements HasForms
 {
@@ -43,14 +45,24 @@ class BalanceSheetReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return ($user?->isFullAccess() ?? false)
+            || ($user?->canAccessStaffArea()
+                && $user->hasMenuAccess(static::class)
+                && $user->hasModuleAction(static::class, 'view', false));
+    }
+
+    private function isRestricted(): bool
+    {
+        return ! (auth()->user()?->isFullAccess() ?? false);
     }
 
     public function mount(): void
     {
         $this->form->fill([
             'as_of' => now()->toDateString(),
-            'store_id' => null,
+            'store_id' => $this->isRestricted() ? auth()->user()?->store_id : null,
         ]);
     }
 
@@ -58,6 +70,30 @@ class BalanceSheetReport extends Page implements HasForms
     {
         return $form
             ->schema([
+                Select::make('preset')
+                    ->label('Tanggal Cepat')
+                    ->options([
+                        'today' => 'Hari ini',
+                        'last_month_end' => 'Akhir bulan lalu',
+                        'last_quarter_end' => 'Akhir kuartal lalu',
+                        'last_year_end' => 'Akhir tahun lalu',
+                    ])
+                    ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                    ->live()
+                    ->afterStateUpdated(function (?string $state, Set $set) {
+                        $date = match ($state) {
+                            'today' => now(),
+                            'last_month_end' => now()->subMonthNoOverflow()->endOfMonth(),
+                            'last_quarter_end' => now()->subQuarter()->endOfQuarter(),
+                            'last_year_end' => now()->subYear()->endOfYear(),
+                            default => null,
+                        };
+
+                        if ($date) {
+                            $set('as_of', $date->toDateString());
+                        }
+                    }),
+
                 DatePicker::make('as_of')
                     ->label('Per Tanggal')
                     ->native(false)
@@ -66,13 +102,14 @@ class BalanceSheetReport extends Page implements HasForms
 
                 Select::make('store_id')
                     ->label('Toko')
-                    ->options(fn () => [\App\Services\FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
+                    ->options(fn () => [FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
                     ->helperText('Memilih toko TIDAK mencakup jurnal pusat (tanpa toko, mis. gaji pusat/penyusutan) — pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan untuk semua.')
                     ->placeholder('Semua Toko')
                     ->searchable()
-                    ->live(),
+                    ->live()
+                    ->disabled(fn () => $this->isRestricted() && auth()->user()?->store_id !== null),
 
-                \Filament\Forms\Components\Select::make('compare')
+                Select::make('compare')
                     ->label('Bandingkan Dengan')
                     ->options(['prev_month' => 'Sebulan sebelumnya', 'prev_year' => 'Tahun lalu (tanggal yang sama)'])
                     ->placeholder('Tanpa pembanding')
@@ -82,6 +119,54 @@ class BalanceSheetReport extends Page implements HasForms
             ->columns(3);
     }
 
+    /** "Per Tanggal" dikosongkan -> kembali ke hari ini DENGAN pemberitahuan (bukan diam-diam). */
+    public function updatedData(): void
+    {
+        if (empty($this->data['as_of'])) {
+            $this->data['as_of'] = now()->toDateString();
+
+            Notification::make()
+                ->title('"Per Tanggal" wajib diisi')
+                ->body('Diset ke hari ini.')
+                ->warning()
+                ->send();
+        }
+    }
+
+    private function storeId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($this->isRestricted() && $user?->store_id !== null) {
+            return (int) $user->store_id;
+        }
+
+        return isset($this->data['store_id']) && $this->data['store_id'] !== '' ? (int) $this->data['store_id'] : null;
+    }
+
+    private function storeLabel(): string
+    {
+        $id = $this->storeId();
+
+        return match (true) {
+            $id === null => 'Semua Toko',
+            $id === FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko',
+            default => Store::whereKey($id)->value('name') ?? 'Toko #' . $id,
+        };
+    }
+
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'balance_sheet', 'format' => $format, 'as_of' => $this->data['as_of'] ?? null, 'store_id' => $this->storeId()])
+                ->log('Ekspor Neraca (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -89,16 +174,22 @@ class BalanceSheetReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new BalanceSheetExport($this->getResult()),
-                    'neraca-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new BalanceSheetExport($this->getResult()),
+                        'neraca-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.balance_sheet_report', ['result' => $result])->setPaper('a4', 'portrait');
                     $filename = 'neraca-' . now()->format('Ymd-His') . '.pdf';
@@ -111,10 +202,11 @@ class BalanceSheetReport extends Page implements HasForms
     public function getResult(): array
     {
         $asOf = Carbon::parse($this->data['as_of'] ?? now()->toDateString());
-        $storeId = $this->data['store_id'] ?? null;
+        $storeId = $this->storeId();
 
         $service = app(FinancialStatementService::class);
         $result = $service->balanceSheet($asOf, $storeId);
+        $result['store_label'] = $this->storeLabel();
 
         $mode = $this->data['compare'] ?? null;
         $prevAsOf = match ($mode) {
@@ -124,6 +216,24 @@ class BalanceSheetReport extends Page implements HasForms
         };
         $result['compare'] = $prevAsOf ? $service->balanceSheet($prevAsOf, $storeId) : null;
         $result['compare_label'] = $prevAsOf?->format('d M Y');
+
+        // Akun yang HANYA punya saldo di tanggal pembanding tetap ditampilkan (saldo sekarang 0), supaya
+        // daftar akun menjumlah ke total pembanding. Total saat ini tidak berubah (nilainya 0).
+        if ($result['compare']) {
+            foreach (['aset', 'kewajiban', 'modal'] as $group) {
+                $existing = $result[$group]['rows']->pluck('account.id')->all();
+
+                $missing = $result['compare'][$group]['rows']
+                    ->reject(fn ($r) => in_array($r['account']->id, $existing, true))
+                    ->map(fn ($r) => ['account' => $r['account'], 'debit' => 0.0, 'credit' => 0.0, 'balance' => 0.0, 'compare_only' => true]);
+
+                if ($missing->isNotEmpty()) {
+                    $result[$group]['rows'] = $result[$group]['rows']->concat($missing)
+                        ->sortBy(fn ($r) => $r['account']->code)
+                        ->values();
+                }
+            }
+        }
 
         return $result;
     }
@@ -137,7 +247,7 @@ class BalanceSheetReport extends Page implements HasForms
             'chart_of_account_id' => $accountId,
             'from' => $asOf->copy()->startOfYear()->toDateString(),
             'to' => $asOf->toDateString(),
-            'store_id' => $this->data['store_id'] ?? null,
+            'store_id' => $this->storeId(),
         ]);
     }
 
@@ -146,6 +256,6 @@ class BalanceSheetReport extends Page implements HasForms
         $asOf = Carbon::parse($this->data['as_of'] ?? now()->toDateString());
 
         // Neraca kumulatif: draft sejak awal; daftar periode tertutup tidak relevan (semua periode lampau).
-        return app(FinancialStatementService::class)->reportNotices(Carbon::create(1970, 1, 1), $asOf, $this->data['store_id'] ?? null, false, true);
+        return app(FinancialStatementService::class)->reportNotices(Carbon::create(1970, 1, 1), $asOf, $this->storeId(), false, true);
     }
 }
