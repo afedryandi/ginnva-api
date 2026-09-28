@@ -26,13 +26,16 @@ class ListFinanceTransactionApprovalRequests extends ListRecords
      */
     public function getTabs(): array
     {
+        // Parameter closure HARUS bernama $query: Filament menyuntikkan query
+        // berdasarkan nama parameter; nama lain membuat Builder kosong tanpa
+        // model (TypeError "::class on null" di HasRecords::getModel()).
         return [
             'menunggu' => Tab::make('Menunggu')
-                ->modifyQueryUsing(fn (Builder $q) => $q->whereIn('status', ['pending_manager', 'pending_direksi'])),
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', ['pending_manager', 'pending_direksi'])),
             'disetujui' => Tab::make('Disetujui')
-                ->modifyQueryUsing(fn (Builder $q) => $q->where('status', 'approved')),
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'approved')),
             'ditolak' => Tab::make('Ditolak / Dibatalkan')
-                ->modifyQueryUsing(fn (Builder $q) => $q->whereIn('status', ['rejected', 'cancelled'])),
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', ['rejected', 'cancelled'])),
             'semua' => Tab::make('Semua'),
         ];
     }
