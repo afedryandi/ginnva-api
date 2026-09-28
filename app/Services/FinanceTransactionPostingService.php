@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\AccountingPeriod;
 use App\Models\ChartOfAccount;
 use App\Models\FinanceTransaction;
 use App\Models\JournalEntry;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -35,7 +38,7 @@ class FinanceTransactionPostingService
      *         atau periode tanggal transaksi sudah ditutup (diteruskan
      *         dari JournalEntryService).
      */
-    public function post(FinanceTransaction $transaction): JournalEntry
+    public function post(FinanceTransaction $transaction, ?int $actorId = null): JournalEntry
     {
         $category = $transaction->category;
 
@@ -43,7 +46,12 @@ class FinanceTransactionPostingService
             throw new RuntimeException('Transaksi ini tidak punya kategori — tidak bisa diposting ke Jurnal Umum.');
         }
 
-        if (! $category->chart_of_account_id) {
+        // Akun = SNAPSHOT di transaksi (diisi saat dibuat / kategorinya
+        // diganti), fallback ke akun kategori untuk transaksi lama yang
+        // belum punya snapshot (audit Transaksi Keuangan 2026-09-28).
+        $accountId = $transaction->chart_of_account_id ?: $category->chart_of_account_id;
+
+        if (! $accountId) {
             throw new RuntimeException("Kategori \"{$category->name}\" belum dihubungkan ke akun Bagan Akun — hubungkan dulu lewat menu Kategori Keuangan sebelum transaksi ini bisa dicatat.");
         }
 
@@ -56,15 +64,16 @@ class FinanceTransactionPostingService
         $lines = $transaction->type === 'in'
             ? [
                 ['chart_of_account_id' => $cashAccount->id, 'debit' => $amount],
-                ['chart_of_account_id' => $category->chart_of_account_id, 'credit' => $amount],
+                ['chart_of_account_id' => $accountId, 'credit' => $amount],
             ]
             : [
-                ['chart_of_account_id' => $category->chart_of_account_id, 'debit' => $amount],
+                ['chart_of_account_id' => $accountId, 'debit' => $amount],
                 ['chart_of_account_id' => $cashAccount->id, 'credit' => $amount],
             ];
 
         $label = $transaction->type === 'in' ? 'Pemasukan' : 'Pengeluaran';
-        $description = "{$label}: {$category->name}" . ($transaction->description ? " — {$transaction->description}" : '');
+        $description = ($transaction->transaction_number ? "[{$transaction->transaction_number}] " : '')
+            . "{$label}: {$category->name}" . ($transaction->description ? " — {$transaction->description}" : '');
 
         $service = app(JournalEntryService::class);
 
@@ -74,10 +83,53 @@ class FinanceTransactionPostingService
             'description' => $description,
             'reference_type' => 'finance_transaction',
             'reference_id' => $transaction->id,
-            'created_by' => $transaction->created_by,
+            'created_by' => $actorId ?? $transaction->created_by,
         ], $lines);
 
-        return $service->post($entry, $transaction->created_by);
+        return $service->post($entry, $actorId ?? $transaction->created_by);
+    }
+
+    /**
+     * Alasan perubahan/penghapusan transaksi yang sudah diposting dicatat di
+     * activity log (siapa, kapan, kenapa) -- audit Transaksi Keuangan 2026-09-28.
+     */
+    public function logChangeReason(FinanceTransaction $transaction, string $action, string $reason): void
+    {
+        activity('finance_transaction')
+            ->performedOn($transaction)
+            ->causedBy(auth()->user())
+            ->withProperties(['reason' => $reason])
+            ->log("Transaksi {$transaction->transaction_number} {$action}. Alasan: {$reason}");
+    }
+
+    /**
+     * Tutup Periode untuk perubahan transaksi yang SUDAH diposting (audit
+     * Transaksi Keuangan 2026-09-28): reverse() selalu memakai tanggal HARI
+     * INI, jadi tanpa cek ini menghapus/mengubah transaksi di periode yang
+     * sudah ditutup lolos -- bulan lama tetap memuat pendapatan/beban yang
+     * "dihapus" sementara bulan ini memuat pembalik tanpa transaksi asal.
+     * Dicek terhadap tanggal LAMA transaksi dan (kalau tanggalnya diubah)
+     * tanggal BARU.
+     *
+     * @throws RuntimeException
+     */
+    public function assertPeriodsOpenForChange(FinanceTransaction $transaction, ?Carbon $newDate = null): void
+    {
+        if (! $transaction->journal_entry_id) {
+            return;
+        }
+
+        $dates = [$transaction->getOriginal('transaction_date') ?? $transaction->transaction_date];
+        if ($newDate) {
+            $dates[] = $newDate;
+        }
+
+        foreach ($dates as $date) {
+            $date = Carbon::parse($date);
+            if (AccountingPeriod::isClosedFor($date)) {
+                throw new RuntimeException('Periode ' . $date->translatedFormat('F Y') . ' sudah ditutup — transaksi bertanggal di periode itu tidak bisa diubah atau dihapus.');
+            }
+        }
     }
 
     /**
@@ -90,11 +142,11 @@ class FinanceTransactionPostingService
      *
      * @throws RuntimeException diteruskan dari post() di atas.
      */
-    public function resync(FinanceTransaction $transaction): JournalEntry
+    public function resync(FinanceTransaction $transaction, ?int $actorId = null, ?string $reason = null): JournalEntry
     {
-        $this->reverseExisting($transaction);
+        $this->reverseExisting($transaction, $actorId, $reason);
 
-        return $this->post($transaction);
+        return $this->post($transaction, $actorId);
     }
 
     /**
@@ -102,16 +154,22 @@ class FinanceTransactionPostingService
      * posted TIDAK IKUT terhapus (integritas riwayat pembukuan), cuma
      * dibalik lewat jurnal pembalik baru.
      */
-    public function reverseExisting(FinanceTransaction $transaction): void
+    public function reverseExisting(FinanceTransaction $transaction, ?int $actorId = null, ?string $reason = null): void
     {
         if (! $transaction->journal_entry_id) {
             return;
         }
 
-        $existing = JournalEntry::find($transaction->journal_entry_id);
+        // Baris jurnal dikunci (lockForUpdate) sebelum cek 'sudah dibalik?'
+        // -- dua hapus/edit bersamaan tidak lagi sama-sama lolos dan membuat
+        // dua jurnal pembalik. Pelaku = user yang benar-benar mengubah/menghapus
+        // (bukan pembuat transaksi asli).
+        DB::transaction(function () use ($transaction, $actorId, $reason) {
+            $existing = JournalEntry::whereKey($transaction->journal_entry_id)->lockForUpdate()->first();
 
-        if ($existing && $existing->isPosted() && ! $existing->reversal()->exists()) {
-            app(JournalEntryService::class)->reverse($existing, $transaction->created_by, 'Transaksi Keuangan diubah/dihapus');
-        }
+            if ($existing && $existing->isPosted() && ! $existing->reversal()->exists()) {
+                app(JournalEntryService::class)->reverse($existing, $actorId ?? $transaction->created_by, 'Transaksi Keuangan diubah/dihapus' . ($reason ? " — {$reason}" : ''));
+            }
+        });
     }
 }

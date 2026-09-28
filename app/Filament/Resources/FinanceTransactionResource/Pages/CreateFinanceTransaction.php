@@ -76,6 +76,21 @@ class CreateFinanceTransaction extends CreateRecord
     {
         $user = auth()->user();
 
+        // Cegah double-submit (klik dua kali / request terkirim ganda): data
+        // identik dari user yang sama dalam 2 menit terakhir ditolak (audit
+        // Transaksi Keuangan 2026-09-28). Mencakup transaksi langsung DAN
+        // pengajuan approval yang masih menunggu.
+        if ($this->isDuplicateSubmission($data, $user->id)) {
+            Notification::make()
+                ->title('Transaksi ini sudah dikirim')
+                ->body('Data yang identik baru saja tercatat/diajukan. Cek daftar transaksi sebelum mengirim ulang.')
+                ->warning()
+                ->send();
+
+            $this->discardReceipt($data);
+            $this->halt();
+        }
+
         if ($data['type'] === 'out' && ! ($user?->isFullAccess() ?? false)) {
             try {
                 $request = app(FinanceTransactionApprovalService::class)->submit($data, $user);
@@ -86,6 +101,7 @@ class CreateFinanceTransaction extends CreateRecord
                     ->danger()
                     ->send();
 
+                $this->discardReceipt($data);
                 $this->halt();
             }
 
@@ -98,24 +114,58 @@ class CreateFinanceTransaction extends CreateRecord
             return $request;
         }
 
-        return DB::transaction(function () use ($data) {
-            $transaction = FinanceTransaction::create($data);
+        try {
+            return DB::transaction(function () use ($data) {
+                $transaction = FinanceTransaction::create($data);
 
-            try {
-                $entry = app(FinanceTransactionPostingService::class)->post($transaction);
+                $entry = app(FinanceTransactionPostingService::class)->post($transaction, auth()->id());
                 $transaction->update(['journal_entry_id' => $entry->id]);
-            } catch (RuntimeException $e) {
-                Notification::make()
-                    ->title('Transaksi tidak bisa disimpan')
-                    ->body($e->getMessage())
-                    ->danger()
-                    ->send();
 
-                $this->halt();
-            }
+                return $transaction;
+            });
+        } catch (RuntimeException $e) {
+            Notification::make()
+                ->title('Transaksi tidak bisa disimpan')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
 
-            return $transaction;
-        });
+            $this->discardReceipt($data);
+            $this->halt();
+        }
+    }
+
+    private function isDuplicateSubmission(array $data, int $userId): bool
+    {
+        $keys = ['type', 'finance_category_id', 'store_id', 'amount', 'transaction_date', 'description'];
+        $same = fn (array $a) => collect($keys)->every(fn ($k) => (string) ($a[$k] ?? '') === (string) ($data[$k] ?? ''));
+
+        $recentTransactions = FinanceTransaction::where('created_by', $userId)
+            ->where('created_at', '>=', now()->subMinutes(2))
+            ->get()
+            ->contains(fn (FinanceTransaction $t) => (float) $t->amount === (float) ($data['amount'] ?? 0)
+                && (int) $t->finance_category_id === (int) ($data['finance_category_id'] ?? 0)
+                && (int) $t->store_id === (int) ($data['store_id'] ?? 0)
+                && $t->transaction_date->toDateString() === \Illuminate\Support\Carbon::parse($data['transaction_date'])->toDateString()
+                && (string) $t->description === (string) ($data['description'] ?? ''));
+
+        if ($recentTransactions) {
+            return true;
+        }
+
+        return FinanceTransactionApprovalRequest::where('requested_by', $userId)
+            ->whereIn('status', ['pending_manager', 'pending_direksi'])
+            ->where('created_at', '>=', now()->subMinutes(2))
+            ->get()
+            ->contains(fn (FinanceTransactionApprovalRequest $r) => $same($r->payload));
+    }
+
+    /** File nota yang sudah terunggah tidak dirujuk siapa pun kalau penyimpanan gagal -- hapus supaya tidak yatim. */
+    private function discardReceipt(array $data): void
+    {
+        if (! empty($data['receipt'])) {
+            \Illuminate\Support\Facades\Storage::disk(config('filament.default_filesystem_disk', 'public'))->delete($data['receipt']);
+        }
     }
 
     /**

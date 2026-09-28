@@ -63,13 +63,31 @@ class FinanceTransactionResource extends Resource
             && $user->hasModuleAction(static::class, 'create', true);
     }
 
+    /**
+     * Field finansial: HANYA full-access yang boleh mengubahnya setelah
+     * transaksi tersimpan (audit Transaksi Keuangan 2026-09-28) -- staff
+     * hanya boleh mengoreksi keterangan & nota. Dipaksa juga di server
+     * (EditFinanceTransaction::mutateFormDataBeforeSave).
+     */
+    public const FINANCIAL_FIELDS = ['type', 'finance_category_id', 'store_id', 'amount', 'transaction_date'];
+
+    private static function financialLocked(?FinanceTransaction $record): bool
+    {
+        return $record !== null && ! (auth()->user()?->isFullAccess() ?? false);
+    }
+
     public static function canEdit($record): bool
     {
         $user = auth()->user();
 
-        return $user?->canAccessStaffArea()
+        if (! ($user?->canAccessStaffArea()
             && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'update', true);
+            && $user->hasModuleAction(static::class, 'update', true))) {
+            return false;
+        }
+
+        // Non-full-access hanya boleh menyentuh transaksi tokonya sendiri.
+        return $user->isFullAccess() || (int) $record->store_id === (int) $user->store_id;
     }
 
     /**
@@ -96,7 +114,9 @@ class FinanceTransactionResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        // with() -- kolom category/store/creator/journalEntry di table()
+        // sebelumnya N+1 per baris (audit Transaksi Keuangan 2026-09-28).
+        $query = parent::getEloquentQuery()->with(['category', 'store', 'creator', 'journalEntry']);
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -154,6 +174,24 @@ class FinanceTransactionResource extends Resource
                         ->numeric()
                         ->required()
                         ->minValue(0.01)
+                        ->maxValue(99999999999.99)
+                        ->disabled(fn (?FinanceTransaction $record) => static::financialLocked($record))
+                        ->dehydrated()
+                        // Nominal terformat (Rp1.500.000) ditampilkan langsung saat
+                        // mengetik -- lebih aman daripada mask input yang bisa salah
+                        // menafsirkan desimal (audit Transaksi Keuangan 2026-09-28).
+                        ->live(onBlur: true)
+                        ->helperText(function (?FinanceTransaction $record, Forms\Get $get) {
+                            if (static::financialLocked($record)) {
+                                return 'Terkunci: perubahan nominal, tanggal, kategori, dan toko setelah tersimpan hanya oleh direksi/full-access.';
+                            }
+
+                            $amount = $get('amount');
+
+                            return is_numeric($amount) && (float) $amount > 0
+                                ? 'Terbaca: Rp' . number_format((float) $amount, 0, ',', '.')
+                                : null;
+                        })
                         ->prefix('Rp'),
 
                     Forms\Components\Select::make('store_id')
@@ -162,21 +200,42 @@ class FinanceTransactionResource extends Resource
                         ->searchable()
                         ->required()
                         ->default(fn () => $isFullAccess ? null : auth()->user()?->store_id)
-                        ->disabled(! $isFullAccess)
+                        ->disabled(fn (?FinanceTransaction $record) => ! $isFullAccess || static::financialLocked($record))
                         ->dehydrated(),
 
                     Forms\Components\DatePicker::make('transaction_date')
                         ->label('Tanggal Transaksi')
                         ->native(false)
                         ->required()
+                        // Tidak boleh di masa depan / terlalu lampau (audit 2026-09-28).
+                        ->maxDate(today())
+                        ->minDate(fn (?FinanceTransaction $record) => $record
+                            ? null
+                            : now()->subYears(3))
+                        ->disabled(fn (?FinanceTransaction $record) => static::financialLocked($record))
+                        ->dehydrated()
                         ->default(now()),
 
                     Forms\Components\FileUpload::make('receipt')
                         ->label('Bukti/Nota (opsional)')
+                        ->disk(config('filament.default_filesystem_disk', 'public'))
                         ->directory('finance-receipts')
-                        ->image()
+                        ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
                         ->maxSize(5120)
-                        ->helperText('Maks. 5 MB.'),
+                        ->helperText('Foto atau PDF, maks. 5 MB.'),
+
+                    // Alasan WAJIB kalau full-access mengubah transaksi yang sudah
+                    // diposting (audit Transaksi Keuangan 2026-09-28) -- dicatat di
+                    // catatan jurnal pembalik dan activity log; tidak disimpan
+                    // sebagai kolom.
+                    Forms\Components\Textarea::make('change_reason')
+                        ->label('Alasan Perubahan')
+                        ->required()
+                        ->rows(2)
+                        ->maxLength(500)
+                        ->visible(fn (?FinanceTransaction $record) => $record !== null && ($record->journal_entry_id !== null) && (auth()->user()?->isFullAccess() ?? false))
+                        ->dehydrated()
+                        ->columnSpanFull(),
 
                     Forms\Components\Textarea::make('description')
                         ->label('Keterangan')
@@ -190,6 +249,13 @@ class FinanceTransactionResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('transaction_number')
+                    ->label('No. Bukti')
+                    ->searchable()
+                    ->fontFamily('mono')
+                    ->placeholder('—')
+                    ->copyable(),
+
                 Tables\Columns\TextColumn::make('transaction_date')
                     ->label('Tanggal')
                     ->date('d M Y')
@@ -223,7 +289,17 @@ class FinanceTransactionResource extends Resource
                     ->weight('bold')
                     ->color(fn (FinanceTransaction $record) => $record->type === 'in' ? 'success' : 'danger')
                     ->formatStateUsing(fn (FinanceTransaction $record, $state) => ($record->type === 'in' ? '+ ' : '- ') . number_format($state, 0, ',', '.'))
-                    ->sortable(),
+                    ->sortable()
+                    // Saldo bersih (pemasukan - pengeluaran) dari hasil yang
+                    // sedang difilter (audit Transaksi Keuangan 2026-09-28).
+                    ->summarize(
+                        Tables\Columns\Summarizers\Summarizer::make()
+                            ->label('Saldo bersih')
+                            ->using(fn (\Illuminate\Database\Query\Builder $query) => (float) $query
+                                ->selectRaw("COALESCE(SUM(CASE WHEN finance_transactions.type = 'in' THEN finance_transactions.amount ELSE -finance_transactions.amount END), 0) as net")
+                                ->value('net'))
+                            ->money('IDR', locale: 'id')
+                    ),
 
                 Tables\Columns\TextColumn::make('description')
                     ->label('Keterangan')
@@ -252,6 +328,10 @@ class FinanceTransactionResource extends Resource
                     ->label('Kategori')
                     ->relationship('category', 'name'),
 
+                Tables\Filters\Filter::make('belum_terposting')
+                    ->label('Belum terposting ke jurnal')
+                    ->query(fn (Builder $query) => $query->whereNull('journal_entry_id')),
+
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
                     ->options(fn () => Store::pluck('name', 'id')),
@@ -276,10 +356,21 @@ class FinanceTransactionResource extends Resource
                 // sebelum baris transaksinya sendiri dihapus. Sama pola
                 // dengan EditFinanceTransaction's header DeleteAction.
                 Tables\Actions\DeleteAction::make()
-                    ->action(function (FinanceTransaction $record) {
+                    ->form([
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Alasan Penghapusan')
+                            ->required()
+                            ->rows(2)
+                            ->maxLength(500),
+                    ])
+                    ->action(function (FinanceTransaction $record, array $data) {
                         try {
-                            DB::transaction(function () use ($record) {
-                                app(FinanceTransactionPostingService::class)->reverseExisting($record);
+                            $posting = app(FinanceTransactionPostingService::class);
+
+                            DB::transaction(function () use ($record, $posting, $data) {
+                                $posting->assertPeriodsOpenForChange($record);
+                                $posting->reverseExisting($record, auth()->id(), $data['reason']);
+                                $posting->logChangeReason($record, 'dihapus', $data['reason']);
                                 $record->delete();
                             });
 
@@ -296,11 +387,24 @@ class FinanceTransactionResource extends Resource
             ->bulkActions([
                 Tables\Actions\DeleteBulkAction::make()
                     ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
-                    ->action(function (\Illuminate\Support\Collection $records) {
+                    ->form([
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Alasan Penghapusan')
+                            ->required()
+                            ->rows(2)
+                            ->maxLength(500),
+                    ])
+                    ->action(function (\Illuminate\Support\Collection $records, array $data) {
                         try {
-                            DB::transaction(function () use ($records) {
+                            $posting = app(FinanceTransactionPostingService::class);
+
+                            DB::transaction(function () use ($records, $posting, $data) {
                                 foreach ($records as $record) {
-                                    app(FinanceTransactionPostingService::class)->reverseExisting($record);
+                                    // Tutup Periode dicek PER transaksi; satu saja di
+                                    // periode tertutup membatalkan seluruh penghapusan.
+                                    $posting->assertPeriodsOpenForChange($record);
+                                    $posting->reverseExisting($record, auth()->id(), $data['reason']);
+                                    $posting->logChangeReason($record, 'dihapus (massal)', $data['reason']);
                                     $record->delete();
                                 }
                             });

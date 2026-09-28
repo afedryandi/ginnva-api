@@ -35,6 +35,7 @@ class FinanceTransactionApprovalRequest extends Model
         'pending_direksi' => 'Menunggu Direksi',
         'approved' => 'Disetujui',
         'rejected' => 'Ditolak',
+        'cancelled' => 'Dibatalkan Pengaju',
     ];
 
     protected $fillable = [
@@ -106,7 +107,7 @@ class FinanceTransactionApprovalRequest extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'manager_approved_by', 'direksi_approved_by', 'rejected_by', 'rejection_note'])
+            ->logOnly(['status', 'payload', 'manager_approved_by', 'direksi_approved_by', 'rejected_by', 'rejection_note', 'finance_transaction_id'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('finance_transaction_approval_request');

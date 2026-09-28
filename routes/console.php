@@ -31,6 +31,11 @@ Schedule::command('contracts:notify-expiring')->dailyAt('07:00');
 // App\Console\Commands\DeactivateExpiredContracts.
 Schedule::command('contracts:deactivate-expired')->dailyAt('07:10');
 
+// Ingatkan approver soal pengajuan pengeluaran yang menunggu > 2 hari —
+// lihat App\Console\Commands\RemindPendingExpenseApprovals (audit
+// Transaksi Keuangan 2026-09-28).
+Schedule::command('finance:remind-pending-approvals')->dailyAt('08:30');
+
 // Tandai Alpha/Izin untuk hari KEMARIN yang belum punya baris Attendance
 // sama sekali — dijadwalkan dini hari supaya "kemarin" sudah pasti hari
 // yang selesai penuh. Lihat App\Console\Commands\MarkAbsences.

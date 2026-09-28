@@ -20,6 +20,7 @@ class FinanceTransaction extends Model
     use HasStoreScope;
 
     protected $fillable = [
+        'transaction_number',
         'type',
         'finance_category_id',
         'store_id',
@@ -51,8 +52,30 @@ class FinanceTransaction extends Model
         return $this->belongsTo(ChartOfAccount::class, 'chart_of_account_id');
     }
 
+    /**
+     * Nomor bukti transaksi (audit Transaksi Keuangan 2026-09-28) --
+     * TRX-YYYYMM-XXXX (bulan = tanggal transaksi), collision-safe
+     * (do-while exists), pola sama dengan generateEntryNumber() jurnal.
+     */
+    public static function generateTransactionNumber(?Carbon $date = null): string
+    {
+        $month = ($date ?? now())->format('Ym');
+
+        do {
+            $candidate = 'TRX-' . $month . '-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(4));
+        } while (static::withoutGlobalScopes()->where('transaction_number', $candidate)->exists());
+
+        return $candidate;
+    }
+
     protected static function booted(): void
     {
+        static::creating(function (FinanceTransaction $transaction) {
+            if (empty($transaction->transaction_number)) {
+                $transaction->transaction_number = static::generateTransactionNumber($transaction->transaction_date ? Carbon::parse($transaction->transaction_date) : null);
+            }
+        });
+
         static::saving(function (FinanceTransaction $transaction) {
             if (! $transaction->exists || $transaction->isDirty('finance_category_id') || ! $transaction->chart_of_account_id) {
                 $transaction->chart_of_account_id = FinanceCategory::where('id', $transaction->finance_category_id)->value('chart_of_account_id');
@@ -130,7 +153,7 @@ class FinanceTransaction extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['type', 'finance_category_id', 'store_id', 'amount', 'transaction_date', 'description'])
+            ->logOnly(['transaction_number', 'type', 'finance_category_id', 'chart_of_account_id', 'store_id', 'amount', 'transaction_date', 'description', 'receipt', 'journal_entry_id', 'created_by'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('finance_transaction')

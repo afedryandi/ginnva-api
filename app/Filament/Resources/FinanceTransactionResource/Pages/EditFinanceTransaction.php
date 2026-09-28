@@ -9,6 +9,7 @@ use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -16,15 +17,30 @@ class EditFinanceTransaction extends EditRecord
 {
     protected static string $resource = FinanceTransactionResource::class;
 
+    private ?string $changeReason = null;
+
     protected function getHeaderActions(): array
     {
         return [
             Actions\DeleteAction::make()
                 ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
-                ->action(function () {
+                ->form([
+                    \Filament\Forms\Components\Textarea::make('reason')
+                        ->label('Alasan Penghapusan')
+                        ->required()
+                        ->rows(2)
+                        ->maxLength(500),
+                ])
+                ->action(function (array $data) {
                     try {
-                        DB::transaction(function () {
-                            app(FinanceTransactionPostingService::class)->reverseExisting($this->record);
+                        $posting = app(FinanceTransactionPostingService::class);
+
+                        DB::transaction(function () use ($posting, $data) {
+                            // Tutup Periode + pelaku = user yang menghapus
+                            // (audit Transaksi Keuangan 2026-09-28).
+                            $posting->assertPeriodsOpenForChange($this->record);
+                            $posting->reverseExisting($this->record, auth()->id(), $data['reason']);
+                            $posting->logChangeReason($this->record, 'dihapus', $data['reason']);
                             $this->record->delete();
                         });
 
@@ -42,11 +58,29 @@ class EditFinanceTransaction extends EditRecord
     }
 
     /**
-     * Sama jaring pengaman dengan CreateFinanceTransaction — 'type'
-     * disalin ulang dari kategori yang (mungkin baru) dipilih saat edit.
+     * Kontrol edit setelah approval (audit Transaksi Keuangan 2026-09-28):
+     * SEBELUMNYA siapa pun yang boleh 'update' bisa mengubah nominal/
+     * tanggal/kategori/tipe/toko transaksi yang sudah disetujui direksi
+     * (mis. Rp100rb -> Rp10jt) lalu jurnal diposting ulang diam-diam.
+     * Sekarang non-full-access HANYA boleh mengoreksi keterangan & nota;
+     * field finansial dan toko dikembalikan ke nilai tersimpan DI SERVER
+     * (bukan cuma dikunci di form, karena state Livewire bisa dimanipulasi).
+     * Perubahan finansial = wewenang full-access.
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        // change_reason bukan kolom -- diambil untuk catatan jurnal & log.
+        $this->changeReason = $data['change_reason'] ?? null;
+        unset($data['change_reason']);
+
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            foreach (FinanceTransactionResource::FINANCIAL_FIELDS as $field) {
+                $data[$field] = $this->record->getRawOriginal($field);
+            }
+
+            return $data;
+        }
+
         // Kategori harus ada; harus AKTIF kecuali tidak diganti dari yang
         // sudah melekat di transaksi ini (kategori yang belakangan
         // dinonaktifkan tidak boleh mengunci edit transaksi lama).
@@ -83,15 +117,36 @@ class EditFinanceTransaction extends EditRecord
      * jurnal baru dibuat dari data transaksi yang sudah diperbarui.
      * SELALU resync penuh, bukan cuma kalau field finansial berubah —
      * lihat komentar FinanceTransactionPostingService::resync().
+     *
+     * Tutup Periode dicek terhadap tanggal LAMA dan BARU sebelum apa pun
+     * diubah; pelaku jurnal = user yang mengedit.
      */
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        return DB::transaction(function () use ($record, $data) {
+        $posting = app(FinanceTransactionPostingService::class);
+
+        try {
+            $posting->assertPeriodsOpenForChange($record, isset($data['transaction_date']) ? Carbon::parse($data['transaction_date']) : null);
+        } catch (RuntimeException $e) {
+            Notification::make()
+                ->title('Perubahan tidak bisa disimpan')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+
+            $this->halt();
+        }
+
+        return DB::transaction(function () use ($record, $data, $posting) {
             $record->update($data);
 
             try {
-                $entry = app(FinanceTransactionPostingService::class)->resync($record->refresh());
+                $entry = $posting->resync($record->refresh(), auth()->id(), $this->changeReason);
                 $record->update(['journal_entry_id' => $entry->id]);
+
+                if ($this->changeReason) {
+                    $posting->logChangeReason($record, 'diubah', $this->changeReason);
+                }
             } catch (RuntimeException $e) {
                 Notification::make()
                     ->title('Perubahan tidak bisa disimpan')
