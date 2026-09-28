@@ -45,6 +45,19 @@ class FinanceTransactionApprovalService
             throw new RuntimeException("Kategori \"{$category->name}\" belum terhubung ke akun Bagan Akun, pengajuan tidak bisa dibuat. Hubungi admin keuangan.");
         }
 
+        // Payload di-whitelist & divalidasi (audit Persetujuan Pengeluaran
+        // 2026-09-28): field liar dari form tidak ikut tersimpan, nominal
+        // harus > 0, dan pengajuan hanya untuk PENGELUARAN.
+        $data = array_intersect_key($data, array_flip(['type', 'finance_category_id', 'store_id', 'amount', 'transaction_date', 'description', 'receipt']));
+
+        if (! is_numeric($data['amount'] ?? null) || (float) $data['amount'] <= 0) {
+            throw new RuntimeException('Nominal pengajuan harus lebih dari 0.');
+        }
+
+        if (($data['type'] ?? null) !== 'out' || $category->type !== 'out') {
+            throw new RuntimeException('Approval hanya untuk transaksi pengeluaran.');
+        }
+
         // Toko divalidasi di SERVER: non-full-access hanya boleh mengajukan
         // untuk tokonya sendiri (sebelumnya cuma dipaksa di halaman Create).
         if (! $requester->isFullAccess()) {
@@ -85,14 +98,21 @@ class FinanceTransactionApprovalService
     {
         $isFullAccess = $approver->isFullAccess();
 
-        DB::transaction(function () use ($request, $approver, $isFullAccess) {
+        $locked = DB::transaction(function () use ($request, $approver, $isFullAccess) {
             $locked = FinanceTransactionApprovalRequest::whereKey($request->id)->lockForUpdate()->first();
 
             if (! $locked || ! $locked->isPendingManager()) {
                 throw new RuntimeException('Pengajuan ini bukan lagi menunggu persetujuan Store Manager.');
             }
 
-            $isSameStoreManager = $approver->isStoreManager() && $approver->store_id === $locked->store_id_from_payload;
+            // Segregation of duties (audit Persetujuan Pengeluaran 2026-09-28):
+            // tidak boleh menyetujui pengajuan yang diajukan sendiri (mis.
+            // user yang dipromosikan ke direksi setelah mengajukan).
+            if ((int) $locked->requested_by === (int) $approver->id) {
+                throw new RuntimeException('Anda tidak boleh menyetujui pengajuan yang Anda ajukan sendiri.');
+            }
+
+            $isSameStoreManager = $approver->isStoreManager() && (int) $approver->store_id === (int) $locked->store_id_from_payload;
 
             if (! $isFullAccess && ! $isSameStoreManager) {
                 throw new RuntimeException('Cuma Store Manager toko yang sama (atau full-access) yang boleh menyetujui tahap ini.');
@@ -104,8 +124,13 @@ class FinanceTransactionApprovalService
                 'manager_approved_at' => now(),
             ]);
 
-            $this->notifyNextApprovers($locked);
+            return $locked;
         });
+
+        // Notifikasi SETELAH commit -- kegagalan kirim tidak lagi
+        // me-rollback approval, dan tidak ada notifikasi untuk status
+        // yang akhirnya batal.
+        $this->notifyNextApprovers($locked);
     }
 
     /**
@@ -126,6 +151,10 @@ class FinanceTransactionApprovalService
 
             if (! $locked || ! $locked->isPendingDireksi()) {
                 throw new RuntimeException('Pengajuan ini bukan lagi menunggu persetujuan Direksi.');
+            }
+
+            if ((int) $locked->requested_by === (int) $approver->id) {
+                throw new RuntimeException('Anda tidak boleh menyetujui pengajuan yang Anda ajukan sendiri.');
             }
 
             $data = $locked->payload;
@@ -149,20 +178,27 @@ class FinanceTransactionApprovalService
                 'finance_transaction_id' => $transaction->id,
             ]);
 
-            // Pengaju diberi tahu saat DISETUJUI (sebelumnya cuma saat ditolak).
-            if ($requester = User::find($locked->requested_by)) {
-                Notification::make()
-                    ->title('Pengeluaran disetujui')
-                    ->body('Nominal Rp' . number_format((float) ($data['amount'] ?? 0), 0, ',', '.') . ' sudah dicatat & diposting.')
-                    ->success()
-                    ->sendToDatabase($requester);
+            // Pengaju diberi tahu SETELAH commit; kegagalan kirim dilaporkan
+            // tapi tidak membatalkan approval (audit 2026-09-28).
+            DB::afterCommit(function () use ($locked, $data, $transaction) {
+                try {
+                    if ($requester = User::find($locked->requested_by)) {
+                        Notification::make()
+                            ->title('Pengeluaran disetujui')
+                            ->body('Nominal Rp' . number_format((float) ($data['amount'] ?? 0), 0, ',', '.') . ' sudah dicatat & diposting (' . $transaction->transaction_number . ').')
+                            ->success()
+                            ->sendToDatabase($requester);
 
-                app(\App\Services\PushNotificationService::class)->sendToUsers(
-                    [$requester->id],
-                    'Pengeluaran Disetujui',
-                    'Pengeluaran Rp' . number_format((float) ($data['amount'] ?? 0), 0, ',', '.') . ' sudah disetujui dan dicatat (' . $transaction->transaction_number . ').'
-                );
-            }
+                        app(\App\Services\PushNotificationService::class)->sendToUsers(
+                            [$requester->id],
+                            'Pengeluaran Disetujui',
+                            'Pengeluaran Rp' . number_format((float) ($data['amount'] ?? 0), 0, ',', '.') . ' sudah disetujui dan dicatat (' . $transaction->transaction_number . ').'
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            });
 
             return $transaction;
         });
@@ -178,6 +214,18 @@ class FinanceTransactionApprovalService
 
             if (! $locked || ! in_array($locked->status, ['pending_manager', 'pending_direksi'], true)) {
                 throw new RuntimeException('Pengajuan ini sudah final, tidak bisa ditolak lagi.');
+            }
+
+            // Otorisasi di SERVER (sebelumnya cuma visible() di resource):
+            // full-access boleh menolak di tahap mana pun; store_manager
+            // hanya toko yang sama dan hanya tahap pending_manager.
+            $canReject = $approver->isFullAccess()
+                || ($locked->isPendingManager()
+                    && $approver->isStoreManager()
+                    && (int) $approver->store_id === (int) $locked->store_id_from_payload);
+
+            if (! $canReject) {
+                throw new RuntimeException('Anda tidak berwenang menolak pengajuan ini pada tahap sekarang.');
             }
 
             $locked->update([
@@ -258,10 +306,19 @@ class FinanceTransactionApprovalService
             throw new RuntimeException('Cuma pengajuan yang ditolak/dibatalkan yang bisa diajukan ulang.');
         }
 
+        if ($request->resubmitted_at) {
+            throw new RuntimeException('Pengajuan ini sudah pernah diajukan ulang.');
+        }
+
         $payload = $request->payload;
         unset($payload['receipt']);
 
-        return $this->submit($payload, $actor);
+        $new = $this->submit($payload, $actor);
+
+        // Penanda: pengajuan lama ini sudah diajukan ulang (tidak bisa lagi).
+        $request->update(['resubmitted_at' => now()]);
+
+        return $new;
     }
 
     /**
@@ -283,6 +340,10 @@ class FinanceTransactionApprovalService
         if (! $store || ! $store->is_active) {
             throw new RuntimeException('Toko pada pengajuan ini tidak ditemukan atau sudah nonaktif.');
         }
+
+        if (! is_numeric($data['amount'] ?? null) || (float) $data['amount'] <= 0) {
+            throw new RuntimeException('Nominal pada pengajuan ini tidak valid.');
+        }
     }
 
     private function notifyNextApprovers(FinanceTransactionApprovalRequest $request): void
@@ -291,7 +352,16 @@ class FinanceTransactionApprovalService
 
         if ($request->isPendingManager()) {
             $storeId = $request->store_id_from_payload;
-            $recipients = User::where('store_id', $storeId)->where('is_active', true)->get()->filter(fn (User $u) => $u->isStoreManager());
+            $recipients = $storeId
+                ? User::where('store_id', $storeId)->where('is_active', true)->get()->filter(fn (User $u) => $u->isStoreManager())
+                : collect();
+
+            // Toko tidak terbaca / belum ada store manager aktif: jangan
+            // hilang diam-diam -- teruskan ke full-access.
+            if ($recipients->isEmpty()) {
+                $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess());
+            }
+
             $title = "Menunggu persetujuan Anda: pengeluaran {$amountLabel}";
         } else {
             $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess());
@@ -303,6 +373,38 @@ class FinanceTransactionApprovalService
                 ->title($title)
                 ->warning()
                 ->sendToDatabase($recipient);
+        }
+
+        // Push ke approver (sebelumnya cuma notifikasi database) --
+        // kegagalan kirim tidak boleh menggagalkan alur approval.
+        try {
+            app(\App\Services\PushNotificationService::class)->sendToUsers(
+                $recipients->pluck('id'),
+                'Pengeluaran Menunggu Persetujuan',
+                $title
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * Pengaju diberi tahu kalau pengajuannya TERTAHAN saat direksi mencoba
+     * menyetujui tapi gagal (mis. periode ditutup, kategori/toko nonaktif)
+     * -- sebelumnya cuma direksi yang tahu.
+     */
+    public function notifyRequesterStuck(FinanceTransactionApprovalRequest $request, string $reason): void
+    {
+        try {
+            if ($requester = User::find($request->requested_by)) {
+                Notification::make()
+                    ->title('Pengajuan pengeluaran Anda tertahan')
+                    ->body($reason)
+                    ->warning()
+                    ->sendToDatabase($requester);
+            }
+        } catch (\Throwable $e) {
+            report($e);
         }
     }
 }

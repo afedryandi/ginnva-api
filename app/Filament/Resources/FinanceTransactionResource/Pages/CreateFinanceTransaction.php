@@ -19,6 +19,9 @@ class CreateFinanceTransaction extends CreateRecord
 {
     protected static string $resource = FinanceTransactionResource::class;
 
+    /** Jendela deteksi double-submit (menit). */
+    private const DUPLICATE_WINDOW_MINUTES = 10;
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['created_by'] = auth()->id();
@@ -77,13 +80,13 @@ class CreateFinanceTransaction extends CreateRecord
         $user = auth()->user();
 
         // Cegah double-submit (klik dua kali / request terkirim ganda): data
-        // identik dari user yang sama dalam 2 menit terakhir ditolak (audit
+        // identik (termasuk keterangan) dari user yang sama dalam 10 menit terakhir ditolak (audit
         // Transaksi Keuangan 2026-09-28). Mencakup transaksi langsung DAN
         // pengajuan approval yang masih menunggu.
         if ($this->isDuplicateSubmission($data, $user->id)) {
             Notification::make()
                 ->title('Transaksi ini sudah dikirim')
-                ->body('Data yang identik baru saja tercatat/diajukan. Cek daftar transaksi sebelum mengirim ulang.')
+                ->body('Data yang identik (nominal, kategori, toko, tanggal, keterangan) baru saja tercatat/diajukan dalam ' . self::DUPLICATE_WINDOW_MINUTES . ' menit terakhir. Cek daftar transaksi sebelum mengirim ulang. Kalau ini memang transaksi terpisah, bedakan keterangannya (mis. tambahkan nomor nota).')
                 ->warning()
                 ->send();
 
@@ -141,7 +144,7 @@ class CreateFinanceTransaction extends CreateRecord
         $same = fn (array $a) => collect($keys)->every(fn ($k) => (string) ($a[$k] ?? '') === (string) ($data[$k] ?? ''));
 
         $recentTransactions = FinanceTransaction::where('created_by', $userId)
-            ->where('created_at', '>=', now()->subMinutes(2))
+            ->where('created_at', '>=', now()->subMinutes(self::DUPLICATE_WINDOW_MINUTES))
             ->get()
             ->contains(fn (FinanceTransaction $t) => (float) $t->amount === (float) ($data['amount'] ?? 0)
                 && (int) $t->finance_category_id === (int) ($data['finance_category_id'] ?? 0)
@@ -155,7 +158,7 @@ class CreateFinanceTransaction extends CreateRecord
 
         return FinanceTransactionApprovalRequest::where('requested_by', $userId)
             ->whereIn('status', ['pending_manager', 'pending_direksi'])
-            ->where('created_at', '>=', now()->subMinutes(2))
+            ->where('created_at', '>=', now()->subMinutes(self::DUPLICATE_WINDOW_MINUTES))
             ->get()
             ->contains(fn (FinanceTransactionApprovalRequest $r) => $same($r->payload));
     }

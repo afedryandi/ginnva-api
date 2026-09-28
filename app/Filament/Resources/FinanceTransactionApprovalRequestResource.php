@@ -8,6 +8,8 @@ use App\Models\FinanceTransactionApprovalRequest;
 use App\Models\Store;
 use App\Services\FinanceTransactionApprovalService;
 use Filament\Forms;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -56,6 +58,11 @@ class FinanceTransactionApprovalRequestResource extends Resource
         return false;
     }
 
+    public static function canView($record): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function canEdit($record): bool
     {
         return false;
@@ -68,7 +75,7 @@ class FinanceTransactionApprovalRequestResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->with(['requester', 'managerApprover', 'direksiApprover', 'financeTransaction']);
+        $query = parent::getEloquentQuery()->with(['requester', 'managerApprover', 'direksiApprover', 'rejecter', 'financeTransaction']);
         $user = auth()->user();
 
         if ($user?->isFullAccess() ?? false) {
@@ -79,8 +86,7 @@ class FinanceTransactionApprovalRequestResource extends Resource
             // store_manager lihat SEMUA pengajuan toko sendiri (bukan
             // cuma yang perlu di-approve dia) supaya bisa pantau status
             // pengajuan staff-nya sampai tuntas ke direksi.
-            return $query->where(fn ($q) => $q
-                ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(payload, '$.store_id')) = ?", [(string) $user->store_id]));
+            return $query->where('store_id', $user->store_id);
         }
 
         // Staff biasa cuma lihat pengajuannya sendiri.
@@ -90,7 +96,8 @@ class FinanceTransactionApprovalRequestResource extends Resource
     public static function getNavigationBadge(): ?string
     {
         $user = auth()->user();
-        $query = static::getEloquentQuery();
+        // withoutEagerLoads: badge cuma butuh count() (audit 2026-09-28).
+        $query = static::getEloquentQuery()->withoutEagerLoads();
 
         if ($user?->isFullAccess() ?? false) {
             $count = (clone $query)->where('status', 'pending_direksi')->count();
@@ -112,6 +119,13 @@ class FinanceTransactionApprovalRequestResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('request_number')
+                    ->label('No. Pengajuan')
+                    ->searchable()
+                    ->fontFamily('mono')
+                    ->placeholder('—')
+                    ->copyable(),
+
                 // Nama kategori & toko dimuat SEKALI per request (bukan
                 // find() per baris -- sebelumnya N+1).
                 Tables\Columns\TextColumn::make('payload')
@@ -121,6 +135,14 @@ class FinanceTransactionApprovalRequestResource extends Resource
                         $names ??= FinanceCategory::pluck('name', 'id');
 
                         return $names[$r->payload['finance_category_id'] ?? 0] ?? '—';
+                    })
+                    // Pencarian kategori (payload JSON) -- gap audit 2026-09-28.
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        $ids = FinanceCategory::where('name', 'like', "%{$search}%")->pluck('id')->map(fn ($id) => (string) $id)->all();
+
+                        return $ids
+                            ? $query->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(payload, '$.finance_category_id')) IN (" . implode(',', array_fill(0, count($ids), '?')) . ')', $ids)
+                            : $query;
                     }),
 
                 Tables\Columns\TextColumn::make('store')
@@ -130,7 +152,8 @@ class FinanceTransactionApprovalRequestResource extends Resource
                         $names ??= Store::pluck('name', 'id');
 
                         return $names[$r->payload['store_id'] ?? 0] ?? '—';
-                    }),
+                    })
+                    ->toggleable(),
 
                 // Konteks yang dibutuhkan approver (sebelumnya menyetujui
                 // "buta": tanggal, keterangan, dan nota tidak terlihat).
@@ -145,12 +168,14 @@ class FinanceTransactionApprovalRequestResource extends Resource
                     ->getStateUsing(fn (FinanceTransactionApprovalRequest $r) => $r->payload['description'] ?? null)
                     ->limit(50)
                     ->placeholder('—')
-                    ->tooltip(fn (FinanceTransactionApprovalRequest $r) => $r->payload['description'] ?? null),
+                    ->tooltip(fn (FinanceTransactionApprovalRequest $r) => $r->payload['description'] ?? null)
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\IconColumn::make('has_receipt')
                     ->label('Nota')
                     ->getStateUsing(fn (FinanceTransactionApprovalRequest $r) => ! empty($r->payload['receipt']))
-                    ->boolean(),
+                    ->boolean()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('amount')
                     ->label('Nominal')
@@ -176,11 +201,40 @@ class FinanceTransactionApprovalRequestResource extends Resource
                     ->sortable(),
             ])
             ->defaultSort('created_at', 'desc')
+            ->emptyStateHeading('Belum ada pengajuan pengeluaran')
+            ->emptyStateDescription('Pengajuan muncul di sini saat staff non-full-access mencatat pengeluaran.')
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options(FinanceTransactionApprovalRequest::STATUS_LABELS),
             ])
             ->actions([
+                // Detail + riwayat approval lengkap (gap audit 2026-09-28):
+                // siapa menyetujui tiap tahap & kapan, alasan penolakan, dan
+                // nomor transaksi hasilnya.
+                Tables\Actions\ViewAction::make()
+                    ->label('Detail')
+                    ->modalHeading(fn (FinanceTransactionApprovalRequest $r) => 'Pengajuan ' . ($r->request_number ?? '#' . $r->id))
+                    ->infolist(fn (FinanceTransactionApprovalRequest $r) => [
+                        Infolists\Components\Section::make('Pengajuan')->columns(2)->schema([
+                            Infolists\Components\TextEntry::make('summary')->label('Ringkasan')->state($r->summaryLine())->columnSpanFull(),
+                            Infolists\Components\TextEntry::make('status')->label('Status')->state(FinanceTransactionApprovalRequest::STATUS_LABELS[$r->status] ?? $r->status)->badge(),
+                            Infolists\Components\TextEntry::make('tgl')->label('Tanggal Transaksi')->state(isset($r->payload['transaction_date']) ? \Illuminate\Support\Carbon::parse($r->payload['transaction_date'])->format('d M Y') : '—'),
+                            Infolists\Components\TextEntry::make('desc')->label('Keterangan')->state($r->payload['description'] ?? '—')->columnSpanFull(),
+                            Infolists\Components\TextEntry::make('diajukan')->label('Diajukan')->state($r->created_at?->format('d M Y H:i')),
+                            Infolists\Components\TextEntry::make('resub')->label('Diajukan Ulang')->state($r->resubmitted_at ? $r->resubmitted_at->format('d M Y H:i') : '—'),
+                        ]),
+                        Infolists\Components\Section::make('Riwayat Persetujuan')->columns(2)->schema([
+                            Infolists\Components\TextEntry::make('mgr')->label('Store Manager')
+                                ->state($r->managerApprover ? $r->managerApprover->name . ' — ' . $r->manager_approved_at?->format('d M Y H:i') : '—'),
+                            Infolists\Components\TextEntry::make('dir')->label('Direksi')
+                                ->state($r->direksiApprover ? $r->direksiApprover->name . ' — ' . $r->direksi_approved_at?->format('d M Y H:i') : '—'),
+                            Infolists\Components\TextEntry::make('rej')->label('Ditolak Oleh')
+                                ->state($r->rejecter ? $r->rejecter->name . ' — ' . $r->rejected_at?->format('d M Y H:i') : '—'),
+                            Infolists\Components\TextEntry::make('note')->label('Alasan Penolakan')->state($r->rejection_note ?: '—'),
+                            Infolists\Components\TextEntry::make('trx')->label('Transaksi Hasil')->state($r->financeTransaction?->transaction_number ?? '—')->columnSpanFull(),
+                        ]),
+                    ]),
+
                 Tables\Actions\Action::make('cancelRequest')
                     ->label('Batalkan Pengajuan')
                     ->icon('heroicon-o-arrow-uturn-left')
@@ -188,6 +242,7 @@ class FinanceTransactionApprovalRequestResource extends Resource
                     ->visible(fn (FinanceTransactionApprovalRequest $r) => (int) $r->requested_by === (int) auth()->id()
                         && in_array($r->status, ['pending_manager', 'pending_direksi'], true))
                     ->requiresConfirmation()
+                    ->modalDescription(fn (FinanceTransactionApprovalRequest $r) => 'Batalkan pengajuan: ' . $r->summaryLine())
                     ->action(function (FinanceTransactionApprovalRequest $r) {
                         try {
                             app(FinanceTransactionApprovalService::class)->cancel($r, auth()->user());
@@ -205,7 +260,8 @@ class FinanceTransactionApprovalRequestResource extends Resource
                     ->icon('heroicon-o-arrow-path')
                     ->color('warning')
                     ->visible(fn (FinanceTransactionApprovalRequest $r) => (int) $r->requested_by === (int) auth()->id()
-                        && in_array($r->status, ['rejected', 'cancelled'], true))
+                        && in_array($r->status, ['rejected', 'cancelled'], true)
+                        && $r->resubmitted_at === null)
                     ->requiresConfirmation()
                     ->modalDescription('Data yang sama diajukan lagi sebagai pengajuan baru (nota perlu diunggah ulang lewat transaksi baru kalau ada).')
                     ->action(function (FinanceTransactionApprovalRequest $r) {
@@ -233,9 +289,11 @@ class FinanceTransactionApprovalRequestResource extends Resource
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->visible(fn (FinanceTransactionApprovalRequest $r) => $r->isPendingManager()
-                        && ((auth()->user()?->isStoreManager() && auth()->user()?->store_id === ($r->payload['store_id'] ?? null))
+                        && ((auth()->user()?->isStoreManager() && (int) auth()->user()?->store_id === (int) $r->store_id_from_payload)
                             || (auth()->user()?->isFullAccess() ?? false)))
                     ->requiresConfirmation()
+                    ->modalHeading('Setujui pengajuan pengeluaran?')
+                    ->modalDescription(fn (FinanceTransactionApprovalRequest $r) => $r->summaryLine() . '. Setelah disetujui, diteruskan ke direksi.')
                     ->action(function (FinanceTransactionApprovalRequest $r) {
                         try {
                             app(FinanceTransactionApprovalService::class)->approveByManager($r, auth()->user());
@@ -254,12 +312,19 @@ class FinanceTransactionApprovalRequestResource extends Resource
                     ->color('success')
                     ->visible(fn (FinanceTransactionApprovalRequest $r) => $r->isPendingDireksi() && (auth()->user()?->isFullAccess() ?? false))
                     ->requiresConfirmation()
-                    ->modalDescription('Transaksi akan langsung dibuat & diposting ke Jurnal Umum. Lanjutkan?')
+                    ->modalDescription(fn (FinanceTransactionApprovalRequest $r) => $r->summaryLine() . '. Transaksi akan langsung dibuat & diposting ke Jurnal Umum.')
                     ->action(function (FinanceTransactionApprovalRequest $r) {
                         try {
                             app(FinanceTransactionApprovalService::class)->approveByDireksi($r, auth()->user());
                         } catch (RuntimeException $e) {
-                            Notification::make()->title('Tidak bisa disetujui')->body($e->getMessage())->danger()->send();
+                            $hint = str_contains($e->getMessage(), 'ditutup')
+                                ? ' Buka kembali periodenya di Tutup Periode, atau tolak pengajuan ini dengan alasan.'
+                                : ' Perbaiki penyebabnya, atau tolak pengajuan ini dengan alasan.';
+
+                            Notification::make()->title('Tidak bisa disetujui — pengajuan tertahan')->body($e->getMessage() . $hint)->danger()->persistent()->send();
+
+                            // Pengaju diberi tahu pengajuannya tertahan.
+                            app(FinanceTransactionApprovalService::class)->notifyRequesterStuck($r, $e->getMessage());
 
                             return;
                         }
@@ -274,8 +339,9 @@ class FinanceTransactionApprovalRequestResource extends Resource
                     ->visible(fn (FinanceTransactionApprovalRequest $r) => in_array($r->status, ['pending_manager', 'pending_direksi'], true)
                         && (
                             (auth()->user()?->isFullAccess() ?? false)
-                            || ($r->isPendingManager() && auth()->user()?->isStoreManager() && auth()->user()?->store_id === ($r->payload['store_id'] ?? null))
+                            || ($r->isPendingManager() && auth()->user()?->isStoreManager() && (int) auth()->user()?->store_id === (int) $r->store_id_from_payload)
                         ))
+                    ->modalDescription(fn (FinanceTransactionApprovalRequest $r) => $r->summaryLine())
                     ->form([
                         Forms\Components\Textarea::make('rejection_note')
                             ->label('Alasan Penolakan')

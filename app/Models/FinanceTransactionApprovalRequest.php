@@ -39,6 +39,9 @@ class FinanceTransactionApprovalRequest extends Model
     ];
 
     protected $fillable = [
+        'request_number',
+        'resubmitted_at',
+        'store_id',
         'payload',
         'status',
         'requested_by',
@@ -57,11 +60,49 @@ class FinanceTransactionApprovalRequest extends Model
         'manager_approved_at' => 'datetime',
         'direksi_approved_at' => 'datetime',
         'rejected_at' => 'datetime',
+        'resubmitted_at' => 'datetime',
     ];
+
+    /** Nomor pengajuan EXP-YYYYMM-XXXX, collision-safe (audit Persetujuan Pengeluaran 2026-09-28). */
+    public static function generateRequestNumber(): string
+    {
+        do {
+            $candidate = 'EXP-' . now()->format('Ym') . '-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(4));
+        } while (static::where('request_number', $candidate)->exists());
+
+        return $candidate;
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (FinanceTransactionApprovalRequest $request) {
+            if (empty($request->request_number)) {
+                $request->request_number = static::generateRequestNumber();
+            }
+
+            // store_id sebagai kolom biasa (audit Persetujuan Pengeluaran
+            // 2026-09-28) -- scoping tidak lagi membaca JSON payload.
+            if (empty($request->store_id)) {
+                $request->store_id = $request->payload['store_id'] ?? null;
+            }
+        });
+    }
 
     public function requester(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'requested_by');
+        // withDefault: nama tetap tampil walau akun pengaju sudah dihapus
+        // (audit Persetujuan Pengeluaran 2026-09-28).
+        return $this->belongsTo(User::class, 'requested_by')->withDefault(['name' => '(pengguna dihapus)']);
+    }
+
+    /** Ringkasan 1 baris untuk modal konfirmasi approver. */
+    public function summaryLine(): string
+    {
+        $category = \App\Models\FinanceCategory::find($this->payload['finance_category_id'] ?? null)?->name ?? '—';
+        $store = \App\Models\Store::find($this->payload['store_id'] ?? null)?->name ?? '—';
+
+        return 'Rp' . number_format((float) ($this->payload['amount'] ?? 0), 0, ',', '.')
+            . " — {$category} — {$store} — diajukan oleh " . ($this->requester?->name ?? '—');
     }
 
     public function managerApprover(): BelongsTo
@@ -91,7 +132,7 @@ class FinanceTransactionApprovalRequest extends Model
      */
     public function getStoreIdFromPayloadAttribute(): ?int
     {
-        return $this->payload['store_id'] ?? null;
+        return $this->store_id ?? ($this->payload['store_id'] ?? null);
     }
 
     public function isPendingManager(): bool
