@@ -338,11 +338,16 @@ class PurchaseRequestResource extends Resource
                             ->prefix('Rp')
                             ->helperText('Dipakai untuk mencatat jurnal Persediaan/Aset otomatis (Kredit Hutang Usaha).'),
 
-                        Forms\Components\TextInput::make('supplier_name')
-                            ->label('Nama Supplier')
+                        Forms\Components\Select::make('supplier_id')
+                            ->label('Supplier')
+                            ->options(fn () => \App\Models\Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
                             ->required()
-                            ->maxLength(255)
-                            ->helperText('Dipakai untuk mencatat tagihan ini di menu Hutang Usaha.'),
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('name')->label('Nama Supplier')->required()->maxLength(255),
+                            ])
+                            ->createOptionUsing(fn (array $data) => \App\Models\Supplier::create($data)->getKey())
+                            ->helperText('Dipakai untuk mencatat tagihan ini di menu Hutang Usaha. Supplier baru bisa langsung dibuat di sini.'),
 
                         Forms\Components\DatePicker::make('due_date')
                             ->label('Jatuh Tempo (opsional)')
@@ -364,31 +369,44 @@ class PurchaseRequestResource extends Resource
                     ->action(function (PurchaseRequest $record, array $data) {
                         try {
                             DB::transaction(function () use ($record, $data) {
-                                $record->update([
+                                // Kunci baris + cek ulang status di dalam transaksi (audit Hutang
+                                // Usaha 2026-09-29): $record dari Livewire bisa basi, klik ganda /
+                                // 2 orang bersamaan sebelumnya bisa bikin jurnal & Payable dobel.
+                                $locked = PurchaseRequest::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
+
+                                if ($locked->status !== 'approved') {
+                                    throw new RuntimeException('Permohonan ini sudah diproses (status: ' . $locked->status . ').');
+                                }
+
+                                $supplier = \App\Models\Supplier::findOrFail($data['supplier_id']);
+
+                                $locked->update([
                                     'status'       => 'fulfilled',
                                     'fulfilled_at' => now(),
                                     'actual_cost'  => $data['actual_cost'],
                                 ]);
 
                                 $entry = app(PurchaseRequestPostingService::class)->post(
-                                    $record->refresh(),
+                                    $locked->refresh(),
                                     (float) $data['actual_cost'],
                                     $data['chart_of_account_id'] ?? null
                                 );
 
-                                $record->update(['journal_entry_id' => $entry->id]);
+                                $locked->update(['journal_entry_id' => $entry->id]);
 
                                 // Payable dicatat menautkan ke jurnal yang
                                 // BARU SAJA dibuat di atas — TIDAK bikin
                                 // jurnal baru lagi (lihat komentar
                                 // PayableService::create() vs
                                 // createWithJournal()), supaya saldo 2110
-                                // tidak dobel tercatat.
+                                // tidak dobel tercatat. source_key unik =
+                                // lapisan kedua anti-duplikat.
                                 app(PayableService::class)->create([
-                                    'supplier_name' => $data['supplier_name'],
-                                    'store_id' => $record->store_id,
+                                    'supplier_name' => $supplier->name,
+                                    'supplier_id' => $supplier->id,
+                                    'store_id' => $locked->store_id,
                                     'source_type' => 'purchase_request',
-                                    'source_id' => $record->id,
+                                    'source_id' => $locked->id,
                                     'amount' => $data['actual_cost'],
                                     'due_date' => $data['due_date'] ?? null,
                                     'journal_entry_id' => $entry->id,
@@ -404,6 +422,8 @@ class PurchaseRequestResource extends Resource
 
                             return;
                         }
+
+                        $record->refresh();
 
                         if ($record->requested_by) {
                             app(PushNotificationService::class)->sendToUsers(

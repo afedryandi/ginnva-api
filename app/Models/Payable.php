@@ -22,9 +22,13 @@ class Payable extends Model
     protected $fillable = [
         'payable_number',
         'supplier_name',
+        'supplier_id',
+        'invoice_number',
+        'attachment',
         'store_id',
         'source_type',
         'source_id',
+        'source_key',
         'amount',
         'amount_paid',
         'due_date',
@@ -32,9 +36,14 @@ class Payable extends Model
         'journal_entry_id',
         'notes',
         'created_by',
+        'cancelled_at',
+        'cancelled_by',
+        'cancel_reason',
+        'cancel_journal_entry_id',
     ];
 
     protected $casts = [
+        'cancelled_at' => 'datetime',
         'amount' => 'decimal:2',
         'amount_paid' => 'decimal:2',
         'due_date' => 'date',
@@ -43,6 +52,11 @@ class Payable extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
     }
 
     public function journalEntry(): BelongsTo
@@ -62,12 +76,16 @@ class Payable extends Model
 
     public function remainingAmount(): float
     {
+        if ($this->status === 'cancelled') {
+            return 0.0;
+        }
+
         return round((float) $this->amount - (float) $this->amount_paid, 2);
     }
 
     public function isOverdue(): bool
     {
-        return $this->status !== 'paid'
+        return ! in_array($this->status, ['paid', 'cancelled'], true)
             && $this->due_date !== null
             && $this->due_date->isPast();
     }
@@ -91,7 +109,7 @@ class Payable extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['supplier_name', 'amount', 'amount_paid', 'due_date', 'status'])
+            ->logOnly(['supplier_name', 'supplier_id', 'invoice_number', 'store_id', 'notes', 'amount', 'amount_paid', 'due_date', 'status', 'cancel_reason'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('payable')

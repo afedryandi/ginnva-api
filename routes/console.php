@@ -41,6 +41,10 @@ Schedule::command('finance:remind-pending-approvals')->dailyAt('08:30');
 // Persetujuan Transaksi 2026-09-29).
 Schedule::command('transactions:remind-pending-approvals')->dailyAt('08:35');
 
+// Ingatkan direksi soal Hutang Usaha jatuh tempo (H-3 s/d terlewat) — lihat
+// App\Console\Commands\RemindPayableDue (audit Hutang Usaha 2026-09-29).
+Schedule::command('payables:remind-due')->dailyAt('08:40');
+
 // Tandai Alpha/Izin untuk hari KEMARIN yang belum punya baris Attendance
 // sama sekali — dijadwalkan dini hari supaya "kemarin" sudah pasti hari
 // yang selesai penuh. Lihat App\Console\Commands\MarkAbsences.
