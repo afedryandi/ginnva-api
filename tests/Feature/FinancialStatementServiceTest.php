@@ -163,6 +163,52 @@ class FinancialStatementServiceTest extends TestCase
         $this->assertEquals(1_000_000.0, $trial['rows']->first(fn ($r) => $r['account']->id === $this->revenueId())['balance']);
     }
 
+    public function test_income_statement_result_carries_period_for_exports(): void
+    {
+        $this->post('2026-09-05', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 250_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 250_000],
+        ]);
+
+        $result = $this->service->incomeStatement(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertTrue($result['from']->isSameDay('2026-09-01'));
+        $this->assertTrue($result['to']->isSameDay('2026-09-30'));
+
+        // Ekspor tidak boleh crash (sebelumnya "Undefined array key from").
+        $rows = (new \App\Exports\IncomeStatementExport($result))->array();
+        $this->assertNotEmpty($rows);
+        $this->assertStringContainsString('01 Sep 2026', $rows[1][1]);
+    }
+
+    public function test_income_statement_export_with_comparison_has_percentage_and_delta_columns(): void
+    {
+        $this->post('2026-08-05', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 100_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 100_000],
+        ]);
+        $this->post('2026-09-05', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 150_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 150_000],
+        ]);
+
+        $current = $this->service->incomeStatement(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+        $current['store_label'] = 'Semua Toko';
+        $current['compare'] = $this->service->incomeStatement(Carbon::parse('2026-08-01'), Carbon::parse('2026-08-31'));
+        $current['compare_label'] = '01 Aug 2026 – 31 Aug 2026';
+
+        $rows = (new \App\Exports\IncomeStatementExport($current))->array();
+
+        // Header kolom (baris ke-6: judul, periode, toko, pembanding, kosong, header).
+        $this->assertSame(['Akun', 'Periode Ini', '% Pendapatan', 'Pembanding', 'Selisih %'], $rows[5]);
+
+        $revenueRow = collect($rows)->first(fn ($r) => is_array($r) && ($r[0] ?? '') === 'Total Pendapatan');
+        $this->assertEquals(150_000.0, $revenueRow[1]);
+        $this->assertEquals(100.0, $revenueRow[2]);
+        $this->assertEquals(100_000.0, $revenueRow[3]);
+        $this->assertEquals(50.0, $revenueRow[4]);
+    }
+
     public function test_report_notices_flag_draft_journals(): void
     {
         $journal = app(JournalEntryService::class);

@@ -48,6 +48,9 @@
                     <span @class(['text-xs', 'text-success-600' => ($amt - $prev) >= 0, 'text-danger-600' => ($amt - $prev) < 0])>{{ $delta($amt, $prev) }}</span>
                 @endif
                 <span>{{ $rupiah($amt) }}</span>
+                @if (($base ?? null) !== null && abs($base) > 0.005)
+                    <span class="w-14 text-right text-xs text-gray-400" title="Persentase terhadap total pendapatan">{{ number_format($amt / $base * 100, 1, ',', '.') }}%</span>
+                @endif
             </span>
         </div>
     @endforeach

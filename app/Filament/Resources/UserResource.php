@@ -170,6 +170,7 @@ class UserResource extends Resource
                 'FinanceTransactionResource' => 'Transaksi Keuangan',
                 'FinanceReport' => 'Laporan Keuangan',
                 'TrialBalanceReport' => 'Neraca Saldo',
+                'IncomeStatementReport' => 'Laporan Laba Rugi',
                 'PayableResource' => 'Hutang Usaha',
                 'SupplierResource' => 'Supplier',
                 'RecurringBillTemplateResource' => 'Template Tagihan Rutin',

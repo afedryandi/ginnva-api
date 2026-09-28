@@ -16,5 +16,8 @@
             <span class="text-xs font-normal">{{ $delta($cur, $prev) }}</span>
         @endif
         <span>{{ $rupiah($cur) }}</span>
+        @if (($base ?? null) !== null && abs($base) > 0.005)
+            <span class="w-14 text-right text-xs font-normal opacity-70" title="Margin terhadap total pendapatan">{{ number_format($cur / $base * 100, 1, ',', '.') }}%</span>
+        @endif
     </span>
 </div>

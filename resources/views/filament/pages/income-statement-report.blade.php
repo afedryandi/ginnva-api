@@ -11,6 +11,8 @@
         $compare = $result['compare'] ?? null;
         $rupiah = fn ($n) => ($n < 0 ? '(' : '') . 'Rp ' . number_format(abs($n), 0, ',', '.') . ($n < 0 ? ')' : '');
         $drill = fn ($account) => $this->ledgerUrl($account->id);
+        // Dasar persentase (common-size) & margin: total pendapatan periode ini.
+        $base = (float) $sections['pendapatan']['total'];
 
         // Peta id akun => nilai periode pembanding (lintas seksi).
         $prevMap = null;
@@ -37,7 +39,8 @@
     <x-filament::section>
         <x-slot name="heading">Laporan Laba Rugi</x-slot>
         <x-slot name="description">
-            Dari Jurnal Umum berstatus posted dalam rentang tanggal yang dipilih. Klik nama akun untuk melihat rincian di Buku Besar.
+            Toko: {{ $result['store_label'] ?? 'Semua Toko' }} · {{ $result['from']->format('d M Y') }} – {{ $result['to']->format('d M Y') }}.
+            Dari Jurnal Umum berstatus posted dalam rentang tanggal yang dipilih. Klik nama akun untuk melihat rincian di Buku Besar; persentase kecil di kanan = porsi terhadap total pendapatan (untuk baris laba = margin).
             @if ($compare)
                 Kolom kiri = pembanding ({{ $result['compare_label'] }}), lalu selisih %, lalu periode ini.
             @endif

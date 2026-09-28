@@ -9,9 +9,12 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Forms\Set;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
@@ -19,8 +22,8 @@ use Maatwebsite\Excel\Facades\Excel;
 /**
  * Laporan Laba Rugi — untuk 1 RENTANG periode (beda dari Neraca Saldo
  * yang kumulatif per tanggal cutoff), dihitung dari Jurnal Umum yang
- * 'posted'. TERBATAS full-access, sama filosofi dengan
- * JournalEntryResource/TrialBalanceReport.
+ * 'posted'. TERBATAS full-access; Spv Finance dst. bisa diberi izin baca lewat Hak Akses
+ * Detail ('view', default ditolak) dan yang punya toko dikunci ke tokonya (audit Laba Rugi 2026-09-29).
  */
 class IncomeStatementReport extends Page implements HasForms
 {
@@ -44,7 +47,17 @@ class IncomeStatementReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return ($user?->isFullAccess() ?? false)
+            || ($user?->canAccessStaffArea()
+                && $user->hasMenuAccess(static::class)
+                && $user->hasModuleAction(static::class, 'view', false));
+    }
+
+    private function isRestricted(): bool
+    {
+        return ! (auth()->user()?->isFullAccess() ?? false);
     }
 
     public function mount(): void
@@ -52,7 +65,8 @@ class IncomeStatementReport extends Page implements HasForms
         $this->form->fill([
             'from' => now()->startOfMonth()->toDateString(),
             'to' => now()->endOfMonth()->toDateString(),
-            'store_id' => null,
+            'store_id' => $this->isRestricted() ? auth()->user()?->store_id : null,
+            'hide_zero' => false,
         ]);
     }
 
@@ -60,6 +74,33 @@ class IncomeStatementReport extends Page implements HasForms
     {
         return $form
             ->schema([
+                Select::make('preset')
+                    ->label('Periode Cepat')
+                    ->options([
+                        'this_month' => 'Bulan ini',
+                        'last_month' => 'Bulan lalu',
+                        'this_quarter' => 'Kuartal ini',
+                        'ytd' => 'Tahun ini (s.d. hari ini)',
+                        'last_year' => 'Tahun lalu',
+                    ])
+                    ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                    ->live()
+                    ->afterStateUpdated(function (?string $state, Set $set) {
+                        $range = match ($state) {
+                            'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                            'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                            'this_quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+                            'ytd' => [now()->startOfYear(), now()],
+                            'last_year' => [now()->subYear()->startOfYear(), now()->subYear()->endOfYear()],
+                            default => null,
+                        };
+
+                        if ($range) {
+                            $set('from', $range[0]->toDateString());
+                            $set('to', $range[1]->toDateString());
+                        }
+                    }),
+
                 DatePicker::make('from')
                     ->label('Dari Tanggal')
                     ->native(false)
@@ -74,20 +115,60 @@ class IncomeStatementReport extends Page implements HasForms
 
                 Select::make('store_id')
                     ->label('Toko')
-                    ->options(fn () => [\App\Services\FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
+                    ->options(fn () => [FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
                     ->helperText('Memilih toko TIDAK mencakup jurnal pusat (tanpa toko, mis. gaji pusat/penyusutan) — pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan untuk semua.')
                     ->placeholder('Semua Toko')
                     ->searchable()
-                    ->live(),
+                    ->live()
+                    ->disabled(fn () => $this->isRestricted() && auth()->user()?->store_id !== null),
 
-                \Filament\Forms\Components\Select::make('compare')
+                Select::make('compare')
                     ->label('Bandingkan Dengan')
                     ->options(['prev_period' => 'Periode sebelumnya (durasi sama)', 'prev_year' => 'Periode yang sama tahun lalu'])
                     ->placeholder('Tanpa pembanding')
                     ->live(),
+
+                Toggle::make('hide_zero')
+                    ->label('Sembunyikan akun bernilai nol')
+                    ->live()
+                    ->inline(false),
             ])
             ->statePath('data')
-            ->columns(4);
+            ->columns(3);
+    }
+
+    private function storeId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($this->isRestricted() && $user?->store_id !== null) {
+            return (int) $user->store_id;
+        }
+
+        return isset($this->data['store_id']) && $this->data['store_id'] !== '' ? (int) $this->data['store_id'] : null;
+    }
+
+    private function storeLabel(): string
+    {
+        $id = $this->storeId();
+
+        return match (true) {
+            $id === null => 'Semua Toko',
+            $id === FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko',
+            default => Store::whereKey($id)->value('name') ?? 'Toko #' . $id,
+        };
+    }
+
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'income_statement', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->storeId()])
+                ->log('Ekspor Laporan Laba Rugi (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     protected function getHeaderActions(): array
@@ -97,16 +178,22 @@ class IncomeStatementReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new IncomeStatementExport($this->getResult()),
-                    'laporan-laba-rugi-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new IncomeStatementExport($this->getResult()),
+                        'laporan-laba-rugi-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.income_statement_report', ['result' => $result])->setPaper('a4', 'portrait');
                     $filename = 'laporan-laba-rugi-' . now()->format('Ymd-His') . '.pdf';
@@ -122,10 +209,10 @@ class IncomeStatementReport extends Page implements HasForms
         $from = $this->data['from'] ?? null;
         $to = $this->data['to'] ?? null;
 
-        if ($from && $to && \Illuminate\Support\Carbon::parse($to)->lt(\Illuminate\Support\Carbon::parse($from))) {
+        if ($from && $to && Carbon::parse($to)->lt(Carbon::parse($from))) {
             $this->data['to'] = $from;
 
-            \Filament\Notifications\Notification::make()
+            Notification::make()
                 ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
                 ->body('Diset sama dengan tanggal "Dari".')
                 ->warning()
@@ -133,19 +220,46 @@ class IncomeStatementReport extends Page implements HasForms
         }
     }
 
-
     public function getResult(): array
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
-        $storeId = $this->data['store_id'] ?? null;
+        $storeId = $this->storeId();
 
         $service = app(FinancialStatementService::class);
         $result = $service->incomeStatement($from, $to, $storeId);
+        $result['store_label'] = $this->storeLabel();
 
         [$prevFrom, $prevTo] = $this->comparisonRange($from, $to);
         $result['compare'] = $prevFrom ? $service->incomeStatement($prevFrom, $prevTo, $storeId) : null;
         $result['compare_label'] = $prevFrom ? $prevFrom->format('d M Y') . ' – ' . $prevTo->format('d M Y') : null;
+
+        // Akun yang HANYA ada di periode pembanding tetap ditampilkan (nilai periode ini 0), supaya
+        // daftar akun menjumlah ke total pembanding. Total periode ini tidak berubah (nilainya 0).
+        if ($result['compare']) {
+            foreach ($result['sections'] as $type => $section) {
+                $existing = $section['rows']->pluck('account.id')->all();
+
+                $missing = $result['compare']['sections'][$type]['rows']
+                    ->reject(fn ($r) => in_array($r['account']->id, $existing, true))
+                    ->map(fn ($r) => ['account' => $r['account'], 'amount' => 0.0, 'compare_only' => true]);
+
+                if ($missing->isNotEmpty()) {
+                    $result['sections'][$type]['rows'] = $section['rows']->concat($missing)
+                        ->sortBy(fn ($r) => $r['account']->code)
+                        ->values();
+                }
+            }
+        }
+
+        // Sembunyikan akun bernilai nol (kecuali yang punya nilai di periode pembanding).
+        if ($this->data['hide_zero'] ?? false) {
+            foreach ($result['sections'] as $type => $section) {
+                $result['sections'][$type]['rows'] = $section['rows']
+                    ->reject(fn ($r) => abs($r['amount']) < 0.005 && empty($r['compare_only']))
+                    ->values();
+            }
+        }
 
         return $result;
     }
@@ -184,7 +298,7 @@ class IncomeStatementReport extends Page implements HasForms
             'chart_of_account_id' => $accountId,
             'from' => $this->data['from'] ?? null,
             'to' => $this->data['to'] ?? null,
-            'store_id' => $this->data['store_id'] ?? null,
+            'store_id' => $this->storeId(),
         ]);
     }
 
@@ -193,6 +307,6 @@ class IncomeStatementReport extends Page implements HasForms
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
 
-        return app(FinancialStatementService::class)->reportNotices($from, $to, $this->data['store_id'] ?? null);
+        return app(FinancialStatementService::class)->reportNotices($from, $to, $this->storeId());
     }
 }

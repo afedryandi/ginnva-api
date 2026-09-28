@@ -326,6 +326,10 @@ class FinancialStatementService
         $labaBersih = $labaSebelumPajak - $sections['pajak']['total'];
 
         return [
+            // from/to dipakai ekspor Excel & PDF untuk label periode (sebelumnya tidak dikembalikan
+            // sehingga kedua ekspor crash "Undefined array key" -- audit Laba Rugi 2026-09-29).
+            'from' => $from,
+            'to' => $to,
             'sections' => $sections,
             'laba_kotor' => $labaKotor,
             'laba_operasional' => $labaOperasional,
