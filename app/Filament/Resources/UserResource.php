@@ -173,6 +173,7 @@ class UserResource extends Resource
                 'IncomeStatementReport' => 'Laporan Laba Rugi',
                 'GeneralLedgerReport' => 'Buku Besar',
                 'BalanceSheetReport' => 'Neraca',
+                'CashFlowReport' => 'Laporan Arus Kas',
                 'PayableResource' => 'Hutang Usaha',
                 'SupplierResource' => 'Supplier',
                 'RecurringBillTemplateResource' => 'Template Tagihan Rutin',

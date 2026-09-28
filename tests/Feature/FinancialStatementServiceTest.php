@@ -341,6 +341,71 @@ class FinancialStatementServiceTest extends TestCase
         $this->assertEquals(100.0, $totalAset[4]);
     }
 
+    public function test_cash_flow_totals_are_exact_in_cents_and_reconciled(): void
+    {
+        // Banyak nominal desimal: penjumlahan float rawan drift, sen integer tidak.
+        foreach ([33_333.33, 66_666.67, 0.10, 0.20, 0.30] as $i => $amount) {
+            $this->post('2026-09-0' . ($i + 1), [
+                ['chart_of_account_id' => $this->cashId(), 'debit' => $amount],
+                ['chart_of_account_id' => $this->revenueId(), 'credit' => $amount],
+            ]);
+        }
+
+        $cash = $this->service->cashFlowStatement(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertEquals(100_000.60, $cash['net_change']);
+        $this->assertEquals(100_000.60, $cash['closing_cash']);
+        $this->assertTrue($cash['is_reconciled']);
+        $this->assertSame(10_000_060, $cash['sections']['operasional']['rows']->sum('amount_cents') + $cash['sections']['investasi']['rows']->sum('amount_cents') + $cash['sections']['pendanaan']['rows']->sum('amount_cents'));
+    }
+
+    public function test_cash_flow_excel_writes_numbers_not_text(): void
+    {
+        $this->post('2026-09-05', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 1_500_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 1_500_000],
+        ]);
+
+        $cash = $this->service->cashFlowStatement(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+        $cash['from'] = Carbon::parse('2026-09-01');
+        $cash['to'] = Carbon::parse('2026-09-30');
+
+        $rows = (new \App\Exports\CashFlowExport($cash))->array();
+        $closing = collect($rows)->first(fn ($r) => ($r[0] ?? '') === 'Saldo Kas Akhir Periode');
+
+        $this->assertIsFloat($closing[1]);
+        $this->assertEquals(1_500_000.0, $closing[1]);
+    }
+
+    public function test_cash_flow_groups_by_counterparty_and_breaks_down_cash_accounts(): void
+    {
+        $bankId = ChartOfAccount::where('code', '1102')->value('id'); // Kas di Bank (is_cash)
+
+        $this->post('2026-09-05', [
+            ['chart_of_account_id' => $this->cashId(), 'debit' => 100_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 100_000],
+        ]);
+        $this->post('2026-09-06', [
+            ['chart_of_account_id' => $bankId, 'debit' => 250_000],
+            ['chart_of_account_id' => $this->revenueId(), 'credit' => 250_000],
+        ]);
+
+        $cash = $this->service->cashFlowStatement(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        // Kedua jurnal berlawanan dengan akun pendapatan yang sama -> 1 kelompok jenis, 2 jurnal, total 350.000.
+        $groups = collect($cash['sections'])->flatMap(fn ($s) => $s['groups']);
+        $this->assertCount(1, $groups);
+        $this->assertEquals(350_000.0, $groups->first()['total']);
+        $this->assertCount(2, $groups->first()['rows']);
+        $this->assertNotNull($groups->first()['rows']->first()['entry_id']);
+
+        // Rincian per akun kas: Kas di Tangan 100.000 dan Kas di Bank 250.000, total = saldo akhir.
+        $byCode = collect($cash['cash_accounts'])->keyBy(fn ($r) => $r['account']->code);
+        $this->assertEquals(100_000.0, $byCode['1101']['closing']);
+        $this->assertEquals(250_000.0, $byCode['1102']['closing']);
+        $this->assertEquals($cash['closing_cash'], collect($cash['cash_accounts'])->sum('closing'));
+    }
+
     public function test_report_notices_flag_draft_journals(): void
     {
         $journal = app(JournalEntryService::class);

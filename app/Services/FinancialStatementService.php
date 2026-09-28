@@ -566,9 +566,11 @@ class FinancialStatementService
 
         foreach ($entries as $entry) {
             $cashLines = $entry->lines->filter(fn ($l) => $cashAccountIds->contains($l->chart_of_account_id));
-            $cashDelta = (float) $cashLines->sum(fn ($l) => (float) $l->debit - (float) $l->credit);
+            // Dijumlah dalam SEN (integer): total per kategori & saldo akhir bebas dari drift float, jadi
+            // pengecekan rekonsiliasi tidak memberi alarm palsu di volume besar (audit Arus Kas 2026-09-29).
+            $cashDeltaCents = (int) $cashLines->sum(fn ($l) => $this->cents($l->debit) - $this->cents($l->credit));
 
-            if (abs($cashDelta) < 0.01) {
+            if ($cashDeltaCents === 0) {
                 continue;
             }
 
@@ -592,25 +594,38 @@ class FinancialStatementService
             }
 
             $buckets[$category]->push([
+                'entry_id' => $entry->id,
                 'entry_date' => $entry->entry_date,
                 'entry_number' => $entry->entry_number,
                 'description' => $entry->description,
-                'amount' => $cashDelta,
+                // Akun lawan terbesar = "jenis" arus kas ini (mis. Pendapatan Penjualan, Beban Gaji) untuk pengelompokan.
+                'group' => $primary->account->code . ' — ' . $primary->account->name,
+                'amount' => $cashDeltaCents / 100,
+                'amount_cents' => $cashDeltaCents,
             ]);
         }
 
         $sections = [];
         foreach ($buckets as $key => $rows) {
+            // Pengelompokan menurut akun lawan (jenis arus kas) dengan subtotal, urut kode akun.
+            $groups = $rows->groupBy('group')->map(fn ($items, $label) => [
+                'label' => $label,
+                'total' => $items->sum('amount_cents') / 100,
+                'rows' => $items->values(),
+            ])->sortKeys()->values();
+
             $sections[$key] = [
                 'label' => $labels[$key],
+                'groups' => $groups,
                 'rows' => $rows->values(),
-                'total' => (float) $rows->sum('amount'),
+                'total' => $rows->sum('amount_cents') / 100,
             ];
         }
 
-        $netChange = array_sum(array_map(fn ($s) => $s['total'], $sections));
+        $netChangeCents = (int) collect($buckets)->sum(fn ($rows) => $rows->sum('amount_cents'));
         $openingCash = $this->cashBalanceAsOf($from->copy()->subDay(), $storeId);
-        $closingCash = $openingCash + $netChange;
+        $netChange = $netChangeCents / 100;
+        $closingCash = ($this->cents($openingCash) + $netChangeCents) / 100;
         $closingCashActual = $this->cashBalanceAsOf($to, $storeId);
 
         return [
@@ -625,7 +640,59 @@ class FinancialStatementService
             'closing_cash_actual' => $closingCashActual,
             'is_reconciled' => $this->cents($closingCash) === $this->cents($closingCashActual),
             'warnings' => array_values($warnings),
+            'cash_accounts' => $this->cashAccountBreakdown($from, $to, $storeId),
         ];
+    }
+
+    /**
+     * Rincian per akun kas (Kas di Tangan, Kas di Bank per rekening): saldo awal, mutasi periode, saldo akhir --
+     * dipakai mencocokkan dengan rekening koran (audit Arus Kas 2026-09-29).
+     *
+     * @return array<int, array{account: ChartOfAccount, opening: float, mutation: float, closing: float}>
+     */
+    private function cashAccountBreakdown(Carbon $from, Carbon $to, ?int $storeId): array
+    {
+        $accounts = ChartOfAccount::where('is_cash', true)->orderBy('code')->get()->keyBy('id');
+
+        if ($accounts->isEmpty()) {
+            return [];
+        }
+
+        $sums = JournalEntryLine::query()
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+            ->whereIn('journal_entry_lines.chart_of_account_id', $accounts->keys())
+            ->where('journal_entries.status', 'posted')
+            ->where('journal_entries.entry_date', '<=', $to->toDateString())
+            ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'journal_entries.store_id'))
+            ->selectRaw(
+                'journal_entry_lines.chart_of_account_id as account_id,'
+                . ' SUM(CASE WHEN journal_entries.entry_date < ? THEN journal_entry_lines.debit - journal_entry_lines.credit ELSE 0 END) as opening,'
+                . ' SUM(CASE WHEN journal_entries.entry_date >= ? THEN journal_entry_lines.debit - journal_entry_lines.credit ELSE 0 END) as mutation',
+                [$from->toDateString(), $from->toDateString()]
+            )
+            ->groupBy('journal_entry_lines.chart_of_account_id')
+            ->get()
+            ->keyBy('account_id');
+
+        $result = [];
+        foreach ($accounts as $id => $account) {
+            $row = $sums->get($id);
+            $opening = $this->cents($row->opening ?? 0);
+            $mutation = $this->cents($row->mutation ?? 0);
+
+            if ($opening === 0 && $mutation === 0) {
+                continue;
+            }
+
+            $result[] = [
+                'account' => $account,
+                'opening' => $opening / 100,
+                'mutation' => $mutation / 100,
+                'closing' => ($opening + $mutation) / 100,
+            ];
+        }
+
+        return $result;
     }
 
     /**

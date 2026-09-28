@@ -9,9 +9,12 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Forms\Set;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
@@ -21,8 +24,8 @@ use Maatwebsite\Excel\Facades\Excel;
  * Operasional/Investasi/Pendanaan berdasarkan ChartOfAccount::
  * cash_flow_category. Lihat komentar lengkap di
  * FinancialStatementService::cashFlowStatement() soal cara klasifikasi
- * & keterbatasannya. TERBATAS full-access, sama filosofi dengan
- * laporan Keuangan lain yang bersumber dari Jurnal Umum.
+ * & keterbatasannya. TERBATAS full-access; Spv Finance dst. bisa diberi izin baca lewat Hak Akses
+ * Detail ('view', default ditolak) dan yang punya toko dikunci ke tokonya (audit Arus Kas 2026-09-29).
  */
 class CashFlowReport extends Page implements HasForms
 {
@@ -46,7 +49,17 @@ class CashFlowReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        return ($user?->isFullAccess() ?? false)
+            || ($user?->canAccessStaffArea()
+                && $user->hasMenuAccess(static::class)
+                && $user->hasModuleAction(static::class, 'view', false));
+    }
+
+    private function isRestricted(): bool
+    {
+        return ! (auth()->user()?->isFullAccess() ?? false);
     }
 
     public function mount(): void
@@ -54,7 +67,8 @@ class CashFlowReport extends Page implements HasForms
         $this->form->fill([
             'from' => now()->startOfMonth()->toDateString(),
             'to' => now()->endOfMonth()->toDateString(),
-            'store_id' => null,
+            'store_id' => $this->isRestricted() ? auth()->user()?->store_id : null,
+            'show_details' => false,
         ]);
     }
 
@@ -62,6 +76,33 @@ class CashFlowReport extends Page implements HasForms
     {
         return $form
             ->schema([
+                Select::make('preset')
+                    ->label('Periode Cepat')
+                    ->options([
+                        'this_month' => 'Bulan ini',
+                        'last_month' => 'Bulan lalu',
+                        'this_quarter' => 'Kuartal ini',
+                        'ytd' => 'Tahun ini (s.d. hari ini)',
+                        'last_year' => 'Tahun lalu',
+                    ])
+                    ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                    ->live()
+                    ->afterStateUpdated(function (?string $state, Set $set) {
+                        $range = match ($state) {
+                            'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                            'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                            'this_quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+                            'ytd' => [now()->startOfYear(), now()],
+                            'last_year' => [now()->subYear()->startOfYear(), now()->subYear()->endOfYear()],
+                            default => null,
+                        };
+
+                        if ($range) {
+                            $set('from', $range[0]->toDateString());
+                            $set('to', $range[1]->toDateString());
+                        }
+                    }),
+
                 DatePicker::make('from')
                     ->label('Dari Tanggal')
                     ->native(false)
@@ -76,14 +117,61 @@ class CashFlowReport extends Page implements HasForms
 
                 Select::make('store_id')
                     ->label('Toko')
-                    ->options(fn () => [\App\Services\FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
+                    ->options(fn () => [FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
                     ->helperText('Memilih toko TIDAK mencakup jurnal pusat (tanpa toko, mis. gaji pusat/penyusutan) — pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan untuk semua.')
                     ->placeholder('Semua Toko')
                     ->searchable()
+                    ->live()
+                    ->disabled(fn () => $this->isRestricted() && auth()->user()?->store_id !== null),
+
+                Select::make('compare')
+                    ->label('Bandingkan Dengan')
+                    ->options(['prev_period' => 'Periode sebelumnya (durasi sama)', 'prev_year' => 'Periode yang sama tahun lalu'])
+                    ->placeholder('Tanpa pembanding')
                     ->live(),
+
+                Toggle::make('show_details')
+                    ->label('Tampilkan rincian per jurnal')
+                    ->helperText('Mati = ringkas per jenis arus kas.')
+                    ->live()
+                    ->inline(false),
             ])
             ->statePath('data')
             ->columns(3);
+    }
+
+    private function storeId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($this->isRestricted() && $user?->store_id !== null) {
+            return (int) $user->store_id;
+        }
+
+        return isset($this->data['store_id']) && $this->data['store_id'] !== '' ? (int) $this->data['store_id'] : null;
+    }
+
+    private function storeLabel(): string
+    {
+        $id = $this->storeId();
+
+        return match (true) {
+            $id === null => 'Semua Toko',
+            $id === FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko',
+            default => Store::whereKey($id)->value('name') ?? 'Toko #' . $id,
+        };
+    }
+
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'cash_flow', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->storeId()])
+                ->log('Ekspor Laporan Arus Kas (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**
@@ -100,16 +188,22 @@ class CashFlowReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new CashFlowExport($this->getResult()),
-                    'laporan-arus-kas-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new CashFlowExport($this->getResult()),
+                        'laporan-arus-kas-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.cash_flow_report', ['result' => $result])->setPaper('a4', 'landscape');
                     $filename = 'laporan-arus-kas-' . now()->format('Ymd-His') . '.pdf';
@@ -125,10 +219,10 @@ class CashFlowReport extends Page implements HasForms
         $from = $this->data['from'] ?? null;
         $to = $this->data['to'] ?? null;
 
-        if ($from && $to && \Illuminate\Support\Carbon::parse($to)->lt(\Illuminate\Support\Carbon::parse($from))) {
+        if ($from && $to && Carbon::parse($to)->lt(Carbon::parse($from))) {
             $this->data['to'] = $from;
 
-            \Filament\Notifications\Notification::make()
+            Notification::make()
                 ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
                 ->body('Diset sama dengan tanggal "Dari".')
                 ->warning()
@@ -136,30 +230,60 @@ class CashFlowReport extends Page implements HasForms
         }
     }
 
-
     public function getNotices(): array
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
 
-        return app(FinancialStatementService::class)->reportNotices($from, $to, $this->data['store_id'] ?? null);
+        return app(FinancialStatementService::class)->reportNotices($from, $to, $this->storeId());
+    }
+
+    /** @return array{0: ?Carbon, 1: ?Carbon} */
+    private function comparisonRange(Carbon $from, Carbon $to): array
+    {
+        $mode = $this->data['compare'] ?? null;
+
+        if ($mode === 'prev_year') {
+            return [$from->copy()->subYear(), $to->copy()->subYear()];
+        }
+
+        if ($mode === 'prev_period') {
+            // Rentang bulan penuh -> mundur sejumlah bulan yang sama; selain itu mundur sejumlah hari yang sama.
+            if ($from->isSameDay($from->copy()->startOfMonth()) && $to->isSameDay($to->copy()->endOfMonth())) {
+                $months = $from->diffInMonths($to->copy()->addDay()->startOfMonth());
+                $prevFrom = $from->copy()->subMonthsNoOverflow($months);
+
+                return [$prevFrom, $prevFrom->copy()->addMonthsNoOverflow($months)->subDay()];
+            }
+
+            $days = $from->diffInDays($to) + 1;
+            $prevTo = $from->copy()->subDay();
+
+            return [$prevTo->copy()->subDays($days - 1), $prevTo];
+        }
+
+        return [null, null];
     }
 
     public function getResult(): array
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
-        $storeId = $this->data['store_id'] ?? null;
+        $storeId = $this->storeId();
 
-        $result = app(FinancialStatementService::class)->cashFlowStatement($from, $to, $storeId);
+        $service = app(FinancialStatementService::class);
+        $result = $service->cashFlowStatement($from, $to, $storeId);
 
-        // 'from'/'to' ditambahkan di sini (BUKAN dari cashFlowStatement())
-        // khusus untuk header periode di file Export -- halaman web sudah
-        // punya $this->data['from']/['to'] sendiri lewat form, jadi tidak
-        // butuh field ini untuk render, tapi Export/PDF butuh 1 sumber
-        // array yang self-contained.
+        // 'from'/'to'/'store_label' ditambahkan di sini (BUKAN dari cashFlowStatement())
+        // khusus untuk header di file Export/PDF -- 1 sumber array yang self-contained.
         $result['from'] = $from;
         $result['to'] = $to;
+        $result['store_label'] = $this->storeLabel();
+        $result['show_details'] = (bool) ($this->data['show_details'] ?? false);
+
+        [$prevFrom, $prevTo] = $this->comparisonRange($from, $to);
+        $result['compare'] = $prevFrom ? $service->cashFlowStatement($prevFrom, $prevTo, $storeId) : null;
+        $result['compare_label'] = $prevFrom ? $prevFrom->format('d M Y') . ' – ' . $prevTo->format('d M Y') : null;
 
         return $result;
     }
