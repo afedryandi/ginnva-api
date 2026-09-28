@@ -76,6 +76,12 @@ class RolePermissionSeeder extends Seeder
         $direksi = Role::findOrCreate('direksi', 'web');
         $direksi->syncPermissions($permissions);
 
+        // cfo: full-access seperti direksi, PLUS satu-satunya (bersama
+        // super_admin sebagai cadangan) pemegang persetujuan keuangan --
+        // lihat User::isFinanceApprover().
+        $cfo = Role::findOrCreate('cfo', 'web');
+        $cfo->syncPermissions($permissions);
+
         $staffPermissions = [
             'warranty.view',
             'warranty.manage',

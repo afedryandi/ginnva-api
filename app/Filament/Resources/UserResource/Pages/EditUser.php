@@ -55,8 +55,8 @@ class EditUser extends EditRecord
         $newRoleIds = $data['roles'] ?? [];
         $newRoleNames = Role::whereIn('id', $newRoleIds)->pluck('name')->all();
 
-        $wasFullAccess = collect($this->rolesBeforeSave)->intersect(['super_admin', 'direksi'])->isNotEmpty();
-        $willBeFullAccess = collect($newRoleNames)->intersect(['super_admin', 'direksi'])->isNotEmpty();
+        $wasFullAccess = collect($this->rolesBeforeSave)->intersect(['super_admin', 'direksi', 'cfo'])->isNotEmpty();
+        $willBeFullAccess = collect($newRoleNames)->intersect(['super_admin', 'direksi', 'cfo'])->isNotEmpty();
 
         if (! $wasFullAccess || $willBeFullAccess) {
             return;
@@ -64,7 +64,7 @@ class EditUser extends EditRecord
 
         $otherFullAccessCount = User::where('id', '!=', $this->record->id)
             ->where('is_active', true)
-            ->whereHas('roles', fn ($q) => $q->whereIn('name', ['super_admin', 'direksi']))
+            ->whereHas('roles', fn ($q) => $q->whereIn('name', ['super_admin', 'direksi', 'cfo']))
             ->count();
 
         if ($otherFullAccessCount === 0) {

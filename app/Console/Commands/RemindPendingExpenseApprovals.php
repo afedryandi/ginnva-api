@@ -43,10 +43,10 @@ class RemindPendingExpenseApprovals extends Command
         foreach ($users as $user) {
             $mine = $stale->filter(function (FinanceTransactionApprovalRequest $r) use ($user) {
                 if ($r->isPendingDireksi()) {
-                    return $user->isFullAccess();
+                    return $user->isFinanceApprover();
                 }
 
-                return $user->isFullAccess()
+                return $user->isFinanceApprover()
                     || ($user->isStoreManager() && (int) $user->store_id === (int) $r->store_id_from_payload);
             });
 

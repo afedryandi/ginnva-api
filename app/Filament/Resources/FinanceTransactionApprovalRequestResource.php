@@ -99,7 +99,7 @@ class FinanceTransactionApprovalRequestResource extends Resource
         // withoutEagerLoads: badge cuma butuh count() (audit 2026-09-28).
         $query = static::getEloquentQuery()->withoutEagerLoads();
 
-        if ($user?->isFullAccess() ?? false) {
+        if ($user?->isFinanceApprover() ?? false) {
             $count = (clone $query)->where('status', 'pending_direksi')->count();
         } elseif ($user?->isStoreManager() ?? false) {
             $count = (clone $query)->where('status', 'pending_manager')->count();
@@ -290,7 +290,7 @@ class FinanceTransactionApprovalRequestResource extends Resource
                     ->color('success')
                     ->visible(fn (FinanceTransactionApprovalRequest $r) => $r->isPendingManager()
                         && ((auth()->user()?->isStoreManager() && (int) auth()->user()?->store_id === (int) $r->store_id_from_payload)
-                            || (auth()->user()?->isFullAccess() ?? false)))
+                            || (auth()->user()?->isFinanceApprover() ?? false)))
                     ->requiresConfirmation()
                     ->modalHeading('Setujui pengajuan pengeluaran?')
                     ->modalDescription(fn (FinanceTransactionApprovalRequest $r) => $r->summaryLine() . '. Setelah disetujui, diteruskan ke direksi.')
@@ -310,7 +310,7 @@ class FinanceTransactionApprovalRequestResource extends Resource
                     ->label('Setujui (Direksi)')
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
-                    ->visible(fn (FinanceTransactionApprovalRequest $r) => $r->isPendingDireksi() && (auth()->user()?->isFullAccess() ?? false))
+                    ->visible(fn (FinanceTransactionApprovalRequest $r) => $r->isPendingDireksi() && (auth()->user()?->isFinanceApprover() ?? false))
                     ->requiresConfirmation()
                     ->modalDescription(fn (FinanceTransactionApprovalRequest $r) => $r->summaryLine() . '. Transaksi akan langsung dibuat & diposting ke Jurnal Umum.')
                     ->action(function (FinanceTransactionApprovalRequest $r) {
@@ -338,7 +338,7 @@ class FinanceTransactionApprovalRequestResource extends Resource
                     ->color('danger')
                     ->visible(fn (FinanceTransactionApprovalRequest $r) => in_array($r->status, ['pending_manager', 'pending_direksi'], true)
                         && (
-                            (auth()->user()?->isFullAccess() ?? false)
+                            (auth()->user()?->isFinanceApprover() ?? false)
                             || ($r->isPendingManager() && auth()->user()?->isStoreManager() && (int) auth()->user()?->store_id === (int) $r->store_id_from_payload)
                         ))
                     ->modalDescription(fn (FinanceTransactionApprovalRequest $r) => $r->summaryLine())

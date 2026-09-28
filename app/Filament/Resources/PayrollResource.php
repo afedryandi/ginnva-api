@@ -317,7 +317,7 @@ class PayrollResource extends Resource
                     ->label('Ajukan Pembayaran')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('warning')
-                    ->visible(fn (Payroll $record) => $record->status === 'draft' && ! auth()->user()?->isFullAccess())
+                    ->visible(fn (Payroll $record) => $record->status === 'draft' && ! auth()->user()?->isFinanceApprover())
                     ->requiresConfirmation()
                     ->modalDescription('Pengajuan ini akan dikirim ke direksi untuk disetujui sebelum benar-benar ditandai dibayar & diposting ke Jurnal Umum.')
                     ->action(function (Payroll $record) {
@@ -341,7 +341,7 @@ class PayrollResource extends Resource
                             return;
                         }
 
-                        $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess());
+                        $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFinanceApprover());
                         $amountLabel = 'Rp' . number_format((float) $record->net_pay, 0, ',', '.');
                         foreach ($recipients as $recipient) {
                             Notification::make()
@@ -357,7 +357,7 @@ class PayrollResource extends Resource
                     ->label('Setujui & Tandai Dibayar')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (Payroll $record) => $record->status === 'pending_approval' && auth()->user()?->isFullAccess())
+                    ->visible(fn (Payroll $record) => $record->status === 'pending_approval' && auth()->user()?->isFinanceApprover())
                     ->requiresConfirmation()
                     ->modalDescription('Pastikan gaji sudah benar-benar ditransfer sebelum menyetujui ini — status ini mengunci baris payroll dari generate ulang.')
                     ->action(fn (Payroll $record) => static::finalizePayment($record, 'pending_approval')),
@@ -366,12 +366,18 @@ class PayrollResource extends Resource
                     ->label('Tolak Pengajuan')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn (Payroll $record) => $record->status === 'pending_approval' && auth()->user()?->isFullAccess())
+                    ->visible(fn (Payroll $record) => $record->status === 'pending_approval' && auth()->user()?->isFinanceApprover())
                     ->requiresConfirmation()
                     ->form([
                         Forms\Components\Textarea::make('note')->label('Alasan Penolakan')->required(),
                     ])
                     ->action(function (Payroll $record, array $data) {
+                        if (! (auth()->user()?->isFinanceApprover() ?? false)) {
+                            Notification::make()->title('Tidak berwenang')->body('Hanya CFO yang boleh menolak pengajuan pembayaran.')->danger()->send();
+
+                            return;
+                        }
+
                         try {
                             DB::transaction(function () use ($record) {
                                 $locked = Payroll::whereKey($record->id)->lockForUpdate()->first();
@@ -407,7 +413,7 @@ class PayrollResource extends Resource
                     ->label('Tandai Dibayar')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (Payroll $record) => $record->status === 'draft' && auth()->user()?->isFullAccess())
+                    ->visible(fn (Payroll $record) => $record->status === 'draft' && auth()->user()?->isFinanceApprover())
                     ->requiresConfirmation()
                     ->modalDescription('Pastikan gaji sudah benar-benar ditransfer sebelum menandai ini — status ini mengunci baris payroll dari generate ulang.')
                     ->action(fn (Payroll $record) => static::finalizePayment($record, 'draft')),
@@ -441,6 +447,18 @@ class PayrollResource extends Resource
      */
     private static function finalizePayment(Payroll $record, string $expectedStatus): void
     {
+        // Otorisasi di SERVER: hanya CFO (cadangan super_admin) -- keputusan
+        // 2026-09-28, bukan cuma ->visible() di tombol.
+        if (! (auth()->user()?->isFinanceApprover() ?? false)) {
+            Notification::make()
+                ->title('Tidak berwenang')
+                ->body('Hanya CFO yang boleh menandai payroll dibayar.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
         try {
             DB::transaction(function () use (&$record, $expectedStatus) {
                 $locked = Payroll::whereKey($record->id)->lockForUpdate()->first();

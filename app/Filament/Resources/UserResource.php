@@ -244,7 +244,7 @@ class UserResource extends Resource
             return false;
         }
 
-        $excluded = array_merge(['super_admin', 'direksi'], \App\Models\User::NO_PANEL_ROLES);
+        $excluded = array_merge(['super_admin', 'direksi', 'cfo'], \App\Models\User::NO_PANEL_ROLES);
 
         return \Spatie\Permission\Models\Role::whereIn('id', $roleIds)
             ->whereNotIn('name', $excluded)
@@ -751,7 +751,7 @@ class UserResource extends Resource
                     ->label('Role')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'super_admin', 'direksi' => 'danger',
+                        'super_admin', 'direksi', 'cfo' => 'danger',
                         'store_manager' => 'warning',
                         default => 'gray',
                     })

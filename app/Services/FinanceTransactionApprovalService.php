@@ -96,7 +96,9 @@ class FinanceTransactionApprovalService
      */
     public function approveByManager(FinanceTransactionApprovalRequest $request, User $approver): void
     {
-        $isFullAccess = $approver->isFullAccess();
+        // "Full access" di tahap manager = pemegang persetujuan keuangan
+        // (CFO/cadangan), bukan semua akun full-access.
+        $isFullAccess = $approver->isFinanceApprover();
 
         $locked = DB::transaction(function () use ($request, $approver, $isFullAccess) {
             $locked = FinanceTransactionApprovalRequest::whereKey($request->id)->lockForUpdate()->first();
@@ -142,8 +144,8 @@ class FinanceTransactionApprovalService
      */
     public function approveByDireksi(FinanceTransactionApprovalRequest $request, User $approver): FinanceTransaction
     {
-        if (! $approver->isFullAccess()) {
-            throw new RuntimeException('Cuma Direksi/Super Admin yang boleh menyetujui tahap ini.');
+        if (! $approver->isFinanceApprover()) {
+            throw new RuntimeException('Cuma CFO yang boleh menyetujui pengeluaran pada tahap ini.');
         }
 
         return DB::transaction(function () use ($request, $approver) {
@@ -219,7 +221,7 @@ class FinanceTransactionApprovalService
             // Otorisasi di SERVER (sebelumnya cuma visible() di resource):
             // full-access boleh menolak di tahap mana pun; store_manager
             // hanya toko yang sama dan hanya tahap pending_manager.
-            $canReject = $approver->isFullAccess()
+            $canReject = $approver->isFinanceApprover()
                 || ($locked->isPendingManager()
                     && $approver->isStoreManager()
                     && (int) $approver->store_id === (int) $locked->store_id_from_payload);
@@ -359,12 +361,12 @@ class FinanceTransactionApprovalService
             // Toko tidak terbaca / belum ada store manager aktif: jangan
             // hilang diam-diam -- teruskan ke full-access.
             if ($recipients->isEmpty()) {
-                $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess());
+                $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFinanceApprover());
             }
 
             $title = "Menunggu persetujuan Anda: pengeluaran {$amountLabel}";
         } else {
-            $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess());
+            $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFinanceApprover());
             $title = "Menunggu persetujuan direksi: pengeluaran {$amountLabel}";
         }
 
