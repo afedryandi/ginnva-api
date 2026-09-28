@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Booking;
 use App\Models\ChartOfAccount;
+use App\Models\Receivable;
 use App\Models\Refund;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -27,11 +28,10 @@ use RuntimeException;
  * — refund sengaja dipisah total dari alur "Proses Referral" supaya
  * tidak mengganggu logika Piutang Usaha yang sudah ada.
  *
- * ASUMSI: refund SELALU dianggap dibayar tunai balik ke customer (kredit
- * akun Kas) — TIDAK menangani kasus refund terhadap bagian yang masih
- * jadi Piutang Usaha (belum dibayar customer sama sekali). Kalau nanti
- * ada kasus itu, perlu penyesuaian lebih lanjut (kurangi Piutang,
- * bukan Kas).
+ * PIUTANG (audit Piutang Usaha 2026-09-29): bagian booking yang masih Piutang
+ * Usaha belum pernah masuk kas, jadi refund atasnya mengurangi piutang (Kredit
+ * 1110), bukan mengeluarkan kas. Piutang dikurangi dulu; sisa refund baru
+ * jadi kas keluar (Kredit Kas), dibatasi uang yang benar-benar sudah diterima.
  */
 class RefundService
 {
@@ -73,9 +73,46 @@ class RefundService
                 throw new RuntimeException("Nominal refund (Rp" . number_format($amount, 0, ',', '.') . ") melebihi sisa yang bisa di-refund (Rp" . number_format($remaining, 0, ',', '.') . ').');
             }
 
+            // Audit Piutang Usaha 2026-09-29: bagian booking yang masih Piutang Usaha belum pernah
+            // masuk kas, jadi refund atasnya TIDAK mengeluarkan kas -- cukup mengurangi (menghapus)
+            // piutangnya (Kredit 1110). Piutang dikurangi DULU; sisa refund baru jadi kas keluar,
+            // dan kas keluar dibatasi uang yang benar-benar sudah diterima (amount_received termasuk
+            // bagian piutang yang sudah dihapus lewat refund, jadi dikurangi total refund = kas bersih).
+            $receivable = Receivable::withoutGlobalScopes()
+                ->where('source_type', 'booking')
+                ->where('source_id', $booking->id)
+                ->whereIn('status', ['unpaid', 'partial'])
+                ->lockForUpdate()
+                ->first();
+
+            $outstandingCents = $receivable
+                ? (int) round(((float) $receivable->amount - (float) $receivable->amount_paid) * 100)
+                : 0;
+            $amountCents = (int) round($amount * 100);
+            $reduceCents = min($amountCents, max($outstandingCents, 0));
+            $cashCents = $amountCents - $reduceCents;
+
+            $received = $booking->amount_received !== null ? (float) $booking->amount_received : (float) $booking->transaction_amount;
+            $cashAvailableCents = (int) round(($received - $alreadyRefunded) * 100);
+
+            if ($cashCents > $cashAvailableCents) {
+                throw new RuntimeException('Nominal refund (Rp' . number_format($amount, 0, ',', '.') . ') melebihi uang yang sudah diterima dari customer dan piutang yang masih ada. Maksimal yang bisa di-refund sekarang Rp' . number_format(max(($cashAvailableCents + $outstandingCents) / 100, 0), 0, ',', '.') . '.');
+            }
+
+            $reduce = $reduceCents / 100;
+            $cashPart = $cashCents / 100;
+
             $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
-            if (! $cash) {
+            if ($cashPart > 0 && ! $cash) {
                 throw new RuntimeException('Akun kas (kode ' . self::CASH_ACCOUNT_CODE . ') tidak ditemukan di Bagan Akun.');
+            }
+
+            $piutangAccount = null;
+            if ($reduce > 0) {
+                $piutangAccount = ChartOfAccount::where('code', '1110')->first();
+                if (! $piutangAccount) {
+                    throw new RuntimeException('Akun Piutang Usaha (kode 1110) tidak ditemukan di Bagan Akun.');
+                }
             }
 
             $lines = [];
@@ -86,7 +123,12 @@ class RefundService
                 }
                 $lines[] = ['chart_of_account_id' => $account->id, 'debit' => $portion];
             }
-            $lines[] = ['chart_of_account_id' => $cash->id, 'credit' => $amount];
+            if ($reduce > 0) {
+                $lines[] = ['chart_of_account_id' => $piutangAccount->id, 'credit' => $reduce];
+            }
+            if ($cashPart > 0) {
+                $lines[] = ['chart_of_account_id' => $cash->id, 'credit' => $cashPart];
+            }
 
             $refundNumber = Refund::generateRefundNumber();
 
@@ -101,10 +143,40 @@ class RefundService
             ], $lines);
             $entry = $service->post($entry, $userId);
 
+            if ($receivable && $reduce > 0) {
+                $newAmountCents = (int) round(((float) $receivable->amount) * 100) - $reduceCents;
+                $paidCents = (int) round(((float) $receivable->amount_paid) * 100);
+
+                if ($newAmountCents <= 0) {
+                    // Seluruh piutang dihapus refund (belum ada pelunasan): ditutup sebagai
+                    // dibatalkan; nominal aslinya dibiarkan (CHECK amount > 0), sisa dihitung 0.
+                    $receivable->update([
+                        'status' => 'cancelled',
+                        'cancelled_at' => now(),
+                        'cancelled_by' => $userId,
+                        'cancel_reason' => "Dihapus oleh refund {$refundNumber}",
+                    ]);
+                } else {
+                    $receivable->update([
+                        'amount' => $newAmountCents / 100,
+                        'status' => $paidCents >= $newAmountCents ? 'paid' : ($paidCents > 0 ? 'partial' : 'unpaid'),
+                    ]);
+                }
+
+                // Bagian piutang yang dihapus dihitung "terselesaikan" di booking supaya
+                // dashboard/laporan tidak menampilkannya sebagai belum lunas.
+                if ($booking->amount_received !== null) {
+                    DB::table('bookings')->where('id', $booking->id)->update([
+                        'amount_received' => min((float) $booking->transaction_amount, (float) $booking->amount_received + $reduce),
+                    ]);
+                }
+            }
+
             return Refund::create([
                 'refund_number' => $refundNumber,
                 'booking_id' => $booking->id,
                 'amount' => $amount,
+                'receivable_reduced' => $reduce,
                 'reason' => $reason,
                 'journal_entry_id' => $entry->id,
                 'created_by' => $userId,

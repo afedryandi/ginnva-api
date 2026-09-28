@@ -22,9 +22,11 @@ class Receivable extends Model
     protected $fillable = [
         'receivable_number',
         'customer_name',
+        'customer_id',
         'store_id',
         'source_type',
         'source_id',
+        'source_key',
         'amount',
         'amount_paid',
         'due_date',
@@ -32,9 +34,14 @@ class Receivable extends Model
         'journal_entry_id',
         'notes',
         'created_by',
+        'cancelled_at',
+        'cancelled_by',
+        'cancel_reason',
+        'cancel_journal_entry_id',
     ];
 
     protected $casts = [
+        'cancelled_at' => 'datetime',
         'amount' => 'decimal:2',
         'amount_paid' => 'decimal:2',
         'due_date' => 'date',
@@ -43,6 +50,11 @@ class Receivable extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     public function journalEntry(): BelongsTo
@@ -62,12 +74,16 @@ class Receivable extends Model
 
     public function remainingAmount(): float
     {
+        if ($this->status === 'cancelled') {
+            return 0.0;
+        }
+
         return round((float) $this->amount - (float) $this->amount_paid, 2);
     }
 
     public function isOverdue(): bool
     {
-        return $this->status !== 'paid'
+        return ! in_array($this->status, ['paid', 'cancelled'], true)
             && $this->due_date !== null
             && $this->due_date->isPast();
     }
@@ -87,7 +103,7 @@ class Receivable extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['customer_name', 'amount', 'amount_paid', 'due_date', 'status'])
+            ->logOnly(['customer_name', 'customer_id', 'store_id', 'notes', 'amount', 'amount_paid', 'due_date', 'status', 'cancel_reason'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('receivable')

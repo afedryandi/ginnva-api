@@ -93,11 +93,14 @@ class BookingPostingService
             if ($outstanding > 0) {
                 app(ReceivableService::class)->create([
                     'customer_name' => $booking->customer_name,
+                    'customer_id' => $booking->customer_id,
                     'store_id' => $booking->store_id,
                     'source_type' => 'booking',
                     'source_id' => $booking->id,
                     'amount' => $outstanding,
-                    'due_date' => null,
+                    // Default 14 hari sejak jurnal (audit Piutang Usaha 2026-09-29) supaya
+                    // "Terlambat", umur piutang, dan pengingat berfungsi untuk piutang dari Booking.
+                    'due_date' => $entry->entry_date->copy()->addDays(14)->toDateString(),
                     'journal_entry_id' => $entry->id,
                     'created_by' => auth()->id(),
                 ]);
@@ -171,9 +174,12 @@ class BookingPostingService
      */
     private function assertReceivableSafeToReplace(Booking $booking): void
     {
-        $existing = Receivable::where('source_type', 'booking')->where('source_id', $booking->id)->first();
+        // get() (bukan first()) + cek riwayat pelunasan (termasuk yang sudah dibatalkan):
+        // menghapus piutang akan ikut menghapus riwayatnya (cascade).
+        $existing = Receivable::where('source_type', 'booking')->where('source_id', $booking->id)->get()
+            ->first(fn (Receivable $r) => (float) $r->amount_paid > 0 || $r->payments()->exists());
 
-        if ($existing && (float) $existing->amount_paid > 0) {
+        if ($existing) {
             throw new RuntimeException("Booking ini punya Piutang Usaha ({$existing->receivable_number}) yang SUDAH ADA pelunasan masuk — selesaikan atau tangani piutang itu dulu lewat menu Piutang Usaha sebelum mengubah nominal transaksi.");
         }
     }

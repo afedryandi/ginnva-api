@@ -15,6 +15,7 @@ class Refund extends Model
         'refund_number',
         'booking_id',
         'amount',
+        'receivable_reduced',
         'reason',
         'journal_entry_id',
         'created_by',
