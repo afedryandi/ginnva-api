@@ -196,7 +196,7 @@ class ReservationUtilizationReport extends Page implements HasForms
     /** Link drill-down ke Laporan Reservasi untuk toko tertentu (audit 2026-09-29). */
     public function reservationUrl(int $storeId): string
     {
-        return ReservationReport::getUrl(queryParams: [
+        return ReservationReport::getUrl([
             'from' => $this->data['from'] ?? null,
             'to' => $this->data['to'] ?? null,
             'cabang' => $storeId,
