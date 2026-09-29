@@ -3,9 +3,24 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Material extends Model
 {
+    // Audit trail (audit Materi Download 2026-09-29) -- SEBELUMNYA perubahan materi (file, nama,
+    // kategori, status publik) tidak tercatat sama sekali.
+    use LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['material_category_id', 'name', 'file_type', 'is_active', 'sort_order'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('material');
+    }
+
     protected $fillable = [
         'material_category_id',
         'name',

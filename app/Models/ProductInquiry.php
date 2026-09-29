@@ -5,10 +5,25 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class ProductInquiry extends Model
 {
     use HasFactory;
+
+    // Audit trail (audit Inquiry Produk 2026-09-29) -- SEBELUMNYA perubahan status follow-up
+    // dan catatan internal sales tidak tercatat sama sekali.
+    use LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['status', 'notes'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('product_inquiry');
+    }
 
     protected $fillable = [
         'inquiry_number',
