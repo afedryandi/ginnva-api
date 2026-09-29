@@ -22,6 +22,10 @@ class MaterialMemoResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
     protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
+
+    // Grup sidebar (audit navigasi 2026-09-29) -- "Permintaan & Memo".
+    protected static ?string $navigationGroup = 'Permintaan & Memo';
+
     protected static ?string $navigationLabel = 'Memo Pengambilan/Pengembalian';
 
     protected static ?string $modelLabel = 'Memo Pengambilan/Pengembalian';

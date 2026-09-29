@@ -25,7 +25,10 @@ class RawMaterialResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
-    protected static ?int $navigationSort = 30;
+    // Grup sidebar (audit navigasi 2026-09-29) -- "Master Data Stok".
+    protected static ?string $navigationGroup = 'Master Data Stok';
+
+    protected static ?int $navigationSort = 20;
 
     // "Daftar Bahan Baku" — samakan dgn Majoo (Penjualan > Inventori >
     // Daftar Bahan Baku). Label model tetap "Bahan Baku" (tombol

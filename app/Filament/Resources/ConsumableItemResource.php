@@ -32,7 +32,10 @@ class ConsumableItemResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
-    protected static ?int $navigationSort = 60;
+    // Grup sidebar (audit navigasi 2026-09-29) -- "Master Data Stok".
+    protected static ?string $navigationGroup = 'Master Data Stok';
+
+    protected static ?int $navigationSort = 30;
 
     protected static ?string $navigationLabel = 'Barang Habis Pakai';
 

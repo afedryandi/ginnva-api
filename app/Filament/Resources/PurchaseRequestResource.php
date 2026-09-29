@@ -29,6 +29,9 @@ class PurchaseRequestResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- "Permintaan & Memo".
+    protected static ?string $navigationGroup = 'Permintaan & Memo';
+
     protected static ?string $navigationLabel = 'Permohonan Pembelian';
 
     protected static ?string $modelLabel = 'Permohonan Pembelian';

@@ -31,7 +31,10 @@ class AssetResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
-    protected static ?int $navigationSort = 50;
+    // Grup sidebar (audit navigasi 2026-09-29) -- "Master Data Stok".
+    protected static ?string $navigationGroup = 'Master Data Stok';
+
+    protected static ?int $navigationSort = 40;
 
     protected static ?string $navigationLabel = 'Aset Tetap';
 

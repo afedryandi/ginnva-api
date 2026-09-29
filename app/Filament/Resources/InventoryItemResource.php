@@ -31,6 +31,10 @@ class InventoryItemResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- "Master Data Stok", sejajar grup "Riwayat"/
+    // "Kelola Stok" yang sudah ada.
+    protected static ?string $navigationGroup = 'Master Data Stok';
+
     protected static ?int $navigationSort = 10;
 
     protected static ?string $navigationLabel = 'Produk PPF/WF';
