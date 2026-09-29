@@ -1,13 +1,32 @@
 <x-filament-panels::page>
+    <x-filament::section>
+        {{ $this->form }}
+    </x-filament::section>
+
     @php
         $aging = $this->getAging();
         $fmt = fn ($n) => (float) $n > 0 ? 'Rp ' . number_format((float) $n, 0, ',', '.') : '—';
     @endphp
 
+    <div class="mb-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-3">
+        <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Jumlah Supplier</div>
+            <div class="text-lg font-semibold tabular-nums">{{ $aging['supplier_count'] }}</div>
+        </div>
+        <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Supplier Terlambat</div>
+            <div class="text-lg font-semibold tabular-nums">{{ $aging['overdue_count'] }}</div>
+        </div>
+        <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Porsi &gt; 90 Hari</div>
+            <div class="text-lg font-semibold tabular-nums">{{ number_format($aging['over_90_pct'], 1, ',', '.') }}%</div>
+        </div>
+    </div>
+
     <x-filament::section>
         <x-slot name="heading">Sisa hutang per supplier menurut umur jatuh tempo</x-slot>
         <x-slot name="description">
-            Hanya tagihan Belum Dibayar / Dibayar Sebagian. "Belum jatuh tempo" mencakup tagihan tanpa tanggal jatuh tempo. Dihitung per hari ini.
+            Toko: {{ $this->storeLabel() }}. Hanya tagihan Belum Dibayar / Dibayar Sebagian. "Belum jatuh tempo" mencakup tagihan tanpa tanggal jatuh tempo. Dihitung per hari ini. Klik nama supplier untuk melihat tagihannya di Hutang Usaha.
         </x-slot>
 
         <div class="overflow-x-auto">
@@ -26,7 +45,9 @@
                 <tbody class="divide-y divide-gray-100 dark:divide-white/10">
                     @forelse ($aging['rows'] as $row)
                         <tr>
-                            <td class="py-2 pe-4 font-medium">{{ $row->supplier }}</td>
+                            <td class="py-2 pe-4 font-medium">
+                                <a href="{{ $this->payableUrl($row->supplier_id, $row->supplier) }}" class="hover:underline" title="Lihat tagihan supplier ini">{{ $row->supplier }}</a>
+                            </td>
                             <td class="py-2 px-3 text-right tabular-nums">{{ $fmt($row->current_amt) }}</td>
                             <td class="py-2 px-3 text-right tabular-nums">{{ $fmt($row->b1) }}</td>
                             <td class="py-2 px-3 text-right tabular-nums text-warning-600">{{ $fmt($row->b2) }}</td>

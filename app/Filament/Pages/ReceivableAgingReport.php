@@ -2,17 +2,30 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\ReceivableAgingExport;
 use App\Filament\Resources\ReceivableResource;
+use App\Models\Store;
+use App\Services\FinancialStatementService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Umur Piutang (Aging Receivable) per customer: sisa piutang aktif dikelompokkan menurut
- * keterlambatan dari jatuh tempo (audit Piutang Usaha 2026-09-29). Hanya membaca data;
- * non-full-access dibatasi ke toko sendiri.
+ * keterlambatan dari jatuh tempo (audit Piutang Usaha 2026-09-29). Non-full-access otomatis
+ * dibatasi ke toko sendiri; full-access bisa memilih toko atau "Pusat / Tanpa Toko"
+ * (audit Umur Hutang/Piutang 2026-09-29, sama pola laporan Keuangan lain).
  */
-class ReceivableAgingReport extends Page
+class ReceivableAgingReport extends Page implements HasForms
 {
+    use InteractsWithForms;
+
     protected static ?string $navigationIcon = 'heroicon-o-clock';
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
@@ -25,6 +38,8 @@ class ReceivableAgingReport extends Page
 
     protected static string $view = 'filament.pages.receivable-aging';
 
+    public ?array $data = [];
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -32,29 +47,125 @@ class ReceivableAgingReport extends Page
         return $user?->canAccessStaffArea() && $user->hasMenuAccess(ReceivableResource::class);
     }
 
-    /**
-     * @return array{rows: \Illuminate\Support\Collection, totals: array<string, float>}
-     */
-    public function getAging(): array
+    private function isRestricted(): bool
+    {
+        return ! (auth()->user()?->isFullAccess() ?? false);
+    }
+
+    public function mount(): void
+    {
+        $this->form->fill([
+            'store_id' => $this->isRestricted() ? auth()->user()?->store_id : null,
+        ]);
+    }
+
+    public function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Select::make('store_id')
+                    ->label('Toko')
+                    ->options(fn () => [FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
+                    ->placeholder('Semua Toko')
+                    ->searchable()
+                    ->live()
+                    ->disabled(fn () => $this->isRestricted() && auth()->user()?->store_id !== null),
+            ])
+            ->statePath('data')
+            ->columns(3);
+    }
+
+    private function storeId(): ?int
     {
         $user = auth()->user();
 
+        if ($this->isRestricted() && $user?->store_id !== null) {
+            return (int) $user->store_id;
+        }
+
+        return isset($this->data['store_id']) && $this->data['store_id'] !== '' ? (int) $this->data['store_id'] : null;
+    }
+
+    public function storeLabel(): string
+    {
+        $id = $this->storeId();
+
+        return match (true) {
+            $id === null => 'Semua Toko',
+            $id === FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko',
+            default => Store::whereKey($id)->value('name') ?? 'Toko #' . $id,
+        };
+    }
+
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'receivable_aging', 'format' => $format, 'store_id' => $this->storeId()])
+                ->log('Ekspor Umur Piutang (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export ke Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(new ReceivableAgingExport($this->getAging(), $this->storeLabel()), 'umur-piutang-' . now()->format('Ymd-His') . '.xlsx');
+                }),
+
+            Action::make('exportPdf')
+                ->label('Export ke PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $this->logExport('pdf');
+
+                    $pdf = Pdf::loadView('pdf.receivable_aging_report', ['aging' => $this->getAging(), 'storeLabel' => $this->storeLabel()])->setPaper('a4', 'landscape');
+
+                    return response()->streamDownload(fn () => print($pdf->output()), 'umur-piutang-' . now()->format('Ymd-His') . '.pdf');
+                }),
+        ];
+    }
+
+    /**
+     * @return array{rows: \Illuminate\Support\Collection, totals: array<string, float>, customer_count: int, overdue_count: int, over_90_pct: float}
+     */
+    public function getAging(): array
+    {
+        // Dikelompokkan per CUSTOMER MASTER (customer_id), bukan teks customer_name -- sebelumnya
+        // customer yang sama bisa terpecah jadi beberapa baris kalau ejaan/kapitalisasi nama lama
+        // beda dari master saat ini (audit Umur Hutang/Piutang 2026-09-29). Piutang tanpa customer_id
+        // (data sebelum kolom ini ada) tetap dikelompokkan per nama sebagai fallback.
         $query = DB::table('receivables')
-            ->whereIn('status', ['unpaid', 'partial'])
+            ->whereIn('receivables.status', ['unpaid', 'partial'])
+            ->leftJoin('customers', 'customers.id', '=', 'receivables.customer_id')
             ->selectRaw("
-                COALESCE(customer_name, '—') as customer,
-                SUM(CASE WHEN due_date IS NULL OR due_date >= CURDATE() THEN amount - amount_paid ELSE 0 END) as current_amt,
-                SUM(CASE WHEN due_date < CURDATE() AND DATEDIFF(CURDATE(), due_date) <= 30 THEN amount - amount_paid ELSE 0 END) as b1,
-                SUM(CASE WHEN due_date < CURDATE() AND DATEDIFF(CURDATE(), due_date) BETWEEN 31 AND 60 THEN amount - amount_paid ELSE 0 END) as b2,
-                SUM(CASE WHEN due_date < CURDATE() AND DATEDIFF(CURDATE(), due_date) BETWEEN 61 AND 90 THEN amount - amount_paid ELSE 0 END) as b3,
-                SUM(CASE WHEN due_date < CURDATE() AND DATEDIFF(CURDATE(), due_date) > 90 THEN amount - amount_paid ELSE 0 END) as b4,
-                SUM(amount - amount_paid) as total
+                receivables.customer_id as customer_id,
+                COALESCE(MIN(customers.name), MIN(receivables.customer_name), '—') as customer,
+                SUM(CASE WHEN receivables.due_date IS NULL OR receivables.due_date >= CURDATE() THEN receivables.amount - receivables.amount_paid ELSE 0 END) as current_amt,
+                SUM(CASE WHEN receivables.due_date < CURDATE() AND DATEDIFF(CURDATE(), receivables.due_date) <= 30 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b1,
+                SUM(CASE WHEN receivables.due_date < CURDATE() AND DATEDIFF(CURDATE(), receivables.due_date) BETWEEN 31 AND 60 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b2,
+                SUM(CASE WHEN receivables.due_date < CURDATE() AND DATEDIFF(CURDATE(), receivables.due_date) BETWEEN 61 AND 90 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b3,
+                SUM(CASE WHEN receivables.due_date < CURDATE() AND DATEDIFF(CURDATE(), receivables.due_date) > 90 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b4,
+                SUM(receivables.amount - receivables.amount_paid) as total
             ")
-            ->groupBy('customer_name')
+            ->groupByRaw("COALESCE(receivables.customer_id, CONCAT('name:', receivables.customer_name))")
             ->orderByDesc('total');
 
-        if ($user && ! $user->isFullAccess()) {
-            $query->where('store_id', $user->store_id);
+        $storeId = $this->storeId();
+        if ($storeId === FinancialStatementService::COMPANY_WIDE) {
+            $query->whereNull('receivables.store_id');
+        } elseif ($storeId !== null) {
+            $query->where('receivables.store_id', $storeId);
         }
 
         $rows = $query->get();
@@ -64,6 +175,22 @@ class ReceivableAgingReport extends Page
             $totals[$col] = (float) $rows->sum($col);
         }
 
-        return ['rows' => $rows, 'totals' => $totals];
+        return [
+            'rows' => $rows,
+            'totals' => $totals,
+            'customer_count' => $rows->count(),
+            'overdue_count' => $rows->filter(fn ($r) => ((float) $r->b1 + (float) $r->b2 + (float) $r->b3 + (float) $r->b4) > 0.005)->count(),
+            'over_90_pct' => $totals['total'] > 0.005 ? round($totals['b4'] / $totals['total'] * 100, 1) : 0.0,
+        ];
+    }
+
+    /** Link drill-down ke daftar Piutang Usaha 1 customer -- filter akun kalau tertaut master, cari nama kalau belum. */
+    public function receivableUrl(?int $customerId, string $customerName): string
+    {
+        if ($customerId) {
+            return ReceivableResource::getUrl('index', ['tableFilters' => ['customer_id' => ['value' => $customerId]]]);
+        }
+
+        return ReceivableResource::getUrl('index') . '?tableSearch=' . urlencode($customerName);
     }
 }
