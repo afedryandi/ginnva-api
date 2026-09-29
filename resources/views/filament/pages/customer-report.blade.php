@@ -6,8 +6,10 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n ?? 0, 0, ',', '.');
+        $filterTargets = 'data.from, data.to, data.store_id, data.preset';
     @endphp
 
+    <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Pelanggan Baru Daftar</div>
@@ -51,7 +53,9 @@
                 <tbody>
                     @forelse ($result['topCustomers'] as $customer)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="whitespace-nowrap py-2 px-3 font-medium">{{ $customer->name }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 font-medium">
+                                <a href="{{ $this->customerUrl($customer->id) }}" class="hover:underline" title="Lihat detail pelanggan ini">{{ $customer->name }}</a>
+                            </td>
                             <td class="whitespace-nowrap py-2 px-3 text-xs text-gray-500 dark:text-gray-400">{{ $customer->phone_number ?? $customer->email ?? '—' }}</td>
                             <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $customer->created_at?->format('d M Y') }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $customer->bookings_in_period }}</td>
@@ -69,4 +73,5 @@
             </table>
         </div>
     </x-filament::section>
+    </div>
 </x-filament-panels::page>
