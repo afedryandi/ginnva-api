@@ -28,6 +28,17 @@ class Supplier extends Model
         return $this->hasMany(Payable::class);
     }
 
+    public function recurringBillTemplates(): HasMany
+    {
+        return $this->hasMany(RecurringBillTemplate::class);
+    }
+
+    /** Dipakai di manapun (tagihan atau template rutin) -- guard hapus (audit Supplier 2026-09-29). */
+    public function isInUse(): bool
+    {
+        return $this->payables()->exists() || $this->recurringBillTemplates()->exists();
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

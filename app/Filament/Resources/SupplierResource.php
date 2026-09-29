@@ -52,7 +52,10 @@ class SupplierResource extends Resource
 
     public static function canDelete($record): bool
     {
-        return (auth()->user()?->isFullAccess() ?? false) && ! $record->payables()->exists();
+        // Sebelumnya hanya memeriksa payables() -- supplier yang sudah dipakai Template Tagihan
+        // Rutin (belum pernah generate) bisa dihapus dan template-nya diam-diam kehilangan taut
+        // (nullOnDelete) tanpa peringatan (audit Supplier 2026-09-29).
+        return (auth()->user()?->isFullAccess() ?? false) && ! $record->isInUse();
     }
 
     public static function canDeleteAny(): bool
@@ -73,9 +76,30 @@ class SupplierResource extends Resource
         return $form->schema([
             Forms\Components\Section::make('Identitas')->columns(2)->schema([
                 Forms\Components\TextInput::make('name')->label('Nama Supplier')->required()->maxLength(255)
-                    ->unique(ignoreRecord: true),
-                Forms\Components\TextInput::make('npwp')->label('NPWP')->maxLength(30),
-                Forms\Components\TextInput::make('phone')->label('Telepon')->tel()->maxLength(30),
+                    ->unique(ignoreRecord: true)
+                    ->live(onBlur: true)
+                    // Tidak memblokir (typo/singkatan yang beda sengaja tetap boleh) -- hanya
+                    // mengingatkan kalau ada nama yang mirip, supaya tidak tanpa sadar membuat
+                    // supplier duplikat gara-gara ejaan/kapitalisasi berbeda (audit Supplier 2026-09-29).
+                    ->afterStateUpdated(function ($state, Forms\Set $set, ?Supplier $record) {
+                        $set('similar_warning', static::findSimilarSupplierName($state, $record?->id));
+                    }),
+
+                Forms\Components\Placeholder::make('similar_warning')
+                    ->label('')
+                    ->visible(fn (Forms\Get $get) => filled($get('similar_warning')))
+                    ->content(fn (Forms\Get $get) => new \Illuminate\Support\HtmlString('<span class="text-warning-600">⚠ Mirip dengan supplier yang sudah ada: <strong>' . e($get('similar_warning')) . '</strong> — pastikan ini bukan duplikat.</span>'))
+                    ->columnSpanFull(),
+                Forms\Components\TextInput::make('npwp')->label('NPWP')->maxLength(30)
+                    ->unique(ignoreRecord: true)
+                    // Format lama 15 digit (xx.xxx.xxx.x-xxx.xxx) atau baru 16 digit (NIK) -- disimpan
+                    // tanpa titik/strip, jadi validasi cukup 15/16 digit angka (audit Supplier 2026-09-29).
+                    ->rule('regex:/^\d{15,16}$/')
+                    ->validationMessages(['regex' => 'NPWP harus 15 atau 16 digit angka (tanpa titik/strip).', 'unique' => 'NPWP ini sudah dipakai supplier lain.'])
+                    ->helperText('15 atau 16 digit, tanpa titik/strip. Opsional.'),
+                Forms\Components\TextInput::make('phone')->label('Telepon')->tel()->maxLength(30)
+                    ->rule('regex:/^[0-9+()\-\s]{6,30}$/')
+                    ->validationMessages(['regex' => 'Nomor telepon hanya boleh angka, spasi, +, -, ( dan ).']),
                 Forms\Components\TextInput::make('email')->label('Email')->email()->maxLength(255),
                 Forms\Components\Textarea::make('address')->label('Alamat')->rows(2)->columnSpanFull(),
             ]),
@@ -92,6 +116,31 @@ class SupplierResource extends Resource
         ]);
     }
 
+    /** Cek nama mirip (jarak edit kecil) di antara supplier aktif lain -- lihat afterStateUpdated di atas. */
+    private static function findSimilarSupplierName(?string $name, ?int $ignoreId): ?string
+    {
+        $name = trim((string) $name);
+        if (mb_strlen($name) < 3) {
+            return null;
+        }
+
+        $normalized = mb_strtolower(preg_replace('/\s+/', ' ', $name));
+
+        foreach (Supplier::where('is_active', true)->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))->pluck('name') as $existing) {
+            $existingNormalized = mb_strtolower(preg_replace('/\s+/', ' ', $existing));
+
+            if ($existingNormalized === $normalized) {
+                continue; // sudah ditangkap validasi unique, tidak perlu peringatan ganda
+            }
+
+            if (levenshtein($normalized, $existingNormalized) <= 2) {
+                return $existing;
+            }
+        }
+
+        return null;
+    }
+
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()->withCount('payables');
@@ -102,9 +151,11 @@ class SupplierResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')->label('Supplier')->searchable()->weight('bold'),
-                Tables\Columns\TextColumn::make('npwp')->label('NPWP')->placeholder('—')->toggleable(),
+                Tables\Columns\TextColumn::make('npwp')->label('NPWP')->placeholder('—')->searchable()->toggleable(),
                 Tables\Columns\TextColumn::make('bank_name')->label('Bank')->placeholder('—')
                     ->description(fn (Supplier $r) => $r->bank_account_number ? $r->bank_account_number . ($r->bank_account_name ? ' a.n. ' . $r->bank_account_name : '') : null)
+                    // Cari juga di nomor rekening (bukan cuma nama bank) -- audit Supplier 2026-09-29.
+                    ->searchable(['bank_name', 'bank_account_number', 'bank_account_name'])
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('phone')->label('Telepon')->placeholder('—')->toggleable(),
                 Tables\Columns\TextColumn::make('payables_count')->label('Tagihan')->sortable(),
@@ -117,8 +168,8 @@ class SupplierResource extends Resource
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make()
                     ->before(function (Supplier $record, Tables\Actions\DeleteAction $action) {
-                        if ($record->payables()->exists()) {
-                            Notification::make()->title('Supplier sudah punya tagihan — nonaktifkan saja.')->danger()->send();
+                        if ($record->isInUse()) {
+                            Notification::make()->title('Supplier sudah dipakai tagihan atau template tagihan rutin — nonaktifkan saja.')->danger()->send();
                             $action->cancel();
                         }
                     }),
