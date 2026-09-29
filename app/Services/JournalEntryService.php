@@ -223,6 +223,10 @@ class JournalEntryService
                 ]);
             }
 
+            // Mutasi bank yang tadinya dicocokkan ke jurnal ini (Rekonsiliasi Bank) ditandai perlu
+            // ditinjau ulang -- efeknya sudah dibalik, tapi status 'matched' tidak diubah diam-diam.
+            app(BankReconciliationService::class)->invalidateForReversal($locked->id);
+
             return $reversal;
         });
     }

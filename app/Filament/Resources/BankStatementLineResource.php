@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources;
 
+use App\Exports\BankReconciliationExport;
 use App\Filament\Resources\BankStatementLineResource\Pages;
 use App\Models\BankStatementLine;
 use App\Models\ChartOfAccount;
 use App\Models\JournalEntryLine;
 use App\Services\BankReconciliationService;
+use App\Services\FinancialStatementService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -116,12 +119,17 @@ class BankStatementLineResource extends Resource
                         'success' => 'matched',
                         'gray' => 'ignored',
                     ])
-                    ->formatStateUsing(fn (string $state) => match ($state) {
-                        'unmatched' => 'Belum Cocok',
-                        'matched' => 'Cocok',
-                        'ignored' => 'Diabaikan',
-                        default => $state,
-                    }),
+                    ->formatStateUsing(fn (BankStatementLine $record) => match (true) {
+                        $record->status === 'matched' && $record->stale_at !== null => 'Cocok — Perlu Ditinjau Ulang',
+                        $record->status === 'unmatched' => 'Belum Cocok',
+                        $record->status === 'matched' => 'Cocok',
+                        $record->status === 'ignored' => 'Diabaikan',
+                        default => $record->status,
+                    })
+                    ->color(fn (BankStatementLine $record) => $record->status === 'matched' && $record->stale_at !== null ? 'danger' : match ($record->status) {
+                        'unmatched' => 'warning', 'matched' => 'success', 'ignored' => 'gray', default => 'gray',
+                    })
+                    ->tooltip(fn (BankStatementLine $record) => $record->stale_at ? 'Jurnal yang dicocokkan ke mutasi ini sudah dibalik (' . $record->stale_at->format('d M Y H:i') . ') — cocokkan ulang atau tandai diabaikan.' : null),
 
                 Tables\Columns\TextColumn::make('matchedLine.journalEntry.entry_number')
                     ->label('No. Jurnal')
@@ -139,8 +147,78 @@ class BankStatementLineResource extends Resource
                 Tables\Filters\SelectFilter::make('status')
                     ->options(['unmatched' => 'Belum Cocok', 'matched' => 'Cocok', 'ignored' => 'Diabaikan'])
                     ->default('unmatched'),
+
+                Tables\Filters\Filter::make('stale')
+                    ->label('Perlu Ditinjau Ulang')
+                    ->query(fn (Builder $query) => $query->whereNotNull('stale_at')),
             ])
             ->headerActions([
+                // Ringkasan angka (audit 2026-09-29): jumlah & nilai mutasi yang belum cocok, biar tidak
+                // perlu menghitung manual sebelum menutup periode (lihat AccountingPeriodService checklist 'bank').
+                Tables\Actions\Action::make('summary')
+                    ->label(function () {
+                        $unmatched = BankStatementLine::where('status', 'unmatched')->selectRaw('COUNT(*) as n, COALESCE(SUM(ABS(amount)), 0) as total')->first();
+                        $stale = BankStatementLine::whereNotNull('stale_at')->count();
+
+                        $label = (int) $unmatched->n . ' belum cocok (Rp ' . number_format((float) $unmatched->total, 0, ',', '.') . ')';
+
+                        return $stale > 0 ? $label . ' · ' . $stale . ' perlu ditinjau ulang' : $label;
+                    })
+                    ->icon('heroicon-o-information-circle')
+                    ->color('gray')
+                    ->disabled(),
+
+                // Bukti rekonsiliasi (audit 2026-09-29): dokumen yang bisa dilampirkan saat tutup buku.
+                Tables\Actions\Action::make('exportReconciliation')
+                    ->label('Ekspor Bukti Rekonsiliasi')
+                    ->icon('heroicon-o-document-check')
+                    ->color('gray')
+                    ->form([
+                        Forms\Components\Select::make('chart_of_account_id')
+                            ->label('Akun')
+                            ->options(fn () => ChartOfAccount::where('is_cash', true)->get()->mapWithKeys(fn (ChartOfAccount $a) => [$a->id => $a->display_name]))
+                            ->required(),
+                        Forms\Components\DatePicker::make('from')->label('Dari Tanggal')->native(false)->required()->default(now()->startOfMonth()),
+                        Forms\Components\DatePicker::make('to')->label('Sampai Tanggal')->native(false)->required()->default(now()),
+                    ])
+                    ->action(function (array $data) {
+                        $result = static::buildReconciliationReport((int) $data['chart_of_account_id'], $data['from'], $data['to']);
+
+                        return Excel::download(new BankReconciliationExport($result), 'rekonsiliasi-bank-' . now()->format('Ymd-His') . '.xlsx');
+                    }),
+
+                Tables\Actions\Action::make('exportReconciliationPdf')
+                    ->label('Ekspor Bukti Rekonsiliasi (PDF)')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('gray')
+                    ->form([
+                        Forms\Components\Select::make('chart_of_account_id')
+                            ->label('Akun')
+                            ->options(fn () => ChartOfAccount::where('is_cash', true)->get()->mapWithKeys(fn (ChartOfAccount $a) => [$a->id => $a->display_name]))
+                            ->required(),
+                        Forms\Components\DatePicker::make('from')->label('Dari Tanggal')->native(false)->required()->default(now()->startOfMonth()),
+                        Forms\Components\DatePicker::make('to')->label('Sampai Tanggal')->native(false)->required()->default(now()),
+                    ])
+                    ->action(function (array $data) {
+                        $result = static::buildReconciliationReport((int) $data['chart_of_account_id'], $data['from'], $data['to']);
+                        $pdf = Pdf::loadView('pdf.bank_reconciliation_report', ['result' => $result])->setPaper('a4', 'portrait');
+
+                        return response()->streamDownload(fn () => print($pdf->output()), 'rekonsiliasi-bank-' . now()->format('Ymd-His') . '.pdf');
+                    }),
+
+                // Riwayat impor (audit 2026-09-29): sebelumnya file yang diimpor langsung dihapus tanpa
+                // arsip -- sekarang bisa ditelusuri "file apa yang diimpor tanggal X" untuk audit.
+                Tables\Actions\Action::make('importHistory')
+                    ->label('Riwayat Impor')
+                    ->icon('heroicon-o-clock')
+                    ->color('gray')
+                    ->modalHeading('Riwayat Impor Mutasi Bank')
+                    ->modalContent(fn () => view('filament.pages.bank-import-history', [
+                        'batches' => \App\Models\BankStatementImportBatch::with(['account', 'creator'])->latest()->limit(30)->get(),
+                    ]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Tutup'),
+
                 Tables\Actions\Action::make('import')
                     ->label('Import Mutasi')
                     ->icon('heroicon-o-arrow-up-tray')
@@ -240,6 +318,14 @@ class BankStatementLineResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (BankStatementLine $record) => app(BankReconciliationService::class)->unmatch($record)),
 
+                // Sebelumnya "Diabaikan" tidak punya jalan keluar selain hapus permanen (audit 2026-09-29).
+                Tables\Actions\Action::make('unignore')
+                    ->label('Batalkan Pengabaian')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('gray')
+                    ->visible(fn (BankStatementLine $record) => $record->status === 'ignored')
+                    ->action(fn (BankStatementLine $record) => app(BankReconciliationService::class)->unignore($record)),
+
                 Tables\Actions\Action::make('ignore')
                     ->label('Tandai Diabaikan')
                     ->icon('heroicon-o-eye-slash')
@@ -249,7 +335,10 @@ class BankStatementLineResource extends Resource
                     ->modalDescription('Dipakai untuk mutasi yang memang TIDAK PERLU dicocokkan ke jurnal (mis. biaya admin bank yang belum dicatat, atau saldo pembuka) — tidak menghapus barisnya, cuma menandai supaya tidak terus muncul di daftar "Belum Cocok".')
                     ->action(fn (BankStatementLine $record) => app(BankReconciliationService::class)->ignore($record)),
 
-                Tables\Actions\DeleteAction::make(),
+                // Baris yang masih 'matched' tidak boleh dihapus langsung -- batalkan kecocokannya
+                // dulu, supaya jejak "jurnal X pernah dicocokkan ke mutasi mana" tidak hilang diam-diam.
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn (BankStatementLine $record) => $record->status !== 'matched'),
             ])
             ->defaultSort('statement_date', 'desc');
     }
@@ -277,7 +366,10 @@ class BankStatementLineResource extends Resource
             return;
         }
 
-        Storage::disk('local')->delete($uploadedPath);
+        // File asal DIARSIPKAN (sebelumnya dihapus langsung setelah diproses) -- dipindah ke direktori
+        // permanen supaya bisa ditelusuri "file apa yang diimpor tanggal X" saat audit (2026-09-29).
+        $archivedPath = 'bank-statement-archive/' . basename($uploadedPath);
+        Storage::disk('local')->move($uploadedPath, $archivedPath);
 
         $rows = $sheets[0] ?? [];
         array_shift($rows);
@@ -308,7 +400,11 @@ class BankStatementLineResource extends Resource
         }
 
         $account = ChartOfAccount::findOrFail($accountId);
-        $result = app(BankReconciliationService::class)->importRows($parsed, $account, auth()->id());
+        $result = app(BankReconciliationService::class)->importRows($parsed, $account, auth()->id(), [
+            'original_filename' => basename($uploadedPath),
+            'archived_path' => $archivedPath,
+            'invalid_count' => $invalidCount,
+        ]);
 
         $bodyLines = ["{$result['imported']} baris berhasil diimpor."];
         if ($result['duplicates'] > 0) $bodyLines[] = "{$result['duplicates']} baris dilewati (duplikat — sudah pernah diimpor).";
@@ -319,6 +415,44 @@ class BankStatementLineResource extends Resource
             ->body(implode(' ', $bodyLines))
             ->success()
             ->send();
+    }
+
+    /**
+     * @return array{lines: array, as_of: \Illuminate\Support\Carbon, system_balance: float, matched_count: int, unmatched_count: int, unmatched_total: float, stale_count: int, account: ChartOfAccount}
+     */
+    private static function buildReconciliationReport(int $accountId, string $from, string $to): array
+    {
+        $account = ChartOfAccount::findOrFail($accountId);
+        $to = \Illuminate\Support\Carbon::parse($to);
+
+        $lines = BankStatementLine::where('chart_of_account_id', $accountId)
+            ->whereBetween('statement_date', [$from, $to->toDateString()])
+            ->with('matchedLine.journalEntry')
+            ->orderBy('statement_date')
+            ->get();
+
+        $statusLabels = ['unmatched' => 'Belum Cocok', 'matched' => 'Cocok', 'ignored' => 'Diabaikan'];
+
+        $rows = $lines->map(fn (BankStatementLine $l) => [
+            'date' => $l->statement_date,
+            'description' => $l->description,
+            'amount' => (float) $l->amount,
+            'status_label' => $statusLabels[$l->status] ?? $l->status,
+            'journal_entry_number' => $l->matchedLine?->journalEntry?->entry_number,
+        ]);
+
+        return [
+            'account' => $account,
+            'from' => \Illuminate\Support\Carbon::parse($from),
+            'to' => $to,
+            'as_of' => $to,
+            'lines' => $rows,
+            'system_balance' => app(FinancialStatementService::class)->balanceAsOf($account, $to),
+            'matched_count' => $lines->where('status', 'matched')->count(),
+            'unmatched_count' => $lines->where('status', 'unmatched')->count(),
+            'unmatched_total' => (float) $lines->where('status', 'unmatched')->sum(fn ($l) => abs((float) $l->amount)),
+            'stale_count' => $lines->whereNotNull('stale_at')->count(),
+        ];
     }
 
     public static function getPages(): array

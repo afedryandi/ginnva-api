@@ -18,7 +18,7 @@ class BankStatementLine extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'matched_journal_entry_line_id'])
+            ->logOnly(['status', 'matched_journal_entry_line_id', 'stale_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('bank_statement_line');
@@ -32,6 +32,7 @@ class BankStatementLine extends Model
         'external_reference',
         'matched_journal_entry_line_id',
         'status',
+        'stale_at',
         'import_batch',
         'created_by',
     ];
@@ -39,6 +40,7 @@ class BankStatementLine extends Model
     protected $casts = [
         'statement_date' => 'date',
         'amount' => 'decimal:2',
+        'stale_at' => 'datetime',
     ];
 
     public function account(): BelongsTo
