@@ -38,13 +38,18 @@ class FinanceTransactionResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Transaksi",
+    // lihat catatan sistem band di ProductSalesReport.php (band per grup,
+    // global cross-group, bukan urutan array navigationGroups()).
+    protected static ?string $navigationGroup = 'Transaksi';
+
     protected static ?string $navigationLabel = 'Transaksi Keuangan';
 
     protected static ?string $modelLabel = 'Transaksi Keuangan';
 
     protected static ?string $pluralModelLabel = 'Transaksi Keuangan';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 0;
 
     public static function canViewAny(): bool
     {

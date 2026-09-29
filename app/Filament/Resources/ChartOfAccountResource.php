@@ -30,13 +30,18 @@ class ChartOfAccountResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 200-299 "Jurnal & Akun". Dinamai beda
+    // dari halaman "Buku Besar" (band 300-an, GeneralLedgerReport) supaya tidak ada 2 hal
+    // bernama sama (nama grup vs nama menu item) yang membingungkan di sidebar.
+    protected static ?string $navigationGroup = 'Jurnal & Akun';
+
     protected static ?string $navigationLabel = 'Bagan Akun';
 
     protected static ?string $modelLabel = 'Akun';
 
     protected static ?string $pluralModelLabel = 'Bagan Akun';
 
-    protected static ?int $navigationSort = 0;
+    protected static ?int $navigationSort = 200;
 
     private const TYPE_OPTIONS = [
         'aset' => 'Aset',

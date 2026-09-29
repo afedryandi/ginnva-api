@@ -30,11 +30,14 @@ class PayableAgingReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 100-199 "Piutang & Utang".
+    protected static ?string $navigationGroup = 'Piutang & Utang';
+
     protected static ?string $navigationLabel = 'Umur Hutang';
 
     protected static ?string $title = 'Umur Hutang (Aging)';
 
-    protected static ?int $navigationSort = 15;
+    protected static ?int $navigationSort = 103;
 
     protected static string $view = 'filament.pages.payable-aging';
 

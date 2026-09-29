@@ -37,13 +37,15 @@ class ClosePeriodPage extends Page implements HasActions, HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 200-299 "Jurnal & Akun" (lihat catatan
+    // di ChartOfAccountResource soal penamaan).
+    protected static ?string $navigationGroup = 'Jurnal & Akun';
+
     protected static ?string $navigationLabel = 'Tutup Periode';
 
     protected static ?string $title = 'Tutup Periode';
 
-    // Direnumber 13 (dari 10) -- audit navigasi 2026-09-15, dampak
-    // renumber beruntun akibat tabrakan sort lain di cluster ini.
-    protected static ?int $navigationSort = 13;
+    protected static ?int $navigationSort = 203;
 
     protected static string $view = 'filament.pages.close-period';
 

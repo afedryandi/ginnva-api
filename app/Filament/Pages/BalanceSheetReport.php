@@ -31,13 +31,14 @@ class BalanceSheetReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Laporan Keuangan".
+    protected static ?string $navigationGroup = 'Laporan Keuangan';
+
     protected static ?string $navigationLabel = 'Neraca';
 
     protected static ?string $title = 'Neraca (Balance Sheet)';
 
-    // Direnumber 11 (dari 8) -- audit navigasi 2026-09-15, dampak
-    // renumber beruntun akibat tabrakan sort lain di cluster ini.
-    protected static ?int $navigationSort = 11;
+    protected static ?int $navigationSort = 304;
 
     protected static string $view = 'filament.pages.balance-sheet-report';
 

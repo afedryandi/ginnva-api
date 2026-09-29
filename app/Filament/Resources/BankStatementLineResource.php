@@ -40,15 +40,17 @@ class BankStatementLineResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 200-299 "Jurnal & Akun" (lihat catatan
+    // di ChartOfAccountResource soal penamaan).
+    protected static ?string $navigationGroup = 'Jurnal & Akun';
+
     protected static ?string $navigationLabel = 'Rekonsiliasi Bank';
 
     protected static ?string $modelLabel = 'Mutasi Bank';
 
     protected static ?string $pluralModelLabel = 'Rekonsiliasi Bank';
 
-    // Direnumber 14 (dari 11) -- audit navigasi 2026-09-15, dampak
-    // renumber beruntun akibat tabrakan sort lain di cluster ini.
-    protected static ?int $navigationSort = 14;
+    protected static ?int $navigationSort = 202;
 
     // Diperluas 2026-09-24 (keputusan user) — spv_finance boleh, tapi
     // tetap lewat hasMenuAccess() (harus dicentang eksplisit di "Akses

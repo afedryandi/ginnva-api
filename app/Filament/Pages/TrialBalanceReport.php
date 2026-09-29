@@ -36,13 +36,14 @@ class TrialBalanceReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Laporan Keuangan".
+    protected static ?string $navigationGroup = 'Laporan Keuangan';
+
     protected static ?string $navigationLabel = 'Neraca Saldo';
 
     protected static ?string $title = 'Neraca Saldo';
 
-    // Direnumber 8 (dari 5) -- audit navigasi 2026-09-15, tabrakan
-    // dengan PayableResource.
-    protected static ?int $navigationSort = 8;
+    protected static ?int $navigationSort = 301;
 
     protected static string $view = 'filament.pages.trial-balance-report';
 

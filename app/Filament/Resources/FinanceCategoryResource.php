@@ -27,13 +27,16 @@ class FinanceCategoryResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 500-599 "Pengaturan".
+    protected static ?string $navigationGroup = 'Pengaturan';
+
     protected static ?string $navigationLabel = 'Kategori Keuangan';
 
     protected static ?string $modelLabel = 'Kategori Keuangan';
 
     protected static ?string $pluralModelLabel = 'Kategori Keuangan';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 500;
 
     public static function canViewAny(): bool
     {

@@ -44,13 +44,16 @@ class RecurringBillTemplateResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Transaksi".
+    protected static ?string $navigationGroup = 'Transaksi';
+
     protected static ?string $navigationLabel = 'Template Tagihan Rutin';
 
     protected static ?string $modelLabel = 'Template Tagihan Rutin';
 
     protected static ?string $pluralModelLabel = 'Template Tagihan Rutin';
 
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 1;
 
     private static function accessGate(): bool
     {

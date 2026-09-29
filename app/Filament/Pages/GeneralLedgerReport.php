@@ -37,13 +37,14 @@ class GeneralLedgerReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Laporan Keuangan".
+    protected static ?string $navigationGroup = 'Laporan Keuangan';
+
     protected static ?string $navigationLabel = 'Buku Besar';
 
     protected static ?string $title = 'Buku Besar';
 
-    // Direnumber 10 (dari 7) -- audit navigasi 2026-09-15, dampak
-    // renumber beruntun akibat tabrakan sort lain di cluster ini.
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 303;
 
     protected static string $view = 'filament.pages.general-ledger-report';
 

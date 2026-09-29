@@ -37,13 +37,14 @@ class FinanceReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Laporan Keuangan".
+    protected static ?string $navigationGroup = 'Laporan Keuangan';
+
     protected static ?string $navigationLabel = 'Laporan Keuangan';
 
     protected static ?string $title = 'Laporan Keuangan';
 
-    // Direnumber 7 (dari 3) -- audit navigasi 2026-09-15, tabrakan
-    // dengan TransactionApprovalRequestResource yang sama-sama sort=3.
-    protected static ?int $navigationSort = 7;
+    protected static ?int $navigationSort = 300;
 
     protected static string $view = 'filament.pages.finance-report';
 

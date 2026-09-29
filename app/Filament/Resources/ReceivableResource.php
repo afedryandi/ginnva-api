@@ -46,13 +46,16 @@ class ReceivableResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 100-199 "Piutang & Utang".
+    protected static ?string $navigationGroup = 'Piutang & Utang';
+
     protected static ?string $navigationLabel = 'Piutang Usaha';
 
     protected static ?string $modelLabel = 'Piutang Usaha';
 
     protected static ?string $pluralModelLabel = 'Piutang Usaha';
 
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 100;
 
     public static function canViewAny(): bool
     {

@@ -30,11 +30,14 @@ class ReceivableAgingReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 100-199 "Piutang & Utang".
+    protected static ?string $navigationGroup = 'Piutang & Utang';
+
     protected static ?string $navigationLabel = 'Umur Piutang';
 
     protected static ?string $title = 'Umur Piutang (Aging)';
 
-    protected static ?int $navigationSort = 17;
+    protected static ?int $navigationSort = 102;
 
     protected static string $view = 'filament.pages.receivable-aging';
 

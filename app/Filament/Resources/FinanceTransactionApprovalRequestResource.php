@@ -32,7 +32,10 @@ class FinanceTransactionApprovalRequestResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
-    protected static ?int $navigationSort = 3;
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 400-499 "Approval".
+    protected static ?string $navigationGroup = 'Approval';
+
+    protected static ?int $navigationSort = 401;
 
     protected static ?string $navigationLabel = 'Persetujuan Pengeluaran';
 

@@ -42,13 +42,17 @@ class JournalEntryResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 200-299 "Jurnal & Akun" (lihat catatan
+    // di ChartOfAccountResource soal penamaan).
+    protected static ?string $navigationGroup = 'Jurnal & Akun';
+
     protected static ?string $navigationLabel = 'Jurnal Umum';
 
     protected static ?string $modelLabel = 'Jurnal';
 
     protected static ?string $pluralModelLabel = 'Jurnal Umum';
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 201;
 
     // Diperluas 2026-09-24 (keputusan user) — spv_finance boleh, tapi
     // tetap lewat hasMenuAccess() (harus dicentang eksplisit di "Akses

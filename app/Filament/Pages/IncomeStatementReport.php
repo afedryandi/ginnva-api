@@ -33,13 +33,14 @@ class IncomeStatementReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Laporan Keuangan".
+    protected static ?string $navigationGroup = 'Laporan Keuangan';
+
     protected static ?string $navigationLabel = 'Laporan Laba Rugi';
 
     protected static ?string $title = 'Laporan Laba Rugi';
 
-    // Direnumber 9 (dari 6) -- audit navigasi 2026-09-15, tabrakan
-    // dengan ReceivableResource.
-    protected static ?int $navigationSort = 9;
+    protected static ?int $navigationSort = 302;
 
     protected static string $view = 'filament.pages.income-statement-report';
 
