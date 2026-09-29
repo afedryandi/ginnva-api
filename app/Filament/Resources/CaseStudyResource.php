@@ -21,7 +21,10 @@ class CaseStudyResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
-    protected static ?int $navigationSort = 25;
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Konten Beranda".
+    protected static ?string $navigationGroup = 'Konten Beranda';
+
+    protected static ?int $navigationSort = 3;
 
     protected static ?string $navigationLabel = 'Galeri Pemasangan';
 

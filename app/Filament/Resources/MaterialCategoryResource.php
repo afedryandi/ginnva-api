@@ -25,13 +25,16 @@ class MaterialCategoryResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 100-199 "Materi".
+    protected static ?string $navigationGroup = 'Materi';
+
     protected static ?string $navigationLabel = 'Kategori Materi';
 
     protected static ?string $modelLabel = 'Kategori Materi';
 
     protected static ?string $pluralModelLabel = 'Kategori Materi';
 
-    protected static ?int $navigationSort = 35;
+    protected static ?int $navigationSort = 100;
 
     public static function canViewAny(): bool
     {

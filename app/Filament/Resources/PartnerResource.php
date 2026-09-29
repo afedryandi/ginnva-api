@@ -23,7 +23,12 @@ class PartnerResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
-    protected static ?int $navigationSort = 70;
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Inquiry & Kemitraan"
+    // (PartnerPointTransactionResource/PointTransactionResource TIDAK ikut sini -- sudah
+    // dipindah ke PromosiCluster 2026-09-15, cluster berbeda).
+    protected static ?string $navigationGroup = 'Inquiry & Kemitraan';
+
+    protected static ?int $navigationSort = 302;
 
     protected static ?string $navigationLabel = 'Partner';
 

@@ -18,13 +18,17 @@ class CarouselResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Konten Beranda", pola band
+    // 100-lebar per grup sama seperti cluster Keuangan/Karyawan.
+    protected static ?string $navigationGroup = 'Konten Beranda';
+
     protected static ?string $navigationLabel = 'Banner / Carousel';
 
     protected static ?string $modelLabel = 'Banner';
 
     protected static ?string $pluralModelLabel = 'Banner / Carousel';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 0;
 
     public static function canViewAny(): bool
     {

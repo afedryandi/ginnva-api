@@ -18,13 +18,16 @@ class FeaturedProductResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Konten Beranda".
+    protected static ?string $navigationGroup = 'Konten Beranda';
+
     protected static ?string $navigationLabel = 'Seri Produk (Beranda)';
 
     protected static ?string $modelLabel = 'Seri Produk';
 
     protected static ?string $pluralModelLabel = 'Seri Produk (Beranda)';
 
-    protected static ?int $navigationSort = 15;
+    protected static ?int $navigationSort = 1;
 
     public static function canViewAny(): bool
     {

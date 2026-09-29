@@ -21,16 +21,17 @@ class MaterialResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 100-199 "Materi". Direnumber ke band
+    // baru, catatan tabrakan sort lama (45/46) sudah tidak relevan.
+    protected static ?string $navigationGroup = 'Materi';
+
     protected static ?string $navigationLabel = 'Materi Download';
 
     protected static ?string $modelLabel = 'Materi';
 
     protected static ?string $pluralModelLabel = 'Materi Download';
 
-    // 46, bukan 45 -- 45 dipakai JobOpeningResource, sort kembar bikin
-    // urutan sidebar tie-break ke discovery class yang tidak konsisten
-    // (ditemukan saat audit navigasi 2026-09-15).
-    protected static ?int $navigationSort = 46;
+    protected static ?int $navigationSort = 101;
 
     public static function canViewAny(): bool
     {

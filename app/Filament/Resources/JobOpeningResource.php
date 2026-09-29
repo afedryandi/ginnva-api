@@ -18,13 +18,16 @@ class JobOpeningResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 200-299 "Rekrutmen".
+    protected static ?string $navigationGroup = 'Rekrutmen';
+
     protected static ?string $navigationLabel = 'Lowongan Kerja';
 
     protected static ?string $modelLabel = 'Lowongan Kerja';
 
     protected static ?string $pluralModelLabel = 'Lowongan Kerja';
 
-    protected static ?int $navigationSort = 45;
+    protected static ?int $navigationSort = 200;
 
     // TIDAK ada canViewAny() di sini SENGAJA — akses sudah di-gate lewat
     // JobOpeningPolicy (canAccessStaffArea() + hasMenuAccess()).

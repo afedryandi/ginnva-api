@@ -18,7 +18,10 @@ class ProductInquiryResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
-    protected static ?int $navigationSort = 50;
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Inquiry & Kemitraan".
+    protected static ?string $navigationGroup = 'Inquiry & Kemitraan';
+
+    protected static ?int $navigationSort = 300;
 
     protected static ?string $navigationLabel = 'Inquiry Produk';
 
