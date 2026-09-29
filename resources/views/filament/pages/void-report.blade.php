@@ -6,7 +6,7 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
-        $filterTargets = 'data.from, data.to';
+        $filterTargets = 'data.from, data.to, data.store_id, data.preset';
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
@@ -46,7 +46,9 @@
                 <tbody>
                     @forelse ($result['events'] as $event)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3 font-medium">{{ $event->subject->booking_number }}</td>
+                            <td class="py-2 pr-3 font-medium">
+                                <a href="{{ $this->bookingUrl($event->subject->id) }}" class="hover:underline" title="Lihat booking ini">{{ $event->subject->booking_number }}</a>
+                            </td>
                             <td class="py-2 pr-3 tabular-nums">{{ optional($event->subject->created_at)->format('d M Y H:i') }}</td>
                             <td class="py-2 pr-3 tabular-nums">{{ $event->created_at->format('d M Y H:i') }}</td>
                             <td class="py-2 pr-3">{{ $event->subject->customer_name ?? '—' }}</td>
