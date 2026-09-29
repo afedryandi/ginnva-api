@@ -149,7 +149,7 @@ class PayableAgingReport extends Page implements HasForms
             ->whereIn('payables.status', ['unpaid', 'partial'])
             ->leftJoin('suppliers', 'suppliers.id', '=', 'payables.supplier_id')
             ->selectRaw("
-                payables.supplier_id as supplier_id,
+                MIN(payables.supplier_id) as supplier_id,
                 COALESCE(MIN(suppliers.name), MIN(payables.supplier_name), '—') as supplier,
                 SUM(CASE WHEN payables.due_date IS NULL OR payables.due_date >= CURDATE() THEN payables.amount - payables.amount_paid ELSE 0 END) as current_amt,
                 SUM(CASE WHEN payables.due_date < CURDATE() AND DATEDIFF(CURDATE(), payables.due_date) <= 30 THEN payables.amount - payables.amount_paid ELSE 0 END) as b1,

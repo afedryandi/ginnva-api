@@ -149,7 +149,7 @@ class ReceivableAgingReport extends Page implements HasForms
             ->whereIn('receivables.status', ['unpaid', 'partial'])
             ->leftJoin('customers', 'customers.id', '=', 'receivables.customer_id')
             ->selectRaw("
-                receivables.customer_id as customer_id,
+                MIN(receivables.customer_id) as customer_id,
                 COALESCE(MIN(customers.name), MIN(receivables.customer_name), '—') as customer,
                 SUM(CASE WHEN receivables.due_date IS NULL OR receivables.due_date >= CURDATE() THEN receivables.amount - receivables.amount_paid ELSE 0 END) as current_amt,
                 SUM(CASE WHEN receivables.due_date < CURDATE() AND DATEDIFF(CURDATE(), receivables.due_date) <= 30 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b1,
