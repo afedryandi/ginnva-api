@@ -6,7 +6,7 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
-        $filterTargets = 'data.from, data.to, data.store_id';
+        $filterTargets = 'data.from, data.to, data.store_id, data.preset';
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
@@ -89,7 +89,13 @@
                 <tbody>
                     @forelse ($result['byStore'] as $storeName => $row)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3 font-medium">{{ $storeName }}</td>
+                            <td class="py-2 pr-3 font-medium">
+                                @if ($storeName !== 'Tanpa Toko')
+                                    <a href="{{ $this->salesUrl($storeName) }}" class="hover:underline" title="Lihat Detail Penjualan toko ini">{{ $storeName }}</a>
+                                @else
+                                    {{ $storeName }}
+                                @endif
+                            </td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['count'] }}</td>
                             <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($row['revenue']) }}</td>
                         </tr>

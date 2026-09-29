@@ -13,6 +13,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -83,6 +84,12 @@ class LayananReport extends Page implements HasForms
         $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
         $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
 
+        // "Sampai" < "Dari" via URL diutak-atik manual (audit Laporan Jasa/Jenis Order 2026-09-29):
+        // dikoreksi diam-diam di sini, sama pola dengan laporan Penjualan lain.
+        if (Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+        }
+
         if (! (auth()->user()?->isFullAccess() ?? false)) {
             $this->storeIdFilter = null;
         }
@@ -115,11 +122,56 @@ class LayananReport extends Page implements HasForms
             'store_id' => $this->storeIdFilter = $value ? (int) $value : null,
             default => null,
         };
+
+        // "Sampai" sebelum "Dari" (audit Laporan Jasa/Jenis Order 2026-09-29): sebelumnya diam-diam
+        // menghasilkan tabel kosong tanpa penjelasan -- dikoreksi + diberi tahu, sama pola dengan
+        // laporan Penjualan lain. TIDAK pakai minDate() reaktif di form (pernah membuat panel filter
+        // gagal render di Detail Penjualan) -- validasi murni lewat hook Livewire ini.
+        if (in_array($key, ['from', 'to'], true) && $this->from && $this->to && Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+            $this->data['to'] = $this->from;
+
+            Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
     }
 
     public function form(Form $form): Form
     {
         return $form->schema([
+            // Periode Cepat (audit 2026-09-29, sejajar laporan Penjualan lain).
+            Select::make('preset')
+                ->label('Periode Cepat')
+                ->options([
+                    'this_month' => 'Bulan ini',
+                    'last_month' => 'Bulan lalu',
+                    'this_quarter' => 'Kuartal ini',
+                    'ytd' => 'Tahun ini (s.d. hari ini)',
+                    'last_year' => 'Tahun lalu',
+                ])
+                ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                ->live()
+                ->afterStateUpdated(function (?string $state, \Filament\Forms\Set $set) {
+                    $range = match ($state) {
+                        'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                        'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                        'this_quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+                        'ytd' => [now()->startOfYear(), now()],
+                        'last_year' => [now()->subYear()->startOfYear(), now()->subYear()->endOfYear()],
+                        default => null,
+                    };
+
+                    if ($range) {
+                        $set('from', $range[0]->toDateString());
+                        $set('to', $range[1]->toDateString());
+                        $this->from = $range[0]->toDateString();
+                        $this->to = $range[1]->toDateString();
+                    }
+                }),
+
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             Select::make('store_id')
@@ -129,7 +181,33 @@ class LayananReport extends Page implements HasForms
                 ->placeholder('Semua Toko')
                 ->live()
                 ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
-        ])->columns(3)->statePath('data');
+        ])->columns(4)->statePath('data');
+    }
+
+    /** Link drill-down ke Detail Penjualan untuk toko tertentu (audit 2026-09-29). */
+    public function salesUrl(string $storeName): string
+    {
+        $store = Store::query()->where('name', $storeName)->first(['id']);
+
+        return \App\Filament\Resources\SalesResource::getUrl('index', [
+            'tableFilters' => [
+                'entry_date' => ['from' => $this->data['from'] ?? null, 'until' => $this->data['to'] ?? null],
+                'store_id' => $store ? ['value' => $store->id] : null,
+            ],
+        ]);
+    }
+
+    /** Log ekspor (audit Laporan Jasa/Jenis Order 2026-09-29), konsisten dengan laporan lain. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => Str::slug(static::$navigationLabel ?? 'laporan-jasa'), 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->log('Ekspor ' . (static::$navigationLabel ?? 'Laporan Jasa') . ' (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**
@@ -147,16 +225,22 @@ class LayananReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new LayananReportExport($this->getResult(), static::$navigationLabel ?? 'Laporan Jasa'),
-                    $slug . '-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () use ($slug) {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new LayananReportExport($this->getResult(), static::$navigationLabel ?? 'Laporan Jasa'),
+                        $slug . '-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () use ($slug) {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.layanan_report', [
                         'result' => $result,
