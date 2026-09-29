@@ -243,13 +243,8 @@ class SalesResource extends Resource
                 Tables\Filters\Filter::make('entry_date')
                     ->label('Rentang Tanggal Tercatat')
                     ->form([
-                        Forms\Components\DatePicker::make('from')->label('Dari')->live(),
-                        Forms\Components\DatePicker::make('until')->label('Sampai')
-                            // "Sampai" sebelum "Dari" (audit Detail Penjualan 2026-09-29): sebelumnya
-                            // diam-diam menghasilkan 0 baris tanpa penjelasan (beda dari laporan
-                            // Keuangan/Ringkasan Penjualan yang mengoreksi + memberi tahu). minDate
-                            // mencegahnya langsung di form, tanpa perlu hook Livewire.
-                            ->minDate(fn (\Filament\Forms\Get $get) => $get('from')),
+                        Forms\Components\DatePicker::make('from')->label('Dari'),
+                        Forms\Components\DatePicker::make('until')->label('Sampai'),
                     ])
                     ->query(function (Builder $query, array $data) {
                         // Defense-in-depth: minDate() di form mencegah lewat UI, tapi filter juga bisa
