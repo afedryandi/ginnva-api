@@ -55,7 +55,13 @@
                         @php $isExpired = $batch->expiry_date->lt($today); @endphp
                         <tr class="border-b border-gray-100 dark:border-white/5">
                             <td class="whitespace-nowrap py-2 px-3 font-mono">{{ $batch->rawMaterial?->code ?? '—' }}</td>
-                            <td class="whitespace-nowrap py-2 px-3 font-medium">{{ $batch->rawMaterial?->name ?? '—' }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 font-medium">
+                                @if ($batch->rawMaterial)
+                                    <a href="{{ $this->materialUrl($batch->rawMaterial->id) }}" class="hover:underline" title="Lihat/edit bahan baku ini">{{ $batch->rawMaterial->name }}</a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $batch->received_date?->format('d M Y') ?? '—' }}</td>
                             <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $batch->expiry_date->format('d M Y') }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ number_format((float) $batch->quantity, 2) }} {{ $batch->rawMaterial?->unit }}</td>

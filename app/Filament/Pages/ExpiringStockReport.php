@@ -10,6 +10,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Url;
@@ -71,6 +72,12 @@ class ExpiringStockReport extends Page implements HasForms
         $this->from = $this->queryDateOrDefault($this->from, now());
         $this->to = $this->queryDateOrDefault($this->to, now()->addDays(30));
 
+        // "Sampai" < "Dari" via URL diutak-atik manual (audit Stok Kedaluwarsa 2026-09-29):
+        // dikoreksi diam-diam di sini, sama pola dengan laporan Penjualan lain.
+        if (Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+        }
+
         $this->form->fill([
             'from' => $this->from,
             'to' => $this->to,
@@ -97,6 +104,21 @@ class ExpiringStockReport extends Page implements HasForms
             'to' => $this->to = $value,
             default => null,
         };
+
+        // "Sampai" sebelum "Dari" (audit Stok Kedaluwarsa 2026-09-29): sebelumnya diam-diam
+        // menghasilkan tabel kosong tanpa penjelasan -- dikoreksi + diberi tahu, sama pola dengan
+        // laporan Penjualan lain. TIDAK pakai minDate() reaktif di form (pernah membuat panel
+        // filter gagal render di Detail Penjualan) -- validasi murni lewat hook Livewire ini.
+        if (in_array($key, ['from', 'to'], true) && $this->from && $this->to && Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+            $this->data['to'] = $this->from;
+
+            Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
     }
 
     public function form(Form $form): Form
@@ -106,6 +128,25 @@ class ExpiringStockReport extends Page implements HasForms
                 ->helperText('Filter berdasarkan tanggal kedaluwarsa batch, bukan tanggal hari ini.'),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
         ])->columns(2)->statePath('data');
+    }
+
+    /** Link drill-down ke halaman edit Bahan Baku terkait. */
+    public function materialUrl(int $id): string
+    {
+        return \App\Filament\Resources\RawMaterialResource::getUrl('edit', ['record' => $id]);
+    }
+
+    /** Log ekspor (audit Stok Kedaluwarsa 2026-09-29), konsisten dengan laporan lain. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'expiring_stock', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null])
+                ->log('Ekspor Laporan Stok Kedaluwarsa (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**
@@ -119,16 +160,22 @@ class ExpiringStockReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new ExpiringStockReportExport($this->getResult()),
-                    'stok-kedaluwarsa-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new ExpiringStockReportExport($this->getResult()),
+                        'stok-kedaluwarsa-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.expiring_stock_report', ['result' => $result])->setPaper('a4', 'landscape');
                     $filename = 'stok-kedaluwarsa-' . now()->format('Ymd-His') . '.pdf';
