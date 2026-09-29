@@ -10,7 +10,7 @@
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Refund</div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-danger-600 dark:text-danger-400">{{ $rupiah($result['totalAmount']) }}</div>
