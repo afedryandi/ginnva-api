@@ -105,9 +105,12 @@ class FeaturedProductResource extends Resource
                     Forms\Components\TextInput::make('link_url')
                         ->label('Link (opsional)')
                         ->url()
+                        // Whitelist skema http/https (audit Seri Produk 2026-09-29), sama pola
+                        // dengan CarouselResource.
+                        ->rule('regex:/^https?:\/\//i')
                         ->placeholder('https://...')
                         ->maxLength(255)
-                        ->helperText('URL yang dituju saat tombol "Lihat Selengkapnya" di kartu ini ditekan. Kosongkan jika tidak ada.'),
+                        ->helperText('URL yang dituju saat tombol "Lihat Selengkapnya" di kartu ini ditekan (harus diawali http:// atau https://). Kosongkan jika tidak ada.'),
 
                     Forms\Components\Toggle::make('is_active')
                         ->label('Tampilkan')
