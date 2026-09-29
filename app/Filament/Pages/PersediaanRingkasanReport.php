@@ -62,16 +62,22 @@ class PersediaanRingkasanReport extends Page
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new PersediaanRingkasanReportExport($this->getResult()),
-                    'ringkasan-persediaan-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new PersediaanRingkasanReportExport($this->getResult()),
+                        'ringkasan-persediaan-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.persediaan_ringkasan_report', ['result' => $result])->setPaper('a4', 'landscape');
                     $filename = 'ringkasan-persediaan-' . now()->format('Ymd-His') . '.pdf';
@@ -81,10 +87,33 @@ class PersediaanRingkasanReport extends Page
         ];
     }
 
+    /** Log ekspor (audit Ringkasan Persediaan 2026-09-29), konsisten dengan laporan lain. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'persediaan_ringkasan', 'format' => $format])
+                ->log('Ekspor Ringkasan Persediaan (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /** Link drill-down ke halaman edit item (Bahan Baku atau Barang Habis Pakai). */
+    public function itemUrl(int $id, string $source): string
+    {
+        return $source === 'raw_material'
+            ? \App\Filament\Resources\RawMaterialResource::getUrl('edit', ['record' => $id])
+            : \App\Filament\Resources\ConsumableItemResource::getUrl('edit', ['record' => $id]);
+    }
+
     public function getResult(): array
     {
         $materials = RawMaterial::query()->orderBy('name')->get()
             ->map(fn (RawMaterial $m) => [
+                'id' => $m->id,
+                'source' => 'raw_material',
                 'name' => $m->name,
                 'sku' => $m->code ?? '—',
                 'type' => 'Bahan Baku',
@@ -97,6 +126,8 @@ class PersediaanRingkasanReport extends Page
 
         $consumables = ConsumableItem::query()->orderBy('name')->get()
             ->map(fn (ConsumableItem $c) => [
+                'id' => $c->id,
+                'source' => 'consumable',
                 'name' => $c->name,
                 'sku' => $c->code ?? '—',
                 'type' => 'Barang Habis Pakai',

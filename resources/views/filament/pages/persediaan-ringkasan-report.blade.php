@@ -31,7 +31,9 @@
                 <tbody>
                     @forelse ($result['rows'] as $row)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3 font-medium">{{ $row['name'] }}</td>
+                            <td class="py-2 pr-3 font-medium">
+                                <a href="{{ $this->itemUrl($row['id'], $row['source']) }}" class="hover:underline" title="Lihat/edit item ini">{{ $row['name'] }}</a>
+                            </td>
                             <td class="py-2 pr-3 font-mono">{{ $row['sku'] }}</td>
                             <td class="py-2 pr-3">{{ $row['type'] }}</td>
                             <td class="py-2 pr-3">{{ $row['category'] }}</td>
