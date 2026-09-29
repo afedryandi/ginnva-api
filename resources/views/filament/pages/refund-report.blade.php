@@ -6,11 +6,11 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
-        $filterTargets = 'data.from, data.to';
+        $filterTargets = 'data.from, data.to, data.store_id, data.preset';
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Refund</div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-danger-600 dark:text-danger-400">{{ $rupiah($result['totalAmount']) }}</div>
@@ -20,14 +20,25 @@
             <div class="text-xs text-gray-500 dark:text-gray-400">Jumlah Refund</div>
             <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['totalCount'], 0, ',', '.') }}</div>
         </x-filament::section>
+
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Refund Tunai (Kas Keluar)</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums">{{ $rupiah($result['totalCash']) }}</div>
+        </x-filament::section>
+
+        <x-filament::section>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Pengurang Piutang</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums">{{ $rupiah($result['totalReceivableReduced']) }}</div>
+        </x-filament::section>
     </div>
 
     <x-filament::section>
         <x-slot name="heading">Daftar Refund</x-slot>
         <x-slot name="description">
             Tiap refund otomatis punya jurnal kontra di Jurnal Umum — klik No. Jurnal untuk lihat detailnya.
-            "Metode Pembayaran" masih selalu "Tunai" — RefundService saat ini SELALU mengasumsikan refund dibayar tunai
-            (kredit akun Kas), belum menangani refund non-tunai/transfer bank.
+            "Metode Pembayaran" (audit 2026-09-29): refund bisa mengurangi Piutang Usaha dulu sebelum kas keluar
+            (lihat RefundService) — kolom ini sekarang menampilkan "Tunai", "Kurangi Piutang", atau kombinasi
+            keduanya sesuai porsi masing-masing, bukan selalu "Tunai".
         </x-slot>
 
         <div class="overflow-x-auto">
@@ -51,10 +62,16 @@
                         <tr class="border-b border-gray-100 dark:border-white/5">
                             <td class="py-2 pr-3 font-medium">{{ $refund->refund_number }}</td>
                             <td class="py-2 pr-3 tabular-nums">{{ $refund->created_at->format('d M Y H:i') }}</td>
-                            <td class="py-2 pr-3">{{ $refund->booking?->booking_number ?? '—' }}</td>
+                            <td class="py-2 pr-3">
+                                @if ($refund->booking)
+                                    <a href="{{ $this->bookingUrl($refund->booking->id) }}" class="hover:underline" title="Lihat booking ini">{{ $refund->booking->booking_number }}</a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="py-2 pr-3">{{ $refund->booking?->customer_name ?? '—' }}</td>
                             <td class="py-2 pr-3">{{ $refund->booking?->store?->name ?? '—' }}</td>
-                            <td class="py-2 pr-3">Tunai</td>
+                            <td class="py-2 pr-3">{{ $refund->payment_method_label }}</td>
                             <td class="py-2 pr-3">{{ $refund->creator?->name ?? '—' }}</td>
                             <td class="py-2 pr-3">
                                 @if ($refund->journalEntry)
