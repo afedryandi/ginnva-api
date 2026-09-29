@@ -12,7 +12,7 @@
             'adjustment' => 'Penyesuaian',
             default => $type,
         };
-        $filterTargets = 'data.from, data.to';
+        $filterTargets = 'data.from, data.to, data.preset';
     @endphp
 
     <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
@@ -65,7 +65,13 @@
                     @forelse ($result['materialMovements'] as $movement)
                         <tr class="border-b border-gray-100 dark:border-white/5">
                             <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $movement->created_at->format('d M Y H:i') }}</td>
-                            <td class="whitespace-nowrap py-2 px-3 font-medium">{{ $movement->rawMaterial?->name ?? '—' }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 font-medium">
+                                @if ($movement->rawMaterial)
+                                    <a href="{{ $this->materialUrl($movement->rawMaterial->id) }}" class="hover:underline" title="Lihat/edit bahan baku ini">{{ $movement->rawMaterial->name }}</a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="whitespace-nowrap py-2 px-3">
                                 <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ $movement->type === 'in' ? 'bg-success-100 text-success-700 dark:bg-success-500/10 dark:text-success-400' : 'bg-danger-100 text-danger-700 dark:bg-danger-500/10 dark:text-danger-400' }}">
                                     {{ $typeLabel($movement->type) }}
@@ -104,7 +110,13 @@
                     @forelse ($result['consumableMovements'] as $movement)
                         <tr class="border-b border-gray-100 dark:border-white/5">
                             <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $movement->created_at->format('d M Y H:i') }}</td>
-                            <td class="whitespace-nowrap py-2 px-3 font-medium">{{ $movement->consumableItem?->name ?? '—' }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 font-medium">
+                                @if ($movement->consumableItem)
+                                    <a href="{{ $this->consumableUrl($movement->consumableItem->id) }}" class="hover:underline" title="Lihat/edit barang ini">{{ $movement->consumableItem->name }}</a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="whitespace-nowrap py-2 px-3">
                                 <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ $movement->type === 'in' ? 'bg-success-100 text-success-700 dark:bg-success-500/10 dark:text-success-400' : ($movement->type === 'out' ? 'bg-danger-100 text-danger-700 dark:bg-danger-500/10 dark:text-danger-400' : 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-400') }}">
                                     {{ $typeLabel($movement->type) }}
