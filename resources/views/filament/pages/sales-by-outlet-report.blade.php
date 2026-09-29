@@ -7,7 +7,7 @@
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
         $persen = fn ($n) => number_format($n, 1, ',', '.') . '%';
-        $filterTargets = 'data.from, data.to';
+        $filterTargets = 'data.from, data.to, data.preset';
     @endphp
 
     @if ($result['pendingCount'] > 0)
@@ -82,7 +82,13 @@
                 <tbody>
                     @forelse ($result['rows'] as $row)
                         <tr class="border-b border-gray-100 dark:border-white/5 {{ $row['count'] === 0 ? 'text-gray-400 dark:text-gray-500' : '' }}">
-                            <td class="py-2 pr-3 font-medium">{{ $row['store']->name }}</td>
+                            <td class="py-2 pr-3 font-medium">
+                                @if ($row['count'] > 0)
+                                    <a href="{{ $this->salesUrl($row['store']->id) }}" class="hover:underline" title="Lihat Detail Penjualan outlet ini">{{ $row['store']->name }}</a>
+                                @else
+                                    {{ $row['store']->name }}
+                                @endif
+                            </td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['count'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['revenue']) }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $persen($row['revenuePct']) }}</td>
