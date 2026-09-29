@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Exports\SalesExport;
 use App\Filament\Resources\SalesResource\Pages;
 use App\Models\Booking;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -212,16 +213,59 @@ class SalesResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                // Periode Cepat (audit Detail Penjualan 2026-09-29, sejajar laporan Keuangan/Ringkasan
+                // Penjualan) -- terpisah dari filter "Rentang Tanggal Tercatat" manual di bawah; kalau
+                // keduanya diisi bersamaan, hasilnya irisan keduanya (dianggap kasus tepi yang jarang).
+                Tables\Filters\SelectFilter::make('period_preset')
+                    ->label('Periode Cepat')
+                    ->options([
+                        'today' => 'Hari ini',
+                        'this_month' => 'Bulan ini',
+                        'last_month' => 'Bulan lalu',
+                        'this_quarter' => 'Kuartal ini',
+                        'ytd' => 'Tahun ini (s.d. hari ini)',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        $range = match ($data['value'] ?? null) {
+                            'today' => [now()->startOfDay(), now()->endOfDay()],
+                            'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                            'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                            'this_quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+                            'ytd' => [now()->startOfYear(), now()],
+                            default => null,
+                        };
+
+                        return $range
+                            ? $query->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$range[0]->toDateString(), $range[1]->toDateString()]))
+                            : $query;
+                    }),
+
                 Tables\Filters\Filter::make('entry_date')
                     ->label('Rentang Tanggal Tercatat')
                     ->form([
-                        Forms\Components\DatePicker::make('from')->label('Dari'),
-                        Forms\Components\DatePicker::make('until')->label('Sampai'),
+                        Forms\Components\DatePicker::make('from')->label('Dari')->live(),
+                        Forms\Components\DatePicker::make('until')->label('Sampai')
+                            // "Sampai" sebelum "Dari" (audit Detail Penjualan 2026-09-29): sebelumnya
+                            // diam-diam menghasilkan 0 baris tanpa penjelasan (beda dari laporan
+                            // Keuangan/Ringkasan Penjualan yang mengoreksi + memberi tahu). minDate
+                            // mencegahnya langsung di form, tanpa perlu hook Livewire.
+                            ->minDate(fn (\Filament\Forms\Get $get) => $get('from')),
                     ])
-                    ->query(fn (Builder $query, array $data) => $query
-                        ->when($data['from'] ?? null, fn ($q, $date) => $q->whereHas('journalEntry', fn ($q2) => $q2->whereDate('entry_date', '>=', $date)))
-                        ->when($data['until'] ?? null, fn ($q, $date) => $q->whereHas('journalEntry', fn ($q2) => $q2->whereDate('entry_date', '<=', $date)))
-                    ),
+                    ->query(function (Builder $query, array $data) {
+                        // Defense-in-depth: minDate() di form mencegah lewat UI, tapi filter juga bisa
+                        // diisi lewat query string tableFilters[...] -- tukar posisi kalau tetap terbalik,
+                        // supaya tidak diam-diam menghasilkan 0 baris (audit Detail Penjualan 2026-09-29).
+                        $from = $data['from'] ?? null;
+                        $until = $data['until'] ?? null;
+
+                        if ($from && $until && $until < $from) {
+                            [$from, $until] = [$until, $from];
+                        }
+
+                        return $query
+                            ->when($from, fn ($q, $date) => $q->whereHas('journalEntry', fn ($q2) => $q2->whereDate('entry_date', '>=', $date)))
+                            ->when($until, fn ($q, $date) => $q->whereHas('journalEntry', fn ($q2) => $q2->whereDate('entry_date', '<=', $date)));
+                    }),
 
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
@@ -235,13 +279,17 @@ class SalesResource extends Resource
                         'belum_lunas' => 'Belum Lunas',
                         'void' => 'Void',
                     ])
+                    // Ambang toleransi 0.009 DISAMAKAN dengan badge/kolom Sisa Tagihan/widget
+                    // statistik/Excel (audit Detail Penjualan 2026-09-29) -- sebelumnya filter ini
+                    // whereColumn TANPA toleransi, jadi baris berselisih sangat kecil (pembulatan
+                    // float) bisa tampil "Lunas" di badge tapi ikut muncul saat difilter "Belum
+                    // Lunas", atau sebaliknya hilang saat difilter "Lunas".
                     ->query(fn (Builder $query, array $data) => match ($data['value'] ?? null) {
                         'void' => $query->where('status', 'cancelled'),
                         'belum_lunas' => $query->where('status', '!=', 'cancelled')
-                            ->whereNotNull('amount_received')
-                            ->whereColumn('amount_received', '<', 'transaction_amount'),
+                            ->whereRaw('(transaction_amount - COALESCE(amount_received, transaction_amount)) > 0.009'),
                         'lunas' => $query->where('status', '!=', 'cancelled')
-                            ->where(fn ($q) => $q->whereNull('amount_received')->orWhereColumn('amount_received', '>=', 'transaction_amount')),
+                            ->whereRaw('(transaction_amount - COALESCE(amount_received, transaction_amount)) <= 0.009'),
                         default => $query,
                     }),
             ])
@@ -274,6 +322,34 @@ class SalesResource extends Resource
                             new SalesExport($livewire->getFilteredTableQuery()),
                             'penjualan-' . now()->format('Ymd-His') . '.xlsx'
                         );
+                    }),
+
+                // Ekspor PDF (audit Detail Penjualan 2026-09-29, sejajar laporan Keuangan/Ringkasan
+                // Penjualan yang sudah punya Excel & PDF) -- query & ambang toleransi SAMA dengan Excel
+                // dan tampilan layar, plus ringkasan (SalesDetailStatsWidget::aggregate()) di footer.
+                Tables\Actions\Action::make('exportPdf')
+                    ->label('Export ke PDF')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('gray')
+                    ->action(function ($livewire) {
+                        try {
+                            activity('report_export')
+                                ->causedBy(auth()->user())
+                                ->withProperties(['report' => 'sales_detail', 'format' => 'pdf'])
+                                ->log('Ekspor Detail Penjualan (pdf)');
+                        } catch (\Throwable $e) {
+                            report($e);
+                        }
+
+                        // aggregate() mengubah builder (select/reorder), jadi dipanggil pada clone TERPISAH
+                        // dari yang dipakai get() -- keduanya berangkat dari query yang belum disentuh.
+                        $query = $livewire->getFilteredTableQuery();
+                        $bookings = (clone $query)->with(['store', 'journalEntry'])->reorder()->orderBy('bookings.id')->get();
+                        $stats = \App\Filament\Widgets\SalesDetailStatsWidget::aggregate(clone $query);
+
+                        $pdf = Pdf::loadView('pdf.sales_detail', ['bookings' => $bookings, 'stats' => $stats])->setPaper('a4', 'landscape');
+
+                        return response()->streamDownload(fn () => print($pdf->output()), 'penjualan-' . now()->format('Ymd-His') . '.pdf');
                     }),
             ])
             ->actions([
