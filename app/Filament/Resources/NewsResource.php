@@ -79,7 +79,12 @@ class NewsResource extends Resource
                         ->helperText('Maks. 2 MB. Format: JPG, PNG, WebP.')
                         ->columnSpanFull(),
 
-                    Forms\Components\Hidden::make('author_id')
+                    // Bug diperbaiki 2026-09-29 (audit Berita) -- SEBELUMNYA field ini bernama
+                    // 'author_id', tapi kolom sungguhan di tabel news adalah 'created_by' (lihat
+                    // migrasi create_news_table & News::author()) -- Filament diam-diam membuang
+                    // field yang tidak ada di $fillable, jadi created_by SELALU null, kolom
+                    // "Penulis" di tabel admin tidak pernah terisi.
+                    Forms\Components\Hidden::make('created_by')
                         ->default(fn () => auth()->id()),
 
                     Forms\Components\Toggle::make('is_published')

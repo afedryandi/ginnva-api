@@ -5,10 +5,25 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class News extends Model
 {
     use HasFactory;
+
+    // Audit trail (audit Berita 2026-09-29) -- SEBELUMNYA perubahan berita (judul, konten, status
+    // publish, jadwal tayang) tidak tercatat sama sekali.
+    use LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['title', 'slug', 'excerpt', 'source_url', 'is_published', 'published_at'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('news');
+    }
 
     protected $fillable = [
         'title',
