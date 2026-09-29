@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Exports\SalesByPeriodExport;
 use App\Models\Booking;
 use App\Models\Refund;
+use App\Models\Store;
 use App\Models\Technician;
 use App\Services\SalesSnapshotService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -14,6 +15,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Url;
@@ -78,6 +80,9 @@ class SalesByPeriodReport extends Page implements HasForms
     #[Url(as: 'granularitas')]
     public ?string $granularity = null;
 
+    #[Url(as: 'cabang')]
+    public ?int $storeId = null;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -91,14 +96,28 @@ class SalesByPeriodReport extends Page implements HasForms
         $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth()->subMonthsNoOverflow(2));
         $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
 
+        // "Sampai" < "Dari" via URL diutak-atik manual (audit Penjualan Per Periode 2026-09-29):
+        // dikoreksi diam-diam di sini (kunjungan awal, belum ada UI untuk menampilkan notifikasi).
+        if (Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+        }
+
         if (! in_array($this->granularity, ['harian', 'mingguan', 'bulanan'], true)) {
             $this->granularity = 'harian';
+        }
+
+        // Filter cabang (audit 2026-09-29, sejajar SalesSummaryReport) -- staff toko TIDAK PERNAH
+        // boleh pilih cabang lain, URL yang tidak sah diabaikan (defense in depth, sama pola dengan
+        // SalesSummaryReport::mount()).
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            $this->storeId = null;
         }
 
         $this->form->fill([
             'from' => $this->from,
             'to' => $this->to,
             'granularity' => $this->granularity,
+            'store_id' => $this->storeId,
         ]);
     }
 
@@ -126,13 +145,64 @@ class SalesByPeriodReport extends Page implements HasForms
             'from' => $this->from = $value,
             'to' => $this->to = $value,
             'granularity' => $this->granularity = $value,
+            'store_id' => $this->storeId = $value ? (int) $value : null,
             default => null,
         };
+
+        // "Sampai" sebelum "Dari" (audit Penjualan Per Periode 2026-09-29): sebelumnya diam-diam
+        // menghasilkan tabel Rp 0 tanpa penjelasan -- dikoreksi + diberi tahu, sama pola dengan
+        // laporan Penjualan lain. TIDAK pakai minDate() reaktif di form (pernah membuat panel filter
+        // gagal render di Detail Penjualan) -- validasi murni lewat hook Livewire ini.
+        if (in_array($key, ['from', 'to'], true) && $this->from && $this->to && Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+            $this->data['to'] = $this->from;
+
+            Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
     }
 
     public function form(Form $form): Form
     {
+        $isFullAccess = auth()->user()?->isFullAccess() ?? false;
+
         return $form->schema([
+            // Periode Cepat (audit 2026-09-29, sejajar laporan Penjualan lain) -- mengisi
+            // Dari/Sampai otomatis; granularitas & cabang tetap dipilih terpisah.
+            Select::make('preset')
+                ->label('Periode Cepat')
+                ->options([
+                    'last_3_months' => '3 bulan terakhir',
+                    'this_month' => 'Bulan ini',
+                    'last_month' => 'Bulan lalu',
+                    'this_quarter' => 'Kuartal ini',
+                    'ytd' => 'Tahun ini (s.d. hari ini)',
+                    'last_year' => 'Tahun lalu',
+                ])
+                ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                ->live()
+                ->afterStateUpdated(function (?string $state, \Filament\Forms\Set $set) {
+                    $range = match ($state) {
+                        'last_3_months' => [now()->startOfMonth()->subMonthsNoOverflow(2), now()->endOfMonth()],
+                        'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                        'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                        'this_quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+                        'ytd' => [now()->startOfYear(), now()],
+                        'last_year' => [now()->subYear()->startOfYear(), now()->subYear()->endOfYear()],
+                        default => null,
+                    };
+
+                    if ($range) {
+                        $set('from', $range[0]->toDateString());
+                        $set('to', $range[1]->toDateString());
+                        $this->from = $range[0]->toDateString();
+                        $this->to = $range[1]->toDateString();
+                    }
+                }),
+
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             Select::make('granularity')
@@ -145,7 +215,26 @@ class SalesByPeriodReport extends Page implements HasForms
                 ->required()
                 ->default('harian')
                 ->live(),
-        ])->columns(3)->statePath('data');
+            // Filter cabang (audit 2026-09-29) -- cuma untuk full-access, sama pola dengan
+            // SalesSummaryReport. Staff toko tidak lihat field ini sama sekali.
+            Select::make('store_id')
+                ->label('Cabang')
+                ->placeholder('Semua cabang')
+                ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                ->visible($isFullAccess)
+                ->live(),
+        ])->columns($isFullAccess ? 5 : 4)->statePath('data');
+    }
+
+    /** Link drill-down ke Detail Penjualan untuk 1 baris periode. */
+    public function salesUrl(string $bucketFrom, string $bucketTo): string
+    {
+        return \App\Filament\Resources\SalesResource::getUrl('index', [
+            'tableFilters' => [
+                'entry_date' => ['from' => $bucketFrom, 'until' => $bucketTo],
+                'store_id' => ['value' => $this->data['store_id'] ?? null],
+            ],
+        ]);
     }
 
     /**
@@ -153,6 +242,19 @@ class SalesByPeriodReport extends Page implements HasForms
      * keduanya dibangun dari getResult() yang SAMA PERSIS dipakai
      * halaman web, pola sama dengan SalesSummaryReport/SalesResource.
      */
+    /** Log ekspor (audit Penjualan Per Periode 2026-09-29), konsisten dengan laporan lain. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'sales_by_period', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'granularity' => $this->data['granularity'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->log('Ekspor Penjualan Per Periode (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -160,16 +262,22 @@ class SalesByPeriodReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new SalesByPeriodExport($this->getResult()),
-                    'penjualan-per-periode-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new SalesByPeriodExport($this->getResult()),
+                        'penjualan-per-periode-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.sales_by_period', ['result' => $result])->setPaper('a4', 'landscape');
                     $filename = 'penjualan-per-periode-' . now()->format('Ymd-His') . '.pdf';
@@ -213,8 +321,13 @@ class SalesByPeriodReport extends Page implements HasForms
         // pola scoping dengan seluruh laporan Penjualan lain: null =
         // seluruh cabang (full-access saja), staff toko dikunci ke
         // store_id sendiri.
+        //
+        // GAP DIPERBAIKI 2026-09-29: full-access sebelumnya tidak punya cara mempersempit ke 1
+        // cabang di laporan ini (padahal Ringkasan Penjualan & Detail Penjualan sudah punya) --
+        // sekarang filter 'store_id' di form dipakai kalau full-access memilihnya.
         $user = auth()->user();
-        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+        $isFullAccess = $user?->isFullAccess() ?? false;
+        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
 
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
@@ -254,6 +367,10 @@ class SalesByPeriodReport extends Page implements HasForms
                 'label' => $label, 'revenue' => 0.0, 'received' => 0.0, 'outstanding' => 0.0,
                 'count' => 0, 'products' => 0, 'commission' => 0.0, 'hasUnratedJob' => false, 'refund' => 0.0,
                 'cogs' => 0.0, 'hasMissingCost' => false,
+                // Batas bucket ini (diclamp ke rentang laporan) -- dipakai drill-down ke Detail
+                // Penjualan (audit 2026-09-29).
+                'bucketFrom' => $cursor->copy()->toDateString(),
+                'bucketTo' => ($bucketEnd->gt($to) ? $to : $bucketEnd)->toDateString(),
             ];
             $cursor = $bucketEnd->copy()->addDay();
         }
@@ -357,9 +474,11 @@ class SalesByPeriodReport extends Page implements HasForms
     public static function periodKeyFor(Carbon $date, string $granularity): array
     {
         return match ($granularity) {
+            // Senin eksplisit (audit 2026-09-29) -- disamakan dengan SalesSnapshotService::range(),
+            // supaya batas minggu tidak drift kalau konfigurasi locale/Carbon default berubah.
             'mingguan' => (function () use ($date) {
-                $start = $date->copy()->startOfWeek();
-                $end = $date->copy()->endOfWeek();
+                $start = $date->copy()->startOfWeek(Carbon::MONDAY);
+                $end = $date->copy()->endOfWeek(Carbon::SUNDAY);
 
                 return [$start->toDateString(), $start->format('d M') . ' - ' . $end->format('d M Y'), $end];
             })(),

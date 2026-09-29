@@ -6,7 +6,7 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
-        $filterTargets = 'data.from, data.to, data.granularity';
+        $filterTargets = 'data.from, data.to, data.granularity, data.store_id, data.preset';
     @endphp
 
     @if ($result['pendingCount'] > 0)
@@ -126,7 +126,13 @@
                 <tbody>
                     @forelse ($result['rows'] as $row)
                         <tr class="border-b border-gray-100 dark:border-white/5 {{ $row['count'] === 0 ? 'text-gray-400 dark:text-gray-500' : '' }}">
-                            <td class="py-2 pr-3 font-medium">{{ $row['label'] }}</td>
+                            <td class="py-2 pr-3 font-medium">
+                                @if ($row['count'] > 0)
+                                    <a href="{{ $this->salesUrl($row['bucketFrom'], $row['bucketTo']) }}" class="hover:underline" title="Lihat Detail Penjualan periode ini">{{ $row['label'] }}</a>
+                                @else
+                                    {{ $row['label'] }}
+                                @endif
+                            </td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['count'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['revenue']) }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['received']) }}</td>
