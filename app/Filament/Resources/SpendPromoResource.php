@@ -25,7 +25,10 @@ class SpendPromoResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
 
-    protected static ?int $navigationSort = 5;
+    // Grup sidebar (audit navigasi 2026-09-29) -- "Promo & Voucher".
+    protected static ?string $navigationGroup = 'Promo & Voucher';
+
+    protected static ?int $navigationSort = 0;
 
     protected static ?string $navigationLabel = 'Promo Total Pembelian';
 

@@ -25,7 +25,10 @@ class RewardRedemptionResource extends Resource
     // 2026-09-10: dipindah dari Marketing/Konten ke Penjualan > Promosi.
     protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
 
-    protected static ?int $navigationSort = 90;
+    // Grup sidebar (audit navigasi 2026-09-29) -- "Loyalti & Poin".
+    protected static ?string $navigationGroup = 'Loyalti & Poin';
+
+    protected static ?int $navigationSort = 101;
 
     protected static ?string $navigationLabel = 'Klaim Reward';
 

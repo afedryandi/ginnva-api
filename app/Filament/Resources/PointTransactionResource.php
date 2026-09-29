@@ -39,7 +39,10 @@ class PointTransactionResource extends Resource
     // konten marketing/website.
     protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
 
-    protected static ?int $navigationSort = 95;
+    // Grup sidebar (audit navigasi 2026-09-29) -- "Loyalti & Poin".
+    protected static ?string $navigationGroup = 'Loyalti & Poin';
+
+    protected static ?int $navigationSort = 102;
 
     protected static ?string $navigationLabel = 'Riwayat Poin Customer';
 

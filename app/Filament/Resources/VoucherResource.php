@@ -23,7 +23,10 @@ class VoucherResource extends Resource
     // (= "Kupon" menu Promosi Majoo).
     protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
 
-    protected static ?int $navigationSort = 80;
+    // Grup sidebar (audit navigasi 2026-09-29) -- "Promo & Voucher".
+    protected static ?string $navigationGroup = 'Promo & Voucher';
+
+    protected static ?int $navigationSort = 1;
 
     protected static ?string $navigationLabel = 'Voucher Promo';
 
