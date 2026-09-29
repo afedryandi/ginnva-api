@@ -21,13 +21,16 @@ class BlockedDateResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 100-199 "Operasional".
+    protected static ?string $navigationGroup = 'Operasional';
+
     protected static ?string $navigationLabel = 'Tanggal Tidak Tersedia';
 
     protected static ?string $modelLabel = 'Tanggal Blokir';
 
     protected static ?string $pluralModelLabel = 'Tanggal Tidak Tersedia';
 
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 101;
 
     public static function canViewAny(): bool
     {

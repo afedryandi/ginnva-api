@@ -21,7 +21,10 @@ class StoreReviewResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
-    protected static ?int $navigationSort = 55;
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Setelah Layanan".
+    protected static ?string $navigationGroup = 'Setelah Layanan';
+
+    protected static ?int $navigationSort = 301;
 
     protected static ?string $navigationLabel = 'Review Toko';
 

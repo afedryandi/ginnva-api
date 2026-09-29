@@ -29,7 +29,10 @@ class SpkResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
-    protected static ?int $navigationSort = 22;
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Order & Lead".
+    protected static ?string $navigationGroup = 'Order & Lead';
+
+    protected static ?int $navigationSort = 2;
 
     protected static ?string $navigationLabel = 'SPK';
 

@@ -27,7 +27,11 @@ class QuotationResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
-    protected static ?int $navigationSort = 10;
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Order & Lead", pola band
+    // 100-lebar per grup sama seperti cluster Keuangan/Karyawan/Marketing.
+    protected static ?string $navigationGroup = 'Order & Lead';
+
+    protected static ?int $navigationSort = 0;
 
     protected static ?string $navigationLabel = 'Quotation (Lead)';
 

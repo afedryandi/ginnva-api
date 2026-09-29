@@ -33,10 +33,11 @@ class CapacityCalendar extends Page
 
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
-    // Setelah BookingResource (Booking Instalasi, sort 20) — sub-tool
-    // langsung dari alur approve booking, wajar ditaruh tepat di
-    // bawahnya di sidebar cluster Booking.
-    protected static ?int $navigationSort = 21;
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 100-199 "Operasional". Catatan lama
+    // ("setelah Booking Instalasi") sudah tidak relevan sejak dikelompokkan per grup.
+    protected static ?string $navigationGroup = 'Operasional';
+
+    protected static ?int $navigationSort = 100;
 
     protected static ?string $navigationLabel = 'Kalender Kapasitas';
 

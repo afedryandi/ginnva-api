@@ -27,13 +27,16 @@ class TechnicianResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 400-499 "Teknisi".
+    protected static ?string $navigationGroup = 'Teknisi';
+
     protected static ?string $navigationLabel = 'Teknisi';
 
     protected static ?string $modelLabel = 'Teknisi';
 
     protected static ?string $pluralModelLabel = 'Teknisi';
 
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 400;
 
     public static function getEloquentQuery(): Builder
     {
