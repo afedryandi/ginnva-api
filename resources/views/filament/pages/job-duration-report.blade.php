@@ -5,7 +5,7 @@
 
     @php
         $jobs = $this->getJobs();
-        $filterTargets = 'data.from, data.to, data.store_id';
+        $filterTargets = 'data.from, data.to, data.store_id, data.preset';
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
@@ -50,7 +50,9 @@
                             @foreach ($jobs as $job)
                                 <tr class="border-b border-gray-100 dark:border-gray-800">
                                     <td class="py-2 pr-4 whitespace-nowrap text-gray-500 dark:text-gray-400">{{ $job['date']->format('d M Y') }}</td>
-                                    <td class="py-2 pr-4 font-medium">{{ $job['spk_number'] }}</td>
+                                    <td class="py-2 pr-4 font-medium">
+                                        <a href="{{ $this->spkUrl($job['spk_id']) }}" class="hover:underline" title="Lihat SPK ini">{{ $job['spk_number'] }}</a>
+                                    </td>
                                     <td class="py-2 pr-4 text-gray-500 dark:text-gray-400">{{ $job['store_name'] ?? '—' }}</td>
                                     <td class="py-2 pr-4">{{ $job['customer_name'] }}</td>
                                     <td class="py-2 pr-4">
