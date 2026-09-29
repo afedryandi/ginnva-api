@@ -6,7 +6,7 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
-        $filterTargets = 'data.month';
+        $filterTargets = 'data.month, data.store_id';
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
@@ -49,7 +49,13 @@
                 <tbody>
                     @forelse ($result['payrolls'] as $payroll)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3 font-medium">{{ $payroll->user?->name ?? '—' }}</td>
+                            <td class="py-2 pr-3 font-medium">
+                                @if ($payroll->user)
+                                    <a href="{{ $this->payrollUrl($payroll->user->name) }}" class="hover:underline" title="Lihat di menu Penggajian">{{ $payroll->user->name }}</a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="py-2 pr-3">{{ $payroll->store?->name ?? '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $payroll->working_days_in_month }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums {{ $payroll->total_late_minutes > 0 ? 'text-warning-600 dark:text-warning-400' : '' }}">{{ $payroll->total_late_minutes }}</td>

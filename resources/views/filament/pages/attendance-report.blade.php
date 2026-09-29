@@ -13,7 +13,7 @@
             'leave' => 'Izin/Cuti',
             default => $type,
         };
-        $filterTargets = 'data.from, data.to, data.store_id';
+        $filterTargets = 'data.from, data.to, data.store_id, data.preset';
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">

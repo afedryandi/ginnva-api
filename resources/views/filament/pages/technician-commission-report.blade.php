@@ -6,7 +6,7 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
-        $filterTargets = 'data.from, data.to';
+        $filterTargets = 'data.from, data.to, data.store_id, data.preset';
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
@@ -48,7 +48,9 @@
                 <tbody>
                     @forelse ($result['rows'] as $row)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3 font-medium">{{ $row['technician']->name }}</td>
+                            <td class="py-2 pr-3 font-medium">
+                                <a href="{{ $this->technicianUrl($row['technician']->id) }}" class="hover:underline" title="Lihat detail teknisi ini">{{ $row['technician']->name }}</a>
+                            </td>
                             <td class="py-2 pr-3">{{ $row['technician']->store?->name ?? '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['jobCount'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['salesTotal']) }}</td>

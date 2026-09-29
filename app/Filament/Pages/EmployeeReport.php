@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Exports\EmployeeReportExport;
 use App\Models\Payroll;
+use App\Models\Store;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -63,6 +64,9 @@ class EmployeeReport extends Page implements HasForms
     #[Url(as: 'bulan')]
     public ?string $month = null;
 
+    #[Url(as: 'cabang')]
+    public ?int $storeId = null;
+
     public static function canAccess(): bool
     {
         return auth()->user()?->isFullAccess() ?? false;
@@ -80,14 +84,16 @@ class EmployeeReport extends Page implements HasForms
             $this->month = now()->subMonthNoOverflow()->startOfMonth()->toDateString();
         }
 
-        $this->form->fill(['month' => $this->month]);
+        $this->form->fill(['month' => $this->month, 'store_id' => $this->storeId]);
     }
 
     public function updatedData(mixed $value, string $key): void
     {
-        if ($key === 'month') {
-            $this->month = $value;
-        }
+        match ($key) {
+            'month' => $this->month = $value,
+            'store_id' => $this->storeId = $value ? (int) $value : null,
+            default => null,
+        };
     }
 
     public function form(Form $form): Form
@@ -108,7 +114,34 @@ class EmployeeReport extends Page implements HasForms
                 })
                 ->required()
                 ->live(),
-        ])->statePath('data');
+
+            // Filter cabang (audit 2026-09-29, sejajar laporan Penjualan lain) -- halaman ini
+            // sudah dibatasi isFullAccess() saja, jadi filter ini murni untuk mempersempit.
+            Select::make('store_id')
+                ->label('Cabang')
+                ->placeholder('Semua cabang')
+                ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                ->live(),
+        ])->columns(2)->statePath('data');
+    }
+
+    /** Link drill-down ke halaman Penggajian, dicari via nama karyawan (PayrollResource tidak punya halaman detail per baris). */
+    public function payrollUrl(string $employeeName): string
+    {
+        return \App\Filament\Resources\PayrollResource::getUrl('index', ['tableSearch' => $employeeName]);
+    }
+
+    /** Log ekspor (audit Laporan Karyawan 2026-09-29), konsisten dengan laporan lain. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'employee', 'format' => $format, 'month' => $this->data['month'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->log('Ekspor Laporan Karyawan (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**
@@ -122,16 +155,22 @@ class EmployeeReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new EmployeeReportExport($this->getResult()),
-                    'laporan-karyawan-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new EmployeeReportExport($this->getResult()),
+                        'laporan-karyawan-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.employee_report', ['result' => $result])->setPaper('a4', 'landscape');
                     $filename = 'laporan-karyawan-' . now()->format('Ymd-His') . '.pdf';
@@ -148,6 +187,7 @@ class EmployeeReport extends Page implements HasForms
         $payrolls = Payroll::query()
             ->with(['user:id,name', 'store:id,name'])
             ->whereDate('period_month', $month->toDateString())
+            ->when($this->data['store_id'] ?? null, fn ($q, $storeId) => $q->where('store_id', $storeId))
             ->orderByDesc('net_pay')
             ->get();
 
