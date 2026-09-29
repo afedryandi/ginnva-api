@@ -91,6 +91,12 @@ class BayZoneUtilizationReport extends Page implements HasForms
         $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
         $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
 
+        // "Sampai" < "Dari" via URL diutak-atik manual (audit Utilisasi Zona/Bay 2026-09-29):
+        // dikoreksi diam-diam di sini, sama pola dengan laporan Penjualan lain.
+        if (Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+        }
+
         $user = auth()->user();
 
         if ($user?->isFullAccess() ?? false) {
@@ -130,6 +136,21 @@ class BayZoneUtilizationReport extends Page implements HasForms
             'store_id' => $this->storeId = $value ? (int) $value : null,
             default => null,
         };
+
+        // "Sampai" sebelum "Dari" (audit Utilisasi Zona/Bay 2026-09-29): sebelumnya diam-diam
+        // menghasilkan hasil kosong tanpa penjelasan -- dikoreksi + diberi tahu, sama pola dengan
+        // laporan Penjualan lain. TIDAK pakai minDate() reaktif di form (pernah membuat panel
+        // filter gagal render di Detail Penjualan) -- validasi murni lewat hook Livewire ini.
+        if (in_array($key, ['from', 'to'], true) && $this->from && $this->to && Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+            $this->data['to'] = $this->from;
+
+            Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
     }
 
     public function form(Form $form): Form
@@ -137,6 +158,36 @@ class BayZoneUtilizationReport extends Page implements HasForms
         $isFullAccess = auth()->user()?->isFullAccess() ?? false;
 
         return $form->schema([
+            // Periode Cepat (audit 2026-09-29, sejajar laporan Penjualan lain).
+            Select::make('preset')
+                ->label('Periode Cepat')
+                ->options([
+                    'this_month' => 'Bulan ini',
+                    'last_month' => 'Bulan lalu',
+                    'this_quarter' => 'Kuartal ini',
+                    'ytd' => 'Tahun ini (s.d. hari ini)',
+                    'last_year' => 'Tahun lalu',
+                ])
+                ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                ->live()
+                ->afterStateUpdated(function (?string $state, \Filament\Forms\Set $set) {
+                    $range = match ($state) {
+                        'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                        'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                        'this_quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+                        'ytd' => [now()->startOfYear(), now()],
+                        'last_year' => [now()->subYear()->startOfYear(), now()->subYear()->endOfYear()],
+                        default => null,
+                    };
+
+                    if ($range) {
+                        $set('from', $range[0]->toDateString());
+                        $set('to', $range[1]->toDateString());
+                        $this->from = $range[0]->toDateString();
+                        $this->to = $range[1]->toDateString();
+                    }
+                }),
+
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             Select::make('store_id')
@@ -145,7 +196,7 @@ class BayZoneUtilizationReport extends Page implements HasForms
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
-        ])->columns($isFullAccess ? 3 : 2)->statePath('data');
+        ])->columns($isFullAccess ? 4 : 3)->statePath('data');
     }
 
     private function selectedStore(): ?Store
@@ -203,6 +254,8 @@ class BayZoneUtilizationReport extends Page implements HasForms
                         return;
                     }
 
+                    $this->logExport('xlsx');
+
                     return Excel::download(
                         new BayZoneUtilizationExport($result),
                         'utilisasi-zona-' . now()->format('Ymd-His') . '.xlsx'
@@ -222,12 +275,27 @@ class BayZoneUtilizationReport extends Page implements HasForms
                         return;
                     }
 
+                    $this->logExport('pdf');
+
                     $pdf = Pdf::loadView('pdf.bay_zone_utilization_report', ['result' => $result])->setPaper('a4', 'portrait');
                     $filename = 'utilisasi-zona-' . now()->format('Ymd-His') . '.pdf';
 
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);
                 }),
         ];
+    }
+
+    /** Log ekspor (audit Utilisasi Zona/Bay 2026-09-29), konsisten dengan laporan lain. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'bay_zone_utilization', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->storeId])
+                ->log('Ekspor Laporan Utilisasi Zona/Bay (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     private function notifyNotConfigured(): void
