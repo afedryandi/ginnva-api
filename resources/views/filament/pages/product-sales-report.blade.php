@@ -6,7 +6,7 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
-        $filterTargets = 'data.from, data.to';
+        $filterTargets = 'data.from, data.to, data.store_id, data.preset';
     @endphp
 
     @if ($result['unassignedCount'] > 0)
