@@ -96,9 +96,13 @@ class CarouselResource extends Resource
                     Forms\Components\TextInput::make('link_url')
                         ->label('Link (opsional)')
                         ->url()
+                        // Whitelist skema http/https (audit Banner/Carousel 2026-09-29) -- validasi
+                        // url() bawaan Laravel menolak sebagian besar skema aneh tanpa "://", tapi
+                        // tidak eksplisit membatasi ke http/https saja.
+                        ->rule('regex:/^https?:\/\//i')
                         ->placeholder('https://...')
                         ->maxLength(255)
-                        ->helperText('URL yang dituju saat banner diklik. Kosongkan jika tidak ada.'),
+                        ->helperText('URL yang dituju saat banner diklik (harus diawali http:// atau https://). Kosongkan jika tidak ada.'),
 
                     Forms\Components\Select::make('audience')
                         ->label('Tampil Untuk')
