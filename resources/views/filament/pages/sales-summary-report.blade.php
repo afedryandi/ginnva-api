@@ -9,7 +9,17 @@
         $isEmpty = $result['bookingCount'] === 0;
         // wire:target untuk wire:loading di bawah — path model Filament
         // form dgn statePath('data') selalu "data.<namafield>".
-        $filterTargets = 'data.from, data.to, data.store_id';
+        $filterTargets = 'data.from, data.to, data.store_id, data.compare, data.preset';
+        $compare = $result['compare'] ?? null;
+        $delta = function ($cur, $prev) {
+            if ($prev === null || abs($prev) < 0.005) {
+                return null;
+            }
+
+            $pct = (($cur - $prev) / abs($prev)) * 100;
+
+            return ($pct >= 0 ? '+' : '') . number_format($pct, 1, ',', '.') . '%';
+        };
     @endphp
 
     @if ($result['pendingCount'] > 0)
@@ -41,15 +51,28 @@
             </div>
         </x-filament::section>
     @else
+    @if ($compare)
+        <p class="text-xs text-gray-500 dark:text-gray-400">Pembanding: {{ $result['compareLabel'] }}</p>
+    @endif
+
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <x-filament::section>
-            <div class="text-xs text-gray-500 dark:text-gray-400">Total Penjualan Bersih</div>
+            <div class="flex items-center justify-between">
+                <div class="text-xs text-gray-500 dark:text-gray-400">Total Penjualan Bersih</div>
+                <a href="{{ $this->salesUrl() }}" class="text-xs text-primary-600 hover:underline" title="Lihat Detail Penjualan">Detail →</a>
+            </div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">{{ $rupiah($result['netSales']) }}</div>
+            @if ($compare)
+                <div class="mt-1 text-xs text-gray-400">vs {{ $rupiah($compare['net']) }} ({{ $delta($result['netSales'], $compare['net']) ?? '—' }})</div>
+            @endif
         </x-filament::section>
 
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Jumlah Transaksi</div>
             <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['bookingCount'], 0, ',', '.') }}</div>
+            @if ($compare)
+                <div class="mt-1 text-xs text-gray-400">vs {{ number_format($compare['count'], 0, ',', '.') }} ({{ $delta($result['bookingCount'], $compare['count']) ?? '—' }})</div>
+            @endif
         </x-filament::section>
 
         <x-filament::section>

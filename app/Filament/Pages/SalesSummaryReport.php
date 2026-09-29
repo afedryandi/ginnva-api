@@ -13,6 +13,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Forms\Set;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Url;
@@ -123,6 +124,12 @@ class SalesSummaryReport extends Page implements HasForms
         $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
         $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
 
+        // URL diutak-atik manual dengan "to" < "from" (audit 2026-09-29): dikoreksi diam-diam di
+        // sini (bukan lewat notifikasi -- ini kunjungan awal, belum ada UI untuk menampilkannya).
+        if (Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+        }
+
         // storeId dari URL cuma valid kalau akun ini full-access — staff
         // toko TIDAK PERNAH boleh pilih cabang lain (lihat form() &
         // getResult()), jadi nilai URL yang tidak sah diabaikan di sini
@@ -166,6 +173,20 @@ class SalesSummaryReport extends Page implements HasForms
             'store_id' => $this->storeId = $value ? (int) $value : null,
             default => null,
         };
+
+        // "Sampai" sebelum "Dari" (audit Ringkasan Penjualan 2026-09-29): sebelumnya diam-diam
+        // menghasilkan Rp 0 (whereBetween dengan rentang terbalik) tanpa penjelasan -- dikoreksi
+        // + diberi tahu, sama pola dengan laporan Keuangan.
+        if (in_array($key, ['from', 'to'], true) && $this->from && $this->to && Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+            $this->data['to'] = $this->from;
+
+            \Filament\Notifications\Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
     }
 
     public function form(Form $form): Form
@@ -173,6 +194,36 @@ class SalesSummaryReport extends Page implements HasForms
         $isFullAccess = auth()->user()?->isFullAccess() ?? false;
 
         return $form->schema([
+            // Periode Cepat (audit Ringkasan Penjualan 2026-09-29, sejajar laporan Keuangan).
+            Select::make('preset')
+                ->label('Periode Cepat')
+                ->options([
+                    'this_month' => 'Bulan ini',
+                    'last_month' => 'Bulan lalu',
+                    'this_quarter' => 'Kuartal ini',
+                    'ytd' => 'Tahun ini (s.d. hari ini)',
+                    'last_year' => 'Tahun lalu',
+                ])
+                ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                ->live()
+                ->afterStateUpdated(function (?string $state, Set $set) {
+                    $range = match ($state) {
+                        'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                        'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                        'this_quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+                        'ytd' => [now()->startOfYear(), now()],
+                        'last_year' => [now()->subYear()->startOfYear(), now()->subYear()->endOfYear()],
+                        default => null,
+                    };
+
+                    if ($range) {
+                        $set('from', $range[0]->toDateString());
+                        $set('to', $range[1]->toDateString());
+                        $this->from = $range[0]->toDateString();
+                        $this->to = $range[1]->toDateString();
+                    }
+                }),
+
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             // Filter cabang (audit 2026-09-11, temuan B) — cuma untuk
@@ -186,6 +237,14 @@ class SalesSummaryReport extends Page implements HasForms
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
+
+            // Kolom pembanding (audit 2026-09-29): datanya sudah ada di SalesSnapshotService, tinggal
+            // dipanggil sekali lagi untuk rentang pembanding -- lihat comparisonRange()/getResult().
+            Select::make('compare')
+                ->label('Bandingkan Dengan')
+                ->options(['prev_period' => 'Periode sebelumnya (durasi sama)', 'prev_year' => 'Periode yang sama tahun lalu'])
+                ->placeholder('Tanpa pembanding')
+                ->live(),
         ])->columns($isFullAccess ? 3 : 2)->statePath('data');
     }
 
@@ -196,6 +255,19 @@ class SalesSummaryReport extends Page implements HasForms
      * query terpisah), supaya angka di file export selalu konsisten
      * dengan yang tampil di layar untuk filter tanggal yang sama.
      */
+    /** Log ekspor (audit Ringkasan Penjualan 2026-09-29): siapa mengunduh data omzet toko mana, kapan. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'sales_summary', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->log('Ekspor Ringkasan Penjualan (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -203,16 +275,22 @@ class SalesSummaryReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new SalesSummaryExport($this->getResult()),
-                    'ringkasan-penjualan-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new SalesSummaryExport($this->getResult()),
+                        'ringkasan-penjualan-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.sales_summary', ['result' => $result])->setPaper('a4', 'portrait');
                     $filename = 'ringkasan-penjualan-' . now()->format('Ymd-His') . '.pdf';
@@ -276,9 +354,13 @@ class SalesSummaryReport extends Page implements HasForms
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->sum('ppn_amount');
 
+        [$prevFrom, $prevTo] = $this->comparisonRange($from, $to);
+        $compare = $prevFrom ? $snapshotService->summarize($prevFrom, $prevTo, $storeId) : null;
+
         return [
             'from' => $from,
             'to' => $to,
+            'storeId' => $storeId,
             'grossSales' => $snapshot['revenue'],
             'ppnAmount' => $ppnAmount,
             'voucherDiscount' => $voucherDiscount,
@@ -291,6 +373,48 @@ class SalesSummaryReport extends Page implements HasForms
             // sekali, jadi tanggal jurnal tidak relevan) — scope cabang
             // saja yang dipakai, konsisten dengan sisa laporan ini.
             'pendingCount' => $snapshotService->pendingCount($storeId),
+            'compare' => $compare,
+            'compareLabel' => $prevFrom ? $prevFrom->format('d M Y') . ' – ' . $prevTo->format('d M Y') : null,
         ];
+    }
+
+    /** @return array{0: ?Carbon, 1: ?Carbon} */
+    private function comparisonRange(Carbon $from, Carbon $to): array
+    {
+        $mode = $this->data['compare'] ?? null;
+
+        if ($mode === 'prev_year') {
+            return [$from->copy()->subYear(), $to->copy()->subYear()];
+        }
+
+        if ($mode === 'prev_period') {
+            if ($from->isSameDay($from->copy()->startOfMonth()) && $to->toDateString() === $to->copy()->endOfMonth()->toDateString()) {
+                $months = $from->diffInMonths($to->copy()->addDay()->startOfMonth());
+                $prevFrom = $from->copy()->subMonthsNoOverflow($months);
+
+                return [$prevFrom, $prevFrom->copy()->addMonthsNoOverflow($months)->subDay()->endOfDay()];
+            }
+
+            $days = $from->diffInDays($to) + 1;
+            $prevTo = $from->copy()->subDay()->endOfDay();
+
+            return [$prevTo->copy()->subDays($days - 1)->startOfDay(), $prevTo];
+        }
+
+        return [null, null];
+    }
+
+    /** Link drill-down ke Detail Penjualan untuk rentang/toko yang sedang dilihat. */
+    public function salesUrl(): string
+    {
+        return \App\Filament\Resources\SalesResource::getUrl('index', [
+            'tableFilters' => [
+                'entry_date' => [
+                    'from' => $this->data['from'] ?? null,
+                    'until' => $this->data['to'] ?? null,
+                ],
+                'store_id' => ['value' => $this->data['store_id'] ?? null],
+            ],
+        ]);
     }
 }

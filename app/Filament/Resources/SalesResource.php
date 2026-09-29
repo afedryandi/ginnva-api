@@ -258,10 +258,23 @@ class SalesResource extends Resource
                     ->label('Export ke Excel')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
-                    ->action(fn ($livewire) => Excel::download(
-                        new SalesExport($livewire->getFilteredTableQuery()),
-                        'penjualan-' . now()->format('Ymd-His') . '.xlsx'
-                    )),
+                    ->action(function ($livewire) {
+                        // Log ekspor (audit Ringkasan Penjualan 2026-09-29): siapa mengunduh data
+                        // penjualan, kapan -- konsisten dengan laporan Keuangan.
+                        try {
+                            activity('report_export')
+                                ->causedBy(auth()->user())
+                                ->withProperties(['report' => 'sales_detail', 'format' => 'xlsx'])
+                                ->log('Ekspor Detail Penjualan (xlsx)');
+                        } catch (\Throwable $e) {
+                            report($e);
+                        }
+
+                        return Excel::download(
+                            new SalesExport($livewire->getFilteredTableQuery()),
+                            'penjualan-' . now()->format('Ymd-His') . '.xlsx'
+                        );
+                    }),
             ])
             ->actions([
                 // Koreksi/tandai lunas TETAP lewat "Proses Referral" di
