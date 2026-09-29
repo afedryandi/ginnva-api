@@ -5,7 +5,7 @@
 
     @php
         $rows = $this->getRows();
-        $filterTargets = 'data.from, data.to, data.store_id';
+        $filterTargets = 'data.from, data.to, data.store_id, data.preset';
         $fmtHours = fn (float $minutes) => number_format($minutes / 60, 1, ',', '.') . ' jam';
     @endphp
 
