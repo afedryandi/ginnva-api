@@ -9,7 +9,7 @@
         $rewards = $result['rewards'];
         $points = $result['points'];
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
-        $filterTargets = 'data.from, data.to';
+        $filterTargets = 'data.from, data.to, data.store_id, data.preset';
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
@@ -81,7 +81,13 @@
                         <tr class="border-b border-gray-100 dark:border-white/5">
                             <td class="py-2 pr-3 tabular-nums">{{ optional($claim->used_at)->format('d M Y') }}</td>
                             <td class="py-2 pr-3">{{ $claim->voucher?->name ?? '—' }}</td>
-                            <td class="py-2 pr-3">{{ $claim->booking?->booking_number ?? '—' }}</td>
+                            <td class="py-2 pr-3">
+                                @if ($claim->booking)
+                                    <a href="{{ $this->bookingUrl($claim->booking->id) }}" class="hover:underline" title="Lihat booking ini">{{ $claim->booking->booking_number }}</a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="py-2 pr-3">{{ $claim->booking?->store?->name ?? '—' }}</td>
                             <td class="py-2 pl-3 text-right tabular-nums">({{ $rupiah((float) ($claim->voucher->discount_amount ?? 0)) }})</td>
                         </tr>
@@ -125,7 +131,9 @@
                         <tr class="border-b border-gray-100 dark:border-white/5">
                             <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $booking->created_at?->format('d M Y') }}</td>
                             <td class="whitespace-nowrap py-2 px-3">{{ $booking->spendPromo?->name ?? '—' }}</td>
-                            <td class="whitespace-nowrap py-2 px-3">{{ $booking->booking_number }}</td>
+                            <td class="whitespace-nowrap py-2 px-3">
+                                <a href="{{ $this->bookingUrl($booking->id) }}" class="hover:underline" title="Lihat booking ini">{{ $booking->booking_number }}</a>
+                            </td>
                             <td class="whitespace-nowrap py-2 px-3">{{ $booking->store?->name ?? '—' }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">({{ $rupiah((float) $booking->spend_promo_discount) }})</td>
                         </tr>
