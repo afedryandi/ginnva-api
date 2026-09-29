@@ -75,6 +75,15 @@ class AttendanceCorrectionService
                 throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
             }
 
+            // Bug diperbaiki 2026-09-29 (audit Absensi) -- SEBELUMNYA tidak ada pengecekan sama
+            // sekali: store_manager bisa ajukan koreksi absensinya SENDIRI lewat mobile app, lalu
+            // approve sendiri lewat Filament (requested_by === approvedBy). Guard ini ditegakkan DI
+            // DALAM lock (bukan cuma disembunyikan di tombol UI) supaya tidak bisa dilewati lewat
+            // pemanggilan langsung, pola sama segregation-of-duties di TransactionApprovalService.
+            if ($locked->requested_by === $approvedBy) {
+                throw new RuntimeException('Tidak boleh menyetujui pengajuan koreksi absensi milik sendiri.');
+            }
+
             $attendance = Attendance::updateOrCreate(
                 ['user_id' => $locked->user_id, 'date' => $locked->date->toDateString()],
                 [
@@ -111,6 +120,12 @@ class AttendanceCorrectionService
 
             if (! $locked || ! $locked->isPending()) {
                 throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
+            }
+
+            // Bug diperbaiki 2026-09-29 (audit Absensi) -- sama alasan dengan approve(), demi
+            // konsistensi (menolak permintaan sendiri juga tidak boleh, walau dampaknya kecil).
+            if ($locked->requested_by === $rejectedBy) {
+                throw new RuntimeException('Tidak boleh memutuskan pengajuan koreksi absensi milik sendiri.');
             }
 
             $locked->update([

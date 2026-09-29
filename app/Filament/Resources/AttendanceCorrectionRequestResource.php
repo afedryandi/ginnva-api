@@ -172,7 +172,10 @@ class AttendanceCorrectionRequestResource extends Resource
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->visible(fn (AttendanceCorrectionRequest $record) => $record->isPending()
-                        && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager()))
+                        && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager())
+                        // Bug diperbaiki 2026-09-29 (audit Absensi) -- guard UI, penegakan
+                        // sebenarnya ada di AttendanceCorrectionService (dalam lock).
+                        && $record->requested_by !== auth()->id())
                     ->requiresConfirmation()
                     // Gap ditutup 2026-09-27 (audit Koreksi Absensi) --
                     // SEBELUMNYA admin approve "buta": form cuma tampilkan
@@ -226,7 +229,10 @@ class AttendanceCorrectionRequestResource extends Resource
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->visible(fn (AttendanceCorrectionRequest $record) => $record->isPending()
-                        && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager()))
+                        && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager())
+                        // Bug diperbaiki 2026-09-29 (audit Absensi) -- guard UI, penegakan
+                        // sebenarnya ada di AttendanceCorrectionService (dalam lock).
+                        && $record->requested_by !== auth()->id())
                     ->requiresConfirmation()
                     ->form([
                         Forms\Components\Textarea::make('review_notes')
