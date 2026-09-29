@@ -17,7 +17,7 @@
             'used' => 'bg-success-100 text-success-700 dark:bg-success-500/10 dark:text-success-400',
             default => 'bg-gray-100 text-gray-600',
         };
-        $filterTargets = 'data.from, data.to, data.status';
+        $filterTargets = 'data.from, data.to, data.status, data.store_id, data.preset';
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
@@ -61,7 +61,9 @@
                 <tbody>
                     @forelse ($result['codes'] as $code)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="whitespace-nowrap py-2 px-3 font-mono font-medium">{{ $code->code }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 font-mono font-medium">
+                                <a href="{{ $this->scrollCodeUrl($code->id) }}" class="hover:underline" title="Lihat detail roll ini">{{ $code->code }}</a>
+                            </td>
                             <td class="whitespace-nowrap py-2 px-3">{{ $code->filmProduct ? "{$code->filmProduct->sku} — {$code->filmProduct->name}" : '—' }}</td>
                             <td class="whitespace-nowrap py-2 px-3">{{ $code->store?->name ?? '—' }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ number_format((float) $code->total_length_meters, 2) }} m</td>
@@ -110,7 +112,13 @@
                     @forelse ($result['usages'] as $usage)
                         <tr class="border-b border-gray-100 dark:border-white/5">
                             <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $usage->created_at->format('d M Y H:i') }}</td>
-                            <td class="whitespace-nowrap py-2 px-3 font-mono">{{ $usage->scrollCode?->code ?? '—' }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 font-mono">
+                                @if ($usage->scrollCode)
+                                    <a href="{{ $this->scrollCodeUrl($usage->scrollCode->id) }}" class="hover:underline" title="Lihat detail roll ini">{{ $usage->scrollCode->code }}</a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="whitespace-nowrap py-2 px-3">{{ $usage->scrollCode?->store?->name ?? '—' }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ number_format((float) $usage->meters, 2) }} m</td>
                             <td class="whitespace-nowrap py-2 px-3">{{ $usage->user?->name ?? '—' }}</td>
