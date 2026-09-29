@@ -38,7 +38,10 @@ class RoleResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?int $navigationSort = 20;
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Data Karyawan".
+    protected static ?string $navigationGroup = 'Data Karyawan';
+
+    protected static ?int $navigationSort = 1;
 
     protected static ?string $navigationLabel = 'Role / Divisi';
 

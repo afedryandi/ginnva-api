@@ -41,7 +41,8 @@ class WorkScheduleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Jadwal Kerja';
 
-    protected static ?int $navigationSort = 41;
+    // Direnumber ke band 200-299 (audit navigasi 2026-09-29).
+    protected static ?int $navigationSort = 201;
 
     public static function getEloquentQuery(): Builder
     {

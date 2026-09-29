@@ -39,11 +39,14 @@ class TechnicianServiceDurationReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 500-599 "Kinerja Teknisi".
+    protected static ?string $navigationGroup = 'Kinerja Teknisi';
+
     protected static ?string $navigationLabel = 'Durasi Servis Teknisi';
 
     protected static ?string $title = 'Akumulasi Durasi Servis Teknisi';
 
-    protected static ?int $navigationSort = 36;
+    protected static ?int $navigationSort = 501;
 
     protected static string $view = 'filament.pages.technician-service-duration-report';
 

@@ -32,7 +32,9 @@ class EmployeeTypeResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Karyawan';
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Data Karyawan" (sebelumnya
+    // grup sendirian 'Karyawan' cuma berisi item ini).
+    protected static ?string $navigationGroup = 'Data Karyawan';
 
     protected static ?string $navigationLabel = 'Tipe Karyawan';
 
@@ -40,7 +42,7 @@ class EmployeeTypeResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Tipe Karyawan';
 
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 2;
 
     private static function accessGate(): bool
     {

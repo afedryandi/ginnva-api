@@ -27,13 +27,16 @@ class PayrollResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 400-499 "Penggajian".
+    protected static ?string $navigationGroup = 'Penggajian';
+
     protected static ?string $navigationLabel = 'Penggajian';
 
     protected static ?string $modelLabel = 'Penggajian';
 
     protected static ?string $pluralModelLabel = 'Penggajian';
 
-    protected static ?int $navigationSort = 50;
+    protected static ?int $navigationSort = 400;
 
     /**
      * Uang gaji karyawan — SEBELUMNYA cuma isFullAccess() yang boleh

@@ -54,7 +54,8 @@ class WorkScheduleCalendarReport extends Page implements HasActions, HasForms
 
     protected static ?string $title = 'Jadwal Kerja Karyawan';
 
-    protected static ?int $navigationSort = 42;
+    // Direnumber ke band 200-299 (audit navigasi 2026-09-29).
+    protected static ?int $navigationSort = 202;
 
     protected static string $view = 'filament.pages.work-schedule-calendar-report';
 

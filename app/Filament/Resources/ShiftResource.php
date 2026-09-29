@@ -29,13 +29,15 @@ class ShiftResource extends Resource
 
     protected static ?string $navigationGroup = 'Jadwal Kerja';
 
+    // Direnumber ke band 200-299 (audit navigasi 2026-09-29) -- disamakan dengan pola band
+    // 100-lebar per grup di seluruh cluster ini.
     protected static ?string $navigationLabel = 'Daftar Shift';
 
     protected static ?string $modelLabel = 'Shift';
 
     protected static ?string $pluralModelLabel = 'Shift';
 
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 200;
 
     public static function getEloquentQuery(): Builder
     {

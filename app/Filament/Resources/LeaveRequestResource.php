@@ -24,13 +24,16 @@ class LeaveRequestResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Cuti & Kontrak".
+    protected static ?string $navigationGroup = 'Cuti & Kontrak';
+
     protected static ?string $navigationLabel = 'Izin & Cuti';
 
     protected static ?string $modelLabel = 'Izin/Cuti';
 
     protected static ?string $pluralModelLabel = 'Izin & Cuti';
 
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 300;
 
     public static function canViewAny(): bool
     {

@@ -21,13 +21,17 @@ class UserResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Data Karyawan", pola band
+    // 100-lebar per grup sama seperti cluster Keuangan.
+    protected static ?string $navigationGroup = 'Data Karyawan';
+
     protected static ?string $navigationLabel = 'User';
 
     protected static ?string $modelLabel = 'User';
 
     protected static ?string $pluralModelLabel = 'User';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 0;
 
     /**
      * Resource ini HANYA boleh diakses super_admin. Tidak pakai Policy

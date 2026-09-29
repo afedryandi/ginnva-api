@@ -27,13 +27,16 @@ class AttendanceCorrectionRequestResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 100-199 "Absensi".
+    protected static ?string $navigationGroup = 'Absensi';
+
     protected static ?string $navigationLabel = 'Koreksi Absensi';
 
     protected static ?string $modelLabel = 'Permintaan Koreksi Absensi';
 
     protected static ?string $pluralModelLabel = 'Koreksi Absensi';
 
-    protected static ?int $navigationSort = 31;
+    protected static ?int $navigationSort = 101;
 
     private static function accessGate(): bool
     {

@@ -23,13 +23,16 @@ class AttendanceResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 100-199 "Absensi".
+    protected static ?string $navigationGroup = 'Absensi';
+
     protected static ?string $navigationLabel = 'Absensi Karyawan';
 
     protected static ?string $modelLabel = 'Absensi';
 
     protected static ?string $pluralModelLabel = 'Absensi Karyawan';
 
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 100;
 
     public static function canViewAny(): bool
     {

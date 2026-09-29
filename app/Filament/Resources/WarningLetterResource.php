@@ -21,13 +21,16 @@ class WarningLetterResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Cuti & Kontrak".
+    protected static ?string $navigationGroup = 'Cuti & Kontrak';
+
     protected static ?string $navigationLabel = 'Surat Peringatan';
 
     protected static ?string $modelLabel = 'Surat Peringatan';
 
     protected static ?string $pluralModelLabel = 'Surat Peringatan';
 
-    protected static ?int $navigationSort = 60;
+    protected static ?int $navigationSort = 302;
 
     public static function canViewAny(): bool
     {

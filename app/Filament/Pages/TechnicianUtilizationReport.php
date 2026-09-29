@@ -37,11 +37,14 @@ class TechnicianUtilizationReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 500-599 "Kinerja Teknisi".
+    protected static ?string $navigationGroup = 'Kinerja Teknisi';
+
     protected static ?string $navigationLabel = 'Utilisasi Teknisi';
 
     protected static ?string $title = 'Utilisasi Teknisi';
 
-    protected static ?int $navigationSort = 35;
+    protected static ?int $navigationSort = 500;
 
     protected static string $view = 'filament.pages.technician-utilization-report';
 

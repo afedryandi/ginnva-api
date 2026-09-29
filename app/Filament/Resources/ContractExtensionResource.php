@@ -20,13 +20,16 @@ class ContractExtensionResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
+    // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Cuti & Kontrak".
+    protected static ?string $navigationGroup = 'Cuti & Kontrak';
+
     protected static ?string $navigationLabel = 'Perpanjang Kontrak';
 
     protected static ?string $modelLabel = 'Perpanjangan Kontrak';
 
     protected static ?string $pluralModelLabel = 'Perpanjang Kontrak';
 
-    protected static ?int $navigationSort = 70;
+    protected static ?int $navigationSort = 301;
 
     public static function canViewAny(): bool
     {
