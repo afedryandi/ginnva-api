@@ -8,9 +8,11 @@ use App\Models\Store;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Url;
@@ -106,6 +108,13 @@ class ReservationUtilizationReport extends Page implements HasForms
         $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
         $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
 
+        // "Sampai" < "Dari" via URL diutak-atik manual (audit Reservasi & Utilisasi 2026-09-29):
+        // SEBELUMNYA menghasilkan tabel kosong tanpa penjelasan (while cursor<=to tidak pernah
+        // jalan) -- dikoreksi diam-diam di sini, sama pola dengan laporan Penjualan lain.
+        if (Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+        }
+
         $this->form->fill([
             'from' => $this->from,
             'to' => $this->to,
@@ -132,15 +141,79 @@ class ReservationUtilizationReport extends Page implements HasForms
             'to' => $this->to = $value,
             default => null,
         };
+
+        // "Sampai" sebelum "Dari" (audit Reservasi & Utilisasi 2026-09-29): sebelumnya diam-diam
+        // menghasilkan tabel kosong tanpa penjelasan -- dikoreksi + diberi tahu, sama pola dengan
+        // laporan Penjualan lain. TIDAK pakai minDate() reaktif di form (pernah membuat panel
+        // filter gagal render di Detail Penjualan) -- validasi murni lewat hook Livewire ini.
+        if (in_array($key, ['from', 'to'], true) && $this->from && $this->to && Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+            $this->data['to'] = $this->from;
+
+            Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
     }
 
     public function form(Form $form): Form
     {
         return $form->schema([
+            // Periode Cepat (audit 2026-09-29, sejajar laporan Penjualan lain) -- opsi dibatasi
+            // ke rentang yang tidak melebihi MAX_RANGE_DAYS (~2 bulan), jadi "Kuartal ini"/"YTD"/
+            // "Tahun lalu" sengaja TIDAK ditawarkan di sini (akan langsung terpotong getResult()).
+            Select::make('preset')
+                ->label('Periode Cepat')
+                ->options([
+                    'this_month' => 'Bulan ini',
+                    'last_month' => 'Bulan lalu',
+                ])
+                ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                ->live()
+                ->afterStateUpdated(function (?string $state, \Filament\Forms\Set $set) {
+                    $range = match ($state) {
+                        'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                        'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                        default => null,
+                    };
+
+                    if ($range) {
+                        $set('from', $range[0]->toDateString());
+                        $set('to', $range[1]->toDateString());
+                        $this->from = $range[0]->toDateString();
+                        $this->to = $range[1]->toDateString();
+                    }
+                }),
+
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live()
                 ->helperText('Rentang dibatasi maksimal ' . self::MAX_RANGE_DAYS . ' hari.'),
-        ])->columns(2)->statePath('data');
+        ])->columns(3)->statePath('data');
+    }
+
+    /** Link drill-down ke Laporan Reservasi untuk toko tertentu (audit 2026-09-29). */
+    public function reservationUrl(int $storeId): string
+    {
+        return ReservationReport::getUrl(queryParams: [
+            'from' => $this->data['from'] ?? null,
+            'to' => $this->data['to'] ?? null,
+            'cabang' => $storeId,
+        ]);
+    }
+
+    /** Log ekspor (audit Reservasi & Utilisasi 2026-09-29), konsisten dengan laporan lain. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'reservation_utilization', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null])
+                ->log('Ekspor Laporan Reservasi & Utilisasi (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**
@@ -154,16 +227,22 @@ class ReservationUtilizationReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new ReservationUtilizationReportExport($this->getResult()),
-                    'utilisasi-reservasi-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new ReservationUtilizationReportExport($this->getResult()),
+                        'utilisasi-reservasi-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.reservation_utilization_report', ['result' => $result])->setPaper('a4', 'portrait');
                     $filename = 'utilisasi-reservasi-' . now()->format('Ymd-His') . '.pdf';

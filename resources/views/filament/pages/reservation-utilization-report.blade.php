@@ -5,7 +5,7 @@
 
     @php
         $result = $this->getResult();
-        $filterTargets = 'data.from, data.to';
+        $filterTargets = 'data.from, data.to, data.preset';
     @endphp
 
     <div class="rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
@@ -45,7 +45,9 @@
                 <tbody>
                     @forelse ($result['rows'] as $row)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3 font-medium">{{ $row['store']->name }}</td>
+                            <td class="py-2 pr-3 font-medium">
+                                <a href="{{ $this->reservationUrl($row['store']->id) }}" class="hover:underline" title="Lihat Laporan Reservasi toko ini">{{ $row['store']->name }}</a>
+                            </td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['workingDays'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['capacityPerDay'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['totalCapacity'] }}</td>
