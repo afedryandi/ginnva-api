@@ -4,10 +4,32 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Store extends Model
 {
     use HasFactory;
+
+    // Audit trail (audit Toko/Dealer 2026-09-30) -- SEBELUMNYA tidak ada sama sekali, padahal
+    // attendance_radius_meters/late_tolerance_minutes/late_deduction_amount sengaja dikunci cuma
+    // untuk full-access (StorePolicy::update()) justru untuk mencegah conflict of interest (Store
+    // Manager melonggarkan radius absen/potongan gaji miliknya sendiri) -- tanpa log, tidak ada
+    // jejak siapa yang mengubah nilai-nilai sensitif ini dan kapan.
+    use LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly([
+                'name', 'city', 'address', 'phone', 'is_active',
+                'install_capacity_per_day', 'detailing_slot_count', 'instalasi_qc_slot_count',
+                'attendance_radius_meters', 'late_tolerance_minutes', 'late_deduction_amount',
+            ])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('store');
+    }
 
     protected $fillable = [
         'name',
