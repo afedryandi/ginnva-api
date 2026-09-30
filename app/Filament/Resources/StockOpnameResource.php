@@ -75,6 +75,18 @@ class StockOpnameResource extends Resource
         return false;
     }
 
+    /**
+     * Bug diperbaiki 2026-09-30 (audit Stok Opname) -- SEBELUMNYA tidak ada override sama sekali
+     * di sini dan tidak ada StockOpnamePolicy terdaftar, canView() bawaan Resource selalu FALSE
+     * tanpa policy (default-deny Laravel, sama bug class dengan ScrollCodeResource/dll di
+     * audit-audit sebelumnya). ViewAction di table() DAN halaman getPages()['view'] (satu-satunya
+     * cara lihat rincian item lewat ItemsRelationManager) jadi tidak terjangkau sama sekali.
+     */
+    public static function canView($record): bool
+    {
+        return static::canAccess();
+    }
+
     public static function getEloquentQuery(): Builder
     {
         // Sama pola dgn StockWriteOffResource -- Global Scope

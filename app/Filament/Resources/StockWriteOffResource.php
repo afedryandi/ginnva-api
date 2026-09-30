@@ -99,7 +99,12 @@ class StockWriteOffResource extends Resource
                 Tables\Columns\TextColumn::make('item_name')
                     ->label('Barang')
                     ->searchable()
-                    ->description(fn (StockWriteOff $record) => $record->note ?: null),
+                    ->description(fn (StockWriteOff $record) => $record->note ?: null)
+                    // Drill-down ke halaman edit item terkait (audit 2026-09-30).
+                    ->url(fn (StockWriteOff $record) => $record->writeoffable_type === 'raw_material'
+                        ? RawMaterialResource::getUrl('edit', ['record' => $record->writeoffable_id])
+                        : ConsumableItemResource::getUrl('edit', ['record' => $record->writeoffable_id]))
+                    ->color('primary'),
 
                 Tables\Columns\TextColumn::make('writeoffable_type')
                     ->label('Jenis')
@@ -136,7 +141,11 @@ class StockWriteOffResource extends Resource
                     ->boolean()
                     ->trueIcon('heroicon-o-check-circle')
                     ->falseIcon('heroicon-o-minus-circle')
-                    ->tooltip(fn (StockWriteOff $record) => $record->journal_entry_id ? 'Jurnal kerugian diposting' : 'Tidak ada jurnal (nilai kosong)'),
+                    ->tooltip(fn (StockWriteOff $record) => $record->journal_entry_id ? 'Jurnal kerugian diposting — klik untuk lihat' : 'Tidak ada jurnal (nilai kosong)')
+                    // Drill-down ke jurnal (audit 2026-09-30).
+                    ->url(fn (StockWriteOff $record) => $record->journal_entry_id
+                        ? JournalEntryResource::getUrl('view', ['record' => $record->journal_entry_id])
+                        : null),
 
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Oleh')
@@ -177,16 +186,22 @@ class StockWriteOffResource extends Resource
                     ->label('Export ke Excel')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
-                    ->action(fn ($livewire) => Excel::download(
-                        new StockWriteOffExport($livewire->getFilteredTableQuery()),
-                        'stok-terbuang-' . now()->format('Ymd-His') . '.xlsx'
-                    )),
+                    ->action(function ($livewire) {
+                        static::logExport('xlsx');
+
+                        return Excel::download(
+                            new StockWriteOffExport($livewire->getFilteredTableQuery()),
+                            'stok-terbuang-' . now()->format('Ymd-His') . '.xlsx'
+                        );
+                    }),
 
                 Tables\Actions\Action::make('exportPdf')
                     ->label('Export ke PDF')
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('gray')
                     ->action(function ($livewire) {
+                        static::logExport('pdf');
+
                         $writeOffs = $livewire->getFilteredTableQuery()
                             ->with(['creator', 'journalEntry'])
                             ->reorder('created_at', 'desc')
@@ -199,6 +214,19 @@ class StockWriteOffResource extends Resource
                     }),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    /** Log ekspor (audit Stok Terbuang 2026-09-30), konsisten dengan laporan lain. */
+    private static function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'stock_write_off', 'format' => $format])
+                ->log('Ekspor Stok Terbuang (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public static function getPages(): array

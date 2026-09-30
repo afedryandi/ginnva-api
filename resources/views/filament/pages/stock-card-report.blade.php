@@ -6,7 +6,7 @@
     @php
         $result = $this->getResult();
         $num = fn ($n) => rtrim(rtrim(number_format((float) $n, 2, ',', '.'), '0'), ',');
-        $filterTargets = 'data.from, data.to, data.jenis';
+        $filterTargets = 'data.from, data.to, data.jenis, data.preset';
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
@@ -37,7 +37,9 @@
                     @forelse ($result['rows'] as $row)
                         <tr class="border-b border-gray-100 dark:border-white/5 {{ $row['hasMovement'] ? '' : 'text-gray-400 dark:text-gray-500' }}">
                             <td class="whitespace-nowrap py-2 px-3 font-mono text-xs">{{ $row['code'] ?: '—' }}</td>
-                            <td class="whitespace-nowrap py-2 px-3 font-medium">{{ $row['name'] }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 font-medium">
+                                <a href="{{ $row['source'] === 'raw_material' ? $this->materialUrl($row['id']) : $this->consumableUrl($row['id']) }}" class="hover:underline" title="Lihat/edit item ini">{{ $row['name'] }}</a>
+                            </td>
                             <td class="whitespace-nowrap py-2 px-3">{{ $row['jenis'] }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $num($row['awal']) }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums text-success-600 dark:text-success-400">{{ $row['masuk'] > 0 ? '+'.$num($row['masuk']) : '0' }}</td>
