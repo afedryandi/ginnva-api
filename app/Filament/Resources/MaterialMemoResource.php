@@ -176,9 +176,14 @@ class MaterialMemoResource extends Resource
                     ->sortable(),
             ])
             ->filters([
+                // Gap ditutup 2026-09-30 (audit Memo Pengambilan/Pengembalian) -- SEBELUMNYA
+                // filter ini selalu tampil ke semua user, padahal getEloquentQuery() sudah
+                // membatasi non-full-access ke 1 toko duluan -- staff toko bisa pilih toko lain
+                // di sini tapi hasilnya tidak pernah berubah (membingungkan, bukan bug keamanan).
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
-                    ->options(fn () => Store::pluck('name', 'id')),
+                    ->options(fn () => Store::pluck('name', 'id'))
+                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
             ])
             ->defaultSort('created_at', 'desc')
             ->headerActions([
@@ -192,6 +197,16 @@ class MaterialMemoResource extends Resource
                     ->action(function () {
                         $user = auth()->user();
                         $storeId = $user->isFullAccess() ? null : $user->store_id;
+
+                        // Log ekspor (audit 2026-09-30), konsisten dengan laporan lain.
+                        try {
+                            activity('report_export')
+                                ->causedBy($user)
+                                ->withProperties(['report' => 'material_memo', 'format' => 'xlsx', 'store_id' => $storeId])
+                                ->log('Ekspor Memo Pengambilan/Pengembalian (xlsx)');
+                        } catch (\Throwable $e) {
+                            report($e);
+                        }
 
                         return Excel::download(
                             new MaterialMemoItemExport($storeId),
