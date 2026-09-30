@@ -90,6 +90,9 @@
 
     <x-filament::section>
         <x-slot name="heading">Ulasan Pelanggan</x-slot>
+        @if ($result['displayReviewsTruncated'])
+            <x-slot name="description">Menampilkan 100 ulasan terbaru dari {{ $result['total'] }} total pada rentang ini. Export Excel/PDF tetap berisi semuanya.</x-slot>
+        @endif
 
         @php
             $sentimentColor = fn (string $s) => match ($s) {
@@ -105,7 +108,7 @@
         @endphp
 
         <div class="space-y-3">
-            @forelse ($result['reviews'] as $review)
+            @forelse ($result['displayReviews'] as $review)
                 <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
                     <div class="mb-1.5 flex flex-wrap items-center gap-2">
                         <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ $sentimentColor($review->sentiment) }}">
@@ -114,6 +117,11 @@
                         <span class="text-xs font-medium">{{ $review->customer?->name ?? 'Pelanggan' }}</span>
                         <span class="text-xs text-gray-400 dark:text-gray-500">— {{ $review->store?->name ?? '—' }}</span>
                         <span class="text-xs text-gray-400 dark:text-gray-500">{{ $review->created_at->format('d M Y') }}</span>
+                        @if ($review->sentiment === 'negative' && ! $review->followed_up_at)
+                            <a href="{{ $this->reviewUrl($review->id) }}" class="ml-auto text-xs font-medium text-primary-600 hover:underline dark:text-primary-400">Tindaklanjuti →</a>
+                        @else
+                            <a href="{{ $this->reviewUrl($review->id) }}" class="ml-auto text-xs text-gray-400 hover:underline dark:text-gray-500">Lihat detail →</a>
+                        @endif
                     </div>
                     @if (! empty($review->tags))
                         <div class="mb-1.5 flex flex-wrap gap-1">
