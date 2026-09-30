@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\Staff\RawMaterialController as StaffRawMaterialCont
 use App\Http\Controllers\Api\Staff\ConsumableItemController as StaffConsumableItemController;
 use App\Http\Controllers\Api\Staff\MaterialMemoController as StaffMaterialMemoController;
 use App\Http\Controllers\Api\Staff\AttendanceController as StaffAttendanceController;
+use App\Http\Controllers\Api\Staff\ScheduleController as StaffScheduleController;
 use App\Http\Controllers\Api\Staff\PayrollController as StaffPayrollController;
 use App\Http\Controllers\Api\Staff\WarningLetterController as StaffWarningLetterController;
 use App\Http\Controllers\Api\Staff\PurchaseRequestController as StaffPurchaseRequestController;
@@ -317,6 +318,10 @@ Route::prefix('staff')->group(function () {
         Route::get('/attendance/corrections', [StaffAttendanceController::class, 'correctionsIndex']);
         Route::post('/attendance/corrections', [StaffAttendanceController::class, 'correctionsStore'])
             ->middleware('throttle:10,1');
+
+        // Jadwal kerja mandiri (audit fitur relevan Majoo Teams, 2026-09-30) --
+        // sama pola dengan Absensi/Slip Gaji di atas, tidak dibatasi hasMenuAccess().
+        Route::get('/schedule', [StaffScheduleController::class, 'index']);
 
         Route::get('/leave-requests', [StaffAttendanceController::class, 'leaveRequestsIndex']);
         Route::post('/leave-requests', [StaffAttendanceController::class, 'leaveRequestsStore'])
