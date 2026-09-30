@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CustomerNotification extends Model
 {
-    protected $fillable = ['customer_id', 'title', 'body', 'data', 'read_at'];
+    protected $fillable = ['customer_id', 'title', 'body', 'data', 'read_at', 'sent_by'];
 
     protected $casts = [
         'data'    => 'array',
@@ -17,6 +17,12 @@ class CustomerNotification extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /** Staff yang memicu pengiriman (audit 2026-09-30) -- null utk baris lama sebelum kolom ada. */
+    public function sentBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'sent_by');
     }
 
     public function reads(): \Illuminate\Database\Eloquent\Relations\HasMany

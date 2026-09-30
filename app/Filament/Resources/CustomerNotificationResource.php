@@ -55,6 +55,12 @@ class CustomerNotificationResource extends Resource
             && $user->hasModuleAction(static::class, 'view', true);
     }
 
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        // Eager-load sentBy (audit 2026-09-30) -- kolom "Dikirim Oleh" akan N+1 tanpa ini.
+        return parent::getEloquentQuery()->with('sentBy:id,name');
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -80,7 +86,11 @@ class CustomerNotificationResource extends Resource
                         return $record->customer?->name ?? "Customer #{$record->customer_id}";
                     })
                     ->badge()
-                    ->color(fn (CustomerNotification $record) => $record->customer_id === null ? 'info' : 'gray'),
+                    ->color(fn (CustomerNotification $record) => $record->customer_id === null ? 'info' : 'gray')
+                    // Drill-down ke halaman customer terkait (audit 2026-09-30).
+                    ->url(fn (CustomerNotification $record) => $record->customer_id
+                        ? CustomerResource::getUrl('view', ['record' => $record->customer_id])
+                        : null),
 
                 Tables\Columns\TextColumn::make('data')
                     ->label('Deep Link')
@@ -89,6 +99,11 @@ class CustomerNotificationResource extends Resource
                     })
                     ->color('gray')
                     ->size('sm'),
+
+                Tables\Columns\TextColumn::make('sentBy.name')
+                    ->label('Dikirim Oleh')
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Dikirim')
@@ -104,6 +119,18 @@ class CustomerNotificationResource extends Resource
                 Tables\Filters\Filter::make('targeted')
                     ->label('Targeted saja')
                     ->query(fn ($query) => $query->whereNotNull('customer_id')),
+
+                // Filter rentang tanggal (audit 2026-09-30) -- sejajar Riwayat lain
+                // (RawMaterialMovementResource/InventoryMovementResource/dll.).
+                Tables\Filters\Filter::make('created_at')
+                    ->form([
+                        \Filament\Forms\Components\DatePicker::make('from')->label('Dari Tanggal'),
+                        \Filament\Forms\Components\DatePicker::make('until')->label('Sampai Tanggal'),
+                    ])
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query, array $data) => $query
+                        ->when($data['from'], fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+                        ->when($data['until'], fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
+                    ),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()

@@ -359,6 +359,11 @@ class NotificationController extends Controller
             ->pluck('token')
             ->toArray();
 
+        // sent_by (audit 2026-09-30) -- staff yang memicu broadcast/kirim, dipanggil dari
+        // Filament\Pages\SendNotification lewat fake Request, jadi auth()->id() di sini
+        // adalah staff yang sedang login di panel, bukan Partner/Customer.
+        $sentBy = auth()->id();
+
         if (! empty($request->partner_ids)) {
             foreach ($partners as $partner) {
                 PartnerNotification::create([
@@ -366,6 +371,7 @@ class NotificationController extends Controller
                     'title'      => $request->title,
                     'body'       => $request->body,
                     'data'       => $request->data,
+                    'sent_by'    => $sentBy,
                 ]);
             }
         } else {
@@ -374,6 +380,7 @@ class NotificationController extends Controller
                 'title'      => $request->title,
                 'body'       => $request->body,
                 'data'       => $request->data,
+                'sent_by'    => $sentBy,
             ]);
         }
 
@@ -428,6 +435,9 @@ class NotificationController extends Controller
 
         $tokens = $query->pluck('token')->toArray();
 
+        // sent_by (audit 2026-09-30) -- lihat catatan sama di sendPartner().
+        $sentBy = auth()->id();
+
         // Simpan ke history
         if (! empty($request->customer_ids)) {
             // Targeted: satu record per customer
@@ -437,6 +447,7 @@ class NotificationController extends Controller
                     'title'       => $request->title,
                     'body'        => $request->body,
                     'data'        => $request->data,
+                    'sent_by'     => $sentBy,
                 ]);
             }
         } else {
@@ -446,6 +457,7 @@ class NotificationController extends Controller
                 'title'       => $request->title,
                 'body'        => $request->body,
                 'data'        => $request->data,
+                'sent_by'     => $sentBy,
             ]);
         }
 
