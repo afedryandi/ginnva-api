@@ -40,7 +40,9 @@
                 <tbody>
                     @forelse ($result['rows'] as $row)
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="whitespace-nowrap py-2 px-3 font-medium">{{ $row['item']->name }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 font-medium">
+                                <a href="{{ $this->itemUrl($row['type'], $row['item']->id) }}" class="text-primary-600 hover:underline dark:text-primary-400">{{ $row['item']->name }}</a>
+                            </td>
                             <td class="whitespace-nowrap py-2 px-3">{{ $row['type'] }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ number_format($row['qtyOut'], 2) }} {{ $row['item']->unit }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ number_format($row['stockAtTo'], 2) }} {{ $row['item']->unit }}</td>
