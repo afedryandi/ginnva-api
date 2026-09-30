@@ -78,7 +78,11 @@ class RawMaterialMovementResource extends Resource
                 Tables\Columns\TextColumn::make('rawMaterial.name')
                     ->label('Bahan Baku')
                     ->searchable()
-                    ->placeholder('— (bahan sudah dihapus)'),
+                    ->placeholder('— (bahan sudah dihapus)')
+                    // Drill-down ke halaman edit bahan terkait (audit 2026-09-30).
+                    ->url(fn (RawMaterialMovement $record) => $record->rawMaterial
+                        ? RawMaterialResource::getUrl('edit', ['record' => $record->rawMaterial->id])
+                        : null),
 
                 Tables\Columns\TextColumn::make('rawMaterial.category')
                     ->label('Kategori')
@@ -158,10 +162,22 @@ class RawMaterialMovementResource extends Resource
                     ->label('Export Excel')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
-                    ->action(fn ($livewire) => Excel::download(
-                        new RawMaterialMovementExport($livewire->getFilteredTableQuery()),
-                        'riwayat-bahan-baku-' . now()->format('Ymd') . '.xlsx'
-                    )),
+                    ->action(function ($livewire) {
+                        // Log ekspor (audit 2026-09-30), konsisten dengan laporan lain.
+                        try {
+                            activity('report_export')
+                                ->causedBy(auth()->user())
+                                ->withProperties(['report' => 'raw_material_movement', 'format' => 'xlsx'])
+                                ->log('Ekspor Riwayat Bahan Baku (xlsx)');
+                        } catch (\Throwable $e) {
+                            report($e);
+                        }
+
+                        return Excel::download(
+                            new RawMaterialMovementExport($livewire->getFilteredTableQuery()),
+                            'riwayat-bahan-baku-' . now()->format('Ymd') . '.xlsx'
+                        );
+                    }),
 
                 // Bandingkan current_stock tiap bahan dengan penjumlahan
                 // seluruh riwayat movement-nya dari 0 — mendeteksi drift

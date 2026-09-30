@@ -81,12 +81,19 @@ class InventoryMovementResource extends Resource
                     ->label('Kode Produk')
                     ->badge()
                     ->color('info')
-                    ->searchable(),
+                    ->searchable()
+                    // Drill-down ke halaman edit barang terkait (audit 2026-09-30).
+                    ->url(fn (InventoryMovement $record) => $record->inventoryItem
+                        ? InventoryItemResource::getUrl('edit', ['record' => $record->inventoryItem->id])
+                        : null),
 
                 Tables\Columns\TextColumn::make('inventoryItem.name')
                     ->label('Nama Produk')
                     ->searchable()
-                    ->placeholder('— (produk sudah dihapus)'),
+                    ->placeholder('— (produk sudah dihapus)')
+                    ->url(fn (InventoryMovement $record) => $record->inventoryItem
+                        ? InventoryItemResource::getUrl('edit', ['record' => $record->inventoryItem->id])
+                        : null),
 
                 Tables\Columns\TextColumn::make('inventoryItem.category')
                     ->label('Kategori')
@@ -174,10 +181,22 @@ class InventoryMovementResource extends Resource
                     ->label('Export Excel')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
-                    ->action(fn ($livewire) => Excel::download(
-                        new InventoryMovementExport($livewire->getFilteredTableQuery()),
-                        'riwayat-inventaris-' . now()->format('Ymd') . '.xlsx'
-                    )),
+                    ->action(function ($livewire) {
+                        // Log ekspor (audit 2026-09-30), konsisten dengan laporan lain.
+                        try {
+                            activity('report_export')
+                                ->causedBy(auth()->user())
+                                ->withProperties(['report' => 'inventory_movement', 'format' => 'xlsx'])
+                                ->log('Ekspor Riwayat Keluar/Masuk (xlsx)');
+                        } catch (\Throwable $e) {
+                            report($e);
+                        }
+
+                        return Excel::download(
+                            new InventoryMovementExport($livewire->getFilteredTableQuery()),
+                            'riwayat-inventaris-' . now()->format('Ymd') . '.xlsx'
+                        );
+                    }),
             ])
             ->actions([
                 // Sama pola dengan MovementsRelationManager (per-barang) —

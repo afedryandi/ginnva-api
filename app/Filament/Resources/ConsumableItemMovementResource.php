@@ -72,7 +72,11 @@ class ConsumableItemMovementResource extends Resource
                 Tables\Columns\TextColumn::make('consumableItem.name')
                     ->label('Barang')
                     ->searchable()
-                    ->placeholder('— (barang sudah dihapus)'),
+                    ->placeholder('— (barang sudah dihapus)')
+                    // Drill-down ke halaman edit barang terkait (audit 2026-09-30).
+                    ->url(fn (ConsumableItemMovement $record) => $record->consumableItem
+                        ? ConsumableItemResource::getUrl('edit', ['record' => $record->consumableItem->id])
+                        : null),
 
                 Tables\Columns\TextColumn::make('consumableItem.category')
                     ->label('Kategori')
@@ -149,10 +153,22 @@ class ConsumableItemMovementResource extends Resource
                     ->label('Export Excel')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
-                    ->action(fn ($livewire) => Excel::download(
-                        new ConsumableItemMovementExport($livewire->getFilteredTableQuery()),
-                        'riwayat-barang-habis-pakai-' . now()->format('Ymd') . '.xlsx'
-                    )),
+                    ->action(function ($livewire) {
+                        // Log ekspor (audit 2026-09-30), konsisten dengan laporan lain.
+                        try {
+                            activity('report_export')
+                                ->causedBy(auth()->user())
+                                ->withProperties(['report' => 'consumable_item_movement', 'format' => 'xlsx'])
+                                ->log('Ekspor Riwayat Barang Habis Pakai (xlsx)');
+                        } catch (\Throwable $e) {
+                            report($e);
+                        }
+
+                        return Excel::download(
+                            new ConsumableItemMovementExport($livewire->getFilteredTableQuery()),
+                            'riwayat-barang-habis-pakai-' . now()->format('Ymd') . '.xlsx'
+                        );
+                    }),
 
                 Tables\Actions\Action::make('reconcile')
                     ->label('Cek Rekonsiliasi')
