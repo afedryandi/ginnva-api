@@ -4,12 +4,15 @@ namespace App\Filament\Pages;
 
 use App\Exports\PeakSalesTimeReportExport;
 use App\Models\Booking;
+use App\Models\Store;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Url;
@@ -58,6 +61,10 @@ class PeakSalesTimeReport extends Page implements HasForms
     #[Url(as: 'to')]
     public ?string $to = null;
 
+    // Filter toko (audit 2026-09-30) -- sejajar laporan Penjualan lain.
+    #[Url(as: 'cabang')]
+    public ?int $storeId = null;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -71,9 +78,20 @@ class PeakSalesTimeReport extends Page implements HasForms
         $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
         $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
 
+        // "Sampai" < "Dari" via URL diutak-atik manual (audit Waktu Teramai Penjualan
+        // 2026-09-30): dikoreksi diam-diam di sini, sama pola dengan laporan Penjualan lain.
+        if (Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+        }
+
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            $this->storeId = auth()->user()?->store_id;
+        }
+
         $this->form->fill([
             'from' => $this->from,
             'to' => $this->to,
+            'store_id' => $this->storeId,
         ]);
     }
 
@@ -95,22 +113,91 @@ class PeakSalesTimeReport extends Page implements HasForms
         match ($key) {
             'from' => $this->from = $value,
             'to' => $this->to = $value,
+            'store_id' => $this->storeId = $value ? (int) $value : null,
             default => null,
         };
+
+        // "Sampai" sebelum "Dari" (audit Waktu Teramai Penjualan 2026-09-30): sebelumnya diam-diam
+        // menghasilkan tabel kosong tanpa penjelasan -- dikoreksi + diberi tahu, sama pola dengan
+        // laporan Penjualan lain.
+        if (in_array($key, ['from', 'to'], true) && $this->from && $this->to && Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+            $this->data['to'] = $this->from;
+
+            Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
     }
 
     public function form(Form $form): Form
     {
+        $isFullAccess = auth()->user()?->isFullAccess() ?? false;
+
         return $form->schema([
+            // Periode Cepat (audit 2026-09-30, sejajar laporan Penjualan lain).
+            Select::make('preset')
+                ->label('Periode Cepat')
+                ->options([
+                    'this_month' => 'Bulan ini',
+                    'last_month' => 'Bulan lalu',
+                    'this_quarter' => 'Kuartal ini',
+                    'ytd' => 'Tahun ini (s.d. hari ini)',
+                    'last_year' => 'Tahun lalu',
+                ])
+                ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                ->live()
+                ->afterStateUpdated(function (?string $state, \Filament\Forms\Set $set) {
+                    $range = match ($state) {
+                        'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                        'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                        'this_quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+                        'ytd' => [now()->startOfYear(), now()],
+                        'last_year' => [now()->subYear()->startOfYear(), now()->subYear()->endOfYear()],
+                        default => null,
+                    };
+
+                    if ($range) {
+                        $set('from', $range[0]->toDateString());
+                        $set('to', $range[1]->toDateString());
+                        $this->from = $range[0]->toDateString();
+                        $this->to = $range[1]->toDateString();
+                    }
+                }),
+
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
-        ])->columns(2)->statePath('data');
+
+            // Filter toko (audit 2026-09-30) -- full-access sebelumnya SELALU company-wide
+            // tanpa cara mempersempit ke 1 toko, beda dari laporan Penjualan/Persediaan lain.
+            Select::make('store_id')
+                ->label('Cabang')
+                ->placeholder('Semua cabang')
+                ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                ->visible($isFullAccess)
+                ->live(),
+        ])->columns($isFullAccess ? 4 : 3)->statePath('data');
     }
 
     /**
      * "Ekspor Laporan" (audit 2026-09-11, temuan B) — pola sama laporan
      * Penjualan lain.
      */
+    /** Log ekspor (audit 2026-09-30), konsisten dengan laporan lain. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'peak_sales_time', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->storeId])
+                ->log('Ekspor Waktu Teramai Penjualan (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -118,16 +205,22 @@ class PeakSalesTimeReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new PeakSalesTimeReportExport($this->getResult()),
-                    'waktu-teramai-penjualan-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new PeakSalesTimeReportExport($this->getResult()),
+                        'waktu-teramai-penjualan-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.peak_sales_time_report', ['result' => $result])->setPaper('a4', 'portrait');
                     $filename = 'waktu-teramai-penjualan-' . now()->format('Ymd-His') . '.pdf';
@@ -158,7 +251,7 @@ class PeakSalesTimeReport extends Page implements HasForms
         }
 
         $user = auth()->user();
-        $storeId = ($user?->isFullAccess() ?? false) ? null : $user?->store_id;
+        $storeId = ($user?->isFullAccess() ?? false) ? $this->storeId : $user?->store_id;
 
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
