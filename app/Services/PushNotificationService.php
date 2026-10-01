@@ -113,7 +113,23 @@ class PushNotificationService
         $sent = 0;
         $failed = 0;
 
-        foreach (array_chunk($tokens, 100) as $chunk) {
+        $chunks = array_chunk($tokens, 100);
+
+        foreach ($chunks as $chunkIndex => $chunk) {
+            // Jeda antar-chunk (audit Notifikasi 2026-10-01, gap "standar
+            // enterprise") -- SEBELUMNYA toko dengan ratusan staff
+            // (sendToStoreStaff ke banyak sekaligus) bisa menembak
+            // beberapa chunk 100-token ke Expo nyaris bersamaan tanpa jeda
+            // sama sekali, berisiko kena throttle Expo. 150ms cukup kecil
+            // untuk tidak terasa pada kasus normal (1-2 chunk), tapi
+            // mencegah burst pada broadcast besar (ratusan/ribuan token).
+            // TIDAK berlaku untuk retry satu-per-satu (chunk=1) di bawah --
+            // itu reentrant lewat pushToTokens() lagi, jeda di SINI sudah
+            // otomatis berlaku juga di situ kalau tokennya >1 per batch.
+            if ($chunkIndex > 0) {
+                usleep(150_000);
+            }
+
             $messages = array_map(fn ($token) => [
                 'to'    => $token,
                 'title' => $title,

@@ -270,7 +270,13 @@ class WarrantyResource extends Resource
                 return;
             }
 
-            $used = $locked->activeMaintenanceVisits()->count();
+            // Bug ditutup 2026-10-01 (audit Maintenance PPF) -- SEBELUMNYA
+            // cuma hitung activeMaintenanceVisits() (jalur walk-in manual),
+            // tidak ikut menghitung kunjungan yang sudah tuntas lewat
+            // siklus OTOMATIS (WarrantyMaintenanceSchedule 'completed').
+            // Kombinasi keduanya bisa melebihi maintenance_quota yang
+            // dijanjikan staff kalau tidak disatukan di sini.
+            $used = $locked->activeMaintenanceVisits()->count() + $locked->completedMaintenanceSchedulesCount();
             if ($used >= $locked->maintenance_quota) {
                 Notification::make()
                     ->title('Kuota maintenance sudah habis')
@@ -482,7 +488,7 @@ class WarrantyResource extends Resource
                         ->minValue(1)
                         ->nullable()
                         ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf' && $get('maintenance_quota') !== null)
-                        ->helperText('Jarak antar kunjungan maintenance, mis. 6 = tiap 6 bulan. Mengisi ini pertama kali langsung menjadwalkan kunjungan pertama & mengaktifkan konfirmasi otomatis ke customer — tidak bisa dibatalkan lewat form ini, cuma lihat riwayatnya di tab "Jadwal Maintenance".'),
+                        ->helperText('Jarak antar kunjungan maintenance, mis. 6 = tiap 6 bulan. Jadwal kunjungan pertama & konfirmasi otomatis ke customer baru AKTIF setelah garansi ini disetujui (review_status Approved) — kalau diisi sebelum approve, baru akan menjadwalkan begitu disetujui. Tidak bisa dibatalkan lewat form ini, cuma lihat riwayatnya di tab "Jadwal Maintenance".'),
 
                     Forms\Components\Placeholder::make('maintenance_schedule_status')
                         ->label('Jadwal Maintenance Aktif')

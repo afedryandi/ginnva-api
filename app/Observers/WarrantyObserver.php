@@ -183,12 +183,26 @@ class WarrantyObserver
     private function activateMaintenanceScheduleIfNeeded(Warranty $warranty): void
     {
         if (
-            $warranty->wasChanged('maintenance_interval_months')
-            && $warranty->maintenance_interval_months !== null
+            $warranty->maintenance_interval_months !== null
             && $warranty->installation_date !== null
             // Server-side enforcement (audit Bagian C 2026-10-01) -- bukan
             // cuma disembunyikan di form, maintenance memang khusus PPF.
             && $warranty->product_category === 'ppf'
+            // Bug ditutup 2026-10-01 -- SEBELUMNYA cek ini cuma
+            // wasChanged('maintenance_interval_months'), jadi staff yang
+            // mengisi field itu SAAT CREATE (review_status masih default
+            // 'pending_review', belum di-approve direksi) langsung
+            // mengaktifkan jadwal & siklus konfirmasi otomatis ke customer
+            // walau garansinya sendiri belum resmi disetujui. Sekarang
+            // SELALU butuh review_status approved -- dicek lewat
+            // wasChanged('review_status') ATAU wasChanged
+            // ('maintenance_interval_months'), supaya jadwal tetap
+            // terbentuk baik saat staff isi interval SETELAH garansi
+            // sudah approved, MAUPUN saat garansi BARU di-approve dan
+            // interval-nya sudah terisi dari awal (created() juga manggil
+            // method ini, 2 urutan kerja staff yang mungkin).
+            && $warranty->review_status === 'approved'
+            && ($warranty->wasChanged('review_status') || $warranty->wasChanged('maintenance_interval_months'))
             && $warranty->maintenanceSchedules()->doesntExist()
         ) {
             \App\Models\WarrantyMaintenanceSchedule::createFirstFor($warranty);

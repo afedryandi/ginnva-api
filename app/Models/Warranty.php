@@ -265,6 +265,20 @@ class Warranty extends Model
     }
 
     /**
+     * Jumlah kunjungan maintenance yang sudah TUNTAS lewat siklus OTOMATIS
+     * (occurrence WarrantyMaintenanceSchedule berstatus 'completed') --
+     * dipakai bareng activeMaintenanceVisits() (kunjungan walk-in manual)
+     * supaya kedua jalur (manual & otomatis) sama-sama menghormati satu
+     * kuota maintenance_quota yang sama, bukan hitung sendiri-sendiri (bug
+     * ditutup 2026-10-01, audit Maintenance PPF -- SEBELUMNYA kombinasi
+     * keduanya bisa melebihi kuota yang dijanjikan staff).
+     */
+    public function completedMaintenanceSchedulesCount(): int
+    {
+        return $this->maintenanceSchedules()->where('status', 'completed')->count();
+    }
+
+    /**
      * Prioritas: relasi 'maintenanceVisits' yang sudah di-eager-load
      * (MyWarrantyController::show()) — difilter cancelled_at di sini
      * (bukan query ulang) > active_maintenance_visits_count dari

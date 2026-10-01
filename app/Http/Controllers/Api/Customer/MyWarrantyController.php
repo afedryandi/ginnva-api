@@ -256,6 +256,14 @@ class MyWarrantyController extends Controller
                 'scheduled_date' => $w->activeMaintenanceSchedule->scheduled_date->format('Y-m-d'),
                 'status'         => $w->activeMaintenanceSchedule->status,
             ] : null,
+            // Gap ditutup 2026-10-01 (audit Maintenance PPF, sisi mobile) --
+            // dipakai mobile untuk membedakan "siklus otomatis memang belum
+            // pernah diaktifkan staff" (null) vs "sudah diaktifkan tapi
+            // sekarang sudah selesai/berhenti, tidak ada occurrence aktif
+            // tersisa" (terisi tapi maintenance_schedule null) -- tanpa ini
+            // mobile tidak bisa tampilkan pesan yang tepat untuk kasus
+            // kedua, cuma diam-diam hilang tanpa penjelasan.
+            'maintenance_interval_months'   => $w->maintenance_interval_months,
         ]);
     }
 }

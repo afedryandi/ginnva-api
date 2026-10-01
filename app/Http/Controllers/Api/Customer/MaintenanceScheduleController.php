@@ -74,6 +74,16 @@ class MaintenanceScheduleController extends Controller
 
         $warranty = $schedule->warranty;
 
+        // Bug ditutup 2026-10-01 (audit Maintenance PPF) -- SEBELUMNYA tidak
+        // dicek sama sekali, customer masih bisa konfirmasi (bikin Booking
+        // baru) untuk garansi yang sudah di-revoke staff.
+        if ($warranty->status === 'revoked') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Garansi ini sudah dibatalkan, konfirmasi tidak bisa diproses.',
+            ], 422);
+        }
+
         if (! $warranty->store_id) {
             return response()->json([
                 'success' => false,
@@ -87,6 +97,16 @@ class MaintenanceScheduleController extends Controller
         // jadi bisa saja jatuh di hari toko tutup/libur -- tidak ada langkah
         // pilih tanggal lain di alur ini, jadi staff yang perlu dihubungi.
         $store = \App\Models\Store::find($warranty->store_id);
+
+        // Bug ditutup 2026-10-01 (audit Maintenance PPF) -- SEBELUMNYA tidak
+        // dicek sama sekali, customer masih bisa konfirmasi ke toko yang
+        // sudah dinonaktifkan (is_active=false).
+        if ($store && ! $store->is_active) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Toko ini sudah tidak aktif. Hubungi tim kami langsung untuk menyesuaikan jadwal maintenance Anda.',
+            ], 422);
+        }
 
         if ($store?->isClosedOn(\Illuminate\Support\Carbon::parse($schedule->scheduled_date))) {
             return response()->json([

@@ -38,7 +38,12 @@ class NotificationController extends Controller
             $customerId = auth('customer')->user()?->id;
         } catch (\Exception) {}
 
-        $attributes = ['platform' => $request->platform];
+        // last_seen_at (audit Notifikasi 2026-10-01, gap "standar
+        // enterprise") -- disentuh TIAP KALI device ini melapor (dipanggil
+        // tiap app start), supaya device yang sudah "diam" (uninstall
+        // tanpa logout, dst) bisa dideteksi PROAKTIF lewat housekeeping di
+        // masa depan, tidak cuma menunggu push benar-benar gagal dikirim.
+        $attributes = ['platform' => $request->platform, 'last_seen_at' => now()];
         if ($customerId) {
             $attributes['customer_id'] = $customerId;
         }
@@ -65,7 +70,7 @@ class NotificationController extends Controller
         $request->validate(['token' => 'required|string|max:500']);
 
         DeviceToken::where('token', $request->token)
-            ->update(['customer_id' => auth('customer')->id(), 'user_id' => null]);
+            ->update(['customer_id' => auth('customer')->id(), 'user_id' => null, 'last_seen_at' => now()]);
 
         return response()->json(['success' => true, 'message' => 'Token linked.']);
     }
@@ -86,7 +91,7 @@ class NotificationController extends Controller
 
         DeviceToken::updateOrCreate(
             ['token' => $request->token],
-            ['user_id' => $request->user('api')->id, 'customer_id' => null]
+            ['user_id' => $request->user('api')->id, 'customer_id' => null, 'last_seen_at' => now()]
         );
 
         return response()->json(['success' => true, 'message' => 'Token linked.']);

@@ -37,9 +37,19 @@ class ProcessMaintenanceSchedules extends Command
     {
         $due = WarrantyMaintenanceSchedule::where('status', 'pending')
             ->whereDate('scheduled_date', '<=', today()->addDays(self::REMINDER_WINDOW_DAYS))
-            ->with('warranty')
+            ->with('warranty.store')
             ->get()
-            ->filter(fn (WarrantyMaintenanceSchedule $s) => $s->warranty?->customer_id !== null);
+            // Audit Maintenance PPF 2026-10-01 -- SEBELUMNYA tidak ada
+            // pengecekan warranty revoked/toko non-aktif sama sekali di
+            // sini, jadi push "Konfirmasi Kedatangan" tetap terkirim untuk
+            // garansi yang sudah dibatalkan atau toko yang sudah
+            // dinonaktifkan. Occurrence-nya TETAP dibiarkan di status
+            // 'pending' (bukan diforfeit paksa) -- kalau warranty
+            // di-reaktivasi atau toko diaktifkan lagi nanti, siklus bisa
+            // lanjut natural tanpa kehilangan riwayat sequence.
+            ->filter(fn (WarrantyMaintenanceSchedule $s) => $s->warranty?->customer_id !== null
+                && $s->warranty->status !== 'revoked'
+                && ($s->warranty->store?->is_active ?? true));
 
         foreach ($due as $schedule) {
             DB::transaction(function () use ($schedule, $push) {

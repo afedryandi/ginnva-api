@@ -18,6 +18,11 @@ Schedule::command('reminders:send-service')->dailyAt('08:00');
 // (Bagian C, "Klaim Garansi & Maintenance PPF", 2026-10-01).
 Schedule::command('maintenance:process-schedules')->dailyAt('08:15');
 
+// Alert bell staff untuk garansi PPF dengan 2+ occurrence maintenance
+// forfeited berturut-turut (gap "standar enterprise" ditutup 2026-10-01) --
+// lihat App\Console\Commands\NotifyRepeatedMaintenanceForfeits.
+Schedule::command('warranty:notify-maintenance-followup')->dailyAt('08:20');
+
 // Alert bahan baku menipis/kedaluwarsa/tidak bergerak yang belum
 // ditinjau — lihat App\Console\Commands\NotifyExpiringMaterials.
 Schedule::command('materials:notify-expiring')->dailyAt('07:00');

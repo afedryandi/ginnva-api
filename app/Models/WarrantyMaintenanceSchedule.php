@@ -132,6 +132,18 @@ class WarrantyMaintenanceSchedule extends Model
                     ),
                     'status'         => 'pending',
                 ]);
+            } elseif ($warranty->customer_id) {
+                // Gap ditutup 2026-10-01 (audit Maintenance PPF) --
+                // SEBELUMNYA tidak ada pemberitahuan apa pun ke customer
+                // begitu siklus otomatis berhenti (occurrence ini hangus
+                // DAN tidak ada occurrence berikutnya lagi) -- customer
+                // diam-diam tidak pernah dapat apa-apa lagi tanpa penjelasan.
+                app(\App\Services\PushNotificationService::class)->sendToCustomer(
+                    $warranty->customer_id,
+                    'Siklus Maintenance Berakhir',
+                    "Siklus pengingat maintenance PPF untuk garansi #{$warranty->warranty_code} sudah berakhir. Hubungi toko langsung kalau masih butuh maintenance.",
+                    ['type' => 'ppf_maintenance_ended', 'route' => "/account/warranty-detail?id={$warranty->id}"]
+                );
             }
         });
 
@@ -169,6 +181,17 @@ class WarrantyMaintenanceSchedule extends Model
                     ),
                     'status'         => 'pending',
                 ]);
+            } elseif ($warranty->customer_id) {
+                // Gap ditutup 2026-10-01 (audit Maintenance PPF) -- sama
+                // alasan dengan forfeit() di atas, tapi pesan beda (ini
+                // kunjungan BERHASIL, kuota benar-benar habis -- bukan
+                // siklus yang berhenti karena forfeit terus-menerus).
+                app(\App\Services\PushNotificationService::class)->sendToCustomer(
+                    $warranty->customer_id,
+                    'Kuota Maintenance Habis',
+                    "Kunjungan maintenance PPF garansi #{$warranty->warranty_code} tercatat. Kuota maintenance Anda sudah habis.",
+                    ['type' => 'ppf_maintenance_ended', 'route' => "/account/warranty-detail?id={$warranty->id}"]
+                );
             }
         });
 

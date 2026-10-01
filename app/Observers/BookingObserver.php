@@ -109,6 +109,25 @@ class BookingObserver
             ]);
         }
 
+        // Bug ditutup 2026-10-01 (audit Maintenance PPF) -- SEBELUMNYA kalau
+        // booking Maintenance PPF di-cancel (bukan completed), occurrence
+        // jadwalnya (status 'confirmed', booking_id sudah terisi) tidak
+        // pernah ditangani sama sekali -- menggantung permanen, tidak
+        // pernah lanjut ke occurrence berikutnya ATAU bisa dikonfirmasi
+        // ulang. Dikembalikan ke 'pending' (BUKAN forfeit/lanjut ke sequence
+        // berikutnya -- itu keputusan produk terpisah, lihat audit) supaya
+        // occurrence ini aktif lagi & diproses natural oleh
+        // ProcessMaintenanceSchedules (dapat konfirmasi ulang kalau
+        // scheduled_date masih di masa depan, atau forfeit otomatis kalau
+        // sudah lewat tanggal).
+        if ($booking->wasChanged('status') && $booking->status === 'cancelled' && $booking->warranty_id) {
+            $schedule = $booking->maintenanceSchedule;
+
+            if ($schedule && $schedule->status === 'confirmed') {
+                $schedule->update(['status' => 'pending', 'booking_id' => null, 'responded_at' => null]);
+            }
+        }
+
         if (! $booking->customer_id) {
             return;
         }

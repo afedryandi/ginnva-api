@@ -77,6 +77,21 @@ class MaintenanceSchedulesRelationManager extends RelationManager
                         : null),
             ])
             ->defaultSort('sequence', 'desc')
+            // Gap ditutup 2026-10-01 (audit Maintenance PPF) -- SEBELUMNYA
+            // tidak ada filter sama sekali, staff tidak bisa cepat
+            // menyaring mis. 'forfeited' saja saat riwayat warranty-nya
+            // sudah panjang.
+            ->filters([
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->options([
+                        'pending' => 'Menunggu Jadwal',
+                        'confirmation_sent' => 'Menunggu Konfirmasi',
+                        'confirmed' => 'Dikonfirmasi',
+                        'forfeited' => 'Hangus',
+                        'completed' => 'Selesai',
+                    ]),
+            ])
             ->headerActions([])
             ->actions([])
             ->bulkActions([]);
