@@ -143,7 +143,7 @@ class AttendanceResource extends Resource
 
                     Forms\Components\Select::make('store_id')
                         ->label('Toko')
-                        ->helperText('Otomatis terisi dari toko karyawan yang dipilih — bisa diubah manual kalau entrinya untuk toko lain (mis. dinas luar ke cabang lain).')
+                        ->helperText('Otomatis terisi dari toko karyawan yang dipilih — bisa diubah manual kalau entrinya untuk toko lain (mis. dinas luar ke toko lain).')
                         ->options(fn () => Store::where('is_active', true)->pluck('name', 'id'))
                         ->searchable()
                         ->required()

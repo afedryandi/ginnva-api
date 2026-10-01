@@ -374,7 +374,7 @@ class BookingResource extends Resource
                         ->disabled(fn (Forms\Get $get) => $get('source') === 'app')
                         ->dehydrated()
                         ->helperText(fn (Forms\Get $get) => $get('source') === 'app'
-                            ? 'Dipilih oleh customer lewat mobile app — tidak bisa diubah di sini.'
+                            ? 'Dipilih oleh pelanggan lewat mobile app — tidak bisa diubah di sini.'
                             : null)
                         ->required(),
 
@@ -632,7 +632,7 @@ class BookingResource extends Resource
                     // otomatis kirim WhatsApp+Push+Email begitu tanggal ini tiba.
                     Forms\Components\DatePicker::make('next_service_reminder_at')
                         ->label('Tanggal Reminder Maintenance')
-                        ->helperText('Kosongkan kalau belum perlu reminder. Sistem otomatis kirim WhatsApp/Push/Email ke customer pada tanggal ini.')
+                        ->helperText('Kosongkan kalau belum perlu reminder. Sistem otomatis kirim WhatsApp/Push/Email ke pelanggan pada tanggal ini.')
                         // SEBELUMNYA ->minDate(now()) divalidasi ULANG setiap
                         // kali form disimpan, termasuk saat staff sama sekali
                         // tidak menyentuh field ini. Begitu tanggal reminder
@@ -1064,7 +1064,7 @@ class BookingResource extends Resource
                             ->numeric()
                             ->minValue(0.01)
                             ->required()
-                            ->helperText('Bebas diisi sesuai kesepakatan dengan customer -- dicatat sebagai Pendapatan Diterima Dimuka, BUKAN pendapatan jasa.'),
+                            ->helperText('Bebas diisi sesuai kesepakatan dengan pelanggan -- dicatat sebagai Pendapatan Diterima Dimuka, BUKAN pendapatan jasa.'),
                         Forms\Components\Textarea::make('notes')
                             ->label('Catatan (opsional)')
                             ->rows(2)
@@ -1157,7 +1157,7 @@ class BookingResource extends Resource
                             ->default(fn (Booking $record) => $record->amount_received ?? $record->transaction_amount)
                             ->helperText(fn (Forms\Get $get) => ((float) ($get('transaction_amount') ?? 0)) > ((float) ($get('amount_received') ?? 0))
                                 ? 'Selisihnya akan dicatat sebagai Piutang Usaha (belum lunas).'
-                                : 'Kosongkan/samakan dengan Nominal Transaksi kalau customer sudah lunas penuh.'),
+                                : 'Kosongkan/samakan dengan Nominal Transaksi kalau pelanggan sudah lunas penuh.'),
 
                         // Promo Per Total Pembelian (opsional) — potongan flat
                         // untuk booking yang nominal KOTOR-nya >= ambang.
@@ -1530,14 +1530,14 @@ class BookingResource extends Resource
                     ->modalHeading('Kirim Pengingat Maintenance')
                     ->modalDescription(fn (Booking $record) => $record->service_reminder_sent_at
                         ? 'Pengingat sebelumnya terkirim pada ' . $record->service_reminder_sent_at->format('d M Y H:i') . '. Kirim lagi sekarang?'
-                        : 'Kirim pengingat maintenance berkala ke customer lewat WhatsApp, Push, dan Email?')
+                        : 'Kirim pengingat maintenance berkala ke pelanggan lewat WhatsApp, Push, dan Email?')
                     ->action(function (Booking $record) {
                         $results = app(ServiceReminderService::class)->sendFor($record, force: true);
                         $sent = array_keys(array_filter($results));
 
                         $notification = Notification::make()->title($sent
                             ? 'Pengingat terkirim lewat: ' . implode(', ', $sent)
-                            : 'Pengingat gagal terkirim di semua kanal — cek kontak customer & konfigurasi WhatsApp.');
+                            : 'Pengingat gagal terkirim di semua kanal — cek kontak pelanggan & konfigurasi WhatsApp.');
 
                         $sent ? $notification->success()->send() : $notification->danger()->send();
                     }),

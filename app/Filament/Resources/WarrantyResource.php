@@ -1082,7 +1082,7 @@ class WarrantyResource extends Resource
                 // Gap "revoke/void" diperbaiki 2026-09-25 (audit Garansi)
                 // -- lihat performRevoke() di atas.
                 Tables\Actions\Action::make('revoke')
-                    ->label('Revoke')
+                    ->label('Batalkan Garansi')
                     ->icon('heroicon-o-no-symbol')
                     ->color('danger')
                     ->visible(fn (Warranty $record) => auth()->user()?->isFullAccess()

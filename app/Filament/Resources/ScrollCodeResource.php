@@ -346,7 +346,7 @@ class ScrollCodeResource extends Resource
 
                         Forms\Components\TextInput::make('max_usage')
                             ->label('Kapasitas Gulungan (opsional)')
-                            ->helperText('Boleh dikosongkan (berlaku untuk PPF maupun Window Film) — kode akan tetap muncul di pilihan warranty baru sampai ditandai habis manual lewat "Tandai Habis". Isi kalau kamu tahu pasti gulungan ini cuma cukup untuk sekian mobil (mis. Window Film ±30 mobil), supaya otomatis ditandai habis begitu tercapai.')
+                            ->helperText('Boleh dikosongkan (berlaku untuk PPF maupun Window Film) — kode akan tetap muncul di pilihan warranty baru sampai ditandai habis manual lewat "Tandai Habis". Isi kalau Anda tahu pasti gulungan ini cuma cukup untuk sekian mobil (mis. Window Film ±30 mobil), supaya otomatis ditandai habis begitu tercapai.')
                             ->numeric()
                             ->minValue(1),
 

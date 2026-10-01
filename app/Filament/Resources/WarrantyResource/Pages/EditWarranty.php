@@ -43,7 +43,7 @@ class EditWarranty extends EditRecord
             // Gap "revoke/void" diperbaiki 2026-09-25 (audit Garansi) --
             // lihat WarrantyResource::performRevoke().
             Actions\Action::make('revoke')
-                ->label('Batalkan Garansi (Revoke)')
+                ->label('Batalkan Garansi')
                 ->icon('heroicon-o-no-symbol')
                 ->color('danger')
                 ->visible(fn () => auth()->user()?->isFullAccess()
