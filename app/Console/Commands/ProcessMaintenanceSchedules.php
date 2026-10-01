@@ -80,8 +80,13 @@ class ProcessMaintenanceSchedules extends Command
 
     private function forfeitOverdue(): void
     {
+        // Eager-load warranty.store (audit 2026-10-01, N+1 diperbaiki) --
+        // forfeit() akses $warranty->store lewat WarrantyMaintenanceSchedule::nextOpenDate()
+        // (fitur "geser ke hari buka"), tanpa ini tiap baris yang hangus
+        // memicu 2 query lazy-load tambahan (warranty + store).
         $overdue = WarrantyMaintenanceSchedule::where('status', 'confirmation_sent')
             ->whereDate('scheduled_date', '<', today())
+            ->with('warranty.store')
             ->get();
 
         foreach ($overdue as $schedule) {

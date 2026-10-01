@@ -49,6 +49,31 @@ class WarrantyMaintenanceSchedule extends Model
     }
 
     /**
+     * Geser tanggal maju ke hari buka toko terdekat kalau hasil hitungan
+     * interval jatuh di hari tutup/libur (diminta user 2026-10-01, supaya
+     * customer tidak pernah mentok harus hubungi toko manual setiap siklus
+     * -- lihat MaintenanceScheduleController::confirm() yang SEBELUMNYA
+     * cuma menolak, sekarang jarang/tidak pernah ketemu tanggal tutup lagi
+     * karena sudah digeser dari awal). Cap 14 hari -- jaga-jaga toko
+     * dikonfigurasi tutup permanen/salah, supaya tidak looping tanpa akhir.
+     */
+    private static function nextOpenDate(Warranty $warranty, \Illuminate\Support\Carbon $date): \Illuminate\Support\Carbon
+    {
+        $date = $date->copy();
+        $store = $warranty->store;
+
+        if (! $store) {
+            return $date;
+        }
+
+        for ($i = 0; $i < 14 && $store->isClosedOn($date); $i++) {
+            $date->addDay();
+        }
+
+        return $date;
+    }
+
+    /**
      * Occurrence pertama (sequence=1) untuk warranty yang baru saja
      * diaktifkan maintenance-nya (maintenance_interval_months diisi). Tidak
      * ada apa-apa terjadi kalau warranty tidak punya installation_date atau
@@ -59,7 +84,10 @@ class WarrantyMaintenanceSchedule extends Model
         return static::create([
             'warranty_id'     => $warranty->id,
             'sequence'        => 1,
-            'scheduled_date'  => $warranty->installation_date->copy()->addMonths($warranty->maintenance_interval_months),
+            'scheduled_date'  => static::nextOpenDate(
+                $warranty,
+                $warranty->installation_date->copy()->addMonths($warranty->maintenance_interval_months)
+            ),
             'status'          => 'pending',
         ]);
     }
@@ -87,13 +115,21 @@ class WarrantyMaintenanceSchedule extends Model
                 'responded_at' => $explicit ? now() : $locked->responded_at,
             ]);
 
-            $warranty = $locked->warranty;
+            // Reuse relasi warranty.store yang sudah di-eager-load caller
+            // kalau ada (audit 2026-10-01, N+1) -- $locked hasil
+            // whereKey()->first() di atas SELALU query baru (demi lock),
+            // jadi relasinya sendiri tidak pernah ikut ter-eager-load dari
+            // query caller di luar transaksi ini.
+            $warranty = $this->relationLoaded('warranty') ? $this->warranty : $locked->warranty;
 
             if ($locked->sequence < $warranty->maintenance_quota && $warranty->maintenance_interval_months) {
                 static::create([
                     'warranty_id'    => $warranty->id,
                     'sequence'       => $locked->sequence + 1,
-                    'scheduled_date' => $locked->scheduled_date->copy()->addMonths($warranty->maintenance_interval_months),
+                    'scheduled_date' => static::nextOpenDate(
+                        $warranty,
+                        $locked->scheduled_date->copy()->addMonths($warranty->maintenance_interval_months)
+                    ),
                     'status'         => 'pending',
                 ]);
             }
@@ -120,13 +156,17 @@ class WarrantyMaintenanceSchedule extends Model
 
             $locked->update(['status' => 'completed']);
 
-            $warranty = $locked->warranty;
+            // Lihat catatan sama persis di forfeit() di atas.
+            $warranty = $this->relationLoaded('warranty') ? $this->warranty : $locked->warranty;
 
             if ($locked->sequence < $warranty->maintenance_quota && $warranty->maintenance_interval_months) {
                 static::create([
                     'warranty_id'    => $warranty->id,
                     'sequence'       => $locked->sequence + 1,
-                    'scheduled_date' => $locked->scheduled_date->copy()->addMonths($warranty->maintenance_interval_months),
+                    'scheduled_date' => static::nextOpenDate(
+                        $warranty,
+                        $locked->scheduled_date->copy()->addMonths($warranty->maintenance_interval_months)
+                    ),
                     'status'         => 'pending',
                 ]);
             }
