@@ -51,6 +51,18 @@ class WarrantyClaim extends Model
     }
 
     /**
+     * Gap ditutup 2026-10-01 (audit Bagian B, "Klaim Garansi & Maintenance
+     * PPF") -- booking kunjungan yang dibuat BARENGAN saat klaim ini
+     * diajukan lewat app (lihat MyWarrantyController::storeClaim()).
+     * Nullable -- klaim lama (dibuat staff manual lewat Filament sebelum
+     * fitur ini ada) tidak punya booking terkait.
+     */
+    public function booking()
+    {
+        return $this->hasOne(Booking::class, 'warranty_claim_id');
+    }
+
+    /**
      * Generate claim_number otomatis, mengikuti format yang sama dengan
      * inquiry_number / quotation_number: PREFIX-YYYYMM-XXXX.
      * Prefix "CLM" (claim) supaya mudah dibedakan dari warranty_code (GNV-)

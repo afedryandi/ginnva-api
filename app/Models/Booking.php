@@ -158,6 +158,10 @@ class Booking extends Model
         // voucher_discount = snapshot potongan (pola sama spend_promo_discount
         // di bawah). Lihat migrasi 2026_09_26_000002.
         'voucher_discount',
+        // Bagian B rancangan "Klaim Garansi & Maintenance PPF" (2026-10-01) --
+        // booking yang dibuat dari pengajuan klaim garansi customer, lihat
+        // migrasi add_warranty_claim_id_to_bookings_table.
+        'warranty_claim_id',
         // Promo Per Total Pembelian (potongan flat, diterapkan manual).
         // transaction_amount disimpan NET; spend_promo_discount = snapshot
         // potongan. Lihat migrasi 2026_09_10_000014.
@@ -513,6 +517,11 @@ class Booking extends Model
         return $this->belongsTo(VoucherClaim::class);
     }
 
+    public function warrantyClaim()
+    {
+        return $this->belongsTo(WarrantyClaim::class);
+    }
+
     /**
      * Varian/SKU FilmProduct UTAMA yang dipasang di booking ini --
      * opsional (nullable), lihat catatan di $fillable. TETAP field
@@ -687,7 +696,7 @@ class Booking extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at'])
+            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('booking')

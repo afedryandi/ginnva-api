@@ -77,6 +77,28 @@ class ClaimsRelationManager extends RelationManager
                     ->label('Diajukan')
                     ->dateTime('d M Y H:i')
                     ->sortable(),
+
+                // Gap ditutup 2026-10-01 (audit Bagian B) -- SEBELUMNYA tidak
+                // ada cara lihat booking kunjungan yang terkait klaim ini
+                // (kalau diajukan lewat app, lihat WarrantyClaim::booking()).
+                // Klaim lama yang dibuat manual staff (sebelum fitur ini ada)
+                // memang tidak punya booking terkait, placeholder '—'.
+                Tables\Columns\TextColumn::make('booking.preferred_date')
+                    ->label('Jadwal Kunjungan')
+                    ->date('d M Y')
+                    ->placeholder('—')
+                    ->description(fn ($record) => $record->booking?->status
+                        ? match ($record->booking->status) {
+                            'pending' => 'Menunggu Konfirmasi',
+                            'confirmed' => 'Terkonfirmasi',
+                            'completed' => 'Selesai',
+                            'cancelled' => 'Dibatalkan',
+                            default => $record->booking->status,
+                        }
+                        : null)
+                    ->url(fn ($record) => $record->booking
+                        ? \App\Filament\Resources\BookingResource::getUrl('view', ['record' => $record->booking->id])
+                        : null),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')

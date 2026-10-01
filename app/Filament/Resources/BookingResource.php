@@ -335,14 +335,19 @@ class BookingResource extends Resource
                     // — service_type cuma kolom string biasa, jadi kalau
                     // key-nya beda, value booking dari app tidak match opsi
                     // manapun dan select tampil kosong.
+                    // "Konsultasi Produk" & "Klaim Garansi" dihapus dari opsi 2026-10-01
+                    // (rencana user) -- Klaim Garansi pindah ke alur Garansi customer sendiri
+                    // (lihat Bagian B rancangan "Klaim Garansi & Maintenance PPF"). Booking LAMA
+                    // yang masih punya service_type salah satu dari 2 nilai ini akan tampil
+                    // KOSONG di Select ini saat diedit (lihat catatan "select tampil kosong" di
+                    // atas) -- data aslinya tetap utuh, cuma preselect-nya yang hilang, sengaja
+                    // diterima sebagai trade-off minor untuk legacy record.
                     Forms\Components\Select::make('service_type')
                         ->label('Jenis Layanan')
                         ->options([
                             'Kaca Film (Window Film)'                      => 'Kaca Film (Window Film)',
                             'Pelindung Cat (PPF)'                          => 'Pelindung Cat (PPF)',
                             'Kaca Film (Window Film), Pelindung Cat (PPF)' => 'Kaca Film + PPF',
-                            'Konsultasi Produk'                            => 'Konsultasi Produk',
-                            'Klaim Garansi'                                => 'Klaim Garansi',
                             'Lainnya'                                      => 'Lainnya (isi di catatan)',
                         ])
                         ->live()
@@ -756,6 +761,40 @@ class BookingResource extends Resource
                         ->placeholder('Tidak ada')
                         ->state(fn (Booking $record) => $record->voucher_claim_id
                             ? ($record->voucherClaim?->code ?? '(klaim dihapus)') . ' — potong Rp' . number_format((float) $record->voucher_discount, 0, ',', '.')
+                            : null),
+
+                    // Gap ditutup 2026-10-01 (audit Bagian B, "Klaim Garansi &
+                    // Maintenance PPF") -- SEBELUMNYA warranty_claim_id sama
+                    // sekali tidak tampil di sini (beda dari voucherClaim di
+                    // atas yang sudah dapat perlakuan ini), staff yang buka
+                    // booking "Klaim Garansi" tidak bisa lihat kategori/deskripsi/
+                    // status klaimnya tanpa cari manual ke WarrantyResource.
+                    TextEntry::make('warrantyClaim.claim_number')
+                        ->label('Klaim Garansi')
+                        ->placeholder('Tidak ada')
+                        ->visible(fn (Booking $record) => $record->warranty_claim_id !== null)
+                        ->state(function (Booking $record) {
+                            $claim = $record->warrantyClaim;
+                            if (! $claim) {
+                                return '(klaim dihapus)';
+                            }
+
+                            $categoryLabel = match ($claim->category) {
+                                'worry_free_wrap' => 'Worry Free Wrap',
+                                'product_warranty' => 'Product Warranty',
+                                default => 'Lainnya',
+                            };
+                            $statusLabel = match ($claim->status) {
+                                'pass' => 'Disetujui',
+                                'reject' => 'Ditolak',
+                                default => 'Menunggu Review',
+                            };
+
+                            return "{$claim->claim_number} — {$categoryLabel} ({$statusLabel})"
+                                . ($claim->description ? "\n{$claim->description}" : '');
+                        })
+                        ->url(fn (Booking $record) => $record->warrantyClaim?->warranty_id
+                            ? \App\Filament\Resources\WarrantyResource::getUrl('view', ['record' => $record->warrantyClaim->warranty_id])
                             : null),
                     // BUG (500 error): ->date('d M Y') dipakai BARENGAN
                     // dengan ->state() yang sudah mengembalikan string

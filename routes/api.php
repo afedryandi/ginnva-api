@@ -154,6 +154,9 @@ Route::prefix('customer')->group(function () {
         // 我的质保 — Garansi Saya
         Route::get('/warranties', [MyWarrantyController::class, 'index']);
     Route::get('/warranties/{id}', [MyWarrantyController::class, 'show']);
+        // Bagian B rancangan "Klaim Garansi & Maintenance PPF" (2026-10-01).
+        Route::post('/warranties/{id}/claims', [MyWarrantyController::class, 'storeClaim'])
+            ->middleware('throttle:10,1');
 
         // 我的预约 — Booking Saya
         Route::get('/bookings', [BookingController::class, 'index']);
