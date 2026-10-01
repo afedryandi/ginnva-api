@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\ChartOfAccount;
 use App\Models\Receivable;
 use App\Models\Refund;
+use App\Services\PushNotificationService;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -172,7 +173,7 @@ class RefundService
                 }
             }
 
-            return Refund::create([
+            $refund = Refund::create([
                 'refund_number' => $refundNumber,
                 'booking_id' => $booking->id,
                 'amount' => $amount,
@@ -181,6 +182,30 @@ class RefundService
                 'journal_entry_id' => $entry->id,
                 'created_by' => $userId,
             ]);
+
+            // Audit Notifikasi 2026-10-01: SEBELUMNYA customer tidak pernah
+            // diberi tahu sama sekali kalau refund booking-nya sudah
+            // diproses -- staff (pengaju & approver, lewat approval
+            // berjenjang) sudah dapat notif lewat
+            // TransactionApprovalService::notifyRequesterOfDecision(), tapi
+            // customer yang uangnya di-refund tidak. Dikirim SETELAH commit
+            // (di luar transaction ini secara efektif tidak bisa -- jadi
+            // dibungkus try/catch supaya kegagalan push tidak membatalkan
+            // refund yang sudah sah).
+            if ($booking->customer_id) {
+                try {
+                    app(PushNotificationService::class)->sendToCustomer(
+                        $booking->customer_id,
+                        'Refund Diproses',
+                        "Refund Rp" . number_format($amount, 0, ',', '.') . " untuk booking #{$booking->booking_number} Anda sudah diproses.",
+                        ['type' => 'refund_processed', 'booking_id' => $booking->id, 'route' => "/booking/{$booking->id}/chat"]
+                    );
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
+
+            return $refund;
         });
     }
 }

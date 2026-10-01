@@ -51,7 +51,8 @@ class NotifyStaleQuotations extends Command
                 (int) $storeId,
                 'Lead Belum Di-follow-up',
                 "{$group->count()} lead quotation sudah lebih dari 24 jam belum ditindak.",
-                ['type' => 'quotation_stale', 'route' => '/staff/quotations?status=new']
+                ['type' => 'quotation_stale', 'route' => '/staff/quotations?status=new'],
+                QuotationResource::class,
             );
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Filament\Resources\InvoiceResource;
 use App\Models\Invoice;
 use App\Services\PushNotificationService;
 
@@ -38,7 +39,8 @@ class InvoiceObserver
             $invoice->store_id,
             'Invoice Baru Dibuat',
             "Invoice #{$invoice->invoice_number} untuk {$invoice->customer_name} sudah dibuat.",
-            ['type' => 'invoice_new', 'invoice_id' => $invoice->id]
+            ['type' => 'invoice_new', 'invoice_id' => $invoice->id],
+            InvoiceResource::class,
         );
 
         // Customer BOLEH dapat route -- portal invoice-nya baru dibangun
@@ -86,7 +88,8 @@ class InvoiceObserver
             $invoice->store_id,
             $title,
             $body,
-            ['type' => 'invoice_' . $invoice->status, 'invoice_id' => $invoice->id]
+            ['type' => 'invoice_' . $invoice->status, 'invoice_id' => $invoice->id],
+            InvoiceResource::class,
         );
     }
 }

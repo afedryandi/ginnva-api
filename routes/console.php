@@ -85,6 +85,11 @@ Schedule::command('otp:prune-expired')->dailyAt('04:00');
 // -- lihat App\Console\Commands\GenerateRecurringBills.
 Schedule::command('billing:generate-recurring')->dailyAt('05:00')->withoutOverlapping();
 
+// Hapus notifikasi lama (bell Filament + customer + partner) yang sudah
+// lewat 180 hari (audit Notifikasi 2026-10-01) -- lihat
+// App\Console\Commands\PruneOldNotifications.
+Schedule::command('notifications:prune-old')->dailyAt('04:10');
+
 // Gap ditutup 2026-09-26 (audit Absensi Karyawan, "tidak ada notifikasi
 // proaktif") -- notif staff lupa clock-out (hari sebelumnya, setelah
 // mark-absences supaya tidak tumpang tindih) & staff yang belum absen

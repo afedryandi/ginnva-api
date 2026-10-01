@@ -45,12 +45,20 @@ class PushNotificationService
      * notif booking yang mereka pantau lewat sendToBookingWatchers(), supaya
      * tidak kebanjiran notif dari semua toko. Dipakai saat CUSTOMER
      * mengirim pesan di booking chat.
+     *
+     * $resourceClass (opsional, mis. BookingResource::class) MEMPERSEMPIT
+     * staff toko ke yang punya akses menu resource itu (hasMenuAccess()) —
+     * diperbaiki 2026-10-01 (sebelumnya SEMUA role non-installer/partner di
+     * toko ikut kebanjiran notif fitur yang bukan menu mereka, mis. staff
+     * tanpa akses menu Booking tetap dapat push "Booking Baru"). Dibiarkan
+     * null untuk notifikasi yang memang tidak terikat ke satu menu/resource
+     * tertentu (mis. absensi lupa clock-out, chat booking generik).
      */
-    public function sendToStoreStaff(int $storeId, string $title, string $body, array $data = []): void
+    public function sendToStoreStaff(int $storeId, string $title, string $body, array $data = [], ?string $resourceClass = null): void
     {
         $storeStaffIds = User::where('store_id', $storeId)
             ->get()
-            ->filter(fn (User $u) => $u->isRestrictedStaff())
+            ->filter(fn (User $u) => $u->isRestrictedStaff() && ($resourceClass === null || $u->hasMenuAccess($resourceClass)))
             ->pluck('id');
 
         $superAdminIds = User::role('super_admin')->pluck('id');
@@ -164,7 +172,20 @@ class PushNotificationService
                         }
                     } else {
                         $failed += count($chunk);
-                        Log::error('[Expo Push] HTTP error: ' . $response->body());
+                        // Token-nya disebutkan eksplisit (bukan cuma body
+                        // response mentah) -- diperbaiki 2026-10-01, audit
+                        // Notifikasi: sebelumnya kalau retry satu-per-satu
+                        // di atas (chunk=1) gagal lewat cabang ini, token
+                        // yang bersangkutan tidak pernah dibersihkan DAN
+                        // tidak kelihatan di log mana yang gagal -- hanya
+                        // "HTTP error" generik tanpa konteks token. Tetap
+                        // TIDAK auto-delete token di sini (beda dari cabang
+                        // DeviceNotRegistered di atas) karena kegagalan HTTP
+                        // level belum tentu berarti token tidak valid, bisa
+                        // juga gangguan Expo sesaat -- tapi harus tetap
+                        // tertelusuri supaya tidak jadi dead token yang
+                        // dicoba terus tanpa ketahuan.
+                        Log::error('[Expo Push] HTTP error', ['tokens' => $chunk, 'response' => $response->body()]);
                     }
                 }
             } catch (\Exception $e) {

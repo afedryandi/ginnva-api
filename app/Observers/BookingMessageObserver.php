@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Filament\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\BookingMessage;
 use App\Services\PushNotificationService;
@@ -61,7 +62,7 @@ class BookingMessageObserver
                 'route'      => "/staff/bookings/{$booking->id}",
             ];
 
-            $this->push->sendToStoreStaff($booking->store_id, $title, $body, $data);
+            $this->push->sendToStoreStaff($booking->store_id, $title, $body, $data, BookingResource::class);
             $this->push->sendToBookingWatchers($booking, $title, $body, $data);
         }
     }

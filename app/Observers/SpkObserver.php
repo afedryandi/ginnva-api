@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Filament\Resources\SpkResource;
 use App\Models\Spk;
 use App\Services\PushNotificationService;
 
@@ -34,7 +35,8 @@ class SpkObserver
                 'type'   => 'spk_new',
                 'spk_id' => $spk->id,
                 'route'  => "/staff/spks/{$spk->id}",
-            ]
+            ],
+            SpkResource::class,
         );
     }
 
@@ -58,7 +60,8 @@ class SpkObserver
                 'type'   => 'spk_checked_out',
                 'spk_id' => $spk->id,
                 'route'  => "/staff/spks/{$spk->id}",
-            ]
+            ],
+            SpkResource::class,
         );
     }
 }

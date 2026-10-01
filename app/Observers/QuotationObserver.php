@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Filament\Resources\QuotationResource;
 use App\Mail\NewQuotationMail;
 use App\Models\Quotation;
 use App\Models\User;
@@ -35,11 +36,12 @@ class QuotationObserver
     }
 
     /**
-     * Kirim notifikasi email + push ke staff toko (role apa pun SELAIN
-     * installer/partner — role divisi seperti Store Manager, dst) yang
+     * Kirim notifikasi email + push ke staff toko yang punya AKSES MENU
+     * QUOTATION (hasQuotationAccess(), bukan sekadar isRestrictedStaff()
+     * — diperbaiki 2026-10-01, sama alasan dengan BookingObserver) yang
      * terkait saat ada quotation (lead sales) baru masuk dari mobile app.
-     * Sama pola dengan BookingObserver — fallback ke semua isFullAccess()
-     * kalau toko tersebut belum punya staff terdaftar.
+     * Fallback ke semua isFullAccess() kalau toko tersebut belum punya
+     * staff ber-akses Quotation terdaftar.
      */
     public function created(Quotation $quotation): void
     {
@@ -52,7 +54,7 @@ class QuotationObserver
 
         $staff = User::where('store_id', $quotation->store_id)
             ->get()
-            ->filter(fn (User $u) => $u->isRestrictedStaff());
+            ->filter(fn (User $u) => $u->isRestrictedStaff() && $u->hasQuotationAccess());
 
         $recipients = $staff->pluck('email');
 
@@ -85,7 +87,8 @@ class QuotationObserver
                 $quotation->store_id,
                 'Lead Baru',
                 "Permintaan penawaran baru dari {$quotation->customer_name}.",
-                ['type' => 'quotation_new', 'quotation_id' => $quotation->id, 'route' => "/staff/quotations/{$quotation->id}"]
+                ['type' => 'quotation_new', 'quotation_id' => $quotation->id, 'route' => "/staff/quotations/{$quotation->id}"],
+                QuotationResource::class,
             );
         }
     }

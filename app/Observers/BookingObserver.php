@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Filament\Resources\BookingResource;
 use App\Mail\NewBookingMail;
 use App\Models\Booking;
 use App\Models\User;
@@ -16,20 +17,22 @@ class BookingObserver
     }
 
     /**
-     * Kirim notifikasi email + push ke staff toko (role apa pun SELAIN
-     * installer/partner — role divisi seperti Store Manager, dst) yang
-     * terkait saat ada booking baru masuk — baik dari app, WhatsApp
-     * manual, maupun walk-in yang diinput admin sendiri.
+     * Kirim notifikasi email + push ke staff toko yang punya AKSES MENU
+     * BOOKING (hasBookingAccess(), bukan sekadar isRestrictedStaff() —
+     * diperbaiki 2026-10-01, sebelumnya staff toko tanpa akses menu
+     * Booking tetap kebanjiran notif ini) yang terkait saat ada booking
+     * baru masuk — baik dari app, WhatsApp manual, maupun walk-in yang
+     * diinput admin sendiri.
      *
-     * Kalau toko tersebut belum punya staff terdaftar, fallback kirim ke
-     * semua yang isFullAccess() (super_admin/direksi) supaya booking
-     * tidak pernah terlewat tanpa notif.
+     * Kalau toko tersebut belum punya staff ber-akses Booking terdaftar,
+     * fallback kirim ke semua yang isFullAccess() (super_admin/direksi)
+     * supaya booking tidak pernah terlewat tanpa notif.
      */
     public function created(Booking $booking): void
     {
         $staff = User::where('store_id', $booking->store_id)
             ->get()
-            ->filter(fn (User $u) => $u->isRestrictedStaff());
+            ->filter(fn (User $u) => $u->isRestrictedStaff() && $u->hasBookingAccess());
 
         $recipients = $staff->pluck('email');
 
@@ -62,7 +65,8 @@ class BookingObserver
                     'type'       => 'booking_new',
                     'booking_id' => $booking->id,
                     'route'      => "/staff/bookings/{$booking->id}",
-                ]
+                ],
+                BookingResource::class,
             );
         }
     }

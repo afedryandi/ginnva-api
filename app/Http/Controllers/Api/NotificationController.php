@@ -24,18 +24,26 @@ class NotificationController extends Controller
             'platform' => 'required|in:android,ios',
         ]);
 
+        // NB: dipanggil dari mobile dengan skipAuth=true (lihat
+        // lib/notifications.ts setupNotifications()) -- auth('customer')
+        // di sini SELALU null karena tidak ada Authorization header sama
+        // sekali terkirim, bukan gagal diam-diam. Linking ke customer_id
+        // yang sebenarnya terjadi belakangan lewat linkToken() (setelah
+        // login). Makanya TIDAK boleh null-kan user_id di sini juga --
+        // kalau device ini sedang ditautkan ke staff (linkTokenStaff()),
+        // app yang restart/reload akan memanggil ini lagi dan akan
+        // menghapus tautan staff tadi tanpa alasan.
         $customerId = null;
         try {
             $customerId = auth('customer')->user()?->id;
         } catch (\Exception) {}
 
-        DeviceToken::updateOrCreate(
-            ['token' => $request->token],
-            [
-                'customer_id' => $customerId,
-                'platform'    => $request->platform,
-            ]
-        );
+        $attributes = ['platform' => $request->platform];
+        if ($customerId) {
+            $attributes['customer_id'] = $customerId;
+        }
+
+        DeviceToken::updateOrCreate(['token' => $request->token], $attributes);
 
         return response()->json(['success' => true, 'message' => 'Token registered.']);
     }
@@ -43,13 +51,21 @@ class NotificationController extends Controller
     /**
      * POST /api/notifications/link-token
      * Requires: auth:customer
+     *
+     * 'user_id' SENGAJA ikut di-null-kan (diperbaiki 2026-10-01) -- kalau
+     * device yang sama sebelumnya ditautkan ke staff lewat
+     * linkTokenStaff() (mis. HP toko dipakai staff login, lalu dipakai
+     * customer lain login di app yang sama), tautan staff lama itu harus
+     * berhenti berlaku di device ini, bukan menumpuk jadi 2 identitas
+     * sekaligus (dulu BUG -- device bisa menerima push milik customer
+     * DAN staff bersamaan).
      */
     public function linkToken(Request $request)
     {
         $request->validate(['token' => 'required|string|max:500']);
 
         DeviceToken::where('token', $request->token)
-            ->update(['customer_id' => auth('customer')->id()]);
+            ->update(['customer_id' => auth('customer')->id(), 'user_id' => null]);
 
         return response()->json(['success' => true, 'message' => 'Token linked.']);
     }
@@ -61,6 +77,8 @@ class NotificationController extends Controller
      * Sama seperti linkToken() tapi menautkan ke user_id staff, bukan
      * customer_id — supaya token HP yang sama bisa dipakai baik saat app
      * dibuka sebagai customer maupun setelah login sebagai staff.
+     * 'customer_id' SENGAJA ikut di-null-kan (diperbaiki 2026-10-01),
+     * arah kebalikan dari linkToken() di atas, alasan sama persis.
      */
     public function linkTokenStaff(Request $request)
     {
@@ -68,7 +86,7 @@ class NotificationController extends Controller
 
         DeviceToken::updateOrCreate(
             ['token' => $request->token],
-            ['user_id' => $request->user('api')->id]
+            ['user_id' => $request->user('api')->id, 'customer_id' => null]
         );
 
         return response()->json(['success' => true, 'message' => 'Token linked.']);

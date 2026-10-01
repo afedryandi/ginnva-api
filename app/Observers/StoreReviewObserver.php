@@ -69,7 +69,8 @@ class StoreReviewObserver
             $review->store_id,
             'Review Negatif Masuk',
             'Ada customer yang memberi review negatif untuk toko ini. Segera tindak lanjuti.',
-            ['type' => 'store_review_negative', 'route' => '/staff/bookings']
+            ['type' => 'store_review_negative', 'route' => '/staff/bookings'],
+            StoreReviewResource::class,
         );
 
         // Bell notifikasi Filament — supaya tetap kelihatan walau staff

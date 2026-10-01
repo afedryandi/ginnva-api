@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Filament\Resources\AttendanceResource;
 use App\Models\Attendance;
 use App\Services\PushNotificationService;
 use Illuminate\Console\Command;
@@ -47,7 +48,8 @@ class NotifyForgottenClockouts extends Command
             $push->sendToStoreStaff(
                 (int) $storeId,
                 'Ada Absensi Belum Lengkap',
-                "Lupa absen pulang: {$names}. Koreksi lewat menu Absensi kalau perlu."
+                "Lupa absen pulang: {$names}. Koreksi lewat menu Absensi kalau perlu.",
+                resourceClass: AttendanceResource::class,
             );
 
             foreach ($storeRows as $row) {

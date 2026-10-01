@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Filament\Resources\AttendanceResource;
 use App\Models\Attendance;
 use App\Models\Store;
 use App\Models\User;
@@ -82,7 +83,8 @@ class NotifyMissingClockins extends Command
                 $push->sendToStoreStaff(
                     $store->id,
                     'Karyawan Belum Absen Masuk',
-                    'Sudah lewat jadwal shift tapi belum absen: ' . implode(', ', $lateNames) . '.'
+                    'Sudah lewat jadwal shift tapi belum absen: ' . implode(', ', $lateNames) . '.',
+                    resourceClass: AttendanceResource::class,
                 );
                 $notified += count($lateNames);
             }

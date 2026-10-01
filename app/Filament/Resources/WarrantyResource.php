@@ -466,6 +466,7 @@ class WarrantyResource extends Resource
                         ->numeric()
                         ->minValue(0)
                         ->nullable()
+                        ->live()
                         ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf')
                         ->helperText('Berapa kali customer boleh datang maintenance setelah instalasi. Kosongkan kalau garansi ini tidak menawarkan maintenance.'),
 
