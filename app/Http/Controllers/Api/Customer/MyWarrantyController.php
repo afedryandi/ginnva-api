@@ -59,6 +59,8 @@ class MyWarrantyController extends Controller
                 'store:id,name,phone',
                 'claims' => fn ($q) => $q->orderByDesc('created_at'),
                 'maintenanceVisits',
+                // Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01).
+                'activeMaintenanceSchedule',
             ])
             ->findOrFail($id);
 
@@ -242,6 +244,18 @@ class MyWarrantyController extends Controller
                     'note'       => $v->note,
                 ])
                 ->values(),
+            // Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01) --
+            // occurrence jadwal yang SEDANG aktif (null kalau belum pernah
+            // diaktifkan staff, atau kuota sudah habis tanpa occurrence
+            // tersisa). 'Tolak' cuma relevan kalau statusnya sudah
+            // confirmation_sent (push sudah terkirim) -- 'pending' murni
+            // menunggu tanggal masuk window reminder, belum perlu aksi apa pun.
+            'maintenance_schedule'          => $w->activeMaintenanceSchedule ? [
+                'id'             => $w->activeMaintenanceSchedule->id,
+                'sequence'       => $w->activeMaintenanceSchedule->sequence,
+                'scheduled_date' => $w->activeMaintenanceSchedule->scheduled_date->format('Y-m-d'),
+                'status'         => $w->activeMaintenanceSchedule->status,
+            ] : null,
         ]);
     }
 }

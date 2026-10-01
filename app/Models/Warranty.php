@@ -44,6 +44,8 @@ class Warranty extends Model
         'revoked_by',
         'revoked_at',
         'maintenance_quota',
+        // Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01).
+        'maintenance_interval_months',
     ];
 
     protected $casts = [
@@ -240,6 +242,29 @@ class Warranty extends Model
     }
 
     /**
+     * Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01) -- semua
+     * occurrence jadwal (pending/confirmation_sent/confirmed/forfeited/
+     * completed), diurutkan sequence supaya riwayat tampil berurutan.
+     */
+    public function maintenanceSchedules()
+    {
+        return $this->hasMany(WarrantyMaintenanceSchedule::class)->orderBy('sequence');
+    }
+
+    /**
+     * Occurrence yang SEDANG aktif (belum selesai/hangus) -- cuma ada
+     * MAKSIMAL 1 per warranty di satu waktu (lihat catatan di
+     * WarrantyMaintenanceSchedule). Null kalau belum pernah diaktifkan
+     * ATAU kuota sudah habis tanpa occurrence aktif tersisa.
+     */
+    public function activeMaintenanceSchedule()
+    {
+        return $this->hasOne(WarrantyMaintenanceSchedule::class)
+            ->whereIn('status', ['pending', 'confirmation_sent'])
+            ->latest('sequence');
+    }
+
+    /**
      * Prioritas: relasi 'maintenanceVisits' yang sudah di-eager-load
      * (MyWarrantyController::show()) — difilter cancelled_at di sini
      * (bukan query ulang) > active_maintenance_visits_count dari
@@ -324,7 +349,7 @@ class Warranty extends Model
         // 'status' (itu computed accessor, bukan nilai mentah, gampang
         // membingungkan kalau ditampilkan sebagai "sebelum/sesudah" di log).
         return LogOptions::defaults()
-            ->logOnly(['review_status', 'rejection_reason', 'reviewed_by', 'extension_years', 'expiry_date', 'store_id', 'status', 'revoke_reason', 'revoked_by', 'maintenance_quota'])
+            ->logOnly(['review_status', 'rejection_reason', 'reviewed_by', 'extension_years', 'expiry_date', 'store_id', 'status', 'revoke_reason', 'revoked_by', 'maintenance_quota', 'maintenance_interval_months'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('warranty')

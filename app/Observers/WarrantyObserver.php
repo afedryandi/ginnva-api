@@ -26,6 +26,14 @@ class WarrantyObserver
     public function created(Warranty $warranty): void
     {
         $this->markScrollCodesUsed($warranty);
+
+        // Bug diperbaiki 2026-10-01 (audit Bagian C) -- SEBELUMNYA cuma
+        // dicek di updated(), jadi mengisi maintenance_quota +
+        // maintenance_interval_months LANGSUNG saat pertama kali membuat
+        // warranty (bukan edit belakangan) tidak pernah bikin occurrence
+        // pertama sama sekali, walau CreateWarranty pakai form yang SAMA
+        // dengan EditWarranty (field maintenance bisa diisi di keduanya).
+        $this->activateMaintenanceScheduleIfNeeded($warranty);
     }
 
     /**
@@ -33,6 +41,8 @@ class WarrantyObserver
      */
     public function updated(Warranty $warranty): void
     {
+        $this->activateMaintenanceScheduleIfNeeded($warranty);
+
         // Kalau staff mengganti kode gulungan yang sudah kepilih (salah
         // pilih lalu dikoreksi), lepas dulu kode LAMA-nya sebelum menandai
         // yang baru — kalau tidak, kode lama tetap terkunci 'used'/
@@ -158,6 +168,31 @@ class WarrantyObserver
             // Update saldo di tabel customers (denormalized untuk performa)
             $lockedCustomer->increment('loyalty_points', self::POINTS_PER_APPROVAL);
         });
+    }
+
+    /**
+     * Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01) -- dipanggil
+     * dari created() DAN updated() (lihat catatan di masing-masing) supaya
+     * kedua jalur staff mengisi field maintenance (langsung saat bikin
+     * warranty, atau belakangan lewat edit) sama-sama memicu occurrence
+     * pertama. doesntExist() jaga-jaga dipanggil ulang (mis. staff edit
+     * ulang intervalnya nanti) tidak bikin occurrence dobel -- occurrence
+     * berikutnya sudah mengikuti interval TERBARU lewat
+     * WarrantyMaintenanceSchedule::forfeit()/completeAndScheduleNext().
+     */
+    private function activateMaintenanceScheduleIfNeeded(Warranty $warranty): void
+    {
+        if (
+            $warranty->wasChanged('maintenance_interval_months')
+            && $warranty->maintenance_interval_months !== null
+            && $warranty->installation_date !== null
+            // Server-side enforcement (audit Bagian C 2026-10-01) -- bukan
+            // cuma disembunyikan di form, maintenance memang khusus PPF.
+            && $warranty->product_category === 'ppf'
+            && $warranty->maintenanceSchedules()->doesntExist()
+        ) {
+            \App\Models\WarrantyMaintenanceSchedule::createFirstFor($warranty);
+        }
     }
 
     /**

@@ -13,6 +13,11 @@ Artisan::command('inspire', function () {
 // hari ini. Lihat App\Console\Commands\SendServiceReminders.
 Schedule::command('reminders:send-service')->dailyAt('08:00');
 
+// Konfirmasi kedatangan + hanguskan occurrence jadwal maintenance PPF yang
+// lewat tanggal tanpa respons -- lihat App\Console\Commands\ProcessMaintenanceSchedules
+// (Bagian C, "Klaim Garansi & Maintenance PPF", 2026-10-01).
+Schedule::command('maintenance:process-schedules')->dailyAt('08:15');
+
 // Alert bahan baku menipis/kedaluwarsa/tidak bergerak yang belum
 // ditinjau — lihat App\Console\Commands\NotifyExpiringMaterials.
 Schedule::command('materials:notify-expiring')->dailyAt('07:00');

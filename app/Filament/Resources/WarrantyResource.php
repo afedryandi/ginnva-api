@@ -456,12 +456,49 @@ class WarrantyResource extends Resource
                     // diedit kapan saja (tidak dikunci seperti field
                     // sertifikat lain) supaya staff bisa naikkan kuota
                     // untuk kasus goodwill tanpa perlu aksi terpisah.
+                    // Gap ditutup 2026-10-01 (audit Bagian C) -- SEBELUMNYA
+                    // tidak dibatasi product_category sama sekali, staff bisa
+                    // (tanpa sadar) mengaktifkan maintenance untuk garansi
+                    // Kaca Film/Window Film juga, padahal fitur ini (plus
+                    // maintenance_interval_months di bawah) eksplisit khusus PPF.
                     Forms\Components\TextInput::make('maintenance_quota')
                         ->label('Kuota Maintenance (kali)')
                         ->numeric()
                         ->minValue(0)
                         ->nullable()
+                        ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf')
                         ->helperText('Berapa kali customer boleh datang maintenance setelah instalasi. Kosongkan kalau garansi ini tidak menawarkan maintenance.'),
+
+                    // Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01)
+                    // -- interval antar kunjungan. Mengisi field ini (dari
+                    // kosong) otomatis membuat jadwal pertama & mulai siklus
+                    // konfirmasi-otomatis (lihat WarrantyObserver::updated()) --
+                    // staff TIDAK perlu input tanggal manual sama sekali
+                    // setelah ini, sistem yang hitung & jalankan semuanya.
+                    Forms\Components\TextInput::make('maintenance_interval_months')
+                        ->label('Interval Maintenance (bulan)')
+                        ->numeric()
+                        ->minValue(1)
+                        ->nullable()
+                        ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf' && $get('maintenance_quota') !== null)
+                        ->helperText('Jarak antar kunjungan maintenance, mis. 6 = tiap 6 bulan. Mengisi ini pertama kali langsung menjadwalkan kunjungan pertama & mengaktifkan konfirmasi otomatis ke customer — tidak bisa dibatalkan lewat form ini, cuma lihat riwayatnya di tab "Jadwal Maintenance".'),
+
+                    Forms\Components\Placeholder::make('maintenance_schedule_status')
+                        ->label('Jadwal Maintenance Aktif')
+                        ->visible(fn (?Warranty $record) => $record?->product_category === 'ppf' && $record?->activeMaintenanceSchedule !== null)
+                        ->content(function (?Warranty $record) {
+                            $schedule = $record?->activeMaintenanceSchedule;
+                            if (! $schedule) {
+                                return '';
+                            }
+
+                            $statusLabel = match ($schedule->status) {
+                                'confirmation_sent' => 'Menunggu konfirmasi customer',
+                                default => 'Menunggu jadwal (belum masuk window pengingat)',
+                            };
+
+                            return "Ke-{$schedule->sequence} dari {$record->maintenance_quota} — {$schedule->scheduled_date->format('d M Y')} ({$statusLabel})";
+                        }),
 
                     Forms\Components\Placeholder::make('maintenance_history')
                         ->label('Riwayat Kunjungan Maintenance')
@@ -1199,6 +1236,7 @@ class WarrantyResource extends Resource
     {
         return [
             RelationManagers\ClaimsRelationManager::class,
+            RelationManagers\MaintenanceSchedulesRelationManager::class,
         ];
     }
 

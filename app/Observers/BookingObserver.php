@@ -79,6 +79,32 @@ class BookingObserver
      */
     public function updated(Booking $booking): void
     {
+        // Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01) -- di
+        // ATAS guard customer_id di bawah SENGAJA (tidak bergantung customer
+        // punya akun app, murni soal warranty_id terisi atau tidak). Titik
+        // tunggal untuk SEMUA jalur yang bisa menandai booking 'completed'
+        // (mobile staff BookingController::complete(), maupun lewat form
+        // edit Filament) -- daripada menambal tiap endpoint satu-satu.
+        if ($booking->wasChanged('status') && $booking->status === 'completed' && $booking->warranty_id) {
+            $schedule = $booking->maintenanceSchedule;
+
+            if ($schedule) {
+                $schedule->completeAndScheduleNext();
+            }
+
+            // Ledger historis (warranty_maintenance_visits) TETAP terpisah
+            // dari WarrantyMaintenanceSchedule (status occurrence) -- lihat
+            // catatan di WarrantyMaintenanceVisit. Dicatat di sini supaya
+            // kunjungan yang lahir dari alur konfirmasi app ikut tercatat
+            // sama seperti kunjungan walk-in yang dicatat manual staff lewat
+            // WarrantyResource::performRecordMaintenanceVisit().
+            \App\Models\WarrantyMaintenanceVisit::create([
+                'warranty_id' => $booking->warranty_id,
+                'visited_at'  => $booking->preferred_date ?? today(),
+                'note'        => "Maintenance via booking #{$booking->booking_number}",
+            ]);
+        }
+
         if (! $booking->customer_id) {
             return;
         }

@@ -162,6 +162,10 @@ class Booking extends Model
         // booking yang dibuat dari pengajuan klaim garansi customer, lihat
         // migrasi add_warranty_claim_id_to_bookings_table.
         'warranty_claim_id',
+        // Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01) -- booking
+        // kunjungan maintenance PPF, saling eksklusif dgn warranty_claim_id
+        // (1 booking cuma pakai salah satu). Lihat WarrantyMaintenanceSchedule.
+        'warranty_id',
         // Promo Per Total Pembelian (potongan flat, diterapkan manual).
         // transaction_amount disimpan NET; spend_promo_discount = snapshot
         // potongan. Lihat migrasi 2026_09_10_000014.
@@ -522,6 +526,21 @@ class Booking extends Model
         return $this->belongsTo(WarrantyClaim::class);
     }
 
+    public function warranty()
+    {
+        return $this->belongsTo(Warranty::class);
+    }
+
+    /**
+     * Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01) -- occurrence
+     * jadwal maintenance yang booking ini penuhi (null kalau booking ini
+     * bukan booking maintenance PPF, atau occurrence-nya sudah dihapus).
+     */
+    public function maintenanceSchedule()
+    {
+        return $this->hasOne(WarrantyMaintenanceSchedule::class);
+    }
+
     /**
      * Varian/SKU FilmProduct UTAMA yang dipasang di booking ini --
      * opsional (nullable), lihat catatan di $fillable. TETAP field
@@ -696,7 +715,7 @@ class Booking extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id'])
+            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id', 'warranty_id'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('booking')

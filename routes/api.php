@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Customer\BookingController;
 use App\Http\Controllers\Api\Customer\BookingMessageController;
 use App\Http\Controllers\Api\Customer\InvoiceController;
 use App\Http\Controllers\Api\Customer\MyWarrantyController;
+use App\Http\Controllers\Api\Customer\MaintenanceScheduleController;
 use App\Http\Controllers\Api\Customer\StoreReviewController;
 use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
@@ -156,6 +157,13 @@ Route::prefix('customer')->group(function () {
     Route::get('/warranties/{id}', [MyWarrantyController::class, 'show']);
         // Bagian B rancangan "Klaim Garansi & Maintenance PPF" (2026-10-01).
         Route::post('/warranties/{id}/claims', [MyWarrantyController::class, 'storeClaim'])
+            ->middleware('throttle:10,1');
+
+        // Bagian C rancangan "Klaim Garansi & Maintenance PPF" (2026-10-01).
+        Route::get('/maintenance-schedules/pending', [MaintenanceScheduleController::class, 'pending']);
+        Route::post('/maintenance-schedules/{id}/confirm', [MaintenanceScheduleController::class, 'confirm'])
+            ->middleware('throttle:10,1');
+        Route::post('/maintenance-schedules/{id}/decline', [MaintenanceScheduleController::class, 'decline'])
             ->middleware('throttle:10,1');
 
         // 我的预约 — Booking Saya

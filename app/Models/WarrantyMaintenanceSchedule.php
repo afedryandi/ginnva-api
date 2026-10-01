@@ -1,0 +1,151 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
+
+/**
+ * Bagian C, "Klaim Garansi & Maintenance PPF Terhubung ke Slot Booking"
+ * (2026-10-01) -- SATU baris = SATU occurrence jadwal maintenance. Lihat
+ * catatan lengkap alur di migrasi create_warranty_maintenance_schedules_table.
+ *
+ * LogsActivity dipasang (beda dari WarrantyMaintenanceVisit yang murni
+ * ledger tanpa log) -- status di sini berubah OTOMATIS lewat sistem
+ * (command harian, bukan cuma aksi staff), jadi staff butuh jejak "kenapa
+ * occurrence ini hangus/kapan" yang bisa dilihat di Histori Aktivitas
+ * tanpa harus tanya developer.
+ */
+class WarrantyMaintenanceSchedule extends Model
+{
+    use LogsActivity;
+
+    protected $fillable = [
+        'warranty_id',
+        'sequence',
+        'scheduled_date',
+        'status',
+        'booking_id',
+        'reminder_sent_at',
+        'responded_at',
+    ];
+
+    protected $casts = [
+        'scheduled_date'   => 'date',
+        'reminder_sent_at' => 'datetime',
+        'responded_at'     => 'datetime',
+    ];
+
+    public function warranty()
+    {
+        return $this->belongsTo(Warranty::class);
+    }
+
+    public function booking()
+    {
+        return $this->belongsTo(Booking::class);
+    }
+
+    /**
+     * Occurrence pertama (sequence=1) untuk warranty yang baru saja
+     * diaktifkan maintenance-nya (maintenance_interval_months diisi). Tidak
+     * ada apa-apa terjadi kalau warranty tidak punya installation_date atau
+     * interval -- dipanggil staff lewat WarrantyResource, divalidasi di sana.
+     */
+    public static function createFirstFor(Warranty $warranty): self
+    {
+        return static::create([
+            'warranty_id'     => $warranty->id,
+            'sequence'        => 1,
+            'scheduled_date'  => $warranty->installation_date->copy()->addMonths($warranty->maintenance_interval_months),
+            'status'          => 'pending',
+        ]);
+    }
+
+    /**
+     * Occurrence ini hangus (ditolak customer ATAU tanggal lewat tanpa
+     * respons) -- otomatis siapkan occurrence berikutnya selama kuota belum
+     * habis. $explicit = true kalau customer tap "Tolak" (responded_at
+     * diisi); false kalau diproses command harian karena tanggal sudah
+     * lewat tanpa respons sama sekali (responded_at tetap null -- customer
+     * memang tidak merespons, beda dari menolak aktif).
+     */
+    public function forfeit(bool $explicit = false): void
+    {
+        DB::transaction(function () use ($explicit) {
+            $locked = static::whereKey($this->id)->lockForUpdate()->first();
+
+            // Sudah diproses request/run lain barengan -- jangan dobel.
+            if ($locked->status === 'forfeited' || $locked->status === 'confirmed' || $locked->status === 'completed') {
+                return;
+            }
+
+            $locked->update([
+                'status'       => 'forfeited',
+                'responded_at' => $explicit ? now() : $locked->responded_at,
+            ]);
+
+            $warranty = $locked->warranty;
+
+            if ($locked->sequence < $warranty->maintenance_quota && $warranty->maintenance_interval_months) {
+                static::create([
+                    'warranty_id'    => $warranty->id,
+                    'sequence'       => $locked->sequence + 1,
+                    'scheduled_date' => $locked->scheduled_date->copy()->addMonths($warranty->maintenance_interval_months),
+                    'status'         => 'pending',
+                ]);
+            }
+        });
+
+        $this->refresh();
+    }
+
+    /**
+     * Dipanggil saat Booking yang terhubung occurrence ini berstatus
+     * 'completed' -- occurrence ini TUNTAS (beda dari forfeit: ini berhasil,
+     * bukan gagal datang), siapkan occurrence berikutnya kalau kuota belum
+     * habis. Pencatatan ke warranty_maintenance_visits (ledger historis)
+     * dilakukan TERPISAH di titik integrasi "booking selesai", bukan di sini.
+     */
+    public function completeAndScheduleNext(): void
+    {
+        DB::transaction(function () {
+            $locked = static::whereKey($this->id)->lockForUpdate()->first();
+
+            if ($locked->status === 'completed') {
+                return;
+            }
+
+            $locked->update(['status' => 'completed']);
+
+            $warranty = $locked->warranty;
+
+            if ($locked->sequence < $warranty->maintenance_quota && $warranty->maintenance_interval_months) {
+                static::create([
+                    'warranty_id'    => $warranty->id,
+                    'sequence'       => $locked->sequence + 1,
+                    'scheduled_date' => $locked->scheduled_date->copy()->addMonths($warranty->maintenance_interval_months),
+                    'status'         => 'pending',
+                ]);
+            }
+        });
+
+        $this->refresh();
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['status', 'scheduled_date', 'booking_id'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('warranty_maintenance_schedule')
+            ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
+                'created' => "Jadwal maintenance ke-{$this->sequence} dibuat untuk {$this->warranty?->warranty_code}",
+                'updated' => "Jadwal maintenance ke-{$this->sequence} {$this->warranty?->warranty_code} — status: {$this->status}",
+                default => "Jadwal maintenance {$this->warranty?->warranty_code} — {$eventName}",
+            });
+    }
+}
