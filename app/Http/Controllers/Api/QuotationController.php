@@ -117,7 +117,8 @@ class QuotationController extends Controller
                 // saat follow-up. Ditemukan & diperbaiki 2026-08-29.
                 'store_id'        => 'nullable|exists:stores,id',
                 'customer_name'   => 'required|string|max:255',
-                'customer_email'  => 'required|email|max:255',
+                // Opsional (revisi 2026-10-02) -- kontak utama WhatsApp.
+                'customer_email'  => 'nullable|email|max:255',
                 'customer_phone'  => 'required|string|max:30',
                 'license_plate'   => 'nullable|string|max:20',
                 'message'         => 'nullable|string|max:1000',
@@ -143,9 +144,11 @@ class QuotationController extends Controller
         // Verifikasi kepemilikan email penuh (OTP) sengaja TIDAK
         // dikerjakan di sini — itu perubahan UX besar ke funnel lead yang
         // sengaja dibuat serendah mungkin gesekannya, keputusan terpisah.
-        $recentToSameEmail = Quotation::where('customer_email', $request->customer_email)
-            ->where('created_at', '>=', now()->subHours(24))
-            ->count();
+        $recentToSameEmail = $request->filled('customer_email')
+            ? Quotation::where('customer_email', $request->customer_email)
+                ->where('created_at', '>=', now()->subHours(24))
+                ->count()
+            : 0;
 
         if ($recentToSameEmail >= 3) {
             return response()->json([
@@ -180,11 +183,13 @@ class QuotationController extends Controller
             return $quotation;
         });
 
-        try {
-            Mail::to($request->customer_email)
-                ->send(new QuotationReceivedMail($quotation->load('vehicle', 'items.filmProduct')));
-        } catch (\Exception $e) {
-            Log::warning('[QuotationMail] Gagal kirim: ' . $e->getMessage());
+        if ($request->filled('customer_email')) {
+            try {
+                Mail::to($request->customer_email)
+                    ->send(new QuotationReceivedMail($quotation->load('vehicle', 'items.filmProduct')));
+            } catch (\Exception $e) {
+                Log::warning('[QuotationMail] Gagal kirim: ' . $e->getMessage());
+            }
         }
 
         return response()->json([

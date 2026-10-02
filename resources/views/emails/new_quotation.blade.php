@@ -47,7 +47,7 @@
     </tr>
     <tr>
         <td style="padding:12px 16px;color:#999999;font-size:13px;border-top:1px solid #e6e6e6;">Email</td>
-        <td style="padding:12px 16px;color:#333333;font-size:13px;font-weight:600;border-top:1px solid #e6e6e6;">{{ $email }}</td>
+        <td style="padding:12px 16px;color:#333333;font-size:13px;font-weight:600;border-top:1px solid #e6e6e6;">{{ $email ?: '-' }}</td>
     </tr>
     <tr>
         <td style="padding:12px 16px;color:#999999;font-size:13px;border-top:1px solid #e6e6e6;">Kendaraan</td>
