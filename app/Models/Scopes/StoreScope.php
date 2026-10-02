@@ -39,7 +39,13 @@ class StoreScope implements Scope
     {
         $user = auth()->user();
 
-        if (! $user || ($user->isFullAccess() ?? false)) {
+        // Bug diperbaiki 2026-10-02 -- di request customer (guard 'customer')
+        // auth()->user() adalah Customer, bukan User: Customer tidak punya
+        // isFullAccess()/store_id, jadi konfirmasi jadwal maintenance dari
+        // app crash "Call to undefined method Customer::isFullAccess()".
+        // Query customer sudah difilter customer_id oleh endpoint-nya
+        // sendiri, scope per-toko ini cuma untuk staff.
+        if (! $user instanceof \App\Models\User || $user->isFullAccess()) {
             return;
         }
 
