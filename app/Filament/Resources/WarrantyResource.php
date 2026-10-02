@@ -270,13 +270,12 @@ class WarrantyResource extends Resource
                 return;
             }
 
-            // Bug ditutup 2026-10-01 (audit Maintenance PPF) -- SEBELUMNYA
-            // cuma hitung activeMaintenanceVisits() (jalur walk-in manual),
-            // tidak ikut menghitung kunjungan yang sudah tuntas lewat
-            // siklus OTOMATIS (WarrantyMaintenanceSchedule 'completed').
-            // Kombinasi keduanya bisa melebihi maintenance_quota yang
-            // dijanjikan staff kalau tidak disatukan di sini.
-            $used = $locked->activeMaintenanceVisits()->count() + $locked->completedMaintenanceSchedulesCount();
+            // activeMaintenanceVisits() SUDAH mencakup kunjungan otomatis:
+            // BookingObserver mencatat 1 baris WarrantyMaintenanceVisit tiap
+            // booking Maintenance PPF 'completed'. Jangan tambahkan hitungan
+            // schedule 'completed' lagi di sini -- jadi dobel (diperbaiki
+            // 2026-10-02).
+            $used = $locked->activeMaintenanceVisits()->count();
             if ($used >= $locked->maintenance_quota) {
                 Notification::make()
                     ->title('Kuota maintenance sudah habis')
