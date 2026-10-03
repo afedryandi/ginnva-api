@@ -64,6 +64,10 @@ class BookingMessageObserver
 
             $this->push->sendToStoreStaff($booking->store_id, $title, $body, $data, BookingResource::class);
             $this->push->sendToBookingWatchers($booking, $title, $body, $data);
+            // Installer yang ditugaskan di booking ini juga perlu tahu ada
+            // pesan customer (diperbaiki 2026-10-02) -- sendToStoreStaff()
+            // mengecualikan installer.
+            $this->push->sendToUsers($booking->installers()->pluck('users.id'), $title, $body, $data);
         }
     }
 

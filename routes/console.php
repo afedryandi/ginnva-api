@@ -23,6 +23,10 @@ Schedule::command('maintenance:process-schedules')->dailyAt('08:15');
 // lihat App\Console\Commands\NotifyRepeatedMaintenanceForfeits.
 Schedule::command('warranty:notify-maintenance-followup')->dailyAt('08:20');
 
+// Pengingat SLA booking pending (>4 jam, ulang tiap 24 jam) -- lihat
+// App\Console\Commands\RemindPendingBookings.
+Schedule::command('bookings:remind-pending')->hourly();
+
 // Alert bahan baku menipis/kedaluwarsa/tidak bergerak yang belum
 // ditinjau — lihat App\Console\Commands\NotifyExpiringMaterials.
 Schedule::command('materials:notify-expiring')->dailyAt('07:00');

@@ -84,6 +84,8 @@ Route::prefix('stores')->group(function () {
     Route::get('/', [StoreController::class, 'index']);
     Route::get('/{id}', [StoreController::class, 'show']);
     Route::get('/{id}/blocked-dates', [StoreController::class, 'blockedDates']);
+    Route::get('/{id}/full-dates', [StoreController::class, 'fullDates'])->middleware('throttle:30,1');
+    Route::get('/{id}/unavailable-dates', [StoreController::class, 'unavailableDates'])->middleware('throttle:30,1');
 });
 
 Route::prefix('news')->group(function () {
@@ -180,6 +182,9 @@ Route::prefix('customer')->group(function () {
         // Booking 2026-08-27.
         Route::post('/bookings/{id}/cancel', [BookingController::class, 'cancel'])
             ->middleware('throttle:10,1');
+        // Ajukan ganti tanggal (disetujui staff) -- 2026-10-02.
+        Route::post('/bookings/{id}/reschedule-request', [BookingController::class, 'requestReschedule'])
+            ->middleware('throttle:10,1');
 
         // Chat + progress tracking per booking (polling, bukan real-time)
         Route::get('/bookings/{id}/messages', [BookingMessageController::class, 'index']);
@@ -270,6 +275,14 @@ Route::prefix('staff')->group(function () {
         // Tandai booking selesai + input kode referral & nominal transaksi
         // (kalau customer datang lewat kode partner) — lihat ReferralPointService.
         Route::post('/bookings/{id}/complete', [StaffBookingController::class, 'complete'])
+            ->middleware('throttle:20,1');
+        // Ganti tanggal booking + keputusan atas pengajuan jadwal ulang
+        // customer (2026-10-02).
+        Route::put('/bookings/{id}/reschedule', [StaffBookingController::class, 'reschedule'])
+            ->middleware('throttle:20,1');
+        Route::post('/bookings/{id}/reschedule-request/{requestId}/approve', [StaffBookingController::class, 'approveReschedule'])
+            ->middleware('throttle:20,1');
+        Route::post('/bookings/{id}/reschedule-request/{requestId}/reject', [StaffBookingController::class, 'rejectReschedule'])
             ->middleware('throttle:20,1');
 
         // Kirim pengingat maintenance/servis berkala manual (WA+Push+Email) —

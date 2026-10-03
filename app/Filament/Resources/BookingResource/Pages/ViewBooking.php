@@ -3,12 +3,15 @@
 namespace App\Filament\Resources\BookingResource\Pages;
 
 use App\Filament\Resources\BookingResource;
+use App\Filament\Resources\BookingResource\Pages\Concerns\HasRescheduleRequestActions;
 use App\Filament\Resources\SpkResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewBooking extends ViewRecord
 {
+    use HasRescheduleRequestActions;
+
     protected static string $resource = BookingResource::class;
 
     protected function getHeaderActions(): array
@@ -25,6 +28,10 @@ class ViewBooking extends ViewRecord
                 ->color('gray')
                 ->visible(fn () => $this->record->spk !== null)
                 ->url(fn () => $this->record->spk ? SpkResource::getUrl('edit', ['record' => $this->record->spk]) : null),
+
+            // Setujui/Tolak pengajuan jadwal ulang customer (dipakai bersama
+            // halaman Edit, lihat trait).
+            ...$this->rescheduleRequestActions(),
 
             Actions\EditAction::make(),
             Actions\DeleteAction::make()

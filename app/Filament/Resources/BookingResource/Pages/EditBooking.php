@@ -3,16 +3,21 @@
 namespace App\Filament\Resources\BookingResource\Pages;
 
 use App\Filament\Resources\BookingResource;
+use App\Filament\Resources\BookingResource\Pages\Concerns\HasRescheduleRequestActions;
 use App\Filament\Resources\SpkResource;
 use App\Models\Booking;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Exceptions\Halt;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class EditBooking extends EditRecord
 {
+    use HasRescheduleRequestActions;
+
     protected static string $resource = BookingResource::class;
 
     /**
@@ -29,6 +34,7 @@ class EditBooking extends EditRecord
                 ->color('gray')
                 ->visible(fn () => $this->record->spk !== null)
                 ->url(fn () => $this->record->spk ? SpkResource::getUrl('edit', ['record' => $this->record->spk]) : null),
+            ...$this->rescheduleRequestActions(),
         ];
     }
 
@@ -114,6 +120,130 @@ class EditBooking extends EditRecord
         }
 
         return $data;
+    }
+
+    /**
+     * Cek kapasitas ULANG di dalam transaction + lock toko (diperbaiki
+     * 2026-10-02) -- pengecekan di mutateFormDataBeforeSave() di atas
+     * berjalan terpisah dari penyimpanan tanpa lock, jadi dua staff yang
+     * menyimpan booking confirmed berbeda bersamaan bisa sama-sama lolos.
+     * Cek di atas dipertahankan untuk umpan balik cepat; ini penjaga
+     * yang sebenarnya.
+     */
+    protected function handleRecordUpdate(Model $record, array $data): Model
+    {
+        try {
+            return $this->updateInTransaction($record, $data);
+        } catch (\DomainException $e) {
+            // Status booking sudah berubah dari jalur lain (mis. mobile) sejak
+            // form ini dibuka -- tampilkan pesan, bukan halaman error 500.
+            Notification::make()
+                ->title('Booking tidak bisa disimpan')
+                ->body($e->getMessage() . ' Muat ulang halaman untuk melihat status terbaru.')
+                ->danger()
+                ->persistent()
+                ->send();
+
+            throw new Halt();
+        }
+    }
+
+    private function updateInTransaction(Model $record, array $data): Model
+    {
+        // Bukan kolom booking -- diambil dulu supaya tidak ikut ter-update.
+        $rescheduleReason = $data['reschedule_reason'] ?? null;
+        unset($data['reschedule_reason']);
+
+        return DB::transaction(function () use ($record, $data, $rescheduleReason) {
+            // Kunci baris booking DULU, baru toko -- urutan sama dengan jalur
+            // mobile (confirm/reschedule) supaya tidak deadlock. Hasil lock
+            // DIPAKAI (2026-10-03): kalau status/tanggal sudah diubah jalur
+            // lain sejak form dibuka, simpan ditolak supaya tidak menimpa.
+            $fresh = Booking::whereKey($record->id)->lockForUpdate()->first();
+
+            if ($fresh->status !== $record->status
+                || $fresh->preferred_date?->toDateString() !== $record->preferred_date?->toDateString()) {
+                Notification::make()
+                    ->title('Booking sudah berubah')
+                    ->body('Status atau jadwal booking ini baru saja diubah dari tempat lain. Muat ulang halaman lalu ulangi perubahan Anda.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                throw new Halt();
+            }
+
+            $newDate = Carbon::parse($data['preferred_date'] ?? $fresh->preferred_date)->startOfDay();
+            $dateChanged = ! $newDate->equalTo($fresh->preferred_date->copy()->startOfDay());
+
+            // Ganti tanggal lewat form memakai aturan jadwal ulang yang SAMA
+            // dengan mobile (toko tutup/diblokir, pengerjaan sudah mulai,
+            // tanggal lampau, kapasitas, sinkron maintenance, tutup pengajuan
+            // customer, push) -- 2026-10-03.
+            if ($dateChanged && $fresh->status === 'confirmed' && blank($rescheduleReason)) {
+                Notification::make()
+                    ->title('Alasan pindah jadwal wajib diisi')
+                    ->body('Booking yang sudah dikonfirmasi: isi "Alasan Pindah Jadwal", akan dikirim ke customer.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                throw new Halt();
+            }
+
+            if ($dateChanged && in_array($fresh->status, ['pending', 'confirmed'], true)) {
+                try {
+                    app(\App\Services\BookingRescheduleService::class)->apply($fresh, $newDate, auth()->id(), null, $rescheduleReason);
+                } catch (\RuntimeException $e) {
+                    Notification::make()
+                        ->title('Jadwal tidak bisa diubah')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw new Halt();
+                }
+                $record->refresh();
+            }
+
+            $becomesConfirmed = ($data['status'] ?? null) === 'confirmed'
+                && ($fresh->status !== 'confirmed' || $dateChanged);
+
+            // Tanggal lampau tidak boleh dikonfirmasi (sama dengan jalur mobile).
+            if ($becomesConfirmed && $newDate->lt(today())) {
+                Notification::make()
+                    ->title('Tanggal sudah lewat')
+                    ->body('Booking dengan tanggal yang sudah lewat tidak bisa dikonfirmasi. Ubah tanggalnya dulu.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                throw new Halt();
+            }
+
+            if (($data['status'] ?? null) === 'confirmed') {
+                $fullDates = Booking::fullDatesInRangeLocked(
+                    (int) ($data['store_id'] ?? $record->store_id),
+                    Carbon::parse($data['preferred_date'] ?? $record->preferred_date),
+                    max(1, (int) ($data['duration_days'] ?? $record->duration_days ?? 1)),
+                    excludeBookingId: $record->id,
+                );
+
+                if (! empty($fullDates)) {
+                    Notification::make()
+                        ->title('Kapasitas instalasi penuh')
+                        ->body('Tanggal berikut sudah mencapai kapasitas maksimal toko: ' . implode(', ', $fullDates) . '.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw new Halt();
+                }
+            }
+
+            return parent::handleRecordUpdate($record, $data);
+        });
     }
 
     /**

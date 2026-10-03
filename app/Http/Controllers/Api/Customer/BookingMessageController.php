@@ -28,6 +28,13 @@ class BookingMessageController extends Controller
         // utk staff toko) tidak N+1 per pesan.
         $messages = $booking->messages()->with(['senderUser.store:id,name', 'photos'])->get();
 
+        // Pesan staff dianggap sudah dibaca customer begitu chat dibuka
+        // (badge belum dibaca, 2026-10-02).
+        $unread = $booking->messages()->where('sender_type', 'admin')->whereNull('read_by_customer_at');
+        if ($unread->exists()) {
+            $unread->update(['read_by_customer_at' => now()]);
+        }
+
         // SEBELUMNYA cuma boolean has_review — mobile app cuma bisa
         // sembunyikan banner "beri review", tidak bisa tampilkan ringkasan
         // ulasan yang sudah dikirim (sentimen apa, kapan) untuk dilihat

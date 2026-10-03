@@ -16,7 +16,14 @@ class BookingMessage extends Model
         'body',
         'stage',
         'photo_path',
+        'read_by_customer_at',
+        'legacy_read',
     ];
+
+    public function reads()
+    {
+        return $this->hasMany(BookingMessageRead::class);
+    }
 
     /**
      * Tahap PER PRODUK — Kaca Film & PPF punya urutan/nama beda-beda untuk

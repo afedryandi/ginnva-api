@@ -26,6 +26,24 @@ class BookingMessageController extends Controller
         // staff toko) tidak N+1 per pesan.
         $messages = $booking->messages()->with(['senderUser.store:id,name', 'photos'])->get();
 
+        // Pesan customer dianggap sudah dibaca staff begitu chat dibuka
+        // (badge belum dibaca, 2026-10-02).
+        // Dicatat PER STAFF (keputusan 2026-10-03) & hanya menulis kalau ada
+        // pesan yang benar-benar belum dibaca user ini (poll 5 dtk tidak
+        // lagi memicu UPDATE terus-menerus).
+        $reader = $request->user('api');
+        $unreadIds = $booking->messages()
+            ->where('sender_type', 'customer')
+            ->where('legacy_read', false)
+            ->whereDoesntHave('reads', fn ($r) => $r->where('user_id', $reader->id))
+            ->pluck('booking_messages.id');
+
+        if ($unreadIds->isNotEmpty()) {
+            \App\Models\BookingMessageRead::insertOrIgnore(
+                $unreadIds->map(fn ($id) => ['booking_message_id' => $id, 'user_id' => $reader->id, 'read_at' => now()])->all()
+            );
+        }
+
         return response()->json([
             'success' => true,
             'data'    => [
@@ -89,6 +107,22 @@ class BookingMessageController extends Controller
             'photos.*.image' => 'File yang dipilih bukan gambar.',
             'photos.*.max'   => 'Ukuran tiap foto maksimal 10MB. Kompres atau pilih foto lain, lalu coba lagi.',
         ]);
+
+        // Guard status booking (diperbaiki 2026-10-02, audit alur Booking) --
+        // SEBELUMNYA pesan tahap/foto bisa dikirim ke booking apa pun, dan
+        // customer dapat push "Update Progress" untuk booking yang batal
+        // atau belum dikonfirmasi (pesan tahap juga mengubah current_stage).
+        if ($booking->status === 'cancelled') {
+            abort(422, 'Booking ini sudah dibatalkan, tidak bisa mengirim pesan.');
+        }
+
+        if ($booking->status === 'pending' && in_array($request->type, ['stage', 'photo'], true)) {
+            abort(422, 'Konfirmasi booking dulu sebelum mengirim update tahap atau foto.');
+        }
+
+        if ($booking->status === 'completed' && $request->type === 'stage' && $request->stage !== 'completed') {
+            abort(422, 'Booking ini sudah selesai, tahap tidak bisa diubah lagi.');
+        }
 
         // "Quality Check" cuma boleh ditandai kalau track produk yang
         // BENERAN dipesan booking ini sudah sama-sama sampai tahap

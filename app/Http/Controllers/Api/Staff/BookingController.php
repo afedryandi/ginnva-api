@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Mail\BookingWatcherAssignedMail;
 use App\Models\Booking;
 use App\Models\User;
+use App\Services\BookingRescheduleService;
 use App\Services\ServiceReminderService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use RuntimeException;
 
 class BookingController extends Controller
 {
@@ -35,8 +38,35 @@ class BookingController extends Controller
             abort(403, 'Partner tidak punya akses ke booking toko.');
         }
 
-        $query = Booking::query()->with(['customer:id,name,phone_number', 'store:id,name'])
+        $query = Booking::query()->with(['customer:id,name,phone_number', 'store:id,name', 'pendingRescheduleRequest'])
+            // Jumlah pesan customer yang belum dibaca staff (badge daftar).
+            ->withCount(['messages as unread_count' => fn ($q) => $q->where('sender_type', 'customer')
+                ->where('legacy_read', false)
+                ->whereDoesntHave('reads', fn ($r) => $r->where('user_id', $user->id))])
             ->orderByDesc('preferred_date');
+
+        // Pencarian (nomor booking, nama/telepon customer) & filter tanggal
+        // (diminta 2026-10-02). date=today|week.
+        if ($request->filled('q')) {
+            $term = '%' . trim($request->q) . '%';
+            $query->where(fn ($q) => $q->where('booking_number', 'like', $term)
+                ->orWhere('customer_name', 'like', $term)
+                ->orWhere('phone_number', 'like', $term)
+                ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $term)->orWhere('phone_number', 'like', $term)));
+        }
+        // Urutan stabil antar halaman (2026-10-03): tiebreaker id; antrean
+        // 'pending' diurutkan dari yang PALING LAMA menunggu (triase SLA).
+        if ($request->status === 'pending') {
+            $query->reorder('created_at', 'asc')->orderBy('id');
+        } else {
+            $query->orderByDesc('id');
+        }
+
+        if ($request->date === 'today') {
+            $query->whereDate('preferred_date', today());
+        } elseif ($request->date === 'week') {
+            $query->whereBetween('preferred_date', [today(), today()->addDays(6)]);
+        }
 
         if ($user->hasRole('installer')) {
             $query->whereHas('installers', fn ($q) => $q->where('users.id', $user->id));
@@ -96,6 +126,7 @@ class BookingController extends Controller
             // ViewBooking/EditBooking, mobile belum). Cuma id yang
             // dibutuhkan (dipakai buat rute "Lihat SPK").
             'spk:id,booking_id',
+            'pendingRescheduleRequest',
         ])->findOrFail($id);
 
         if ($user->hasRole('installer')) {
@@ -287,9 +318,24 @@ class BookingController extends Controller
                 abort(422, "Booking ini sudah berstatus \"{$locked->status}\", tidak bisa dikonfirmasi lagi.");
             }
 
+            // Tanggal yang sudah lewat tidak boleh dikonfirmasi (diperbaiki
+            // 2026-10-02) -- booking pending lama bisa tertinggal dan
+            // dikonfirmasi seolah masih valid.
+            if ($locked->preferred_date->copy()->startOfDay()->lt(today())) {
+                abort(422, 'Tanggal booking ini sudah lewat. Ubah jadwalnya dulu (tombol "Ubah Jadwal"), atau batalkan booking ini.');
+            }
+
             $durationDays = $request->filled('duration_days')
                 ? (int) $request->duration_days
                 : $locked->duration_days;
+
+            // Kunci baris toko SEBELUM menghitung kapasitas (diperbaiki
+            // 2026-10-02) -- lock di booking di atas cuma melindungi booking
+            // ini sendiri; dua staff mengonfirmasi 2 booking BERBEDA di
+            // tanggal yang sisa 1 slot sama-sama membaca hitungan yang
+            // belum saling melihat dan sama-sama lolos (over-booking).
+            // Urutan lock selalu booking -> toko di semua jalur.
+            \App\Models\Store::whereKey($locked->store_id)->lockForUpdate()->first();
 
             $fullDates = Booking::fullDatesInRange(
                 $locked->store_id,
@@ -347,9 +393,11 @@ class BookingController extends Controller
             abort(403, 'Cuma Store Manager atau akses penuh yang bisa membatalkan booking.');
         }
 
+        // Alasan wajib untuk booking yang sudah confirmed (keputusan
+        // 2026-10-02) -- slot & kemungkinan DP sudah terlibat.
         $request->validate([
-            'reason' => 'nullable|string|max:500',
-        ]);
+            'reason' => [$booking->status === 'confirmed' ? 'required' : 'nullable', 'string', 'max:500'],
+        ], ['reason.required' => 'Alasan pembatalan wajib diisi untuk booking yang sudah dikonfirmasi.']);
 
         return DB::transaction(function () use ($booking, $request, $user) {
             $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
@@ -358,15 +406,7 @@ class BookingController extends Controller
                 abort(422, "Booking ini sudah berstatus \"{$locked->status}\", tidak bisa dibatalkan.");
             }
 
-            $notes = $locked->notes;
-            if ($request->filled('reason')) {
-                $notes = trim(($notes ? $notes . "\n\n" : '') . "Dibatalkan: {$request->reason}");
-            }
-
-            $locked->update([
-                'status' => 'cancelled',
-                'notes'  => $notes,
-            ]);
+            $locked->cancelWith('staff', $user->id, $request->input('reason'));
 
             // Keputusan atasan 2026-09-19 (Topik 2, "Keputusan-PPN-DP-
             // Produk-Stok-Ginnva.docx"): DP dikembalikan PENUH kalau
@@ -407,16 +447,95 @@ class BookingController extends Controller
             abort(403, 'Anda tidak punya akses ke booking toko lain.');
         }
 
-        $booking->update([
-            'status'             => 'completed',
-            'current_stage'      => 'completed',
-        ]);
+        // Guard + lock (diperbaiki 2026-10-02) -- sebelumnya booking
+        // 'cancelled' bisa di-"selesai"-kan dan endpoint bisa dipanggil
+        // ulang. Simetris dengan cancel() di atas.
+        return DB::transaction(function () use ($booking) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
 
-        return response()->json([
-            'success' => true,
-            'data'    => $booking->fresh(),
-            'message' => 'Booking selesai.',
-        ]);
+            // Hanya confirmed -> completed (keputusan 2026-10-02): booking
+            // pending belum pernah lolos cek kapasitas.
+            if ($locked->status !== 'confirmed') {
+                abort(422, $locked->status === 'pending'
+                    ? 'Konfirmasi booking dulu sebelum menandainya selesai.'
+                    : "Booking ini sudah berstatus \"{$locked->status}\", tidak bisa diselesaikan.");
+            }
+
+            $locked->update([
+                'status'             => 'completed',
+                'current_stage'      => 'completed',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $locked->fresh(),
+                'message' => 'Booking selesai.',
+            ]);
+        });
+    }
+
+    /**
+     * PUT /api/staff/bookings/{id}/reschedule
+     * Staff mengganti tanggal booking langsung (pending/confirmed) --
+     * keputusan 2026-10-02. Aturan kapasitas/toko tutup ada di
+     * BookingRescheduleService; customer diberi tahu lewat push.
+     */
+    public function reschedule(Request $request, int $id, BookingRescheduleService $service)
+    {
+        $user = $request->user('api');
+        $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+
+        // Alasan WAJIB untuk booking confirmed (keputusan 2026-10-03), dikirim
+        // ke customer & dicatat di log -- simetris dengan pembatalan confirmed.
+        $request->validate([
+            'preferred_date' => 'required|date',
+            'reason'         => [$booking->status === 'confirmed' ? 'required' : 'nullable', 'string', 'max:500'],
+        ], ['reason.required' => 'Alasan pindah jadwal wajib diisi untuk booking yang sudah dikonfirmasi.']);
+
+        try {
+            $updated = $service->apply($booking, Carbon::parse($request->preferred_date), $user->id, null, $request->input('reason'));
+        } catch (RuntimeException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return response()->json(['success' => true, 'data' => $updated, 'message' => 'Jadwal booking diubah.']);
+    }
+
+    /** POST /api/staff/bookings/{id}/reschedule-request/{requestId}/approve */
+    public function approveReschedule(Request $request, int $id, int $requestId, BookingRescheduleService $service)
+    {
+        $user = $request->user('api');
+        $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+        $req = $booking->rescheduleRequests()->findOrFail($requestId);
+
+        $request->validate(['note' => 'nullable|string|max:500']);
+
+        try {
+            $updated = $service->approve($req, $user->id, $request->input('note'));
+        } catch (RuntimeException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return response()->json(['success' => true, 'data' => $updated, 'message' => 'Pengajuan jadwal ulang disetujui.']);
+    }
+
+    /** POST /api/staff/bookings/{id}/reschedule-request/{requestId}/reject */
+    public function rejectReschedule(Request $request, int $id, int $requestId, BookingRescheduleService $service)
+    {
+        $user = $request->user('api');
+        $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+        $req = $booking->rescheduleRequests()->findOrFail($requestId);
+
+        // Alasan wajib -- dikirim ke customer (sama dengan mobile & Filament).
+        $request->validate(['note' => 'required|string|max:500'], ['note.required' => 'Alasan penolakan wajib diisi.']);
+
+        try {
+            $service->reject($req, $user->id, $request->input('note'));
+        } catch (RuntimeException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return response()->json(['success' => true, 'message' => 'Pengajuan jadwal ulang ditolak.']);
     }
 
     /**
@@ -554,6 +673,27 @@ class BookingController extends Controller
             $existingIds = $booking->installers()->pluck('users.id')->all();
 
             $booking->installers()->sync($installerIds);
+
+            // Installer yang BARU ditugaskan diberi push (diperbaiki
+            // 2026-10-02) -- sebelumnya penugasan hanya tercatat di log.
+            $added = array_values(array_diff($installerIds, $existingIds));
+            if (! empty($added)) {
+                $bookingNumber = $booking->booking_number;
+                $bookingId = $booking->id;
+                // Setelah commit (2026-10-03) -- tidak memegang lock saat HTTP push.
+                DB::afterCommit(function () use ($added, $bookingNumber, $bookingId) {
+                    try {
+                        app(\App\Services\PushNotificationService::class)->sendToUsers(
+                            $added,
+                            'Penugasan Instalasi Baru',
+                            "Anda ditugaskan di booking #{$bookingNumber}.",
+                            ['type' => 'booking_assigned', 'booking_id' => $bookingId, 'route' => "/staff/bookings/{$bookingId}"],
+                        );
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
+                });
+            }
 
             // Pivot many-to-many tidak tertangkap LogsActivity — dicatat
             // manual, sama seperti assignWatchers().

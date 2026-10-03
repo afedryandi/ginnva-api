@@ -132,6 +132,12 @@ class Booking extends Model
         'preferred_time',
         'duration_days',
         'notes',
+        'cancel_reason',
+        'cancelled_by_type',
+        'cancelled_by_id',
+        'cancelled_at',
+        'pending_reminder_sent_at',
+        'pending_reminder_count',
         'source',
         'status',
         'current_stage',
@@ -175,7 +181,13 @@ class Booking extends Model
     ];
 
     protected $casts = [
-        'preferred_date' => 'date',
+        // 'date:Y-m-d' -- diserialisasi ke JSON sebagai tanggal polos, BUKAN
+        // ISO UTC (2026-10-03): dengan APP_TIMEZONE Asia/Jakarta, tanggal 5
+        // sebelumnya terkirim '2026-10-04T17:00:00Z' dan mobile membaca hari
+        // yang salah (mis. label "(saat ini)").
+        'preferred_date' => 'date:Y-m-d',
+        'cancelled_at' => 'datetime',
+        'pending_reminder_sent_at' => 'datetime',
         'transaction_amount' => 'decimal:2',
         'dpp_amount' => 'decimal:2',
         'ppn_amount' => 'decimal:2',
@@ -458,6 +470,20 @@ class Booking extends Model
     }
 
     /**
+     * Sama dengan fullDatesInRange(), tapi MENGUNCI baris toko dulu --
+     * wajib dipanggil di DALAM DB::transaction() (diperbaiki 2026-10-02):
+     * lock baris booking saja tidak melindungi hitungan kapasitas dari
+     * dua konfirmasi booking BERBEDA yang bersamaan, keduanya sama-sama
+     * lolos dan over-booking. Urutan lock selalu booking -> toko.
+     */
+    public static function fullDatesInRangeLocked(int $storeId, Carbon $startDate, int $durationDays, ?int $excludeBookingId = null): array
+    {
+        Store::whereKey($storeId)->lockForUpdate()->first();
+
+        return self::fullDatesInRange($storeId, $startDate, $durationDays, $excludeBookingId);
+    }
+
+    /**
      * Booking dengan 2 produk (Kaca Film + PPF) punya progress PARALEL —
      * Kaca Film selalu di `current_stage` (kolom lama, jadi single-product
      * booking tidak perlu berubah sama sekali), PPF di `secondary_stage`
@@ -509,6 +535,23 @@ class Booking extends Model
     public function messages()
     {
         return $this->hasMany(BookingMessage::class)->orderBy('created_at');
+    }
+
+    public function rescheduleRequests()
+    {
+        return $this->hasMany(BookingRescheduleRequest::class);
+    }
+
+    /** Keputusan terakhir atas pengajuan jadwal ulang (disetujui/ditolak/ditutup). */
+    public function latestDecidedRescheduleRequest()
+    {
+        return $this->hasOne(BookingRescheduleRequest::class)->where('status', '!=', 'pending')->latestOfMany();
+    }
+
+    /** Pengajuan ganti tanggal customer yang masih menunggu keputusan staff. */
+    public function pendingRescheduleRequest()
+    {
+        return $this->hasOne(BookingRescheduleRequest::class)->where('status', 'pending')->latestOfMany();
     }
 
     public function partner()
@@ -645,8 +688,60 @@ class Booking extends Model
         return $this->belongsTo(JournalEntry::class);
     }
 
+    /**
+     * Perpindahan status yang sah (keputusan user 2026-10-02, audit alur
+     * Booking): pending -> confirmed -> completed, dan batal dari pending
+     * atau confirmed. completed & cancelled FINAL. Satu sumber kebenaran
+     * -- dipakai guard di booted() (penjaga terakhir untuk semua jalur:
+     * mobile, Filament, observer) dan pengecekan awal di tiap endpoint.
+     */
+    public const STATUS_TRANSITIONS = [
+        'pending'   => ['confirmed', 'cancelled'],
+        'confirmed' => ['completed', 'cancelled'],
+        'completed' => [],
+        'cancelled' => [],
+    ];
+
+    /**
+     * Alasan pindah jadwal (sementara, tidak disimpan di kolom) -- diisi
+     * BookingRescheduleService sebelum update supaya BookingObserver bisa
+     * menyertakannya di push ke customer (2026-10-03).
+     */
+    public ?string $rescheduleReason = null;
+
+    public static function canTransition(string $from, string $to): bool
+    {
+        return $from === $to || in_array($to, self::STATUS_TRANSITIONS[$from] ?? [], true);
+    }
+
+    /**
+     * Batalkan booking SEKALIGUS mencatat alasan terstruktur (siapa, kapan,
+     * kenapa). $byType: 'customer' | 'staff' | 'system'. Dipanggil di dalam
+     * transaction + lock oleh tiap jalur pembatalan.
+     */
+    public function cancelWith(string $byType, ?int $byId, ?string $reason): void
+    {
+        $this->update([
+            'status'            => 'cancelled',
+            'cancel_reason'     => $reason !== null && trim($reason) !== '' ? trim($reason) : null,
+            'cancelled_by_type' => $byType,
+            'cancelled_by_id'   => $byId,
+            'cancelled_at'      => now(),
+        ]);
+    }
+
     protected static function booted(): void
     {
+        static::updating(function (Booking $booking) {
+            if ($booking->isDirty('status')) {
+                $from = (string) $booking->getOriginal('status');
+
+                if (! static::canTransition($from, (string) $booking->status)) {
+                    throw new \DomainException("Status booking tidak bisa diubah dari \"{$from}\" ke \"{$booking->status}\".");
+                }
+            }
+        });
+
         static::creating(function (Booking $booking) {
             if (empty($booking->booking_number)) {
                 $booking->booking_number = static::generateBookingNumber();
@@ -715,7 +810,7 @@ class Booking extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id', 'warranty_id'])
+            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'preferred_date', 'duration_days', 'notes', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id', 'warranty_id'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('booking')

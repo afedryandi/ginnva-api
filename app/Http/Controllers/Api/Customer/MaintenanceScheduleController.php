@@ -115,6 +115,16 @@ class MaintenanceScheduleController extends Controller
             ], 422);
         }
 
+        // Kapasitas tanggal jadwal juga dicek (2026-10-02), sama dengan
+        // booking biasa -- sebelumnya jalur ini melewatinya.
+        $scheduledDay = \Illuminate\Support\Carbon::parse($schedule->scheduled_date);
+        if (\App\Models\Booking::confirmedOverlapCount($warranty->store_id, $scheduledDay) >= \App\Models\Booking::capacityForDate($warranty->store_id, $scheduledDay)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kapasitas toko pada tanggal jadwal ini sudah penuh. Hubungi toko langsung untuk menyesuaikan jadwal maintenance Anda.',
+            ], 422);
+        }
+
         $booking = DB::transaction(function () use ($schedule, $warranty, $request) {
             $locked = WarrantyMaintenanceSchedule::whereKey($schedule->id)->lockForUpdate()->first();
 

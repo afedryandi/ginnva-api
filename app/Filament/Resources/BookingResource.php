@@ -58,7 +58,9 @@ class BookingResource extends Resource
         // accessor end_date() yang mengakses $this->store per baris; tanpa
         // ini tiap baris booking yang tampil di listing memicu 1 query
         // tambahan (N+1). Lihat audit modul Booking 2026-08-27.
-        $query = parent::getEloquentQuery()->with('store');
+        // customer & installers ikut di-eager-load (diperbaiki 2026-10-02) --
+        // kolom display_name dan installers.name memicu query per baris.
+        $query = parent::getEloquentQuery()->with(['store', 'customer', 'installers', 'pendingRescheduleRequest']);
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -522,6 +524,16 @@ class BookingResource extends Resource
                         // Ditemukan lewat laporan user 2026-09-15.
                         ->minDate(fn () => $form->getOperation() === 'create' ? now()->startOfDay() : null),
 
+                    // Alasan pindah jadwal booking confirmed -- wajib kalau
+                    // tanggalnya diubah (dicek di EditBooking), dikirim ke
+                    // customer (2026-10-03). Tidak disimpan di kolom booking.
+                    Forms\Components\Textarea::make('reschedule_reason')
+                        ->label('Alasan Pindah Jadwal')
+                        ->helperText('Wajib diisi kalau tanggal booking yang sudah dikonfirmasi diubah. Dikirim ke customer.')
+                        ->maxLength(500)
+                        ->visible(fn (?Booking $record) => $record?->status === 'confirmed')
+                        ->columnSpanFull(),
+
                     Forms\Components\TextInput::make('preferred_time')
                         ->label('Jam Diinginkan')
                         ->placeholder('Contoh: 09:00')
@@ -604,12 +616,34 @@ class BookingResource extends Resource
 
                     Forms\Components\Select::make('status')
                         ->label('Status')
-                        ->options([
-                            'pending'   => 'Menunggu Konfirmasi',
-                            'confirmed' => 'Dikonfirmasi',
-                            'completed' => 'Selesai',
-                            'cancelled' => 'Dibatalkan',
-                        ])
+                        // Opsi dibatasi (diperbaiki 2026-10-02, audit alur Booking):
+                        // - 'cancelled' TIDAK bisa dipilih di form -- jalur ini
+                        //   melewati gate Void, alasan pembatalan, dan refund DP
+                        //   otomatis. Pembatalan lewat aksi "Batalkan" (quickCancel).
+                        //   Tetap tampil kalau booking-nya MEMANG sudah cancelled
+                        //   (record lama), supaya tidak jadi kosong.
+                        // - 'pending' tidak bisa dipilih untuk booking yang sudah
+                        //   confirmed/completed -- menurunkan status diam-diam
+                        //   melepas slot tanpa notifikasi atau jejak alasan.
+                        ->options(function (?Booking $record): array {
+                            $labels = [
+                                'pending'   => 'Menunggu Konfirmasi',
+                                'confirmed' => 'Dikonfirmasi',
+                                'completed' => 'Selesai',
+                                'cancelled' => 'Dibatalkan',
+                            ];
+
+                            // Booking baru: hanya pending/confirmed. Booking
+                            // yang ada: status sekarang + tujuan sah menurut
+                            // Booking::STATUS_TRANSITIONS, TANPA 'cancelled'
+                            // (lewat aksi Batalkan).
+                            $keys = $record
+                                ? array_merge([$record->status], array_diff(Booking::STATUS_TRANSITIONS[$record->status] ?? [], ['cancelled']))
+                                : ['pending', 'confirmed'];
+
+                            return array_intersect_key($labels, array_flip($keys));
+                        })
+                        ->helperText('Untuk membatalkan booking, gunakan aksi "Batalkan" supaya DP dikembalikan dan alasan tercatat.')
                         // Default 'confirmed' DI SINI SENGAJA beda dari booking
                         // yang masuk lewat mobile app (selalu mulai 'pending',
                         // lihat Api/Customer/BookingController.php) — booking
@@ -811,6 +845,16 @@ class BookingResource extends Resource
                             : $record->preferred_date?->format('d M Y')),
                     TextEntry::make('preferred_time')->label('Jam Diinginkan')->placeholder('—'),
                     TextEntry::make('notes')->label('Catatan')->placeholder('—')->columnSpanFull(),
+                    TextEntry::make('cancel_reason')
+                        ->label('Alasan Pembatalan')
+                        ->placeholder('—')
+                        ->visible(fn (Booking $record) => $record->status === 'cancelled')
+                        ->formatStateUsing(fn (?string $state, Booking $record) => trim(
+                            ($state ?: 'Tanpa alasan')
+                            . ($record->cancelled_by_type ? ' — oleh ' . ['customer' => 'customer', 'staff' => 'staff', 'system' => 'sistem'][$record->cancelled_by_type] : '')
+                            . ($record->cancelled_at ? ', ' . $record->cancelled_at->format('d M Y H:i') : '')
+                        ))
+                        ->columnSpanFull(),
                     TextEntry::make('next_service_reminder_at')
                         ->label('Reminder Maintenance')
                         ->date('d M Y')
@@ -988,7 +1032,31 @@ class BookingResource extends Resource
                         'completed' => 'Selesai',
                         'cancelled' => 'Dibatalkan',
                         default     => $state,
+                    })
+                    // Umur booking pending (SLA 4 jam) & pengajuan jadwal ulang
+                    // customer langsung terlihat di tabel (2026-10-02).
+                    ->description(function (Booking $record): ?string {
+                        $parts = [];
+                        if ($record->status === 'pending') {
+                            $hours = (int) $record->created_at?->diffInHours(now());
+                            $parts[] = $hours >= 4 ? "Lewat SLA ({$hours} jam)" : "Menunggu {$hours} jam";
+                        }
+                        if ($record->pendingRescheduleRequest) {
+                            $parts[] = 'Jadwal ulang diajukan: ' . $record->pendingRescheduleRequest->requested_date->format('d M');
+                        }
+
+                        return $parts ? implode(' · ', $parts) : null;
                     }),
+
+                Tables\Columns\TextColumn::make('cancel_reason')
+                    ->label('Alasan Batal')
+                    ->placeholder('—')
+                    ->limit(40)
+                    ->tooltip(fn (Booking $record) => $record->cancel_reason)
+                    ->description(fn (Booking $record) => $record->cancelled_by_type
+                        ? 'oleh ' . (['customer' => 'customer', 'staff' => 'staff', 'system' => 'sistem'][$record->cancelled_by_type] ?? $record->cancelled_by_type)
+                        : null)
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('next_service_reminder_at')
                     ->label('Reminder Maintenance')
@@ -1013,6 +1081,22 @@ class BookingResource extends Resource
                         'confirmed' => 'Dikonfirmasi',
                         'completed' => 'Selesai',
                         'cancelled' => 'Dibatalkan',
+                    ]),
+
+                Tables\Filters\Filter::make('pending_sla')
+                    ->label('Menunggu > 4 jam (lewat SLA)')
+                    ->query(fn (Builder $query) => $query->where('status', 'pending')->where('created_at', '<=', now()->subHours(4))),
+
+                Tables\Filters\Filter::make('reschedule_requested')
+                    ->label('Ada pengajuan jadwal ulang')
+                    ->query(fn (Builder $query) => $query->whereHas('rescheduleRequests', fn ($q) => $q->where('status', 'pending'))),
+
+                Tables\Filters\SelectFilter::make('cancelled_by_type')
+                    ->label('Dibatalkan oleh')
+                    ->options([
+                        'customer' => 'Customer',
+                        'staff'    => 'Staff',
+                        'system'   => 'Sistem',
                     ]),
 
                 Tables\Filters\SelectFilter::make('source')
@@ -1606,7 +1690,10 @@ class BookingResource extends Resource
                     ->modalDescription('Booking ini akan ditandai Dibatalkan. Tindakan ini tidak membatalkan otomatis assignment installer/direksi yang sudah tersimpan.')
                     ->form([
                         Forms\Components\Textarea::make('reason')
-                            ->label('Alasan (opsional)')
+                            ->label(fn (Booking $record) => $record->status === 'confirmed' ? 'Alasan' : 'Alasan (opsional)')
+                            // Booking confirmed sudah memakai slot & kemungkinan DP
+                            // -- alasan wajib (keputusan 2026-10-02).
+                            ->required(fn (Booking $record) => $record->status === 'confirmed')
                             ->maxLength(500),
                     ])
                     ->action(function (Booking $record, array $data) {
@@ -1617,12 +1704,7 @@ class BookingResource extends Resource
                                 return $locked->status;
                             }
 
-                            $notes = $locked->notes;
-                            if (filled($data['reason'] ?? null)) {
-                                $notes = trim(($notes ? $notes . "\n\n" : '') . "Dibatalkan: {$data['reason']}");
-                            }
-
-                            $locked->update(['status' => 'cancelled', 'notes' => $notes]);
+                            $locked->cancelWith('staff', auth()->id(), $data['reason'] ?? null);
 
                             // Keputusan atasan 2026-09-19 (Topik 2, "Keputusan-
                             // PPN-DP-Produk-Stok-Ginnva.docx"): DP dikembalikan
@@ -1686,6 +1768,7 @@ class BookingResource extends Resource
     {
         return [
             BookingResource\RelationManagers\MessagesRelationManager::class,
+            BookingResource\RelationManagers\RescheduleRequestsRelationManager::class,
         ];
     }
 

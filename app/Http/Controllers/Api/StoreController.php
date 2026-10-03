@@ -127,4 +127,67 @@ class StoreController extends Controller
             'data'    => $dates,
         ]);
     }
+
+    /**
+     * GET /api/stores/{id}/unavailable-dates -- tanggal (30 hari ke depan)
+     * yang TIDAK bisa dipilih untuk jadwal ulang: toko tutup (libur mingguan
+     * atau diblokir admin) ATAU kapasitas penuh. Dipakai modal jadwal ulang
+     * customer & staff (2026-10-03).
+     */
+    public function unavailableDates(int $id): JsonResponse
+    {
+        $store = \App\Models\Store::whereKey($id)->where('is_active', true)->first();
+        abort_if(! $store, 404);
+
+        $dates = \Illuminate\Support\Facades\Cache::remember("store-unavailable-dates:{$id}", 60, function () use ($store, $id) {
+            $counts = \App\Models\Booking::confirmedOverlapCountsForRange($id, today(), today()->addDays(30));
+            $out = [];
+
+            for ($i = 0; $i <= 30; $i++) {
+                $day = today()->addDays($i);
+                $key = $day->toDateString();
+
+                if ($store->isClosedOn($day)
+                    || ($counts[$key] ?? 0) >= \App\Models\Booking::capacityForDate($id, $day)) {
+                    $out[] = $key;
+                }
+            }
+
+            return $out;
+        });
+
+        return response()->json(['success' => true, 'data' => $dates]);
+    }
+
+    /**
+     * GET /api/stores/{id}/full-dates -- tanggal (30 hari ke depan) yang
+     * kapasitas instalasi tokonya SUDAH PENUH (hanya booking 'confirmed'
+     * yang dihitung, sama seperti saat staff mengonfirmasi). Dipakai pemilih
+     * tanggal booking customer untuk menonaktifkan tanggal penuh (keputusan
+     * 2026-10-02). Di-cache 60 detik karena endpoint publik.
+     */
+    public function fullDates(int $id): JsonResponse
+    {
+        // Hanya toko aktif -- mencegah enumerasi id mengisi cache & membebani DB.
+        if (! \App\Models\Store::whereKey($id)->where('is_active', true)->exists()) {
+            abort(404);
+        }
+
+        $dates = \Illuminate\Support\Facades\Cache::remember("store-full-dates:{$id}", 60, function () use ($id) {
+            $start = today();
+            $end = today()->addDays(30);
+            $counts = \App\Models\Booking::confirmedOverlapCountsForRange($id, $start->copy(), $end->copy());
+
+            return collect($counts)
+                ->filter(fn (int $used, string $date) => $used >= \App\Models\Booking::capacityForDate($id, \Illuminate\Support\Carbon::parse($date)))
+                ->keys()
+                ->values()
+                ->all();
+        });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $dates,
+        ]);
+    }
 }

@@ -7,7 +7,9 @@ use App\Models\Booking;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Support\Exceptions\Halt;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class CreateBooking extends CreateRecord
 {
@@ -69,6 +71,49 @@ class CreateBooking extends CreateRecord
         }
 
         return $data;
+    }
+
+    /**
+     * Cek kapasitas ULANG di dalam transaction + lock toko (diperbaiki
+     * 2026-10-02), lihat catatan di EditBooking::handleRecordUpdate().
+     */
+    protected function handleRecordCreation(array $data): Model
+    {
+        return DB::transaction(function () use ($data) {
+            // Tanggal lampau tidak boleh langsung dikonfirmasi (sama dengan
+            // jalur mobile, diperbaiki 2026-10-02).
+            if (($data['status'] ?? null) === 'confirmed' && Carbon::parse($data['preferred_date'])->startOfDay()->lt(today())) {
+                Notification::make()
+                    ->title('Tanggal sudah lewat')
+                    ->body('Booking dengan tanggal yang sudah lewat tidak bisa langsung dikonfirmasi. Simpan sebagai "Menunggu Konfirmasi" atau ubah tanggalnya.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                throw new Halt();
+            }
+
+            if (($data['status'] ?? null) === 'confirmed') {
+                $fullDates = Booking::fullDatesInRangeLocked(
+                    (int) $data['store_id'],
+                    Carbon::parse($data['preferred_date']),
+                    max(1, (int) ($data['duration_days'] ?? 1)),
+                );
+
+                if (! empty($fullDates)) {
+                    Notification::make()
+                        ->title('Kapasitas instalasi penuh')
+                        ->body('Tanggal berikut sudah mencapai kapasitas maksimal toko: ' . implode(', ', $fullDates) . '.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw new Halt();
+                }
+            }
+
+            return parent::handleRecordCreation($data);
+        });
     }
 
     /**

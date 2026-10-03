@@ -7,6 +7,7 @@ use App\Mail\NewBookingMail;
 use App\Models\Booking;
 use App\Models\User;
 use App\Services\PushNotificationService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -28,6 +29,20 @@ class BookingObserver
      * fallback kirim ke semua yang isFullAccess() (super_admin/direksi)
      * supaya booking tidak pernah terlewat tanpa notif.
      */
+    /**
+     * Sinkronkan current_stage saat booking ditandai 'completed' dari jalur
+     * MANA PUN (diperbaiki 2026-10-02, audit alur Booking) -- jalur mobile
+     * complete() sudah mengisinya, tapi form Edit Filament tidak, jadi
+     * banner ulasan di chat customer dan kartu progres beranda (yang
+     * membaca current_stage) tidak konsisten antar jalur.
+     */
+    public function updating(Booking $booking): void
+    {
+        if ($booking->isDirty('status') && $booking->status === 'completed' && $booking->current_stage !== 'completed') {
+            $booking->current_stage = 'completed';
+        }
+    }
+
     public function created(Booking $booking): void
     {
         $staff = User::where('store_id', $booking->store_id)
@@ -120,6 +135,50 @@ class BookingObserver
         // ProcessMaintenanceSchedules (dapat konfirmasi ulang kalau
         // scheduled_date masih di masa depan, atau forfeit otomatis kalau
         // sudah lewat tanggal).
+        // Pengajuan jadwal ulang yang masih menunggu ditutup begitu booking
+        // final (diperbaiki 2026-10-02) -- sebelumnya menggantung selamanya
+        // dan kartu customer tetap "menunggu keputusan toko".
+        if ($booking->wasChanged('status') && in_array($booking->status, ['cancelled', 'completed'], true)) {
+            $booking->rescheduleRequests()->where('status', 'pending')->update([
+                'status'        => 'rejected',
+                'decided_at'    => now(),
+                'decision_note' => $booking->status === 'cancelled' ? 'Booking dibatalkan.' : 'Booking sudah selesai.',
+            ]);
+        }
+
+        // Installer yang ditugaskan diberi tahu kalau jadwal booking
+        // confirmed berubah (2026-10-02).
+        if ($booking->wasChanged('preferred_date') && $booking->status === 'confirmed') {
+            $installerIds = $booking->installers()->pluck('users.id');
+            if ($installerIds->isNotEmpty()) {
+                $body = "Booking #{$booking->booking_number} dipindah ke {$booking->preferred_date?->format('d M Y')}.";
+                $data = ['type' => 'booking_rescheduled', 'booking_id' => $booking->id, 'route' => "/staff/bookings/{$booking->id}"];
+                DB::afterCommit(fn () => $this->push->sendToUsers($installerIds, 'Jadwal Instalasi Berubah', $body, $data));
+            }
+        }
+
+        // Booking Selesai dari jalur MANA PUN (mobile maupun form Filament)
+        // tercatat di timeline chat sebagai tahap "completed" -- pesan itu
+        // sendiri yang memicu push ke customer (BookingMessageObserver).
+        // Dibuat setelah commit & hanya kalau belum ada (2026-10-03).
+        if ($booking->wasChanged('status') && $booking->status === 'completed') {
+            $bookingId = $booking->id;
+            $actorId = auth()->id();
+            DB::afterCommit(function () use ($bookingId, $actorId) {
+                $exists = \App\Models\BookingMessage::where('booking_id', $bookingId)
+                    ->where('type', 'stage')->where('stage', 'completed')->exists();
+                if (! $exists) {
+                    \App\Models\BookingMessage::create([
+                        'booking_id'     => $bookingId,
+                        'sender_type'    => 'admin',
+                        'sender_user_id' => $actorId,
+                        'type'           => 'stage',
+                        'stage'          => 'completed',
+                    ]);
+                }
+            });
+        }
+
         if ($booking->wasChanged('status') && $booking->status === 'cancelled' && $booking->warranty_id) {
             $schedule = $booking->maintenanceSchedule;
 
@@ -134,8 +193,13 @@ class BookingObserver
 
         $tanggal = $booking->preferred_date?->format('d M Y');
 
+        // Semua push ke customer dikirim SETELAH commit (2026-10-03) --
+        // sebelumnya terkirim di dalam transaksi, jadi kalau langkah
+        // sesudahnya gagal (mis. refund DP) customer sudah terlanjur diberi
+        // tahu hal yang tidak terjadi.
         if ($booking->wasChanged('status')) {
-            match ($booking->status) {
+            $status = $booking->status;
+            DB::afterCommit(fn () => match ($status) {
                 'confirmed' => $this->push->sendToCustomer(
                     $booking->customer_id,
                     'Booking Dikonfirmasi',
@@ -149,7 +213,9 @@ class BookingObserver
                 'cancelled' => $this->push->sendToCustomer(
                     $booking->customer_id,
                     'Booking Dibatalkan',
-                    "Booking #{$booking->booking_number} Anda ({$tanggal}) telah dibatalkan. Hubungi toko untuk info lebih lanjut.",
+                    "Booking #{$booking->booking_number} Anda ({$tanggal}) telah dibatalkan"
+                        . ($booking->cancel_reason ? ": {$booking->cancel_reason}" : '.')
+                        . ' Hubungi toko untuk info lebih lanjut.',
                     [
                         'type'       => 'booking_cancelled',
                         'booking_id' => $booking->id,
@@ -157,7 +223,7 @@ class BookingObserver
                     ]
                 ),
                 default => null,
-            };
+            });
         }
 
         // Reschedule (audit modul Booking Instalasi 2026-09-25, gap
@@ -175,19 +241,20 @@ class BookingObserver
         if ($booking->wasChanged('preferred_date') && $booking->status === 'confirmed') {
             $tanggalLama = $booking->getOriginal('preferred_date');
             $tanggalLama = $tanggalLama ? \Illuminate\Support\Carbon::parse($tanggalLama)->format('d M Y') : null;
+            $alasanPindah = $booking->rescheduleReason ? " Alasan: {$booking->rescheduleReason}" : '';
 
-            $this->push->sendToCustomer(
+            DB::afterCommit(fn () => $this->push->sendToCustomer(
                 $booking->customer_id,
                 'Jadwal Booking Berubah',
-                $tanggalLama
+                ($tanggalLama
                     ? "Booking #{$booking->booking_number} Anda dijadwal ulang dari {$tanggalLama} ke {$tanggal}."
-                    : "Booking #{$booking->booking_number} Anda dijadwal ulang ke {$tanggal}.",
+                    : "Booking #{$booking->booking_number} Anda dijadwal ulang ke {$tanggal}.") . $alasanPindah,
                 [
                     'type'       => 'booking_rescheduled',
                     'booking_id' => $booking->id,
                     'route'      => "/booking/{$booking->id}/chat",
                 ]
-            );
+            ));
         }
     }
 }
