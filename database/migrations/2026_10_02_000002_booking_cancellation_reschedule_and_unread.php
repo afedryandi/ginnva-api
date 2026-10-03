@@ -7,13 +7,16 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Audit alur Booking 2026-10-02 (keputusan user):
- * - Alasan pembatalan terstruktur (cancel_reason/cancelled_by_*/cancelled_at).
- * - pending_reminder_sent_at: penanda reminder SLA booking pending.
+ * - Alasan pembatalan terstruktur (cancel_reason, cancelled_by_type,
+ *   cancelled_by_id, cancelled_at).
+ * - pending_reminder_sent_at & pending_reminder_count: penanda reminder SLA
+ *   booking pending dan eskalasi.
  * - booking_reschedule_requests: pengajuan ganti tanggal dari customer
  *   (disetujui/ditolak staff).
- * - booking_messages.read_by_*_at: penanda pesan sudah dibaca per sisi,
- *   untuk badge "pesan belum dibaca". Pesan lama di-backfill sebagai
- *   sudah dibaca supaya badge tidak langsung penuh.
+ * - booking_messages.read_by_customer_at & legacy_read, dan tabel
+ *   booking_message_reads (baca per staff): untuk badge "pesan belum
+ *   dibaca". Pesan lama di-backfill sebagai sudah dibaca supaya badge
+ *   tidak langsung penuh.
  */
 return new class extends Migration
 {
