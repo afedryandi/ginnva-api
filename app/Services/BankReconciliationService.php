@@ -37,7 +37,8 @@ class BankReconciliationService
      */
     public function importRows(array $rows, ChartOfAccount $account, ?int $userId, array $fileInfo = []): array
     {
-        $batch = 'IMPORT-' . now()->format('YmdHis');
+        // Akhiran acak: dua impor dalam detik yang sama sebelumnya bentrok di kolom unik batch.
+        $batch = 'IMPORT-' . now()->format('YmdHis') . '-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(4));
         $imported = 0;
         $duplicates = 0;
 
