@@ -29,7 +29,7 @@ class FinancialStatementServiceTest extends TestCase
         $this->service = app(FinancialStatementService::class);
     }
 
-    private function post(string $date, array $lines, ?int $storeId = null): void
+    private function postEntry(string $date, array $lines, ?int $storeId = null): void
     {
         $journal = app(JournalEntryService::class);
         $entry = $journal->create([
@@ -58,11 +58,11 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_balance_sheet_stays_balanced_in_following_fiscal_year(): void
     {
-        $this->post('2026-06-10', [
+        $this->postEntry('2026-06-10', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 1_000_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 1_000_000],
         ]);
-        $this->post('2027-02-10', [
+        $this->postEntry('2027-02-10', [
             ['chart_of_account_id' => $this->expenseId(), 'debit' => 200_000],
             ['chart_of_account_id' => $this->cashId(), 'credit' => 200_000],
         ]);
@@ -78,11 +78,11 @@ class FinancialStatementServiceTest extends TestCase
     {
         $store = Store::create(['name' => 'Toko A', 'is_active' => true]);
 
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 300_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 300_000],
         ], $store->id);
-        $this->post('2026-09-06', [
+        $this->postEntry('2026-09-06', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 500_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 500_000],
         ], null);
@@ -97,7 +97,7 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_trial_balance_is_balanced(): void
     {
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 123_456.78],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 123_456.78],
         ]);
@@ -109,11 +109,11 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_trial_balance_with_period_splits_opening_and_mutation(): void
     {
-        $this->post('2026-08-10', [
+        $this->postEntry('2026-08-10', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 400_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 400_000],
         ]);
-        $this->post('2026-09-10', [
+        $this->postEntry('2026-09-10', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 100_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 100_000],
         ]);
@@ -129,11 +129,11 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_trial_balance_resets_profit_loss_each_year_and_stays_balanced(): void
     {
-        $this->post('2026-06-10', [
+        $this->postEntry('2026-06-10', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 1_000_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 1_000_000],
         ]);
-        $this->post('2027-02-10', [
+        $this->postEntry('2027-02-10', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 300_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 300_000],
         ]);
@@ -152,7 +152,7 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_default_trial_balance_stays_cumulative_for_balance_sheet(): void
     {
-        $this->post('2026-06-10', [
+        $this->postEntry('2026-06-10', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 1_000_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 1_000_000],
         ]);
@@ -165,7 +165,7 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_income_statement_result_carries_period_for_exports(): void
     {
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 250_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 250_000],
         ]);
@@ -183,11 +183,11 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_income_statement_export_with_comparison_has_percentage_and_delta_columns(): void
     {
-        $this->post('2026-08-05', [
+        $this->postEntry('2026-08-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 100_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 100_000],
         ]);
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 150_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 150_000],
         ]);
@@ -211,11 +211,11 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_general_ledger_opening_for_profit_loss_account_resets_each_year(): void
     {
-        $this->post('2026-06-10', [
+        $this->postEntry('2026-06-10', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 1_000_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 1_000_000],
         ]);
-        $this->post('2027-02-10', [
+        $this->postEntry('2027-02-10', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 300_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 300_000],
         ]);
@@ -234,7 +234,7 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_general_ledger_export_bolds_total_row_and_keeps_numeric_columns(): void
     {
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 10_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 10_000],
         ]);
@@ -254,7 +254,7 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_general_ledger_rows_carry_source_and_creator(): void
     {
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 10_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 10_000],
         ]);
@@ -272,11 +272,11 @@ class FinancialStatementServiceTest extends TestCase
 
         // Setoran modal pusat (tanpa toko) dan penjualan tunai toko A.
         $capitalId = ChartOfAccount::where('type', 'modal')->where('is_postable', true)->orderBy('code')->value('id');
-        $this->post('2026-09-01', [
+        $this->postEntry('2026-09-01', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 5_000_000],
             ['chart_of_account_id' => $capitalId, 'credit' => 5_000_000],
         ], null);
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 200_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 200_000],
         ], $store->id);
@@ -297,7 +297,7 @@ class FinancialStatementServiceTest extends TestCase
         $capitalId = ChartOfAccount::where('code', '3100')->value('id');
         $payableId = ChartOfAccount::where('code', '2110')->value('id'); // Kewajiban Lancar (induk 2100)
 
-        $this->post('2026-09-01', [
+        $this->postEntry('2026-09-01', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 1_000_000],   // Aset Lancar (induk 1100)
             ['chart_of_account_id' => $capitalId, 'credit' => 800_000],
             ['chart_of_account_id' => $payableId, 'credit' => 200_000],
@@ -316,11 +316,11 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_balance_sheet_export_with_comparison_has_percentage_and_delta_columns(): void
     {
-        $this->post('2026-08-05', [
+        $this->postEntry('2026-08-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 100_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 100_000],
         ]);
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 100_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 100_000],
         ]);
@@ -345,7 +345,7 @@ class FinancialStatementServiceTest extends TestCase
     {
         // Banyak nominal desimal: penjumlahan float rawan drift, sen integer tidak.
         foreach ([33_333.33, 66_666.67, 0.10, 0.20, 0.30] as $i => $amount) {
-            $this->post('2026-09-0' . ($i + 1), [
+            $this->postEntry('2026-09-0' . ($i + 1), [
                 ['chart_of_account_id' => $this->cashId(), 'debit' => $amount],
                 ['chart_of_account_id' => $this->revenueId(), 'credit' => $amount],
             ]);
@@ -361,7 +361,7 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_cash_flow_excel_writes_numbers_not_text(): void
     {
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 1_500_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 1_500_000],
         ]);
@@ -381,11 +381,11 @@ class FinancialStatementServiceTest extends TestCase
     {
         $bankId = ChartOfAccount::where('code', '1102')->value('id'); // Kas di Bank (is_cash)
 
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 100_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 100_000],
         ]);
-        $this->post('2026-09-06', [
+        $this->postEntry('2026-09-06', [
             ['chart_of_account_id' => $bankId, 'debit' => 250_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 250_000],
         ]);
@@ -426,7 +426,7 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_general_ledger_rows_carry_entry_id_for_drill_down(): void
     {
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 10_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 10_000],
         ]);
@@ -440,7 +440,7 @@ class FinancialStatementServiceTest extends TestCase
     {
         ChartOfAccount::whereKey($this->revenueId())->update(['cash_flow_category' => null]);
 
-        $this->post('2026-09-05', [
+        $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 100_000],
             ['chart_of_account_id' => $this->revenueId(), 'credit' => 100_000],
         ]);

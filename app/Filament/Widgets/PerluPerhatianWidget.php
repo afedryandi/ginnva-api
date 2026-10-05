@@ -143,17 +143,29 @@ class PerluPerhatianWidget extends Widget
                 ];
             }
 
-            $requestCount = $scope(Booking::query()->where(fn ($q) => $q
-                ->whereHas('rescheduleRequests', fn ($r) => $r->where('status', 'pending'))
-                ->orWhereHas('cancellationRequests', fn ($r) => $r->where('status', 'pending'))))->count();
-            if ($requestCount > 0) {
+            $rescheduleCount = $scope(Booking::query()
+                ->whereHas('rescheduleRequests', fn ($r) => $r->where('status', 'pending')))->count();
+            if ($rescheduleCount > 0) {
                 $items[] = [
-                    'label' => 'Pengajuan Customer Menunggu',
-                    'description' => 'Jadwal ulang / pembatalan belum diputuskan',
-                    'count' => $requestCount,
+                    'label' => 'Pengajuan Jadwal Ulang Menunggu',
+                    'description' => 'Customer minta ganti tanggal, belum diputuskan',
+                    'count' => $rescheduleCount,
                     'color' => 'warning',
                     'icon' => 'heroicon-o-inbox-arrow-down',
                     'url' => BookingResource::getUrl('index', ['tableFilters' => ['reschedule_requested' => ['isActive' => true]]]),
+                ];
+            }
+
+            $cancelRequestCount = $scope(Booking::query()
+                ->whereHas('cancellationRequests', fn ($r) => $r->where('status', 'pending')))->count();
+            if ($cancelRequestCount > 0) {
+                $items[] = [
+                    'label' => 'Pengajuan Pembatalan Menunggu',
+                    'description' => 'Customer minta batal, belum diputuskan',
+                    'count' => $cancelRequestCount,
+                    'color' => 'danger',
+                    'icon' => 'heroicon-o-x-circle',
+                    'url' => BookingResource::getUrl('index', ['tableFilters' => ['cancellation_requested' => ['isActive' => true]]]),
                 ];
             }
 

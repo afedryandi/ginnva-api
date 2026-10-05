@@ -36,7 +36,10 @@ class ProcessMaintenanceSchedules extends Command
 
     private function sendConfirmations(PushNotificationService $push): void
     {
+        // Hanya jadwal yang BELUM lewat: yang lewat dihanguskan oleh forfeitOverdue()
+        // (konfirmasi untuk tanggal lampau ditolak server, jadi tidak boleh dikirimi push).
         $due = WarrantyMaintenanceSchedule::where('status', 'pending')
+            ->whereDate('scheduled_date', '>=', today())
             ->whereDate('scheduled_date', '<=', today()->addDays(self::REMINDER_WINDOW_DAYS))
             ->with('warranty.store')
             ->get()
