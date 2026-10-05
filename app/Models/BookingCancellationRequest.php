@@ -7,17 +7,18 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
- * Pengajuan ganti tanggal booking oleh customer (keputusan 2026-10-02) --
- * disetujui/ditolak staff toko. Lihat BookingRescheduleService.
+ * Pengajuan pembatalan booking yang SUDAH dikonfirmasi oleh customer
+ * (keputusan user 2026-10-05) -- staff menyetujui (booking dibatalkan, DP
+ * dikembalikan sesuai aturan) atau menolak dengan catatan. Lihat
+ * BookingCancellationService.
  */
-class BookingRescheduleRequest extends Model
+class BookingCancellationRequest extends Model
 {
     use LogsActivity;
 
     protected $fillable = [
         'booking_id',
         'customer_id',
-        'requested_date',
         'reason',
         'status',
         'decided_by',
@@ -28,8 +29,7 @@ class BookingRescheduleRequest extends Model
     ];
 
     protected $casts = [
-        'requested_date' => 'date:Y-m-d',
-        'decided_at'     => 'datetime',
+        'decided_at' => 'datetime',
         'reminder_sent_at' => 'datetime',
     ];
 
@@ -46,10 +46,10 @@ class BookingRescheduleRequest extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'requested_date', 'decided_by', 'decision_note'])
+            ->logOnly(['status', 'reason', 'decided_by', 'decision_note'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
-            ->useLogName('booking_reschedule_request')
-            ->setDescriptionForEvent(fn (string $event) => "Pengajuan jadwal ulang booking #{$this->booking?->booking_number} — {$event}");
+            ->useLogName('booking_cancellation_request')
+            ->setDescriptionForEvent(fn (string $event) => "Pengajuan pembatalan booking #{$this->booking?->booking_number} — {$event}");
     }
 }

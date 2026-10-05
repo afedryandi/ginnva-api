@@ -175,6 +175,13 @@ class BookingMessageController extends Controller
             ->where('customer_id', $request->user('customer')->id)
             ->firstOrFail();
 
+        // Booking batal tidak menerima pesan baru (2026-10-03) -- staff tidak
+        // perlu push/badge untuk booking yang sudah dibatalkan. Booking selesai
+        // tetap boleh (pertanyaan pasca-pemasangan).
+        if ($booking->status === 'cancelled') {
+            abort(422, 'Booking ini sudah dibatalkan, tidak bisa mengirim pesan.');
+        }
+
         $message = $booking->messages()->create([
             'sender_type'        => 'customer',
             'sender_customer_id' => $request->user('customer')->id,

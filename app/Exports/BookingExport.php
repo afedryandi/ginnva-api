@@ -23,7 +23,9 @@ class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoS
             $query->where('store_id', $this->storeId);
         }
 
-        return $query->orderBy('preferred_date', 'desc');
+        // id sebagai tiebreaker: tanpa itu urutan baris bertanggal sama bisa
+        // bergeser antar chunk dan baris terduplikasi/terlewat.
+        return $query->orderBy('preferred_date', 'desc')->orderBy('id', 'desc');
     }
 
     public function headings(): array
@@ -32,6 +34,7 @@ class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoS
             'No. Booking', 'Nama Customer', 'Email Customer', 'No. WhatsApp',
             'Toko', 'Jenis Layanan', 'Tanggal Diinginkan', 'Jam Diinginkan',
             'Status', 'Catatan', 'Diajukan Pada',
+            'Alasan Pembatalan', 'Dibatalkan Oleh', 'Waktu Pembatalan',
         ];
     }
 
@@ -55,6 +58,9 @@ class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoS
             },
             $booking->notes,
             $booking->created_at?->format('d/m/Y H:i'),
+            $booking->cancel_reason,
+            ['customer' => 'Customer', 'staff' => 'Staff', 'system' => 'Sistem'][$booking->cancelled_by_type] ?? null,
+            $booking->cancelled_at?->format('d/m/Y H:i'),
         ];
     }
 

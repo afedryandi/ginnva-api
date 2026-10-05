@@ -25,7 +25,15 @@ Schedule::command('warranty:notify-maintenance-followup')->dailyAt('08:20');
 
 // Pengingat SLA booking pending (>4 jam, ulang tiap 24 jam) -- lihat
 // App\Console\Commands\RemindPendingBookings.
-Schedule::command('bookings:remind-pending')->hourly();
+Schedule::command('bookings:remind-pending')->hourly()->withoutOverlapping();
+
+// SLA pengajuan jadwal ulang/pembatalan customer (4 jam, ulang 24 jam,
+// eskalasi direksi setelah 2 pengingat) -- lihat RemindPendingBookingRequests.
+Schedule::command('bookings:remind-pending-requests')->hourly()->withoutOverlapping();
+
+// Pengingat H-1 (customer + installer) & booking confirmed lewat tanggal ke
+// Store Manager -- lihat SendBookingDailyReminders.
+Schedule::command('bookings:daily-reminders')->dailyAt('08:00')->withoutOverlapping();
 
 // Alert bahan baku menipis/kedaluwarsa/tidak bergerak yang belum
 // ditinjau — lihat App\Console\Commands\NotifyExpiringMaterials.

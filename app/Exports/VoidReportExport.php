@@ -50,7 +50,8 @@ class VoidReportExport implements FromArray, WithHeadings, WithStyles
                         $booking->product_kaca_film => 'Kaca Film',
                         default => '-',
                     },
-                    $event->causer?->name ?? 'Sistem (otomatis)',
+                    $booking->cancelledByLabel($event->causer?->name),
+                    $booking->cancel_reason ?? '-',
                     (float) $booking->transaction_amount,
                 ];
             })

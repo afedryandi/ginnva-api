@@ -120,6 +120,14 @@ class BookingMessageController extends Controller
             abort(422, 'Konfirmasi booking dulu sebelum mengirim update tahap atau foto.');
         }
 
+        // Booking HANYA selesai lewat /complete (2026-10-03): tahap "completed"
+        // dibuat otomatis oleh BookingObserver saat status jadi completed.
+        // Dikirim manual lewat chat, ia mengisi current_stage tanpa mengubah
+        // status -> customer dapat push "Selesai" padahal booking belum.
+        if ($request->type === 'stage' && $request->stage === 'completed') {
+            abort(422, 'Gunakan tombol "Selesaikan Booking" untuk menyelesaikan booking.');
+        }
+
         if ($booking->status === 'completed' && $request->type === 'stage' && $request->stage !== 'completed') {
             abort(422, 'Booking ini sudah selesai, tahap tidak bisa diubah lagi.');
         }

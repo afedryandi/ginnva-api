@@ -139,11 +139,41 @@ class BookingObserver
         // final (diperbaiki 2026-10-02) -- sebelumnya menggantung selamanya
         // dan kartu customer tetap "menunggu keputusan toko".
         if ($booking->wasChanged('status') && in_array($booking->status, ['cancelled', 'completed'], true)) {
+            $closedCount = $booking->rescheduleRequests()->where('status', 'pending')->count()
+                + $booking->cancellationRequests()->where('status', 'pending')->count();
             $booking->rescheduleRequests()->where('status', 'pending')->update([
                 'status'        => 'rejected',
                 'decided_at'    => now(),
                 'decision_note' => $booking->status === 'cancelled' ? 'Booking dibatalkan.' : 'Booking sudah selesai.',
             ]);
+            // Pengajuan pembatalan yang menggantung juga ditutup (2026-10-05).
+            $booking->cancellationRequests()->where('status', 'pending')->update([
+                'status'        => 'rejected',
+                'decided_at'    => now(),
+                'decision_note' => $booking->status === 'cancelled' ? 'Booking sudah dibatalkan.' : 'Booking sudah selesai.',
+            ]);
+        }
+
+        // Customer diberi tahu kalau pengajuannya ditutup otomatis oleh
+        // keputusan lain (mis. booking diselesaikan staff) -- kecuali ia
+        // sendiri yang membatalkan, karena ia sudah tahu.
+        if (($closedCount ?? 0) > 0 && $booking->customer_id && $booking->cancelled_by_type !== 'customer') {
+            $closedBody = $booking->status === 'cancelled'
+                ? "Pengajuan Anda untuk booking #{$booking->booking_number} ditutup karena booking sudah dibatalkan."
+                : "Pengajuan Anda untuk booking #{$booking->booking_number} ditutup karena booking sudah selesai.";
+            $closedData = ['type' => 'booking_request_closed', 'booking_id' => $booking->id, 'route' => "/booking/{$booking->id}/chat"];
+            DB::afterCommit(fn () => $this->push->sendToCustomer($booking->customer_id, 'Pengajuan Ditutup', $closedBody, $closedData));
+        }
+
+        // Installer yang dibatalkan jadwalnya (booking confirmed -> cancelled)
+        // diberi tahu supaya tidak datang sia-sia.
+        if ($booking->wasChanged('status') && $booking->status === 'cancelled' && $booking->getOriginal('status') === 'confirmed') {
+            $cancelInstallerIds = $booking->installers()->pluck('users.id');
+            if ($cancelInstallerIds->isNotEmpty()) {
+                $cancelBody = "Booking #{$booking->booking_number} ({$booking->preferred_date?->format('d M Y')}) dibatalkan.";
+                $cancelData = ['type' => 'booking_cancelled', 'booking_id' => $booking->id, 'route' => "/staff/bookings/{$booking->id}"];
+                DB::afterCommit(fn () => $this->push->sendToUsers($cancelInstallerIds, 'Booking Dibatalkan', $cancelBody, $cancelData));
+            }
         }
 
         // Installer yang ditugaskan diberi tahu kalau jadwal booking

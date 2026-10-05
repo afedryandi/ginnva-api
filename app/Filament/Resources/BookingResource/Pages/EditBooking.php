@@ -35,6 +35,7 @@ class EditBooking extends EditRecord
                 ->visible(fn () => $this->record->spk !== null)
                 ->url(fn () => $this->record->spk ? SpkResource::getUrl('edit', ['record' => $this->record->spk]) : null),
             ...$this->rescheduleRequestActions(),
+            ...$this->cancellationRequestActions(),
         ];
     }
 
@@ -152,7 +153,8 @@ class EditBooking extends EditRecord
     {
         // Bukan kolom booking -- diambil dulu supaya tidak ikut ter-update.
         $rescheduleReason = $data['reschedule_reason'] ?? null;
-        unset($data['reschedule_reason']);
+        $formVersion = $data['form_version'] ?? null;
+        unset($data['reschedule_reason'], $data['form_version']);
 
         return DB::transaction(function () use ($record, $data, $rescheduleReason) {
             // Kunci baris booking DULU, baru toko -- urutan sama dengan jalur
@@ -161,7 +163,13 @@ class EditBooking extends EditRecord
             // lain sejak form dibuka, simpan ditolak supaya tidak menimpa.
             $fresh = Booking::whereKey($record->id)->lockForUpdate()->first();
 
-            if ($fresh->status !== $record->status
+            // Token versi (updated_at saat form DIBUKA) -- membandingkan dengan
+            // $record tidak berguna karena Livewire memuat ulang $record tiap
+            // request (2026-10-03).
+            $stale = $formVersion !== null && (int) $formVersion !== (int) $fresh->updated_at?->timestamp;
+
+            if ($stale
+                || $fresh->status !== $record->status
                 || $fresh->preferred_date?->toDateString() !== $record->preferred_date?->toDateString()) {
                 Notification::make()
                     ->title('Booking sudah berubah')
@@ -180,6 +188,18 @@ class EditBooking extends EditRecord
             // dengan mobile (toko tutup/diblokir, pengerjaan sudah mulai,
             // tanggal lampau, kapasitas, sinkron maintenance, tutup pengajuan
             // customer, push) -- 2026-10-03.
+            // Booking selesai/batal: tanggal tidak boleh diubah sama sekali.
+            if ($dateChanged && in_array($fresh->status, ['completed', 'cancelled'], true)) {
+                Notification::make()
+                    ->title('Tanggal tidak bisa diubah')
+                    ->body('Booking yang sudah selesai atau dibatalkan tidak bisa dijadwal ulang.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                throw new Halt();
+            }
+
             if ($dateChanged && $fresh->status === 'confirmed' && blank($rescheduleReason)) {
                 Notification::make()
                     ->title('Alasan pindah jadwal wajib diisi')
@@ -254,6 +274,11 @@ class EditBooking extends EditRecord
      */
     protected function afterSave(): void
     {
+        // Halaman Edit tetap terbuka setelah simpan: token versi harus ikut
+        // diperbarui, kalau tidak simpan berikutnya ditolak "sudah berubah".
+        $this->record->refresh();
+        $this->data['form_version'] = $this->record->updated_at?->timestamp;
+
         $newWatcherIds = $this->record->watchers()->pluck('users.id')->all();
         $addedIds = array_diff($newWatcherIds, $this->existingWatcherIds);
 

@@ -79,13 +79,6 @@ class BookingRescheduleService
             $locked->rescheduleReason = $reason !== null && trim($reason) !== '' ? trim($reason) : null;
             $locked->update(['preferred_date' => $newDate->toDateString()]);
 
-            if ($locked->rescheduleReason) {
-                activity('booking')
-                    ->performedOn($locked)
-                    ->causedBy($actorId ? \App\Models\User::find($actorId) : null)
-                    ->withProperties(['old' => ['preferred_date' => $old?->toDateString()], 'attributes' => ['preferred_date' => $newDate->toDateString(), 'reason' => $locked->rescheduleReason]])
-                    ->log("Jadwal booking #{$locked->booking_number} dipindah: {$locked->rescheduleReason}");
-            }
 
             // Booking Maintenance PPF: tanggal jadwal garansinya ikut pindah
             // supaya tidak ada dua tanggal berbeda (2026-10-02).

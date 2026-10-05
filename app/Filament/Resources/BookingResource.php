@@ -60,7 +60,7 @@ class BookingResource extends Resource
         // tambahan (N+1). Lihat audit modul Booking 2026-08-27.
         // customer & installers ikut di-eager-load (diperbaiki 2026-10-02) --
         // kolom display_name dan installers.name memicu query per baris.
-        $query = parent::getEloquentQuery()->with(['store', 'customer', 'installers', 'pendingRescheduleRequest']);
+        $query = parent::getEloquentQuery()->with(['store', 'customer', 'installers', 'pendingRescheduleRequest', 'pendingCancellationRequest']);
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -527,11 +527,17 @@ class BookingResource extends Resource
                     // Alasan pindah jadwal booking confirmed -- wajib kalau
                     // tanggalnya diubah (dicek di EditBooking), dikirim ke
                     // customer (2026-10-03). Tidak disimpan di kolom booking.
+                    // Token versi form: updated_at saat form dibuka, dipakai
+                    // EditBooking untuk menolak simpan kalau booking sudah
+                    // berubah dari tempat lain (2026-10-03).
+                    Forms\Components\Hidden::make('form_version')
+                        ->afterStateHydrated(fn (Forms\Components\Hidden $component, ?Booking $record) => $component->state($record?->updated_at?->timestamp)),
+
                     Forms\Components\Textarea::make('reschedule_reason')
-                        ->label('Alasan Pindah Jadwal')
-                        ->helperText('Wajib diisi kalau tanggal booking yang sudah dikonfirmasi diubah. Dikirim ke customer.')
+->label(fn (?Booking $record) => $record?->status === 'confirmed' ? 'Alasan Pindah Jadwal' : 'Alasan Pindah Jadwal (opsional)')
+                        ->helperText('Wajib kalau tanggal booking yang sudah dikonfirmasi diubah; opsional untuk booking yang masih menunggu. Dikirim ke customer.')
                         ->maxLength(500)
-                        ->visible(fn (?Booking $record) => $record?->status === 'confirmed')
+                        ->visible(fn (?Booking $record) => in_array($record?->status, ['pending', 'confirmed'], true))
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('preferred_time')
@@ -1044,6 +1050,12 @@ class BookingResource extends Resource
                         if ($record->pendingRescheduleRequest) {
                             $parts[] = 'Jadwal ulang diajukan: ' . $record->pendingRescheduleRequest->requested_date->format('d M');
                         }
+                        if ($record->status === 'confirmed' && ! $record->current_stage && $record->preferred_date?->lt(today())) {
+                            $parts[] = 'Lewat tanggal, belum dikerjakan';
+                        }
+                        if ($record->pendingCancellationRequest) {
+                            $parts[] = 'Pembatalan diajukan customer';
+                        }
 
                         return $parts ? implode(' · ', $parts) : null;
                     }),
@@ -1091,6 +1103,16 @@ class BookingResource extends Resource
                     ->label('Ada pengajuan jadwal ulang')
                     ->query(fn (Builder $query) => $query->whereHas('rescheduleRequests', fn ($q) => $q->where('status', 'pending'))),
 
+                Tables\Filters\Filter::make('overdue_confirmed')
+                    ->label('Lewat tanggal, belum dikerjakan')
+                    ->query(fn (Builder $query) => $query->where('status', 'confirmed')
+                        ->whereDate('preferred_date', '<', today())
+                        ->whereNull('current_stage')),
+
+                Tables\Filters\Filter::make('cancellation_requested')
+                    ->label('Ada pengajuan pembatalan')
+                    ->query(fn (Builder $query) => $query->whereHas('cancellationRequests', fn ($q) => $q->where('status', 'pending'))),
+
                 Tables\Filters\SelectFilter::make('cancelled_by_type')
                     ->label('Dibatalkan oleh')
                     ->options([
@@ -1112,9 +1134,15 @@ class BookingResource extends Resource
                     ->relationship('store', 'name')
                     ->visible(fn () => auth()->user()?->isFullAccess()),
 
+                // Bawaan "Aktif": pending/confirmed APAPUN tanggalnya (pending
+                // lewat tanggal & job multi-hari yang mulai kemarin tidak boleh
+                // hilang dari daftar), ditambah yang selesai/batal yang
+                // tanggalnya hari ini atau mendatang.
                 Tables\Filters\Filter::make('upcoming')
-                    ->label('Hanya yang akan datang')
-                    ->query(fn (Builder $query) => $query->whereDate('preferred_date', '>=', today()))
+                    ->label('Aktif & akan datang')
+                    ->query(fn (Builder $query) => $query->where(fn (Builder $q) => $q
+                        ->whereIn('status', ['pending', 'confirmed'])
+                        ->orWhereDate('preferred_date', '>=', today())))
                     ->default(),
 
                 // Booking sudah SELESAI tapi nominal/pendapatannya belum
@@ -1690,7 +1718,7 @@ class BookingResource extends Resource
                     ->modalDescription('Booking ini akan ditandai Dibatalkan. Tindakan ini tidak membatalkan otomatis assignment installer/direksi yang sudah tersimpan.')
                     ->form([
                         Forms\Components\Textarea::make('reason')
-                            ->label(fn (Booking $record) => $record->status === 'confirmed' ? 'Alasan' : 'Alasan (opsional)')
+                            ->label(fn (Booking $record) => ($record->status === 'confirmed' ? 'Alasan' : 'Alasan (opsional)') . ' — dikirim ke customer')
                             // Booking confirmed sudah memakai slot & kemungkinan DP
                             // -- alasan wajib (keputusan 2026-10-02).
                             ->required(fn (Booking $record) => $record->status === 'confirmed')
@@ -1769,6 +1797,7 @@ class BookingResource extends Resource
         return [
             BookingResource\RelationManagers\MessagesRelationManager::class,
             BookingResource\RelationManagers\RescheduleRequestsRelationManager::class,
+            BookingResource\RelationManagers\CancellationRequestsRelationManager::class,
         ];
     }
 

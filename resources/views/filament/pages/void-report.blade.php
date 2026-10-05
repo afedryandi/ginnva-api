@@ -40,6 +40,7 @@
                         <th class="py-2 pr-3">Toko</th>
                         <th class="py-2 pr-3">Layanan</th>
                         <th class="py-2 pr-3">Dibatalkan Oleh</th>
+                        <th class="py-2 pr-3">Alasan</th>
                         <th class="py-2 pl-3 text-right">Nilai Transaksi</th>
                     </tr>
                 </thead>
@@ -64,11 +65,12 @@
                                     —
                                 @endif
                             </td>
-                            <td class="py-2 pr-3">{{ $event->causer?->name ?? 'Sistem (otomatis)' }}</td>
+                            <td class="py-2 pr-3">{{ $event->subject->cancelledByLabel($event->causer?->name) }}</td>
+                            <td class="py-2 pr-3">{{ $event->subject->cancel_reason ?? '—' }}</td>
                             <td class="py-2 pl-3 text-right tabular-nums">{{ $event->subject->transaction_amount > 0 ? $rupiah($event->subject->transaction_amount) : '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada booking dibatalkan pada rentang ini.</td></tr>
+                        <tr><td colspan="9" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada booking dibatalkan pada rentang ini.</td></tr>
                     @endforelse
                 </tbody>
             </table>

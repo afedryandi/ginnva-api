@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\BookingWatcherAssignedMail;
 use App\Models\Booking;
 use App\Models\User;
+use App\Services\BookingCancellationService;
 use App\Services\BookingRescheduleService;
 use App\Services\ServiceReminderService;
 use Illuminate\Http\Request;
@@ -38,7 +39,7 @@ class BookingController extends Controller
             abort(403, 'Partner tidak punya akses ke booking toko.');
         }
 
-        $query = Booking::query()->with(['customer:id,name,phone_number', 'store:id,name', 'pendingRescheduleRequest'])
+        $query = Booking::query()->with(['customer:id,name,phone_number', 'store:id,name', 'pendingRescheduleRequest', 'pendingCancellationRequest'])
             // Jumlah pesan customer yang belum dibaca staff (badge daftar).
             ->withCount(['messages as unread_count' => fn ($q) => $q->where('sender_type', 'customer')
                 ->where('legacy_read', false)
@@ -62,10 +63,15 @@ class BookingController extends Controller
             $query->orderByDesc('id');
         }
 
-        if ($request->date === 'today') {
-            $query->whereDate('preferred_date', today());
-        } elseif ($request->date === 'week') {
-            $query->whereBetween('preferred_date', [today(), today()->addDays(6)]);
+        // Pekerjaan multi-hari yang sedang berjalan ikut masuk (2026-10-03):
+        // rentang preferred_date .. preferred_date + (duration_days - 1)
+        // beririsan dengan hari/minggu ini (hari libur toko tidak dihitung,
+        // jadi sedikit longgar -- lebih baik tampil daripada terlewat).
+        if ($request->date === 'today' || $request->date === 'week') {
+            $from = today()->toDateString();
+            $to = ($request->date === 'today' ? today() : today()->addDays(6))->toDateString();
+            $query->whereDate('preferred_date', '<=', $to)
+                ->whereRaw('DATE_ADD(preferred_date, INTERVAL (COALESCE(duration_days, 1) - 1) DAY) >= ?', [$from]);
         }
 
         if ($user->hasRole('installer')) {
@@ -94,7 +100,8 @@ class BookingController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $bookings->items(),
+            // cancelled_by_type disembunyikan global ($hidden); staff perlu melihatnya.
+            'data'    => collect($bookings->items())->each->makeVisible('cancelled_by_type')->all(),
             'meta'    => [
                 'current_page' => $bookings->currentPage(),
                 'last_page'    => $bookings->lastPage(),
@@ -127,6 +134,7 @@ class BookingController extends Controller
             // dibutuhkan (dipakai buat rute "Lihat SPK").
             'spk:id,booking_id',
             'pendingRescheduleRequest',
+            'pendingCancellationRequest',
         ])->findOrFail($id);
 
         if ($user->hasRole('installer')) {
@@ -137,7 +145,7 @@ class BookingController extends Controller
             abort(403, 'Anda tidak punya akses ke booking toko lain.');
         }
 
-        return response()->json(['success' => true, 'data' => $booking]);
+        return response()->json(['success' => true, 'data' => $booking->makeVisible('cancelled_by_type')]);
     }
 
     /**
@@ -472,6 +480,53 @@ class BookingController extends Controller
                 'message' => 'Booking selesai.',
             ]);
         });
+    }
+
+    /**
+     * POST /api/staff/bookings/{id}/cancellation-request/{requestId}/approve
+     * Hanya Store Manager / akses penuh (sama dengan pembatalan langsung).
+     */
+    public function approveCancellation(Request $request, int $id, int $requestId, BookingCancellationService $service)
+    {
+        $user = $request->user('api');
+        $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+
+        if (! $user->isFullAccess() && ! $user->isStoreManager()) {
+            abort(403, 'Cuma Store Manager atau akses penuh yang bisa menyetujui pembatalan booking.');
+        }
+
+        $req = $booking->cancellationRequests()->findOrFail($requestId);
+        $request->validate(['note' => 'nullable|string|max:500']);
+
+        try {
+            $updated = $service->approve($req, $user->id, $request->input('note'));
+        } catch (RuntimeException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return response()->json(['success' => true, 'data' => $updated, 'message' => 'Pembatalan disetujui, booking dibatalkan.']);
+    }
+
+    /** POST /api/staff/bookings/{id}/cancellation-request/{requestId}/reject */
+    public function rejectCancellation(Request $request, int $id, int $requestId, BookingCancellationService $service)
+    {
+        $user = $request->user('api');
+        $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+
+        if (! $user->isFullAccess() && ! $user->isStoreManager()) {
+            abort(403, 'Cuma Store Manager atau akses penuh yang bisa memutuskan pembatalan booking.');
+        }
+
+        $req = $booking->cancellationRequests()->findOrFail($requestId);
+        $request->validate(['note' => 'required|string|max:500'], ['note.required' => 'Alasan penolakan wajib diisi.']);
+
+        try {
+            $service->reject($req, $user->id, $request->note);
+        } catch (RuntimeException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return response()->json(['success' => true, 'message' => 'Pengajuan pembatalan ditolak.']);
     }
 
     /**

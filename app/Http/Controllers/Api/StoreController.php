@@ -134,22 +134,58 @@ class StoreController extends Controller
      * atau diblokir admin) ATAU kapasitas penuh. Dipakai modal jadwal ulang
      * customer & staff (2026-10-03).
      */
-    public function unavailableDates(int $id): JsonResponse
+    public function unavailableDates(Request $request, int $id): JsonResponse
     {
         $store = \App\Models\Store::whereKey($id)->where('is_active', true)->first();
         abort_if(! $store, 404);
 
-        $dates = \Illuminate\Support\Facades\Cache::remember("store-unavailable-dates:{$id}", 60, function () use ($store, $id) {
-            $counts = \App\Models\Booking::confirmedOverlapCountsForRange($id, today(), today()->addDays(30));
+        // ?booking_id= (opsional): booking yang SEDANG dipindah -- dikecualikan
+        // dari hitungan (tanggalnya sendiri tidak dianggap penuh) dan dicek
+        // sepanjang DURASInya, sama dengan aturan server saat menyimpan.
+        $excludeId = null;
+        $duration = 1;
+        if ($request->filled('booking_id')) {
+            // Hanya pengguna login yang boleh memakai booking_id (endpoint publik
+            // sebelumnya bisa dipakai menebak id booking & membanjiri cache):
+            // customer hanya untuk booking miliknya, staff untuk booking toko.
+            $customer = $request->user('customer');
+            $staff = $customer ? null : $request->user('api');
+            $b = ($customer || $staff)
+                ? \App\Models\Booking::where('id', (int) $request->booking_id)->where('store_id', $id)
+                    ->when($customer, fn ($q) => $q->where('customer_id', $customer->id))
+                    ->first()
+                : null;
+            if ($b) {
+                $excludeId = $b->id;
+                $duration = max(1, (int) $b->duration_days);
+            }
+        }
+
+        $dates = \Illuminate\Support\Facades\Cache::remember("store-unavailable-dates:{$id}:{$excludeId}:{$duration}", 60, function () use ($store, $id, $excludeId, $duration) {
+            $counts = \App\Models\Booking::confirmedOverlapCountsForRange($id, today(), today()->addDays(60), $excludeId);
+            $capacity = [];
+            $isFull = function (string $key) use (&$capacity, $counts, $id): bool {
+                $capacity[$key] ??= \App\Models\Booking::capacityForDate($id, \Illuminate\Support\Carbon::parse($key));
+
+                return ($counts[$key] ?? 0) >= $capacity[$key];
+            };
             $out = [];
 
             for ($i = 0; $i <= 30; $i++) {
                 $day = today()->addDays($i);
-                $key = $day->toDateString();
+                $blocked = $store->isClosedOn($day);
 
-                if ($store->isClosedOn($day)
-                    || ($counts[$key] ?? 0) >= \App\Models\Booking::capacityForDate($id, $day)) {
-                    $out[] = $key;
+                if (! $blocked) {
+                    foreach (\App\Models\Booking::workingDatesInRange($id, $day, $duration, $store) as $workDay) {
+                        if ($isFull($workDay)) {
+                            $blocked = true;
+                            break;
+                        }
+                    }
+                }
+
+                if ($blocked) {
+                    $out[] = $day->toDateString();
                 }
             }
 

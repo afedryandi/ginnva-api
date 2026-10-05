@@ -73,12 +73,17 @@ class RemindPendingBookings extends Command
             // Eskalasi: booking yang sudah diingatkan >= 2 kali (keputusan
             // 2026-10-03) ikut dikumpulkan untuk direksi.
             foreach ($group as $b) {
-                if ($b->pending_reminder_count >= self::ESCALATE_AFTER) {
+                // Tepat SEKALI saat ambang tercapai -- sebelumnya >= membuat
+                // direksi dapat push eskalasi tiap 24 jam selamanya (2026-10-03).
+                if ($b->pending_reminder_count === self::ESCALATE_AFTER) {
                     $escalated[$storeId][] = $b->booking_number;
                 }
             }
 
-            Booking::whereIn('id', $group->pluck('id'))->update([
+            // Lewat query builder (bukan Eloquent) supaya updated_at TIDAK
+            // berubah: token versi form Edit Filament memakainya, cron tidak
+            // boleh memicu "Booking sudah berubah" palsu.
+            DB::table('bookings')->whereIn('id', $group->pluck('id'))->update([
                 'pending_reminder_sent_at' => now(),
                 'pending_reminder_count'   => DB::raw('pending_reminder_count + 1'),
             ]);

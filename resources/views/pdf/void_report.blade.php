@@ -35,6 +35,7 @@
                 <th>Toko</th>
                 <th>Layanan</th>
                 <th>Dibatalkan Oleh</th>
+                <th>Alasan</th>
                 <th class="value">Nilai Transaksi</th>
             </tr>
         </thead>
@@ -58,7 +59,8 @@
                             -
                         @endif
                     </td>
-                    <td>{{ $event->causer?->name ?? 'Sistem (otomatis)' }}</td>
+                    <td>{{ $booking->cancelledByLabel($event->causer?->name) }}</td>
+                    <td>{{ $booking->cancel_reason ?? '-' }}</td>
                     <td class="value">{{ $booking->transaction_amount > 0 ? $rupiah($booking->transaction_amount) : '-' }}</td>
                 </tr>
             @endforeach

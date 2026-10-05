@@ -185,6 +185,9 @@ Route::prefix('customer')->group(function () {
         // Ajukan ganti tanggal (disetujui staff) -- 2026-10-02.
         Route::post('/bookings/{id}/reschedule-request', [BookingController::class, 'requestReschedule'])
             ->middleware('throttle:10,1');
+        // Ajukan pembatalan booking confirmed (disetujui staff) -- 2026-10-05.
+        Route::post('/bookings/{id}/cancellation-request', [BookingController::class, 'requestCancellation'])
+            ->middleware('throttle:10,1');
 
         // Chat + progress tracking per booking (polling, bukan real-time)
         Route::get('/bookings/{id}/messages', [BookingMessageController::class, 'index']);
@@ -283,6 +286,10 @@ Route::prefix('staff')->group(function () {
         Route::post('/bookings/{id}/reschedule-request/{requestId}/approve', [StaffBookingController::class, 'approveReschedule'])
             ->middleware('throttle:20,1');
         Route::post('/bookings/{id}/reschedule-request/{requestId}/reject', [StaffBookingController::class, 'rejectReschedule'])
+            ->middleware('throttle:20,1');
+        Route::post('/bookings/{id}/cancellation-request/{requestId}/approve', [StaffBookingController::class, 'approveCancellation'])
+            ->middleware('throttle:20,1');
+        Route::post('/bookings/{id}/cancellation-request/{requestId}/reject', [StaffBookingController::class, 'rejectCancellation'])
             ->middleware('throttle:20,1');
 
         // Kirim pengingat maintenance/servis berkala manual (WA+Push+Email) —

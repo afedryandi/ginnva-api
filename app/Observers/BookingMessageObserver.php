@@ -62,12 +62,17 @@ class BookingMessageObserver
                 'route'      => "/staff/bookings/{$booking->id}",
             ];
 
-            $this->push->sendToStoreStaff($booking->store_id, $title, $body, $data, BookingResource::class);
-            $this->push->sendToBookingWatchers($booking, $title, $body, $data);
-            // Installer yang ditugaskan di booking ini juga perlu tahu ada
-            // pesan customer (diperbaiki 2026-10-02) -- sendToStoreStaff()
-            // mengecualikan installer.
-            $this->push->sendToUsers($booking->installers()->pluck('users.id'), $title, $body, $data);
+            // Staff toko + watcher direksi + installer yang ditugaskan, DIGABUNG
+            // dan di-dedupe lalu dikirim SEKALI (2026-10-03) -- sebelumnya
+            // tiga panggilan terpisah, orang yang punya dua peran menerima
+            // push identik 2-3x.
+            $recipientIds = $this->push->storeStaffIds($booking->store_id, BookingResource::class)
+                ->merge($booking->watchers()->pluck('users.id'))
+                ->merge($booking->installers()->pluck('users.id'))
+                ->unique()
+                ->values();
+
+            $this->push->sendToUsers($recipientIds, $title, $body, $data);
         }
     }
 

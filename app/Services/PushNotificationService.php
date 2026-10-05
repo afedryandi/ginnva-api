@@ -56,16 +56,22 @@ class PushNotificationService
      */
     public function sendToStoreStaff(int $storeId, string $title, string $body, array $data = [], ?string $resourceClass = null): void
     {
+        $this->sendToUsers($this->storeStaffIds($storeId, $resourceClass), $title, $body, $data);
+    }
+
+    /**
+     * Daftar id penerima sendToStoreStaff() (staff toko yang lolos filter +
+     * semua super_admin) -- dipisah supaya pemanggil yang menggabungkan
+     * beberapa kelompok penerima bisa dedupe sebelum kirim SEKALI.
+     */
+    public function storeStaffIds(int $storeId, ?string $resourceClass = null): \Illuminate\Support\Collection
+    {
         $storeStaffIds = User::where('store_id', $storeId)
             ->get()
             ->filter(fn (User $u) => $u->isRestrictedStaff() && ($resourceClass === null || $u->hasMenuAccess($resourceClass)))
             ->pluck('id');
 
-        $superAdminIds = User::role('super_admin')->pluck('id');
-
-        $userIds = $storeStaffIds->merge($superAdminIds)->unique();
-
-        $this->sendToUsers($userIds, $title, $body, $data);
+        return $storeStaffIds->merge(User::role('super_admin')->pluck('id'))->unique()->values();
     }
 
     /**

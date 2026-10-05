@@ -180,6 +180,15 @@ class Booking extends Model
         'journal_entry_id',
     ];
 
+    // Kolom internal tidak ikut diserialisasi ke API (2026-10-03) -- customer
+    // tidak perlu id staff yang membatalkan atau penanda reminder SLA.
+    protected $hidden = [
+        'cancelled_by_id',
+        'cancelled_by_type',
+        'pending_reminder_count',
+        'pending_reminder_sent_at',
+    ];
+
     protected $casts = [
         // 'date:Y-m-d' -- diserialisasi ke JSON sebagai tanggal polos, BUKAN
         // ISO UTC (2026-10-03): dengan APP_TIMEZONE Asia/Jakarta, tanggal 5
@@ -198,11 +207,27 @@ class Booking extends Model
         'product_premium_wash' => 'boolean',
         'spend_promo_discount' => 'decimal:2',
         'duration_days' => 'integer',
+        'pending_reminder_count' => 'integer',
         'next_service_reminder_at' => 'date',
         'service_reminder_sent_at' => 'datetime',
     ];
 
     protected $appends = ['end_date'];
+
+    /**
+     * end_date diserialisasi sebagai tanggal polos Y-m-d (bukan ISO UTC) --
+     * kelas bug yang sama dengan preferred_date.
+     */
+    public function attributesToArray()
+    {
+        $attributes = parent::attributesToArray();
+
+        if (($attributes['end_date'] ?? null) instanceof \DateTimeInterface) {
+            $attributes['end_date'] = $attributes['end_date']->format('Y-m-d');
+        }
+
+        return $attributes;
+    }
 
     /**
      * duration_days SELALU diisi Booking::booted() saat dibuat (lihat di
@@ -387,9 +412,11 @@ class Booking extends Model
      * Instalasi". Dipakai Filament (BookingResource) dan endpoint mobile
      * GET .../capacity-preview.
      */
-    public static function workingDatesInRange(int $storeId, Carbon $startDate, int $durationDays): array
+    public static function workingDatesInRange(int $storeId, Carbon $startDate, int $durationDays, ?Store $store = null): array
     {
-        $store = Store::find($storeId);
+        // $store opsional: pemanggil yang memanggil berulang (loop tanggal)
+        // meneruskannya supaya tidak query toko + hari libur tiap iterasi.
+        $store ??= Store::find($storeId);
         $dates = [];
         $day = $startDate->copy();
         $daysScanned = 0;
@@ -540,6 +567,23 @@ class Booking extends Model
     public function rescheduleRequests()
     {
         return $this->hasMany(BookingRescheduleRequest::class);
+    }
+
+    public function cancellationRequests()
+    {
+        return $this->hasMany(BookingCancellationRequest::class);
+    }
+
+    /** Pengajuan pembatalan customer (booking confirmed) yang menunggu keputusan staff. */
+    public function pendingCancellationRequest()
+    {
+        return $this->hasOne(BookingCancellationRequest::class)->where('status', 'pending')->latestOfMany();
+    }
+
+    /** Keputusan terakhir atas pengajuan pembatalan (disetujui/ditolak). */
+    public function latestDecidedCancellationRequest()
+    {
+        return $this->hasOne(BookingCancellationRequest::class)->where('status', '!=', 'pending')->latestOfMany();
     }
 
     /** Keputusan terakhir atas pengajuan jadwal ulang (disetujui/ditolak/ditutup). */
@@ -719,6 +763,20 @@ class Booking extends Model
      * kenapa). $byType: 'customer' | 'staff' | 'system'. Dipanggil di dalam
      * transaction + lock oleh tiap jalur pembatalan.
      */
+    /**
+     * Label "dibatalkan oleh" untuk laporan: customer / nama staff / sistem.
+     * $fallback dipakai booking lama (sebelum kolom cancelled_by_* ada).
+     */
+    public function cancelledByLabel(?string $fallback = null): string
+    {
+        return match ($this->cancelled_by_type) {
+            'customer' => 'Customer',
+            'staff'    => User::whereKey($this->cancelled_by_id)->value('name') ?? 'Staff',
+            'system'   => 'Sistem (otomatis)',
+            default    => $fallback ?? 'Sistem (otomatis)',
+        };
+    }
+
     public function cancelWith(string $byType, ?int $byId, ?string $reason): void
     {
         $this->update([
@@ -807,10 +865,21 @@ class Booking extends Model
         return $candidate;
     }
 
+    /**
+     * Alasan pindah jadwal ikut di log aktivitas OTOMATIS (satu entri per
+     * perpindahan, 2026-10-03) -- bukan entri manual kedua.
+     */
+    public function tapActivity(\Spatie\Activitylog\Models\Activity $activity, string $eventName): void
+    {
+        if ($this->rescheduleReason) {
+            $activity->properties = $activity->properties->put('reason', $this->rescheduleReason);
+        }
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'preferred_date', 'duration_days', 'notes', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id', 'warranty_id'])
+            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'preferred_date', 'duration_days', 'notes', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id', 'warranty_id', 'cancel_reason', 'cancelled_by_type', 'cancelled_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('booking')

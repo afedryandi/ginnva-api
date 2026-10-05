@@ -79,6 +79,9 @@ class CreateBooking extends CreateRecord
      */
     protected function handleRecordCreation(array $data): Model
     {
+        // Bukan kolom booking (field khusus form Edit).
+        unset($data['form_version'], $data['reschedule_reason']);
+
         return DB::transaction(function () use ($data) {
             // Tanggal lampau tidak boleh langsung dikonfirmasi (sama dengan
             // jalur mobile, diperbaiki 2026-10-02).

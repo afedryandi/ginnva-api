@@ -24,8 +24,9 @@ use Spatie\Activitylog\Models\Activity;
  * rekap booking yang DIBATALKAN (status berubah jadi 'cancelled') dalam
  * 1 rentang tanggal.
  *
- * Booking TIDAK punya kolom cancelled_at/cancel_reason terpisah, TAPI
- * setiap perubahan status sudah otomatis tercatat di activity_log lewat
+ * "Dibatalkan oleh" & alasan diambil dari kolom Booking (cancelled_by_type,
+ * cancel_reason; sejak 2026-10-05), fallback ke pelaku log untuk data lama.
+ * Setiap perubahan status sudah otomatis tercatat di activity_log lewat
  * LogsActivity (lihat Booking::getActivitylogOptions(), logOnlyDirty)
  * — sama sumber data yang dipakai ActivityResource ("Aktivitas"). Jadi
  * "kapan dibatalkan" & "siapa yang membatalkan" DIAMBIL DARI LOG,

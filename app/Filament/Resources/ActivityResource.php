@@ -271,6 +271,10 @@ class ActivityResource extends Resource
                 ->label('Objek')
                 ->formatStateUsing(fn ($state, $record) => $state ? class_basename($state) . ' #' . $record->subject_id : '—'),
             TextEntry::make('description')->label('Deskripsi')->columnSpanFull(),
+            TextEntry::make('properties.reason')
+                ->label('Alasan')
+                ->columnSpanFull()
+                ->visible(fn (Activity $record) => filled($record->properties['reason'] ?? null)),
             KeyValueEntry::make('properties.old')
                 ->label('Nilai Sebelumnya')
                 ->columnSpanFull()

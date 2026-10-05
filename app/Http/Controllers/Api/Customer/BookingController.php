@@ -13,6 +13,25 @@ use Illuminate\Support\Facades\Validator;
 class BookingController extends Controller
 {
     /**
+     * Customer tidak boleh menerima kolom internal: konfigurasi absensi/gaji
+     * toko dan kolom akuntansi booking (2026-10-05). Daftar-hitam hanya di
+     * jalur customer supaya API staff tidak berubah.
+     */
+    private function sanitize(Booking $booking): Booking
+    {
+        $booking->loadMissing('store');
+        $booking->store?->makeHidden([
+            'late_deduction_amount', 'late_tolerance_minutes', 'attendance_radius_meters',
+            'install_capacity_per_day', 'detailing_slot_count', 'instalasi_qc_slot_count',
+            'google_place_id',
+        ]);
+
+        return $booking->makeHidden([
+            'journal_entry_id', 'partner_id', 'amount_received', 'dpp_amount', 'ppn_amount',
+        ]);
+    }
+
+    /**
      * GET /api/customer/bookings
      * Daftar booking milik customer yang login (我的预约).
      */
@@ -20,11 +39,12 @@ class BookingController extends Controller
     {
         $bookings = $request->user('customer')
             ->bookings()
-            ->with(['store', 'pendingRescheduleRequest', 'latestDecidedRescheduleRequest'])
+            ->with(['store', 'pendingRescheduleRequest', 'latestDecidedRescheduleRequest', 'pendingCancellationRequest', 'latestDecidedCancellationRequest'])
             // Pesan staff yang belum dibaca customer (badge kartu booking).
             ->withCount(['messages as unread_count' => fn ($q) => $q->where('sender_type', 'admin')->whereNull('read_by_customer_at')])
             ->orderByDesc('created_at')
-            ->get();
+            ->get()
+            ->each(fn (Booking $b) => $this->sanitize($b));
 
         return response()->json([
             'success' => true,
@@ -40,7 +60,8 @@ class BookingController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'store_id'          => 'required|exists:stores,id',
+            // Hanya toko aktif (2026-10-05).
+            'store_id'          => 'required|exists:stores,id,is_active,1',
             'service_type'      => 'required|string|max:255',
             'product_kaca_film' => 'sometimes|boolean',
             'product_ppf'       => 'sometimes|boolean',
@@ -76,6 +97,32 @@ class BookingController extends Controller
             ], 422);
         }
 
+        // Pencegahan booking ganda (keputusan 2026-10-05): maksimal 3 booking
+        // pending aktif per customer, dan tidak boleh duplikat persis (toko,
+        // tanggal, layanan sama) dengan booking pending/confirmed miliknya.
+        $customerId = $request->user('customer')->id;
+
+        if (Booking::where('customer_id', $customerId)->where('status', 'pending')->count() >= 3) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda sudah punya 3 booking yang menunggu konfirmasi. Tunggu toko mengonfirmasi atau batalkan salah satunya dulu.',
+            ], 422);
+        }
+
+        $duplicate = Booking::where('customer_id', $customerId)
+            ->where('store_id', $request->store_id)
+            ->whereDate('preferred_date', $request->preferred_date)
+            ->where('service_type', $request->service_type)
+            ->whereIn('status', ['pending', 'confirmed'])
+            ->first();
+
+        if ($duplicate) {
+            return response()->json([
+                'success' => false,
+                'message' => "Anda sudah punya booking yang sama (#{$duplicate->booking_number}) di toko dan tanggal ini.",
+            ], 422);
+        }
+
         // Tanggal yang kapasitasnya sudah penuh juga ditolak di server
         // (keputusan 2026-10-02) -- pemilih tanggal di app sudah
         // menonaktifkannya (/stores/{id}/full-dates), ini penjaga untuk
@@ -106,7 +153,74 @@ class BookingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Booking berhasil diajukan. Toko akan menghubungi Anda untuk konfirmasi.',
-            'data' => $booking,
+            'data' => $this->sanitize($booking),
+        ], 201);
+    }
+
+    /**
+     * POST /api/customer/bookings/{id}/cancellation-request
+     * Customer mengajukan pembatalan booking yang SUDAH dikonfirmasi (booking
+     * pending dibatalkan langsung lewat cancel()). Alasan wajib; staff yang
+     * memutuskan (keputusan 2026-10-05). Satu pengajuan menunggu per booking.
+     */
+    public function requestCancellation(Request $request, int $id)
+    {
+        $customer = $request->user('customer');
+        $booking = $customer->bookings()->where('id', $id)->first();
+
+        if (! $booking) {
+            abort(404);
+        }
+
+        $request->validate(['reason' => 'required|string|max:500'], ['reason.required' => 'Alasan pembatalan wajib diisi.']);
+
+        if ($booking->status !== 'confirmed') {
+            abort(422, $booking->status === 'pending'
+                ? 'Booking yang belum dikonfirmasi bisa langsung dibatalkan.'
+                : 'Booking ini sudah selesai atau dibatalkan.');
+        }
+
+        if ($booking->preferred_date && $booking->preferred_date->lt(today())) {
+            abort(422, 'Tanggal booking sudah lewat. Hubungi toko untuk tindak lanjut.');
+        }
+
+        $req = DB::transaction(function () use ($booking, $request, $customer) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+            if ($locked->status !== 'confirmed') {
+                abort(422, 'Status booking sudah berubah, muat ulang halaman.');
+            }
+
+            if ($locked->cancellationRequests()->where('status', 'pending')->exists()) {
+                abort(422, 'Sudah ada pengajuan pembatalan yang menunggu keputusan toko.');
+            }
+
+            return $locked->cancellationRequests()->create([
+                'customer_id' => $customer->id,
+                'reason'      => $request->reason,
+                'status'      => 'pending',
+            ]);
+        });
+
+        $storeId = $booking->store_id;
+        $number = $booking->booking_number;
+        $bookingId = $booking->id;
+        try {
+            app(\App\Services\PushNotificationService::class)->sendToStoreStaff(
+                $storeId,
+                'Pengajuan Pembatalan Booking',
+                "Booking #{$number}: customer mengajukan pembatalan. Alasan: {$request->reason}",
+                ['type' => 'booking_cancellation_request', 'booking_id' => $bookingId, 'route' => "/staff/bookings/{$bookingId}"],
+                \App\Filament\Resources\BookingResource::class,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pengajuan pembatalan dikirim. Toko akan memberi keputusan.',
+            'data'    => $req,
         ], 201);
     }
 
@@ -135,6 +249,10 @@ class BookingController extends Controller
             abort(422, 'Booking ini sudah selesai atau dibatalkan, jadwalnya tidak bisa diubah.');
         }
 
+        if ($booking->preferred_date && $booking->preferred_date->lt(today())) {
+            abort(422, 'Tanggal booking sudah lewat. Hubungi toko untuk tindak lanjut.');
+        }
+
         if ($booking->current_stage) {
             abort(422, 'Pengerjaan booking ini sudah dimulai, jadwalnya tidak bisa diubah lagi.');
         }
@@ -158,6 +276,12 @@ class BookingController extends Controller
 
             if ($locked->rescheduleRequests()->where('status', 'pending')->exists()) {
                 abort(422, 'Sudah ada pengajuan jadwal ulang yang menunggu keputusan toko.');
+            }
+
+            // Pembatalan lebih "kuat": selama pengajuan batal menunggu, jadwal
+            // ulang tidak diterima supaya dua pengajuan tidak bertabrakan.
+            if ($locked->cancellationRequests()->where('status', 'pending')->exists()) {
+                abort(422, 'Pengajuan pembatalan booking ini sedang menunggu keputusan toko.');
             }
 
             return $locked->rescheduleRequests()->create([
@@ -253,7 +377,7 @@ class BookingController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data'    => $locked->fresh(),
+                'data'    => $this->sanitize($locked->fresh()),
                 'message' => 'Booking dibatalkan.',
             ]);
         });
