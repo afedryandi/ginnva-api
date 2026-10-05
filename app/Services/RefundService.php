@@ -137,7 +137,7 @@ class RefundService
             $entry = $service->create([
                 'entry_date' => now()->toDateString(),
                 'store_id' => $booking->store_id,
-                'description' => "Refund {$refundNumber} — booking {$booking->booking_number} ({$booking->customer_name})" . ($reason ? " — {$reason}" : ''),
+                'description' => "Refund {$refundNumber} — booking {$booking->booking_number} ({$booking->display_customer_name})" . ($reason ? " — {$reason}" : ''),
                 'reference_type' => 'refund',
                 'reference_id' => $booking->id,
                 'created_by' => $userId,

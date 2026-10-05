@@ -103,7 +103,7 @@ class BookingPostingService
 
             if ($outstanding > 0) {
                 app(ReceivableService::class)->create([
-                    'customer_name' => $booking->customer_name,
+                    'customer_name' => $booking->display_customer_name,
                     'customer_id' => $booking->customer_id,
                     'store_id' => $booking->store_id,
                     'source_type' => 'booking',
@@ -183,7 +183,7 @@ class BookingPostingService
         $entry = $service->create([
             'entry_date' => now()->toDateString(),
             'store_id' => $booking->store_id,
-            'description' => "Pendapatan booking {$booking->booking_number} — {$booking->customer_name}",
+            'description' => "Pendapatan booking {$booking->booking_number} — {$booking->display_customer_name}",
             'reference_type' => 'booking',
             'reference_id' => $booking->id,
             'created_by' => auth()->id(),

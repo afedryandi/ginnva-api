@@ -67,7 +67,7 @@ class DownPaymentService
             $entry = $service->create([
                 'entry_date' => now()->toDateString(),
                 'store_id' => $locked->store_id,
-                'description' => "DP diterima -- booking {$locked->booking_number} ({$locked->customer_name})",
+                'description' => "DP diterima -- booking {$locked->booking_number} ({$locked->display_customer_name})",
                 'reference_type' => 'booking_down_payment',
                 'reference_id' => $locked->id,
                 'created_by' => $userId,
@@ -127,7 +127,7 @@ class DownPaymentService
             $entry = $service->create([
                 'entry_date' => now()->toDateString(),
                 'store_id' => $booking->store_id,
-                'description' => "Pengembalian DP -- booking {$booking->booking_number} ({$booking->customer_name})" . ($reason ? " -- {$reason}" : ''),
+                'description' => "Pengembalian DP -- booking {$booking->booking_number} ({$booking->display_customer_name})" . ($reason ? " -- {$reason}" : ''),
                 'reference_type' => 'booking_down_payment_refund',
                 'reference_id' => $locked->id,
                 'created_by' => $userId,
