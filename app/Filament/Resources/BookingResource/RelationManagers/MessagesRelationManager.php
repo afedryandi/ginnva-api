@@ -10,11 +10,8 @@ use Filament\Tables;
 use Filament\Tables\Table;
 
 /**
- * Admin toko kelola chat + update progress instalasi dari sini — sampai
- * ekosistem login role-based di ginnva-mobile untuk staff toko dibangun,
- * ini jadi satu-satunya cara admin kirim pesan/update tahap ke customer.
- * Pesan yang dikirim dari sini langsung muncul di chat mobile app
- * customer + trigger push notification (lihat BookingMessageObserver).
+ * Riwayat chat + progress instalasi (BACA-SAJA sejak 2026-10-06). Pengiriman
+ * pesan/tahap/foto lewat mobile staff; hapus pesan hanya full access.
  */
 class MessagesRelationManager extends RelationManager
 {
@@ -96,6 +93,21 @@ class MessagesRelationManager extends RelationManager
                     ->label('Tahap')
                     ->formatStateUsing(fn (?string $state): string => $state ? (BookingMessage::allStages()[$state] ?? $state) : '—'),
 
+                Tables\Columns\TextColumn::make('photos_count')
+                    ->label('Jumlah Foto')
+                    ->counts('photos')
+                    ->placeholder('—'),
+
+                Tables\Columns\ImageColumn::make('photos.path')
+                    ->label('Foto Progress')
+                    ->disk('public')
+                    ->square()
+                    ->stacked()
+                    ->limit(4)
+                    ->limitedRemainingText()
+                    ->extraImgAttributes(['loading' => 'lazy']),
+
+                // Kolom lama (pesan sebelum tabel booking_message_photos ada).
                 Tables\Columns\ImageColumn::make('photo_path')
                     ->label('Foto')
                     ->square(),
@@ -105,16 +117,11 @@ class MessagesRelationManager extends RelationManager
                     ->limit(40)
                     ->placeholder('—'),
             ])
-            ->headerActions([
-                Tables\Actions\CreateAction::make()
-                    ->label('Kirim Pesan / Update Progress')
-                    ->mutateFormDataUsing(function (array $data): array {
-                        $data['sender_type']    = 'admin';
-                        $data['sender_user_id'] = auth()->id();
-
-                        return $data;
-                    }),
-            ])
+            // Baca-saja (keputusan 2026-10-06): kirim pesan/update tahap/foto
+            // HANYA lewat mobile staff supaya semua aturan API (tahap per produk,
+            // status booking, QC, validasi foto) berlaku. Filament tidak lagi
+            // melewati guard itu.
+            ->headerActions([])
             ->actions([
                 // Chat & foto di sini dokumentasi penting (kondisi
                 // kendaraan, riwayat komunikasi) yang relevan untuk

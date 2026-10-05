@@ -81,5 +81,20 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(10)->by('customer-booking-submit:'.$key);
         });
+
+        // Aksi booking customer (batal/jadwal ulang/pengajuan) & chat: per AKUN,
+        // bukan per-IP (throttle:N,1 bawaan jatuh ke IP untuk guard customer,
+        // jadi customer di satu Wi-Fi toko berbagi kuota).
+        RateLimiter::for('customer-booking-action', function (Request $request) {
+            $key = $request->user('customer')?->id ?? $request->ip();
+
+            return Limit::perMinute(10)->by('customer-booking-action:'.$key);
+        });
+
+        RateLimiter::for('customer-booking-chat', function (Request $request) {
+            $key = $request->user('customer')?->id ?? $request->ip();
+
+            return Limit::perMinute(30)->by('customer-booking-chat:'.$key);
+        });
     }
 }

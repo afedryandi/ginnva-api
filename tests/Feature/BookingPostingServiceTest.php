@@ -6,9 +6,11 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Store;
 use App\Services\BookingPostingService;
+use App\Services\DownPaymentService;
 use App\Services\ReceivableService;
 use Database\Seeders\ChartOfAccountSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -25,6 +27,9 @@ class BookingPostingServiceTest extends TestCase
     {
         parent::setUp();
         $this->seed(ChartOfAccountSeeder::class);
+        // Observer booking memanggil User::role(...); role harus ada di DB test.
+        Role::findOrCreate('super_admin', 'web');
+        Role::findOrCreate('direksi', 'web');
     }
 
     private function makeBooking(array $overrides = []): Booking
@@ -125,5 +130,36 @@ class BookingPostingServiceTest extends TestCase
         $this->expectExceptionMessageMatches('/sudah ADA pelunasan/');
 
         app(BookingPostingService::class)->sync($booking->fresh());
+    }
+
+    public function test_sync_applies_down_payment_to_deferred_revenue_and_marks_it_used(): void
+    {
+        $booking = $this->makeBooking(['status' => 'confirmed']);
+        app(DownPaymentService::class)->receive($booking, 300_000, null, null);
+        $booking->update(['status' => 'completed', 'transaction_amount' => 1_000_000, 'amount_received' => 1_000_000]);
+
+        $entry = app(BookingPostingService::class)->sync($booking->fresh());
+
+        $deferredId = \App\Models\ChartOfAccount::where('code', '2140')->value('id');
+        $cashId = \App\Models\ChartOfAccount::where('code', '1101')->value('id');
+        $this->assertEquals(300_000, (float) $entry->lines()->where('chart_of_account_id', $deferredId)->sum('debit'));
+        $this->assertEquals(700_000, (float) $entry->lines()->where('chart_of_account_id', $cashId)->sum('debit'));
+        $this->assertEquals(1_000_000, (float) $entry->lines()->sum('credit'));
+        $this->assertEquals(300_000, (float) $booking->downPayments()->first()->applied_amount);
+        $this->assertEquals(0.0, (float) $booking->fresh()->outstanding_down_payment);
+    }
+
+    public function test_unused_down_payment_stays_refundable(): void
+    {
+        $booking = $this->makeBooking(['status' => 'confirmed']);
+        app(DownPaymentService::class)->receive($booking, 500_000, null, null);
+        // Customer hanya membayar 200rb total: DP terpakai 200rb, sisa tidak.
+        $booking->update(['status' => 'completed', 'transaction_amount' => 1_000_000, 'amount_received' => 200_000]);
+
+        app(BookingPostingService::class)->sync($booking->fresh());
+
+        $dp = $booking->downPayments()->first();
+        $this->assertEquals(200_000, (float) $dp->applied_amount);
+        $this->assertEquals(300_000, (float) $booking->fresh()->outstanding_down_payment);
     }
 }

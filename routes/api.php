@@ -181,13 +181,13 @@ Route::prefix('customer')->group(function () {
         // cancel, customer terpaksa hubungi toko manual. Lihat audit modul
         // Booking 2026-08-27.
         Route::post('/bookings/{id}/cancel', [BookingController::class, 'cancel'])
-            ->middleware('throttle:10,1');
+            ->middleware('throttle:customer-booking-action');
         // Ajukan ganti tanggal (disetujui staff) -- 2026-10-02.
         Route::post('/bookings/{id}/reschedule-request', [BookingController::class, 'requestReschedule'])
-            ->middleware('throttle:10,1');
+            ->middleware('throttle:customer-booking-action');
         // Ajukan pembatalan booking confirmed (disetujui staff) -- 2026-10-05.
         Route::post('/bookings/{id}/cancellation-request', [BookingController::class, 'requestCancellation'])
-            ->middleware('throttle:10,1');
+            ->middleware('throttle:customer-booking-action');
 
         // Chat + progress tracking per booking (polling, bukan real-time)
         Route::get('/bookings/{id}/messages', [BookingMessageController::class, 'index']);
@@ -196,7 +196,7 @@ Route::prefix('customer')->group(function () {
         // pola throttle konsisten di modul lain. Lihat audit modul
         // Booking 2026-08-27.
         Route::post('/bookings/{id}/messages', [BookingMessageController::class, 'store'])
-            ->middleware('throttle:20,1');
+            ->middleware('throttle:customer-booking-chat');
 
         // Review internal (hybrid: sentimen + tag + komentar opsional) —
         // terpisah dari review Google Maps, lihat StoreReviewController.
@@ -287,6 +287,7 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:20,1');
         Route::post('/bookings/{id}/reschedule-request/{requestId}/reject', [StaffBookingController::class, 'rejectReschedule'])
             ->middleware('throttle:20,1');
+        Route::post('/bookings/{id}/stage-correction', [StaffBookingController::class, 'correctStage']);
         Route::post('/bookings/{id}/cancellation-request/{requestId}/approve', [StaffBookingController::class, 'approveCancellation'])
             ->middleware('throttle:20,1');
         Route::post('/bookings/{id}/cancellation-request/{requestId}/reject', [StaffBookingController::class, 'rejectCancellation'])

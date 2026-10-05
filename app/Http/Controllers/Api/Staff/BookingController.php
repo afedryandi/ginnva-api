@@ -39,6 +39,9 @@ class BookingController extends Controller
             abort(403, 'Partner tidak punya akses ke booking toko.');
         }
 
+        // without_spk: picker booking untuk membuat SPK -- staf SPK tanpa menu Booking tetap boleh.
+        abort_unless($user->hasBookingAccess() || $request->boolean('without_spk'), 403, 'Anda tidak punya akses menu Booking.');
+
         $query = Booking::query()->with(['customer:id,name,phone_number', 'store:id,name', 'pendingRescheduleRequest', 'pendingCancellationRequest'])
             // Jumlah pesan customer yang belum dibaca staff (badge daftar).
             ->withCount(['messages as unread_count' => fn ($q) => $q->where('sender_type', 'customer')
@@ -49,7 +52,7 @@ class BookingController extends Controller
         // Pencarian (nomor booking, nama/telepon customer) & filter tanggal
         // (diminta 2026-10-02). date=today|week.
         if ($request->filled('q')) {
-            $term = '%' . trim($request->q) . '%';
+            $term = '%' . addcslashes(trim($request->q), '%_\\') . '%';
             $query->where(fn ($q) => $q->where('booking_number', 'like', $term)
                 ->orWhere('customer_name', 'like', $term)
                 ->orWhere('phone_number', 'like', $term)
@@ -61,6 +64,15 @@ class BookingController extends Controller
             $query->reorder('created_at', 'asc')->orderBy('id');
         } else {
             $query->orderByDesc('id');
+        }
+
+        // Booking confirmed lewat tanggal & belum dikerjakan (deep-link pengingat
+        // harian; sama dengan filter "Lewat tanggal" di Filament).
+        if ($request->boolean('overdue')) {
+            $query->where('status', 'confirmed')
+                ->whereDate('preferred_date', '<', today())
+                ->whereNull('current_stage')
+                ->whereNull('secondary_stage');
         }
 
         // Pekerjaan multi-hari yang sedang berjalan ikut masuk (2026-10-03):
@@ -118,6 +130,8 @@ class BookingController extends Controller
             abort(403, 'Partner tidak punya akses ke booking toko.');
         }
 
+        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
+
         $booking = Booking::with([
             'customer:id,name,phone_number',
             // install_capacity_per_day diikutkan supaya mobile app bisa
@@ -174,6 +188,8 @@ class BookingController extends Controller
         if ($user->hasRole('partner')) {
             abort(403, 'Partner tidak punya akses ke booking toko.');
         }
+
+        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
 
         $storeId = $user->isFullAccess() ? $request->integer('store_id') : $user->store_id;
 
@@ -449,6 +465,8 @@ class BookingController extends Controller
             abort(403, 'Anda tidak punya akses untuk menyelesaikan booking.');
         }
 
+        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
+
         $booking = Booking::findOrFail($id);
 
         if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
@@ -469,6 +487,10 @@ class BookingController extends Controller
                     : "Booking ini sudah berstatus \"{$locked->status}\", tidak bisa diselesaikan.");
             }
 
+            if ($blocker = $locked->completionBlocker()) {
+                abort(422, $blocker);
+            }
+
             $locked->update([
                 'status'             => 'completed',
                 'current_stage'      => 'completed',
@@ -478,6 +500,68 @@ class BookingController extends Controller
                 'success' => true,
                 'data'    => $locked->fresh(),
                 'message' => 'Booking selesai.',
+            ]);
+        });
+    }
+
+    /**
+     * POST /api/staff/bookings/{id}/stage-correction
+     * Koreksi tahap yang salah ditandai (keputusan 2026-10-06): hanya Store
+     * Manager/akses penuh, booking confirmed, alasan wajib. Menulis kolom langsung
+     * (urutan maju-saja tidak berlaku), tercatat di log aktivitas, TIDAK
+     * mengirim push ke customer.
+     */
+    public function correctStage(Request $request, int $id)
+    {
+        $user = $request->user('api');
+        $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+
+        if (! $user->isFullAccess() && ! $user->isStoreManager()) {
+            abort(403, 'Cuma Store Manager atau akses penuh yang bisa mengoreksi tahap.');
+        }
+
+        $data = $request->validate([
+            'stage'  => 'required|string',
+            'reason' => 'required|string|max:500',
+        ], ['reason.required' => 'Alasan koreksi wajib diisi.']);
+
+        return DB::transaction(function () use ($booking, $data, $user) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+            if ($locked->status !== 'confirmed') {
+                abort(422, 'Tahap hanya bisa dikoreksi pada booking yang sedang dikerjakan (confirmed).');
+            }
+
+            $stage = $data['stage'];
+            $both = $locked->product_kaca_film && $locked->product_ppf;
+
+            $reset = in_array($stage, ['reset_main', 'reset_secondary'], true);
+
+            if ($reset) {
+                // "Belum mulai": kosongkan track (booking salah tandai bisa kembali
+                // dijadwal ulang & tidak ikut dianggap sudah dikerjakan).
+                if ($stage === 'reset_secondary' && ! $both) {
+                    abort(422, 'Track PPF terpisah hanya ada pada booking Kaca Film + PPF.');
+                }
+                $column = $stage === 'reset_main' ? 'current_stage' : 'secondary_stage';
+                $target = null;
+            } else {
+                if ($stage === 'completed' || ! in_array($stage, $locked->stageSequenceFor(Booking::stageColumnFor($both, $stage)), true)) {
+                    abort(422, 'Tahap tidak valid untuk booking ini.');
+                }
+                $column = Booking::stageColumnFor($both, $stage);
+                $target = $stage;
+            }
+
+            // Satu entri log (otomatis, LogsActivity) + alasan lewat tapActivity --
+            // tidak ada entri manual kedua yang menggandakan transisi di laporan.
+            $locked->rescheduleReason = $data['reason'];
+            $locked->update([$column => $target]);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $locked->fresh(),
+                'message' => 'Tahap dikoreksi.',
             ]);
         });
     }
@@ -688,6 +772,10 @@ class BookingController extends Controller
         $user = $request->user('api');
         $booking = $this->authorizeManage($user, Booking::findOrFail($id));
 
+        if (! in_array($booking->status, ['pending', 'confirmed'], true)) {
+            abort(422, 'Penugasan installer hanya bisa diubah pada booking yang masih berjalan.');
+        }
+
         $request->validate([
             'installer_user_ids'   => 'present|array',
             'installer_user_ids.*' => 'integer|exists:users,id',
@@ -750,6 +838,24 @@ class BookingController extends Controller
                 });
             }
 
+            // Installer yang DICOPOT juga diberi tahu supaya tidak datang sia-sia.
+            $removed = array_values(array_diff($existingIds, $installerIds));
+            if (! empty($removed)) {
+                $removedNumber = $booking->booking_number;
+                DB::afterCommit(function () use ($removed, $removedNumber) {
+                    try {
+                        app(\App\Services\PushNotificationService::class)->sendToUsers(
+                            $removed,
+                            'Penugasan Dicabut',
+                            "Penugasan Anda di booking #{$removedNumber} dicabut.",
+                            ['type' => 'booking_unassigned', 'route' => '/staff/bookings'],
+                        );
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
+                });
+            }
+
             // Pivot many-to-many tidak tertangkap LogsActivity — dicatat
             // manual, sama seperti assignWatchers().
             $existingSorted = collect($existingIds)->sort()->values()->all();
@@ -766,7 +872,29 @@ class BookingController extends Controller
             }
         });
 
-        return response()->json(['success' => true, 'data' => $booking->fresh(['installers'])]);
+        // Peringatan lunak (keputusan 2026-10-06): installer yang jadwalnya
+        // bertumpuk dengan booking aktif lain. Penugasan tetap berhasil.
+        $fresh = $booking->fresh(['installers']);
+        $start = $fresh->preferred_date?->toDateString();
+        $end = $fresh->end_date?->toDateString() ?? $start;
+        $warnings = [];
+
+        if ($start) {
+            foreach ($fresh->installers as $installer) {
+                $clashes = Booking::where('id', '!=', $fresh->id)
+                    ->whereIn('status', ['pending', 'confirmed'])
+                    ->whereHas('installers', fn ($q) => $q->where('users.id', $installer->id))
+                    ->whereDate('preferred_date', '<=', $end)
+                    ->whereRaw('DATE_ADD(preferred_date, INTERVAL (COALESCE(duration_days, 1) - 1) DAY) >= ?', [$start])
+                    ->get(['id', 'booking_number', 'preferred_date']);
+
+                if ($clashes->isNotEmpty()) {
+                    $warnings[] = "{$installer->name} juga ditugaskan di " . $clashes->pluck('booking_number')->implode(', ') . ' pada tanggal yang bertumpuk.';
+                }
+            }
+        }
+
+        return response()->json(['success' => true, 'data' => $fresh, 'warnings' => $warnings]);
     }
 
     /**
@@ -855,6 +983,8 @@ class BookingController extends Controller
         if ($user->hasRole('installer') || $user->hasRole('partner')) {
             abort(403, 'Anda tidak bisa mengatur assignment booking.');
         }
+
+        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
 
         if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
             abort(403, 'Anda tidak punya akses ke booking toko lain.');

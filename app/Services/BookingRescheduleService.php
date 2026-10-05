@@ -39,7 +39,7 @@ class BookingRescheduleService
 
             // Pengerjaan yang sudah dimulai tidak dipindah tanggal
             // (2026-10-02) -- unit sudah di toko / slot sudah terpakai.
-            if ($locked->current_stage) {
+            if ($locked->hasWorkStarted()) {
                 throw new RuntimeException('Pengerjaan booking ini sudah dimulai, jadwalnya tidak bisa diubah lagi.');
             }
 
@@ -77,7 +77,8 @@ class BookingRescheduleService
 
             $old = $locked->preferred_date;
             $locked->rescheduleReason = $reason !== null && trim($reason) !== '' ? trim($reason) : null;
-            $locked->update(['preferred_date' => $newDate->toDateString()]);
+            // Penanda pengingat H-1 direset: tanggal baru perlu diingatkan lagi.
+            $locked->forceFill(['preferred_date' => $newDate->toDateString(), 'h1_reminder_sent_at' => null])->save();
 
 
             // Booking Maintenance PPF: tanggal jadwal garansinya ikut pindah

@@ -27,8 +27,9 @@ class ProcessMaintenanceSchedules extends Command
 
     public function handle(PushNotificationService $push): int
     {
-        $this->sendConfirmations($push);
+        // Hangus dulu: jadwal lewat tanggal tidak boleh lagi dikirimi konfirmasi.
         $this->forfeitOverdue();
+        $this->sendConfirmations($push);
 
         return self::SUCCESS;
     }
@@ -94,10 +95,15 @@ class ProcessMaintenanceSchedules extends Command
         // forfeit() akses $warranty->store lewat WarrantyMaintenanceSchedule::nextOpenDate()
         // (fitur "geser ke hari buka"), tanpa ini tiap baris yang hangus
         // memicu 2 query lazy-load tambahan (warranty + store).
-        $overdue = WarrantyMaintenanceSchedule::where('status', 'confirmation_sent')
+        // 'pending' yang tanggalnya lewat (tidak pernah sempat dikonfirmasi) ikut
+        // hangus -- kecuali garansi di-revoke / toko nonaktif, yang sengaja
+        // dibiarkan pending supaya siklus bisa lanjut kalau diaktifkan lagi.
+        $overdue = WarrantyMaintenanceSchedule::whereIn('status', ['pending', 'confirmation_sent'])
             ->whereDate('scheduled_date', '<', today())
             ->with('warranty.store')
-            ->get();
+            ->get()
+            ->filter(fn (WarrantyMaintenanceSchedule $s) => $s->status === 'confirmation_sent'
+                || ($s->warranty && $s->warranty->status !== 'revoked' && ($s->warranty->store?->is_active ?? true)));
 
         foreach ($overdue as $schedule) {
             $schedule->forfeit(explicit: false);

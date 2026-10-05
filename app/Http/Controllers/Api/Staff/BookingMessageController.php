@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingMessage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class BookingMessageController extends Controller
 {
@@ -24,7 +26,12 @@ class BookingMessageController extends Controller
         // Nested eager-load 'senderUser.store' — dibatch jadi 1 query
         // tambahan, supaya chatDisplayLabel() (butuh nama toko utk
         // staff toko) tidak N+1 per pesan.
-        $messages = $booking->messages()->with(['senderUser.store:id,name', 'photos'])->get();
+        $messagesQuery = $booking->messages()->with(['senderUser.store:id,name', 'photos']);
+        // Polling incremental: ?after_id=N hanya mengembalikan pesan baru.
+        if ($request->filled('after_id')) {
+            $messagesQuery->where('booking_messages.id', '>', (int) $request->after_id);
+        }
+        $messages = $messagesQuery->get();
 
         // Pesan customer dianggap sudah dibaca staff begitu chat dibuka
         // (badge belum dibaca, 2026-10-02).
@@ -108,6 +115,17 @@ class BookingMessageController extends Controller
             'photos.*.max'   => 'Ukuran tiap foto maksimal 10MB. Kompres atau pilih foto lain, lalu coba lagi.',
         ]);
 
+        // Installer hanya boleh chat teks: foto juga wewenang Store Manager/
+        // Direksi (sebelumnya lolos lewat type=text + photos[]). Pesan teks
+        // tidak boleh kosong (sebelumnya tetap dibuat & memicu push).
+        if ($user->hasRole('installer') && $request->hasFile('photos')) {
+            abort(422, 'Installer hanya boleh mengirim pesan teks.');
+        }
+
+        if ($request->type === 'text' && blank(trim((string) $request->body)) && ! $request->hasFile('photos')) {
+            abort(422, 'Pesan tidak boleh kosong.');
+        }
+
         // Guard status booking (diperbaiki 2026-10-02, audit alur Booking) --
         // SEBELUMNYA pesan tahap/foto bisa dikirim ke booking apa pun, dan
         // customer dapat push "Update Progress" untuk booking yang batal
@@ -119,6 +137,8 @@ class BookingMessageController extends Controller
         if ($booking->status === 'pending' && in_array($request->type, ['stage', 'photo'], true)) {
             abort(422, 'Konfirmasi booking dulu sebelum mengirim update tahap atau foto.');
         }
+
+        $this->assertStageOrder($booking, $request);
 
         // Booking HANYA selesai lewat /complete (2026-10-03): tahap "completed"
         // dibuat otomatis oleh BookingObserver saat status jadi completed.
@@ -155,6 +175,13 @@ class BookingMessageController extends Controller
             }
         }
 
+        // Total ukuran satu kiriman dibatasi (< post_max_size server): 10 foto x
+        // 10MB bisa melewati batas request dan gagal tanpa pesan jelas.
+        $totalBytes = collect($request->file('photos', []))->sum(fn ($f) => $f->getSize());
+        if ($totalBytes > 50 * 1024 * 1024) {
+            abort(422, 'Total ukuran foto terlalu besar (maks 50MB per kiriman). Kirim lebih sedikit foto sekaligus.');
+        }
+
         // Batas kumulatif foto per booking — SEBELUMNYA cuma dibatasi per
         // pesan (max 10), jadi pesan berulang-ulang tetap bisa menumpuk
         // ratusan foto tak terbatas per booking (storage abuse). Lihat
@@ -167,25 +194,70 @@ class BookingMessageController extends Controller
             }
         }
 
-        $message = $booking->messages()->create([
-            'sender_type'    => 'admin',
-            'sender_user_id' => $user->id,
-            'type'           => $request->type,
-            'body'           => $request->body,
-            'stage'          => $request->stage,
-        ]);
+        // File disimpan DULU, pesan + foto dibuat atomik, dan push (observer,
+        // afterCommit) baru terkirim setelah foto terlampir. Kalau gagal, file
+        // yang sudah tersimpan dihapus -- tidak ada pesan kosong/dobel/yatim.
+        $paths = [];
+        foreach ($request->file('photos', []) as $file) {
+            $paths[] = $file->store('booking-messages', 'public');
+        }
 
-        if ($request->hasFile('photos')) {
-            foreach ($request->file('photos') as $file) {
-                $message->photos()->create([
-                    'path' => $file->store('booking-messages', 'public'),
+        try {
+            $message = DB::transaction(function () use ($booking, $user, $request, $paths) {
+                // Cek urutan tahap diulang di bawah lock baris booking: dua ketukan
+                // tahap yang sama bersamaan tidak boleh sama-sama lolos.
+                $lockedBooking = Booking::whereKey($booking->id)->lockForUpdate()->first();
+                $this->assertStageOrder($lockedBooking, $request);
+
+                $message = $booking->messages()->create([
+                    'sender_type'    => 'admin',
+                    'sender_user_id' => $user->id,
+                    'type'           => $request->type,
+                    'body'           => $request->body,
+                    'stage'          => $request->stage,
                 ]);
-            }
+
+                foreach ($paths as $path) {
+                    $message->photos()->create(['path' => $path]);
+                }
+
+                return $message;
+            });
+        } catch (\Throwable $e) {
+            Storage::disk('public')->delete($paths);
+
+            throw $e;
         }
 
         $message->load('senderUser.store:id,name', 'photos');
 
         return response()->json(['success' => true, 'data' => $this->transform($message)], 201);
+    }
+
+    /**
+     * Urutan tahap MAJU saja (keputusan 2026-10-06): tahap yang sudah lewat/sama
+     * dengan tahap sekarang di track-nya ditolak. Salah tandai dikoreksi Store
+     * Manager lewat /stage-correction.
+     */
+    private function assertStageOrder(Booking $booking, Request $request): void
+    {
+        if ($request->type !== 'stage' || ! $request->stage) {
+            return;
+        }
+
+        $bothProducts = $booking->product_kaca_film && $booking->product_ppf;
+        $column = Booking::stageColumnFor($bothProducts, $request->stage);
+        $sequence = $booking->stageSequenceFor($column);
+        $newIdx = array_search($request->stage, $sequence, true);
+        $currentIdx = $booking->{$column} ? array_search($booking->{$column}, $sequence, true) : false;
+
+        if ($newIdx === false) {
+            abort(422, 'Tahap tidak sesuai dengan produk booking ini.');
+        }
+
+        if ($currentIdx !== false && $newIdx <= $currentIdx) {
+            abort(422, 'Tahap ini sudah ditandai atau sudah terlewati. Minta Store Manager mengoreksi kalau salah tandai.');
+        }
     }
 
     private function authorizedBooking(Request $request, int $bookingId): Booking
@@ -196,6 +268,10 @@ class BookingMessageController extends Controller
         if ($user->hasRole('partner')) {
             abort(403, 'Partner tidak punya akses ke booking toko.');
         }
+
+        // Konsisten dengan modul lain & filter notifikasi: staff toko wajib
+        // punya akses menu Booking (installer yang ditugaskan tetap boleh).
+        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
 
         if ($user->hasRole('installer')) {
             if (! $booking->installers()->where('user_id', $user->id)->exists()) {

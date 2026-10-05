@@ -25,10 +25,12 @@ class BookingDownPayment extends Model
         'refund_journal_entry_id',
         'refunded_at',
         'created_by',
+        'applied_amount',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'applied_amount' => 'decimal:2',
         'received_at' => 'date',
         'refunded_at' => 'datetime',
     ];

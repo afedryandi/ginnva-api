@@ -37,6 +37,7 @@ class BookingPostingService
 {
     private const CASH_ACCOUNT_CODE = '1101';
     private const PIUTANG_USAHA_ACCOUNT_CODE = '1110';
+    private const DEFERRED_REVENUE_ACCOUNT_CODE = '2140';
 
     /**
      * Sinkronkan jurnal Pendapatan booking ini dengan transaction_amount/
@@ -77,6 +78,8 @@ class BookingPostingService
 
             $this->reverseExisting($booking);
             $this->clearReplaceableReceivable($booking);
+            // Alokasi DP dihitung ulang dari nol (jurnal lama sudah dibalik).
+            $booking->downPayments()->update(['applied_amount' => 0]);
 
             if ($amount <= 0) {
                 $booking->update(['journal_entry_id' => null]);
@@ -87,7 +90,15 @@ class BookingPostingService
             $received = min((float) ($booking->amount_received ?? $amount), $amount);
             $outstanding = round($amount - $received, 2);
 
-            $entry = $this->post($booking, $amount, $received, $outstanding);
+            // DP yang masih tercatat (belum dikembalikan) otomatis dipakai
+            // sebagai bagian dari pembayaran (keputusan 2026-10-06): amount_received
+            // = total yang sudah dibayar customer TERMASUK DP; porsi DP melunasi
+            // akun 2140 (Dr 2140), sisanya kas masuk. Tanpa ini 2140 menumpuk
+            // dan kas terhitung dobel.
+            $dpApplied = min(round((float) $booking->outstanding_down_payment, 2), $received);
+
+            $entry = $this->post($booking, $amount, $received, $outstanding, $dpApplied);
+            $this->allocateDownPayments($booking, $dpApplied);
             $booking->update(['journal_entry_id' => $entry->id]);
 
             if ($outstanding > 0) {
@@ -110,16 +121,44 @@ class BookingPostingService
         });
     }
 
-    private function post(Booking $booking, float $amount, float $received, float $outstanding): JournalEntry
+    /**
+     * Tandai DP yang terpakai (tertua dulu) supaya sisanya tetap bisa
+     * dikembalikan & badge DP tidak menampilkan DP yang sudah dipakai.
+     */
+    private function allocateDownPayments(Booking $booking, float $dpApplied): void
+    {
+        $remaining = $dpApplied;
+
+        foreach ($booking->downPayments()->whereNull('refunded_at')->orderBy('id')->get() as $dp) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $use = min($remaining, (float) $dp->amount);
+            $booking->downPayments()->whereKey($dp->id)->update(['applied_amount' => $use]);
+            $remaining = round($remaining - $use, 2);
+        }
+    }
+
+    private function post(Booking $booking, float $amount, float $received, float $outstanding, float $dpApplied = 0.0): JournalEntry
     {
         $lines = [];
+        $cashReceived = round($received - $dpApplied, 2);
 
-        if ($received > 0) {
+        if ($dpApplied > 0) {
+            $deferred = ChartOfAccount::where('code', self::DEFERRED_REVENUE_ACCOUNT_CODE)->first();
+            if (! $deferred) {
+                throw new RuntimeException('Akun Pendapatan Diterima Dimuka (kode ' . self::DEFERRED_REVENUE_ACCOUNT_CODE . ') tidak ditemukan di Bagan Akun.');
+            }
+            $lines[] = ['chart_of_account_id' => $deferred->id, 'debit' => $dpApplied];
+        }
+
+        if ($cashReceived > 0) {
             $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
             if (! $cash) {
                 throw new RuntimeException('Akun kas (kode ' . self::CASH_ACCOUNT_CODE . ') tidak ditemukan di Bagan Akun.');
             }
-            $lines[] = ['chart_of_account_id' => $cash->id, 'debit' => $received];
+            $lines[] = ['chart_of_account_id' => $cash->id, 'debit' => $cashReceived];
         }
 
         if ($outstanding > 0) {

@@ -622,6 +622,12 @@ class BookingResource extends Resource
 
                     Forms\Components\Select::make('status')
                         ->label('Status')
+                        ->helperText(fn (?Booking $record) => $record?->status === 'confirmed'
+                            ? '"Selesai" baru bisa dipilih setelah tahap Quality Check ditandai lewat mobile staff.'
+                            : null)
+                        ->disableOptionWhen(fn (string $value, ?Booking $record) => $value === 'completed'
+                            && $record?->status === 'confirmed'
+                            && $record->completionBlocker() !== null)
                         // Opsi dibatasi (diperbaiki 2026-10-02, audit alur Booking):
                         // - 'cancelled' TIDAK bisa dipilih di form -- jalur ini
                         //   melewati gate Void, alasan pembatalan, dan refund DP
@@ -1012,6 +1018,17 @@ class BookingResource extends Resource
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                // Progres pengerjaan (read-only; ditandai lewat mobile staff).
+                Tables\Columns\TextColumn::make('current_stage')
+                    ->label('Tahap')
+                    ->formatStateUsing(fn (?string $state) => $state ? (\App\Models\BookingMessage::allStages()[$state] ?? $state) : '—')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('secondary_stage')
+                    ->label('Tahap PPF')
+                    ->formatStateUsing(fn (?string $state) => $state ? (\App\Models\BookingMessage::allStages()[$state] ?? $state) : '—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('preferred_date')
                     ->label('Tanggal')
                     ->date('d M Y')
@@ -1050,7 +1067,7 @@ class BookingResource extends Resource
                         if ($record->pendingRescheduleRequest) {
                             $parts[] = 'Jadwal ulang diajukan: ' . $record->pendingRescheduleRequest->requested_date->format('d M');
                         }
-                        if ($record->status === 'confirmed' && ! $record->current_stage && $record->preferred_date?->lt(today())) {
+                        if ($record->status === 'confirmed' && ! $record->hasWorkStarted() && $record->preferred_date?->lt(today())) {
                             $parts[] = 'Lewat tanggal, belum dikerjakan';
                         }
                         if ($record->pendingCancellationRequest) {
@@ -1103,11 +1120,25 @@ class BookingResource extends Resource
                     ->label('Ada pengajuan jadwal ulang')
                     ->query(fn (Builder $query) => $query->whereHas('rescheduleRequests', fn ($q) => $q->where('status', 'pending'))),
 
+                // Semua produk sudah di tahap terakhirnya, tinggal tandai Quality Check
+                // (lewat mobile) lalu Selesaikan.
+                Tables\Filters\Filter::make('siap_qc')
+                    ->label('Siap Quality Check')
+                    ->query(fn (Builder $query) => $query->where('status', 'confirmed')
+                        ->where(fn (Builder $q) => $q
+                            ->where(fn (Builder $w) => $w->where('product_kaca_film', true)->where('product_ppf', true)
+                                ->where('current_stage', 'kf_installation')->where('secondary_stage', 'ppf_installation'))
+                            ->orWhere(fn (Builder $w) => $w->where('product_kaca_film', true)->where('product_ppf', false)
+                                ->where('current_stage', 'kf_installation'))
+                            ->orWhere(fn (Builder $w) => $w->where('product_kaca_film', false)->where('product_ppf', true)
+                                ->where('current_stage', 'ppf_installation')))),
+
                 Tables\Filters\Filter::make('overdue_confirmed')
                     ->label('Lewat tanggal, belum dikerjakan')
                     ->query(fn (Builder $query) => $query->where('status', 'confirmed')
                         ->whereDate('preferred_date', '<', today())
-                        ->whereNull('current_stage')),
+                        ->whereNull('current_stage')
+                        ->whereNull('secondary_stage')),
 
                 Tables\Filters\Filter::make('cancellation_requested')
                     ->label('Ada pengajuan pembatalan')
@@ -1262,14 +1293,17 @@ class BookingResource extends Resource
                         // transaction_amount (lunas penuh) kalau kasir
                         // tidak sengaja mengubahnya.
                         Forms\Components\TextInput::make('amount_received')
-                            ->label('Nominal Diterima (Tunai)')
+                            ->label('Total Diterima (termasuk DP)')
                             ->numeric()
                             ->minValue(0)
                             ->live()
                             ->default(fn (Booking $record) => $record->amount_received ?? $record->transaction_amount)
-                            ->helperText(fn (Forms\Get $get) => ((float) ($get('transaction_amount') ?? 0)) > ((float) ($get('amount_received') ?? 0))
+                            ->helperText(fn (Forms\Get $get, Booking $record) => ((float) ($get('transaction_amount') ?? 0)) > ((float) ($get('amount_received') ?? 0))
                                 ? 'Selisihnya akan dicatat sebagai Piutang Usaha (belum lunas).'
-                                : 'Kosongkan/samakan dengan Nominal Transaksi kalau pelanggan sudah lunas penuh.'),
+                                : 'Kosongkan/samakan dengan Nominal Transaksi kalau pelanggan sudah lunas penuh.'
+                                    . ($record->outstanding_down_payment > 0
+                                        ? ' DP Rp ' . number_format($record->outstanding_down_payment, 0, ',', '.') . ' otomatis dipotongkan (tidak dihitung kas masuk dua kali).'
+                                        : '')),
 
                         // Promo Per Total Pembelian (opsional) — potongan flat
                         // untuk booking yang nominal KOTOR-nya >= ambang.

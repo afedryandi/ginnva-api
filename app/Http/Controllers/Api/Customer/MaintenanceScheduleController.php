@@ -96,6 +96,15 @@ class MaintenanceScheduleController extends Controller
         // sini dihitung OTOMATIS dari interval (bukan dipilih customer),
         // jadi bisa saja jatuh di hari toko tutup/libur -- tidak ada langkah
         // pilih tanggal lain di alur ini, jadi staff yang perlu dihubungi.
+        // Tanggal jadwal sudah lewat: tidak bisa dikonfirmasi (nanti dihanguskan
+        // otomatis oleh ProcessMaintenanceSchedules).
+        if (\Illuminate\Support\Carbon::parse($schedule->scheduled_date)->lt(today())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tanggal jadwal maintenance ini sudah lewat. Hubungi toko langsung untuk mengatur jadwal baru.',
+            ], 422);
+        }
+
         $store = \App\Models\Store::find($warranty->store_id);
 
         // Bug ditutup 2026-10-01 (audit Maintenance PPF) -- SEBELUMNYA tidak

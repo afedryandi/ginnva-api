@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  */
 class SendBookingDailyReminders extends Command
 {
-    protected $signature = 'bookings:daily-reminders';
+    protected $signature = 'bookings:daily-reminders {--h1-only : Hanya pengingat H-1 (untuk run sore hari)}';
 
     protected $description = 'Pengingat H-1 booking confirmed & daftar booking lewat tanggal yang perlu tindakan';
 
@@ -31,37 +31,21 @@ class SendBookingDailyReminders extends Command
             ->with('installers:id')
             ->get();
 
+        $reminders = app(\App\Services\BookingReminderService::class);
         foreach ($tomorrow as $b) {
-            try {
-                if ($b->customer_id) {
-                    $push->sendToCustomer(
-                        $b->customer_id,
-                        'Pengingat Jadwal Besok',
-                        "Besok jadwal booking #{$b->booking_number} Anda. Jika berhalangan, segera hubungi toko.",
-                        ['type' => 'booking_reminder_h1', 'booking_id' => $b->id, 'route' => "/booking/{$b->id}/chat"]
-                    );
-                }
+            $reminders->sendH1($b);
+        }
 
-                $installerIds = $b->installers->pluck('id');
-                if ($installerIds->isNotEmpty()) {
-                    $push->sendToUsers(
-                        $installerIds,
-                        'Jadwal Instalasi Besok',
-                        "Besok ada jadwal booking #{$b->booking_number}.",
-                        ['type' => 'booking_reminder_h1', 'booking_id' => $b->id, 'route' => "/staff/bookings/{$b->id}"]
-                    );
-                }
-            } catch (\Throwable $e) {
-                report($e);
-                continue; // jangan tandai terkirim kalau push gagal
-            }
+        if ($this->option('h1-only')) {
+            $this->info("H-1: {$tomorrow->count()} booking.");
 
-            DB::table('bookings')->where('id', $b->id)->update(['h1_reminder_sent_at' => now()]);
+            return self::SUCCESS;
         }
 
         $overdue = Booking::where('status', 'confirmed')
             ->whereDate('preferred_date', '<', today())
             ->whereNull('current_stage')
+            ->whereNull('secondary_stage')
             ->whereNotNull('store_id')
             ->get(['id', 'store_id'])
             ->groupBy('store_id');
@@ -69,6 +53,7 @@ class SendBookingDailyReminders extends Command
         foreach ($overdue as $storeId => $group) {
             $managerIds = User::where('store_id', $storeId)
                 ->where('is_active', true)
+                ->with('roles')
                 ->get()
                 ->filter(fn (User $u) => $u->isStoreManager())
                 ->pluck('id');
@@ -82,7 +67,7 @@ class SendBookingDailyReminders extends Command
                     $managerIds,
                     'Booking Lewat Tanggal',
                     "{$group->count()} booking dikonfirmasi tapi tanggalnya sudah lewat dan belum dikerjakan. Jadwal ulang atau batalkan.",
-                    ['type' => 'booking_overdue', 'route' => '/staff/bookings?status=confirmed']
+                    ['type' => 'booking_overdue', 'route' => '/staff/bookings?status=confirmed&overdue=1']
                 );
             } catch (\Throwable $e) {
                 report($e);

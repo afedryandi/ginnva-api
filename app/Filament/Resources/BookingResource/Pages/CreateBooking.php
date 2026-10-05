@@ -49,6 +49,35 @@ class CreateBooking extends CreateRecord
             $data['store_id'] = $user->store_id;
         }
 
+        // Booking aktif (pending/confirmed): tanggal tidak boleh lampau & toko
+        // harus buka di hari itu -- sama dengan mobile & reschedule.
+        if (in_array($data['status'] ?? 'pending', ['pending', 'confirmed'], true) && ! empty($data['preferred_date'])) {
+            $day = Carbon::parse($data['preferred_date'])->startOfDay();
+            $store = ! empty($data['store_id']) ? \App\Models\Store::find($data['store_id']) : null;
+
+            if ($day->lt(today())) {
+                Notification::make()
+                    ->title('Tanggal sudah lewat')
+                    ->body('Booking yang masih berjalan tidak bisa bertanggal lampau. Ubah tanggalnya, atau set status ke "Selesai" kalau mencatat pekerjaan yang sudah terjadi.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                throw new Halt();
+            }
+
+            if ($store?->isClosedOn($day)) {
+                Notification::make()
+                    ->title('Toko tutup di tanggal itu')
+                    ->body('Toko libur mingguan atau tanggal tersebut diblokir. Pilih tanggal lain.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                throw new Halt();
+            }
+        }
+
         if (($data['status'] ?? null) === 'confirmed') {
             $durationDays = max(1, (int) ($data['duration_days'] ?? 1));
 

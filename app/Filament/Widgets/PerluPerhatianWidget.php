@@ -125,6 +125,52 @@ class PerluPerhatianWidget extends Widget
         }
 
         if ($user?->hasMenuAccess(BookingResource::class) ?? false) {
+            // Sinyal alur booking: pending lewat SLA 4 jam, pengajuan customer
+            // menunggu keputusan, confirmed lewat tanggal belum dikerjakan.
+            $scope = fn ($q) => $isSuperAdmin
+                ? ($this->storeId ? $q->where('store_id', $this->storeId) : $q)
+                : $q->where('store_id', $user->store_id);
+
+            $slaCount = $scope(Booking::query()->where('status', 'pending')->where('created_at', '<=', now()->subHours(4)))->count();
+            if ($slaCount > 0) {
+                $items[] = [
+                    'label' => 'Booking Pending Lewat SLA',
+                    'description' => 'Belum dikonfirmasi lebih dari 4 jam',
+                    'count' => $slaCount,
+                    'color' => 'danger',
+                    'icon' => 'heroicon-o-bell-alert',
+                    'url' => BookingResource::getUrl('index', ['tableFilters' => ['pending_sla' => ['isActive' => true]]]),
+                ];
+            }
+
+            $requestCount = $scope(Booking::query()->where(fn ($q) => $q
+                ->whereHas('rescheduleRequests', fn ($r) => $r->where('status', 'pending'))
+                ->orWhereHas('cancellationRequests', fn ($r) => $r->where('status', 'pending'))))->count();
+            if ($requestCount > 0) {
+                $items[] = [
+                    'label' => 'Pengajuan Customer Menunggu',
+                    'description' => 'Jadwal ulang / pembatalan belum diputuskan',
+                    'count' => $requestCount,
+                    'color' => 'warning',
+                    'icon' => 'heroicon-o-inbox-arrow-down',
+                    'url' => BookingResource::getUrl('index', ['tableFilters' => ['reschedule_requested' => ['isActive' => true]]]),
+                ];
+            }
+
+            $overdueCount = $scope(Booking::query()->where('status', 'confirmed')
+                ->whereDate('preferred_date', '<', today())
+                ->whereNull('current_stage')->whereNull('secondary_stage'))->count();
+            if ($overdueCount > 0) {
+                $items[] = [
+                    'label' => 'Booking Lewat Tanggal',
+                    'description' => 'Dikonfirmasi tapi belum dikerjakan',
+                    'count' => $overdueCount,
+                    'color' => 'danger',
+                    'icon' => 'heroicon-o-calendar-days',
+                    'url' => BookingResource::getUrl('index', ['tableFilters' => ['overdue_confirmed' => ['isActive' => true]]]),
+                ];
+            }
+
             $outstandingCount = $this->countOutstandingBookingsThisMonth($user, $isSuperAdmin);
             if ($outstandingCount > 0) {
                 $items[] = [

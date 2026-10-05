@@ -54,6 +54,7 @@ class RemindPendingBookingRequests extends Command
 
                 $recipientIds = User::where('store_id', $storeId)
                     ->where('is_active', true)
+                    ->with('roles')
                     ->get()
                     ->filter(fn (User $u) => $u->isStoreManager()
                         || ($u->isRestrictedStaff() && $u->hasMenuAccess(BookingResource::class)))

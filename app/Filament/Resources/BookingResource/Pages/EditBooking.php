@@ -181,6 +181,18 @@ class EditBooking extends EditRecord
                 throw new Halt();
             }
 
+            // Selesai hanya setelah Quality Check (sama dengan API mobile).
+            if (($data['status'] ?? null) === 'completed' && $fresh->status !== 'completed' && ($blocker = $fresh->completionBlocker())) {
+                Notification::make()
+                    ->title('Booking belum bisa diselesaikan')
+                    ->body($blocker)
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                throw new Halt();
+            }
+
             $newDate = Carbon::parse($data['preferred_date'] ?? $fresh->preferred_date)->startOfDay();
             $dateChanged = ! $newDate->equalTo($fresh->preferred_date->copy()->startOfDay());
 

@@ -220,8 +220,11 @@ class BookingStatsWidget extends BaseWidget
     {
         // Cuma 'confirmed' yang dianggap slot yang benar-benar terisi —
         // sama pola dengan Booking::hasScheduleConflict().
+        // Pekerjaan multi-hari yang sedang berjalan ikut dihitung (sama dengan
+        // daftar mobile): rentang preferred_date .. +(duration_days-1) memuat hari ini.
         $query = Booking::query()
-            ->whereDate('preferred_date', now()->toDateString())
+            ->whereDate('preferred_date', '<=', now()->toDateString())
+            ->whereRaw('DATE_ADD(preferred_date, INTERVAL (COALESCE(duration_days, 1) - 1) DAY) >= ?', [now()->toDateString()])
             ->where('status', 'confirmed');
 
         if (! $isSuperAdmin) {

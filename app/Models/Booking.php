@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -187,6 +188,7 @@ class Booking extends Model
         'cancelled_by_type',
         'pending_reminder_count',
         'pending_reminder_sent_at',
+        'h1_reminder_sent_at',
     ];
 
     protected $casts = [
@@ -720,7 +722,9 @@ class Booking extends Model
      */
     public function getOutstandingDownPaymentAttribute(): float
     {
-        return (float) $this->downPayments()->whereNull('refunded_at')->sum('amount');
+        // Sisa DP = amount - applied_amount (porsi yang sudah melunasi pembayaran
+        // saat booking diposting tidak dihitung lagi).
+        return (float) $this->downPayments()->whereNull('refunded_at')->sum(DB::raw('amount - applied_amount'));
     }
 
     /**
@@ -759,10 +763,52 @@ class Booking extends Model
     }
 
     /**
-     * Batalkan booking SEKALIGUS mencatat alasan terstruktur (siapa, kapan,
-     * kenapa). $byType: 'customer' | 'staff' | 'system'. Dipanggil di dalam
-     * transaction + lock oleh tiap jalur pembatalan.
+     * Alasan booking BELUM boleh diselesaikan, atau null kalau boleh
+     * (keputusan 2026-10-06): Quality Check wajib ditandai dulu -- tahap itu
+     * sendiri hanya bisa ditandai kalau semua produk sudah sampai tahap
+     * terakhirnya (lihat Staff\BookingMessageController).
      */
+    public function completionBlocker(): ?string
+    {
+        return $this->current_stage === 'qc'
+            ? null
+            : 'Booking belum bisa diselesaikan: tandai tahap Quality Check dulu (semua produk harus sudah sampai tahap terakhir).';
+    }
+
+    /**
+     * Urutan tahap (key) untuk satu kolom progres booking ini. current_stage:
+     * track Kaca Film (atau PPF kalau cuma 1 produk) lalu tahap bersama;
+     * secondary_stage: track PPF pada booking dua produk.
+     */
+    public function stageSequenceFor(string $column): array
+    {
+        $both = $this->product_kaca_film && $this->product_ppf;
+
+        if ($column === 'secondary_stage') {
+            return array_keys(BookingMessage::PRODUCT_STAGES['ppf']);
+        }
+
+        $sequence = [];
+        if ($this->product_kaca_film) {
+            $sequence = array_merge($sequence, array_keys(BookingMessage::PRODUCT_STAGES['kaca_film']));
+        }
+        if ($this->product_ppf && ! $both) {
+            $sequence = array_merge($sequence, array_keys(BookingMessage::PRODUCT_STAGES['ppf']));
+        }
+
+        return array_merge($sequence, array_keys(BookingMessage::SHARED_STAGES));
+    }
+
+    /**
+     * Pengerjaan sudah dimulai: tahap APA PUN sudah ditandai. Booking Kaca
+     * Film + PPF menyimpan tahap PPF di secondary_stage, jadi cek
+     * current_stage saja salah untuk yang dikerjakan dari PPF dulu.
+     */
+    public function hasWorkStarted(): bool
+    {
+        return filled($this->current_stage) || filled($this->secondary_stage);
+    }
+
     /**
      * Label "dibatalkan oleh" untuk laporan: customer / nama staff / sistem.
      * $fallback dipakai booking lama (sebelum kolom cancelled_by_* ada).
@@ -777,6 +823,11 @@ class Booking extends Model
         };
     }
 
+    /**
+     * Batalkan booking SEKALIGUS mencatat alasan terstruktur (siapa, kapan,
+     * kenapa). $byType: 'customer' | 'staff' | 'system'. Dipanggil di dalam
+     * transaction + lock oleh tiap jalur pembatalan.
+     */
     public function cancelWith(string $byType, ?int $byId, ?string $reason): void
     {
         $this->update([

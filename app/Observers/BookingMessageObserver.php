@@ -6,6 +6,7 @@ use App\Filament\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\BookingMessage;
 use App\Services\PushNotificationService;
+use Illuminate\Support\Facades\DB;
 
 class BookingMessageObserver
 {
@@ -39,11 +40,15 @@ class BookingMessageObserver
             if ($booking->customer_id) {
                 [$title, $body] = $this->buildNotificationText($message);
 
-                $this->push->sendToCustomer($booking->customer_id, $title, $body, [
+                // Setelah commit: pesan + foto dibuat dalam satu transaksi, push
+                // tidak boleh mendahului fotonya.
+                $customerId = $booking->customer_id;
+                $payload = [
                     'type'       => 'booking_message',
                     'booking_id' => $booking->id,
                     'route'      => "/booking/{$booking->id}/chat",
-                ]);
+                ];
+                DB::afterCommit(fn () => $this->push->sendToCustomer($customerId, $title, $body, $payload));
             }
 
             return;
@@ -72,7 +77,7 @@ class BookingMessageObserver
                 ->unique()
                 ->values();
 
-            $this->push->sendToUsers($recipientIds, $title, $body, $data);
+            DB::afterCommit(fn () => $this->push->sendToUsers($recipientIds, $title, $body, $data));
         }
     }
 

@@ -97,6 +97,8 @@ class DownPaymentService
     public function refund(BookingDownPayment $downPayment, ?int $userId, ?string $reason = null): BookingDownPayment
     {
         return DB::transaction(function () use ($downPayment, $userId, $reason) {
+            // Urutan lock sama dengan BookingPostingService::sync: booking dulu, baru DP.
+            Booking::query()->where('id', $downPayment->booking_id)->lockForUpdate()->first();
             $locked = BookingDownPayment::query()->where('id', $downPayment->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->isRefunded()) {
@@ -104,6 +106,14 @@ class DownPaymentService
             }
 
             $booking = $locked->booking;
+
+            // DP yang (sebagian) sudah dipakai melunasi pembayaran booking yang
+            // diposting (Dr 2140 di jurnal pendapatan) tidak bisa dikembalikan --
+            // mengembalikannya membuat 2140 negatif. Sisa DP yang TIDAK terpakai
+            // tetap boleh di-refund.
+            if ((float) $locked->applied_amount > 0) {
+                throw new RuntimeException('DP ini sudah dipakai sebagai pembayaran booking yang diposting, tidak bisa dikembalikan. Koreksi lewat "Proses Referral" atau Refund.');
+            }
 
             $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
             $deferredRevenue = ChartOfAccount::where('code', self::DEFERRED_REVENUE_ACCOUNT_CODE)->first();

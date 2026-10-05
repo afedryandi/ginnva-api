@@ -26,7 +26,12 @@ class BookingMessageController extends Controller
 
         // Nested eager-load supaya chatDisplayLabel() (butuh nama toko
         // utk staff toko) tidak N+1 per pesan.
-        $messages = $booking->messages()->with(['senderUser.store:id,name', 'photos'])->get();
+        $messagesQuery = $booking->messages()->with(['senderUser.store:id,name', 'photos']);
+        // Polling incremental: ?after_id=N hanya mengembalikan pesan baru.
+        if ($request->filled('after_id')) {
+            $messagesQuery->where('booking_messages.id', '>', (int) $request->after_id);
+        }
+        $messages = $messagesQuery->get();
 
         // Pesan staff dianggap sudah dibaca customer begitu chat dibuka
         // (badge belum dibaca, 2026-10-02).

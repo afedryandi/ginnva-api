@@ -145,7 +145,7 @@ class PushNotificationService
             ], $chunk);
 
             try {
-                $response = Http::withHeaders([
+                $response = Http::timeout(8)->withHeaders([
                     'Accept'       => 'application/json',
                     'Content-Type' => 'application/json',
                 ])->post('https://exp.host/--/api/v2/push/send', $messages);

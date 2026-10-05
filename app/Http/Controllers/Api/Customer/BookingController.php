@@ -37,18 +37,36 @@ class BookingController extends Controller
      */
     public function index(Request $request)
     {
-        $bookings = $request->user('customer')
+        $query = $request->user('customer')
             ->bookings()
             ->with(['store', 'pendingRescheduleRequest', 'latestDecidedRescheduleRequest', 'pendingCancellationRequest', 'latestDecidedCancellationRequest'])
             // Pesan staff yang belum dibaca customer (badge kartu booking).
             ->withCount(['messages as unread_count' => fn ($q) => $q->where('sender_type', 'admin')->whereNull('read_by_customer_at')])
             ->orderByDesc('created_at')
-            ->get()
-            ->each(fn (Booking $b) => $this->sanitize($b));
+            ->orderByDesc('id');
+
+        // Segmen & paginasi (2026-10-06): ?segment=active (pending/confirmed) atau
+        // history (selesai/batal) + ?page=. Tanpa parameter = daftar penuh
+        // (kompatibel dengan versi app lama).
+        if ($request->filled('segment')) {
+            $request->segment === 'history'
+                ? $query->whereIn('status', ['completed', 'cancelled'])
+                : $query->whereIn('status', ['pending', 'confirmed']);
+        }
+
+        if ($request->filled('page') || $request->filled('segment')) {
+            $page = $query->paginate(15);
+
+            return response()->json([
+                'success' => true,
+                'data' => collect($page->items())->each(fn (Booking $b) => $this->sanitize($b))->values(),
+                'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()],
+            ]);
+        }
 
         return response()->json([
             'success' => true,
-            'data' => $bookings,
+            'data' => $query->get()->each(fn (Booking $b) => $this->sanitize($b)),
         ]);
     }
 
@@ -253,7 +271,7 @@ class BookingController extends Controller
             abort(422, 'Tanggal booking sudah lewat. Hubungi toko untuk tindak lanjut.');
         }
 
-        if ($booking->current_stage) {
+        if ($booking->hasWorkStarted()) {
             abort(422, 'Pengerjaan booking ini sudah dimulai, jadwalnya tidak bisa diubah lagi.');
         }
 
@@ -273,6 +291,12 @@ class BookingController extends Controller
 
         $req = DB::transaction(function () use ($booking, $request, $customer) {
             $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+            // Status dicek ulang di dalam lock (booking bisa saja baru dibatalkan/
+            // diselesaikan sejak pengecekan di atas).
+            if (! in_array($locked->status, ['pending', 'confirmed'], true) || $locked->hasWorkStarted()) {
+                abort(422, 'Status booking sudah berubah, muat ulang halaman.');
+            }
 
             if ($locked->rescheduleRequests()->where('status', 'pending')->exists()) {
                 abort(422, 'Sudah ada pengajuan jadwal ulang yang menunggu keputusan toko.');
