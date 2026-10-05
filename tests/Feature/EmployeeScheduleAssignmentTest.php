@@ -33,6 +33,7 @@ class EmployeeScheduleAssignmentTest extends TestCase
         return WorkSchedule::create([
             'store_id' => $store->id,
             'name' => $name,
+            'is_active' => true,
             'days' => collect(WorkSchedule::DAYS)->map(fn ($day) => [
                 'day' => $day,
                 'shift_id' => $day === 'sun' ? null : $shift->id,

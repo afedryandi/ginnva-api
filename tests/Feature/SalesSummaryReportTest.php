@@ -44,6 +44,12 @@ class SalesSummaryReportTest extends TestCase
 
         app(BookingPostingService::class)->sync($booking);
 
+        // Jurnal dicatat bertanggal hari ini (cash-basis); laporan menghitung per
+        // tanggal jurnal, jadi geser ke tanggal yang dimaksud test.
+        \Illuminate\Support\Facades\DB::table('journal_entries')
+            ->where('id', $booking->fresh()->journal_entry_id)
+            ->update(['entry_date' => $preferredDate]);
+
         return $booking;
     }
 

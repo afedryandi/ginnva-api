@@ -29,13 +29,14 @@ class MaterialMemoStoreTaggingTest extends TestCase
             'unit' => 'liter',
             'current_stock' => 10,
         ]);
+        $staff = \App\Models\User::create(['name' => 'Staff', 'email' => uniqid() . '@test.local', 'password' => 'x']);
         $memo = MaterialMemo::create([
             'memo_number' => 'MEMO-TEST-' . uniqid(),
-            'created_by' => \App\Models\User::create(['name' => 'Staff', 'email' => uniqid() . '@test.local', 'password' => 'x'])->id,
+            'created_by' => $staff->id,
             'store_id' => $store->id,
         ]);
 
-        MaterialMemoStockService::addMaterial($material, 'raw_material', $memo, 2, 1, null);
+        MaterialMemoStockService::addMaterial($material, 'raw_material', $memo, 2, $staff->id, null);
 
         $movement = $material->fresh()->movements()->where('type', 'out')->first();
         $this->assertEquals($store->id, $movement->store_id);

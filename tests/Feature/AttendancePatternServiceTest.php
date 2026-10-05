@@ -35,6 +35,7 @@ class AttendancePatternServiceTest extends TestCase
         return WorkSchedule::create([
             'store_id' => $store->id,
             'name' => 'Reguler',
+            'is_active' => true,
             'days' => collect(WorkSchedule::DAYS)->map(fn ($day) => ['day' => $day, 'shift_id' => $shift->id])->toArray(),
         ]);
     }

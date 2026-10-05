@@ -52,7 +52,7 @@ class RawMaterialStockTest extends TestCase
         $batches = $material->batches()->orderBy('received_date')->get();
         $this->assertEquals(3, (float) $material->fresh()->current_stock);
         $this->assertEquals(0, (float) $batches[0]->quantity, 'Batch tertua harus habis duluan (FIFO).');
-        $this->assertEquals(2, (float) $batches[1]->quantity, 'Sisa 2 dari 7 yang diambil, dari batch termuda.');
+        $this->assertEquals(3, (float) $batches[1]->quantity, 'Dipakai 7: 5 dari batch tertua + 2 dari batch termuda, sisa 3.');
     }
 
     public function test_adjustment_smaller_than_rounding_threshold_creates_no_movement(): void
