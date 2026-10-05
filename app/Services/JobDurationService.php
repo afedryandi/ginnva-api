@@ -61,7 +61,7 @@ class JobDurationService
                     'customer_name' => $spk->customer_name,
                     'services' => $services,
                     'technicians' => $booking?->installers?->pluck('name')->all() ?? [],
-                    'minutes' => $spk->checked_out_at->diffInMinutes($spk->checked_in_at),
+                    'minutes' => (int) abs($spk->checked_in_at->diffInMinutes($spk->checked_out_at)),
                 ];
             });
     }

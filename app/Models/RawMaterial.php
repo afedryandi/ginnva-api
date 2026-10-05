@@ -272,11 +272,16 @@ class RawMaterial extends Model
     {
         return DB::transaction(function () use ($actualQuantity, $userId, $note, $storeId) {
             $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
-            $delta = round($actualQuantity - (float) $material->current_stock, 2);
+            $rawDelta = $actualQuantity - (float) $material->current_stock;
 
-            if (abs($delta) < 0.01) {
+            // Selisih < 0.01 dianggap sama. Dicek SEBELUM dibulatkan: round(0.005, 2)
+            // = 0.01 sehingga selisih setengah sen sebelumnya malah tercatat
+            // (epsilon menjaga selisih 0.01 yang sah tidak ikut terbuang).
+            if (abs($rawDelta) + 1e-9 < 0.01) {
                 return null;
             }
+
+            $delta = round($rawDelta, 2);
 
             if ($delta > 0) {
                 // Ketemu stok lebih dari catatan sistem — dicatat sebagai

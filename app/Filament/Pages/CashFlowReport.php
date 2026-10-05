@@ -257,7 +257,7 @@ class CashFlowReport extends Page implements HasForms
                 return [$prevFrom, $prevFrom->copy()->addMonthsNoOverflow($months)->subDay()];
             }
 
-            $days = $from->diffInDays($to) + 1;
+            $days = (int) $from->diffInDays($to) + 1;
             $prevTo = $from->copy()->subDay();
 
             return [$prevTo->copy()->subDays($days - 1), $prevTo];

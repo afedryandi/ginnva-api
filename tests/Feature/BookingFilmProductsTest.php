@@ -98,9 +98,14 @@ class BookingFilmProductsTest extends TestCase
         $booking = $this->makeBooking();
         $booking->filmProducts()->create(['film_product_id' => $product->id, 'position' => 'Kaca Depan']);
 
+        // FilmProduct memakai SoftDeletes (2026-09-25): hapus biasa aman & data booking
+        // tetap utuh; yang ditolak FK adalah hapus PERMANEN selagi masih direferensikan.
+        $product->delete();
+        $this->assertSoftDeleted('film_products', ['id' => $product->id]);
+
         $this->expectException(QueryException::class);
 
-        $product->delete();
+        $product->forceDelete();
     }
 
     public function test_position_is_free_text_not_restricted_to_glass_positions(): void

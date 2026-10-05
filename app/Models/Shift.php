@@ -55,7 +55,7 @@ class Shift extends Model
     {
         $start = \Illuminate\Support\Carbon::parse($this->start_time);
         $end = \Illuminate\Support\Carbon::parse($this->end_time);
-        $minutes = $start->diffInMinutes($end, false);
+        $minutes = (int) $start->diffInMinutes($end, false);
 
         if ($minutes < 0) {
             // Shift lintas tengah malam (mis. shift malam 22:00-06:00).
@@ -65,7 +65,7 @@ class Shift extends Model
         if ($this->break_start_time && $this->break_end_time) {
             $breakStart = \Illuminate\Support\Carbon::parse($this->break_start_time);
             $breakEnd = \Illuminate\Support\Carbon::parse($this->break_end_time);
-            $breakMinutes = $breakStart->diffInMinutes($breakEnd, false);
+            $breakMinutes = (int) $breakStart->diffInMinutes($breakEnd, false);
             $minutes -= max(0, $breakMinutes);
         }
 

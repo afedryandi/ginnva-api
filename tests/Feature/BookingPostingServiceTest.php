@@ -127,7 +127,7 @@ class BookingPostingServiceTest extends TestCase
         $booking->update(['transaction_amount' => 3_000_000]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/sudah ADA pelunasan/');
+        $this->expectExceptionMessageMatches('/SUDAH ADA pelunasan/');
 
         app(BookingPostingService::class)->sync($booking->fresh());
     }

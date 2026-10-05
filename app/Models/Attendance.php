@@ -253,7 +253,7 @@ class Attendance extends Model
 
         $toleranceMinutes = $store->late_tolerance_minutes ?? self::DEFAULT_LATE_TOLERANCE_MINUTES;
 
-        $rawLateMinutes = $expectedStart->diffInMinutes($clockInTime, false);
+        $rawLateMinutes = (int) $expectedStart->diffInMinutes($clockInTime, false);
 
         return max(0, $rawLateMinutes - $toleranceMinutes);
     }
@@ -381,7 +381,7 @@ class Attendance extends Model
 
         $toleranceMinutes = $store->late_tolerance_minutes ?? self::DEFAULT_LATE_TOLERANCE_MINUTES;
 
-        $rawEarlyMinutes = $clockOutTime->diffInMinutes($expectedEnd, false);
+        $rawEarlyMinutes = (int) $clockOutTime->diffInMinutes($expectedEnd, false);
 
         return max(0, $rawEarlyMinutes - $toleranceMinutes);
     }

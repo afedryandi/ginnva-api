@@ -27,7 +27,7 @@ class SalesSummaryReportTest extends TestCase
 
     private function makeBooking(string $preferredDate, float $amount): Booking
     {
-        $store = Store::firstOrCreate(['name' => 'Toko Uji'], ['is_active' => true]);
+        $store = Store::firstOrCreate(['name' => 'Toko Uji'], ['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'is_active' => true]);
         $customer = Customer::create(['name' => 'Uji', 'phone_number' => '08120000' . random_int(1000, 9999)]);
 
         $booking = Booking::create([

@@ -46,7 +46,8 @@ class RawMaterialStockTest extends TestCase
         $material->batches()->create(['quantity' => 5, 'received_date' => now()->subDays(1)->toDateString()]);
         $material->update(['current_stock' => 10]);
 
-        $material->adjustStock(7, null, 'Pemakaian');
+        // adjustStock() menerima jumlah FISIK sebenarnya (stock opname): 10 -> 3 = pakai 7.
+        $material->adjustStock(3, null, 'Pemakaian');
 
         $batches = $material->batches()->orderBy('received_date')->get();
         $this->assertEquals(3, (float) $material->fresh()->current_stock);

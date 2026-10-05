@@ -24,11 +24,10 @@ class EmployeeScheduleAssignmentTest extends TestCase
 
     private function makeSchedule(Store $store, string $name = 'Jadwal Reguler'): WorkSchedule
     {
-        $shift = Shift::create([
-            'store_id' => $store->id,
-            'name' => 'Pagi',
+        $shift = Shift::firstOrCreate(['store_id' => $store->id, 'name' => 'Pagi'], [
             'start_time' => '08:00',
             'end_time' => '17:00',
+            'is_active' => true,
         ]);
 
         return WorkSchedule::create([

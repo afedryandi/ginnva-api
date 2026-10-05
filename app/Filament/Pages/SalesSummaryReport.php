@@ -395,7 +395,7 @@ class SalesSummaryReport extends Page implements HasForms
                 return [$prevFrom, $prevFrom->copy()->addMonthsNoOverflow($months)->subDay()->endOfDay()];
             }
 
-            $days = $from->diffInDays($to) + 1;
+            $days = (int) $from->diffInDays($to) + 1;
             $prevTo = $from->copy()->subDay()->endOfDay();
 
             return [$prevTo->copy()->subDays($days - 1)->startOfDay(), $prevTo];

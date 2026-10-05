@@ -57,6 +57,12 @@ class SpkResource extends Resource
      * hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
      * default FALSE (tetap ketat spt sebelumnya, isFullAccess()-only).
      */
+    public static function canEdit($record): bool
+    {
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
+    }
+
     public static function canDelete($record): bool
     {
         $user = auth()->user();

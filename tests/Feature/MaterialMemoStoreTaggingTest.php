@@ -31,6 +31,7 @@ class MaterialMemoStoreTaggingTest extends TestCase
         ]);
         $memo = MaterialMemo::create([
             'memo_number' => 'MEMO-TEST-' . uniqid(),
+            'created_by' => \App\Models\User::create(['name' => 'Staff', 'email' => uniqid() . '@test.local', 'password' => 'x'])->id,
             'store_id' => $store->id,
         ]);
 

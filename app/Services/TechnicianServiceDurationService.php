@@ -65,7 +65,7 @@ class TechnicianServiceDurationService
         $jobsByUser = [];
 
         foreach ($spks as $spk) {
-            $minutes = $spk->checked_in_at->diffInMinutes($spk->checked_out_at);
+            $minutes = (int) $spk->checked_in_at->diffInMinutes($spk->checked_out_at);
 
             if ($minutes <= 0) {
                 continue;

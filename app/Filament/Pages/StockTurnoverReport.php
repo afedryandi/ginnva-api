@@ -288,7 +288,7 @@ class StockTurnoverReport extends Page implements HasForms
         // current_stock SEKARANG (bukan stockAtTo di akhir rentang
         // laporan) -- pertanyaannya "kapan habis dari SEKARANG", bukan
         // "kapan habis dari tanggal laporan yang mungkin sudah lewat".
-        $periodDays = max(1, $from->diffInDays($to) + 1);
+        $periodDays = max(1, (int) $from->diffInDays($to) + 1);
         $avgDailyConsumption = $qtyOutInPeriod / $periodDays;
         $currentStock = (float) $item->current_stock;
         $daysUntilStockout = $avgDailyConsumption > 0 ? $currentStock / $avgDailyConsumption : null;
