@@ -76,7 +76,7 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_company_wide_filter_only_includes_journals_without_store(): void
     {
-        $store = Store::create(['name' => 'Toko A', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko A', 'is_active' => true]);
 
         $this->postEntry('2026-09-05', [
             ['chart_of_account_id' => $this->cashId(), 'debit' => 300_000],
@@ -268,7 +268,7 @@ class FinancialStatementServiceTest extends TestCase
 
     public function test_balance_sheet_stays_balanced_when_filtered_by_store_or_head_office(): void
     {
-        $store = Store::create(['name' => 'Toko A', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko A', 'is_active' => true]);
 
         // Setoran modal pusat (tanpa toko) dan penjualan tunai toko A.
         $capitalId = ChartOfAccount::where('type', 'modal')->where('is_postable', true)->orderBy('code')->value('id');

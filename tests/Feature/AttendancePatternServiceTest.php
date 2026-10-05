@@ -42,7 +42,7 @@ class AttendancePatternServiceTest extends TestCase
 
     public function test_early_arrival_and_overtime_detected_against_shift(): void
     {
-        $store = Store::create(['name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
         $user = User::create(['name' => 'A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
         $schedule = $this->makeShiftSchedule($store);
         EmployeeScheduleAssignment::assignBulk($schedule, [$user->id], Carbon::parse('2026-09-01'), null);
@@ -69,7 +69,7 @@ class AttendancePatternServiceTest extends TestCase
 
     public function test_no_schedule_flagged_when_no_assignment_exists(): void
     {
-        $store = Store::create(['name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
         $user = User::create(['name' => 'B', 'email' => 'b@test.local', 'password' => 'x', 'store_id' => $store->id]);
 
         $attendance = Attendance::create([
@@ -92,7 +92,7 @@ class AttendancePatternServiceTest extends TestCase
 
     public function test_day_override_takes_precedence_over_template(): void
     {
-        $store = Store::create(['name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
         $user = User::create(['name' => 'C', 'email' => 'c@test.local', 'password' => 'x', 'store_id' => $store->id]);
         $schedule = $this->makeShiftSchedule($store); // shift 08:00-17:00
         EmployeeScheduleAssignment::assignBulk($schedule, [$user->id], Carbon::parse('2026-09-01'), null);

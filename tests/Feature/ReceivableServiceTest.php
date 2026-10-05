@@ -36,7 +36,7 @@ class ReceivableServiceTest extends TestCase
 
     private function bookingWithReceivable(float $total = 1_000_000, float $received = 400_000): array
     {
-        $store = Store::create(['name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
         $customer = Customer::create(['name' => 'Budi', 'phone_number' => '081200000001']);
 
         $booking = Booking::create([

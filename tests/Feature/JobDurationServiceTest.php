@@ -24,7 +24,7 @@ class JobDurationServiceTest extends TestCase
 
     private function makeStore(): Store
     {
-        return Store::create(['name' => 'Toko Test', 'is_active' => true]);
+        return Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
     }
 
     public function test_job_duration_and_service_labels_from_booking(): void

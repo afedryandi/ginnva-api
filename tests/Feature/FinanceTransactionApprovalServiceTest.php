@@ -32,7 +32,7 @@ class FinanceTransactionApprovalServiceTest extends TestCase
         Role::findOrCreate('store_manager', 'web');
         Role::findOrCreate('direksi', 'web');
 
-        $this->store = Store::create(['name' => 'Toko Test', 'is_active' => true]);
+        $this->store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
 
         $account = ChartOfAccount::where('code', '6510')->firstOrFail();
         $this->expenseCategory = FinanceCategory::create([
@@ -131,7 +131,7 @@ class FinanceTransactionApprovalServiceTest extends TestCase
     public function test_manager_from_different_store_cannot_approve(): void
     {
         $staff = $this->makeStaff();
-        $otherStore = Store::create(['name' => 'Toko Lain', 'is_active' => true]);
+        $otherStore = Store::create(['city' => 'Jakarta', 'name' => 'Toko Lain', 'is_active' => true]);
         $otherManager = User::create([
             'name' => 'Manager Toko Lain',
             'email' => 'other-manager-' . uniqid() . '@test.com',

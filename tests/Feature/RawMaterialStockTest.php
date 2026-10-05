@@ -84,7 +84,7 @@ class RawMaterialStockTest extends TestCase
      */
     public function test_record_movement_tags_store_id_without_splitting_stock(): void
     {
-        $store = Store::create(['name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
         $material = $this->makeMaterial(stock: 10);
 
         $movement = $material->recordMovement('out', 3, null, 'Dipakai toko', storeId: $store->id);
@@ -104,7 +104,7 @@ class RawMaterialStockTest extends TestCase
 
     public function test_reverse_last_movement_inherits_store_id_of_original(): void
     {
-        $store = Store::create(['name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
         $material = $this->makeMaterial(stock: 10);
         $movement = $material->recordMovement('out', 3, null, null, storeId: $store->id);
 

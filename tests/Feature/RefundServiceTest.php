@@ -30,7 +30,7 @@ class RefundServiceTest extends TestCase
 
     private function makePostedBooking(float $amount): Booking
     {
-        $store = Store::create(['name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
         $customer = Customer::create(['name' => 'Budi', 'phone_number' => '081200000001']);
 
         $booking = Booking::create([
@@ -88,7 +88,7 @@ class RefundServiceTest extends TestCase
 
     public function test_refund_rejected_when_booking_has_no_journal_entry_yet(): void
     {
-        $store = Store::create(['name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
         $customer = Customer::create(['name' => 'Budi', 'phone_number' => '081200000001']);
         $booking = Booking::create([
             'booking_number' => 'BKG-TEST-' . uniqid(),
