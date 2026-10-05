@@ -42,20 +42,22 @@ class AttendancePatternServiceTest extends TestCase
 
     public function test_early_arrival_and_overtime_detected_against_shift(): void
     {
+        // Senin minggu lalu (relatif): efektif jadwal maks 31 hari ke belakang.
+        $monday = now()->startOfWeek()->subWeek();
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $user = User::create(['name' => 'A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
         $schedule = $this->makeShiftSchedule($store);
-        EmployeeScheduleAssignment::assignBulk($schedule, [$user->id], Carbon::parse('2026-09-01'), null);
+        EmployeeScheduleAssignment::assignBulk($schedule, [$user->id], $monday->copy()->subDays(5), null);
 
         // Senin, 7 Sep 2026 -- masuk jam 07:30 (lebih awal dari 08:00),
         // pulang jam 19:00 (lebih lambat dari 17:00).
         $attendance = Attendance::create([
             'user_id' => $user->id,
             'store_id' => $store->id,
-            'date' => '2026-09-07',
+            'date' => $monday->toDateString(),
             'entry_type' => 'clock',
-            'clock_in_at' => '2026-09-07 07:30:00',
-            'clock_out_at' => '2026-09-07 19:00:00',
+            'clock_in_at' => $monday->toDateString() . ' 07:30:00',
+            'clock_out_at' => $monday->toDateString() . ' 19:00:00',
             'late_minutes' => 0,
             'early_leave_minutes' => 0,
         ]);
@@ -69,16 +71,18 @@ class AttendancePatternServiceTest extends TestCase
 
     public function test_no_schedule_flagged_when_no_assignment_exists(): void
     {
+        // Senin minggu lalu (relatif): efektif jadwal maks 31 hari ke belakang.
+        $monday = now()->startOfWeek()->subWeek();
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $user = User::create(['name' => 'B', 'email' => 'b@test.local', 'password' => 'x', 'store_id' => $store->id]);
 
         $attendance = Attendance::create([
             'user_id' => $user->id,
             'store_id' => $store->id,
-            'date' => '2026-09-07',
+            'date' => $monday->toDateString(),
             'entry_type' => 'clock',
-            'clock_in_at' => '2026-09-07 08:00:00',
-            'clock_out_at' => '2026-09-07 17:00:00',
+            'clock_in_at' => $monday->toDateString() . ' 08:00:00',
+            'clock_out_at' => $monday->toDateString() . ' 17:00:00',
             'late_minutes' => 0,
             'early_leave_minutes' => 0,
         ]);
@@ -92,10 +96,12 @@ class AttendancePatternServiceTest extends TestCase
 
     public function test_day_override_takes_precedence_over_template(): void
     {
+        // Senin minggu lalu (relatif): efektif jadwal maks 31 hari ke belakang.
+        $monday = now()->startOfWeek()->subWeek();
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $user = User::create(['name' => 'C', 'email' => 'c@test.local', 'password' => 'x', 'store_id' => $store->id]);
         $schedule = $this->makeShiftSchedule($store); // shift 08:00-17:00
-        EmployeeScheduleAssignment::assignBulk($schedule, [$user->id], Carbon::parse('2026-09-01'), null);
+        EmployeeScheduleAssignment::assignBulk($schedule, [$user->id], $monday->copy()->subDays(5), null);
 
         $nightShift = Shift::create([
             'store_id' => $store->id,
@@ -107,7 +113,7 @@ class AttendancePatternServiceTest extends TestCase
         ScheduleDayOverride::create([
             'user_id' => $user->id,
             'store_id' => $store->id,
-            'date' => '2026-09-07',
+            'date' => $monday->toDateString(),
             'shift_id' => $nightShift->id,
         ]);
 
@@ -117,9 +123,9 @@ class AttendancePatternServiceTest extends TestCase
         $attendance = Attendance::create([
             'user_id' => $user->id,
             'store_id' => $store->id,
-            'date' => '2026-09-07',
+            'date' => $monday->toDateString(),
             'entry_type' => 'clock',
-            'clock_in_at' => '2026-09-07 19:30:00',
+            'clock_in_at' => $monday->toDateString() . ' 19:30:00',
             'late_minutes' => 0,
             'early_leave_minutes' => 0,
         ]);

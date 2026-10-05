@@ -48,7 +48,7 @@ class EmployeeScheduleAssignmentTest extends TestCase
         $userA = User::create(['name' => 'A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
         $userB = User::create(['name' => 'B', 'email' => 'b@test.local', 'password' => 'x', 'store_id' => $store->id]);
 
-        $count = EmployeeScheduleAssignment::assignBulk($schedule, [$userA->id, $userB->id], Carbon::parse('2026-10-01'), null);
+        $count = EmployeeScheduleAssignment::assignBulk($schedule, [$userA->id, $userB->id], today()->subDays(5), null);
 
         $this->assertSame(2, $count);
         $this->assertSame(1, EmployeeScheduleAssignment::where('user_id', $userA->id)->count());
@@ -62,8 +62,11 @@ class EmployeeScheduleAssignmentTest extends TestCase
         $scheduleB = $this->makeSchedule($store, 'Jadwal B');
         $user = User::create(['name' => 'A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
 
-        EmployeeScheduleAssignment::assignBulk($scheduleA, [$user->id], Carbon::parse('2026-09-01'), null);
-        EmployeeScheduleAssignment::assignBulk($scheduleB, [$user->id], Carbon::parse('2026-10-01'), null);
+        // Tanggal relatif: service menolak tanggal efektif > 31 hari ke belakang.
+        $startA = today()->subDays(20);
+        $startB = today()->subDays(5);
+        EmployeeScheduleAssignment::assignBulk($scheduleA, [$user->id], $startA, null);
+        EmployeeScheduleAssignment::assignBulk($scheduleB, [$user->id], $startB, null);
 
         $this->assertSame(2, EmployeeScheduleAssignment::where('user_id', $user->id)->count());
 
@@ -72,26 +75,29 @@ class EmployeeScheduleAssignmentTest extends TestCase
 
         // Histori lama TETAP ADA, cuma ditutup sehari sebelum yang baru mulai.
         $this->assertNotNull($old);
-        $this->assertTrue($old->effective_to->isSameDay(Carbon::parse('2026-09-30')));
+        $this->assertTrue($old->effective_to->isSameDay($startB->copy()->subDay()));
         $this->assertNull($new->effective_to);
     }
 
-    public function test_reassigning_before_previous_start_date_replaces_it_instead_of_closing(): void
+    public function test_reassigning_before_a_later_start_date_is_rejected(): void
     {
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $scheduleA = $this->makeSchedule($store, 'Jadwal A');
         $scheduleB = $this->makeSchedule($store, 'Jadwal B');
         $user = User::create(['name' => 'A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
 
-        // Assign dulu utk masa depan (mis. dijadwalkan berlaku bulan depan)...
-        EmployeeScheduleAssignment::assignBulk($scheduleA, [$user->id], Carbon::parse('2026-11-01'), null);
-        // ...lalu staff berubah pikiran, assign jadwal LAIN yang berlaku LEBIH AWAL.
-        EmployeeScheduleAssignment::assignBulk($scheduleB, [$user->id], Carbon::parse('2026-10-01'), null);
+        // Penugasan A dijadwalkan untuk masa depan...
+        EmployeeScheduleAssignment::assignBulk($scheduleA, [$user->id], today()->addDays(30), null);
 
-        // Penugasan A yang belum pernah mulai DIHAPUS (bukan ditutup dgn
-        // tanggal mundur yang tidak masuk akal), cuma tersisa B.
-        $this->assertSame(1, EmployeeScheduleAssignment::where('user_id', $user->id)->count());
-        $this->assertSame($scheduleB->id, EmployeeScheduleAssignment::where('user_id', $user->id)->first()->work_schedule_id);
+        // ...menugaskan jadwal LAIN yang berlaku LEBIH AWAL ditolak (aturan model:
+        // "Pilih tanggal yang lebih baru"), penugasan A tetap utuh.
+        $this->expectException(\InvalidArgumentException::class);
+        try {
+            EmployeeScheduleAssignment::assignBulk($scheduleB, [$user->id], today()->addDays(1), null);
+        } finally {
+            $this->assertSame(1, EmployeeScheduleAssignment::where('user_id', $user->id)->count());
+            $this->assertSame($scheduleA->id, EmployeeScheduleAssignment::where('user_id', $user->id)->first()->work_schedule_id);
+        }
     }
 
     public function test_work_schedule_shift_id_for_returns_null_on_day_off(): void
@@ -110,11 +116,13 @@ class EmployeeScheduleAssignmentTest extends TestCase
         $scheduleB = $this->makeSchedule($store, 'Jadwal B');
         $user = User::create(['name' => 'A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
 
-        EmployeeScheduleAssignment::assignBulk($scheduleA, [$user->id], Carbon::parse('2026-09-01'), null);
-        EmployeeScheduleAssignment::assignBulk($scheduleB, [$user->id], Carbon::parse('2026-10-01'), null);
+        $startA = today()->subDays(25);
+        $startB = today()->subDays(5);
+        EmployeeScheduleAssignment::assignBulk($scheduleA, [$user->id], $startA, null);
+        EmployeeScheduleAssignment::assignBulk($scheduleB, [$user->id], $startB, null);
 
-        $activeInSeptember = EmployeeScheduleAssignment::activeFor($user->id, Carbon::parse('2026-09-15'));
-        $activeInOctober = EmployeeScheduleAssignment::activeFor($user->id, Carbon::parse('2026-10-15'));
+        $activeInSeptember = EmployeeScheduleAssignment::activeFor($user->id, today()->subDays(15));
+        $activeInOctober = EmployeeScheduleAssignment::activeFor($user->id, today());
 
         $this->assertSame($scheduleA->id, $activeInSeptember->work_schedule_id);
         $this->assertSame($scheduleB->id, $activeInOctober->work_schedule_id);
