@@ -30,7 +30,7 @@ class BookingStatusMachineTest extends TestCase
 
     private function makeBooking(string $status = 'pending'): Booking
     {
-        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $customer = Customer::create(['name' => 'Budi', 'phone_number' => '081200000' . random_int(100, 999)]);
 
         return Booking::create([

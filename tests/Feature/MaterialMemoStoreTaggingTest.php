@@ -21,7 +21,7 @@ class MaterialMemoStoreTaggingTest extends TestCase
 
     public function test_taking_material_via_memo_tags_movement_with_memo_store(): void
     {
-        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $material = RawMaterial::create([
             'name' => 'Adhesive Test',
             'code' => 'RM-TEST-' . uniqid(),

@@ -43,7 +43,7 @@ class EmployeeScheduleAssignmentTest extends TestCase
 
     public function test_assign_bulk_creates_open_assignment_for_each_user(): void
     {
-        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $schedule = $this->makeSchedule($store);
         $userA = User::create(['name' => 'A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
         $userB = User::create(['name' => 'B', 'email' => 'b@test.local', 'password' => 'x', 'store_id' => $store->id]);
@@ -57,7 +57,7 @@ class EmployeeScheduleAssignmentTest extends TestCase
 
     public function test_reassigning_closes_previous_open_assignment_and_keeps_history(): void
     {
-        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $scheduleA = $this->makeSchedule($store, 'Jadwal A');
         $scheduleB = $this->makeSchedule($store, 'Jadwal B');
         $user = User::create(['name' => 'A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
@@ -78,7 +78,7 @@ class EmployeeScheduleAssignmentTest extends TestCase
 
     public function test_reassigning_before_previous_start_date_replaces_it_instead_of_closing(): void
     {
-        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $scheduleA = $this->makeSchedule($store, 'Jadwal A');
         $scheduleB = $this->makeSchedule($store, 'Jadwal B');
         $user = User::create(['name' => 'A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
@@ -96,7 +96,7 @@ class EmployeeScheduleAssignmentTest extends TestCase
 
     public function test_work_schedule_shift_id_for_returns_null_on_day_off(): void
     {
-        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $schedule = $this->makeSchedule($store);
 
         $this->assertNotNull($schedule->shiftIdFor('mon'));
@@ -105,7 +105,7 @@ class EmployeeScheduleAssignmentTest extends TestCase
 
     public function test_active_for_returns_correct_assignment_by_date(): void
     {
-        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $scheduleA = $this->makeSchedule($store, 'Jadwal A');
         $scheduleB = $this->makeSchedule($store, 'Jadwal B');
         $user = User::create(['name' => 'A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);

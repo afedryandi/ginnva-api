@@ -24,7 +24,7 @@ class AttendanceCorrectionServiceTest extends TestCase
 
     private function makeStoreAndUser(): array
     {
-        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Test', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $user = User::create(['name' => 'Staff A', 'email' => 'staff-a@test.local', 'password' => 'x', 'store_id' => $store->id]);
 
         return [$store, $user];

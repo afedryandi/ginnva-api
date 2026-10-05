@@ -24,7 +24,7 @@ class TechnicianUtilizationServiceTest extends TestCase
     private function makeStore(): Store
     {
         return Store::create([
-            'city' => 'Jakarta',
+            'city' => 'Jakarta', 'address' => 'Jl. Test 1',
             'name' => 'Toko Test',
             'is_active' => true,
             // Buka 08:00-16:00 semua hari — 8 jam standar per hari.

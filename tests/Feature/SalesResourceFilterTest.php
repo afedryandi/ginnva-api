@@ -28,7 +28,7 @@ class SalesResourceFilterTest extends TestCase
 
     private function makeBooking(float $transaction, float $received): Booking
     {
-        $store = Store::create(['city' => 'Jakarta', 'name' => 'Toko Uji', 'is_active' => true]);
+        $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Uji', 'is_active' => true]);
         $customer = Customer::create(['name' => 'Uji', 'phone_number' => '0812' . random_int(1000000, 9999999)]);
 
         $booking = Booking::create([

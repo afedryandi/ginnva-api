@@ -40,8 +40,8 @@ class ScrollCodeTransferTest extends TestCase
 
     public function test_transfer_moves_store_and_creates_history_row(): void
     {
-        $storeA = Store::create(['city' => 'Jakarta', 'name' => 'Toko A', 'is_active' => true]);
-        $storeB = Store::create(['city' => 'Jakarta', 'name' => 'Toko B', 'is_active' => true]);
+        $storeA = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko A', 'is_active' => true]);
+        $storeB = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko B', 'is_active' => true]);
         $scrollCode = $this->makeAllocatedScrollCode($storeA->id);
 
         $transfer = $scrollCode->transferTo($storeB->id, 'Toko A kelebihan stok', null);
@@ -54,8 +54,8 @@ class ScrollCodeTransferTest extends TestCase
 
     public function test_transfer_rejected_when_status_is_not_allocated(): void
     {
-        $storeA = Store::create(['city' => 'Jakarta', 'name' => 'Toko A', 'is_active' => true]);
-        $storeB = Store::create(['city' => 'Jakarta', 'name' => 'Toko B', 'is_active' => true]);
+        $storeA = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko A', 'is_active' => true]);
+        $storeB = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko B', 'is_active' => true]);
         $scrollCode = $this->makeAllocatedScrollCode($storeA->id);
         $scrollCode->update(['status' => 'used']);
 
@@ -67,7 +67,7 @@ class ScrollCodeTransferTest extends TestCase
 
     public function test_transfer_rejected_when_destination_same_as_origin(): void
     {
-        $storeA = Store::create(['city' => 'Jakarta', 'name' => 'Toko A', 'is_active' => true]);
+        $storeA = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko A', 'is_active' => true]);
         $scrollCode = $this->makeAllocatedScrollCode($storeA->id);
 
         $this->expectException(\InvalidArgumentException::class);
@@ -78,9 +78,9 @@ class ScrollCodeTransferTest extends TestCase
 
     public function test_multiple_transfers_accumulate_in_history(): void
     {
-        $storeA = Store::create(['city' => 'Jakarta', 'name' => 'Toko A', 'is_active' => true]);
-        $storeB = Store::create(['city' => 'Jakarta', 'name' => 'Toko B', 'is_active' => true]);
-        $storeC = Store::create(['city' => 'Jakarta', 'name' => 'Toko C', 'is_active' => true]);
+        $storeA = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko A', 'is_active' => true]);
+        $storeB = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko B', 'is_active' => true]);
+        $storeC = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko C', 'is_active' => true]);
         $scrollCode = $this->makeAllocatedScrollCode($storeA->id);
 
         $scrollCode->transferTo($storeB->id, 'pertama', null);
