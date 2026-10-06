@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Booking;
+use App\Models\BookingMessage;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
@@ -17,7 +18,7 @@ class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoS
 
     public function query(): Builder
     {
-        $query = Booking::with(['customer', 'store']);
+        $query = Booking::with(['customer', 'store', 'installers:id,name', 'downPayments']);
 
         if ($this->storeId) {
             $query->where('store_id', $this->storeId);
@@ -35,11 +36,15 @@ class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoS
             'Toko', 'Jenis Layanan', 'Tanggal Diinginkan', 'Jam Diinginkan',
             'Status', 'Catatan', 'Diajukan Pada',
             'Alasan Pembatalan', 'Dibatalkan Oleh', 'Waktu Pembatalan',
+            'Tahap', 'Tahap PPF', 'Installer', 'Durasi (hari)', 'Tanggal Selesai',
+            'DP Diterima', 'DP Terpakai', 'Sisa DP',
         ];
     }
 
     public function map($booking): array
     {
+        $dpActive = $booking->downPayments->whereNull('refunded_at');
+
         return [
             $booking->booking_number,
             $booking->customer?->name ?? '—',
@@ -61,6 +66,16 @@ class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoS
             $booking->cancel_reason,
             ['customer' => 'Customer', 'staff' => 'Staff', 'system' => 'Sistem'][$booking->cancelled_by_type] ?? null,
             $booking->cancelled_at?->format('d/m/Y H:i'),
+            $booking->current_stage ? (BookingMessage::allStages()[$booking->current_stage] ?? $booking->current_stage) : null,
+            $booking->secondary_stage ? (BookingMessage::allStages()[$booking->secondary_stage] ?? $booking->secondary_stage) : null,
+            $booking->installers->pluck('name')->implode(', ') ?: null,
+            $booking->effective_duration_days,
+            $booking->end_date?->format('d/m/Y'),
+            // DP dihitung dari relasi yang sudah di-eager-load (bukan accessor
+            // outstanding_down_payment yang query per baris).
+            $dpActive->sum(fn ($dp) => (float) $dp->amount) ?: null,
+            $dpActive->sum(fn ($dp) => (float) $dp->applied_amount) ?: null,
+            $dpActive->sum(fn ($dp) => (float) $dp->amount - (float) $dp->applied_amount) ?: null,
         ];
     }
 
