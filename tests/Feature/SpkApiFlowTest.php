@@ -153,7 +153,10 @@ class SpkApiFlowTest extends TestCase
         $otherBooking = $this->booking([], $this->otherStore);
         $kasirA = $this->staff('kasir');
 
-        $this->actingAs($kasirA, 'api')->postJson('/api/staff/spks', $this->payload($otherBooking))->assertStatus(403);
+        // Booking toko lain tidak terlihat sama sekali oleh staf toko ini (scope toko),
+        // jadi ditolak sebagai "tidak valid" tanpa membocorkan keberadaannya.
+        $this->actingAs($kasirA, 'api')->postJson('/api/staff/spks', $this->payload($otherBooking))->assertStatus(422);
+        $this->assertSame(0, Spk::where('booking_id', $otherBooking->id)->count());
 
         $otherSpk = $this->createSpk($otherBooking, $this->staff('kasir', $this->otherStore));
         $this->actingAs($kasirA, 'api')->getJson("/api/staff/spks/{$otherSpk->id}")->assertStatus(404);
@@ -235,7 +238,7 @@ class SpkApiFlowTest extends TestCase
     {
         $product = FilmProduct::create([
             'sku' => 'PPF-TRACK', 'name' => 'PPF Lacak Roll', 'product_type' => 'ppf',
-            'position' => 'full', 'base_price' => 1_000_000, 'is_active' => true, 'tracks_batch' => true,
+            'position' => 'all', 'base_price' => 1_000_000, 'is_active' => true, 'tracks_batch' => true,
         ]);
         $booking = $this->booking(['film_product_id' => $product->id]);
         $spk = $this->createSpk($booking);
