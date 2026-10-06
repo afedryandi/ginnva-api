@@ -8,7 +8,7 @@ use App\Models\Customer;
 use App\Models\Store;
 use App\Models\StoreCapacityOverride;
 use App\Models\User;
-use Carbon\Carbon;
+use Illuminate\Support\Carbon;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
