@@ -134,7 +134,7 @@ class BookingPostingService
                 break;
             }
 
-            $use = min($remaining, (float) $dp->amount);
+            $use = min($remaining, (float) $dp->amount - (float) $dp->refunded_amount);
             $booking->downPayments()->whereKey($dp->id)->update(['applied_amount' => $use]);
             $remaining = round($remaining - $use, 2);
         }

@@ -250,4 +250,21 @@ class BookingApiFlowTest extends TestCase
         }
         $this->assertArrayNotHasKey('late_deduction_amount', $first['store'] ?? []);
     }
+
+    public function test_correcting_stage_to_qc_requires_all_products_at_last_stage(): void
+    {
+        $manager = $this->staff('store_manager');
+        $booking = $this->booking(['current_stage' => 'ppf_washing']);
+
+        $this->actingAs($manager, 'api')
+            ->postJson("/api/staff/bookings/{$booking->id}/stage-correction", ['stage' => 'qc', 'reason' => 'koreksi'])
+            ->assertStatus(422);
+
+        $booking->update(['current_stage' => 'ppf_installation']);
+
+        $this->actingAs($manager, 'api')
+            ->postJson("/api/staff/bookings/{$booking->id}/stage-correction", ['stage' => 'qc', 'reason' => 'koreksi'])
+            ->assertSuccessful();
+        $this->assertSame('qc', $booking->fresh()->current_stage);
+    }
 }

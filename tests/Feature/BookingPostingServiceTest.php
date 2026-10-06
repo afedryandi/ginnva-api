@@ -162,4 +162,38 @@ class BookingPostingServiceTest extends TestCase
         $this->assertEquals(200_000, (float) $dp->applied_amount);
         $this->assertEquals(300_000, (float) $booking->fresh()->outstanding_down_payment);
     }
+
+    public function test_refund_unused_remainder_returns_only_unused_part_and_keeps_2140_balanced(): void
+    {
+        $booking = $this->makeBooking(['status' => 'confirmed']);
+        app(DownPaymentService::class)->receive($booking, 500_000, null, null);
+        $booking->update(['status' => 'completed', 'transaction_amount' => 1_000_000, 'amount_received' => 200_000]);
+        app(BookingPostingService::class)->sync($booking->fresh());
+
+        $total = app(DownPaymentService::class)->refundUnusedRemainder($booking->fresh(), null);
+
+        $this->assertEquals(300_000, $total);
+        $dp = $booking->downPayments()->first();
+        $this->assertEquals(300_000, (float) $dp->refunded_amount);
+        $this->assertEquals(0.0, (float) $booking->fresh()->outstanding_down_payment);
+
+        // Saldo 2140 = DP diterima (500rb) - dipakai (200rb) - dikembalikan (300rb) = 0.
+        $deferredId = \App\Models\ChartOfAccount::where('code', '2140')->value('id');
+        $credit = (float) \App\Models\JournalEntryLine::where('chart_of_account_id', $deferredId)->sum('credit');
+        $debit = (float) \App\Models\JournalEntryLine::where('chart_of_account_id', $deferredId)->sum('debit');
+        $this->assertEquals(0.0, round($credit - $debit, 2));
+
+        // Kedua kali: tidak ada sisa lagi.
+        $this->expectException(RuntimeException::class);
+        app(DownPaymentService::class)->refundUnusedRemainder($booking->fresh(), null);
+    }
+
+    public function test_refund_unused_remainder_requires_completed_booking(): void
+    {
+        $booking = $this->makeBooking(['status' => 'confirmed']);
+        app(DownPaymentService::class)->receive($booking, 100_000, null, null);
+
+        $this->expectException(RuntimeException::class);
+        app(DownPaymentService::class)->refundUnusedRemainder($booking->fresh(), null);
+    }
 }

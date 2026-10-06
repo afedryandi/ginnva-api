@@ -121,7 +121,9 @@ class DownPaymentService
                 throw new RuntimeException('Akun Kas / Pendapatan Diterima Dimuka tidak ditemukan di Bagan Akun.');
             }
 
-            $amount = (float) $locked->amount;
+            // Sisa yang belum dikembalikan (sebagian bisa sudah dikembalikan lewat
+            // refundUnusedRemainder()).
+            $amount = round((float) $locked->amount - (float) $locked->refunded_amount, 2);
 
             $service = app(JournalEntryService::class);
             $entry = $service->create([
@@ -143,6 +145,77 @@ class DownPaymentService
             ]);
 
             return $locked->fresh();
+        });
+    }
+
+    /**
+     * Kembalikan SISA DP yang tidak terpakai pada booking yang SUDAH selesai &
+     * diposting (keputusan 2026-10-06): per DP, sisa = amount - applied_amount
+     * - refunded_amount. Jurnal Dr 2140 / Kr Kas per DP. DP yang sama sekali
+     * tidak terpakai dikembalikan penuh lewat refund().
+     *
+     * @return float total yang dikembalikan
+     * @throws RuntimeException kalau booking belum selesai atau tidak ada sisa
+     */
+    public function refundUnusedRemainder(Booking $booking, ?int $userId): float
+    {
+        return DB::transaction(function () use ($booking, $userId) {
+            $locked = Booking::query()->where('id', $booking->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== 'completed') {
+                throw new RuntimeException('Sisa DP hanya bisa dikembalikan setelah booking selesai. Untuk booking berjalan, batalkan booking agar DP dikembalikan penuh.');
+            }
+
+            $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
+            $deferredRevenue = ChartOfAccount::where('code', self::DEFERRED_REVENUE_ACCOUNT_CODE)->first();
+            if (! $cash || ! $deferredRevenue) {
+                throw new RuntimeException('Akun Kas / Pendapatan Diterima Dimuka tidak ditemukan di Bagan Akun.');
+            }
+
+            $total = 0.0;
+            $service = app(JournalEntryService::class);
+
+            $dps = BookingDownPayment::query()
+                ->where('booking_id', $locked->id)
+                ->whereNull('refunded_at')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($dps as $dp) {
+                $remainder = round((float) $dp->amount - (float) $dp->applied_amount - (float) $dp->refunded_amount, 2);
+
+                if ($remainder < 0.01) {
+                    continue;
+                }
+
+                $entry = $service->create([
+                    'entry_date' => now()->toDateString(),
+                    'store_id' => $locked->store_id,
+                    'description' => "Pengembalian sisa DP -- booking {$locked->booking_number} ({$locked->display_customer_name})",
+                    'reference_type' => 'booking_down_payment_refund',
+                    'reference_id' => $dp->id,
+                    'created_by' => $userId,
+                ], [
+                    ['chart_of_account_id' => $deferredRevenue->id, 'debit' => $remainder],
+                    ['chart_of_account_id' => $cash->id, 'credit' => $remainder],
+                ]);
+                $entry = $service->post($entry, $userId);
+
+                $fullyUnused = (float) $dp->applied_amount <= 0.0;
+                $dp->update(array_filter([
+                    'refunded_amount' => round((float) $dp->refunded_amount + $remainder, 2),
+                    'refund_journal_entry_id' => $entry->id,
+                    'refunded_at' => $fullyUnused ? now() : null,
+                ], fn ($v) => $v !== null));
+
+                $total += $remainder;
+            }
+
+            if ($total <= 0) {
+                throw new RuntimeException('Tidak ada sisa DP yang bisa dikembalikan pada booking ini.');
+            }
+
+            return round($total, 2);
         });
     }
 

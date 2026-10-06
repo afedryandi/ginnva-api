@@ -14,7 +14,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
 {
-    public function __construct(private ?int $storeId = null) {}
+    /** @param  list<int>|null  $bookingIds  batasi ke id tertentu (hasil filter tabel); null = semua */
+    public function __construct(private ?int $storeId = null, private ?array $bookingIds = null) {}
 
     public function query(): Builder
     {
@@ -22,6 +23,10 @@ class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoS
 
         if ($this->storeId) {
             $query->where('store_id', $this->storeId);
+        }
+
+        if ($this->bookingIds !== null) {
+            $query->whereIn('id', $this->bookingIds);
         }
 
         // id sebagai tiebreaker: tanpa itu urutan baris bertanggal sama bisa
@@ -75,7 +80,7 @@ class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoS
             // outstanding_down_payment yang query per baris).
             $dpActive->sum(fn ($dp) => (float) $dp->amount) ?: null,
             $dpActive->sum(fn ($dp) => (float) $dp->applied_amount) ?: null,
-            $dpActive->sum(fn ($dp) => (float) $dp->amount - (float) $dp->applied_amount) ?: null,
+            $dpActive->sum(fn ($dp) => (float) $dp->amount - (float) $dp->applied_amount - (float) $dp->refunded_amount) ?: null,
         ];
     }
 

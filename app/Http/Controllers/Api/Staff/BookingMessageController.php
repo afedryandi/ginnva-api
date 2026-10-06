@@ -161,18 +161,8 @@ class BookingMessageController extends Controller
         // API langsung (atau bug UI lain di masa depan) bisa menandai QC
         // — dan berujung "Selesai" — padahal salah satu produk (mis. PPF
         // di booking Kaca Film+PPF) belum benar-benar selesai dikerjakan.
-        if ($request->type === 'stage' && $request->stage === 'qc') {
-            $kacaFilmLastStage = array_key_last(BookingMessage::PRODUCT_STAGES['kaca_film']);
-            $ppfLastStage = array_key_last(BookingMessage::PRODUCT_STAGES['ppf']);
-            $bothProducts = $booking->product_kaca_film && $booking->product_ppf;
-
-            $kacaFilmDone = ! $booking->product_kaca_film || $booking->current_stage === $kacaFilmLastStage;
-            $ppfDone = ! $booking->product_ppf
-                || ($bothProducts ? $booking->secondary_stage === $ppfLastStage : $booking->current_stage === $ppfLastStage);
-
-            if (! $kacaFilmDone || ! $ppfDone) {
-                abort(422, 'Quality Check belum bisa ditandai — semua produk yang dipesan (Kaca Film/PPF) harus sama-sama sampai tahap terakhirnya dulu.');
-            }
+        if ($request->type === 'stage' && $request->stage === 'qc' && ($qcBlocker = $booking->qualityCheckBlocker())) {
+            abort(422, $qcBlocker);
         }
 
         // Total ukuran satu kiriman dibatasi (< post_max_size server): 10 foto x

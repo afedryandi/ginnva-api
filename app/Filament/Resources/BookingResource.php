@@ -1267,6 +1267,31 @@ class BookingResource extends Resource
                             ->send();
                     }),
 
+                // Kembalikan SISA DP yang tidak terpakai setelah booking selesai
+                // (keputusan 2026-10-06). Uang keluar -> hanya akses penuh.
+                Tables\Actions\Action::make('refund_unused_dp')
+                    ->label('Kembalikan Sisa DP')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->visible(fn (Booking $record) => $record->status === 'completed'
+                        && $record->outstanding_down_payment > 0.009
+                        && (auth()->user()?->isFullAccess() ?? false))
+                    ->requiresConfirmation()
+                    ->modalHeading('Kembalikan Sisa DP?')
+                    ->modalDescription(fn (Booking $record) => 'Rp' . number_format($record->outstanding_down_payment, 0, ',', '.')
+                        . ' dari DP tidak terpakai melunasi pembayaran. Jurnal: Dr Pendapatan Diterima Dimuka (2140) / Kr Kas.')
+                    ->action(function (Booking $record) {
+                        try {
+                            $total = app(\App\Services\DownPaymentService::class)->refundUnusedRemainder($record, auth()->id());
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Sisa DP tidak bisa dikembalikan')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Sisa DP Rp' . number_format($total, 0, ',', '.') . ' dikembalikan & jurnal dibuat.')->success()->send();
+                    }),
+
                 // Nominal transaksi & kode referral partner SENGAJA diproses
                 // bareng di sini (Filament), bukan saat "Selesaikan Booking"
                 // di mobile app lagi — dipisah supaya staff toko fokus ke
@@ -1806,13 +1831,17 @@ class BookingResource extends Resource
                     ->label('Export Excel')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
-                    ->action(function () {
+                    ->action(function ($livewire) {
                         $storeId = auth()->user()?->isFullAccess()
                             ? null
                             : auth()->user()?->store_id;
 
+                        // Ekspor mengikuti filter & pencarian tabel yang aktif
+                        // (keputusan 2026-10-06).
+                        $ids = $livewire->getFilteredTableQuery()->reorder()->pluck('bookings.id')->all();
+
                         return Excel::download(
-                            new BookingExport($storeId),
+                            new BookingExport($storeId, $ids),
                             'booking-' . now()->format('Ymd') . '.xlsx'
                         );
                     }),

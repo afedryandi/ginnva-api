@@ -551,6 +551,11 @@ class BookingController extends Controller
                 }
                 $column = Booking::stageColumnFor($both, $stage);
                 $target = $stage;
+
+                // Koreksi ke QC wajib prasyarat yang sama dengan chat.
+                if ($stage === 'qc' && ($qcBlocker = $locked->qualityCheckBlocker())) {
+                    abort(422, $qcBlocker);
+                }
             }
 
             // Satu entri log (otomatis, LogsActivity) + alasan lewat tapActivity --

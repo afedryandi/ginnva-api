@@ -724,7 +724,7 @@ class Booking extends Model
     {
         // Sisa DP = amount - applied_amount (porsi yang sudah melunasi pembayaran
         // saat booking diposting tidak dihitung lagi).
-        return (float) $this->downPayments()->whereNull('refunded_at')->sum(DB::raw('amount - applied_amount'));
+        return (float) $this->downPayments()->whereNull('refunded_at')->sum(DB::raw('amount - applied_amount - refunded_amount'));
     }
 
     /**
@@ -797,6 +797,26 @@ class Booking extends Model
         }
 
         return array_merge($sequence, array_keys(BookingMessage::SHARED_STAGES));
+    }
+
+    /**
+     * Prasyarat tahap Quality Check: semua produk yang dipesan sudah sampai
+     * tahap terakhirnya. Null kalau boleh. Dipakai chat staff DAN koreksi tahap
+     * supaya aturannya satu.
+     */
+    public function qualityCheckBlocker(): ?string
+    {
+        $kacaFilmLast = array_key_last(BookingMessage::PRODUCT_STAGES['kaca_film']);
+        $ppfLast = array_key_last(BookingMessage::PRODUCT_STAGES['ppf']);
+        $both = $this->product_kaca_film && $this->product_ppf;
+
+        $kacaFilmDone = ! $this->product_kaca_film || $this->current_stage === $kacaFilmLast;
+        $ppfDone = ! $this->product_ppf
+            || ($both ? $this->secondary_stage === $ppfLast : $this->current_stage === $ppfLast);
+
+        return ($kacaFilmDone && $ppfDone)
+            ? null
+            : 'Quality Check belum bisa ditandai — semua produk yang dipesan (Kaca Film/PPF) harus sama-sama sampai tahap terakhirnya dulu.';
     }
 
     /**
