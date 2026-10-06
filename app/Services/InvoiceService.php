@@ -160,7 +160,10 @@ class InvoiceService
 
     private function recalculateTotals(Invoice $invoice): void
     {
-        $invoice->loadMissing('items');
+        // load() (bukan loadMissing): relasi items yang sudah ter-load sebelumnya
+        // (mis. dari create()/fresh('items')) basi setelah baris diganti, dan
+        // subtotal akan dihitung dari baris LAMA.
+        $invoice->load('items');
 
         $subtotal = (float) $invoice->items->sum('total');
 
