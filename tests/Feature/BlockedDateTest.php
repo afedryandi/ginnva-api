@@ -226,10 +226,13 @@ class BlockedDateTest extends TestCase
 
         // Staf toko B tidak boleh melihat toko A walau memanipulasi storeId.
         $this->actingAs($this->user('store_manager', $this->storeB->id), 'web');
+        BlockedDate::create(['store_id' => $this->storeB->id, 'date' => now()->toDateString(), 'reason' => 'Libur toko B']);
+
         Livewire::test(BlockedDateCalendarWidget::class)
-            ->assertSet('storeId', $this->storeB->id)
-            ->set('storeId', $this->storeA->id)
-            ->assertSet('storeId', $this->storeB->id)
+            ->assertSee('Libur toko B')
+            ->assertDontSee('Libur nasional')
+            ->set('storeId', $this->storeA->id) // manipulasi manual
+            ->assertSee('Libur toko B')
             ->assertDontSee('Libur nasional');
     }
 }
