@@ -214,18 +214,22 @@ class BlockedDateTest extends TestCase
 
     public function test_calendar_widget_marks_blocked_days_and_locks_store_for_staff(): void
     {
-        $this->blocked($this->storeA, 4, 'Libur nasional');
+        // Hari ini pasti ada di bulan yang tampil.
+        $today = BlockedDate::create(['store_id' => $this->storeA->id, 'date' => now()->toDateString(), 'reason' => 'Libur nasional']);
 
         $component = Livewire::test(BlockedDateCalendarWidget::class)->assertSuccessful();
         $days = collect($component->instance()->getCalendarDays());
         $this->assertNotEmpty($days);
         $this->assertSame(0, $days->count() % 7);
+        $this->assertTrue($days->firstWhere('date', $today->date->toDateString())['blocked']);
+        $component->assertSee('Libur nasional');
 
         // Staf toko B tidak boleh melihat toko A walau memanipulasi storeId.
         $this->actingAs($this->user('store_manager', $this->storeB->id), 'web');
-        $component = Livewire::test(BlockedDateCalendarWidget::class)->set('storeId', $this->storeA->id);
-
-        $this->assertSame($this->storeB->id, $component->instance()->effectiveStoreId());
-        $this->assertSame(0, collect($component->instance()->getCalendarDays())->where('blocked', true)->count());
+        Livewire::test(BlockedDateCalendarWidget::class)
+            ->assertSet('storeId', $this->storeB->id)
+            ->set('storeId', $this->storeA->id)
+            ->assertSet('storeId', $this->storeB->id)
+            ->assertDontSee('Libur nasional');
     }
 }
