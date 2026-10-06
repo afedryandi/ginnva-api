@@ -35,6 +35,8 @@ class QuotationFilamentSmokeTest extends TestCase
         parent::setUp();
 
         Http::fake();
+        // Izin 'quotation.manage' (edit/buat) dibagikan oleh seeder ke super_admin di lingkungan sungguhan.
+        $this->seed(\Database\Seeders\RolePermissionSeeder::class);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $admin = User::create(['name' => 'Admin', 'email' => 'admin@test.local', 'password' => 'x']);
