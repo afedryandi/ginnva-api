@@ -247,4 +247,48 @@ class QuotationFlowTest extends TestCase
         $this->assertStringContainsString('1 lead', $admin->notifications()->first()->data['body']);
         $this->assertNotNull($fresh->fresh());
     }
+
+    public function test_lead_without_store_pushes_to_full_access_and_quotation_staff_only(): void
+    {
+        Mail::fake();
+        $admin = $this->staff('super_admin', null);
+        $kasirWithAccess = $this->staff('kasir', $this->store->id);
+        $kasirNoAccess = $this->staff('kasir', $this->store->id, ['SomeOtherResource']);
+        $inactive = $this->staff('super_admin', null);
+        $inactive->update(['is_active' => false]);
+
+        $ids = app(\App\Services\PushNotificationService::class)->unassignedQuotationRecipientIds();
+
+        $this->assertTrue($ids->contains($admin->id));
+        $this->assertTrue($ids->contains($kasirWithAccess->id));
+        $this->assertFalse($ids->contains($kasirNoAccess->id));
+        $this->assertFalse($ids->contains($inactive->id));
+    }
+
+    public function test_new_lead_without_store_triggers_push_dispatch(): void
+    {
+        Mail::fake();
+        $admin = $this->staff('super_admin', null);
+        \App\Models\DeviceToken::create(['user_id' => $admin->id, 'token' => 'ExponentPushToken[test-admin]']);
+
+        $this->postJson('/api/quotation/submit', $this->payload())->assertStatus(201);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'exp.host')
+            && str_contains(json_encode($request->data()), 'Lead Baru'));
+    }
+
+    public function test_stale_lead_without_store_is_pushed_too(): void
+    {
+        $admin = $this->staff('super_admin', null);
+        \App\Models\DeviceToken::create(['user_id' => $admin->id, 'token' => 'ExponentPushToken[test-admin]']);
+
+        $stale = $this->lead(['store_id' => null]);
+        DB::table('quotations')->where('id', $stale->id)->update(['created_at' => now()->subHours(25)]);
+        Http::fake(); // reset catatan request dari pembuatan lead
+
+        $this->artisan('quotations:notify-stale')->assertSuccessful();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'exp.host')
+            && str_contains(json_encode($request->data()), 'Lead Belum Di-follow-up'));
+    }
 }

@@ -75,6 +75,22 @@ class PushNotificationService
     }
 
     /**
+     * Penerima push untuk lead Quotation yang BELUM punya toko (mis. form
+     * website): akun aktif dengan akses penuh atau akses menu Quotation
+     * (keputusan 2026-10-06). Lead yang sudah punya toko tetap lewat
+     * sendToStoreStaff().
+     */
+    public function unassignedQuotationRecipientIds(): \Illuminate\Support\Collection
+    {
+        return User::where('is_active', true)
+            ->with('roles')
+            ->get()
+            ->filter(fn (User $u) => $u->isFullAccess() || $u->hasQuotationAccess())
+            ->pluck('id')
+            ->values();
+    }
+
+    /**
      * Kirim push HANYA ke direksi yang ditunjuk sebagai watcher booking
      * tertentu (lihat Booking::watchers()) — dipakai bersamaan dengan
      * sendToStoreStaff() saat ada pesan/update baru di booking chat.

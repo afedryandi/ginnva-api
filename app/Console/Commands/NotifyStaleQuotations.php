@@ -45,7 +45,17 @@ class NotifyStaleQuotations extends Command
         // dapat lewat sendToStoreStaff() (selalu diikutkan, lihat
         // catatannya sendiri) + bell notifikasi Filament di bawah.
         foreach ($staleQuotations->groupBy('store_id') as $storeId => $group) {
-            if (! $storeId) continue;
+            if (! $storeId) {
+                // Lead tanpa toko ikut diingatkan (sebelumnya dilewati).
+                $push->sendToUsers(
+                    $push->unassignedQuotationRecipientIds(),
+                    'Lead Belum Di-follow-up',
+                    "{$group->count()} lead quotation (belum ditentukan tokonya) sudah lebih dari 24 jam belum ditindak.",
+                    ['type' => 'quotation_stale', 'route' => '/staff/quotations?status=new'],
+                );
+
+                continue;
+            }
 
             $push->sendToStoreStaff(
                 (int) $storeId,

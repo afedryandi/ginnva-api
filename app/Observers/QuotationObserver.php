@@ -90,6 +90,14 @@ class QuotationObserver
                 ['type' => 'quotation_new', 'quotation_id' => $quotation->id, 'route' => "/staff/quotations/{$quotation->id}"],
                 QuotationResource::class,
             );
+        } else {
+            // Lead tanpa toko (form website): sebelumnya TIDAK ada push sama sekali.
+            $this->push->sendToUsers(
+                $this->push->unassignedQuotationRecipientIds(),
+                'Lead Baru',
+                "Permintaan penawaran baru dari {$quotation->customer_name}.",
+                ['type' => 'quotation_new', 'quotation_id' => $quotation->id, 'route' => "/staff/quotations/{$quotation->id}"],
+            );
         }
     }
 }
