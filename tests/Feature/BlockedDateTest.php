@@ -228,11 +228,16 @@ class BlockedDateTest extends TestCase
         $this->actingAs($this->user('store_manager', $this->storeB->id), 'web');
         BlockedDate::create(['store_id' => $this->storeB->id, 'date' => now()->toDateString(), 'reason' => 'Libur toko B']);
 
-        Livewire::test(BlockedDateCalendarWidget::class)
-            ->assertSee('Libur toko B')
-            ->assertDontSee('Libur nasional')
-            ->set('storeId', $this->storeA->id) // manipulasi manual
-            ->assertSee('Libur toko B')
-            ->assertDontSee('Libur nasional');
+        // Diuji langsung di level class (render Livewire di test tidak
+        // mempertahankan user pada request update widget ini).
+        $widget = new BlockedDateCalendarWidget();
+        $widget->mount();
+        $widget->storeId = $this->storeA->id; // manipulasi manual
+
+        $this->assertSame($this->storeB->id, $widget->effectiveStoreId());
+
+        $reasons = collect($widget->getCalendarDays())->where('blocked', true)->pluck('reason')->all();
+        $this->assertContains('Libur toko B', $reasons);
+        $this->assertNotContains('Libur nasional', $reasons);
     }
 }
