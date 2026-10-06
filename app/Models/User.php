@@ -418,6 +418,21 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
             || $this->hasConsumableAccess() || $this->hasMaterialMemoAccess() || $this->hasPurchaseRequestAccess();
     }
 
+    /**
+     * Akses SPK (mobile & API): installer selalu (mengisi SPK bagian dari
+     * pekerjaannya, scoping ke booking miliknya ditegakkan di controller);
+     * staf lain wajib punya menu SPK (keputusan 2026-10-06).
+     */
+    public function hasSpkAccess(): bool
+    {
+        if ($this->hasRole('installer')) {
+            return true;
+        }
+
+        return $this->canAccessStaffArea()
+            && $this->hasMenuAccess(\App\Filament\Resources\SpkResource::class);
+    }
+
     public function hasPpfWfAccess(): bool
     {
         return $this->canAccessStaffArea()

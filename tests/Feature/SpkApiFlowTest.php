@@ -281,4 +281,30 @@ class SpkApiFlowTest extends TestCase
         $this->assertStringEndsWith('0001', $numbers[0]);
         $this->assertStringEndsWith('0003', $numbers[2]);
     }
+
+    public function test_staff_without_spk_menu_access_is_forbidden_but_installer_is_not(): void
+    {
+        $booking = $this->booking();
+        $spk = $this->createSpk($booking);
+
+        $noSpkMenu = User::create([
+            'name' => 'Tanpa Menu SPK', 'email' => uniqid() . '@test.local', 'password' => 'x',
+            'store_id' => $this->store->id, 'menu_access' => ['SomeOtherResource'],
+        ]);
+        $noSpkMenu->assignRole('kasir');
+
+        $this->actingAs($noSpkMenu, 'api')->getJson('/api/staff/spks')->assertStatus(403);
+        $this->actingAs($noSpkMenu, 'api')->getJson("/api/staff/spks/{$spk->id}")->assertStatus(403);
+        $this->actingAs($noSpkMenu, 'api')->postJson('/api/staff/spks', $this->payload($this->booking()))->assertStatus(403);
+
+        // Installer yang ditugaskan tetap bisa, walau menu_access dibatasi.
+        $installer = User::create([
+            'name' => 'Installer', 'email' => uniqid() . '@test.local', 'password' => 'x',
+            'store_id' => $this->store->id, 'menu_access' => ['SomeOtherResource'],
+        ]);
+        $installer->assignRole('installer');
+        $booking->installers()->attach($installer->id);
+
+        $this->actingAs($installer, 'api')->getJson("/api/staff/spks/{$spk->id}")->assertSuccessful();
+    }
 }

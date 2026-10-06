@@ -38,7 +38,15 @@ class SpkController extends Controller
     {
         $user = $request->user('api');
 
-        return (bool) ($user && ! $user->hasRole('partner'));
+        if (! $user || $user->hasRole('partner')) {
+            return false;
+        }
+
+        // Akses menu SPK (keputusan 2026-10-06, konsisten dengan Booking): staf
+        // non-installer wajib punya menu SPK; installer dikecualikan karena
+        // mengisi SPK adalah bagian pekerjaannya (scoping ke booking miliknya
+        // tetap ditegakkan per-method).
+        return $user->hasSpkAccess();
     }
 
     /**

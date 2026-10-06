@@ -250,6 +250,7 @@ class AuthController extends Controller
             // Cuma Store Manager/akses penuh yang boleh memutuskan pengajuan
             // pembatalan customer (sama dengan gate server).
             'can_decide_booking_requests' => $user->isFullAccess() || $user->isStoreManager(),
+            'has_spk_access'       => $user->hasSpkAccess(),
             'has_quotation_access' => $user->hasQuotationAccess(),
             'has_inventory_access' => $user->hasInventoryAccess(),
             // Granular per-submenu — dipakai buat filter menu MANA yang
