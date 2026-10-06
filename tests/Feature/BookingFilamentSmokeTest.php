@@ -47,7 +47,9 @@ class BookingFilamentSmokeTest extends TestCase
 
         $admin = User::create(['name' => 'Admin', 'email' => 'admin@test.local', 'password' => 'x']);
         $admin->assignRole('super_admin');
-        $this->actingAs($admin);
+        // Panel admin Filament memakai guard 'web' (sesi); actingAs 'web' juga menjadikannya
+        // guard default seperti saat request panel sungguhan.
+        $this->actingAs($admin, 'web');
 
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
         $customer = Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(1000000, 9999999)]);

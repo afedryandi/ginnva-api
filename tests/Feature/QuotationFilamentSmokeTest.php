@@ -40,7 +40,9 @@ class QuotationFilamentSmokeTest extends TestCase
         $admin = User::create(['name' => 'Admin', 'email' => 'admin@test.local', 'password' => 'x']);
         $admin->assignRole('super_admin');
         $this->admin = $admin;
-        $this->actingAs($admin);
+        // Panel admin Filament memakai guard 'web' (sesi); actingAs 'web' juga menjadikannya
+        // guard default seperti saat request panel sungguhan.
+        $this->actingAs($admin, 'web');
 
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko A', 'is_active' => true]);
         $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Raize', 'size_category' => 'M']);
@@ -68,11 +70,11 @@ class QuotationFilamentSmokeTest extends TestCase
         $this->contacted = $make('contacted');
     }
 
-    public function test_diagnose_authorization_for_super_admin(): void
+    public function test_super_admin_passes_quotation_authorization(): void
     {
         $user = Filament::auth()->user();
 
-        $this->assertNotNull($user, 'Filament::auth()->user() null: guard Filament tidak sama dengan guard actingAs.');
+        $this->assertNotNull($user, 'Filament::auth()->user() null: guard Filament berbeda dari guard login.');
         $this->assertTrue($this->admin->canAccessStaffArea(), 'canAccessStaffArea() false untuk super_admin.');
         $this->assertTrue($this->admin->hasMenuAccess(\App\Filament\Resources\QuotationResource::class), 'hasMenuAccess() false.');
         $this->assertTrue(\Illuminate\Support\Facades\Gate::forUser($user)->check('viewAny', Quotation::class), 'Gate viewAny Quotation ditolak.');
