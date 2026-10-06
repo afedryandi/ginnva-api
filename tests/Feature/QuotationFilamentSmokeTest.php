@@ -26,6 +26,7 @@ class QuotationFilamentSmokeTest extends TestCase
 {
     use RefreshDatabase;
 
+    private User $admin;
     private Quotation $new;
     private Quotation $contacted;
 
@@ -38,6 +39,7 @@ class QuotationFilamentSmokeTest extends TestCase
 
         $admin = User::create(['name' => 'Admin', 'email' => 'admin@test.local', 'password' => 'x']);
         $admin->assignRole('super_admin');
+        $this->admin = $admin;
         $this->actingAs($admin);
 
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko A', 'is_active' => true]);
@@ -64,6 +66,17 @@ class QuotationFilamentSmokeTest extends TestCase
 
         $this->new = $make('new');
         $this->contacted = $make('contacted');
+    }
+
+    public function test_diagnose_authorization_for_super_admin(): void
+    {
+        $user = Filament::auth()->user();
+
+        $this->assertNotNull($user, 'Filament::auth()->user() null: guard Filament tidak sama dengan guard actingAs.');
+        $this->assertTrue($this->admin->canAccessStaffArea(), 'canAccessStaffArea() false untuk super_admin.');
+        $this->assertTrue($this->admin->hasMenuAccess(\App\Filament\Resources\QuotationResource::class), 'hasMenuAccess() false.');
+        $this->assertTrue(\Illuminate\Support\Facades\Gate::forUser($user)->check('viewAny', Quotation::class), 'Gate viewAny Quotation ditolak.');
+        $this->assertTrue(\App\Filament\Resources\QuotationResource::canViewAny(), 'QuotationResource::canViewAny() false.');
     }
 
     public function test_quotation_list_renders_and_status_filter_works(): void

@@ -86,9 +86,13 @@ class QuotationFlowTest extends TestCase
     {
         $this->getJson('/api/quotation/options')
             ->assertSuccessful()
-            ->assertJsonPath('data.brands.0', 'Toyota')
-            ->assertJsonPath('data.vehicles.0.model', 'Raize')
-            ->assertJsonPath('data.products.0.name', 'Produk Q1');
+            ->assertJsonStructure(['data' => ['brands', 'vehicles', 'products']]);
+
+        // Migrasi sudah menanam data kendaraan, jadi cek keberadaan (bukan urutan).
+        $response = $this->getJson('/api/quotation/options');
+        $this->assertContains('Toyota', $response->json('data.brands'));
+        $this->assertTrue(collect($response->json('data.vehicles'))->contains(fn ($v) => $v['model'] === 'Raize'));
+        $this->assertTrue(collect($response->json('data.products'))->contains(fn ($p) => $p['name'] === 'Produk Q1'));
     }
 
     public function test_submit_without_email_or_store_creates_lead_and_notifies_full_access(): void
