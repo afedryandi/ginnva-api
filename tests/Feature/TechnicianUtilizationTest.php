@@ -154,6 +154,6 @@ class TechnicianUtilizationTest extends TestCase
         $row = $this->row($this->summarize()->all(), $tech->id);
 
         $this->assertSame(200.0, $row['utilization_percent']);
-        $this->assertSame(0.0, $row['idle_hours'], 'Idle tidak pernah negatif.');
+        $this->assertEquals(0, $row['idle_hours'], 'Idle tidak pernah negatif.');
     }
 }
