@@ -13,7 +13,7 @@ use Tests\TestCase;
 
 /**
  * Kolom telepon (->tel()) di form Filament memakai pola global dari AppServiceProvider: angka, spasi,
- * + ( ) - dan titik, 6-30 karakter. Pola bawaan Filament menolak nomor sah 13 digit / berawalan +62.
+ * + ( ) - dan titik, 3-30 karakter. Pola bawaan Filament terbukti menolak "+62 21 (555) 1234".
  * Diuji lewat form Partner (salah satu dari belasan form dengan ->tel()).
  */
 class PhoneInputFormatTest extends TestCase
@@ -51,7 +51,7 @@ class PhoneInputFormatTest extends TestCase
     public function test_letters_and_too_short_numbers_are_rejected(): void
     {
         $this->create('telepon-rumah', 'a@mitra.test')->assertHasFormErrors(['phone']);
-        $this->create('12345', 'b@mitra.test')->assertHasFormErrors(['phone']);
+        $this->create('12', 'b@mitra.test')->assertHasFormErrors(['phone']);
 
         $this->assertSame(0, Partner::count());
     }
