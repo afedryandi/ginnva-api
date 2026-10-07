@@ -144,6 +144,10 @@ class PayableAgingReport extends Page implements HasForms
      */
     public function getAging(): array
     {
+        // Tanggal "hari ini" dari APLIKASI (zona waktu app), bukan CURDATE() MySQL: tanpa pengaturan zona waktu
+        // koneksi, tanggal MySQL bisa beda sehari beberapa jam tiap hari dan menggeser umur tagihan antar kelompok.
+        $today = "'" . today()->toDateString() . "'";
+
         // Dikelompokkan per SUPPLIER MASTER (supplier_id), bukan teks supplier_name -- sebelumnya
         // supplier yang sama bisa terpecah jadi beberapa baris kalau ejaan/kapitalisasi nama lama
         // beda dari master saat ini (audit Umur Hutang 2026-09-29). Tagihan tanpa supplier_id
@@ -154,11 +158,11 @@ class PayableAgingReport extends Page implements HasForms
             ->selectRaw("
                 MIN(payables.supplier_id) as supplier_id,
                 COALESCE(MIN(suppliers.name), MIN(payables.supplier_name), '—') as supplier,
-                SUM(CASE WHEN payables.due_date IS NULL OR payables.due_date >= CURDATE() THEN payables.amount - payables.amount_paid ELSE 0 END) as current_amt,
-                SUM(CASE WHEN payables.due_date < CURDATE() AND DATEDIFF(CURDATE(), payables.due_date) <= 30 THEN payables.amount - payables.amount_paid ELSE 0 END) as b1,
-                SUM(CASE WHEN payables.due_date < CURDATE() AND DATEDIFF(CURDATE(), payables.due_date) BETWEEN 31 AND 60 THEN payables.amount - payables.amount_paid ELSE 0 END) as b2,
-                SUM(CASE WHEN payables.due_date < CURDATE() AND DATEDIFF(CURDATE(), payables.due_date) BETWEEN 61 AND 90 THEN payables.amount - payables.amount_paid ELSE 0 END) as b3,
-                SUM(CASE WHEN payables.due_date < CURDATE() AND DATEDIFF(CURDATE(), payables.due_date) > 90 THEN payables.amount - payables.amount_paid ELSE 0 END) as b4,
+                SUM(CASE WHEN payables.due_date IS NULL OR payables.due_date >= {$today} THEN payables.amount - payables.amount_paid ELSE 0 END) as current_amt,
+                SUM(CASE WHEN payables.due_date < {$today} AND DATEDIFF({$today}, payables.due_date) <= 30 THEN payables.amount - payables.amount_paid ELSE 0 END) as b1,
+                SUM(CASE WHEN payables.due_date < {$today} AND DATEDIFF({$today}, payables.due_date) BETWEEN 31 AND 60 THEN payables.amount - payables.amount_paid ELSE 0 END) as b2,
+                SUM(CASE WHEN payables.due_date < {$today} AND DATEDIFF({$today}, payables.due_date) BETWEEN 61 AND 90 THEN payables.amount - payables.amount_paid ELSE 0 END) as b3,
+                SUM(CASE WHEN payables.due_date < {$today} AND DATEDIFF({$today}, payables.due_date) > 90 THEN payables.amount - payables.amount_paid ELSE 0 END) as b4,
                 SUM(payables.amount - payables.amount_paid) as total
             ")
             ->groupByRaw("COALESCE(payables.supplier_id, CONCAT('name:', payables.supplier_name))")

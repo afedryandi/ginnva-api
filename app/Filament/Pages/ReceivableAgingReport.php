@@ -144,6 +144,10 @@ class ReceivableAgingReport extends Page implements HasForms
      */
     public function getAging(): array
     {
+        // Tanggal "hari ini" dari APLIKASI (zona waktu app), bukan CURDATE() MySQL: tanpa pengaturan zona waktu
+        // koneksi, tanggal MySQL bisa beda sehari beberapa jam tiap hari dan menggeser umur tagihan antar kelompok.
+        $today = "'" . today()->toDateString() . "'";
+
         // Dikelompokkan per CUSTOMER MASTER (customer_id), bukan teks customer_name -- sebelumnya
         // customer yang sama bisa terpecah jadi beberapa baris kalau ejaan/kapitalisasi nama lama
         // beda dari master saat ini (audit Umur Hutang/Piutang 2026-09-29). Piutang tanpa customer_id
@@ -154,11 +158,11 @@ class ReceivableAgingReport extends Page implements HasForms
             ->selectRaw("
                 MIN(receivables.customer_id) as customer_id,
                 COALESCE(MIN(customers.name), MIN(receivables.customer_name), '—') as customer,
-                SUM(CASE WHEN receivables.due_date IS NULL OR receivables.due_date >= CURDATE() THEN receivables.amount - receivables.amount_paid ELSE 0 END) as current_amt,
-                SUM(CASE WHEN receivables.due_date < CURDATE() AND DATEDIFF(CURDATE(), receivables.due_date) <= 30 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b1,
-                SUM(CASE WHEN receivables.due_date < CURDATE() AND DATEDIFF(CURDATE(), receivables.due_date) BETWEEN 31 AND 60 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b2,
-                SUM(CASE WHEN receivables.due_date < CURDATE() AND DATEDIFF(CURDATE(), receivables.due_date) BETWEEN 61 AND 90 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b3,
-                SUM(CASE WHEN receivables.due_date < CURDATE() AND DATEDIFF(CURDATE(), receivables.due_date) > 90 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b4,
+                SUM(CASE WHEN receivables.due_date IS NULL OR receivables.due_date >= {$today} THEN receivables.amount - receivables.amount_paid ELSE 0 END) as current_amt,
+                SUM(CASE WHEN receivables.due_date < {$today} AND DATEDIFF({$today}, receivables.due_date) <= 30 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b1,
+                SUM(CASE WHEN receivables.due_date < {$today} AND DATEDIFF({$today}, receivables.due_date) BETWEEN 31 AND 60 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b2,
+                SUM(CASE WHEN receivables.due_date < {$today} AND DATEDIFF({$today}, receivables.due_date) BETWEEN 61 AND 90 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b3,
+                SUM(CASE WHEN receivables.due_date < {$today} AND DATEDIFF({$today}, receivables.due_date) > 90 THEN receivables.amount - receivables.amount_paid ELSE 0 END) as b4,
                 SUM(receivables.amount - receivables.amount_paid) as total
             ")
             ->groupByRaw("COALESCE(receivables.customer_id, CONCAT('name:', receivables.customer_name))")
