@@ -276,6 +276,24 @@ class AdminPanelProvider extends PanelProvider
                     .fi-sidebar-item-active {
                         background-color: rgba(255, 255, 255, 0.15) !important;
                     }
+                    /* Sidebar mode RESPONSIF/mobile (2026-10-07, screenshot user):
+                       header sidebar (kelas fi-sidebar-header) punya bg-white
+                       bawaan sehingga logo Ginnva yang putih tidak terlihat,
+                       disamakan merah brand. Tombol item sidebar yang aktif
+                       atau di-hover membawa bg-gray-100 bawaan Filament, jadi
+                       teks putih dari aturan di atas tak terbaca; diganti tint
+                       putih transparan di atas merah (gaya sama dengan tab
+                       topbar dark mode). Catatan: blok CSS ini berada di dalam
+                       string PHP bertanda kutip tunggal, jangan pakai tanda
+                       kutip tunggal di komentar. */
+                    .fi-sidebar-header {
+                        background-color: #ED1651 !important;
+                    }
+                    .fi-sidebar-item-active .fi-sidebar-item-button,
+                    .fi-sidebar-item-button:hover,
+                    .fi-sidebar-item-button:focus-visible {
+                        background-color: rgba(255, 255, 255, 0.18) !important;
+                    }
                     /* RIWAYAT 2 percobaan gagal sebelumnya (`.fi-active`,
                        lalu `a[aria-current="page"]`) -- DIHAPUS, keduanya
                        terbukti salah/tidak match dari screenshot user.
