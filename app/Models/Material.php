@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -34,6 +35,27 @@ class Material extends Model
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    /**
+     * file_type & file_size dihitung dari file yang BENAR-BENAR tersimpan, bukan dari
+     * afterStateUpdated() form: di sana yang tersedia baru path file sementara upload
+     * (tipe kosong, ukuran tidak ketemu), jadi aplikasi selalu menampilkan ukuran "—".
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Material $material) {
+            if (! $material->file || ($material->exists && ! $material->isDirty('file'))) {
+                return;
+            }
+
+            $material->file_type = strtolower(pathinfo($material->file, PATHINFO_EXTENSION)) ?: null;
+
+            $disk = Storage::disk('public');
+            if ($disk->exists($material->file)) {
+                $material->file_size = $disk->size($material->file);
+            }
+        });
+    }
 
     public function category()
     {
