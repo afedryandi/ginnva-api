@@ -314,7 +314,9 @@ class WorkScheduleCalendarReport extends Page implements HasActions, HasForms
         return Action::make('overrideDay')
             ->label('Ubah Jadwal Hari Ini')
             ->visible(fn () => auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false)
-            ->modalHeading(fn (array $arguments) => 'Ubah Jadwal — ' . Carbon::parse($arguments['date'])->translatedFormat('l, d M Y'))
+            // Tanggal datang dari klien -- jangan Carbon::parse mentah di sini (nilai aneh = error 500
+            // sebelum validasi server di resolveOverrideTarget() sempat menolaknya).
+            ->modalHeading(fn (array $arguments) => 'Ubah Jadwal — ' . $this->safeWeekAnchor($arguments['date'] ?? null)->translatedFormat('l, d M Y'))
             ->modalSubmitActionLabel('Simpan')
             ->form(function () {
                 $storeId = $this->visibleStoreId();

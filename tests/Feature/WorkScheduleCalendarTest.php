@@ -127,7 +127,7 @@ class WorkScheduleCalendarTest extends TestCase
         $this->user('partner', null, ['name' => 'Mitra']);
         $this->user('kasir', $this->otherStore, ['name' => 'Toko Lain']);
 
-        $names = $this->page($this->user('super_admin'))->instance()->getCalendar()['rows']->map(fn ($r) => $r['employee']->name)->all();
+        $names = $this->page($this->user('super_admin', null, ['store_id' => null]))->instance()->getCalendar()['rows']->map(fn ($r) => $r['employee']->name)->all();
 
         $this->assertSame(['Ani', 'Budi'], $names);
         $this->assertNotNull($budi);
