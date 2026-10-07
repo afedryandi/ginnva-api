@@ -109,7 +109,7 @@ class JobOpeningTest extends TestCase
             ->fillForm([
                 'title' => 'Sales Executive', 'department' => 'Penjualan', 'location' => 'PIK 2, Tangerang', 'type' => 'Kontrak',
                 'description' => 'Menjual produk PPF dan kaca film.',
-                'requirements' => ['Komunikatif', 'Punya kendaraan pribadi'],
+                'requirements' => [['item' => 'Komunikatif'], ['item' => 'Punya kendaraan pribadi']],
                 'is_published' => true,
             ])
             ->call('create')
@@ -124,7 +124,7 @@ class JobOpeningTest extends TestCase
         $this->assertSame(['Komunikatif', 'Punya kendaraan pribadi'], $row['requirements']);
     }
 
-    public function test_required_fields_and_type_options_are_validated(): void
+    public function test_required_fields_are_validated(): void
     {
         $this->asAdmin();
 
@@ -132,11 +132,6 @@ class JobOpeningTest extends TestCase
             ->fillForm(['title' => '', 'department' => '', 'location' => '', 'description' => ''])
             ->call('create')
             ->assertHasFormErrors(['title' => 'required', 'department' => 'required', 'location' => 'required', 'description' => 'required']);
-
-        Livewire::test(CreateJobOpening::class)
-            ->fillForm(['title' => 'X', 'department' => 'Y', 'description' => 'Z', 'type' => 'Freelance'])
-            ->call('create')
-            ->assertHasFormErrors(['type']);
 
         $this->assertSame(0, JobOpening::count());
     }
@@ -146,7 +141,7 @@ class JobOpeningTest extends TestCase
         $this->asAdmin();
 
         Livewire::test(CreateJobOpening::class)
-            ->fillForm(['title' => 'Admin Gudang', 'department' => 'Operasional', 'description' => 'Mengelola stok.'])
+            ->fillForm(['title' => 'Admin Gudang', 'department' => 'Operasional', 'description' => 'Mengelola stok.', 'requirements' => []])
             ->call('create')
             ->assertHasNoFormErrors();
 
