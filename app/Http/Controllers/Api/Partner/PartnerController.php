@@ -142,7 +142,7 @@ class PartnerController extends Controller
             'data' => collect($paginated->items())->map(fn (Booking $b) => [
                 'id'                 => $b->id,
                 'booking_number'     => $b->booking_number,
-                'customer_name'      => $b->customer_name,
+                'customer_name'      => $b->display_customer_name,
                 'status'             => $b->status,
                 'transaction_amount' => $b->transaction_amount !== null ? (float) $b->transaction_amount : null,
                 'points_earned'      => $pointsByBooking[$b->id] ?? 0,
