@@ -348,7 +348,7 @@ class RecurringBillTemplateTest extends TestCase
     public function test_list_filters_and_the_run_now_and_skip_actions(): void
     {
         $this->actingAs($this->admin(), 'web');
-        $due = $this->template(['name' => 'Segera', 'next_run_date' => '2026-10-18']);
+        $due = $this->template(['name' => 'Segera', 'day_of_month' => 18, 'next_run_date' => '2026-10-18']);
         $far = $this->template(['name' => 'Jauh', 'next_run_date' => '2026-12-05']);
         $off = $this->template(['name' => 'Mati', 'is_active' => false]);
         $failed = $this->template(['name' => 'Gagal', 'next_run_date' => '2026-12-05']);
@@ -380,9 +380,13 @@ class RecurringBillTemplateTest extends TestCase
         $this->runGeneration();
         $unused = $this->template(['name' => 'Belum Dipakai', 'next_run_date' => '2026-12-05']);
 
+        // Tabel asli memuat generated_payables_count lewat withCount(); model buatan tes harus sama.
+        $withCount = fn (RecurringBillTemplate $t) => RecurringBillTemplate::withCount('generatedPayables')->findOrFail($t->id);
+
         Livewire::test(ListRecurringBillTemplates::class)
-            ->assertTableActionHidden('delete', $used->fresh())
-            ->callTableAction('delete', $unused);
+            ->assertTableActionHidden('delete', $withCount($used))
+            ->assertTableActionVisible('delete', $withCount($unused))
+            ->callTableAction('delete', $withCount($unused));
 
         $this->assertNull(RecurringBillTemplate::find($unused->id));
         $this->assertNotNull(RecurringBillTemplate::find($used->id));
