@@ -25,6 +25,11 @@ class EditShift extends EditRecord
     {
         $this->hoursBeforeSave = $this->record->only(['start_time', 'end_time', 'break_start_time', 'break_end_time']);
 
+        // Toko shift tidak boleh berubah setelah dibuat: field-nya cuma di-disable di form tapi
+        // ->dehydrated() (dibutuhkan saat membuat), jadi nilai kiriman langsung tetap tersimpan.
+        // Memindah shift ke toko lain memutus Jadwal Kerja/override toko lama yang memakainya.
+        unset($data['store_id']);
+
         return $data;
     }
 
