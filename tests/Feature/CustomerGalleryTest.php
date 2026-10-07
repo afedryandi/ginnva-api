@@ -68,7 +68,7 @@ class CustomerGalleryTest extends TestCase
     private function photoMessage(Booking $booking, array $paths, ?string $stage = 'qc'): BookingMessage
     {
         $message = BookingMessage::create([
-            'booking_id' => $booking->id, 'sender_type' => 'staff', 'type' => 'photo', 'stage' => $stage,
+            'booking_id' => $booking->id, 'sender_type' => 'admin', 'type' => 'photo', 'stage' => $stage,
         ]);
         foreach ($paths as $path) {
             BookingMessagePhoto::create(['booking_message_id' => $message->id, 'path' => $path]);
@@ -141,7 +141,7 @@ class CustomerGalleryTest extends TestCase
         $customer = $this->customer();
         $booking = $this->booking($customer);
         BookingMessage::create([
-            'booking_id' => $booking->id, 'sender_type' => 'staff', 'type' => 'photo',
+            'booking_id' => $booking->id, 'sender_type' => 'admin', 'type' => 'photo',
             'stage' => 'qc', 'photo_path' => 'booking-photos/lama.jpg',
         ]);
 
@@ -155,7 +155,7 @@ class CustomerGalleryTest extends TestCase
     {
         $customer = $this->customer();
         $booking = $this->booking($customer);
-        BookingMessage::create(['booking_id' => $booking->id, 'sender_type' => 'staff', 'type' => 'text', 'body' => 'Halo']);
+        BookingMessage::create(['booking_id' => $booking->id, 'sender_type' => 'admin', 'type' => 'text', 'body' => 'Halo']);
 
         $this->assertSame([], $this->gallery($customer));
     }
