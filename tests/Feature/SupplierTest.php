@@ -249,4 +249,11 @@ class SupplierTest extends TestCase
         $this->actingAs($this->user('kasir', ['menu_access' => ['SomeOtherResource']]), 'web');
         $this->assertFalse(SupplierResource::canViewAny());
     }
+
+    public function test_the_menu_lives_in_the_settings_group_after_finance_categories(): void
+    {
+        $this->assertSame('Pengaturan', SupplierResource::getNavigationGroup());
+        $this->assertSame('Pengaturan', \App\Filament\Resources\FinanceCategoryResource::getNavigationGroup());
+        $this->assertGreaterThan(\App\Filament\Resources\FinanceCategoryResource::getNavigationSort(), SupplierResource::getNavigationSort());
+    }
 }

@@ -26,7 +26,7 @@ class SupplierResource extends Resource
     protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Transaksi".
-    protected static ?string $navigationGroup = 'Transaksi';
+    protected static ?string $navigationGroup = 'Pengaturan';
 
     protected static ?string $navigationLabel = 'Supplier';
 
@@ -34,7 +34,7 @@ class SupplierResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Supplier';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 501;
 
     public static function canViewAny(): bool
     {
