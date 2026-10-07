@@ -71,7 +71,7 @@ class RecurringBillTemplateTest extends TestCase
         ], $overrides));
     }
 
-    private function run(): \Illuminate\Support\Collection
+    private function runGeneration(): \Illuminate\Support\Collection
     {
         return app(RecurringBillGenerationService::class)->runDue(now());
     }
@@ -82,7 +82,7 @@ class RecurringBillTemplateTest extends TestCase
     {
         $template = $this->template();
 
-        $generated = $this->run();
+        $generated = $this->runGeneration();
 
         $this->assertCount(1, $generated);
         $payable = $generated->first();
@@ -108,7 +108,7 @@ class RecurringBillTemplateTest extends TestCase
         Supplier::create(['name' => 'PT Properti Jaya']);
         $this->template(['supplier_name' => '  pt   properti   jaya ']);
 
-        $payable = $this->run()->first();
+        $payable = $this->runGeneration()->first();
 
         $this->assertSame(1, Supplier::count());
         $this->assertSame(Supplier::firstOrFail()->id, $payable->supplier_id);
@@ -119,7 +119,7 @@ class RecurringBillTemplateTest extends TestCase
         $this->template(['next_run_date' => '2026-10-16']);
         $this->template(['name' => 'Mati', 'is_active' => false]);
 
-        $this->assertCount(0, $this->run());
+        $this->assertCount(0, $this->runGeneration());
         $this->assertSame(0, Payable::withoutGlobalScopes()->count());
     }
 
@@ -127,7 +127,7 @@ class RecurringBillTemplateTest extends TestCase
     {
         $template = $this->template(['next_run_date' => '2026-07-05']);
 
-        $generated = $this->run();
+        $generated = $this->runGeneration();
 
         $this->assertEquals(['2026-07-05', '2026-08-05', '2026-09-05', '2026-10-05'], $generated->map(fn ($p) => $p->due_date->toDateString())->all());
         $this->assertSame('2026-11-05', $template->fresh()->next_run_date->toDateString());
@@ -137,9 +137,9 @@ class RecurringBillTemplateTest extends TestCase
     {
         $template = $this->template();
 
-        $this->run();
+        $this->runGeneration();
         $template->update(['next_run_date' => '2026-10-05']); // jadwal dimundurkan manual -> bulan yang sama
-        $second = $this->run();
+        $second = $this->runGeneration();
 
         $this->assertCount(0, $second, 'Bulan yang sudah pernah dibuat hanya memajukan jadwal.');
         $this->assertSame(1, Payable::withoutGlobalScopes()->where('source_id', $template->id)->count());
@@ -161,7 +161,7 @@ class RecurringBillTemplateTest extends TestCase
     {
         $template = $this->template(['next_run_date' => '2026-08-05', 'paused_until' => '2026-09-30']);
 
-        $generated = $this->run();
+        $generated = $this->runGeneration();
 
         $this->assertEquals(['2026-10-05'], $generated->map(fn ($p) => $p->due_date->toDateString())->all(), 'Agustus & September dilewati.');
         $this->assertSame('2026-11-05', $template->fresh()->next_run_date->toDateString());
@@ -172,7 +172,7 @@ class RecurringBillTemplateTest extends TestCase
         $admin = $this->admin();
         $template = $this->template(['end_date' => '2026-09-30']);
 
-        $generated = $this->run();
+        $generated = $this->runGeneration();
 
         $this->assertCount(0, $generated);
         $this->assertFalse($template->fresh()->is_active);
@@ -183,11 +183,11 @@ class RecurringBillTemplateTest extends TestCase
     {
         $template = $this->template(['next_run_date' => '2026-07-05', 'max_occurrences' => 2]);
 
-        $this->assertCount(2, $this->run(), 'Hanya 2 dari 4 bulan yang tertinggal.');
+        $this->assertCount(2, $this->runGeneration(), 'Hanya 2 dari 4 bulan yang tertinggal.');
         $this->assertFalse($template->fresh()->is_active);
 
         $other = $this->template(['name' => 'Cicilan', 'next_run_date' => '2026-09-05', 'max_occurrences' => 2]);
-        $this->run();
+        $this->runGeneration();
         Payable::withoutGlobalScopes()->where('source_id', $other->id)->first()->update(['status' => 'cancelled']);
         $this->assertSame(1, $other->fresh()->generatedCount(), 'Tagihan yang dibatalkan tidak dihitung ke batas.');
     }
@@ -198,7 +198,7 @@ class RecurringBillTemplateTest extends TestCase
         AccountingPeriod::create(['period_month' => '2026-08-01', 'closed_by' => $admin->id, 'closed_at' => now()]);
         $this->template(['next_run_date' => '2026-08-05']);
 
-        $generated = $this->run()->first();
+        $generated = $this->runGeneration()->first();
 
         $this->assertSame('2026-08-05', $generated->due_date->toDateString());
         $entry = JournalEntry::withoutGlobalScopes()->findOrFail($generated->journal_entry_id);
@@ -377,7 +377,7 @@ class RecurringBillTemplateTest extends TestCase
     {
         $this->actingAs($this->admin(), 'web');
         $used = $this->template(['name' => 'Dipakai']);
-        $this->run();
+        $this->runGeneration();
         $unused = $this->template(['name' => 'Belum Dipakai', 'next_run_date' => '2026-12-05']);
 
         Livewire::test(ListRecurringBillTemplates::class)
