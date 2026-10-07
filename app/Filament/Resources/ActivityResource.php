@@ -72,6 +72,7 @@ class ActivityResource extends Resource
     'material_memo_item' => 'Memo Pengambilan/Pengembalian',
     'news' => 'Berita',
     'partner' => 'Partner',
+    'partnership_inquiry' => 'Kemitraan & Sales Referral',
     'partner_point_transaction' => 'Poin Partner',
     'payable' => 'Utang',
     'payable_payment' => 'Pembayaran Utang',
