@@ -358,7 +358,7 @@ class PayableResource extends Resource
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('name')->label('Nama Supplier')->required()->maxLength(255),
                             ])
-                            ->createOptionUsing(fn (array $data) => Supplier::create($data)->getKey()),
+                            ->createOptionUsing(fn (array $data) => Supplier::findOrCreateByName($data['name'], $data)->getKey()),
 
                         Forms\Components\TextInput::make('invoice_number')
                             ->label('No. Invoice Supplier (opsional)')

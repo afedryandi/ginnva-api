@@ -80,6 +80,15 @@ class SupplierResource extends Resource
             Forms\Components\Section::make('Identitas')->columns(2)->schema([
                 Forms\Components\TextInput::make('name')->label('Nama Supplier')->required()->maxLength(255)
                     ->unique(ignoreRecord: true)
+                    // unique() di atas membandingkan teks mentah: "PT  Jaya" (spasi ganda) lolos padahal sama
+                    // dengan "PT Jaya". Bandingkan versi yang sudah dirapikan, sama dengan yang tersimpan.
+                    ->rule(fn (?Supplier $record) => function (string $attribute, $value, \Closure $fail) use ($record) {
+                        $clean = Supplier::normalizeName((string) $value);
+
+                        if (Supplier::whereRaw('LOWER(name) = ?', [mb_strtolower($clean)])->when($record, fn ($q) => $q->whereKeyNot($record->id))->exists()) {
+                            $fail('Supplier dengan nama ini sudah ada.');
+                        }
+                    })
                     ->live(onBlur: true)
                     // Tidak memblokir (typo/singkatan yang beda sengaja tetap boleh) -- hanya
                     // mengingatkan kalau ada nama yang mirip, supaya tidak tanpa sadar membuat

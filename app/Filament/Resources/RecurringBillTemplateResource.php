@@ -126,7 +126,7 @@ class RecurringBillTemplateResource extends Resource
                 ->createOptionForm([
                     Forms\Components\TextInput::make('name')->label('Nama Supplier')->required()->maxLength(255),
                 ])
-                ->createOptionUsing(fn (array $data) => Supplier::create($data)->getKey())
+                ->createOptionUsing(fn (array $data) => Supplier::findOrCreateByName($data['name'], $data)->getKey())
                 ->afterStateUpdated(fn ($state, Forms\Set $set) => $state ? $set('supplier_name', Supplier::whereKey($state)->value('name')) : null),
 
             // Snapshot nama supplier (diisi otomatis dari pilihan di atas).

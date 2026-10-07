@@ -349,7 +349,7 @@ class PurchaseRequestResource extends Resource
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('name')->label('Nama Supplier')->required()->maxLength(255),
                             ])
-                            ->createOptionUsing(fn (array $data) => \App\Models\Supplier::create($data)->getKey())
+                            ->createOptionUsing(fn (array $data) => \App\Models\Supplier::findOrCreateByName($data['name'], $data)->getKey())
                             ->helperText('Dipakai untuk mencatat tagihan ini di menu Hutang Usaha. Supplier baru bisa langsung dibuat di sini.'),
 
                         Forms\Components\DatePicker::make('due_date')
