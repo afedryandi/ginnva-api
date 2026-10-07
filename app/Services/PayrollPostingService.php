@@ -54,14 +54,19 @@ class PayrollPostingService
         $potongan = ChartOfAccount::where('code', self::POTONGAN_ACCOUNT_CODE)->first();
         $komisiTeknisi = ChartOfAccount::where('code', self::KOMISI_TEKNISI_ACCOUNT_CODE)->first();
 
-        $deduction = (float) $payroll->total_deduction;
         $commission = (float) $payroll->total_commission;
+        $netPay = (float) $payroll->net_pay;
+
+        // Potongan yang BENAR-BENAR berlaku = gaji kotor + komisi - gaji bersih. Sama dengan
+        // total_deduction kecuali kalau potongan lebih besar dari gaji: net_pay dijepit di 0
+        // (lihat Payroll::generateForMonth), sehingga mengkredit total_deduction penuh membuat
+        // jurnal tidak balance dan gaji itu tidak bisa ditandai dibayar.
+        $deduction = max(0.0, round((float) $payroll->prorated_base_salary + $commission - $netPay, 2));
 
         if (! $cash || ! $gajiPokok || ($deduction > 0 && ! $potongan) || ($commission > 0 && ! $komisiTeknisi)) {
             throw new RuntimeException('Akun Bagan Akun yang dibutuhkan (Kas/Beban Gaji Pokok/Beban Potongan/Upah Langsung Teknisi) tidak ditemukan — periksa menu Bagan Akun.');
         }
 
-        $netPay = (float) $payroll->net_pay;
 
         if ($deduction > 0 || $commission > 0) {
             $lines = [

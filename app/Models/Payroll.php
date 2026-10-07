@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\StoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -168,7 +169,11 @@ class Payroll extends Model
 
             $store = $user->store;
 
-            $attendances = Attendance::query()
+            // Payroll dihitung PER KARYAWAN (user_id eksplisit) dan boleh dijalankan akun yang
+            // bukan full-access & tanpa toko (spv_finance): StoreScope akun pelaksana tidak boleh ikut
+            // menyaring -- sebelumnya query jadi "store_id = NULL" dan potongan telat/alpha serta
+            // komisi teknisi diam-diam terhitung 0.
+            $attendances = Attendance::withoutGlobalScope(StoreScope::class)
                 ->where('user_id', $user->id)
                 ->whereBetween('date', [$periodStart->toDateString(), $periodEnd->toDateString()])
                 ->get(['date', 'late_minutes', 'entry_type']);
@@ -226,11 +231,11 @@ class Payroll extends Model
             $totalCommission = 0.0;
             $hasUnratedCommission = false;
 
-            $technician = Technician::where('user_id', $user->id)->first();
+            $technician = Technician::withoutGlobalScope(StoreScope::class)->where('user_id', $user->id)->first();
             if ($technician) {
-                $jobs = Booking::query()
+                $jobs = Booking::withoutGlobalScope(StoreScope::class)
                     ->whereHas('installers', fn ($q) => $q->where('users.id', $user->id))
-                    ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$periodStart->toDateString(), $periodEnd->toDateString()]))
+                    ->whereHas('journalEntry', fn ($q) => $q->withoutGlobalScope(StoreScope::class)->whereBetween('entry_date', [$periodStart->toDateString(), $periodEnd->toDateString()]))
                     ->where('transaction_amount', '>', 0)
                     ->get(['id', 'transaction_amount', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash']);
 
