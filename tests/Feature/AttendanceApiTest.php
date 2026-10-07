@@ -458,7 +458,7 @@ class AttendanceApiTest extends TestCase
 
     private function shiftFor(User $user, string $start = '09:00'): void
     {
-        $shift = Shift::create(['store_id' => $this->store->id, 'name' => 'Pagi ' . $start, 'start_time' => $start, 'end_time' => '17:00', 'is_active' => true]);
+        $shift = Shift::firstOrCreate(['store_id' => $this->store->id, 'name' => 'Pagi ' . $start], ['start_time' => $start, 'end_time' => '17:00', 'is_active' => true]);
         ScheduleDayOverride::create(['user_id' => $user->id, 'store_id' => $this->store->id, 'date' => '2026-10-07', 'shift_id' => $shift->id]);
     }
 
