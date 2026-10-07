@@ -57,6 +57,14 @@ class AppServiceProvider extends ServiceProvider
         Spk::observe(SpkObserver::class);
         Invoice::observe(InvoiceObserver::class);
 
+        // ->tel() di Filament membawa pola bawaan yang hanya menerima 10-12 digit dengan susunan 3-3-4..6:
+        // nomor sah seperti 6281234567890 (13 digit) atau "+62 21 555 1234" ditolak. Dipakai di ~14 form
+        // (Booking, Partner, Quotation, Toko, Teknisi, User, Garansi, Supplier, dll), jadi diganti satu kali
+        // di sini: angka, spasi, + ( ) - dan titik, 6-30 karakter.
+        \Filament\Forms\Components\TextInput::configureUsing(
+            fn (\Filament\Forms\Components\TextInput $input) => $input->telRegex('/^[0-9+()\-.\s]{6,30}$/')
+        );
+
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
