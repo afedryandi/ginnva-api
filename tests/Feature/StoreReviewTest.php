@@ -214,7 +214,8 @@ class StoreReviewTest extends TestCase
         $this->assertSame($admin->id, $fresh->followed_up_by);
         $this->assertSame('Sudah dihubungi via WhatsApp', $fresh->follow_up_note);
 
-        Livewire::test(ListStoreReviews::class)->assertTableActionHidden('mark_followed_up', $negative);
+        // Instance segar: helper menilai visibilitas dari model yang diberikan.
+        Livewire::test(ListStoreReviews::class)->assertTableActionHidden('mark_followed_up', $negative->fresh());
     }
 
     public function test_navigation_badge_counts_only_unhandled_negative_reviews(): void
