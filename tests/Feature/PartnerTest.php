@@ -183,7 +183,7 @@ class PartnerTest extends TestCase
         $this->assertSame($booking->id, $data[0]['id']);
         $this->assertSame('Budi Pelanggan', $data[0]['customer_name'], 'Nama customer tampil walau booking dibuat lewat aplikasi (kolom customer_name kosong).');
         $this->assertSame(50, $data[0]['points_earned']);
-        $this->assertSame(5000000.0, $data[0]['transaction_amount']);
+        $this->assertEquals(5000000, $data[0]['transaction_amount']);
     }
 
     public function test_referral_of_a_deleted_customer_shows_a_generic_name(): void
