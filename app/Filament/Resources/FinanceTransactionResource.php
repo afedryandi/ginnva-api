@@ -76,9 +76,15 @@ class FinanceTransactionResource extends Resource
      */
     public const FINANCIAL_FIELDS = ['type', 'finance_category_id', 'store_id', 'amount', 'transaction_date'];
 
-    private static function financialLocked(?FinanceTransaction $record): bool
+    /**
+     * $record sengaja tidak di-type-hint ke FinanceTransaction: setelah staf mengajukan pengeluaran,
+     * halaman Create menjadikan FinanceTransactionApprovalRequest sebagai record form (lihat
+     * CreateFinanceTransaction::handleRecordCreation) dan Filament mengevaluasi ulang closure form
+     * dengan model itu -- type-hint sempit membuat TypeError (500) setelah pengajuan sebenarnya tersimpan.
+     */
+    private static function financialLocked(mixed $record): bool
     {
-        return $record !== null && ! (auth()->user()?->isFullAccess() ?? false);
+        return $record instanceof FinanceTransaction && ! (auth()->user()?->isFullAccess() ?? false);
     }
 
     public static function canEdit($record): bool
@@ -180,13 +186,13 @@ class FinanceTransactionResource extends Resource
                         ->required()
                         ->minValue(0.01)
                         ->maxValue(99999999999.99)
-                        ->disabled(fn (?FinanceTransaction $record) => static::financialLocked($record))
+                        ->disabled(fn ($record) => static::financialLocked($record))
                         ->dehydrated()
                         // Nominal terformat (Rp1.500.000) ditampilkan langsung saat
                         // mengetik -- lebih aman daripada mask input yang bisa salah
                         // menafsirkan desimal (audit Transaksi Keuangan 2026-09-28).
                         ->live(onBlur: true)
-                        ->helperText(function (?FinanceTransaction $record, Forms\Get $get) {
+                        ->helperText(function ($record, Forms\Get $get) {
                             if (static::financialLocked($record)) {
                                 return 'Terkunci: perubahan nominal, tanggal, kategori, dan toko setelah tersimpan hanya oleh direksi/full-access.';
                             }
@@ -205,7 +211,7 @@ class FinanceTransactionResource extends Resource
                         ->searchable()
                         ->required()
                         ->default(fn () => $isFullAccess ? null : auth()->user()?->store_id)
-                        ->disabled(fn (?FinanceTransaction $record) => ! $isFullAccess || static::financialLocked($record))
+                        ->disabled(fn ($record) => ! $isFullAccess || static::financialLocked($record))
                         ->dehydrated(),
 
                     Forms\Components\DatePicker::make('transaction_date')
@@ -214,10 +220,10 @@ class FinanceTransactionResource extends Resource
                         ->required()
                         // Tidak boleh di masa depan / terlalu lampau (audit 2026-09-28).
                         ->maxDate(today())
-                        ->minDate(fn (?FinanceTransaction $record) => $record
+                        ->minDate(fn ($record) => $record instanceof FinanceTransaction
                             ? null
                             : now()->subYears(3))
-                        ->disabled(fn (?FinanceTransaction $record) => static::financialLocked($record))
+                        ->disabled(fn ($record) => static::financialLocked($record))
                         ->dehydrated()
                         ->default(now()),
 
@@ -238,7 +244,7 @@ class FinanceTransactionResource extends Resource
                         ->required()
                         ->rows(2)
                         ->maxLength(500)
-                        ->visible(fn (?FinanceTransaction $record) => $record !== null && ($record->journal_entry_id !== null) && (auth()->user()?->isFullAccess() ?? false))
+                        ->visible(fn ($record) => $record instanceof FinanceTransaction && ($record->journal_entry_id !== null) && (auth()->user()?->isFullAccess() ?? false))
                         ->dehydrated()
                         ->columnSpanFull(),
 

@@ -209,7 +209,10 @@ class FinanceTransactionTest extends TestCase
     public function test_a_category_without_a_linked_account_cannot_be_posted_and_leaves_nothing_behind(): void
     {
         $this->actingAs($this->admin(), 'web');
-        $unlinked = FinanceCategory::create(['name' => 'Belum Dihubungkan', 'type' => 'out', 'is_active' => true]);
+        // Model menolak membuat kategori baru tanpa akun, jadi putuskan tautannya lewat update massal
+        // (meniru data lama/terputus) agar jalur posting yang menolaknya yang teruji.
+        $unlinked = FinanceCategory::create(['name' => 'Belum Dihubungkan', 'type' => 'out', 'chart_of_account_id' => $this->accountId('6510'), 'is_active' => true]);
+        FinanceCategory::whereKey($unlinked->id)->update(['chart_of_account_id' => null]);
 
         Livewire::test(CreateFinanceTransaction::class)->fillForm($this->form(['finance_category_id' => $unlinked->id]))->call('create');
 
@@ -257,7 +260,7 @@ class FinanceTransactionTest extends TestCase
 
         Livewire::test(EditFinanceTransaction::class, ['record' => $transaction->getKey()])
             ->fillForm(['amount' => 750000, 'change_reason' => 'Salah ketik nominal'])
-            ->call('save')->assertHasFormErrors([]);
+            ->call('save')->assertHasNoFormErrors();
 
         $fresh = $transaction->fresh();
         $this->assertEquals(750000, $fresh->amount);
