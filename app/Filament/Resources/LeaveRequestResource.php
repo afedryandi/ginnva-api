@@ -70,7 +70,11 @@ class LeaveRequestResource extends Resource
 
         return $user?->canAccessStaffArea()
             && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'update', true);
+            && $user->hasModuleAction(static::class, 'update', true)
+            // Pengajuan yang sudah diputuskan (disetujui/ditolak/dibatalkan) terkunci: tombol Edit sudah
+            // disembunyikan di tabel, tapi halaman edit tetap bisa dibuka lewat URL dan mengubah tanggal/jenis
+            // pengajuan yang sudah disetujui tanpa persetujuan ulang.
+            && (! $record || $record->status === 'pending');
     }
 
     /**
