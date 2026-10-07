@@ -94,6 +94,15 @@ class PayableService
             throw new RuntimeException('Tanggal jurnal tagihan tidak boleh di masa depan.');
         }
 
+        // Dropdown akun di form hanya membatasi di UI; nilai kiriman tidak divalidasi. Tanpa pengecekan ini,
+        // tagihan bisa mendebit akun yang tidak masuk akal (Hutang Usaha itu sendiri, Pendapatan, Modal) dan
+        // merusak laporan keuangan tanpa peringatan. Yang sah: akun aktif, bisa diposting, bersaldo normal debit.
+        $debitAccount = ChartOfAccount::find($debitAccountId);
+        if (! $debitAccount || ! $debitAccount->is_active || ! $debitAccount->is_postable
+            || ! in_array($debitAccount->type, ['aset', 'beban_pokok', 'beban_operasional', 'beban_lain', 'pajak'], true)) {
+            throw new RuntimeException('Akun yang didebit harus akun Aset atau Beban yang aktif.');
+        }
+
         $data = Arr::except($data, ['entry_date']);
         $data['amount'] = $amount;
 
