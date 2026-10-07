@@ -106,7 +106,6 @@ class ChartOfAccountResourceTest extends TestCase
         Livewire::test(ListChartOfAccounts::class)->searchTable('69')->filterTable('type', 'aset')
             ->assertCanNotSeeTableRecords([$expense, $off, $header]);
     }
-    }
 
     public function test_the_balance_shown_follows_the_normal_balance_of_the_account(): void
     {
