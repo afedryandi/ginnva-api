@@ -160,8 +160,12 @@ class CarouselTest extends TestCase
 
     public function test_deactivating_a_banner_removes_it_from_the_api_and_is_audited(): void
     {
+        // Form Edit memvalidasi bahwa berkas gambar benar-benar ada di disk.
+        Storage::fake('public');
+        $realPath = UploadedFile::fake()->image('asli.jpg', 1200, 600)->store('carousel', 'public');
+
         $this->asAdmin();
-        $banner = $this->banner();
+        $banner = $this->banner(['image' => $realPath]);
         $this->assertCount(1, $this->getJson('/api/carousels')->json('data'));
 
         Livewire::test(EditCarousel::class, ['record' => $banner->getKey()])
