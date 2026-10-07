@@ -140,7 +140,7 @@ class WorkScheduleResource extends Resource
                 ->columns(2)
                 ->itemLabel(fn (array $state): ?string => WorkSchedule::DAY_LABELS[$state['day'] ?? ''] ?? null)
                 ->rules([
-                    fn (Get $get, ?WorkSchedule $record) => function (string $attribute, $value, Closure $fail) use ($get, $record) {
+                    fn (Get $get, ?WorkSchedule $record) => function (string $attribute, $value, \Closure $fail) use ($get, $record) {
                         // Saat edit, toko = toko RECORD (bukan state form yang bisa dimanipulasi).
                         $storeId = $record?->store_id ?? ($get('store_id') ? (int) $get('store_id') : null);
 
