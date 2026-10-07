@@ -298,7 +298,7 @@ class BankStatementLineResource extends Resource
                                     'journal_entries.entry_date',
                                     'journal_entries.description',
                                 ])
-                                ->mapWithKeys(fn ($l) => [$l->id => $l->entry_date->format('d M Y') . " — {$l->entry_number} — {$l->description} — Rp " . number_format((float) ($l->debit ?: $l->credit), 0, ',', '.')]))
+                                ->mapWithKeys(fn ($l) => [$l->id => \Illuminate\Support\Carbon::parse($l->entry_date)->format('d M Y') . " — {$l->entry_number} — {$l->description} — Rp " . number_format((float) ($l->debit ?: $l->credit), 0, ',', '.')]))
                             ->searchable()
                             ->required()
                             ->helperText('Cuma baris yang belum dicocokkan mutasi bank lain yang muncul di sini.'),
