@@ -264,6 +264,15 @@ class WarningLetterTest extends TestCase
 
     // ------------------------------------------------------------- aplikasi staf
 
+    public function test_the_staff_endpoints_require_login(): void
+    {
+        $letter = $this->letter($this->user('kasir'));
+
+        $this->getJson('/api/staff/warning-letters')->assertStatus(401);
+        $this->postJson("/api/staff/warning-letters/{$letter->id}/acknowledge")->assertStatus(401);
+        $this->assertNull($letter->fresh()->acknowledged_at);
+    }
+
     public function test_the_staff_app_lists_only_my_own_letters_newest_first(): void
     {
         $me = $this->user('kasir');
@@ -278,7 +287,6 @@ class WarningLetterTest extends TestCase
         $this->assertSame(['id', 'warning_number', 'level', 'reason', 'issued_date', 'valid_until', 'acknowledged_at', 'document_url', 'issuer_name'], array_keys($data[0]));
         $this->assertStringEndsWith('/storage/warning-letters/sp2.pdf', $data[0]['document_url']);
         $this->assertNull($data[1]['document_url']);
-        $this->getJson('/api/staff/warning-letters')->assertStatus(401);
     }
 
     public function test_letters_issued_in_a_previous_store_stay_visible_after_a_transfer(): void
@@ -316,7 +324,6 @@ class WarningLetterTest extends TestCase
         $letter = $this->letter($owner);
 
         $this->actingAs($other, 'api')->postJson("/api/staff/warning-letters/{$letter->id}/acknowledge")->assertStatus(404);
-        $this->postJson("/api/staff/warning-letters/{$letter->id}/acknowledge")->assertStatus(401);
 
         $this->assertNull($letter->fresh()->acknowledged_at);
     }
