@@ -79,12 +79,24 @@ class EditUser extends EditRecord
         }
     }
 
-    protected function mutateFormDataBeforeSave(array $data): array
+    /**
+     * Dijalankan SEBELUM form divalidasi/di-dehydrate. Relasi roles (Select
+     * ->relationship()) sudah ikut ter-sync saat $this->form->getState() dipanggil,
+     * JAUH SEBELUM mutateFormDataBeforeSave() -- versi lama pengecekan ini ada di
+     * sana, jadi "roles sebelum" yang ditangkap sudah berisi role BARU: pengaman
+     * admin-terakhir tidak pernah menolak & audit perubahan role tidak pernah
+     * tertulis (terdeteksi lewat UserManagementTest). Di sini roles masih nilai
+     * lama di database, dan role baru dibaca dari state form ($this->data).
+     */
+    protected function beforeValidate(): void
     {
         $this->rolesBeforeSave = $this->record->roles()->pluck('name')->all();
 
-        $this->guardLastFullAccessAccount($data);
+        $this->guardLastFullAccessAccount(['roles' => $this->data['roles'] ?? []]);
+    }
 
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
         // "Riwayat Karir" (audit Majoo f57) — alasan perpindahan toko,
         // field TRANSIEN (bukan kolom users, lihat User::$pendingTransferReason)
         // yang dibaca User::booted()::updated() begitu store_id benar-

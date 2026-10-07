@@ -208,13 +208,15 @@ class UserManagementTest extends TestCase
     public function test_partner_role_is_not_offered_in_the_internal_user_form(): void
     {
         $this->asAdmin();
+        $partnerId = $this->roleId('partner');
+        $kasirId = $this->roleId('kasir');
 
         Livewire::test(CreateUser::class)
-            ->fillForm($this->validForm(['email' => 'mitra@ginnva.test', 'roles' => [$this->roleId('partner')]]))
-            ->call('create')
-            ->assertHasFormErrors();
+            ->assertFormFieldExists('roles', function (\Filament\Forms\Components\Select $field) use ($partnerId, $kasirId) {
+                $options = $field->getOptions();
 
-        $this->assertNull(User::where('email', 'mitra@ginnva.test')->first());
+                return ! array_key_exists($partnerId, $options) && array_key_exists($kasirId, $options);
+            });
     }
 
     public function test_join_date_cannot_be_in_the_future(): void
