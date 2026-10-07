@@ -81,7 +81,11 @@ class PayrollPostingService
                 $lines[] = ['chart_of_account_id' => $potongan->id, 'credit' => $deduction];
             }
 
-            $lines[] = ['chart_of_account_id' => $cash->id, 'credit' => $netPay];
+            // Gaji bersih 0 (potongan menghabiskan gaji): tidak ada kas yang keluar, dan JournalEntryService
+            // menolak baris tanpa nominal -- jadi baris Kas dilewati, beban gaji vs potongan sudah balance.
+            if ($netPay > 0) {
+                $lines[] = ['chart_of_account_id' => $cash->id, 'credit' => $netPay];
+            }
         } else {
             $lines = [
                 ['chart_of_account_id' => $gajiPokok->id, 'debit' => $netPay],

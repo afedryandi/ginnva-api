@@ -432,16 +432,20 @@ class PayrollTest extends TestCase
         $this->actingAs($this->user('super_admin', ['store_id' => null]), 'web');
 
         Livewire::test(ListPayrolls::class)->callTableAction('markPaid', $payroll);
-        $entryId = $payroll->fresh()->journal_entry_id;
+        $paid = $payroll->fresh();
+        $entryId = $paid->journal_entry_id;
+        $this->assertSame('paid', $paid->status);
 
-        Livewire::test(ListPayrolls::class)
-            ->assertTableActionHidden('markPaid', $payroll->fresh())
-            ->callTableAction('markPaid', $payroll->fresh());
+        try {
+            app(\App\Services\PayrollPostingService::class)->post($paid);
+            $this->fail('Posting kedua seharusnya ditolak.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('sudah pernah diposting', $e->getMessage());
+        }
 
         $this->assertSame($entryId, $payroll->fresh()->journal_entry_id);
         $this->assertSame(1, JournalEntry::withoutGlobalScopes()->where('reference_type', 'payroll')->where('reference_id', $payroll->id)->count());
     }
-
     public function test_rejecting_a_request_returns_it_to_draft_with_a_reason_for_the_requester(): void
     {
         $spv = $this->user('spv_finance', ['store_id' => null]);
