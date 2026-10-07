@@ -122,8 +122,8 @@ class MaterialCategoryTest extends TestCase
 
         Livewire::test(ListMaterialCategories::class)->assertSuccessful()
             ->assertCanSeeTableRecords([$a, $b], inOrder: true)
-            ->assertTableColumnStateSet('materials_count', 2, $a)
-            ->assertTableColumnStateSet('materials_count', 0, $b);
+            ->assertTableColumnStateSet('materials_count', 2, $a->loadCount('materials'))
+            ->assertTableColumnStateSet('materials_count', 0, $b->loadCount('materials'));
     }
 
     public function test_admin_creates_a_category_and_sort_order_defaults_to_next(): void
