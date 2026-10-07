@@ -13,6 +13,7 @@ use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -98,13 +99,15 @@ class PartnershipInquiryTest extends TestCase
             ->postJson('/api/partnership/submit', $payload)->assertStatus(201);
         $this->assertSame($customer->id, PartnershipInquiry::latest('id')->first()->customer_id);
 
+        $this->app['auth']->forgetGuards(); // guard menyimpan customer dari request sebelumnya di app yang sama
         $this->withHeader('Authorization', 'Bearer token-rusak')
             ->postJson('/api/partnership/submit', $payload)->assertStatus(201);
         $this->assertNull(PartnershipInquiry::latest('id')->first()->customer_id);
     }
 
-    public function test_franchise_validation_and_throttle(): void
+    public function test_franchise_validation(): void
     {
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class); // lebih dari 5 request di sini
         $valid = ['applicant_name' => 'Rina', 'phone_number' => '0811', 'email' => 'rina@example.com', 'city' => 'Bandung'];
 
         foreach (['applicant_name', 'phone_number', 'email', 'city'] as $field) {
