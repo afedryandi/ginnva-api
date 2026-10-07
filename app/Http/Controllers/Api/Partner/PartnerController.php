@@ -125,7 +125,12 @@ class PartnerController extends Controller
         // Bug diperbaiki 2026-09-26 (audit Riwayat Poin Partner) --
         // SEBELUMNYA ->limit(50) hardcoded, sama kelas gap dengan points()
         // di atas.
+        // StoreScope (HasStoreScope di Booking, sejak 2026-09-14) memfilter ke store_id akun
+        // login -- akun partner TIDAK punya toko, jadi query jadi "store_id = NULL" dan daftar
+        // referral SELALU kosong. Booking referral memang lintas toko (kode dipakai di toko
+        // mana pun); datanya sudah dibatasi ke partner ini lewat partner_id.
         $paginated = $partner->bookings()
+            ->withoutGlobalScope(\App\Models\Scopes\StoreScope::class)
             ->orderByDesc('created_at')
             ->paginate(50, ['*'], 'page', (int) $request->query('page', 1));
 
