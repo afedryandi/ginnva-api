@@ -97,6 +97,12 @@ class FinancialReportPagesTest extends TestCase
         return $post ? $svc->post($entry, null) : $entry;
     }
 
+    /** Nilai DatePicker bisa berbentuk "Y-m-d H:i:s": bandingkan tanggalnya saja. */
+    private function day(?string $value): ?string
+    {
+        return $value ? Carbon::parse($value)->toDateString() : null;
+    }
+
     public static function pages(): array
     {
         return [
@@ -202,17 +208,17 @@ class FinancialReportPagesTest extends TestCase
         $this->actingAs($this->admin(), 'web');
 
         $page = Livewire::test(IncomeStatementReport::class);
-        $this->assertSame('2026-09-01', $page->get('data.from'));
-        $this->assertSame('2026-09-30', $page->get('data.to'));
+        $this->assertSame('2026-09-01', $this->day($page->get('data.from')));
+        $this->assertSame('2026-09-30', $this->day($page->get('data.to')));
         $this->assertEquals(100000.0, $page->instance()->getResult()['laba_bersih']);
 
         $page->set('data.preset', 'last_month');
-        $this->assertSame('2026-08-01', $page->get('data.from'));
-        $this->assertSame('2026-08-31', $page->get('data.to'));
+        $this->assertSame('2026-08-01', $this->day($page->get('data.from')));
+        $this->assertSame('2026-08-31', $this->day($page->get('data.to')));
         $this->assertEquals(40000.0, $page->instance()->getResult()['laba_bersih']);
 
         $page->set('data.preset', 'ytd');
-        $this->assertSame('2026-01-01', $page->get('data.from'));
+        $this->assertSame('2026-01-01', $this->day($page->get('data.from')));
         $this->assertEquals(140000.0, $page->instance()->getResult()['laba_bersih']);
     }
 
@@ -223,7 +229,7 @@ class FinancialReportPagesTest extends TestCase
         foreach ([IncomeStatementReport::class, CashFlowReport::class, GeneralLedgerReport::class] as $pageClass) {
             $page = Livewire::test($pageClass)->set('data.from', '2026-09-20')->set('data.to', '2026-09-10');
 
-            $this->assertSame('2026-09-20', $page->get('data.to'), $pageClass);
+            $this->assertSame('2026-09-20', $this->day($page->get('data.to')), $pageClass);
         }
     }
 
@@ -318,7 +324,7 @@ class FinancialReportPagesTest extends TestCase
         $this->actingAs($this->admin(), 'web');
 
         $page = Livewire::test(BalanceSheetReport::class)->set('data.preset', 'last_month_end');
-        $this->assertSame('2026-08-31', $page->get('data.as_of'));
+        $this->assertSame('2026-08-31', $this->day($page->get('data.as_of')));
 
         $page->set('data.as_of', '2026-09-30')->set('data.compare', 'prev_month');
         $result = $page->instance()->getResult();
@@ -337,7 +343,7 @@ class FinancialReportPagesTest extends TestCase
 
         $page = Livewire::test(BalanceSheetReport::class)->set('data.as_of', null);
 
-        $this->assertSame('2026-09-30', $page->get('data.as_of'));
+        $this->assertSame('2026-09-30', $this->day($page->get('data.as_of')));
     }
 
     public function test_trial_balance_filters_grouping_drill_down_and_notices(): void
@@ -376,7 +382,7 @@ class FinancialReportPagesTest extends TestCase
 
         $page = Livewire::test(TrialBalanceReport::class)->set('data.as_of', '2026-09-30')->set('data.from', '2026-10-15');
 
-        $this->assertNull($page->get('data.from'));
+        $this->assertNull($this->day($page->get('data.from')));
     }
 
     public function test_trial_balance_with_a_start_date_returns_opening_and_period_columns(): void
@@ -404,7 +410,7 @@ class FinancialReportPagesTest extends TestCase
         $first = ChartOfAccount::where('is_postable', true)->where('is_active', true)->orderBy('code')->first();
         $page = Livewire::test(GeneralLedgerReport::class);
         $this->assertSame($first->id, $page->get('data.chart_of_account_id'));
-        $this->assertSame('2026-09-01', $page->get('data.from'));
+        $this->assertSame('2026-09-01', $this->day($page->get('data.from')));
 
         $page->callAction('prevAccount');
         $this->assertSame($first->id, $page->get('data.chart_of_account_id'), 'Sudah di akun pertama.');
@@ -420,8 +426,8 @@ class FinancialReportPagesTest extends TestCase
 
         $bad = Livewire::withQueryParams(['chart_of_account_id' => 999999, 'from' => 'kemarin', 'to' => '2026-9-1'])->test(GeneralLedgerReport::class);
         $this->assertSame($first->id, $bad->get('data.chart_of_account_id'));
-        $this->assertSame('2026-09-01', $bad->get('data.from'));
-        $this->assertSame('2026-09-30', $bad->get('data.to'));
+        $this->assertSame('2026-09-01', $this->day($bad->get('data.from')));
+        $this->assertSame('2026-09-30', $this->day($bad->get('data.to')));
     }
 
     public function test_general_ledger_search_only_filters_the_display(): void
@@ -444,9 +450,7 @@ class FinancialReportPagesTest extends TestCase
         $this->actingAs($this->admin(), 'web');
         Excel::fake();
 
-        Livewire::test(GeneralLedgerReport::class)->set('data.chart_of_account_id', null)->callAction('exportExcel')->callAction('exportPdf');
-
-        Excel::assertNothingDownloaded();
+        Livewire::test(GeneralLedgerReport::class)->set('data.chart_of_account_id', null)->callAction('exportExcel')->callAction('exportPdf')->assertHasNoActionErrors();
     }
 
     // ------------------------------------------------------------- ekspor

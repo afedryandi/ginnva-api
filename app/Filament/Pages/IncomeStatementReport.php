@@ -223,8 +223,9 @@ class IncomeStatementReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString());
-        $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString());
+        // startOfDay(): nilai DatePicker bisa membawa jam; jam membuat selisih bulan pembanding menjadi pecahan (0 bulan).
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth()->toDateString())->startOfDay();
+        $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth()->toDateString())->startOfDay();
         $storeId = $this->storeId();
 
         $service = app(FinancialStatementService::class);
@@ -277,7 +278,7 @@ class IncomeStatementReport extends Page implements HasForms
         if ($mode === 'prev_period') {
             // Rentang bulan penuh -> mundur sejumlah bulan yang sama; selain itu mundur sejumlah hari yang sama.
             if ($from->isSameDay($from->copy()->startOfMonth()) && $to->isSameDay($to->copy()->endOfMonth())) {
-                $months = $from->diffInMonths($to->copy()->addDay()->startOfMonth());
+                $months = (int) round($from->diffInMonths($to->copy()->addDay()->startOfMonth()));
                 $prevFrom = $from->copy()->subMonthsNoOverflow($months);
 
                 return [$prevFrom, $prevFrom->copy()->addMonthsNoOverflow($months)->subDay()];
