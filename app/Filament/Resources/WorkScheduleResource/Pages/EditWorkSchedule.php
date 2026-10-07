@@ -26,6 +26,10 @@ class EditWorkSchedule extends EditRecord
     {
         $this->daysBeforeSave = $this->record->days;
 
+        // Toko jadwal tidak boleh berubah setelah dibuat (lihat catatan di form: disabled saja tidak
+        // cukup). Jaring pengaman kedua selain ->dehydrated(false) di field-nya.
+        unset($data['store_id']);
+
         return $data;
     }
 

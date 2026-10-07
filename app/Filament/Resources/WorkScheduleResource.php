@@ -113,7 +113,7 @@ class WorkScheduleResource extends Resource
                 // days menunjuk shift toko lama & penugasan lama tetap di
                 // toko asal (audit Daftar Jadwal Kerja 2026-09-28).
                 ->disabled(fn (?WorkSchedule $record) => $record !== null || ! (auth()->user()?->isFullAccess() ?? false))
-                ->dehydrated()
+                ->dehydrated(fn (?WorkSchedule $record) => $record === null)
                 ->live()
                 ->required(),
 
@@ -140,8 +140,11 @@ class WorkScheduleResource extends Resource
                 ->columns(2)
                 ->itemLabel(fn (array $state): ?string => WorkSchedule::DAY_LABELS[$state['day'] ?? ''] ?? null)
                 ->rules([
-                    fn (Get $get) => function (string $attribute, $value, \Closure $fail) use ($get) {
-                        if ($error = WorkSchedule::validateDays($value, $get('store_id') ? (int) $get('store_id') : null)) {
+                    fn (Get $get, ?WorkSchedule $record) => function (string $attribute, $value, Closure $fail) use ($get, $record) {
+                        // Saat edit, toko = toko RECORD (bukan state form yang bisa dimanipulasi).
+                        $storeId = $record?->store_id ?? ($get('store_id') ? (int) $get('store_id') : null);
+
+                        if ($error = WorkSchedule::validateDays($value, $storeId)) {
                             $fail($error);
                         }
                     },
