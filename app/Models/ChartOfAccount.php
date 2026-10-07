@@ -195,6 +195,26 @@ class ChartOfAccount extends Model
             }
         });
 
+        // Induk harus akun header berklasifikasi sama -- aturan yang sama dengan impor akun
+        // (ChartOfAccountImportService). Dropdown form cuma membatasi di UI; nilai kiriman langsung
+        // sebelumnya bisa menaruh akun di bawah akun detail atau klasifikasi lain dan merusak
+        // pengelompokan laporan. Hanya diperiksa saat induk diubah, jadi data lama tidak terganggu.
+        static::saving(function (ChartOfAccount $account) {
+            if (! auth()->check() || ! $account->parent_id || ! $account->isDirty('parent_id')) {
+                return;
+            }
+
+            $parent = self::find($account->parent_id);
+
+            if (! $parent || $parent->is_postable) {
+                throw new \RuntimeException('Akun induk harus akun header (tidak bisa diposting).');
+            }
+
+            if ($parent->type !== $account->type) {
+                throw new \RuntimeException('Akun induk harus berklasifikasi sama dengan akun ini.');
+            }
+        });
+
         static::updating(function (ChartOfAccount $account) {
             if (! auth()->check()) {
                 return;
