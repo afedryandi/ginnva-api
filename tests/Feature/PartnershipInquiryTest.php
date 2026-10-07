@@ -90,19 +90,24 @@ class PartnershipInquiryTest extends TestCase
         $this->assertNull($inquiry->customer_id);
     }
 
-    public function test_customer_token_links_the_application_but_a_bad_token_is_still_accepted_as_guest(): void
+    public function test_customer_token_links_the_application_to_the_customer(): void
     {
         $customer = Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(1000000, 9999999)]);
-        $payload = ['applicant_name' => 'Budi', 'phone_number' => '0811', 'email' => 'b@example.com', 'city' => 'Jakarta'];
 
         $this->withHeader('Authorization', 'Bearer ' . JWTAuth::fromUser($customer))
-            ->postJson('/api/partnership/submit', $payload)->assertStatus(201);
-        $this->assertSame($customer->id, PartnershipInquiry::latest('id')->first()->customer_id);
+            ->postJson('/api/partnership/submit', ['applicant_name' => 'Budi', 'phone_number' => '0811', 'email' => 'b@example.com', 'city' => 'Jakarta'])
+            ->assertStatus(201);
 
-        $this->app['auth']->forgetGuards(); // guard menyimpan customer dari request sebelumnya di app yang sama
+        $this->assertSame($customer->id, PartnershipInquiry::firstOrFail()->customer_id);
+    }
+
+    public function test_a_bad_token_is_still_accepted_as_guest(): void
+    {
         $this->withHeader('Authorization', 'Bearer token-rusak')
-            ->postJson('/api/partnership/submit', $payload)->assertStatus(201);
-        $this->assertNull(PartnershipInquiry::latest('id')->first()->customer_id);
+            ->postJson('/api/partnership/submit', ['applicant_name' => 'Budi', 'phone_number' => '0811', 'email' => 'b@example.com', 'city' => 'Jakarta'])
+            ->assertStatus(201);
+
+        $this->assertNull(PartnershipInquiry::firstOrFail()->customer_id);
     }
 
     public function test_franchise_validation(): void
