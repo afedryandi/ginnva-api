@@ -171,6 +171,7 @@ class JournalEntryResource extends Resource
                         ->native(false)
                         ->required()
                         ->default(now())
+                        ->maxDate(today())
                         ->disabled(fn (?JournalEntry $record) => $record?->status === 'posted'),
 
                     Forms\Components\Select::make('store_id')
