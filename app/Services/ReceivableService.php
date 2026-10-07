@@ -80,6 +80,14 @@ class ReceivableService
             throw new RuntimeException('Tanggal jurnal piutang tidak boleh di masa depan.');
         }
 
+        // Dropdown akun di form hanya membatasi di UI; nilai kiriman tidak divalidasi. Tanpa pengecekan ini,
+        // piutang manual bisa mengkredit akun APA SAJA yang bisa diposting (mis. Kas atau Hutang Usaha),
+        // sehingga laporan keuangan salah tanpa peringatan.
+        $creditAccount = ChartOfAccount::find($creditAccountId);
+        if (! $creditAccount || ! $creditAccount->is_active || ! $creditAccount->is_postable || ! in_array($creditAccount->type, ['pendapatan', 'pendapatan_lain'], true)) {
+            throw new RuntimeException('Akun yang dikredit harus akun Pendapatan yang aktif.');
+        }
+
         $data = Arr::except($data, ['entry_date']);
         $data['amount'] = $amount;
 
