@@ -37,6 +37,11 @@ class BankReconciliationService
      */
     public function importRows(array $rows, ChartOfAccount $account, ?int $userId, array $fileInfo = []): array
     {
+        // Form hanya menawarkan akun kas/bank, tapi nilai kiriman langsung tidak dibatasi.
+        if (! $account->is_cash) {
+            throw new RuntimeException('Mutasi bank hanya bisa diimpor ke akun kas/bank.');
+        }
+
         // Akhiran acak: dua impor dalam detik yang sama sebelumnya bentrok di kolom unik batch.
         $batch = 'IMPORT-' . now()->format('YmdHis') . '-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(4));
         $imported = 0;
@@ -178,6 +183,19 @@ class BankReconciliationService
                 throw new RuntimeException('Baris jurnal yang dipilih bukan dari akun yang sama dengan mutasi bank ini.');
             }
 
+            // Dropdown form hanya menampilkan jurnal posted, tapi nilai kiriman langsung tidak dibatasi:
+            // draft belum masuk pembukuan, dan arah debit/kredit harus searah dengan mutasi bank
+            // (uang masuk = debit kas, uang keluar = kredit kas).
+            $journal = $journalLine->journalEntry()->first();
+            if (! $journal || $journal->status !== 'posted') {
+                throw new RuntimeException('Hanya baris dari jurnal yang sudah diposting yang bisa dicocokkan.');
+            }
+
+            $sameDirection = $locked->amount >= 0 ? (float) $journalLine->debit > 0 : (float) $journalLine->credit > 0;
+            if (! $sameDirection) {
+                throw new RuntimeException('Arah baris jurnal berlawanan dengan mutasi bank (uang masuk = debit, uang keluar = kredit).');
+            }
+
             $alreadyMatched = BankStatementLine::where('matched_journal_entry_line_id', $journalLine->id)
                 ->lockForUpdate()
                 ->exists();
@@ -200,11 +218,21 @@ class BankReconciliationService
 
     public function unmatch(BankStatementLine $line): void
     {
+        if ($line->status !== 'matched') {
+            throw new RuntimeException('Mutasi ini tidak sedang berstatus Cocok.');
+        }
+
         $line->update(['matched_journal_entry_line_id' => null, 'status' => 'unmatched', 'stale_at' => null]);
     }
 
     public function ignore(BankStatementLine $line): void
     {
+        // Mutasi yang sudah dicocokkan harus dibatalkan kecocokannya dulu; kalau tidak, statusnya
+        // berubah tapi tautan ke baris jurnal tertinggal dan jurnal itu tak bisa dicocokkan lagi.
+        if ($line->status !== 'unmatched') {
+            throw new RuntimeException('Hanya mutasi berstatus Belum Cocok yang bisa ditandai Diabaikan.');
+        }
+
         $line->update(['status' => 'ignored']);
     }
 

@@ -402,11 +402,17 @@ class BankStatementLineResource extends Resource
         }
 
         $account = ChartOfAccount::findOrFail($accountId);
-        $result = app(BankReconciliationService::class)->importRows($parsed, $account, auth()->id(), [
-            'original_filename' => basename($uploadedPath),
-            'archived_path' => $archivedPath,
-            'invalid_count' => $invalidCount,
-        ]);
+        try {
+            $result = app(BankReconciliationService::class)->importRows($parsed, $account, auth()->id(), [
+                'original_filename' => basename($uploadedPath),
+                'archived_path' => $archivedPath,
+                'invalid_count' => $invalidCount,
+            ]);
+        } catch (RuntimeException $e) {
+            Notification::make()->title('Import dibatalkan')->body($e->getMessage())->danger()->send();
+
+            return;
+        }
 
         $bodyLines = ["{$result['imported']} baris berhasil diimpor."];
         if ($result['duplicates'] > 0) $bodyLines[] = "{$result['duplicates']} baris dilewati (duplikat — sudah pernah diimpor).";
