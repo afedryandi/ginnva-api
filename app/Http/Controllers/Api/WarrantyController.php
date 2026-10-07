@@ -348,27 +348,38 @@ class WarrantyController extends Controller
                 return response()->json(['success' => false, 'message' => 'Garansi ini sudah terhubung ke akun lain.'], 409);
             }
 
-            $warranty->update(['customer_id' => $customer->id]);
-
-            // Kalau warranty sudah approved sebelum diklaim, award poin sekarang.
-            // Observer tidak akan terpicu lagi karena review_status tidak berubah.
-            $alreadyRewarded = PointTransaction::where('reference_type', 'warranty')
+            $rewardedBefore = PointTransaction::where('reference_type', 'warranty')
                 ->where('reference_id', $warranty->id)
                 ->lockForUpdate()
                 ->exists();
 
+            // WarrantyObserver::updated() ikut memberi poin begitu garansi
+            // approved mendapat pemilik (customer_id berubah) -- jadi poin
+            // biasanya SUDAH tercatat setelah update ini.
+            $warranty->update(['customer_id' => $customer->id]);
+
             $pointsAwarded = false;
-            if ($warranty->review_status === 'approved' && !$alreadyRewarded) {
-                PointTransaction::create([
-                    'customer_id'    => $customer->id,
-                    'type'           => 'earn',
-                    'points'         => 100,
-                    'description'    => 'Garansi disetujui: ' . $warranty->warranty_code,
-                    'reference_type' => 'warranty',
-                    'reference_id'   => $warranty->id,
-                ]);
-                $customer->increment('loyalty_points', 100);
-                $pointsAwarded = true;
+
+            if (! $rewardedBefore && $warranty->review_status === 'approved') {
+                $rewardedNow = PointTransaction::where('reference_type', 'warranty')
+                    ->where('reference_id', $warranty->id)
+                    ->exists();
+
+                if ($rewardedNow) {
+                    $pointsAwarded = true; // diberikan observer barusan
+                } else {
+                    // Jaring pengaman kalau observer tidak memberi poin.
+                    PointTransaction::create([
+                        'customer_id'    => $customer->id,
+                        'type'           => 'earn',
+                        'points'         => 100,
+                        'description'    => 'Garansi disetujui: ' . $warranty->warranty_code,
+                        'reference_type' => 'warranty',
+                        'reference_id'   => $warranty->id,
+                    ]);
+                    $customer->increment('loyalty_points', 100);
+                    $pointsAwarded = true;
+                }
             }
 
             return response()->json([
