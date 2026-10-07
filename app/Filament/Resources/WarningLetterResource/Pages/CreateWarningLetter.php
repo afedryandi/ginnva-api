@@ -4,6 +4,7 @@ namespace App\Filament\Resources\WarningLetterResource\Pages;
 
 use App\Filament\Resources\WarningLetterResource;
 use App\Services\PushNotificationService;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateWarningLetter extends CreateRecord
@@ -14,6 +15,12 @@ class CreateWarningLetter extends CreateRecord
     {
         if (! auth()->user()?->isFullAccess()) {
             $data['store_id'] = auth()->user()->store_id;
+        }
+
+        if ($problem = WarningLetterResource::employeeProblem($data)) {
+            Notification::make()->title('Tidak bisa disimpan')->body($problem)->danger()->send();
+
+            $this->halt();
         }
 
         $data['issued_by'] = auth()->id();

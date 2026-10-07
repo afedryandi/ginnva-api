@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
+use App\Models\Scopes\StoreScope;
 use App\Models\WarningLetter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -27,7 +28,10 @@ class WarningLetterController extends Controller
      */
     public function index(Request $request)
     {
-        $letters = WarningLetter::where('user_id', $request->user('api')->id)
+        // Dokumen milik karyawan sendiri: StoreScope (toko akun SAAT INI) tidak boleh menyembunyikan SP yang
+        // diterbitkan di toko lama setelah karyawan dimutasi -- filter user_id sudah membatasinya.
+        $letters = WarningLetter::withoutGlobalScope(StoreScope::class)
+            ->where('user_id', $request->user('api')->id)
             ->with('issuer:id,name')
             ->orderByDesc('issued_date')
             ->get();
@@ -48,7 +52,8 @@ class WarningLetterController extends Controller
      */
     public function acknowledge(Request $request, int $id)
     {
-        $letter = WarningLetter::where('user_id', $request->user('api')->id)->findOrFail($id);
+        $letter = WarningLetter::withoutGlobalScope(StoreScope::class)
+            ->where('user_id', $request->user('api')->id)->findOrFail($id);
 
         if (! $letter->acknowledged_at) {
             $letter->update(['acknowledged_at' => now()]);

@@ -104,6 +104,26 @@ class WarningLetterResource extends Resource
             || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
+    /**
+     * Validasi SERVER: Select karyawan cuma dibatasi di UI (opsi dropdown), nilai kiriman tidak
+     * divalidasi -- tanpa ini SP bisa diterbitkan untuk partner atau karyawan toko lain, atau
+     * tercatat di toko yang tidak sama dengan toko karyawannya (SP jadi tak terlihat/terisolasi salah).
+     */
+    public static function employeeProblem(array $data): ?string
+    {
+        $employee = User::find($data['user_id'] ?? 0);
+
+        if (! $employee || $employee->hasRole('partner')) {
+            return 'Karyawan tidak valid.';
+        }
+
+        if ((int) $employee->store_id !== (int) ($data['store_id'] ?? 0)) {
+            return 'Karyawan harus berada di toko yang sama dengan toko surat ini.';
+        }
+
+        return null;
+    }
+
     public static function canDeleteAny(): bool
     {
         $user = auth()->user();
