@@ -86,7 +86,7 @@ class MaterialDownloadTest extends TestCase
         Livewire::test(CreateMaterial::class)
             ->fillForm([
                 'material_category_id' => $this->guide->id, 'name' => 'Panduan Perawatan PPF',
-                'file' => UploadedFile::fake()->create('panduan.pdf', 300, 'application/pdf'), 'is_active' => true,
+                'file' => UploadedFile::fake()->createWithContent('panduan.pdf', str_repeat('x', 3000)), 'is_active' => true,
             ])
             ->call('create')
             ->assertHasNoFormErrors();
@@ -95,11 +95,11 @@ class MaterialDownloadTest extends TestCase
         $this->assertStringStartsWith('materials/', $material->file);
         Storage::disk('public')->assertExists($material->file);
         $this->assertSame('pdf', strtolower((string) $material->file_type), 'Tipe file tercatat.');
-        $this->assertNotEmpty($material->file_size, 'Ukuran file tercatat supaya tampil di aplikasi.');
+        $this->assertSame(3000, (int) $material->file_size, 'Ukuran file tercatat supaya tampil di aplikasi.');
 
         $row = $this->getJson('/api/materials')->json('data.0.materials.0');
         $this->assertSame('Panduan Perawatan PPF', $row['name']);
-        $this->assertNotSame('—', $row['file_size']);
+        $this->assertSame('2.9 KB', $row['file_size']);
     }
 
     public function test_allowed_file_types_are_accepted(): void
