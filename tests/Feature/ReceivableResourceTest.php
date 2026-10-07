@@ -43,6 +43,7 @@ class ReceivableResourceTest extends TestCase
 
         Http::fake();
         Role::findOrCreate('kasir', 'web');
+        Role::findOrCreate('store_manager', 'web');
         $this->seed(ChartOfAccountSeeder::class);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $this->store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true]);
@@ -117,8 +118,6 @@ class ReceivableResourceTest extends TestCase
         $overdue = $this->receivable(['customer_name' => 'Terlambat', 'due_date' => now()->subDays(5)->toDateString()]);
         $theirs = $this->receivable(['customer_name' => 'Toko Lain', 'store_id' => $this->otherStore->id]);
 
-        $this->actingAs($this->user('store_manager', null), 'web');
-        Role::findOrCreate('store_manager', 'web');
         $manager = $this->user('store_manager');
         $this->actingAs($manager, 'web');
         Livewire::test(ListReceivables::class)->assertSuccessful()
