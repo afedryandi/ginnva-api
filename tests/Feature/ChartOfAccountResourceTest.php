@@ -86,23 +86,26 @@ class ChartOfAccountResourceTest extends TestCase
     public function test_list_renders_with_balances_and_filters(): void
     {
         $this->asAdmin();
-        $expense = $this->account('6480');
-        $off = $this->account('6481', 'beban_operasional', ['is_active' => false]);
-        $header = $this->account('6000', 'beban_operasional', ['is_postable' => false]);
+        // Kode unik jauh dari seeder: daftar 10 baris/halaman dan ratusan akun seeder, jadi cari dulu '69'.
+        $expense = $this->account('6970');
+        $off = $this->account('6971', 'beban_operasional', ['is_active' => false]);
+        $header = $this->account('6960', 'beban_operasional', ['is_postable' => false]);
         $this->journal($expense, 250000, 0);
 
         $row = ChartOfAccountResource::getEloquentQuery()->findOrFail($expense->id);
 
         Livewire::test(ListChartOfAccounts::class)->assertSuccessful()
+            ->searchTable('69')
             ->assertCanSeeTableRecords([$expense, $off, $header])
             ->assertTableColumnStateSet('saldo', 250000.0, $row)
             ->filterTable('is_active', false)
             ->assertCanSeeTableRecords([$off])->assertCanNotSeeTableRecords([$expense]);
 
-        Livewire::test(ListChartOfAccounts::class)->filterTable('is_postable', false)
+        Livewire::test(ListChartOfAccounts::class)->searchTable('69')->filterTable('is_postable', false)
             ->assertCanSeeTableRecords([$header])->assertCanNotSeeTableRecords([$expense]);
-        Livewire::test(ListChartOfAccounts::class)->filterTable('type', 'beban_operasional')
-            ->assertCanSeeTableRecords([$expense])->assertCanNotSeeTableRecords([ChartOfAccount::where('code', '1101')->first()]);
+        Livewire::test(ListChartOfAccounts::class)->searchTable('69')->filterTable('type', 'aset')
+            ->assertCanNotSeeTableRecords([$expense, $off, $header]);
+    }
     }
 
     public function test_the_balance_shown_follows_the_normal_balance_of_the_account(): void
