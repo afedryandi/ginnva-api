@@ -384,10 +384,12 @@ class BankStatementLineResourceTest extends TestCase
         $this->assertSame($entry->entry_number, $report['lines']->first()['journal_entry_number']);
 
         Excel::fake();
+        \Illuminate\Support\Carbon::setTestNow('2026-09-30 10:00:00');
         Livewire::test(ListBankStatementLines::class)->callTableAction('exportReconciliation', data: [
             'chart_of_account_id' => $this->cash->id, 'from' => '2026-09-01', 'to' => '2026-09-30',
         ]);
-        Excel::assertDownloaded(fn (string $name) => str_starts_with($name, 'rekonsiliasi-bank-') && str_ends_with($name, '.xlsx'));
+        Excel::assertDownloaded('rekonsiliasi-bank-20260930-100000.xlsx');
+        \Illuminate\Support\Carbon::setTestNow();
     }
 
     public function test_pdf_export_and_import_history_render(): void
@@ -414,10 +416,10 @@ class BankStatementLineResourceTest extends TestCase
         $this->actingAs($this->user('kasir'), 'web');
         $this->assertFalse((bool) BankStatementLineResource::canViewAny());
 
-        $this->actingAs($this->user('spv_finance'), 'web');
-        $this->assertFalse((bool) BankStatementLineResource::canViewAny(), 'Tanpa akses menu eksplisit.');
+        $this->actingAs($this->user('spv_finance', ['menu_access' => ['JournalEntryResource']]), 'web');
+        $this->assertFalse((bool) BankStatementLineResource::canViewAny(), 'Menu ini tidak dicentang di Akses Menu.');
 
-        $spv = $this->user('spv_finance', ['menu_permissions' => [BankStatementLineResource::class => []]]);
+        $spv = $this->user('spv_finance', ['menu_access' => ['BankStatementLineResource']]);
         $this->actingAs($spv, 'web');
         $this->assertTrue((bool) BankStatementLineResource::canViewAny());
         $this->assertFalse((bool) BankStatementLineResource::canDelete($line), 'Hapus tidak diberikan default.');
