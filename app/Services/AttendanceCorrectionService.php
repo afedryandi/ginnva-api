@@ -96,6 +96,9 @@ class AttendanceCorrectionService
                 ]
             );
 
+            // Jam masuk/keluar berubah -> menit telat/pulang cepat lama tidak boleh menempel (dipakai Payroll).
+            $attendance->recalculateTiming();
+
             $locked->update([
                 'attendance_id' => $attendance->id,
                 'status' => AttendanceCorrectionRequest::STATUS_APPROVED,

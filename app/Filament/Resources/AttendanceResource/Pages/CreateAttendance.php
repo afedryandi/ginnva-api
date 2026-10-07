@@ -29,9 +29,14 @@ class CreateAttendance extends CreateRecord
      */
     protected function handleRecordCreation(array $data): \Illuminate\Database\Eloquent\Model
     {
-        return Attendance::updateOrCreate(
+        $attendance = Attendance::updateOrCreate(
             ['user_id' => $data['user_id'], 'date' => $data['date']],
             $data
         );
+
+        // Menggenapi baris absen asli (mis. lupa absen pulang) harus ikut menyegarkan telat/pulang cepat.
+        $attendance->recalculateTiming();
+
+        return $attendance;
     }
 }

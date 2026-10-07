@@ -386,6 +386,35 @@ class Attendance extends Model
         return max(0, $rawEarlyMinutes - $toleranceMinutes);
     }
 
+    /**
+     * Hitung ulang late_minutes & early_leave_minutes dari clock_in_at/clock_out_at yang
+     * TERSIMPAN sekarang, dengan aturan yang sama persis dengan absen lewat app (jam Shift
+     * individu, fallback jam buka/tutup toko, dikurangi toleransi). Dipanggil setiap kali jam
+     * absen diubah SETELAH kejadian -- koreksi yang disetujui, edit atasan -- karena
+     * Payroll menjumlahkan late_minutes untuk potongan gaji: SEBELUMNYA menit telat dari
+     * absen lama tetap menempel walau jam masuknya sudah dikoreksi jadi tepat waktu (atau
+     * sebaliknya). Dinas luar (field_duty) tidak pernah dihitung telat/pulang cepat.
+     */
+    public function recalculateTiming(): void
+    {
+        $user = $this->user;
+        $store = $this->store ?? Store::find($this->store_id);
+        $late = 0;
+        $early = 0;
+
+        if ($this->entry_type !== 'field_duty' && $user && $store) {
+            if ($this->clock_in_at) {
+                $late = self::calculateLateMinutes($user, $store, $this->date->copy(), $this->clock_in_at);
+            }
+
+            if ($this->clock_out_at) {
+                $early = self::calculateEarlyLeaveMinutes($user, $store, $this->date->copy(), $this->clock_out_at);
+            }
+        }
+
+        $this->forceFill(['late_minutes' => $late, 'early_leave_minutes' => $early])->save();
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

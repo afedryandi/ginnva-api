@@ -22,6 +22,12 @@ class EditAttendance extends EditRecord
         ];
     }
 
+    protected function afterSave(): void
+    {
+        // Jam diubah atasan -> hitung ulang telat/pulang cepat (lihat Attendance::recalculateTiming()).
+        $this->record->recalculateTiming();
+    }
+
     protected function mutateFormDataBeforeSave(array $data): array
     {
         if (! auth()->user()?->isFullAccess()) {
