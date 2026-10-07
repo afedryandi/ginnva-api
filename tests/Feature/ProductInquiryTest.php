@@ -13,10 +13,10 @@ use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
-use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * Inquiry Produk: form publik (validasi, nomor AVL unik, throttle),
