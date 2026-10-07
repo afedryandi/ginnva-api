@@ -336,20 +336,34 @@ class AttendanceCorrectionApprovalTest extends TestCase
 
     // ------------------------------------------------------------- edit langsung atasan
 
-    public function test_a_managers_direct_edit_also_refreshes_lateness(): void
+    public function test_a_full_access_edit_of_a_real_clock_row_also_refreshes_lateness(): void
     {
-        $manager = $this->user('store_manager');
         $employee = $this->user('kasir');
         $row = $this->clockRow($employee);
-        $this->actingAs($manager, 'web');
+        $this->actingAs($this->user('super_admin'), 'web');
 
         Livewire::test(EditAttendance::class, ['record' => $row->getKey()])
-            ->fillForm(['clock_in_at' => self::DATE . ' 08:58:00', 'clock_out_at' => self::DATE . ' 18:05:00', 'note' => 'Koreksi atasan, salah sensor'])
+            ->fillForm(['clock_in_at' => self::DATE . ' 08:58:00', 'clock_out_at' => self::DATE . ' 18:05:00', 'note' => 'Koreksi admin, salah sensor'])
             ->call('save')->assertHasNoFormErrors();
 
         $fresh = $row->fresh();
         $this->assertSame(0, $fresh->late_minutes);
         $this->assertSame(0, $fresh->early_leave_minutes);
+    }
+
+    public function test_a_store_manager_cannot_change_the_times_of_a_real_clock_row_directly(): void
+    {
+        $employee = $this->user('kasir');
+        $row = $this->clockRow($employee);
+        $this->actingAs($this->user('store_manager'), 'web');
+
+        Livewire::test(EditAttendance::class, ['record' => $row->getKey()])
+            ->fillForm(['clock_in_at' => self::DATE . ' 08:00:00', 'note' => 'Coba ubah jam'])
+            ->call('save');
+
+        $fresh = $row->fresh();
+        $this->assertSame('09:40', $fresh->clock_in_at->format('H:i'), 'Jam absen asli hanya bisa berubah lewat koreksi yang disetujui.');
+        $this->assertSame(25, $fresh->late_minutes);
     }
 
     public function test_completing_an_existing_row_with_a_manual_entry_refreshes_lateness(): void
