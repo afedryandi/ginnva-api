@@ -24,9 +24,25 @@ class CreateContractExtension extends CreateRecord
      */
     protected function handleRecordCreation(array $data): \Illuminate\Database\Eloquent\Model
     {
+        // Pilihan karyawan di dropdown hanya dibatasi di UI (Select tidak memvalidasi nilai kiriman
+        // di sisi server): tanpa pengecekan ini store manager bisa memperpanjang kontrak karyawan
+        // toko lain, atau akun partner, lewat permintaan yang diubah paksa.
+        $employee = User::findOrFail($data['user_id']);
+        $actor = auth()->user();
+
+        if ($employee->hasRole('partner') || (! $actor->isFullAccess() && $employee->store_id !== $actor->store_id)) {
+            Notification::make()
+                ->title('Tidak bisa disimpan')
+                ->body('Karyawan ini tidak termasuk yang boleh Anda kelola.')
+                ->danger()
+                ->send();
+
+            $this->halt();
+        }
+
         try {
             return ContractExtension::recordExtension(
-                User::findOrFail($data['user_id']),
+                $employee,
                 $data['new_end_date'],
                 auth()->id(),
                 $data['notes'] ?? null
