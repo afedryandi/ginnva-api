@@ -291,15 +291,29 @@ class LayananReportTest extends TestCase
         $this->assertSame([$title], $rows[0]);
         $this->assertSame(['Periode', '01 Oct 2026 - 31 Oct 2026'], $rows[1]);
         $this->assertSame(5, $by['Transaksi'][1]);
-        $this->assertSame('2.300.001', $by['Total Pendapatan (kotor)'][1]);
-        $this->assertSame('2.300.001', $by['Total Pendapatan (bersih)'][1]);
-        $this->assertSame([3, '1.350.001'], [$by['PPF'][1], $by['PPF'][3]], 'number_format membulatkan 1.350.000,5 ke atas.');
-        $this->assertSame([2, '700.001'], [$by['Kaca Film'][1], $by['Kaca Film'][3]]);
-        $this->assertSame([2, '250.000'], [$by['Detailing'][1], $by['Detailing'][3]]);
-        $this->assertSame([0, '0'], [$by['Premium Wash'][1], $by['Premium Wash'][3]]);
+        // Nominal berupa ANGKA (bisa dijumlah di Excel), bukan teks berformat; selisih <= 0,51 = pembulatan 0,5 lama.
+        $money = function ($value, float $expected, string $message = '') {
+            $this->assertIsFloat($value, $message);
+            $this->assertEqualsWithDelta($expected, $value, 0.51, $message);
+        };
+        $money($by['Total Pendapatan (kotor)'][1], 2300001);
+        $money($by['Total Pendapatan (bersih)'][1], 2300001);
+        $this->assertSame(0.0, $by['Pengembalian'][1], 'Tanpa refund = 0, bukan teks "-".');
+        $this->assertSame(3, $by['PPF'][1]);
+        $money($by['PPF'][3], 1350001);
+        $this->assertIsFloat($by['PPF'][2], 'Persentase berupa angka.');
+        $this->assertIsFloat($by['PPF'][4]);
+        $this->assertSame(2, $by['Kaca Film'][1]);
+        $money($by['Kaca Film'][3], 700001);
+        $this->assertSame(2, $by['Detailing'][1]);
+        $money($by['Detailing'][3], 250000);
+        $this->assertSame(0, $by['Premium Wash'][1]);
+        $this->assertSame(0.0, $by['Premium Wash'][3]);
         $this->assertSame(0, $by['Lainnya (tanpa jenis)'][1]);
-        $this->assertSame([3, '1.500.000'], [$by['Toko A'][1], $by['Toko A'][2]]);
-        $this->assertSame([2, '800.001'], [$by['Toko B'][1], $by['Toko B'][2]]);
+        $this->assertSame(3, $by['Toko A'][1]);
+        $money($by['Toko A'][2], 1500000);
+        $this->assertSame(2, $by['Toko B'][1]);
+        $money($by['Toko B'][2], 800001);
     }
 
     #[DataProvider('pages')]
