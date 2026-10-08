@@ -182,12 +182,27 @@ class PeakProductTimeReport extends Page implements HasForms
     }
 
     /** Log ekspor (audit 2026-09-30), konsisten dengan laporan lain. */
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya, dan
+     * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            return $this->storeId ?: null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'peak_product_time', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->storeId])
+                ->withProperties(['report' => 'peak_product_time', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Waktu Teramai Produk (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -234,7 +249,7 @@ class PeakProductTimeReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
 
         $rangeClamped = false;
@@ -243,8 +258,7 @@ class PeakProductTimeReport extends Page implements HasForms
             $rangeClamped = true;
         }
 
-        $user = auth()->user();
-        $storeId = ($user?->isFullAccess() ?? false) ? $this->storeId : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
@@ -282,7 +296,11 @@ class PeakProductTimeReport extends Page implements HasForms
 
                 return $row;
             })
-            ->sortByDesc(fn ($row) => $row['product'] === null ? -1 : $row['count'])
+            // Produk terbanyak dulu; "Belum Diisi SKU" selalu di bawah; seri diurutkan SKU lalu hari supaya tampilan stabil.
+            ->sort(function ($a, $b) {
+                return [$a['product'] === null ? 1 : 0, -$a['count'], $a['product']?->sku ?? '', $a['day']]
+                    <=> [$b['product'] === null ? 1 : 0, -$b['count'], $b['product']?->sku ?? '', $b['day']];
+            })
             ->values();
 
         return [
