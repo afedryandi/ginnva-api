@@ -353,7 +353,7 @@ class AssetResourceTest extends TestCase
 
     public function test_export_rows_are_scoped_to_the_user_and_download_actions_work(): void
     {
-        $mine = $this->asset('Ekspor Toko A', $this->storeA, ['purchase_cost' => 1000000, 'purchase_date' => '2026-10-08', 'useful_life_years' => 4]);
+        $mine = $this->asset('Ekspor Toko A', $this->storeA, ['purchase_cost' => 1000000, 'purchase_date' => '2026-10-09', 'useful_life_years' => 4]);   // dibeli besok: nilai buku = harga beli
         $theirs = $this->asset('Ekspor Toko B', $this->storeB);
         $hq = $this->asset('Ekspor Pusat', null);
 
@@ -367,7 +367,7 @@ class AssetResourceTest extends TestCase
         $export = new AssetExport();
         $rows = $export->collection()->keyBy(0);
         $this->assertSame(['Kode', 'Nama Aset', 'Kategori', 'Status', 'Dipegang Oleh', 'Lokasi', 'Tanggal Beli', 'Harga Beli', 'Nilai Buku Saat Ini'], $export->headings());
-        $this->assertEquals([$mine->asset_tag, 'Ekspor Toko A', 'Mesin', 'Aktif Dipakai', '-', 'Toko A', '2026-10-08', 1000000.0, 1000000.0], $rows[$mine->asset_tag]);
+        $this->assertEquals([$mine->asset_tag, 'Ekspor Toko A', 'Mesin', 'Aktif Dipakai', '-', 'Toko A', '2026-10-09', 1000000.0, 1000000.0], $rows[$mine->asset_tag]);
         $this->assertSame('Kantor Pusat', $rows[$hq->asset_tag][5]);
 
         Excel::fake();
