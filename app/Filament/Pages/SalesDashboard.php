@@ -145,12 +145,15 @@ class SalesDashboard extends Page
         // Tidak boleh maju melewati periode yang mengandung hari ini —
         // sama pola dengan tombol '>' Majoo yang disabled begitu sampai
         // periode berjalan (lihat screenshot 08 Sep 26 - 08 Sep 26).
-        $next = $this->snapshotService()->shift(Carbon::parse($this->referenceDate), $this->period, 1);
-        if ($next->greaterThan(now())) {
+        if (! $this->canGoNext()) {
             return;
         }
 
-        $this->referenceDate = $next->toDateString();
+        // Tanggal acuan hasil geser dijepit ke hari ini: periode berikutnya boleh dibuka selama AWALNYA belum
+        // lewat hari ini (mis. dari 30 Sep ke Okt saat hari ini 8 Okt), tapi acuannya tidak boleh di masa depan.
+        $next = $this->snapshotService()->shift(Carbon::parse($this->referenceDate), $this->period, 1);
+
+        $this->referenceDate = ($next->greaterThan(now()) ? now() : $next)->toDateString();
         $this->resultCache = null;
     }
 
@@ -158,7 +161,14 @@ class SalesDashboard extends Page
     // tidak bisa lihat periode masa depan (konsisten dengan goNext()).
     public function updatedReferenceDate($value): void
     {
-        if ($value && Carbon::parse($value)->greaterThan(now())) {
+        // Nilai dari klien tidak dipercaya: tanggal rusak atau di masa depan dikembalikan ke hari ini.
+        try {
+            $parsed = $value ? Carbon::parse($value) : null;
+        } catch (\Throwable) {
+            $parsed = null;
+        }
+
+        if (! $parsed || $parsed->greaterThan(now())) {
             $this->referenceDate = now()->toDateString();
         }
         $this->resultCache = null;
@@ -198,9 +208,12 @@ class SalesDashboard extends Page
 
     public function canGoNext(): bool
     {
+        // Yang diukur AWAL periode berikutnya, bukan tanggal acuan hasil geser: acuan yang digeser bisa jatuh
+        // setelah hari ini padahal periodenya (bulan/minggu berjalan) sudah dimulai dan boleh dibuka.
         $next = $this->snapshotService()->shift(Carbon::parse($this->referenceDate), $this->period, 1);
+        [$nextStart] = $this->snapshotService()->range($this->period, $next);
 
-        return $next->lessThanOrEqualTo(now());
+        return $nextStart->lessThanOrEqualTo(now());
     }
 
     /**
