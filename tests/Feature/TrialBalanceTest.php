@@ -306,18 +306,17 @@ class TrialBalanceTest extends TestCase
     {
         $original = $this->sale('2026-09-05', 100000);
         app(JournalEntryService::class)->reverse($original, null, 'Batal', '2026-09-20');
-        $this->sale('2026-09-25', 7000);
         $this->actingAs($this->admin(), 'web');
 
         $page = Livewire::test(TrialBalanceReport::class);
         $result = $page->instance()->getResult();
-        $this->assertSame(['aset', 'pendapatan'], $page->instance()->getGroupedRows($result)->keys()->all());
+        $this->assertSame(['aset', 'pendapatan'], $page->instance()->getGroupedRows($result)->keys()->all(), 'Akun yang saldonya habis tetap tampil bila filter mati.');
 
         $page->set('data.hide_zero', true);
-        $this->assertSame(['aset', 'pendapatan'], $page->instance()->getGroupedRows($result)->keys()->all(), 'Akun masih bersaldo 7.000.');
+        $this->assertTrue($page->instance()->getGroupedRows($result)->isEmpty(), 'Semua akun bersaldo nol disembunyikan.');
 
-        $this->assertEquals(107000.0, $result['total_debit']);
-        $this->assertEquals(107000.0, $result['total_credit']);
+        $this->assertEquals(200000.0, $result['total_debit'], 'Total tetap seluruh akun, termasuk jurnal pembalik.');
+        $this->assertEquals(200000.0, $result['total_credit']);
     }
 
     public function test_page_applies_the_period_and_the_store_choice(): void
