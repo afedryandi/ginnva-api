@@ -82,7 +82,9 @@ class PurchaseRequestResource extends Resource
 
         return $user?->canAccessStaffArea()
             && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'update', true);
+            && $user->hasModuleAction(static::class, 'update', true)
+            // Hanya permohonan yang masih menunggu yang boleh diubah; yang sudah diproses terkunci walau URL edit dibuka langsung.
+            && (($record?->status ?? 'pending') === 'pending');
     }
 
     /**
@@ -133,6 +135,7 @@ class PurchaseRequestResource extends Resource
                             'consumable_item' => 'Barang Habis Pakai (restock)',
                             'asset'           => 'Aset Baru (belum ada di katalog)',
                         ])
+                        ->in(['raw_material', 'consumable_item', 'asset'])
                         ->required()
                         ->live()
                         ->afterStateUpdated(fn (Forms\Set $set) => $set('item_id', null)),
@@ -150,6 +153,11 @@ class PurchaseRequestResource extends Resource
                         ->options(fn (Forms\Get $get) => match ($get('item_type')) {
                             'raw_material'    => RawMaterial::orderBy('name')->pluck('name', 'id'),
                             'consumable_item' => ConsumableItem::orderBy('name')->pluck('name', 'id'),
+                            default           => [],
+                        })
+                        ->in(fn (Forms\Get $get) => match ($get('item_type')) {
+                            'raw_material'    => RawMaterial::pluck('id')->all(),
+                            'consumable_item' => ConsumableItem::pluck('id')->all(),
                             default           => [],
                         }),
 
@@ -269,11 +277,30 @@ class PurchaseRequestResource extends Resource
                         && $record->status === 'pending')
                     ->requiresConfirmation()
                     ->action(function (PurchaseRequest $record) {
-                        $record->update([
-                            'status'      => 'approved',
-                            'reviewed_by' => auth()->id(),
-                            'reviewed_at' => now(),
-                        ]);
+                        // Kunci + cek ulang status: $record dari Livewire bisa basi (klik ganda / dua reviewer bersamaan).
+                        $processed = DB::transaction(function () use ($record) {
+                            $locked = PurchaseRequest::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
+
+                            if ($locked->status !== 'pending') {
+                                return true;
+                            }
+
+                            $locked->update([
+                                'status'      => 'approved',
+                                'reviewed_by' => auth()->id(),
+                                'reviewed_at' => now(),
+                            ]);
+
+                            return false;
+                        });
+
+                        if ($processed) {
+                            Notification::make()->title('Permohonan sudah diproses')->warning()->send();
+
+                            return;
+                        }
+
+                        $record->refresh();
 
                         if ($record->requested_by) {
                             app(PushNotificationService::class)->sendToUsers(
@@ -299,12 +326,30 @@ class PurchaseRequestResource extends Resource
                             ->rows(2),
                     ])
                     ->action(function (PurchaseRequest $record, array $data) {
-                        $record->update([
-                            'status'      => 'rejected',
-                            'reviewed_by' => auth()->id(),
-                            'reviewed_at' => now(),
-                            'review_note' => $data['review_note'],
-                        ]);
+                        $processed = DB::transaction(function () use ($record, $data) {
+                            $locked = PurchaseRequest::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
+
+                            if ($locked->status !== 'pending') {
+                                return true;
+                            }
+
+                            $locked->update([
+                                'status'      => 'rejected',
+                                'reviewed_by' => auth()->id(),
+                                'reviewed_at' => now(),
+                                'review_note' => $data['review_note'],
+                            ]);
+
+                            return false;
+                        });
+
+                        if ($processed) {
+                            Notification::make()->title('Permohonan sudah diproses')->warning()->send();
+
+                            return;
+                        }
+
+                        $record->refresh();
 
                         if ($record->requested_by) {
                             app(PushNotificationService::class)->sendToUsers(
