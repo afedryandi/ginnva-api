@@ -38,6 +38,9 @@ class PersediaanRingkasanReportTest extends TestCase
         Role::findOrCreate('kasir', 'web');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Carbon::setTestNow('2026-10-08 10:00:00');
+        // Migrasi sudah menanam item persediaan awal; hapus supaya tes menghitung hanya data miliknya.
+        RawMaterial::query()->delete();
+        ConsumableItem::query()->delete();
     }
 
     protected function tearDown(): void
