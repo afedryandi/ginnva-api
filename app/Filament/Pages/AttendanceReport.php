@@ -187,13 +187,31 @@ class AttendanceReport extends Page implements HasForms
         ])->columns(4)->statePath('data');
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua toko), staf toko dikunci ke tokonya, dan
+     * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null, yang pada query berarti "store_id IS
+     * NULL" / semua toko. Dipakai getResult() dan log ekspor supaya keduanya merujuk toko yang sama.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Log ekspor (audit Laporan Absensi 2026-09-29), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'attendance', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => 'attendance', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Laporan Absensi (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -240,14 +258,12 @@ class AttendanceReport extends Page implements HasForms
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth());
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
+        $storeId = $this->effectiveStoreId();
 
         $rows = Attendance::query()
             ->with(['user:id,name', 'store:id,name'])
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
-            ->when(! $isFullAccess, fn ($q) => $q->where('store_id', $user?->store_id))
-            ->when($isFullAccess && ! empty($this->data['store_id']), fn ($q) => $q->where('store_id', $this->data['store_id']))
+            ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
             ->orderByDesc('date')
             ->get();
 
@@ -268,7 +284,11 @@ class AttendanceReport extends Page implements HasForms
                     'earlyLeaveCount' => $group->where('isEarlyLeave', true)->count(),
                     'earlyArrivalCount' => $group->where('isEarlyArrival', true)->count(),
                     'overtimeCount' => $group->where('isOvertime', true)->count(),
-                    'noScheduleCount' => $group->where('hasSchedule', false)->count(),
+                    // Hanya baris yang benar-benar absen (clock/manual/tugas lapangan) yang bisa "tanpa jadwal" --
+                    // baris alpha & izin/cuti tidak punya jam masuk untuk dibandingkan, jadi tidak dihitung di sini.
+                    'noScheduleCount' => $group
+                        ->filter(fn (array $c) => ! $c['hasSchedule'] && in_array($c['attendance']->entry_type, ['clock', 'manual', 'field_duty'], true))
+                        ->count(),
                 ];
             })
             ->sortBy(fn ($row) => $row['user']->name)
