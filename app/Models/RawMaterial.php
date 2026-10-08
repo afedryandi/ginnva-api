@@ -402,8 +402,15 @@ class RawMaterial extends Model
             };
 
             if ($movement->type === 'in') {
-                $latestBatch = $material->batches()->orderByDesc('id')->first();
+                // reorder(): batches() sudah punya urutan received_date -- tanpa ini yang terambil batch TERTUA, bukan yang baru dibuat.
+                $latestBatch = $material->batches()->reorder('id', 'desc')->first();
                 $latestBatch?->delete();
+            }
+
+            // Opname NAIK membuat batch "tidak diketahui asalnya" (is_adjustment); karena ini kejadian terakhir,
+            // batch itu belum pernah terpakai -- hapus supaya jumlah batch dan nilai persediaan tidak menggelembung.
+            if ($movement->type === 'adjustment' && (float) $movement->quantity > 0) {
+                $material->batches()->where('is_adjustment', true)->reorder('id', 'desc')->first()?->delete();
             }
 
             $material->update(['current_stock' => max(0, $reversedStock)]);
