@@ -333,7 +333,7 @@ class BalanceSheetTest extends TestCase
         }
 
         $page->set('data.as_of', '2026-09-30')->set('data.compare', 'prev_month');
-        $this->assertEquals(100000.0, $page->instance()->getResult()['compare']['aset']['total']);
+        $this->assertEquals(140000.0, $page->instance()->getResult()['compare']['aset']['total'], 'Kumulatif: 40.000 (2025) + 100.000 (Agustus 2026).');
         $this->assertSame('30 Aug 2026', $page->instance()->getResult()['compare_label']);
 
         $page->set('data.compare', 'prev_year');
