@@ -52,19 +52,9 @@
                             </td>
                             <td class="py-2 pr-3 tabular-nums">{{ optional($event->subject->created_at)->format('d M Y H:i') }}</td>
                             <td class="py-2 pr-3 tabular-nums">{{ $event->created_at->format('d M Y H:i') }}</td>
-                            <td class="py-2 pr-3">{{ $event->subject->customer_name ?? '—' }}</td>
+                            <td class="py-2 pr-3">{{ $event->subject->display_customer_name }}</td>
                             <td class="py-2 pr-3">{{ $event->subject->store?->name ?? '—' }}</td>
-                            <td class="py-2 pr-3">
-                                @if ($event->subject->product_kaca_film && $event->subject->product_ppf)
-                                    Kaca Film + PPF
-                                @elseif ($event->subject->product_ppf)
-                                    PPF
-                                @elseif ($event->subject->product_kaca_film)
-                                    Kaca Film
-                                @else
-                                    —
-                                @endif
-                            </td>
+                            <td class="py-2 pr-3">{{ $event->subject->salesProductLabel() ?? '—' }}</td>
                             <td class="py-2 pr-3">{{ $event->subject->cancelledByLabel($event->causer?->name) }}</td>
                             <td class="py-2 pr-3">{{ $event->subject->cancel_reason ?? '—' }}</td>
                             <td class="py-2 pl-3 text-right tabular-nums">{{ $event->subject->transaction_amount > 0 ? $rupiah($event->subject->transaction_amount) : '—' }}</td>

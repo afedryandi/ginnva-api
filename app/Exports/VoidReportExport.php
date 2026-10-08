@@ -28,6 +28,7 @@ class VoidReportExport implements FromArray, WithHeadings, WithStyles
             'Toko',
             'Layanan',
             'Dibatalkan Oleh',
+            'Alasan',
             'Nilai Transaksi',
         ];
     }
@@ -42,14 +43,9 @@ class VoidReportExport implements FromArray, WithHeadings, WithStyles
                     $booking->booking_number,
                     optional($booking->created_at)->format('Y-m-d H:i'),
                     $event->created_at->format('Y-m-d H:i'),
-                    $booking->customer_name ?? '-',
+                    $booking->display_customer_name,
                     $booking->store?->name ?? '-',
-                    match (true) {
-                        $booking->product_kaca_film && $booking->product_ppf => 'Kaca Film + PPF',
-                        $booking->product_ppf => 'PPF',
-                        $booking->product_kaca_film => 'Kaca Film',
-                        default => '-',
-                    },
+                    $booking->salesProductLabel() ?? '-',
                     $booking->cancelledByLabel($event->causer?->name),
                     $booking->cancel_reason ?? '-',
                     (float) $booking->transaction_amount,

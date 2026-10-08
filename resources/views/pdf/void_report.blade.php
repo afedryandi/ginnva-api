@@ -46,19 +46,9 @@
                     <td>{{ $booking->booking_number }}</td>
                     <td>{{ optional($booking->created_at)->format('d M Y H:i') }}</td>
                     <td>{{ $event->created_at->format('d M Y H:i') }}</td>
-                    <td>{{ $booking->customer_name ?? '-' }}</td>
+                    <td>{{ $booking->display_customer_name }}</td>
                     <td>{{ $booking->store?->name ?? '-' }}</td>
-                    <td>
-                        @if ($booking->product_kaca_film && $booking->product_ppf)
-                            Kaca Film + PPF
-                        @elseif ($booking->product_ppf)
-                            PPF
-                        @elseif ($booking->product_kaca_film)
-                            Kaca Film
-                        @else
-                            -
-                        @endif
-                    </td>
+                    <td>{{ $booking->salesProductLabel() ?? '-' }}</td>
                     <td>{{ $booking->cancelledByLabel($event->causer?->name) }}</td>
                     <td>{{ $booking->cancel_reason ?? '-' }}</td>
                     <td class="value">{{ $booking->transaction_amount > 0 ? $rupiah($booking->transaction_amount) : '-' }}</td>

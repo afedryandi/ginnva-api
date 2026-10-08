@@ -211,13 +211,31 @@ class VoidReport extends Page implements HasForms
      * "Ekspor Laporan" (audit 2026-09-11, temuan B) — pola sama laporan
      * Penjualan lain.
      */
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya,
+     * dan staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
+     * Dipakai getResult() dan log ekspor supaya keduanya merujuk toko yang sama.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Log ekspor (audit Laporan Void 2026-09-29), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'void', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => 'void', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Laporan Void (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -258,13 +276,10 @@ class VoidReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini pembatalan sebelum jam itu di hari pertama tidak terhitung.
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
-        // GAP DIPERBAIKI 2026-09-29: full-access sebelumnya tidak bisa mempersempit ke 1 cabang di
-        // laporan ini -- sekarang filter 'store_id' di form dipakai kalau full-access memilihnya.
-        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         $events = Activity::query()
             ->where('subject_type', Booking::class)
@@ -282,7 +297,7 @@ class VoidReport extends Page implements HasForms
                 [Booking::class],
                 fn ($q2) => $q2->where('store_id', $storeId)
             ))
-            ->with(['causer', 'subject' => fn ($q) => $q->with('store:id,name')])
+            ->with(['causer', 'subject' => fn ($q) => $q->with(['store:id,name', 'customer'])])
             ->orderByDesc('created_at')
             ->get()
             ->filter(fn (Activity $activity) => $activity->subject !== null)
