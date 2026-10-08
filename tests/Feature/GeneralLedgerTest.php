@@ -259,7 +259,7 @@ class GeneralLedgerTest extends TestCase
         $this->assertSame(['Akun', '1101 — Kas di Tangan (per toko)'], $rows[5]);
         $this->assertSame(['Periode', '01 Sep 2026 - 30 Sep 2026'], $rows[6]);
         $this->assertSame(['Toko', 'Semua Toko'], $rows[7]);
-        $this->assertArrayHasKey(4, $export->styles(new Worksheet()));
+        $this->assertArrayHasKey(5, $export->styles(new Worksheet()), 'Baris Total: heading + saldo awal + 2 mutasi + 1.');
     }
 
     // ------------------------------------------------------------- halaman

@@ -419,7 +419,7 @@ class FinancialStatementService
             $runningCents += $account->isDebitNormal()
                 ? $this->cents($debit) - $this->cents($credit)
                 : $this->cents($credit) - $this->cents($debit);
-            $running = $runningCents / 100;
+            $running = (float) ($runningCents / 100);
 
             return [
                 'entry_date' => Carbon::parse($line->entry_date),
@@ -439,7 +439,7 @@ class FinancialStatementService
             'opening_balance' => $openingBalance,
             'opening_reset_from' => $resetOpening ? $yearStart : null,
             'rows' => $rows,
-            'closing_balance' => $runningCents / 100,
+            'closing_balance' => (float) ($runningCents / 100),
             'total_debit' => (float) $rows->sum('debit'),
             'total_credit' => (float) $rows->sum('credit'),
         ];
