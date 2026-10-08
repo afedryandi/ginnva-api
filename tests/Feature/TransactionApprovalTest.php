@@ -312,12 +312,12 @@ class TransactionApprovalTest extends TestCase
         $this->assertSame(0, $booking->downPayments()->count());
     }
 
-    public function test_a_down_payment_for_a_booking_completed_meanwhile_is_stuck_not_half_recorded(): void
+    public function test_a_down_payment_for_a_booking_cancelled_meanwhile_is_stuck_not_half_recorded(): void
     {
         $staff = $this->staff();
         $booking = $this->booking();
         $request = $this->service->submitDownPayment($booking, 100000, null, $staff->id);
-        $booking->update(['status' => 'completed']);
+        $booking->update(['status' => 'cancelled']);
 
         $this->assertRefused(fn () => $this->service->approve($request, $this->admin()->id), 'tidak bisa mencatat DP baru');
 
