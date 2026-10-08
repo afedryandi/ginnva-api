@@ -136,11 +136,14 @@ class FinanceCategoryTest extends TestCase
         $category = $this->category();
         $this->useIn($category);
 
-        $this->assertRefused(fn () => $category->update(['chart_of_account_id' => $this->acct('6110')]), 'tipe dan akunnya tidak boleh diubah');
-        $this->assertRefused(fn () => $category->update(['type' => 'in', 'chart_of_account_id' => $this->acct('4400')]), 'tipe dan akunnya tidak boleh diubah');
-        $this->assertRefused(fn () => $category->update(['is_group' => true, 'chart_of_account_id' => null]), 'sudah dipakai transaksi');
+        // Salinan baru tiap percobaan: model yang gagal disimpan tetap membawa atribut yang sudah diubah.
+        $attempt = fn (array $attributes) => FinanceCategory::find($category->id)->update($attributes);
 
-        $category->update(['name' => 'Nama Baru', 'sort_order' => 9, 'is_active' => false]);
+        $this->assertRefused(fn () => $attempt(['chart_of_account_id' => $this->acct('6110')]), 'tipe dan akunnya tidak boleh diubah');
+        $this->assertRefused(fn () => $attempt(['type' => 'in', 'chart_of_account_id' => $this->acct('4400')]), 'tipe dan akunnya tidak boleh diubah');
+        $this->assertRefused(fn () => $attempt(['is_group' => true, 'chart_of_account_id' => null]), 'sudah dipakai transaksi');
+
+        $attempt(['name' => 'Nama Baru', 'sort_order' => 9, 'is_active' => false]);
         $this->assertSame('Nama Baru', $category->fresh()->name);
         $this->assertFalse($category->fresh()->is_active);
         $this->assertSame($this->acct('6510'), $category->fresh()->chart_of_account_id);
@@ -183,9 +186,11 @@ class FinanceCategoryTest extends TestCase
         $group = $this->group();
         $this->category(['parent_id' => $group->id]);
 
-        $this->assertRefused(fn () => $group->update(['is_group' => false, 'chart_of_account_id' => $this->acct('6510')]), 'masih punya kategori anak');
-        $this->assertRefused(fn () => $group->update(['type' => 'in']), 'tipenya tidak bisa diubah');
-        $this->assertRefused(fn () => $group->delete(), 'masih punya kategori anak');
+        $again = fn () => FinanceCategory::find($group->id);
+
+        $this->assertRefused(fn () => $again()->update(['is_group' => false, 'chart_of_account_id' => $this->acct('6510')]), 'masih punya kategori anak');
+        $this->assertRefused(fn () => $again()->update(['type' => 'in']), 'tipenya tidak bisa diubah');
+        $this->assertRefused(fn () => $again()->delete(), 'masih punya kategori anak');
         $this->assertNotNull(FinanceCategory::find($group->id));
         $this->assertTrue($group->hasChildren());
 
@@ -412,12 +417,13 @@ class FinanceCategoryTest extends TestCase
 
     public function test_list_columns_filters_and_search(): void
     {
+        // Kategori lama tanpa akun hanya bisa ada lewat jalur tanpa user login (seeder/migrasi): buat sebelum login.
+        $legacy = FinanceCategory::create(['name' => 'Tanpa Akun', 'type' => 'out', 'is_active' => true, 'sort_order' => 5]);
         $this->asAdmin();
         $expense = $this->category(['name' => 'Listrik Toko', 'sort_order' => 2]);
         $income = $this->category(['name' => 'Pendapatan X', 'type' => 'in', 'chart_of_account_id' => $this->acct('4400'), 'sort_order' => 1]);
         $inactive = $this->category(['name' => 'Nonaktif', 'is_active' => false, 'sort_order' => 3]);
         $group = $this->group(['name' => 'Grup Beban', 'sort_order' => 4]);
-        $legacy = FinanceCategory::create(['name' => 'Tanpa Akun', 'type' => 'out', 'is_active' => true, 'sort_order' => 5]);
         $this->useIn($expense);
         $this->useIn($expense);
 
