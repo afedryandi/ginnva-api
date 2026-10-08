@@ -185,13 +185,28 @@ class PeakSalesTimeReport extends Page implements HasForms
      * "Ekspor Laporan" (audit 2026-09-11, temuan B) — pola sama laporan
      * Penjualan lain.
      */
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya, dan
+     * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            return $this->storeId ?: null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Log ekspor (audit 2026-09-30), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'peak_sales_time', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->storeId])
+                ->withProperties(['report' => 'peak_sales_time', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Waktu Teramai Penjualan (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -241,7 +256,7 @@ class PeakSalesTimeReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
 
         $rangeClamped = false;
@@ -250,15 +265,14 @@ class PeakSalesTimeReport extends Page implements HasForms
             $rangeClamped = true;
         }
 
-        $user = auth()->user();
-        $storeId = ($user?->isFullAccess() ?? false) ? $this->storeId : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with('journalEntry:id,entry_date')
-            ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf', 'customer_id']);
+            ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash', 'customer_id']);
 
         $days = [];
         foreach (range(0, 6) as $d) {
@@ -277,7 +291,9 @@ class PeakSalesTimeReport extends Page implements HasForms
 
             $days[$day]['revenue'] += (float) $booking->transaction_amount;
             $days[$day]['count']++;
-            $days[$day]['products'] += ($booking->product_kaca_film ? 1 : 0) + ($booking->product_ppf ? 1 : 0);
+            // Keempat jenis layanan dihitung (PPF, Kaca Film, Detailing, Premium Wash) -- SEBELUMNYA hanya dua pertama,
+            // jadi booking Detailing/Premium Wash tercatat 0 produk.
+            $days[$day]['products'] += $booking->salesProductCount();
             if ($booking->customer_id) {
                 $days[$day]['customers'][$booking->customer_id] = true;
             }
