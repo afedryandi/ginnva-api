@@ -477,7 +477,7 @@ class ExpenseApprovalTest extends TestCase
         $this->listFor($managerA, 'menunggu')
             ->assertTableActionVisible('approve_manager', $atManager)->assertTableActionVisible('reject', $atManager)
             ->assertTableActionHidden('approve_manager', $atDireksi)->assertTableActionHidden('approve_direksi', $atDireksi)->assertTableActionHidden('reject', $atDireksi);
-        $this->listFor($managerB, 'menunggu')->assertTableActionHidden('approve_manager', $atManager);
+        $this->listFor($managerB, 'menunggu')->assertCanNotSeeTableRecords([$atManager, $atDireksi]); // toko lain: pengajuannya tidak tampil sama sekali
         $this->listFor($admin, 'menunggu')
             ->assertTableActionVisible('approve_manager', $atManager)->assertTableActionHidden('approve_direksi', $atManager)
             ->assertTableActionVisible('approve_direksi', $atDireksi)->assertTableActionVisible('reject', $atDireksi);
