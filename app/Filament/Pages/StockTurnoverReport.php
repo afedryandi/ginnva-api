@@ -236,7 +236,8 @@ class StockTurnoverReport extends Page implements HasForms
 
         $rows = $materials->concat($consumables)
             ->filter(fn ($row) => $row['qtyOut'] > 0) // sembunyikan yang sama sekali tidak bergerak di rentang ini
-            ->sortByDesc(fn ($row) => $row['turnoverRatio'] ?? -1)
+            // Rasio tertinggi dulu; rasio tak terhitung (rata-rata stok 0) di bawah; seri diurutkan nama supaya tampilan stabil.
+            ->sort(fn ($a, $b) => [-($a['turnoverRatio'] ?? -1), $a['item']->name] <=> [-($b['turnoverRatio'] ?? -1), $b['item']->name])
             ->values();
 
         return [
