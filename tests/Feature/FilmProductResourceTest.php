@@ -251,12 +251,15 @@ class FilmProductResourceTest extends TestCase
         $this->assertSoftDeleted('film_products', ['id' => $product->id]);
         $this->assertNotNull(Activity::where('log_name', 'film_product')->where('subject_id', $product->id)->where('description', 'like', '%dihapus%')->first());
 
+        // Model $product di memori belum tahu sudah terhapus (dihapus lewat instance lain) -- ambil ulang termasuk yang terhapus.
+        $trashed = FilmProduct::withTrashed()->findOrFail($product->id);
+
         Livewire::test(ListFilmProducts::class)
             ->assertCanNotSeeTableRecords([$product])
             ->filterTable('trashed', false)
-            ->assertCanSeeTableRecords([$product])
-            ->assertTableActionVisible('restore', $product)
-            ->callTableAction('restore', $product)
+            ->assertCanSeeTableRecords([$trashed])
+            ->assertTableActionVisible('restore', $trashed)
+            ->callTableAction('restore', $trashed)
             ->assertHasNoTableActionErrors();
 
         $this->assertNull($product->fresh()->deleted_at);
