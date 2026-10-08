@@ -37,6 +37,7 @@
                 <th>Penjualan %</th>
                 <th>Jumlah Refund</th>
                 <th>Refund</th>
+                <th>Komisi</th>
                 <th>HPP</th>
                 <th>Laba Kotor</th>
             </tr>
@@ -53,6 +54,7 @@
                     <td>{{ number_format($row['revenuePct'], 1, ',', '.') }}%</td>
                     <td>{{ $row['refundCount'] > 0 ? $row['refundCount'] : '-' }}</td>
                     <td>{{ $row['refundAmount'] > 0 ? '(' . $rupiah($row['refundAmount']) . ')' : '-' }}</td>
+                    <td>{{ $row['commission'] > 0 ? '(' . $rupiah($row['commission']) . ')' : '-' }}{{ $row['hasUnratedJob'] ? ' *' : '' }}</td>
                     <td>{{ $row['cogs'] > 0 ? '(' . $rupiah($row['cogs']) . ')' : '-' }}{{ $row['hasMissingCost'] ? ' *' : '' }}</td>
                     <td>{{ $rupiah($row['grossProfit']) }}</td>
                 </tr>
@@ -63,6 +65,7 @@
                 <td></td>
                 <td>{{ $rupiah($result['grossRevenue']) }}</td>
                 <td colspan="2"></td>
+                <td>{{ $rupiah($result['totalCommission']) }}</td>
                 <td>{{ $rupiah($result['totalCogs']) }}</td>
                 <td>{{ $rupiah($result['totalGrossProfit']) }}</td>
             </tr>

@@ -84,6 +84,7 @@
                         <th class="py-2 pr-3 text-right">Penjualan %</th>
                         <th class="py-2 pr-3 text-right">Jumlah Refund</th>
                         <th class="py-2 pr-3 text-right">Refund</th>
+                        <th class="py-2 pr-3 text-right">Komisi</th>
                         <th class="py-2 pr-3 text-right">HPP</th>
                         <th class="py-2 pl-3 text-right">Laba Kotor</th>
                     </tr>
@@ -101,13 +102,17 @@
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['refundCount'] > 0 ? $row['refundCount'] : '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums {{ $row['refundAmount'] > 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $row['refundAmount'] > 0 ? '(' . $rupiah($row['refundAmount']) . ')' : '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">
+                                {{ $row['commission'] > 0 ? '(' . $rupiah($row['commission']) . ')' : '—' }}
+                                @if ($row['hasUnratedJob'])<span title="Ada teknisi di baris ini yang komisinya belum diatur — nominal belum lengkap.">*</span>@endif
+                            </td>
+                            <td class="py-2 pr-3 text-right tabular-nums">
                                 {{ $row['cogs'] > 0 ? '(' . $rupiah($row['cogs']) . ')' : '—' }}
                                 @if ($row['hasMissingCost'])<span title="Ada bahan di baris ini belum diisi harga belinya — HPP minimum.">*</span>@endif
                             </td>
                             <td class="py-2 pl-3 text-right font-semibold tabular-nums {{ $row['grossProfit'] < 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $rupiah($row['grossProfit']) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="11" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada data pada rentang ini.</td></tr>
+                        <tr><td colspan="12" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada data pada rentang ini.</td></tr>
                     @endforelse
                 </tbody>
             </table>

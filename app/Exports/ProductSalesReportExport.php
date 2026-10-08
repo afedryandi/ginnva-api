@@ -28,6 +28,7 @@ class ProductSalesReportExport implements FromArray, WithHeadings, WithStyles
             'Penjualan %',
             'Jumlah Refund',
             'Refund',
+            'Komisi',
             'HPP',
             'Laba Kotor',
         ];
@@ -41,12 +42,15 @@ class ProductSalesReportExport implements FromArray, WithHeadings, WithStyles
                 $row['sku'],
                 $row['type'],
                 $row['count'],
-                round($row['countPct'], 1) . '%',
+                // Persentase berupa angka (judul kolom sudah memuat %), bukan teks, supaya bisa dijumlah/difilter.
+                round($row['countPct'], 1),
                 $row['revenue'],
-                round($row['revenuePct'], 1) . '%',
+                round($row['revenuePct'], 1),
                 $row['refundCount'],
                 $row['refundAmount'],
-                $row['cogs'] . ($row['hasMissingCost'] ? ' *' : ''),
+                // Angka tetap numerik; hanya baris yang datanya belum lengkap berubah jadi teks bertanda " *".
+                $row['hasUnratedJob'] ? $row['commission'] . ' *' : $row['commission'],
+                $row['hasMissingCost'] ? $row['cogs'] . ' *' : $row['cogs'],
                 $row['grossProfit'],
             ])
             ->values()

@@ -205,13 +205,31 @@ class ProductSalesReport extends Page implements HasForms
         ])->columns($isFullAccess ? 4 : 3)->statePath('data');
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya, dan
+     * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
+     * Dipakai getResult() dan log ekspor supaya keduanya merujuk toko yang sama.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Log ekspor (audit Penjualan Produk 2026-09-29), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'product_sales', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => 'product_sales', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Penjualan Produk (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -256,7 +274,8 @@ class ProductSalesReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini refund sebelum jam itu di hari pertama tidak terhitung.
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
 
         // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): halaman ini
@@ -265,9 +284,7 @@ class ProductSalesReport extends Page implements HasForms
         // manapun melihat breakdown SKU company-wide.
         // GAP DIPERBAIKI 2026-09-29: full-access sebelumnya tidak bisa mempersempit ke 1 cabang --
         // sekarang filter 'store_id' di form dipakai kalau full-access memilihnya.
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
-        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
