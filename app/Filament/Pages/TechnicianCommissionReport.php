@@ -312,6 +312,13 @@ class TechnicianCommissionReport extends Page implements HasForms
                 }
 
                 $usesServiceRates = $technician->serviceRates->isNotEmpty();
+
+                // Teknisi yang tarifnya SUDAH diatur tapi belum punya pekerjaan di periode ini = komisi Rp0, bukan
+                // "Belum diatur" (null hanya untuk tarif yang memang belum ada / tidak bisa dihitung).
+                if ($totalCommission === null && $jobCount === 0 && ($usesServiceRates || $technician->commission_amount !== null)) {
+                    $totalCommission = 0.0;
+                }
+
                 $flatRate = ! $usesServiceRates && $technician->commission_amount !== null ? (float) $technician->commission_amount : null;
 
                 return [

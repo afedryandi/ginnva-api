@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use Maatwebsite\Excel\Concerns\FromArray;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -13,7 +14,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * temuan B. $title dipakai supaya file export dari "Komisi Tetap" tidak
  * keliru bertuliskan "Laporan Komisi Teknisi".
  */
-class TechnicianCommissionReportExport implements FromArray, WithHeadings, WithStyles
+class TechnicianCommissionReportExport implements FromArray, WithHeadings, WithStyles, WithColumnFormatting
 {
     public function __construct(private array $result, private string $title = 'Komisi Teknisi') {}
 
@@ -37,11 +38,17 @@ class TechnicianCommissionReportExport implements FromArray, WithHeadings, WithS
                 $row['technician']->store?->name ?? '-',
                 $row['jobCount'],
                 $row['salesTotal'],
-                ($row['usesServiceRates'] ? 'Per Layanan' : ($row['rate'] !== null ? 'Flat ' . $row['rate'] . '/job' : 'Belum diatur')) . ($row['hasUnratedJob'] ? ' *' : ''),
+                ($row['usesServiceRates'] ? 'Per Layanan' : ($row['rate'] !== null ? 'Flat Rp' . number_format($row['rate'], 0, ',', '.') . '/job' : 'Belum diatur')) . ($row['hasUnratedJob'] ? ' *' : ''),
                 $row['totalCommission'] ?? 'Belum diatur',
             ])
             ->values()
             ->all();
+    }
+
+    /** Penjualan (D) & Total Komisi (F): ribuan, nol sebagai "-"; sel teks "Belum diatur" tidak terpengaruh. */
+    public function columnFormats(): array
+    {
+        return ['D' => '#,##0;(#,##0);"-"', 'F' => '#,##0;(#,##0);"-"'];
     }
 
     public function styles(Worksheet $sheet): array
