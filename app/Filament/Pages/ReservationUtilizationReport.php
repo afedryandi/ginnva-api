@@ -257,8 +257,12 @@ class ReservationUtilizationReport extends Page implements HasForms
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->startOfDay();
 
-        if ($from->diffInDays($to) > self::MAX_RANGE_DAYS) {
-            $to = $from->copy()->addDays(self::MAX_RANGE_DAYS);
+        // Rentang inklusif: MAX_RANGE_DAYS hari = from + (MAX - 1). Sebelumnya terpotong di 63 hari, melebihi
+        // batas yang dijanjikan helper text. Terpotong = diberi tahu lewat 'truncated', bukan diam-diam.
+        $truncated = false;
+        if ($from->diffInDays($to) >= self::MAX_RANGE_DAYS) {
+            $to = $from->copy()->addDays(self::MAX_RANGE_DAYS - 1);
+            $truncated = true;
         }
 
         $user = auth()->user();
@@ -272,13 +276,16 @@ class ReservationUtilizationReport extends Page implements HasForms
         $rows = $stores->map(function (Store $store) use ($from, $to) {
             $capacity = max(1, (int) ($store->install_capacity_per_day ?? self::DEFAULT_CAPACITY));
 
+            // Satu query per toko (bukan satu per hari) -- hasilnya sama dengan confirmedOverlapCount().
+            $overlaps = Booking::confirmedOverlapCountsForRange($store->id, $from->copy(), $to->copy());
+
             $workingDays = 0;
             $totalUsed = 0;
             $cursor = $from->copy();
             while ($cursor->lte($to)) {
                 if (! $store->isClosedOn($cursor)) {
                     $workingDays++;
-                    $totalUsed += Booking::confirmedOverlapCount($store->id, $cursor->copy());
+                    $totalUsed += $overlaps[$cursor->toDateString()] ?? 0;
                 }
                 $cursor->addDay();
             }
@@ -334,6 +341,7 @@ class ReservationUtilizationReport extends Page implements HasForms
             'from' => $from,
             'to' => $to,
             'rows' => $rows,
+            'truncated' => $truncated,
             // KPI eksplisit seluruh cabang (audit Majoo f16).
             'cancellationRatePct' => $totalBookings > 0 ? $totalCancelled / $totalBookings * 100 : 0,
         ];

@@ -42,8 +42,9 @@ class ReservationUtilizationReportExport implements FromArray, WithHeadings, Wit
                 $row['totalUsed'],
                 $row['emptySlots'],
                 $row['cancelledCount'],
-                round($row['cancellationRatePct'], 1) . '%',
-                round($row['utilizationPct'], 1) . '%',
+                // Persentase berupa angka (judul kolom sudah memuat %), bukan teks.
+                round($row['cancellationRatePct'], 1),
+                round($row['utilizationPct'], 1),
             ])
             ->values()
             ->all();

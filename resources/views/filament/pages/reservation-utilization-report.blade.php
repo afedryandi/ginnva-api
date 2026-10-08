@@ -14,12 +14,18 @@
         pernah disimpan. Angka Utilisasi di sini pendekatan, bukan catatan historis pasti.
     </div>
 
+    @if ($result['truncated'])
+        <div class="rounded-lg border border-danger-300 bg-danger-50 px-4 py-3 text-sm text-danger-800 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-300">
+            Rentang melebihi 62 hari, jadi laporan dipotong sampai {{ $result['to']->format('d M Y') }}.
+        </div>
+    @endif
+
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Tingkat Pembatalan (Seluruh Cabang)</div>
             <div class="mt-1 text-2xl font-bold tabular-nums {{ $result['cancellationRatePct'] >= 15 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ number_format($result['cancellationRatePct'], 1) }}%</div>
-            <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">dari seluruh reservasi (confirmed + cancelled) pada rentang ini</div>
+            <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">dari seluruh reservasi (semua status) yang jadwalnya jatuh pada rentang ini</div>
         </x-filament::section>
     </div>
 

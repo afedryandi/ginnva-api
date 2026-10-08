@@ -20,6 +20,9 @@
         Kapasitas dihitung dari setting SAAT INI tiap toko (Kapasitas Instalasi/Hari), bukan kapasitas persis yang
         berlaku di hari tertentu di masa lalu — angka Utilisasi ini pendekatan, bukan catatan historis pasti.
     </div>
+    @if ($result['truncated'])
+        <p class="note">Rentang melebihi 62 hari, laporan dipotong sampai {{ $result['to']->format('d M Y') }}.</p>
+    @endif
     <p>Tingkat Pembatalan (Seluruh Cabang): <strong>{{ number_format($result['cancellationRatePct'], 1, ',', '.') }}%</strong></p>
 
     <table>
