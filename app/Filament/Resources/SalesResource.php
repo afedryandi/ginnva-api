@@ -74,7 +74,7 @@ class SalesResource extends Resource
         // supaya angka di sini SELALU konsisten dengan widget dashboard &
         // Jurnal Umum di Keuangan.
         $query = parent::getEloquentQuery()
-            ->with(['store', 'journalEntry'])
+            ->with(['store', 'journalEntry', 'customer'])
             ->whereHas('journalEntry');
 
         $user = auth()->user();
@@ -116,9 +116,18 @@ class SalesResource extends Resource
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                // display_customer_name (bukan kolom mentah customer_name): booking dari aplikasi menyimpan nama di
+                // relasi customer, dan pelanggan yang dihapus tampil "Pelanggan Terhapus" (kebijakan PII) -- sama
+                // dengan BookingResource. Pencarian ikut mencari di relasi.
                 Tables\Columns\TextColumn::make('customer_name')
                     ->label('Pelanggan')
-                    ->searchable(),
+                    ->state(fn (Booking $record) => $record->display_customer_name)
+                    ->searchable(query: fn (Builder $query, string $search) => $query->where(fn (Builder $q) => $q
+                        ->where('customer_name', 'like', "%{$search}%")
+                        ->orWhereHas('customer', fn ($c) => $c
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%")
+                        ))),
 
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
@@ -126,14 +135,13 @@ class SalesResource extends Resource
 
                 Tables\Columns\TextColumn::make('product')
                     ->label('Produk')
-                    ->state(fn (Booking $record) => match (true) {
-                        $record->product_kaca_film && $record->product_ppf => 'Kaca Film + PPF',
-                        $record->product_ppf => 'PPF',
-                        $record->product_kaca_film => 'Kaca Film',
-                        default => '—',
-                    })
+                    ->state(fn (Booking $record) => $record->salesProductLabel() ?? '—')
                     ->badge()
-                    ->color(fn (Booking $record) => $record->product_kaca_film && $record->product_ppf ? 'gray' : ($record->product_ppf ? 'danger' : 'info')),
+                    ->color(fn (Booking $record) => match ($record->salesProductLabel()) {
+                        'PPF' => 'danger',
+                        'Kaca Film' => 'info',
+                        default => 'gray',
+                    }),
 
                 Tables\Columns\TextColumn::make('transaction_amount')
                     ->label('Nilai Transaksi')
@@ -339,7 +347,7 @@ class SalesResource extends Resource
                         // aggregate() mengubah builder (select/reorder), jadi dipanggil pada clone TERPISAH
                         // dari yang dipakai get() -- keduanya berangkat dari query yang belum disentuh.
                         $query = $livewire->getFilteredTableQuery();
-                        $bookings = (clone $query)->with(['store', 'journalEntry'])->reorder()->orderBy('bookings.id')->get();
+                        $bookings = (clone $query)->with(['store', 'journalEntry', 'customer'])->reorder()->orderBy('bookings.id')->get();
                         $stats = \App\Filament\Widgets\SalesDetailStatsWidget::aggregate(clone $query);
 
                         $pdf = Pdf::loadView('pdf.sales_detail', ['bookings' => $bookings, 'stats' => $stats])->setPaper('a4', 'landscape');

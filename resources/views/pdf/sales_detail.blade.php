@@ -61,14 +61,9 @@
                 @endphp
                 <tr>
                     <td>INV/{{ $booking->booking_number }}</td>
-                    <td>{{ $booking->customer_name ?? '-' }}</td>
+                    <td>{{ $booking->display_customer_name }}</td>
                     <td>{{ $booking->store?->name ?? '-' }}</td>
-                    <td>
-                        @if ($booking->product_kaca_film && $booking->product_ppf) Kaca Film + PPF
-                        @elseif ($booking->product_ppf) PPF
-                        @elseif ($booking->product_kaca_film) Kaca Film
-                        @else - @endif
-                    </td>
+                    <td>{{ $booking->salesProductLabel() ?? '-' }}</td>
                     <td class="value">{{ $rupiah($booking->transaction_amount) }}</td>
                     <td class="value">{{ $rupiah($received) }}</td>
                     <td class="value">{{ $outstanding > 0 ? $rupiah($outstanding) : '-' }}</td>

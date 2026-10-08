@@ -28,7 +28,7 @@ class SalesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
     public function query(): Builder
     {
         return ($this->query ?? Booking::query()->whereHas('journalEntry'))
-            ->with(['store', 'journalEntry']);
+            ->with(['store', 'journalEntry', 'customer']);
     }
 
     public function headings(): array
@@ -65,14 +65,9 @@ class SalesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         return [
             'INV/' . $booking->booking_number,
             $booking->booking_number,
-            $booking->customer_name ?? '-',
+            $booking->display_customer_name,
             $booking->store?->name ?? '-',
-            match (true) {
-                $booking->product_kaca_film && $booking->product_ppf => 'Kaca Film + PPF',
-                $booking->product_ppf => 'PPF',
-                $booking->product_kaca_film => 'Kaca Film',
-                default => '-',
-            },
+            $booking->salesProductLabel() ?? '-',
             (float) $booking->transaction_amount,
             (float) ($booking->spend_promo_discount ?? 0),
             $received,

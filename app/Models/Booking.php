@@ -42,6 +42,23 @@ class Booking extends Model
         return $this->customer_name ?? $this->customer?->name ?? $this->customer?->email ?? '—';
     }
 
+    /**
+     * Label jenis produk/jasa yang tercakup booking ini (semua flag yang menyala, mis. "Kaca Film + PPF + Detailing"),
+     * null kalau tidak ada. Dipakai Detail Penjualan (tabel, Excel, PDF) -- sebelumnya hanya mengenali PPF & Kaca Film
+     * sehingga booking Detailing/Premium Wash tampil "-" atau tidak lengkap.
+     */
+    public function salesProductLabel(): ?string
+    {
+        $parts = array_filter([
+            $this->product_kaca_film ? 'Kaca Film' : null,
+            $this->product_ppf ? 'PPF' : null,
+            $this->product_detailing ? 'Detailing' : null,
+            $this->product_premium_wash ? 'Premium Wash' : null,
+        ]);
+
+        return $parts ? implode(' + ', $parts) : null;
+    }
+
     public function getDisplayPhoneNumberAttribute(): string
     {
         if ($this->customer_id && ! $this->customer) {
