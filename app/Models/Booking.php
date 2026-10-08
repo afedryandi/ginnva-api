@@ -59,6 +59,18 @@ class Booking extends Model
         return $parts ? implode(' + ', $parts) : null;
     }
 
+    /**
+     * Jumlah jenis produk/jasa yang tercakup (Kaca Film, PPF, Detailing, Premium Wash; masing-masing 1) --
+     * definisi yang sama dengan "Produk Terjual" di Dashboard Penjualan. Dipakai Penjualan Per Periode.
+     */
+    public function salesProductCount(): int
+    {
+        return (int) (bool) $this->product_kaca_film
+            + (int) (bool) $this->product_ppf
+            + (int) (bool) $this->product_detailing
+            + (int) (bool) $this->product_premium_wash;
+    }
+
     public function getDisplayPhoneNumberAttribute(): string
     {
         if ($this->customer_id && ! $this->customer) {

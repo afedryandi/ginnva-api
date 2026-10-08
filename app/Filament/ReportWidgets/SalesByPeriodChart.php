@@ -120,7 +120,7 @@ class SalesByPeriodChart extends ChartWidget
 
             $buckets[$key]['revenue'] += (float) $booking->transaction_amount;
             $buckets[$key]['count']++;
-            $buckets[$key]['products'] += ($booking->product_kaca_film ? 1 : 0) + ($booking->product_ppf ? 1 : 0);
+            $buckets[$key]['products'] += $booking->salesProductCount();
 
             foreach ($booking->installers as $installer) {
                 $technician = $technicianByUserId->get($installer->id);

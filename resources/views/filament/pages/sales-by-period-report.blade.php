@@ -101,8 +101,9 @@
         <x-slot name="heading">Rekap per Periode</x-slot>
         <x-slot name="description">
             Periode tanpa transaksi tetap ditampilkan (Rp 0) supaya tren yang sepi kelihatan jelas, bukan hilang dari tabel.
-            "Laba Kotor" tidak ditampilkan di sini maupun di grafik — butuh HPP yang belum tersedia (lihat Ringkasan
-            Penjualan untuk detailnya). Klik nama metrik di legend grafik untuk sembunyikan/tampilkan garisnya.
+            "Laba Kotor" = Penjualan − Komisi − Pengembalian − HPP; HPP berupa perkiraan (tanda * dan banner di atas
+            muncul kalau ada bahan yang harga belinya belum diisi). Klik nama metrik di legend grafik untuk
+            sembunyikan/tampilkan garisnya.
         </x-slot>
 
         <div class="overflow-x-auto">

@@ -242,13 +242,30 @@ class SalesByPeriodReport extends Page implements HasForms
      * keduanya dibangun dari getResult() yang SAMA PERSIS dipakai
      * halaman web, pola sama dengan SalesSummaryReport/SalesResource.
      */
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko selalu dikunci ke
+     * tokonya. Dipakai getResult() dan log ekspor supaya keduanya merujuk toko yang sama.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id;
+    }
+
     /** Log ekspor (audit Penjualan Per Periode 2026-09-29), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'sales_by_period', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'granularity' => $this->data['granularity'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => 'sales_by_period', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'granularity' => $this->data['granularity'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Penjualan Per Periode (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -296,7 +313,8 @@ class SalesByPeriodReport extends Page implements HasForms
      */
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini refund sebelum jam itu di hari pertama tidak terhitung.
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
         $granularity = $this->data['granularity'] ?? 'harian';
 
@@ -325,9 +343,7 @@ class SalesByPeriodReport extends Page implements HasForms
         // GAP DIPERBAIKI 2026-09-29: full-access sebelumnya tidak punya cara mempersempit ke 1
         // cabang di laporan ini (padahal Ringkasan Penjualan & Detail Penjualan sudah punya) --
         // sekarang filter 'store_id' di form dipakai kalau full-access memilihnya.
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
-        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         $bookings = Booking::query()
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
@@ -393,7 +409,7 @@ class SalesByPeriodReport extends Page implements HasForms
             // dipasang, SAMA pola dengan productsSold di SalesDashboard,
             // BUKAN jumlah SKU spesifik (film_product_id belum wajib
             // diisi, jadi belum bisa diandalkan untuk angka ini).
-            $buckets[$key]['products'] += ($booking->product_kaca_film ? 1 : 0) + ($booking->product_ppf ? 1 : 0);
+            $buckets[$key]['products'] += $booking->salesProductCount();
 
             foreach ($booking->installers as $installer) {
                 $technician = $technicianByUserId->get($installer->id);

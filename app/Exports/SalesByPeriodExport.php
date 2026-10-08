@@ -49,8 +49,9 @@ class SalesByPeriodExport implements FromArray, WithHeadings, WithStyles
                 $row['outstanding'],
                 $row['products'],
                 $row['refund'],
-                $row['commission'] . ($row['hasUnratedJob'] ? ' *' : ''),
-                $row['cogs'] . ($row['hasMissingCost'] ? ' *' : ''),
+                // Angka tetap numerik; hanya baris yang datanya belum lengkap berubah jadi teks bertanda " *".
+                $row['hasUnratedJob'] ? $row['commission'] . ' *' : $row['commission'],
+                $row['hasMissingCost'] ? $row['cogs'] . ' *' : $row['cogs'],
                 $row['grossProfit'],
                 $row['count'] > 0 ? round($row['revenue'] / $row['count']) : 0,
                 $row['count'] > 0 ? round($row['products'] / $row['count'], 2) : 0,
