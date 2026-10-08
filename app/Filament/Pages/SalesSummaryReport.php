@@ -255,13 +255,30 @@ class SalesSummaryReport extends Page implements HasForms
      * query terpisah), supaya angka di file export selalu konsisten
      * dengan yang tampil di layar untuk filter tanggal yang sama.
      */
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko selalu dikunci ke
+     * tokonya. Dipakai getResult() dan log ekspor supaya keduanya merujuk toko yang sama.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id;
+    }
+
     /** Log ekspor (audit Ringkasan Penjualan 2026-09-29): siapa mengunduh data omzet toko mana, kapan. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'sales_summary', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => 'sales_summary', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Ringkasan Penjualan (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -302,11 +319,10 @@ class SalesSummaryReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam, yang membuat selisih bulan pembanding menjadi pecahan (0 bulan).
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
 
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
         // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): sebelumnya
         // grossSales/bookingCount/voucherDiscount TIDAK di-scope ke toko
         // sama sekali (cuma refund yang di-scope) — manajer toko melihat
@@ -321,7 +337,7 @@ class SalesSummaryReport extends Page implements HasForms
         // isi $data['store_id'] — field itu bahkan tidak dirender untuk
         // mereka (lihat form()), tapi tetap dijaga di sini juga (defense
         // in depth, bukan cuma andalkan visible() di form).
-        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         $snapshotService = app(SalesSnapshotService::class);
         $snapshot = $snapshotService->summarize($from, $to, $storeId);
@@ -389,7 +405,7 @@ class SalesSummaryReport extends Page implements HasForms
 
         if ($mode === 'prev_period') {
             if ($from->isSameDay($from->copy()->startOfMonth()) && $to->toDateString() === $to->copy()->endOfMonth()->toDateString()) {
-                $months = $from->diffInMonths($to->copy()->addDay()->startOfMonth());
+                $months = (int) round($from->diffInMonths($to->copy()->addDay()->startOfMonth()));
                 $prevFrom = $from->copy()->subMonthsNoOverflow($months);
 
                 return [$prevFrom, $prevFrom->copy()->addMonthsNoOverflow($months)->subDay()->endOfDay()];
