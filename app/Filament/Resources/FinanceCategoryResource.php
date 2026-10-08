@@ -76,7 +76,8 @@ class FinanceCategoryResource extends Resource
     {
         return static::canViewAny()
             && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false)
-            && ! $record->hasTransactions();
+            && ! $record->hasTransactions()
+            && ! ($record->is_group && $record->hasChildren());
     }
 
     public static function canDeleteAny(): bool
@@ -287,7 +288,7 @@ class FinanceCategoryResource extends Resource
                 // errornya jadi notifikasi Filament yang jelas, bukan SQL
                 // constraint mentah kalau staff coba hapus lewat UI.
                 Tables\Actions\DeleteAction::make()
-                    ->visible(fn (FinanceCategory $record) => ! $record->hasTransactions())
+                    ->visible(fn (FinanceCategory $record) => ! $record->hasTransactions() && ! ($record->is_group && $record->hasChildren()))
                     ->action(function (FinanceCategory $record) {
                         if ($record->hasTransactions()) {
                             Notification::make()

@@ -77,6 +77,12 @@ class FinanceCategory extends Model
         return $this->transactions()->exists();
     }
 
+    /** Grup yang masih membungkus kategori anak. */
+    public function hasChildren(): bool
+    {
+        return $this->exists && $this->children()->exists();
+    }
+
     /**
      * Validasi SERVER akun yang dipilih (audit Kategori Keuangan
      * 2026-09-28): sebelumnya cuma difilter di dropdown UI, payload
@@ -118,6 +124,14 @@ class FinanceCategory extends Model
      */
     protected static function booted(): void
     {
+        // Menghapus grup yang masih punya anak melepas anak-anaknya dari pengelompokan secara diam-diam
+        // (FK nullOnDelete): pindahkan/hapus dulu anaknya.
+        static::deleting(function (FinanceCategory $category) {
+            if (auth()->check() && $category->is_group && $category->hasChildren()) {
+                throw new \RuntimeException('Grup ini masih punya kategori anak. Pindahkan atau hapus anak-anaknya dulu.');
+            }
+        });
+
         static::saving(function (FinanceCategory $category) {
             if (! auth()->check()) {
                 return;
@@ -141,6 +155,11 @@ class FinanceCategory extends Model
             }
 
             if ($category->is_group) {
+                // Tipe grup menentukan tipe anak-anaknya (anak wajib bertipe sama): tidak boleh berubah
+                // selama masih ada anak, kalau tidak pemasukan & pengeluaran tercampur dalam satu grup.
+                if ($category->exists && $category->isDirty('type') && $category->hasChildren()) {
+                    throw new \RuntimeException('Grup ini masih punya kategori anak: tipenya tidak bisa diubah.');
+                }
                 if ($category->exists && $category->transactions()->exists()) {
                     throw new \RuntimeException('Kategori yang sudah dipakai transaksi tidak bisa dijadikan grup.');
                 }
