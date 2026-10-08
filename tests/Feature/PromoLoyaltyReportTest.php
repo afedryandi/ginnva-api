@@ -423,6 +423,27 @@ class PromoLoyaltyReportTest extends TestCase
         $this->assertSame([$this->storeA->id, $this->storeA->id], $logs->map(fn ($l) => $l->properties['store_id'])->all());
     }
 
+    public function test_coupon_report_is_the_promo_report_under_its_own_menu_name(): void
+    {
+        $this->october();
+        $this->loyalty();
+
+        $promo = $this->report([], null, PromoLoyaltyReport::class);
+        $coupon = $this->report([], null, CouponReport::class);
+
+        $this->assertSame($promo['promoTransactionCount'], $coupon['promoTransactionCount']);
+        $this->assertEqualsWithDelta($promo['promoValue'], $coupon['promoValue'], 0.001);
+        $this->assertEqualsWithDelta($promo['promoSalesTotal'], $coupon['promoSalesTotal'], 0.001);
+        $this->assertSame($promo['usedClaims']->pluck('id')->all(), $coupon['usedClaims']->pluck('id')->all());
+        $this->assertSame($promo['points'], $coupon['points']);
+
+        $this->actingAs($this->user('super_admin'), 'web');
+        Livewire::test(CouponReport::class)->assertSee('Laporan Kupon');
+        $this->assertSame('Laporan Kupon', CouponReport::getNavigationLabel());
+        $this->assertSame('Laporan Promo', PromoLoyaltyReport::getNavigationLabel());
+        $this->assertNotSame(PromoLoyaltyReport::getNavigationSort(), CouponReport::getNavigationSort());
+    }
+
     public function test_pdf_renders_with_data_and_when_empty(): void
     {
         $this->page(PromoLoyaltyReport::class)->callAction('exportPdf')->assertHasNoActionErrors();
