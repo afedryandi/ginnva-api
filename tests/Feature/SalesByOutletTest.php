@@ -293,9 +293,9 @@ class SalesByOutletTest extends TestCase
         $rows = $export->array();
 
         $this->assertSame(['Outlet', 'Transaksi', 'Penjualan (bersih)', 'Penjualan %', 'Pengembalian', 'Produk', 'Produk %', 'Rata-rata/Transaksi', 'Produk/Transaksi', 'Piutang'], $export->headings());
-        $this->assertSame(['Toko A', 2, 1500000.0, 85.7, 0.0, 3, 50.0, 750000.0, 1.5, 400000.0], $rows[0]);
-        $this->assertSame(['Toko B', 1, 250000.0, 14.3, 50000.0, 3, 50.0, 250000.0, 3.0, 0.0], $rows[1]);
-        $this->assertSame(['Toko C', 0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0], $rows[2]);
+        $this->assertEquals(['Toko A', 2, 1500000.0, 85.7, 0.0, 3, 50.0, 750000.0, 1.5, 400000.0], $rows[0]);
+        $this->assertEquals(['Toko B', 1, 250000.0, 14.3, 50000.0, 3, 50.0, 250000.0, 3.0, 0.0], $rows[1]);
+        $this->assertEquals(['Toko C', 0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0], $rows[2]);
     }
 
     public function test_page_shows_totals_rows_banners_and_links_only_for_outlets_with_sales(): void
