@@ -108,7 +108,9 @@ class SalesResource extends Resource
                 Tables\Columns\TextColumn::make('invoice_number')
                     ->label('No. Invoice')
                     ->state(fn (Booking $record) => 'INV/' . $record->booking_number)
-                    ->searchable(query: fn (Builder $query, string $search) => $query->where('booking_number', 'like', "%{$search}%"))
+                    // Awalan "INV/" hanya tampilan (nomor tersimpan BKG-...): dibuang supaya nomor yang disalin dari kolom ini
+                    // bisa langsung ditempel ke kotak cari.
+                    ->searchable(query: fn (Builder $query, string $search) => $query->where('booking_number', 'like', '%' . preg_replace('/^\s*INV\//i', '', $search) . '%'))
                     ->weight('bold'),
 
                 Tables\Columns\TextColumn::make('booking_number')
