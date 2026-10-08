@@ -63,9 +63,11 @@
                             <td class="py-2 pr-3 text-right tabular-nums font-medium">{{ $rupiah($payroll->net_pay) }}</td>
                             <td class="py-2 pl-3">
                                 @if ($payroll->status === 'paid')
-                                    <span class="fi-badge inline-flex items-center rounded-full bg-success-50 px-2 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/10 dark:text-success-400">Sudah Dibayar</span>
+                                    <span class="fi-badge inline-flex items-center rounded-full bg-success-50 px-2 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/10 dark:text-success-400">{{ $payroll->status_label }}</span>
+                                @elseif ($payroll->status === 'pending_approval')
+                                    <span class="fi-badge inline-flex items-center rounded-full bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">{{ $payroll->status_label }}</span>
                                 @else
-                                    <span class="fi-badge inline-flex items-center rounded-full bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">Draft</span>
+                                    <span class="fi-badge inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/5 dark:text-gray-400">{{ $payroll->status_label }}</span>
                                 @endif
                             </td>
                         </tr>

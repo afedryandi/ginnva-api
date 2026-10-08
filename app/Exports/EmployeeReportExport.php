@@ -41,7 +41,7 @@ class EmployeeReportExport implements FromArray, WithHeadings, WithStyles
                 $payroll->total_late_minutes,
                 $payroll->alpha_days,
                 (float) $payroll->net_pay,
-                $payroll->status === 'paid' ? 'Sudah Dibayar' : 'Draft',
+                $payroll->status_label,
             ])
             ->values()
             ->all();

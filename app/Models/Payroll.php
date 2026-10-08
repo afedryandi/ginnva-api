@@ -56,6 +56,17 @@ class Payroll extends Model
         'paid_at'                    => 'datetime',
     ];
 
+    public const STATUS_LABELS = [
+        'draft' => 'Draft',
+        'pending_approval' => 'Menunggu Persetujuan Direksi',
+        'paid' => 'Sudah Dibayar',
+    ];
+
+    public function getStatusLabelAttribute(): string
+    {
+        return self::STATUS_LABELS[$this->status] ?? (string) $this->status;
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

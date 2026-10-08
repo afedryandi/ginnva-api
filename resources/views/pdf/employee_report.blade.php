@@ -47,7 +47,7 @@
                     <td>{{ number_format($payroll->total_late_minutes, 0, ',', '.') }}</td>
                     <td>{{ number_format($payroll->alpha_days, 0, ',', '.') }}</td>
                     <td>{{ $rupiah($payroll->net_pay) }}</td>
-                    <td>{{ $payroll->status === 'paid' ? 'Sudah Dibayar' : 'Draft' }}</td>
+                    <td>{{ $payroll->status_label }}</td>
                 </tr>
             @endforeach
         </tbody>
