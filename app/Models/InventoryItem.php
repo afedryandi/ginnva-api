@@ -190,7 +190,9 @@ class InventoryItem extends Model
                 if ($scrollCode?->status === 'allocated' && $movement->type === 'out') {
                     $scrollCode->update(['status' => 'unallocated', 'allocated_at' => null, 'store_id' => null]);
                 } elseif ($scrollCode?->status === 'unallocated' && $movement->type === 'in') {
-                    $scrollCode->update(['status' => 'allocated', 'allocated_at' => now(), 'store_id' => $movement->destination_store_id]);
+                    // Movement 'in' tidak menyimpan toko -- toko dikembalikan dari pencatatan 'out' sebelumnya.
+                    $previousStoreId = $item->movements()->where('type', 'out')->where('id', '<', $movement->id)->orderByDesc('id')->value('destination_store_id');
+                    $scrollCode->update(['status' => 'allocated', 'allocated_at' => now(), 'store_id' => $previousStoreId]);
                 }
             }
 
