@@ -23,4 +23,17 @@ class CreateInventoryItem extends CreateRecord
 
         return $data;
     }
+
+    /**
+     * Catat baris riwayat "masuk" pertama -- SEBELUMNYA barang yang didaftarkan lewat form ini tidak punya riwayat sama
+     * sekali (tidak ada jejak kapan/oleh siapa pertama tercatat), padahal barang hasil Import Excel sudah dicatat.
+     */
+    protected function afterCreate(): void
+    {
+        $this->record->movements()->create([
+            'type' => 'in',
+            'note' => 'Didaftarkan lewat panel admin',
+            'user_id' => auth()->id(),
+        ]);
+    }
 }

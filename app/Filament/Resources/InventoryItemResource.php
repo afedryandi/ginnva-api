@@ -675,6 +675,8 @@ class InventoryItemResource extends Resource
                             ->label('Sisa Panjang (meter)')
                             ->numeric()
                             ->minValue(0)
+                            // Sisa tidak boleh melebihi Total Panjang yang diisi di form yang sama.
+                            ->maxValue(fn (Forms\Get $get) => filled($get('total_length_meters')) ? (float) $get('total_length_meters') : null)
                             ->helperText('Perkirakan sisa fisik gulungan sekarang kalau kode ini sudah pernah dipakai sebelum fitur ini ada.'),
                     ])
                     ->action(function (InventoryItem $record, array $data) {
