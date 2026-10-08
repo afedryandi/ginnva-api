@@ -119,8 +119,10 @@ class RawMaterialResourceTest extends TestCase
         DB::table('raw_materials')->where('id', $dead->id)->update(['updated_at' => '2026-07-01 09:00:00']);
         $fine = $this->material('Zeta Aman', 100, ['category' => 'Packaging', 'reorder_point' => 10]);
 
+        // Migrasi menanam banyak bahan awal (halaman pertama penuh), jadi cari "Zeta" dulu sebelum memeriksa barisnya.
         Livewire::test(ListRawMaterials::class)
             ->assertSuccessful()
+            ->searchTable('Zeta')
             ->assertCanSeeTableRecords([$low, $expiring, $dead, $fine])
             ->assertTableColumnFormattedStateSet('current_stock', '5.00 ml', $low)
             ->assertTableColumnFormattedStateSet('reorder_point', '10.00 ml', $low)

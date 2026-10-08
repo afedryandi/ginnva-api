@@ -398,6 +398,7 @@ class RawMaterialResource extends Resource
                         Forms\Components\Select::make('reason')
                             ->label('Alasan')
                             ->options(\App\Models\StockWriteOff::REASON_LABELS)
+                            ->in(array_keys(\App\Models\StockWriteOff::REASON_LABELS))
                             ->required()
                             ->native(false),
 
