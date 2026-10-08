@@ -255,7 +255,7 @@ class SalesDashboardTest extends TestCase
         $this->assertSame('mingguan', $valid->get('period'));
         $this->assertSame('2026-09-10', $valid->get('referenceDate'));
 
-        $fresh = Livewire::test(SalesDashboard::class);
+        $fresh = Livewire::withQueryParams([])->test(SalesDashboard::class); // query lama menempel selama tes, kosongkan
         $this->assertSame(['harian', '2026-10-08'], [$fresh->get('period'), $fresh->get('referenceDate')]);
     }
 
@@ -302,7 +302,7 @@ class SalesDashboardTest extends TestCase
         $page->call('goNext');
 
         $this->assertSame('2026-10-08', $page->get('referenceDate'), 'Acuan dijepit ke hari ini.');
-        $this->assertSame('01 Okt 2026 - 31 Okt 2026', $page->instance()->getRangeLabel());
+        $this->assertSame('01 Oct 2026 - 31 Oct 2026', $page->instance()->getRangeLabel());
         $this->assertFalse($page->instance()->canGoNext());
     }
 
@@ -375,7 +375,7 @@ class SalesDashboardTest extends TestCase
             ->assertSee('kotor Rp1.800.000')
             ->assertSee('Rp400.000')
             ->assertSee('Rp1.400.000')
-            ->assertSee('01 Okt 2026 - 31 Okt 2026');
+            ->assertSee('01 Oct 2026 - 31 Oct 2026');
     }
 
     public function test_the_pending_banner_the_empty_state_and_the_growth_banner(): void
