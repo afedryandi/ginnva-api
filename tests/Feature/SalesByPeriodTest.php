@@ -95,7 +95,7 @@ class SalesByPeriodTest extends TestCase
         return $page;
     }
 
-    private function result(array $data = [], ?User $as = null): array
+    private function report(array $data = [], ?User $as = null): array
     {
         return $this->page($data, $as)->instance()->getResult();
     }
@@ -120,7 +120,7 @@ class SalesByPeriodTest extends TestCase
     {
         $this->sale(100000, '2026-10-03');
 
-        $rows = $this->result(['from' => '2026-10-01', 'to' => '2026-10-05', 'granularity' => 'harian'])['rows'];
+        $rows = $this->report(['from' => '2026-10-01', 'to' => '2026-10-05', 'granularity' => 'harian'])['rows'];
 
         $this->assertSame(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05'], array_keys($rows));
         $this->assertSame([0, 0, 1, 0, 0], array_column($rows, 'count'));
@@ -132,7 +132,7 @@ class SalesByPeriodTest extends TestCase
     {
         $this->sale(100000, '2026-10-06');
 
-        $rows = $this->result(['from' => '2026-09-30', 'to' => '2026-10-12', 'granularity' => 'mingguan'])['rows'];
+        $rows = $this->report(['from' => '2026-09-30', 'to' => '2026-10-12', 'granularity' => 'mingguan'])['rows'];
 
         $this->assertSame(['2026-09-28', '2026-10-05', '2026-10-12'], array_keys($rows));
         $this->assertSame(['2026-09-30', '2026-10-04'], [$rows['2026-09-28']['bucketFrom'], $rows['2026-09-28']['bucketTo']], 'Awal dijepit ke rentang laporan.');
@@ -149,7 +149,7 @@ class SalesByPeriodTest extends TestCase
         $this->sale(1000, '2026-10-31');
         $this->sale(10000, '2026-11-01');
 
-        $result = $this->result(['from' => '2026-08-01', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
+        $result = $this->report(['from' => '2026-08-01', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
 
         $this->assertSame(['2026-08', '2026-09', '2026-10'], array_keys($result['rows']));
         $this->assertEquals([11.0, 100.0, 1000.0], array_column($result['rows'], 'revenue'));
@@ -165,7 +165,7 @@ class SalesByPeriodTest extends TestCase
         $this->sale(500000, '2026-10-03', null, ['amount_received' => null]);                                                       // 1 produk, dianggap lunas
         $this->sale(300000, '2026-10-05', $this->storeB, ['product_kaca_film' => true, 'product_premium_wash' => true]);           // 3 produk
 
-        $result = $this->result(['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
+        $result = $this->report(['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
         $row = $result['rows']['2026-10'];
 
         $this->assertSame(3, $row['count']);
@@ -182,12 +182,12 @@ class SalesByPeriodTest extends TestCase
         app(RefundService::class)->process($paid, 100000, null, null);
         DB::table('refunds')->update(['created_at' => '2026-10-01 08:00:00']);
 
-        $result = $this->result(['from' => '2026-10-01 10:00:00', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
+        $result = $this->report(['from' => '2026-10-01 10:00:00', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
 
         $this->assertEquals(100000.0, $result['rows']['2026-10']['refund'], 'Refund jam 08:00 di hari pertama ikut walau nilai "Dari" berjam 10:00.');
 
         DB::table('refunds')->update(['created_at' => '2026-09-15 08:00:00']);
-        $outside = $this->result(['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
+        $outside = $this->report(['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
         $this->assertEquals(0.0, $outside['rows']['2026-10']['refund']);
     }
 
@@ -205,7 +205,7 @@ class SalesByPeriodTest extends TestCase
         app(RefundService::class)->process($paid, 20000, null, null);
         DB::table('refunds')->update(['created_at' => '2026-10-05 12:00:00']);
 
-        $result = $this->result(['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
+        $result = $this->report(['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
         $row = $result['rows']['2026-10'];
 
         $this->assertEquals(100000.0, $row['commission'], 'Teknisi bertarif: 2 booking × 50.000; teknisi tanpa tarif tidak disumkan.');
@@ -220,12 +220,12 @@ class SalesByPeriodTest extends TestCase
 
     public function test_a_very_long_range_is_clamped_and_flags_too_many_rows(): void
     {
-        $result = $this->result(['from' => '2020-01-01', 'to' => '2026-10-31', 'granularity' => 'harian']);
+        $result = $this->report(['from' => '2020-01-01', 'to' => '2026-10-31', 'granularity' => 'harian']);
 
         $this->assertTrue($result['rangeClamped']);
         $this->assertTrue($result['tooManyBuckets']);
         $this->assertSame('2024-10-31', $result['from']->toDateString(), '730 hari sebelum 31 Okt 2026.');
-        $this->assertFalse($this->result(['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'harian'])['rangeClamped']);
+        $this->assertFalse($this->report(['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'harian'])['rangeClamped']);
     }
 
     public function test_admin_filters_by_store_and_staff_are_locked_to_their_own(): void
@@ -234,11 +234,11 @@ class SalesByPeriodTest extends TestCase
         $this->sale(700000, '2026-10-03', $this->storeB);
         $range = ['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'bulanan'];
 
-        $this->assertEquals(800000.0, $this->result($range)['totalRevenue']);
-        $this->assertEquals(700000.0, $this->result($range + ['store_id' => $this->storeB->id])['totalRevenue']);
+        $this->assertEquals(800000.0, $this->report($range)['totalRevenue']);
+        $this->assertEquals(700000.0, $this->report($range + ['store_id' => $this->storeB->id])['totalRevenue']);
 
         $staff = $this->user('kasir', $this->storeA);
-        $result = $this->result($range + ['store_id' => $this->storeB->id], $staff);
+        $result = $this->report($range + ['store_id' => $this->storeB->id], $staff);
         $this->assertEquals(100000.0, $result['totalRevenue'], 'Staf tidak bisa melihat toko lain.');
         $this->assertSame($this->storeA->id, $result['storeId']);
     }
@@ -319,7 +319,7 @@ class SalesByPeriodTest extends TestCase
         $this->sale(1000000, '2026-10-03', null, ['product_detailing' => true])->installers()->attach($withRate->id);
         $this->sale(400000, '2026-10-04')->installers()->attach($noRate->id);
 
-        $result = $this->result(['from' => '2026-10-03', 'to' => '2026-10-05', 'granularity' => 'harian']);
+        $result = $this->report(['from' => '2026-10-03', 'to' => '2026-10-05', 'granularity' => 'harian']);
         $export = new SalesByPeriodExport($result);
         $rows = $export->array();
 
