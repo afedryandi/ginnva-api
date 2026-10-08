@@ -37,8 +37,10 @@ class FinanceTransactionApprovalService
     {
         $category = \App\Models\FinanceCategory::find($data['finance_category_id'] ?? null);
 
-        if (! $category || ! $category->is_active) {
-            throw new RuntimeException('Kategori tidak ditemukan atau sudah nonaktif.');
+        // Kategori grup (pembungkus) tidak bisa dipakai transaksi; tanpa cek ini pengajuan lolos dua tahap approval
+        // lalu baru ditolak assertPayloadStillValid() saat direksi menyetujui.
+        if (! $category || ! $category->is_active || $category->is_group) {
+            throw new RuntimeException('Kategori tidak ditemukan, nonaktif, atau berupa grup (pilih kategori di dalam grup).');
         }
 
         if (! $category->chart_of_account_id) {
