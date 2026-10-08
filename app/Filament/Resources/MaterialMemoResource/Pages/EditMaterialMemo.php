@@ -51,6 +51,16 @@ class EditMaterialMemo extends EditRecord
         ];
     }
 
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        // Toko memo tidak boleh dipindah oleh staf non-full-access (field hanya di-disable di form).
+        if (! auth()->user()?->isFullAccess()) {
+            $data['store_id'] = $this->record->store_id;
+        }
+
+        return $data;
+    }
+
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');

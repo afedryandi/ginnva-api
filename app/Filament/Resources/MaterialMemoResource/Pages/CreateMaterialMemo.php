@@ -17,6 +17,12 @@ class CreateMaterialMemo extends CreateRecord
     {
         $data['created_by'] = auth()->id();
 
+        // Kolom toko hanya di-disable di form (state-nya masih bisa dimanipulasi dari klien) -- staf non-full-access
+        // dipaksa ke tokonya sendiri di sisi server.
+        if (! auth()->user()?->isFullAccess()) {
+            $data['store_id'] = auth()->user()?->store_id;
+        }
+
         return $data;
     }
 

@@ -211,7 +211,7 @@ class MaterialMemoResourceTest extends TestCase
 
         $numbers = [];
         foreach (range(1, 3) as $i) {
-            $numbers[] = MaterialMemo::create(['memo_number' => MaterialMemo::generateMemoNumber(), 'store_id' => $this->storeA->id])->memo_number;
+            $numbers[] = MaterialMemo::create(['memo_number' => MaterialMemo::generateMemoNumber(), 'store_id' => $this->storeA->id, 'created_by' => $this->user('super_admin')->id])->memo_number;
         }
         $this->assertSame(['MEMO-20261008-0001', 'MEMO-20261008-0002', 'MEMO-20261008-0003'], $numbers);
 
@@ -307,9 +307,11 @@ class MaterialMemoResourceTest extends TestCase
         $this->as($this->user('kasir', null, $this->storeA));
         $this->manager($memo)
             ->callTableAction('add_item', data: ['item_type' => 'raw_material', 'raw_material_id' => $material->id, 'qty_taken' => 0])
-            ->assertHasTableActionErrors(['qty_taken'])
+            ->assertHasTableActionErrors(['qty_taken']);
+        $this->manager($memo)
             ->callTableAction('add_item', data: ['item_type' => 'raw_material', 'qty_taken' => 1])
-            ->assertHasTableActionErrors(['raw_material_id' => 'required'])
+            ->assertHasTableActionErrors(['raw_material_id' => 'required']);
+        $this->manager($memo)
             ->callTableAction('add_item', data: ['item_type' => 'inventory_item', 'meters_used' => 0])
             ->assertHasTableActionErrors(['inventory_item_id', 'meters_used']);
 
