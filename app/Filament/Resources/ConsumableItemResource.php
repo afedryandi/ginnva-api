@@ -145,12 +145,14 @@ class ConsumableItemResource extends Resource
                     Forms\Components\TextInput::make('unit_cost')
                         ->label('Harga per Satuan')
                         ->numeric()
+                        ->minValue(0)
                         ->prefix('Rp')
                         ->helperText('Opsional — untuk estimasi nilai stok.'),
 
                     Forms\Components\TextInput::make('reorder_point')
                         ->label('Ambang Stok Menipis')
                         ->numeric()
+                        ->minValue(0)
                         ->helperText('Opsional — barang ditandai "Stok Menipis" kalau current stock ≤ angka ini.'),
 
                     // Label switch (Stok Awal <-> Stok Saat Ini) disamakan
@@ -492,6 +494,13 @@ class ConsumableItemResource extends Resource
             $receivedDate = static::normalizeImportedDate($row[7] ?? null) ?? now()->toDateString();
             $notes = isset($row[8]) ? trim((string) $row[8]) : '';
 
+            // Angka negatif tidak masuk akal untuk stok awal / ambang / harga (form manual sudah menolaknya) -- baris
+            // dilewati, bukan disimpan dengan stok atau harga negatif.
+            if ($initialStock < 0 || ($reorderPoint !== null && $reorderPoint < 0) || ($unitCost !== null && $unitCost < 0)) {
+                $invalidCount++;
+                continue;
+            }
+
             $useCode = null;
             if ($code !== '') {
                 if (isset($seenCodesInFile[$code]) || ConsumableItem::where('code', $code)->exists()) {
@@ -523,7 +532,7 @@ class ConsumableItemResource extends Resource
         }
 
         $bodyLines = ["{$createdCount} barang berhasil didaftarkan."];
-        if ($invalidCount > 0) $bodyLines[] = "{$invalidCount} baris dilewati (Nama Barang/Satuan kosong).";
+        if ($invalidCount > 0) $bodyLines[] = "{$invalidCount} baris dilewati (Nama Barang/Satuan kosong, atau stok/ambang/harga negatif).";
         if ($codeConflicts > 0) $bodyLines[] = "{$codeConflicts} kode barang dilewati (sudah dipakai barang lain / duplikat dalam file) — barang tetap didaftarkan tanpa kode.";
 
         Notification::make()
