@@ -324,7 +324,7 @@ class GeneralLedgerTest extends TestCase
         $first = $postable[0];
         $second = $postable[1];
         $third = $postable[2];
-        $second->update(['is_active' => false]);
+        ChartOfAccount::whereKey($second->id)->update(['is_active' => false]); // tanpa event model: guard akun sistem tidak relevan di sini
 
         $page = Livewire::test(GeneralLedgerReport::class)->set('data.chart_of_account_id', $first->id);
         $page->callAction('nextAccount');
