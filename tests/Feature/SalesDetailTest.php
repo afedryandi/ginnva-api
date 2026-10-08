@@ -308,7 +308,7 @@ class SalesDetailTest extends TestCase
 
         Excel::assertDownloaded('penjualan-20261008-100000.xlsx', fn (SalesExport $export) => $export->query()->pluck('bookings.id')->all() === [$a->id]);
         $log = Activity::where('log_name', 'report_export')->where('causer_id', $admin->id)->firstOrFail();
-        $this->assertSame(['report' => 'sales_detail', 'format' => 'xlsx'], $log->properties->toArray());
+        $this->assertEquals(['report' => 'sales_detail', 'format' => 'xlsx'], $log->properties->toArray(), 'Urutan kunci JSON di MySQL dinormalkan, jadi bandingkan tanpa urutan.');
     }
 
     public function test_excel_rows_use_full_product_labels_the_customer_display_name_and_derived_status(): void
