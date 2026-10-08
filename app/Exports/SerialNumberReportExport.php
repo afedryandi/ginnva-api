@@ -5,6 +5,7 @@ namespace App\Exports;
 use App\Models\ScrollCode;
 use App\Models\ScrollCodeUsage;
 use Maatwebsite\Excel\Concerns\FromArray;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -14,7 +15,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * 2026-09-11, temuan B. Dua bagian (Daftar Serial Number + Riwayat
  * Pemakaian) digabung 1 sheet, sama pola PersediaanDetailReportExport.
  */
-class SerialNumberReportExport implements FromArray, WithStyles
+class SerialNumberReportExport implements FromArray, WithStyles, WithColumnFormatting
 {
     private const STATUS_LABEL = [
         'unallocated' => 'Belum Dialokasikan',
@@ -62,6 +63,12 @@ class SerialNumberReportExport implements FromArray, WithStyles
         }
 
         return $rows;
+    }
+
+    /** Panjang (D, E) dan meter dipakai (D di bagian riwayat): 2 desimal. Sel teks tidak terpengaruh. */
+    public function columnFormats(): array
+    {
+        return ['D' => '#,##0.00', 'E' => '#,##0.00'];
     }
 
     public function styles(Worksheet $sheet): array

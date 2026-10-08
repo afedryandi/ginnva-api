@@ -42,7 +42,7 @@
 
     <x-filament::section>
         <x-slot name="heading">Daftar Serial Number (Roll)</x-slot>
-        <x-slot name="description">Filter berdasarkan tanggal alokasi ke toko — roll yang belum pernah dialokasikan tidak muncul kecuali status "Belum Dialokasikan" dipilih dan tanggalnya cocok.</x-slot>
+        <x-slot name="description">Filter berdasarkan tanggal alokasi ke toko. Roll yang belum pernah dialokasikan tidak punya tanggal alokasi, jadi hanya muncul kalau status "Belum Dialokasikan" dipilih (filter tanggal tidak berlaku untuknya).</x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">

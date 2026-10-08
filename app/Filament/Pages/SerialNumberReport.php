@@ -205,13 +205,31 @@ class SerialNumberReport extends Page implements HasForms
         return \App\Filament\Resources\ScrollCodeResource::getUrl('view', ['record' => $id]);
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya, dan
+     * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang (ScrollCode
+     * sengaja tanpa global scope toko, jadi laporan ini sendiri yang wajib membatasi).
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Log ekspor (audit Serial Number 2026-09-29), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'serial_number', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'status' => $this->data['status'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => 'serial_number', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'status' => $this->data['status'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Laporan Serial Number (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -256,20 +274,22 @@ class SerialNumberReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini roll yang dialokasikan sebelum jam itu di hari
+        // pertama tidak terhitung.
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
-        // GAP DIPERBAIKI 2026-09-29: full-access sebelumnya tidak bisa mempersempit ke 1 cabang --
-        // sekarang filter 'store_id' di form dipakai kalau full-access memilihnya.
-        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
+        $status = $this->data['status'] ?? null;
 
         $codes = ScrollCode::query()
             ->with(['filmProduct:id,sku,name', 'store:id,name'])
-            ->whereBetween('allocated_at', [$from, $to])
-            ->when($this->data['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
-            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            // Roll "Belum Dialokasikan" tidak punya tanggal alokasi (NULL) -- filter tanggal tidak berlaku untuknya,
+            // kalau tidak pilihan status itu selalu menghasilkan daftar kosong.
+            ->when($status !== 'unallocated', fn ($q) => $q->whereBetween('allocated_at', [$from, $to]))
+            ->when($status, fn ($q, $s) => $q->where('status', $s))
+            ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
             ->orderByDesc('allocated_at')
+            ->orderByDesc('id')
             ->get();
 
         // "Jenis Transaksi"/"Tanggal" Majoo -- levelnya per PEMAKAIAN
@@ -284,7 +304,7 @@ class SerialNumberReport extends Page implements HasForms
         $usages = ScrollCodeUsage::query()
             ->with(['scrollCode:id,code,store_id', 'scrollCode.store:id,name', 'user:id,name'])
             ->whereBetween('created_at', [$from, $to])
-            ->when($storeId, fn ($q) => $q->whereHas('scrollCode', fn ($q2) => $q2->where('store_id', $storeId)))
+            ->when($storeId !== null, fn ($q) => $q->whereHas('scrollCode', fn ($q2) => $q2->where('store_id', $storeId)))
             ->orderByDesc('created_at')
             ->get();
 
