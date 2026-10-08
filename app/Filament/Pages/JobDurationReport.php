@@ -184,13 +184,29 @@ class JobDurationReport extends Page implements HasForms
         return \App\Filament\Resources\SpkResource::getUrl('edit', ['record' => $spkId]);
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya, dan
+     * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
+     * Dipakai getJobs() dan log ekspor supaya keduanya merujuk toko yang sama.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            return $this->storeId ?: null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Log ekspor (audit Proses Order 2026-09-29), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'job_duration', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->storeId])
+                ->withProperties(['report' => 'job_duration', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Laporan Proses Order (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -202,8 +218,7 @@ class JobDurationReport extends Page implements HasForms
      */
     public function getJobs(): Collection
     {
-        $user = auth()->user();
-        $storeId = $user?->isFullAccess() ? $this->storeId : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         return app(JobDurationService::class)->jobs(
             Carbon::parse($this->from)->startOfDay(),
