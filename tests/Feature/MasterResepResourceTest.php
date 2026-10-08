@@ -210,7 +210,7 @@ class MasterResepResourceTest extends TestCase
         $this->assertSame(0, FilmProductRecipeItem::where('film_product_id', $product->id)->count());
     }
 
-    public function test_the_same_material_twice_is_rejected_but_same_id_in_different_tables_is_not(): void
+    public function test_the_same_material_twice_is_rejected_but_different_materials_are_fine(): void
     {
         $this->admin();
         $product = $this->product('RES-DUP');
@@ -224,14 +224,11 @@ class MasterResepResourceTest extends TestCase
             ->assertHasFormErrors(['recipeItems']);
         $this->assertSame(0, FilmProductRecipeItem::where('film_product_id', $product->id)->count());
 
-        // Bahan baku id X dan barang habis pakai id X adalah dua bahan berbeda (tabel berbeda).
-        $same = RawMaterial::create(['name' => 'Bahan Sama ID', 'code' => 'BS-1', 'unit' => 'pcs', 'current_stock' => 1]);
-        ConsumableItem::query()->whereKey($same->id)->doesntExist() && ConsumableItem::create(['id' => $same->id, 'name' => 'Barang Sama ID', 'code' => 'BS-2', 'unit' => 'pcs', 'current_stock' => 1]);
-
+        // Bahan baku dan barang habis pakai yang berbeda tetap boleh berdampingan dalam satu resep.
         Livewire::test(EditMasterResep::class, ['record' => $product->getKey()])
             ->fillForm(['recipeItems' => [
-                $this->row('raw_material', $same->id, 'Bahan Sama ID', 'pcs', 1),
-                $this->row('consumable_item', $same->id, 'Barang Sama ID', 'pcs', 1),
+                $this->row('raw_material', $this->cairan->id, 'Cairan Slip', 'ml', 1),
+                $this->row('consumable_item', $this->lap->id, 'Lap Microfiber', 'pcs', 1),
             ]])
             ->call('save')
             ->assertHasNoFormErrors();
