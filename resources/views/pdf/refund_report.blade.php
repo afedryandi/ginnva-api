@@ -32,6 +32,7 @@
                 <th>No. Booking</th>
                 <th>Pelanggan</th>
                 <th>Toko</th>
+                <th>Metode Pembayaran</th>
                 <th>Diproses Oleh</th>
                 <th>No. Jurnal</th>
                 <th>Alasan</th>
@@ -44,8 +45,9 @@
                     <td>{{ $refund->refund_number }}</td>
                     <td>{{ $refund->created_at->format('d M Y H:i') }}</td>
                     <td>{{ $refund->booking?->booking_number ?? '-' }}</td>
-                    <td>{{ $refund->booking?->customer_name ?? '-' }}</td>
+                    <td>{{ $refund->booking?->display_customer_name ?? '-' }}</td>
                     <td>{{ $refund->booking?->store?->name ?? '-' }}</td>
+                    <td>{{ $refund->payment_method_label }}</td>
                     <td>{{ $refund->creator?->name ?? '-' }}</td>
                     <td>{{ $refund->journalEntry?->entry_number ?? '-' }}</td>
                     <td>{{ $refund->reason ?: '-' }}</td>

@@ -69,7 +69,7 @@
                                     —
                                 @endif
                             </td>
-                            <td class="py-2 pr-3">{{ $refund->booking?->customer_name ?? '—' }}</td>
+                            <td class="py-2 pr-3">{{ $refund->booking?->display_customer_name ?? '—' }}</td>
                             <td class="py-2 pr-3">{{ $refund->booking?->store?->name ?? '—' }}</td>
                             <td class="py-2 pr-3">{{ $refund->payment_method_label }}</td>
                             <td class="py-2 pr-3">{{ $refund->creator?->name ?? '—' }}</td>

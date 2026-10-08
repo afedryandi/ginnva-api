@@ -186,13 +186,31 @@ class RefundReport extends Page implements HasForms
         return \App\Filament\Resources\BookingResource::getUrl('view', ['record' => $bookingId]);
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya,
+     * dan staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
+     * Dipakai getResult() dan log ekspor supaya keduanya merujuk toko yang sama.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Log ekspor (audit Laporan Refund 2026-09-29), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'refund', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => 'refund', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Laporan Refund (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -237,19 +255,17 @@ class RefundReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini refund sebelum jam itu di hari pertama tidak terhitung.
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
-        // GAP DIPERBAIKI 2026-09-29: full-access sebelumnya tidak bisa mempersempit ke 1 cabang di
-        // laporan ini -- sekarang filter 'store_id' di form dipakai kalau full-access memilihnya.
-        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         $refunds = Refund::query()
             ->whereBetween('created_at', [$from, $to])
             ->with([
-                'booking:id,booking_number,customer_name,store_id',
+                'booking:id,booking_number,customer_id,customer_name,store_id',
                 'booking.store:id,name',
+                'booking.customer',
                 'creator:id,name',
                 // BUG DIPERBAIKI 2026-09-11: deskripsi halaman ("klik
                 // No. Jurnal untuk lihat detailnya") menjanjikan kolom
@@ -257,7 +273,6 @@ class RefundReport extends Page implements HasForms
                 // ditampilkan di tabel sama sekali.
                 'journalEntry:id,entry_number',
             ])
-            ->when(! $isFullAccess, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $user?->store_id)))
             ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
             ->orderByDesc('created_at')
             ->get();

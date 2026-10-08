@@ -39,9 +39,10 @@ class RefundReportExport implements FromArray, WithHeadings, WithStyles
                 $refund->refund_number,
                 $refund->created_at->format('Y-m-d H:i'),
                 $refund->booking?->booking_number ?? '-',
-                $refund->booking?->customer_name ?? '-',
+                $refund->booking?->display_customer_name ?? '-',
                 $refund->booking?->store?->name ?? '-',
-                'Tunai',
+                // Label dihitung RefundReport::getResult() (Tunai / Kurangi Piutang / gabungan), sama dengan layar.
+                $refund->payment_method_label ?? 'Tunai',
                 $refund->creator?->name ?? '-',
                 $refund->journalEntry?->entry_number ?? '-',
                 $refund->reason ?: '-',
