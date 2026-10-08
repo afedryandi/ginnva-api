@@ -39,7 +39,7 @@ class ChartOfAccount extends Model
      * normalBalanceFor()/isDebitNormal() supaya aturan ini SATU tempat,
      * tidak diketik ulang di seeder/form/jurnal nanti.
      */
-    private const DEBIT_NORMAL_TYPES = ['aset', 'beban_pokok', 'beban_operasional', 'beban_lain'];
+    private const DEBIT_NORMAL_TYPES = ['aset', 'beban_pokok', 'beban_operasional', 'beban_lain', 'pajak'];
 
     /**
      * Kode akun yang dicari LANGSUNG oleh posting otomatis (Booking, DP,

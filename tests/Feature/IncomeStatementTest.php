@@ -153,6 +153,20 @@ class IncomeStatementTest extends TestCase
         $this->assertEquals(-50000.0, $result['laba_bersih']);
     }
 
+    public function test_tax_expense_accounts_are_debit_normal_and_reduce_profit(): void
+    {
+        $this->assertSame('debit', ChartOfAccount::normalBalanceFor('pajak'));
+        $this->assertSame('debit', ChartOfAccount::where('code', '8100')->value('normal_balance'));
+
+        $this->book('2026-09-05', '4100', 100000, 'credit');
+        $this->book('2026-09-06', '8100', 15000, 'debit');
+
+        $result = $this->sept();
+
+        $this->assertEquals(15000.0, $result['sections']['pajak']['total']);
+        $this->assertEquals(85000.0, $result['laba_bersih']);
+    }
+
     // ------------------------------------------------------------- ekspor Excel
 
     private function exportRows(array $result): array
@@ -222,7 +236,8 @@ class IncomeStatementTest extends TestCase
         $export = new IncomeStatementExport($this->sept() + ['store_label' => 'Semua Toko']);
         $rows = $export->array();
 
-        $sameParent = ChartOfAccount::whereIn('code', ['4100', '4200'])->pluck('parent_id')->unique()->count() === 1;
+        $parents = ChartOfAccount::whereIn('code', ['4100', '4200'])->pluck('parent_id')->unique();
+        $sameParent = $parents->count() === 1 && $parents->first() !== null;
         if ($sameParent) {
             $parentName = ChartOfAccount::find($this->id('4100'))->parent->name;
             $this->assertSame(1000000.0, $this->find($rows, '  Subtotal ' . $parentName)[1]);
