@@ -131,7 +131,7 @@ class PersediaanDetailReportTest extends TestCase
         $this->october();
 
         $this->assertCount(1, $this->report(['from' => '2026-09-30', 'to' => '2026-09-30'])['materialMovements']);
-        $this->assertCount(4, $this->report(['from' => '2026-09-30', 'to' => '2026-10-04'])['materialMovements']);
+        $this->assertCount(5, $this->report(['from' => '2026-09-30', 'to' => '2026-10-04'])['materialMovements'], '30 Sep, 1, 2, 3, dan 4 Okt.');
         $this->assertCount(0, $this->report(['from' => '2026-01-01', 'to' => '2026-01-31'])['materialMovements']);
     }
 
