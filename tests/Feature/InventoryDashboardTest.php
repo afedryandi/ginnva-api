@@ -76,7 +76,7 @@ class InventoryDashboardTest extends TestCase
      * Lap (stok 3, ambang 5, @2.000 = 6.000 => menipis), Tanpa Harga (stok 4), Kosong (stok 0 tanpa harga).
      * Aset: rusak A 1.000.000, hilang B 500.000, aktif A 300.000, dijual A 200.000. Ready stock: 2 dari 3.
      */
-    private function seed(): void
+    private function fillInventory(): void
     {
         $this->film = RawMaterial::create(['name' => 'Film', 'code' => 'F-1', 'unit' => 'meter', 'current_stock' => 10, 'unit_cost' => 100, 'reorder_point' => 20]);
         RawMaterialBatch::create(['raw_material_id' => $this->film->id, 'quantity' => 5, 'unit_cost' => 50, 'received_date' => '2026-08-01', 'expiry_date' => '2026-10-20']);
@@ -136,7 +136,7 @@ class InventoryDashboardTest extends TestCase
 
     public function test_raw_material_value_uses_the_remaining_fifo_batches(): void
     {
-        $this->seed();
+        $this->fillInventory();
         $this->actingAs($this->user('super_admin'), 'web');
 
         $stats = $this->stats();
@@ -151,7 +151,7 @@ class InventoryDashboardTest extends TestCase
 
     public function test_consumable_and_asset_values_and_missing_price_counts(): void
     {
-        $this->seed();
+        $this->fillInventory();
         $this->actingAs($this->user('super_admin'), 'web');
 
         $stats = $this->stats();
@@ -166,7 +166,7 @@ class InventoryDashboardTest extends TestCase
 
     public function test_attention_cards_and_the_total_count_each_item_once(): void
     {
-        $this->seed();
+        $this->fillInventory();
         $this->actingAs($this->user('super_admin'), 'web');
 
         $stats = $this->stats();
@@ -183,7 +183,7 @@ class InventoryDashboardTest extends TestCase
 
     public function test_the_total_equals_the_rows_of_the_attention_tables(): void
     {
-        $this->seed();
+        $this->fillInventory();
         $this->actingAs($this->user('super_admin'), 'web');
 
         $this->assertSame(2, MaterialsNeedingAttentionWidget::needingAttentionQuery()->count());
@@ -196,7 +196,7 @@ class InventoryDashboardTest extends TestCase
 
     public function test_acknowledging_hides_an_item_until_it_changes_again(): void
     {
-        $this->seed();
+        $this->fillInventory();
         $admin = $this->user('super_admin');
         $this->actingAs($admin, 'web');
 
@@ -221,7 +221,7 @@ class InventoryDashboardTest extends TestCase
 
     public function test_cards_follow_the_menu_access_of_each_category(): void
     {
-        $this->seed();
+        $this->fillInventory();
         $this->actingAs($this->user('kasir', ['InventoryDashboard', 'RawMaterialResource']), 'web');
 
         $labels = array_keys($this->stats());
@@ -236,7 +236,7 @@ class InventoryDashboardTest extends TestCase
 
     public function test_staff_see_only_their_store_assets(): void
     {
-        $this->seed();
+        $this->fillInventory();
         $this->actingAs($this->user('kasir', null, $this->storeA), 'web');
 
         $stats = $this->stats();
@@ -263,7 +263,7 @@ class InventoryDashboardTest extends TestCase
 
     public function test_tables_are_ordered_by_how_many_rows_need_attention(): void
     {
-        $this->seed();
+        $this->fillInventory();
         $this->actingAs($this->user('super_admin'), 'web');
 
         $widgets = (new InventoryDashboard())->getWidgets();
@@ -275,7 +275,7 @@ class InventoryDashboardTest extends TestCase
 
     public function test_the_page_renders_with_the_cards_and_the_attention_tables(): void
     {
-        $this->seed();
+        $this->fillInventory();
         $this->actingAs($this->user('super_admin'), 'web');
 
         $this->get(InventoryDashboard::getUrl())
