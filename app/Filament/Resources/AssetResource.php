@@ -149,6 +149,7 @@ class AssetResource extends Resource
                             'dijual'     => 'Dijual',
                             'hilang'     => 'Hilang',
                         ])
+                        ->in(['aktif', 'diperbaiki', 'rusak', 'dijual', 'hilang'])
                         ->required()
                         ->default('aktif'),
 
@@ -217,6 +218,8 @@ class AssetResource extends Resource
                         ->label('Nilai Residu')
                         ->numeric()
                         ->minValue(0)
+                        // Tidak boleh melebihi Harga Beli yang diisi di form yang sama.
+                        ->maxValue(fn (Forms\Get $get) => filled($get('purchase_cost')) ? (float) $get('purchase_cost') : null)
                         ->prefix('Rp')
                         ->helperText('Opsional — perkiraan nilai sisa di akhir umur ekonomis (boleh 0).'),
 
@@ -231,10 +234,13 @@ class AssetResource extends Resource
                             ->get()
                             ->mapWithKeys(fn ($a) => [$a->id => $a->display_name]))
                         ->searchable()
+                        // Dua akun penyusutan harus diisi berpasangan -- satu saja tidak cukup untuk memposting jurnal.
+                        ->required(fn (Forms\Get $get) => filled($get('accumulated_depreciation_account_id')))
                         ->helperText('Opsional — isi bersama "Akun Akumulasi Penyusutan" supaya aset ini ikut disusutkan otomatis tiap bulan.'),
 
                     Forms\Components\Select::make('accumulated_depreciation_account_id')
                         ->label('Akun Akumulasi Penyusutan')
+                        ->required(fn (Forms\Get $get) => filled($get('chart_of_account_id')))
                         ->options(fn () => \App\Models\ChartOfAccount::whereHas('parent', fn ($q) => $q->where('code', '1200'))
                             ->orderBy('code')
                             ->get()

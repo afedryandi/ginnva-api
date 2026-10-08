@@ -129,7 +129,8 @@ class Asset extends Model
         }
 
         $cost = (float) $this->purchase_cost;
-        $salvage = (float) ($this->salvage_value ?? 0);
+        // Nilai residu tidak mungkin melebihi harga beli -- tanpa batas ini nilai buku bisa tampil LEBIH BESAR dari harga beli.
+        $salvage = min((float) ($this->salvage_value ?? 0), $cost);
         $yearsElapsed = $this->purchase_date->diffInDays(now()) / 365;
         $annualDepreciation = ($cost - $salvage) / $this->useful_life_years;
         $value = $cost - ($annualDepreciation * $yearsElapsed);
