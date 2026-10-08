@@ -248,11 +248,16 @@ class PointReport extends Page implements HasForms
             ->whereBetween('created_at', [$from, $to])
             ->get(['type', 'points', 'reference_type', 'reference_id', 'created_at']);
 
+        // BUG DIPERBAIKI: SEBELUMNYA kedua koleksi digabung dengan Eloquent Collection::merge(), yang membuang
+        // duplikat berdasarkan primary key -- id tidak ikut di-select (semua null) dan id customer vs partner bisa
+        // sama, jadi transaksi poin saling menimpa dan angka laporan salah. concat() murni menyambung tanpa dedup.
+        $allTx = collect($customerTx->all())->concat($partnerTx->all());
+
         // Nilai Rp "Poin Didapat" -- CUMA valid untuk earn yang
         // reference_type='booking', diambil dari transaction_amount
         // booking itu (nilai transaksi yang memicu poin, BUKAN nilai
         // poinnya sendiri -- poin di Ginnva tidak dikonversi ke Rp).
-        $bookingIds = $customerTx->merge($partnerTx)
+        $bookingIds = $allTx
             ->where('type', 'earn')
             ->where('reference_type', 'booking')
             ->pluck('reference_id')
@@ -270,7 +275,7 @@ class PointReport extends Page implements HasForms
             $cursor->addDay();
         }
 
-        foreach ($customerTx->merge($partnerTx) as $tx) {
+        foreach ($allTx as $tx) {
             $key = $tx->created_at->toDateString();
             if (! isset($rows[$key])) continue;
 
