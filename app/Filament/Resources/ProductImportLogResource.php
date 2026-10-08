@@ -30,7 +30,8 @@ class ProductImportLogResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Riwayat Impor';
 
-    protected static ?int $navigationSort = 2;
+    // 3: urutan 2 sudah dipakai Master Resep di cluster yang sama (urutan menu jadi tidak pasti).
+    protected static ?int $navigationSort = 3;
 
     private static function accessGate(): bool
     {
@@ -81,7 +82,9 @@ class ProductImportLogResource extends Resource
             TextEntry::make('errors')
                 ->label('Detail Baris Dilewati/Error')
                 ->visible(fn (ProductImportLog $record) => ! empty($record->errors))
-                ->formatStateUsing(fn (?array $state) => implode("\n", $state ?? []))
+                // Satu error per baris (sebelumnya digabung dengan newline yang dilebur HTML jadi satu paragraf panjang).
+                ->listWithLineBreaks()
+                ->bulleted()
                 ->columnSpanFull(),
         ]);
     }
