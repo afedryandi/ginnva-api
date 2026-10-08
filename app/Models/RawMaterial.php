@@ -106,8 +106,21 @@ class RawMaterial extends Model
      */
     public function stockValue(): float
     {
+        return $this->valuation()[0];
+    }
+
+    /** True kalau ada bagian stok yang tidak bisa dinilai karena tidak ada harga (batch tanpa harga DAN bahan tanpa harga terakhir). */
+    public function hasUnpricedStock(): bool
+    {
+        return $this->valuation()[1];
+    }
+
+    /** @return array{0: float, 1: bool} [nilai stok, ada bagian tanpa harga] */
+    private function valuation(): array
+    {
         $remaining = max(0.0, (float) $this->current_stock);
         $value = 0.0;
+        $unpriced = false;
 
         foreach ($this->batches->reverse() as $batch) {
             if ($remaining <= 0) {
@@ -119,11 +132,18 @@ class RawMaterial extends Model
                 continue;
             }
 
-            $value += $take * (float) ($batch->unit_cost ?? $this->unit_cost ?? 0);
+            $cost = $batch->unit_cost ?? $this->unit_cost;
+            $unpriced = $unpriced || $cost === null;
+            $value += $take * (float) ($cost ?? 0);
             $remaining -= $take;
         }
 
-        return $value + $remaining * (float) ($this->unit_cost ?? 0);
+        if ($remaining > 0) {
+            $unpriced = $unpriced || $this->unit_cost === null;
+            $value += $remaining * (float) ($this->unit_cost ?? 0);
+        }
+
+        return [$value, $unpriced];
     }
 
     public function batches(): HasMany

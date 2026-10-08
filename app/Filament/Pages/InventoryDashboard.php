@@ -54,30 +54,15 @@ class InventoryDashboard extends Page
         // Baris yang sudah "Tandai Ditinjau" (belum ada perubahan lagi
         // sejak itu) tidak ikut dihitung — konsisten dengan angka yang
         // dipakai widget tabelnya sendiri dan kartu statistik.
-        $notAcknowledged = fn ($q) => $q->where(fn ($q2) => $q2->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'));
-
-        $materialsCount = RawMaterial::query()->where(function ($q) {
-            $q->where(fn ($q2) => $q2->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point'))
-                // Dihitung dari batch yang masih ada stoknya, bukan kolom
-                // expiry_date induk — lihat catatan di InventoryStatsOverview.
-                ->orWhereHas('batches', fn ($q2) => $q2->where('quantity', '>', 0)
-                    ->whereNotNull('expiry_date')
-                    ->whereDate('expiry_date', '<=', now()->addDays(30)))
-                ->orWhere(fn ($q2) => $q2->where('current_stock', '>', 0)
-                    ->where('updated_at', '<', now()->subDays(RawMaterial::DEAD_STOCK_DAYS)));
-        })->tap($notAcknowledged)->count();
-
-        $consumablesCount = ConsumableItem::query()->where(function ($q) {
-            $q->where(fn ($q2) => $q2->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point'))
-                ->orWhere(fn ($q2) => $q2->where('current_stock', '>', 0)
-                    ->where('updated_at', '<', now()->subDays(ConsumableItem::DEAD_STOCK_DAYS)));
-        })->tap($notAcknowledged)->count();
+        // Query yang SAMA dengan isi tabel masing-masing (satu sumber kebenaran), supaya urutan mengikuti jumlah baris sungguhan.
+        $materialsCount = MaterialsNeedingAttentionWidget::needingAttentionQuery()->count();
+        $consumablesCount = ConsumablesNeedingAttentionWidget::needingAttentionQuery()->count();
 
         $assetsQuery = Asset::query()->whereIn('status', ['rusak', 'diperbaiki', 'hilang']);
         if (! (auth()->user()?->isFullAccess() ?? false)) {
             $assetsQuery->where('store_id', auth()->user()?->store_id);
         }
-        $assetsCount = $assetsQuery->tap($notAcknowledged)->count();
+        $assetsCount = $assetsQuery->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'))->count();
 
         $tableWidgets = collect([
             ['widget' => MaterialsNeedingAttentionWidget::class, 'count' => $materialsCount],

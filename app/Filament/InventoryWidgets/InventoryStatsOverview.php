@@ -59,18 +59,12 @@ class InventoryStatsOverview extends BaseWidget
         // pembelian, valuasi tetap akurat mengikuti harga masing-masing
         // batch yang benar-benar masih tersisa (lihat migration
         // add_unit_cost_to_raw_material_batches).
-        $materialValue = (float) DB::table('raw_material_batches')
-            ->where('quantity', '>', 0)
-            ->whereNotNull('unit_cost')
-            ->sum(DB::raw('quantity * unit_cost'));
-
-        // Supaya "Nilai Stok" tidak diam-diam meremehkan valuasi — dihitung
-        // juga berapa bahan yang punya batch MASIH ADA stoknya tapi belum
-        // diisi harga satuannya (jadi tidak ikut ke nilai di atas),
-        // ditampilkan sebagai peringatan terpisah.
-        $materialMissingCostCount = RawMaterial::query()
-            ->whereHas('batches', fn ($q) => $q->where('quantity', '>', 0)->whereNull('unit_cost'))
-            ->count();
+        $materialValue = 0.0;
+        $materialMissingCostCount = 0;
+        foreach (RawMaterial::query()->where('current_stock', '>', 0)->with('batches')->get() as $material) {
+            $materialValue += $material->stockValue();
+            $materialMissingCostCount += $material->hasUnpricedStock() ? 1 : 0;
+        }
 
         $assetValueQuery = Asset::query()
             ->whereNotNull('purchase_cost')
@@ -103,7 +97,8 @@ class InventoryStatsOverview extends BaseWidget
             ->whereNotNull('unit_cost')
             ->sum(DB::raw('current_stock * unit_cost'));
 
-        $consumableMissingCostCount = ConsumableItem::query()->whereNull('unit_cost')->count();
+        // Hanya yang masih ada stoknya -- item kosong tanpa harga tidak memengaruhi nilai stok.
+        $consumableMissingCostCount = ConsumableItem::query()->where('current_stock', '>', 0)->whereNull('unit_cost')->count();
 
         $consumableLowStockCount = ConsumableItem::query()
             ->whereNotNull('reorder_point')
@@ -154,8 +149,10 @@ class InventoryStatsOverview extends BaseWidget
         // Rollup lintas-kategori supaya manager tidak perlu scroll & jumlah
         // manual satu-satu dari tiap kartu di bawah — ini yang dilihat
         // pertama kali untuk tahu "hari ini ada berapa yang perlu ditindak".
-        $totalAttentionCount = ($canViewRawMaterials ? $lowStockCount + $nearExpiryCount + $materialDeadStockCount : 0)
-            + ($canViewConsumables ? $consumableLowStockCount + $consumableDeadStockCount : 0)
+        // Dihitung per ITEM (bukan menjumlah kartu di bawah): satu bahan yang menipis sekaligus mendekati kedaluwarsa
+        // sebelumnya terhitung dua kali. Memakai query yang sama dengan tabel "Perlu Perhatian", jadi angkanya = jumlah baris tabel.
+        $totalAttentionCount = ($canViewRawMaterials ? MaterialsNeedingAttentionWidget::needingAttentionQuery()->count() : 0)
+            + ($canViewConsumables ? ConsumablesNeedingAttentionWidget::needingAttentionQuery()->count() : 0)
             + ($canViewAssets ? $problemAssetCount : 0);
 
         if ($canViewRawMaterials || $canViewConsumables || $canViewAssets) {
@@ -178,8 +175,8 @@ class InventoryStatsOverview extends BaseWidget
         if ($canViewRawMaterials) {
             $stats[] = Stat::make('Nilai Stok Bahan Baku', 'Rp ' . number_format($materialValue, 0, ',', '.'))
                 ->description(
-                    'Seluruh toko · Dihitung per batch (kuantitas × harga batch)'
-                    . ($materialMissingCostCount > 0 ? " ({$materialMissingCostCount} bahan ada batch belum ada harga, belum ikut dihitung)" : '')
+                    'Seluruh toko · Sisa stok per batch (FIFO) × harga batch; batch tanpa harga memakai harga terakhir bahan'
+                    . ($materialMissingCostCount > 0 ? " ({$materialMissingCostCount} bahan ada stok yang belum ada harganya, dinilai Rp0)" : '')
                 )
                 ->descriptionIcon('heroicon-m-beaker')
                 ->color('info')
