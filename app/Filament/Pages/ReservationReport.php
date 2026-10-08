@@ -203,13 +203,31 @@ class ReservationReport extends Page implements HasForms
         return \App\Filament\Resources\BookingResource::getUrl('view', ['record' => $bookingId]);
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya, dan
+     * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
+     * Dipakai getResult() dan log ekspor supaya keduanya merujuk toko yang sama.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Log ekspor (audit Laporan Reservasi 2026-09-29), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'reservation', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'status' => $this->data['status'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => 'reservation', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'status' => $this->data['status'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Laporan Reservasi (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -254,16 +272,14 @@ class ReservationReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini booking yang dibuat sebelum jam itu di hari pertama
+        // tidak terhitung di statistik "Dibuat / Selesai / Dibatalkan" (basis created_at).
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
-        // GAP DIPERBAIKI 2026-09-29: full-access sebelumnya tidak bisa mempersempit ke 1 cabang --
-        // sekarang filter 'store_id' di form dipakai kalau full-access memilihnya.
-        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         $bookings = Booking::query()
-            ->with(['store:id,name', 'installers:id,name'])
+            ->with(['store:id,name', 'installers:id,name', 'customer'])
             ->whereIn('status', ['confirmed', 'pending'])
             ->when($this->data['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->whereBetween('preferred_date', [$from->toDateString(), $to->toDateString()])

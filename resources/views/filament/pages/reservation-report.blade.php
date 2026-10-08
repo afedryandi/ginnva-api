@@ -103,19 +103,9 @@
                             <td class="py-2 pr-3 tabular-nums">{{ optional($booking->created_at)->format('d M Y') }}</td>
                             <td class="py-2 pr-3 tabular-nums">{{ $booking->preferred_date?->format('d M Y') }}</td>
                             <td class="py-2 pr-3">{{ $booking->duration_days }} hari</td>
-                            <td class="py-2 pr-3">{{ $booking->customer_name ?? '—' }}</td>
+                            <td class="py-2 pr-3">{{ $booking->display_customer_name }}</td>
                             <td class="py-2 pr-3">{{ $booking->store?->name ?? '—' }}</td>
-                            <td class="py-2 pr-3">
-                                @if ($booking->product_kaca_film && $booking->product_ppf)
-                                    Kaca Film + PPF
-                                @elseif ($booking->product_ppf)
-                                    PPF
-                                @elseif ($booking->product_kaca_film)
-                                    Kaca Film
-                                @else
-                                    —
-                                @endif
-                            </td>
+                            <td class="py-2 pr-3">{{ $booking->salesProductLabel() ?? '—' }}</td>
                             <td class="py-2 pr-3">{{ $booking->installers->pluck('name')->join(', ') ?: '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $booking->transaction_amount ? $rupiah($booking->transaction_amount) : '—' }}</td>
                             <td class="py-2 pl-3">
