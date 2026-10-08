@@ -103,14 +103,16 @@ class SalesSummaryTest extends TestCase
         return $page;
     }
 
-    /** Oktober 2026: A 1.000.000, A 500.000 (PPN 49.500), B 300.000. */
+    /** Oktober 2026: A 1.000.000, A 500.000, B 300.000; PPN 99.000 + 49.500 + 29.700. */
     private function october(): array
     {
         $a1 = $this->sale(1000000, '2026-10-03', $this->storeA);
         $a2 = $this->sale(500000, '2026-10-08', $this->storeA);
         $b1 = $this->sale(300000, '2026-10-05', $this->storeB);
-        DB::table('bookings')->where('id', $a2->id)->update(['ppn_amount' => 49500]);
+        // Booking baru menghitung PPN otomatis; tetapkan eksplisit supaya total tes pasti (178.200).
         DB::table('bookings')->where('id', $a1->id)->update(['ppn_amount' => 99000]);
+        DB::table('bookings')->where('id', $a2->id)->update(['ppn_amount' => 49500]);
+        DB::table('bookings')->where('id', $b1->id)->update(['ppn_amount' => 29700]);
 
         return [$a1, $a2, $b1];
     }
@@ -123,14 +125,14 @@ class SalesSummaryTest extends TestCase
         app(RefundService::class)->process($a1, 200000, 'Batal sebagian', null);
         $this->voucherUse($a1, 50000, '2026-10-03 11:00:00');
         $this->voucherUse($b1, 25000, '2026-10-05 11:00:00');
-        $this->voucherUse($a2, 999000, '2026-10-08 11:00:00', 'claimed');     // belum terpakai: tidak ikut
+        $this->voucherUse($a2, 999000, '2026-10-08 11:00:00', 'active');      // belum terpakai: tidak ikut
         $this->voucherUse($a2, 888000, '2026-09-20 11:00:00');                // dipakai bulan lalu: tidak ikut
         $this->actingAs($this->admin(), 'web');
 
         $result = $this->page()->instance()->getResult();
 
         $this->assertEquals(1800000.0, $result['grossSales']);
-        $this->assertEquals(148500.0, $result['ppnAmount']);
+        $this->assertEquals(178200.0, $result['ppnAmount']);
         $this->assertEquals(75000.0, $result['voucherDiscount']);
         $this->assertEquals(200000.0, $result['refund']);
         $this->assertEquals(1600000.0, $result['netSales']);
@@ -335,7 +337,7 @@ class SalesSummaryTest extends TestCase
         $this->assertSame(['Periode', '01 Oct 2026 - 31 Oct 2026'], $rows[1]);
         $this->assertSame('1.800.000', $by['Penjualan Kotor'][1]);
         $this->assertSame('Tidak berlaku', $by['Ongkos Kirim'][1]);
-        $this->assertSame('148.500', $by['Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)'][1]);
+        $this->assertSame('178.200', $by['Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)'][1]);
         $this->assertSame('(50.000)', $by['Promo Voucher'][1]);
         $this->assertSame('(200.000)', $by['Pengembalian (Refund)'][1]);
         $this->assertSame('1.600.000', $by['Total Penjualan Bersih'][1]);
