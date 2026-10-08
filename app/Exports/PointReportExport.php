@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use Maatwebsite\Excel\Concerns\FromArray;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -11,7 +12,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 /**
  * Export "Laporan Poin" (PointReport) — audit 2026-09-11, temuan B.
  */
-class PointReportExport implements FromArray, WithHeadings, WithStyles
+class PointReportExport implements FromArray, WithHeadings, WithStyles, WithColumnFormatting
 {
     public function __construct(private array $result) {}
 
@@ -34,12 +35,18 @@ class PointReportExport implements FromArray, WithHeadings, WithStyles
                 $row['label'],
                 $row['earned'],
                 $row['earnCount'],
-                $row['earnRp'] > 0 ? $row['earnRp'] : '-',
+                // Angka (bukan teks "-"); nol tampil "-" lewat format kolom D.
+                round((float) $row['earnRp'], 2),
                 $row['spent'],
                 $row['spentCount'],
             ])
             ->values()
             ->all();
+    }
+
+    public function columnFormats(): array
+    {
+        return ['D' => '#,##0;(#,##0);"-"'];
     }
 
     public function styles(Worksheet $sheet): array
