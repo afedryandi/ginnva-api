@@ -207,7 +207,9 @@ class TrialBalanceReport extends Page implements HasForms
         $hideZero = (bool) ($this->data['hide_zero'] ?? false);
 
         $rows = $result['rows']->filter(function (array $row) use ($search, $hideZero) {
-            if ($hideZero && abs($row['balance']) < 0.005 && abs($row['debit']) < 0.005 && abs($row['credit']) < 0.005) {
+            // Akun hanya ada di hasil kalau punya baris jurnal, jadi "nol" berarti saldonya nol (habis oleh jurnal
+            // pembalik/pelunasan), bukan tanpa mutasi sama sekali. Di mode periode, akun yang punya saldo awal tetap tampil.
+            if ($hideZero && abs($row['balance']) < 0.005 && abs($row['opening_balance'] ?? 0) < 0.005) {
                 return false;
             }
 

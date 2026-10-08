@@ -319,6 +319,17 @@ class TrialBalanceTest extends TestCase
         $this->assertEquals(200000.0, $result['total_credit']);
     }
 
+    public function test_hide_zero_keeps_accounts_with_an_opening_balance_in_period_mode(): void
+    {
+        $original = $this->sale('2026-08-05', 100000);
+        app(JournalEntryService::class)->reverse($original, null, 'Batal', '2026-09-20');
+        $this->actingAs($this->admin(), 'web');
+
+        $page = Livewire::test(TrialBalanceReport::class)->set('data.from', '2026-09-01')->set('data.hide_zero', true);
+
+        $this->assertSame(['aset'], $page->instance()->getGroupedRows($page->instance()->getResult())->keys()->all(), 'Kas punya saldo awal 100.000 sehingga tampil; pendapatan (hanya tahun berjalan, awal 0) disembunyikan.');
+    }
+
     public function test_page_applies_the_period_and_the_store_choice(): void
     {
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true]);
