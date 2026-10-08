@@ -271,7 +271,7 @@ class MasterResepResource extends Resource
 
                 Tables\Columns\TextColumn::make('recipe_items_count')
                     ->label('Isi Resep')
-                    ->state(fn (FilmProduct $record): int => (int) ($record->recipe_items_count ?? 0))
+                    ->state(fn (FilmProduct $record): int => (int) ($record->recipe_items_count ?? $record->recipeItems()->count()))
                     ->badge()
                     ->color(fn ($state): string => (int) $state > 0 ? 'success' : 'gray')
                     ->formatStateUsing(fn ($state): string => (int) $state > 0 ? "{$state} bahan" : 'Belum diisi'),
