@@ -429,7 +429,7 @@ class FinanceCategoryTest extends TestCase
 
         Livewire::test(ListFinanceCategories::class)
             ->assertCanSeeTableRecords([$income, $expense, $inactive, $group, $legacy], inOrder: true)
-            ->assertTableColumnStateSet('transactions_count', 2, $expense)
+            ->assertTableColumnStateSet('transactions_count', 2, FinanceCategory::withCount('transactions')->find($expense->id)) // atribut count berasal dari query tabel
             ->assertTableColumnStateSet('account.display_name', '6510 — ' . ChartOfAccount::where('code', '6510')->value('name'), $expense)
             ->filterTable('type', 'in')->assertCanSeeTableRecords([$income])->assertCanNotSeeTableRecords([$expense, $group]);
         Livewire::test(ListFinanceCategories::class)->filterTable('is_active', false)->assertCanSeeTableRecords([$inactive])->assertCanNotSeeTableRecords([$expense]);
