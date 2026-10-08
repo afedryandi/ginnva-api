@@ -73,8 +73,8 @@ class PromoValueChart extends ChartWidget
             ->whereNotNull('booking_id')
             ->whereBetween('used_at', [$start, $end])
             ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
-            ->with('voucher:id,discount_amount')
-            ->get(['id', 'used_at', 'voucher_id']);
+            ->with(['voucher:id,discount_amount', 'booking:id,voucher_discount'])
+            ->get(['id', 'used_at', 'voucher_id', 'booking_id']);
 
         $spendPromoBookings = Booking::query()
             ->whereNotNull('spend_promo_id')
@@ -86,7 +86,7 @@ class PromoValueChart extends ChartWidget
         foreach ($claims as $claim) {
             $date = $claim->used_at?->toDateString();
             if (! $date) continue;
-            $byDate[$date] = ($byDate[$date] ?? 0) + (float) ($claim->voucher->discount_amount ?? 0);
+            $byDate[$date] = ($byDate[$date] ?? 0) + $claim->appliedDiscount();
         }
         foreach ($spendPromoBookings as $booking) {
             $date = $booking->created_at?->toDateString();

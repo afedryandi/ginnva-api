@@ -352,9 +352,9 @@ class SalesSummaryReport extends Page implements HasForms
             ->whereNotNull('booking_id')
             ->whereBetween('used_at', [$from, $to])
             ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
-            ->with('voucher:id,discount_amount')
+            ->with(['voucher:id,discount_amount', 'booking:id,voucher_discount'])
             ->get()
-            ->sum(fn (VoucherClaim $claim) => (float) ($claim->voucher->discount_amount ?? 0));
+            ->sum(fn (VoucherClaim $claim) => $claim->appliedDiscount());
 
         // PPN (Topik 1, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx"
         // 2026-09-19) -- filter booking SAMA PERSIS dengan

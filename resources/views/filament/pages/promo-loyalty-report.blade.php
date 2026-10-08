@@ -89,7 +89,7 @@
                                 @endif
                             </td>
                             <td class="py-2 pr-3">{{ $claim->booking?->store?->name ?? '—' }}</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">({{ $rupiah((float) ($claim->voucher->discount_amount ?? 0)) }})</td>
+                            <td class="py-2 pl-3 text-right tabular-nums">({{ $rupiah($claim->appliedDiscount()) }})</td>
                         </tr>
                     @empty
                         <tr><td colspan="5" class="py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada promo dipakai pada rentang ini.</td></tr>

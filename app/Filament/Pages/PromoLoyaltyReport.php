@@ -207,13 +207,30 @@ class PromoLoyaltyReport extends Page implements HasForms
         return \App\Filament\Resources\BookingResource::getUrl('view', ['record' => $bookingId]);
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya, dan
+     * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Log ekspor (audit Laporan Promo 2026-09-29), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => Str::slug(static::$navigationLabel ?? 'laporan-promo'), 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => Str::slug(static::$navigationLabel ?? 'laporan-promo'), 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor ' . (static::$navigationLabel ?? 'Laporan Promo') . ' (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -272,7 +289,9 @@ class PromoLoyaltyReport extends Page implements HasForms
      */
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini klaim/transaksi sebelum jam itu di hari pertama
+        // tidak terhitung.
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
 
         $vouchers = Voucher::query()
@@ -312,22 +331,18 @@ class PromoLoyaltyReport extends Page implements HasForms
         // Customer/Partner (loyalti lintas-toko) & katalog Voucher/
         // Reward (program perusahaan) SENGAJA TETAP company-wide —
         // tidak terikat 1 cabang.
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
-        // GAP DIPERBAIKI 2026-09-29: full-access sebelumnya tidak bisa mempersempit ke 1 cabang --
-        // sekarang filter 'store_id' di form dipakai kalau full-access memilihnya.
-        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         $usedClaims = VoucherClaim::query()
             ->where('status', 'used')
             ->whereNotNull('booking_id')
             ->whereBetween('used_at', [$from, $to])
             ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
-            ->with(['voucher:id,name,discount_amount', 'booking:id,booking_number,store_id,transaction_amount', 'booking.store:id,name'])
+            ->with(['voucher:id,name,discount_amount', 'booking:id,booking_number,store_id,transaction_amount,voucher_discount', 'booking.store:id,name'])
             ->orderByDesc('used_at')
             ->get();
 
-        $promoValue = (float) $usedClaims->sum(fn (VoucherClaim $c) => (float) ($c->voucher->discount_amount ?? 0));
+        $promoValue = (float) $usedClaims->sum(fn (VoucherClaim $c) => $c->appliedDiscount());
         $promoSalesTotal = (float) $usedClaims->sum(fn (VoucherClaim $c) => (float) ($c->booking->transaction_amount ?? 0));
 
         // "Promo Total Pembelian" (SpendPromo) — diminta 2026-09-14,

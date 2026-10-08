@@ -35,7 +35,7 @@
                 <td>{{ $claim->voucher?->name ?? '-' }}</td>
                 <td>{{ $claim->booking?->booking_number ?? '-' }}</td>
                 <td>{{ $claim->booking?->store?->name ?? '-' }}</td>
-                <td class="value">({{ $rupiah($claim->voucher->discount_amount ?? 0) }})</td>
+                <td class="value">({{ $rupiah($claim->appliedDiscount()) }})</td>
             </tr>
         @empty
             <tr><td colspan="5">Tidak ada promo dipakai pada rentang ini.</td></tr>

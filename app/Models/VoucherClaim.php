@@ -36,6 +36,17 @@ class VoucherClaim extends Model
         'used_at' => 'datetime',
     ];
 
+    /**
+     * Potongan yang BENAR-BENAR diberikan pada booking ini: snapshot Booking::voucher_discount (dicatat saat voucher
+     * dipakai) kalau ada, jatuh ke nominal katalog Voucher::discount_amount untuk klaim lama yang belum punya snapshot.
+     * Laporan memakai ini -- bukan katalog langsung -- supaya mengubah nominal voucher kemudian tidak menulis ulang
+     * sejarah (invoice booking sudah memakai snapshot yang sama). Muat relasi booking & voucher dulu untuk daftar besar.
+     */
+    public function appliedDiscount(): float
+    {
+        return (float) ($this->booking?->voucher_discount ?? $this->voucher?->discount_amount ?? 0);
+    }
+
     public function voucher(): BelongsTo
     {
         return $this->belongsTo(Voucher::class);

@@ -6,7 +6,6 @@ use App\Models\Booking;
 use App\Models\VoucherClaim;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithStyles;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
@@ -14,15 +13,26 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * CouponReport — logic sama, cuma nama menu beda) — audit 2026-09-11,
  * temuan B. $title dipakai supaya file export dari "Laporan Kupon"
  * tidak keliru bertuliskan "Laporan Promo".
+ *
+ * Nominal ditulis sebagai ANGKA (bukan teks berformat) supaya bisa dijumlah/difilter di Excel; potongan promo
+ * bernilai negatif dan tampil "(1.234)" lewat format sel (lihat styles()). Daftar sel berformat dicatat saat
+ * array() dibangun, jadi nomor baris tidak perlu ditulis tetap.
  */
 class PromoLoyaltyReportExport implements FromArray, WithStyles
 {
+    private const MONEY = '#,##0;(#,##0);"-"';
+
+    /** @var list<string> */
+    private array $moneyRanges = [];
+
     public function __construct(private array $result, private string $title = 'Laporan Promo') {}
 
     public function array(): array
     {
         $r = $this->result;
-        $rupiah = fn ($n) => number_format((float) $n, 0, ',', '.');
+        $this->moneyRanges = [];
+        $number = fn ($n) => round((float) $n, 2);
+        $negative = fn ($n) => (float) $n > 0 ? -round((float) $n, 2) : 0.0;   // hindari -0.0
 
         $rows = [
             [$this->title],
@@ -30,8 +40,8 @@ class PromoLoyaltyReportExport implements FromArray, WithStyles
             [],
             ['RINGKASAN TRANSAKSI PROMO'],
             ['Total Transaksi dengan Promo', $r['promoTransactionCount']],
-            ['Nilai Promo', '(' . $rupiah($r['promoValue']) . ')'],
-            ['Total Penjualan dengan Promo', $rupiah($r['promoSalesTotal'])],
+            ['Nilai Promo', $negative($r['promoValue'])],
+            ['Total Penjualan dengan Promo', $number($r['promoSalesTotal'])],
             [],
             ['POIN LOYALTI (company-wide, tidak per cabang)'],
             ['Poin Customer Diterbitkan', $r['points']['issued_customer']],
@@ -43,7 +53,9 @@ class PromoLoyaltyReportExport implements FromArray, WithStyles
             ['DETAIL TRANSAKSI PROMO'],
             ['Tanggal', 'Promo', 'No. Booking', 'Toko', 'Nilai'],
         ];
+        $this->moneyRanges[] = 'B6:B7';
 
+        $first = count($rows) + 1;
         foreach ($r['usedClaims'] as $claim) {
             /** @var VoucherClaim $claim */
             $rows[] = [
@@ -51,17 +63,23 @@ class PromoLoyaltyReportExport implements FromArray, WithStyles
                 $claim->voucher?->name ?? '-',
                 $claim->booking?->booking_number ?? '-',
                 $claim->booking?->store?->name ?? '-',
-                '(' . $rupiah($claim->voucher->discount_amount ?? 0) . ')',
+                $negative($claim->appliedDiscount()),
             ];
+        }
+        if (count($rows) >= $first) {
+            $this->moneyRanges[] = 'E' . $first . ':E' . count($rows);
         }
 
         $rows[] = [];
         $rows[] = ['RINGKASAN PROMO TOTAL PEMBELIAN'];
         $rows[] = ['Total Transaksi', $r['spendPromoTransactionCount']];
-        $rows[] = ['Total Potongan', '(' . $rupiah($r['spendPromoDiscountTotal']) . ')'];
+        $rows[] = ['Total Potongan', $negative($r['spendPromoDiscountTotal'])];
+        $this->moneyRanges[] = 'B' . count($rows);
         $rows[] = [];
         $rows[] = ['DETAIL TRANSAKSI PROMO TOTAL PEMBELIAN'];
         $rows[] = ['Tanggal', 'Promo', 'No. Booking', 'Toko', 'Potongan'];
+
+        $first = count($rows) + 1;
         foreach ($r['spendPromoBookings'] as $booking) {
             /** @var Booking $booking */
             $rows[] = [
@@ -69,8 +87,11 @@ class PromoLoyaltyReportExport implements FromArray, WithStyles
                 $booking->spendPromo?->name ?? '-',
                 $booking->booking_number,
                 $booking->store?->name ?? '-',
-                '(' . $rupiah($booking->spend_promo_discount) . ')',
+                $negative($booking->spend_promo_discount),
             ];
+        }
+        if (count($rows) >= $first) {
+            $this->moneyRanges[] = 'E' . $first . ':E' . count($rows);
         }
 
         $rows[] = [];
@@ -104,8 +125,15 @@ class PromoLoyaltyReportExport implements FromArray, WithStyles
 
     public function styles(Worksheet $sheet): array
     {
-        return [
-            1 => ['font' => ['bold' => true, 'size' => 14]],
-        ];
+        if ($this->moneyRanges === []) {
+            $this->array();
+        }
+
+        $styles = [1 => ['font' => ['bold' => true, 'size' => 14]]];
+        foreach ($this->moneyRanges as $range) {
+            $styles[$range] = ['numberFormat' => ['formatCode' => self::MONEY]];
+        }
+
+        return $styles;
     }
 }
