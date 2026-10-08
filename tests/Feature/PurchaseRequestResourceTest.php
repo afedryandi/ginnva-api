@@ -74,7 +74,7 @@ class PurchaseRequestResourceTest extends TestCase
 
     private function request(Store $store, array $extra = []): PurchaseRequest
     {
-        return PurchaseRequest::create(array_merge(['store_id' => $store->id, 'item_type' => 'asset', 'item_name' => 'Kompresor', 'quantity' => 1, 'status' => 'pending'], $extra));
+        return PurchaseRequest::create(array_merge(['store_id' => $store->id, 'item_type' => 'asset', 'item_name' => 'Kompresor', 'quantity' => 1, 'status' => 'pending', 'requested_by' => $this->user('super_admin')->id], $extra));
     }
 
     private function material(string $name = 'Adhesive'): RawMaterial
