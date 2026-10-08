@@ -253,10 +253,15 @@ class FinancialStatementService
                 ];
 
                 if ($from) {
-                    $beforeYear = $from->lte($yearStart);
-                    $row['opening_balance'] = $beforeYear ? 0.0 : $priorProfit;
-                    $row['period_debit'] = $beforeYear ? $row['debit'] : 0.0;
-                    $row['period_credit'] = $beforeYear ? $row['credit'] : 0.0;
+                    // Laba yang sudah ada SEBELUM $from adalah saldo awal; sisanya (dari $from sampai akhir tahun lalu)
+                    // adalah mutasi periode. Kalau $from setelah 1 Januari, seluruh laba tahun lalu sudah saldo awal.
+                    $openingProfit = $from->lte($yearStart)
+                        ? $this->incomeStatement(Carbon::create(1970, 1, 1), $from->copy()->subDay(), $storeId)['laba_bersih']
+                        : $priorProfit;
+                    $delta = round($priorProfit - $openingProfit, 2);
+                    $row['opening_balance'] = $openingProfit;
+                    $row['period_debit'] = $delta < 0 ? abs($delta) : 0.0;
+                    $row['period_credit'] = $delta > 0 ? $delta : 0.0;
                 }
 
                 $rows = $rows->push($row)->sortBy(fn ($r) => $r['account']->code)->values();
