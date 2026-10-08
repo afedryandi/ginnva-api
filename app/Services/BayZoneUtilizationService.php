@@ -115,7 +115,7 @@ class BayZoneUtilizationService
 
             $intervals = $intervalsByZone[$zone] ?? collect();
 
-            $occupiedHours = $intervals->sum(fn (array $i) => $i['end']->floatDiffInHours($i['start']));
+            $occupiedHours = $intervals->sum(fn (array $i) => abs($i['end']->floatDiffInHours($i['start'])));
             $bookingCount = $intervals->pluck('booking_id')->unique()->count();
             $peakConcurrent = $this->peakConcurrent($intervals);
             $zoneAvailableHours = $availableHours * $slotCount;
