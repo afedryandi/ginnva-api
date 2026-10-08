@@ -37,6 +37,7 @@ class LayananReportExport implements FromArray, WithStyles
             ['Jenis', 'Jumlah', 'Jumlah %', 'Pendapatan', 'Pendapatan %'],
             ['Kaca Film', $r['byType']['kaca_film']['count'], round($r['byType']['kaca_film']['countPct'], 1) . '%', $rupiah($r['byType']['kaca_film']['revenue']), round($r['byType']['kaca_film']['revenuePct'], 1) . '%'],
             ['PPF', $r['byType']['ppf']['count'], round($r['byType']['ppf']['countPct'], 1) . '%', $rupiah($r['byType']['ppf']['revenue']), round($r['byType']['ppf']['revenuePct'], 1) . '%'],
+            ['Lainnya (Detailing / Premium Wash / tanpa jenis)', $r['byType']['lainnya']['count'], round($r['byType']['lainnya']['countPct'], 1) . '%', $rupiah($r['byType']['lainnya']['revenue']), round($r['byType']['lainnya']['revenuePct'], 1) . '%'],
             [],
             ['PER TOKO'],
             ['Toko', 'Jumlah', 'Pendapatan'],

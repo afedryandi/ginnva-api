@@ -38,7 +38,8 @@
     <x-filament::section>
         <x-slot name="heading">Per Jenis Servis</x-slot>
         <x-slot name="description">
-            Booking dengan 2 produk sekaligus dibagi rata 50/50, sama logika Jurnal Umum. Angka di bawah KOTOR (belum
+            Booking dengan 2 produk sekaligus dibagi rata 50/50, sama logika Jurnal Umum. "Lainnya" = booking tanpa PPF
+            maupun Kaca Film (mis. hanya Detailing / Premium Wash), supaya persentase tetap berjumlah 100%. Angka di bawah KOTOR (belum
             dikurangi pengembalian) — refund tidak tertaut ke jenis produk tertentu, cuma dikurangkan di "Total
             Pendapatan (bersih)" di atas.
         </x-slot>
@@ -68,6 +69,13 @@
                         <td class="py-2 pr-3 text-right tabular-nums">{{ number_format($result['byType']['ppf']['countPct'], 1) }}%</td>
                         <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($result['byType']['ppf']['revenue']) }}</td>
                         <td class="py-2 pl-3 text-right tabular-nums">{{ number_format($result['byType']['ppf']['revenuePct'], 1) }}%</td>
+                    </tr>
+                    <tr class="border-t border-gray-100 dark:border-white/5">
+                        <td class="py-2 pr-3 font-medium">Lainnya <span class="text-xs font-normal text-gray-400">(Detailing / Premium Wash / tanpa jenis)</span></td>
+                        <td class="py-2 pr-3 text-right tabular-nums">{{ $result['byType']['lainnya']['count'] }}</td>
+                        <td class="py-2 pr-3 text-right tabular-nums">{{ number_format($result['byType']['lainnya']['countPct'], 1) }}%</td>
+                        <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($result['byType']['lainnya']['revenue']) }}</td>
+                        <td class="py-2 pl-3 text-right tabular-nums">{{ number_format($result['byType']['lainnya']['revenuePct'], 1) }}%</td>
                     </tr>
                 </tbody>
             </table>

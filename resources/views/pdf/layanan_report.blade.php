@@ -51,6 +51,13 @@
             <td class="value">{{ $rupiah($result['byType']['ppf']['revenue']) }}</td>
             <td class="value">{{ number_format($result['byType']['ppf']['revenuePct'], 1) }}%</td>
         </tr>
+        <tr>
+            <td>Lainnya (Detailing / Premium Wash / tanpa jenis)</td>
+            <td class="value">{{ $result['byType']['lainnya']['count'] }}</td>
+            <td class="value">{{ number_format($result['byType']['lainnya']['countPct'], 1) }}%</td>
+            <td class="value">{{ $rupiah($result['byType']['lainnya']['revenue']) }}</td>
+            <td class="value">{{ number_format($result['byType']['lainnya']['revenuePct'], 1) }}%</td>
+        </tr>
     </table>
 
     <h2>Per Toko</h2>

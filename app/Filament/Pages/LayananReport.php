@@ -197,13 +197,31 @@ class LayananReport extends Page implements HasForms
         ]);
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua toko), staf toko dikunci ke tokonya, dan
+     * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua toko.
+     * Dipakai getResult() dan log ekspor supaya keduanya merujuk toko yang sama.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Log ekspor (audit Laporan Jasa/Jenis Order 2026-09-29), konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => Str::slug(static::$navigationLabel ?? 'laporan-jasa'), 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => Str::slug(static::$navigationLabel ?? 'laporan-jasa'), 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor ' . (static::$navigationLabel ?? 'Laporan Jasa') . ' (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -255,13 +273,12 @@ class LayananReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini refund sebelum jam itu di hari pertama tidak terhitung.
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
-        $user = auth()->user();
-        $isSuperAdmin = $user?->isFullAccess() ?? false;
         // storeId efektif dipakai untuk booking DAN refund supaya
         // keduanya konsisten scope ke cabang yang sama.
-        $storeId = $isSuperAdmin ? (empty($this->data['store_id']) ? null : $this->data['store_id']) : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         $query = Booking::query()
             ->with('store')
@@ -287,9 +304,13 @@ class LayananReport extends Page implements HasForms
             ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
             ->sum('amount');
 
+        // 'lainnya' menampung booking tanpa PPF maupun Kaca Film (mis. hanya Detailing / Premium Wash): tanpa baris ini
+        // pendapatannya ikut Total tapi tidak muncul di jenis mana pun, sehingga persentase tidak sampai 100%. Konsisten
+        // dengan Jurnal Umum (BookingRevenueSplitter memasukkannya ke akun pendapatan lain-lain).
         $byType = [
             'kaca_film' => ['count' => 0, 'revenue' => 0.0],
             'ppf' => ['count' => 0, 'revenue' => 0.0],
+            'lainnya' => ['count' => 0, 'revenue' => 0.0],
         ];
         $byStore = [];
         $totalRevenue = 0.0;
@@ -310,6 +331,9 @@ class LayananReport extends Page implements HasForms
             } elseif ($booking->product_kaca_film) {
                 $byType['kaca_film']['count']++;
                 $byType['kaca_film']['revenue'] += $amount;
+            } else {
+                $byType['lainnya']['count']++;
+                $byType['lainnya']['revenue'] += $amount;
             }
 
             $storeName = $booking->store?->name ?? 'Tanpa Toko';
@@ -328,7 +352,7 @@ class LayananReport extends Page implements HasForms
         // persentase count tetap jumlah 100%, bukan 200%. Penyebut
         // revenue pakai totalRevenue asli (split 50/50 sudah pas jumlah
         // ke totalRevenue, tidak ada double count).
-        $typeCountTotal = $byType['kaca_film']['count'] + $byType['ppf']['count'];
+        $typeCountTotal = $byType['kaca_film']['count'] + $byType['ppf']['count'] + $byType['lainnya']['count'];
         foreach ($byType as $key => $row) {
             $byType[$key]['countPct'] = $typeCountTotal > 0 ? $row['count'] / $typeCountTotal * 100 : 0;
             $byType[$key]['revenuePct'] = $totalRevenue > 0 ? $row['revenue'] / $totalRevenue * 100 : 0;
