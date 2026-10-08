@@ -473,6 +473,7 @@ class ExpenseApprovalTest extends TestCase
         $atManager = $this->submitAs($staff);
         $atDireksi = $this->submitAs($staff);
         $this->service->approveByManager($atDireksi, $managerA);
+        $atDireksi = $atDireksi->fresh(); // tombol dievaluasi terhadap objek yang dikirim: harus berstatus terbaru
 
         $this->listFor($managerA, 'menunggu')
             ->assertTableActionVisible('approve_manager', $atManager)->assertTableActionVisible('reject', $atManager)
