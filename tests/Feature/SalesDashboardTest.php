@@ -368,13 +368,18 @@ class SalesDashboardTest extends TestCase
         app(RefundService::class)->process($first, 200000, 'Batal sebagian', null);
         $this->actingAs($this->admin(), 'web');
 
-        Livewire::test(SalesDashboard::class)->call('setPeriod', 'bulanan')
-            ->assertSuccessful()
+        $page = Livewire::test(SalesDashboard::class)->call('setPeriod', 'bulanan');
+
+        // Refund mengurangi piutang yang masih terbuka dulu (400.000) dan menaikkan amount_received booking itu
+        // sebesar bagian piutang yang dihapus: terbayar 800.000 + 500.000 + 300.000, piutang tersisa 200.000.
+        $current = $page->instance()->getResult()['current'];
+        $this->assertEquals(1600000.0, $current['received']);
+        $this->assertEquals(200000.0, $current['outstanding']);
+
+        $page->assertSuccessful()
             ->assertSee('Rp1.600.000')
             ->assertSee('setelah pengembalian Rp200.000')
             ->assertSee('kotor Rp1.800.000')
-            ->assertSee('Rp400.000')
-            ->assertSee('Rp1.400.000')
             ->assertSee('01 Oct 2026 - 31 Oct 2026');
     }
 
