@@ -59,7 +59,7 @@ class IncomeStatementTest extends TestCase
     }
 
     /** Satu jurnal: akun $code diisi $amount di sisi $side, lawannya kas (1101). */
-    private function post(string $date, string $code, float $amount, string $side, ?Store $store = null, bool $draft = false)
+    private function book(string $date, string $code, float $amount, string $side, ?Store $store = null, bool $draft = false)
     {
         $svc = app(JournalEntryService::class);
         $cashSide = $side === 'debit' ? 'credit' : 'debit';
@@ -74,14 +74,14 @@ class IncomeStatementTest extends TestCase
     /** Skenario lengkap September 2026 -- lihat angka di assert. */
     private function fullMonth(): void
     {
-        $this->post('2026-09-05', '4100', 800000, 'credit');
-        $this->post('2026-09-06', '4200', 200000, 'credit');
-        $this->post('2026-09-07', '4900', 100000, 'debit');   // retur/potongan: mengurangi pendapatan
-        $this->post('2026-09-08', '5100', 300000, 'debit');   // HPP
-        $this->post('2026-09-09', '6110', 150000, 'debit');   // beban operasional
-        $this->post('2026-09-10', '7100', 20000, 'credit');   // pendapatan lain
-        $this->post('2026-09-11', '7800', 10000, 'debit');    // beban lain
-        $this->post('2026-09-12', '8100', 25000, 'debit');    // pajak
+        $this->book('2026-09-05', '4100', 800000, 'credit');
+        $this->book('2026-09-06', '4200', 200000, 'credit');
+        $this->book('2026-09-07', '4900', 100000, 'debit');   // retur/potongan: mengurangi pendapatan
+        $this->book('2026-09-08', '5100', 300000, 'debit');   // HPP
+        $this->book('2026-09-09', '6110', 150000, 'debit');   // beban operasional
+        $this->book('2026-09-10', '7100', 20000, 'credit');   // pendapatan lain
+        $this->book('2026-09-11', '7800', 10000, 'debit');    // beban lain
+        $this->book('2026-09-12', '8100', 25000, 'debit');    // pajak
     }
 
     private function sept(): array
@@ -108,8 +108,8 @@ class IncomeStatementTest extends TestCase
 
     public function test_only_income_statement_accounts_are_counted_and_drafts_are_ignored(): void
     {
-        $this->post('2026-09-05', '4100', 500000, 'credit');
-        $this->post('2026-09-06', '4100', 999999, 'credit', null, true);
+        $this->book('2026-09-05', '4100', 500000, 'credit');
+        $this->book('2026-09-06', '4100', 999999, 'credit', null, true);
         app(JournalEntryService::class)->create(['entry_date' => '2026-09-07', 'description' => 'Modal', 'reference_type' => 'manual'], [
             ['chart_of_account_id' => $this->id('1101'), 'debit' => 70000],
             ['chart_of_account_id' => $this->id('3100'), 'credit' => 70000],
@@ -123,17 +123,17 @@ class IncomeStatementTest extends TestCase
 
     public function test_the_date_range_is_inclusive_at_both_ends(): void
     {
-        $this->post('2026-08-31', '4100', 1, 'credit');
-        $this->post('2026-09-01', '4100', 10, 'credit');
-        $this->post('2026-09-30', '4100', 100, 'credit');
-        $this->post('2026-10-01', '4100', 1000, 'credit');
+        $this->book('2026-08-31', '4100', 1, 'credit');
+        $this->book('2026-09-01', '4100', 10, 'credit');
+        $this->book('2026-09-30', '4100', 100, 'credit');
+        $this->book('2026-10-01', '4100', 1000, 'credit');
 
         $this->assertEquals(110.0, $this->sept()['laba_bersih']);
     }
 
     public function test_a_reversal_removes_the_amount_and_an_empty_period_is_zero(): void
     {
-        $entry = $this->post('2026-09-05', '4100', 400000, 'credit');
+        $entry = $this->book('2026-09-05', '4100', 400000, 'credit');
         app(JournalEntryService::class)->reverse($entry, null, 'Batal', '2026-09-20');
 
         $this->assertEquals(0.0, $this->sept()['laba_bersih']);
@@ -145,7 +145,7 @@ class IncomeStatementTest extends TestCase
 
     public function test_a_loss_is_negative_all_the_way_down(): void
     {
-        $this->post('2026-09-05', '6110', 50000, 'debit');
+        $this->book('2026-09-05', '6110', 50000, 'debit');
 
         $result = $this->sept();
 
@@ -188,7 +188,7 @@ class IncomeStatementTest extends TestCase
 
     public function test_excel_export_leaves_percent_blank_when_there_is_no_revenue(): void
     {
-        $this->post('2026-09-05', '6110', 50000, 'debit');
+        $this->book('2026-09-05', '6110', 50000, 'debit');
 
         $row = $this->find($this->exportRows($this->sept()), 'Laba Bersih');
 
@@ -198,9 +198,9 @@ class IncomeStatementTest extends TestCase
 
     public function test_excel_export_with_a_comparison_adds_previous_and_delta_columns(): void
     {
-        $this->post('2026-08-05', '4100', 400000, 'credit');
-        $this->post('2026-09-05', '4100', 500000, 'credit');
-        $this->post('2026-09-06', '4200', 100000, 'credit');
+        $this->book('2026-08-05', '4100', 400000, 'credit');
+        $this->book('2026-09-05', '4100', 500000, 'credit');
+        $this->book('2026-09-06', '4200', 100000, 'credit');
         $current = $this->sept();
         $current['compare'] = $this->service->incomeStatement(Carbon::parse('2026-08-01'), Carbon::parse('2026-08-31'));
         $current['compare_label'] = '01 Aug 2026 – 31 Aug 2026';
@@ -217,8 +217,8 @@ class IncomeStatementTest extends TestCase
 
     public function test_excel_export_groups_accounts_by_parent_with_subtotals_and_bolds_key_rows(): void
     {
-        $this->post('2026-09-05', '4100', 800000, 'credit');
-        $this->post('2026-09-06', '4200', 200000, 'credit');
+        $this->book('2026-09-05', '4100', 800000, 'credit');
+        $this->book('2026-09-06', '4200', 200000, 'credit');
         $export = new IncomeStatementExport($this->sept() + ['store_label' => 'Semua Toko']);
         $rows = $export->array();
 
@@ -254,7 +254,7 @@ class IncomeStatementTest extends TestCase
 
     public function test_page_shows_a_loss_in_parentheses_and_empty_sections(): void
     {
-        $this->post('2026-09-05', '6110', 50000, 'debit');
+        $this->book('2026-09-05', '6110', 50000, 'debit');
         $this->actingAs($this->admin(), 'web');
 
         Livewire::test(IncomeStatementReport::class)->assertSee('(Rp 50.000)')->assertSee('Tidak ada transaksi.');
@@ -262,8 +262,8 @@ class IncomeStatementTest extends TestCase
 
     public function test_page_comparison_shows_the_percentage_change(): void
     {
-        $this->post('2026-08-05', '4100', 400000, 'credit');
-        $this->post('2026-09-05', '4100', 500000, 'credit');
+        $this->book('2026-08-05', '4100', 400000, 'credit');
+        $this->book('2026-09-05', '4100', 500000, 'credit');
         $this->actingAs($this->admin(), 'web');
 
         Livewire::test(IncomeStatementReport::class)->set('data.compare', 'prev_period')->assertSee('+25,0%')->assertSee('01 Aug 2026');
@@ -284,7 +284,7 @@ class IncomeStatementTest extends TestCase
 
     public function test_page_flags_draft_journals_in_the_range(): void
     {
-        $this->post('2026-09-05', '4100', 100000, 'credit', null, true);
+        $this->book('2026-09-05', '4100', 100000, 'credit', null, true);
         $this->actingAs($this->admin(), 'web');
 
         $this->assertTrue(collect(Livewire::test(IncomeStatementReport::class)->instance()->getNotices())->contains(fn ($n) => $n['type'] === 'warning' && str_contains($n['text'], 'DRAFT')));
@@ -292,7 +292,7 @@ class IncomeStatementTest extends TestCase
 
     public function test_pdf_renders_with_and_without_a_comparison(): void
     {
-        $this->post('2026-08-05', '4100', 400000, 'credit');
+        $this->book('2026-08-05', '4100', 400000, 'credit');
         $this->fullMonth();
         $this->actingAs($this->admin(), 'web');
 
