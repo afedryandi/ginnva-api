@@ -5,6 +5,7 @@ namespace App\Exports;
 use App\Models\ConsumableItemMovement;
 use App\Models\RawMaterialMovement;
 use Maatwebsite\Excel\Concerns\FromArray;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -15,7 +16,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * 2026-09-11, temuan B. Gabung Bahan Baku + Barang Habis Pakai jadi 1
  * sheet, kolom "Jenis Item" membedakan keduanya.
  */
-class PersediaanDetailReportExport implements FromArray, WithHeadings, WithStyles
+class PersediaanDetailReportExport implements FromArray, WithHeadings, WithStyles, WithColumnFormatting
 {
     private const TYPE_LABEL = [
         'in' => 'Masuk',
@@ -33,6 +34,7 @@ class PersediaanDetailReportExport implements FromArray, WithHeadings, WithStyle
             'Nama',
             'Pergerakan',
             'Jumlah',
+            'Satuan',
             'Harga Beli',
             'Oleh',
             'Catatan',
@@ -47,8 +49,9 @@ class PersediaanDetailReportExport implements FromArray, WithHeadings, WithStyle
                 'Bahan Baku',
                 $m->rawMaterial?->name ?? '-',
                 self::TYPE_LABEL[$m->type] ?? $m->type,
-                (float) $m->quantity . ' ' . ($m->rawMaterial?->unit ?? ''),
-                $m->unit_cost ? (float) $m->unit_cost : '-',
+                (float) $m->quantity,
+                $m->rawMaterial?->unit ?? '-',
+                (float) ($m->unit_cost ?? 0),
                 $m->user?->name ?? '-',
                 $m->note ?: '-',
             ]);
@@ -59,13 +62,20 @@ class PersediaanDetailReportExport implements FromArray, WithHeadings, WithStyle
                 'Barang Habis Pakai',
                 $c->consumableItem?->name ?? '-',
                 self::TYPE_LABEL[$c->type] ?? $c->type,
-                (float) $c->quantity . ' ' . ($c->consumableItem?->unit ?? ''),
-                $c->unit_cost ? (float) $c->unit_cost : '-',
+                (float) $c->quantity,
+                $c->consumableItem?->unit ?? '-',
+                (float) ($c->unit_cost ?? 0),
                 $c->user?->name ?? '-',
                 $c->note ?: '-',
             ]);
 
         return $materials->concat($consumables)->values()->all();
+    }
+
+    /** Jumlah (E): angka bertanda (penyesuaian bisa negatif); Harga Beli (G): ribuan, kosong tampil "-". */
+    public function columnFormats(): array
+    {
+        return ['E' => '#,##0.00;-#,##0.00', 'G' => '#,##0.00;-#,##0.00;"-"'];
     }
 
     public function styles(Worksheet $sheet): array

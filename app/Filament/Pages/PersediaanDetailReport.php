@@ -218,7 +218,9 @@ class PersediaanDetailReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini pergerakan stok sebelum jam itu di hari pertama
+        // tidak ikut (created_at berjam).
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
 
         $materialMovements = RawMaterialMovement::query()

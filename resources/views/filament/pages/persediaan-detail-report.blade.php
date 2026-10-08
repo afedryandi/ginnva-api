@@ -73,7 +73,7 @@
                                 @endif
                             </td>
                             <td class="whitespace-nowrap py-2 px-3">
-                                <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ $movement->type === 'in' ? 'bg-success-100 text-success-700 dark:bg-success-500/10 dark:text-success-400' : 'bg-danger-100 text-danger-700 dark:bg-danger-500/10 dark:text-danger-400' }}">
+                                <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ $movement->type === 'in' ? 'bg-success-100 text-success-700 dark:bg-success-500/10 dark:text-success-400' : ($movement->type === 'out' ? 'bg-danger-100 text-danger-700 dark:bg-danger-500/10 dark:text-danger-400' : 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-400') }}">
                                     {{ $typeLabel($movement->type) }}
                                 </span>
                             </td>
