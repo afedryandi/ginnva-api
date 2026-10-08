@@ -168,12 +168,14 @@ class RawMaterialResource extends Resource
                     Forms\Components\TextInput::make('unit_cost')
                         ->label('Harga per Satuan')
                         ->numeric()
+                        ->minValue(0)
                         ->prefix('Rp')
                         ->helperText('Opsional — untuk estimasi nilai stok.'),
 
                     Forms\Components\TextInput::make('reorder_point')
                         ->label('Ambang Stok Menipis')
                         ->numeric()
+                        ->minValue(0)
                         ->helperText('Opsional — barang ditandai "Stok Menipis" kalau current stock ≤ angka ini.'),
 
                     Forms\Components\DatePicker::make('expiry_date')
@@ -618,6 +620,13 @@ class RawMaterialResource extends Resource
             $initialStock = isset($row[4]) && $row[4] !== '' ? (float) $row[4] : 0.0;
             $reorderPoint = isset($row[5]) && $row[5] !== '' ? (float) $row[5] : null;
             $unitCost = isset($row[6]) && $row[6] !== '' ? (float) $row[6] : null;
+
+            // Angka negatif tidak masuk akal untuk stok awal / ambang / harga (form manual sudah menolaknya) -- baris
+            // dilewati, bukan disimpan dengan stok atau harga negatif.
+            if ($initialStock < 0 || ($reorderPoint !== null && $reorderPoint < 0) || ($unitCost !== null && $unitCost < 0)) {
+                $invalidCount++;
+                continue;
+            }
             $receivedDate = static::normalizeImportedDate($row[7] ?? null) ?? now()->toDateString();
             $expiryDate = static::normalizeImportedDate($row[8] ?? null);
             $notes = isset($row[9]) ? trim((string) $row[9]) : '';
@@ -658,7 +667,7 @@ class RawMaterialResource extends Resource
         }
 
         $bodyLines = ["{$createdCount} bahan baku berhasil didaftarkan."];
-        if ($invalidCount > 0) $bodyLines[] = "{$invalidCount} baris dilewati (Nama Bahan/Satuan kosong).";
+        if ($invalidCount > 0) $bodyLines[] = "{$invalidCount} baris dilewati (Nama Bahan/Satuan kosong, atau stok/ambang/harga negatif).";
         if ($codeConflicts > 0) $bodyLines[] = "{$codeConflicts} kode barang dilewati (sudah dipakai bahan lain / duplikat dalam file) — bahan tetap didaftarkan tanpa kode.";
 
         Notification::make()
