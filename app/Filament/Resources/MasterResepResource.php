@@ -133,10 +133,15 @@ class MasterResepResource extends Resource
                                 return function (string $attribute, $value, \Closure $fail) {
                                     $seen = [];
                                     foreach ((array) $value as $row) {
-                                        if (($row['item_type'] ?? null) === 'film_roll' || empty($row['item_id'])) {
+                                        // Roll Film tidak punya item_id tetapi tetap hanya boleh SATU baris per resep
+                                        // (sebelumnya dilewati, sehingga dua baris "Roll Film" lolos dan resep jadi ambigu).
+                                        if (($row['item_type'] ?? null) === 'film_roll') {
+                                            $key = 'film_roll';
+                                        } elseif (empty($row['item_id'])) {
                                             continue;
+                                        } else {
+                                            $key = $row['item_type'].':'.$row['item_id'];
                                         }
-                                        $key = $row['item_type'].':'.$row['item_id'];
                                         if (isset($seen[$key])) {
                                             $fail('Ada bahan yang sama dipilih lebih dari sekali dalam resep ini.');
                                             return;
