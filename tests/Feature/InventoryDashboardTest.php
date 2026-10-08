@@ -62,7 +62,7 @@ class InventoryDashboardTest extends TestCase
 
     private function user(string $role, ?array $menuAccess = null, ?Store $store = null): User
     {
-        return tap(User::create(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess]), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess, 'is_active' => true]), fn (User $u) => $u->assignRole($role));
     }
 
     private function asset(string $tag, string $status, Store $store, float $cost): Asset

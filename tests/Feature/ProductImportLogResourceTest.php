@@ -47,7 +47,7 @@ class ProductImportLogResourceTest extends TestCase
     {
         $store = Store::firstOrCreate(['name' => 'Toko Test'], ['city' => 'Jakarta', 'address' => 'Jl. A', 'is_active' => true]);
 
-        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store->id, 'menu_access' => $menuAccess], $extra)), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store->id, 'menu_access' => $menuAccess, 'is_active' => true], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
     private function log(string $filename, string $at, ?User $by = null, int $total = 10, int $updated = 8, int $skipped = 2, ?array $errors = null): ProductImportLog
@@ -164,9 +164,14 @@ class ProductImportLogResourceTest extends TestCase
 
     public function test_non_full_access_accounts_are_refused_the_pages(): void
     {
-        $this->actingAs($this->user('kasir'), 'web');
         $log = $this->log('rahasia.xlsx', '2026-10-07 15:30:00');
 
+        // Akun aktif, jadi 403 di bawah murni karena bukan full-access (bukan karena ditolak panel).
+        $this->actingAs($this->user('super_admin'), 'web');
+        $this->get(ProductImportLogResource::getUrl('index'))->assertOk();
+        $this->get(ProductImportLogResource::getUrl('view', ['record' => $log]))->assertOk();
+
+        $this->actingAs($this->user('kasir'), 'web');
         $this->get(ProductImportLogResource::getUrl('index'))->assertForbidden();
         $this->get(ProductImportLogResource::getUrl('view', ['record' => $log]))->assertForbidden();
     }
