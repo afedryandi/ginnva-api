@@ -81,31 +81,39 @@ class BookingRevenueByCategoryChart extends ChartWidget
             $query->where('store_id', $this->storeId);
         }
 
-        // Split 50/50 (booking PPF + Kaca Film sekaligus) dihitung di SQL.
-        // Booking tanpa product_ppf/product_kaca_film sengaja tidak masuk
-        // kategori mana pun (ELSE 0) — bukan dipaksa ke salah satu.
-        $agg = $query->selectRaw(
-            'COALESCE(SUM(CASE'
-            . ' WHEN product_ppf = 1 AND product_kaca_film = 1 THEN transaction_amount / 2'
-            . ' WHEN product_kaca_film = 1 THEN transaction_amount ELSE 0 END), 0) as kaca_film,'
-            . ' COALESCE(SUM(CASE'
-            . ' WHEN product_ppf = 1 AND product_kaca_film = 1 THEN transaction_amount / 2'
-            . ' WHEN product_ppf = 1 THEN transaction_amount ELSE 0 END), 0) as ppf'
-        )->toBase()->first();
+        // Pembagian per jenis layanan DIAMBIL dari BookingRevenueSplitter::shares() -- aturan yang sama dengan Jurnal
+        // Umum (bagi rata kalau lebih dari satu jenis), supaya chart ini tidak menyimpang dari pembukuan. Dihitung di PHP
+        // (volume 1 bulan kecil) karena aturan pembulatannya tidak praktis diulang di SQL.
+        $totals = ['kaca_film' => 0.0, 'ppf' => 0.0, 'detailing' => 0.0, 'premium_wash' => 0.0, 'lainnya' => 0.0];
 
-        $kacaFilmTotal = (float) $agg->kaca_film;
-        $ppfTotal = (float) $agg->ppf;
+        $query->get(['id', 'transaction_amount', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash'])
+            ->each(function (Booking $booking) use (&$totals) {
+                foreach (\App\Services\BookingRevenueSplitter::shares($booking, (float) $booking->transaction_amount) as $key => $portion) {
+                    $totals[$key] += $portion;
+                }
+            });
+
+        $labels = ['Kaca Film', 'PPF', 'Detailing', 'Premium Wash'];
+        $data = [round($totals['kaca_film']), round($totals['ppf']), round($totals['detailing']), round($totals['premium_wash'])];
+        $colors = ['#3b82f6', '#ED1651', '#16a34a', '#f59e0b'];
+
+        // Booking tanpa jenis layanan hanya ditampilkan kalau ada, supaya grafik tidak penuh batang kosong.
+        if ($totals['lainnya'] > 0) {
+            $labels[] = 'Lainnya';
+            $data[] = round($totals['lainnya']);
+            $colors[] = '#94a3b8';
+        }
 
         return [
             'datasets' => [
                 [
                     'label' => 'Pendapatan',
-                    'data' => [round($kacaFilmTotal), round($ppfTotal)],
-                    'backgroundColor' => ['#3b82f6', '#ED1651'],
+                    'data' => $data,
+                    'backgroundColor' => $colors,
                     'borderRadius' => 6,
                 ],
             ],
-            'labels' => ['Kaca Film', 'PPF'],
+            'labels' => $labels,
         ];
     }
 

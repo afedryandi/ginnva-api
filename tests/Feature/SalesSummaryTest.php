@@ -335,12 +335,12 @@ class SalesSummaryTest extends TestCase
 
         $this->assertSame(['Ringkasan Penjualan'], $rows[0]);
         $this->assertSame(['Periode', '01 Oct 2026 - 31 Oct 2026'], $rows[1]);
-        $this->assertSame('1.800.000', $by['Penjualan Kotor'][1]);
+        $this->assertSame(1800000.0, $by['Penjualan Kotor'][1], 'Angka sungguhan, bukan teks berformat.');
         $this->assertSame('Tidak berlaku', $by['Ongkos Kirim'][1]);
-        $this->assertSame('178.200', $by['Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)'][1]);
-        $this->assertSame('(50.000)', $by['Promo Voucher'][1]);
-        $this->assertSame('(200.000)', $by['Pengembalian (Refund)'][1]);
-        $this->assertSame('1.600.000', $by['Total Penjualan Bersih'][1]);
+        $this->assertSame(178200.0, $by['Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)'][1]);
+        $this->assertSame(-50000.0, $by['Promo Voucher'][1], 'Pengurang bernilai negatif (tampil dalam kurung lewat format kolom).');
+        $this->assertSame(-200000.0, $by['Pengembalian (Refund)'][1]);
+        $this->assertSame(1600000.0, $by['Total Penjualan Bersih'][1]);
         $this->assertSame('Belum tersedia', $by['HPP (Harga Pokok Penjualan)'][1]);
         $this->assertSame(3, $by['Jumlah Transaksi'][1]);
     }
@@ -353,7 +353,9 @@ class SalesSummaryTest extends TestCase
         $export = new SalesSummaryExport($result);
         $rows = $export->array();
 
-        $this->assertSame('-', collect($rows)->first(fn ($r) => ($r[0] ?? '') === 'Pengembalian (Refund)')[1]);
+        $this->assertSame(0.0, collect($rows)->first(fn ($r) => ($r[0] ?? '') === 'Pengembalian (Refund)')[1], 'Tanpa refund: nol (ditampilkan "-" oleh format kolom).');
+
+        $this->assertSame(['B' => '#,##0;(#,##0);"-"'], $export->columnFormats());
 
         // styles() memakai nomor baris tetap: pastikan baris-baris itu memang judul seksinya.
         $styles = $export->styles(new Worksheet());

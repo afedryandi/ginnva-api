@@ -52,7 +52,21 @@
             <td class="value">{{ number_format($result['byType']['ppf']['revenuePct'], 1) }}%</td>
         </tr>
         <tr>
-            <td>Lainnya (Detailing / Premium Wash / tanpa jenis)</td>
+            <td>Detailing</td>
+            <td class="value">{{ $result['byType']['detailing']['count'] }}</td>
+            <td class="value">{{ number_format($result['byType']['detailing']['countPct'], 1) }}%</td>
+            <td class="value">{{ $rupiah($result['byType']['detailing']['revenue']) }}</td>
+            <td class="value">{{ number_format($result['byType']['detailing']['revenuePct'], 1) }}%</td>
+        </tr>
+        <tr>
+            <td>Premium Wash</td>
+            <td class="value">{{ $result['byType']['premium_wash']['count'] }}</td>
+            <td class="value">{{ number_format($result['byType']['premium_wash']['countPct'], 1) }}%</td>
+            <td class="value">{{ $rupiah($result['byType']['premium_wash']['revenue']) }}</td>
+            <td class="value">{{ number_format($result['byType']['premium_wash']['revenuePct'], 1) }}%</td>
+        </tr>
+        <tr>
+            <td>Lainnya (tanpa jenis)</td>
             <td class="value">{{ $result['byType']['lainnya']['count'] }}</td>
             <td class="value">{{ number_format($result['byType']['lainnya']['countPct'], 1) }}%</td>
             <td class="value">{{ $rupiah($result['byType']['lainnya']['revenue']) }}</td>

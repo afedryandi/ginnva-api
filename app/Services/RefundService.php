@@ -117,7 +117,9 @@ class RefundService
             }
 
             $lines = [];
-            foreach (BookingRevenueSplitter::splits($booking, $amount) as $accountCode => $portion) {
+            // Proporsional dengan jurnal pendapatan booking yang sudah terposting (booking lama tetap dibalik ke akun yang
+            // dulu dikredit), bukan dihitung ulang dari flag produk saat ini.
+            foreach (BookingRevenueSplitter::refundSplits($booking, $amount) as $accountCode => $portion) {
                 $account = ChartOfAccount::where('code', $accountCode)->first();
                 if (! $account) {
                     throw new RuntimeException("Akun pendapatan (kode {$accountCode}) tidak ditemukan di Bagan Akun.");

@@ -118,6 +118,8 @@ class ChartOfAccountSeeder extends Seeder
             ['code' => '4200', 'name' => 'Pendapatan Jasa Instalasi Kaca Film', 'type' => 'pendapatan', 'flow' => 'operasional'],
             ['code' => '4300', 'name' => 'Pendapatan Penjualan Produk', 'type' => 'pendapatan', 'flow' => 'operasional', 'description' => 'Jual lepas dari katalog Inventaris, di luar Booking (POS/Kasir — belum dibangun).'],
             ['code' => '4400', 'name' => 'Pendapatan Lain-lain', 'type' => 'pendapatan', 'flow' => 'operasional', 'description' => 'Klaim garansi berbayar, jasa tambahan.'],
+            ['code' => '4500', 'name' => 'Pendapatan Jasa Detailing', 'type' => 'pendapatan', 'flow' => 'operasional', 'description' => 'Booking dengan jasa Detailing (dibagi rata bila digabung dengan PPF / Kaca Film / Premium Wash).'],
+            ['code' => '4600', 'name' => 'Pendapatan Jasa Premium Wash', 'type' => 'pendapatan', 'flow' => 'operasional', 'description' => 'Booking dengan jasa Premium Wash (dibagi rata bila digabung dengan jenis layanan lain).'],
             ['code' => '4900', 'name' => 'Retur & Potongan Penjualan', 'type' => 'pendapatan', 'flow' => 'operasional', 'description' => 'Kontra-pendapatan — diskon voucher yang dipakai.'],
 
             // ─── 5000 BEBAN POKOK PENJUALAN (HPP) ───────────────────

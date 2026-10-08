@@ -29,8 +29,8 @@ use Maatwebsite\Excel\Facades\Excel;
  * konsisten dengan Jurnal Umum). Beda dari SalesResource (daftar
  * transaksi satu-satu): ini AGREGAT per jenis servis & per toko, sama
  * pola report Keuangan (custom Page + form rentang tanggal + Blade
- * view). Split 50/50 untuk booking 2 produk sekaligus SAMA PERSIS
- * logika BookingPostingService/BookingRevenueByCategoryChart.
+ * view). Pembagian booking multi-jenis SAMA PERSIS dengan
+ * BookingRevenueSplitter (Jurnal Umum).
  */
 class LayananReport extends Page implements HasForms
 {
@@ -289,7 +289,7 @@ class LayananReport extends Page implements HasForms
             // 2026-09-11 (audit) sama pola dengan P1 SalesDashboard.
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId));
 
-        $bookings = $query->get(['id', 'store_id', 'transaction_amount', 'product_kaca_film', 'product_ppf']);
+        $bookings = $query->get(['id', 'store_id', 'transaction_amount', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
 
         // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): "Total
         // Pendapatan" SEBELUMNYA gross, tidak dikurangi refund — beda
@@ -304,12 +304,14 @@ class LayananReport extends Page implements HasForms
             ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
             ->sum('amount');
 
-        // 'lainnya' menampung booking tanpa PPF maupun Kaca Film (mis. hanya Detailing / Premium Wash): tanpa baris ini
-        // pendapatannya ikut Total tapi tidak muncul di jenis mana pun, sehingga persentase tidak sampai 100%. Konsisten
-        // dengan Jurnal Umum (BookingRevenueSplitter memasukkannya ke akun pendapatan lain-lain).
+        // Empat jenis layanan + 'lainnya' (booking tanpa jenis sama sekali). Pembagiannya DIAMBIL dari
+        // BookingRevenueSplitter::shares() -- aturan yang sama dengan Jurnal Umum (bagi rata kalau lebih dari satu jenis),
+        // jadi persentase selalu berjumlah 100% dan tidak menyimpang dari pembukuan.
         $byType = [
             'kaca_film' => ['count' => 0, 'revenue' => 0.0],
             'ppf' => ['count' => 0, 'revenue' => 0.0],
+            'detailing' => ['count' => 0, 'revenue' => 0.0],
+            'premium_wash' => ['count' => 0, 'revenue' => 0.0],
             'lainnya' => ['count' => 0, 'revenue' => 0.0],
         ];
         $byStore = [];
@@ -318,22 +320,9 @@ class LayananReport extends Page implements HasForms
         foreach ($bookings as $booking) {
             $amount = (float) $booking->transaction_amount;
             $totalRevenue += $amount;
-            $bothProducts = $booking->product_ppf && $booking->product_kaca_film;
-
-            if ($bothProducts) {
-                $byType['kaca_film']['count']++;
-                $byType['kaca_film']['revenue'] += $amount / 2;
-                $byType['ppf']['count']++;
-                $byType['ppf']['revenue'] += $amount / 2;
-            } elseif ($booking->product_ppf) {
-                $byType['ppf']['count']++;
-                $byType['ppf']['revenue'] += $amount;
-            } elseif ($booking->product_kaca_film) {
-                $byType['kaca_film']['count']++;
-                $byType['kaca_film']['revenue'] += $amount;
-            } else {
-                $byType['lainnya']['count']++;
-                $byType['lainnya']['revenue'] += $amount;
+            foreach (\App\Services\BookingRevenueSplitter::shares($booking, $amount) as $typeKey => $portion) {
+                $byType[$typeKey]['count']++;
+                $byType[$typeKey]['revenue'] += $portion;
             }
 
             $storeName = $booking->store?->name ?? 'Tanpa Toko';
@@ -352,7 +341,7 @@ class LayananReport extends Page implements HasForms
         // persentase count tetap jumlah 100%, bukan 200%. Penyebut
         // revenue pakai totalRevenue asli (split 50/50 sudah pas jumlah
         // ke totalRevenue, tidak ada double count).
-        $typeCountTotal = $byType['kaca_film']['count'] + $byType['ppf']['count'] + $byType['lainnya']['count'];
+        $typeCountTotal = array_sum(array_column($byType, 'count'));
         foreach ($byType as $key => $row) {
             $byType[$key]['countPct'] = $typeCountTotal > 0 ? $row['count'] / $typeCountTotal * 100 : 0;
             $byType[$key]['revenuePct'] = $totalRevenue > 0 ? $row['revenue'] / $totalRevenue * 100 : 0;

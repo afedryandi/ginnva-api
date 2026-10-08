@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use Maatwebsite\Excel\Concerns\FromArray;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -23,44 +24,55 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * getResult() SalesSummaryReport & Booking::applyPpnBreakdown()) --
  * bukan lagi "Belum tersedia".
  */
-class SalesSummaryExport implements FromArray, WithStyles
+class SalesSummaryExport implements FromArray, WithStyles, WithColumnFormatting
 {
     public function __construct(private array $result) {}
 
     public function array(): array
     {
         $r = $this->result;
-        $rupiah = fn ($n) => number_format($n, 0, ',', '.');
+
+        // Semua nominal ditulis sebagai ANGKA (bukan teks berformat) supaya bisa dijumlahkan/difilter di Excel.
+        // Pengurang (voucher, refund) bernilai negatif -- ditampilkan "(1.234)" lewat format kolom, dan nol tampil "-"
+        // (lihat columnFormats()). Baris yang memang tidak tersedia tetap teks apa adanya.
+        $number = fn ($n) => round((float) $n, 2);
+        $negative = fn ($n) => (float) $n > 0 ? -round((float) $n, 2) : 0.0;   // hindari -0.0
 
         return [
             ['Ringkasan Penjualan'],
             ['Periode', $r['from']->format('d M Y') . ' - ' . $r['to']->format('d M Y')],
             [],
             ['PENDAPATAN'],
-            ['Penjualan Kotor', $rupiah($r['grossSales'])],
+            ['Penjualan Kotor', $number($r['grossSales'])],
             ['Ongkos Kirim', 'Tidak berlaku'],
             ['Biaya Pelayanan / MDR', 'Tidak berlaku'],
-            ['Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)', $rupiah($r['ppnAmount'])],
-            ['Total Pendapatan', $rupiah($r['grossSales'])],
+            ['Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)', $number($r['ppnAmount'])],
+            ['Total Pendapatan', $number($r['grossSales'])],
             [],
             ['BIAYA PROMOSI'],
-            ['Promo Voucher', '(' . $rupiah($r['voucherDiscount']) . ')'],
+            ['Promo Voucher', $negative($r['voucherDiscount'])],
             ['Reward Poin (nilai Rp)', 'Belum tersedia'],
-            ['Total Biaya Promosi', '(' . $rupiah($r['voucherDiscount']) . ')'],
+            ['Total Biaya Promosi', $negative($r['voucherDiscount'])],
             [],
             ['PENJUALAN BERSIH'],
-            ['Total Penjualan', $rupiah($r['grossSales'])],
-            ['Pengembalian (Refund)', $r['refund'] > 0 ? '(' . $rupiah($r['refund']) . ')' : '-'],
-            ['Total Penjualan Bersih', $rupiah($r['netSales'])],
+            ['Total Penjualan', $number($r['grossSales'])],
+            ['Pengembalian (Refund)', $negative($r['refund'])],
+            ['Total Penjualan Bersih', $number($r['netSales'])],
             [],
             ['LABA KOTOR'],
-            ['Penjualan Bersih', $rupiah($r['netSales'])],
+            ['Penjualan Bersih', $number($r['netSales'])],
             ['HPP (Harga Pokok Penjualan)', 'Belum tersedia'],
             ['Komisi Partner', 'Belum tersedia'],
             ['Total Laba Kotor', 'Belum tersedia — perlu HPP untuk akurat'],
             [],
             ['Jumlah Transaksi', $r['bookingCount']],
         ];
+    }
+
+    /** Kolom nilai: ribuan, pengurang di dalam kurung, nol sebagai "-". Sel teks ("Tidak berlaku", dst.) tidak terpengaruh. */
+    public function columnFormats(): array
+    {
+        return ['B' => '#,##0;(#,##0);"-"'];
     }
 
     /**

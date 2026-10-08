@@ -25,9 +25,9 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * Laporan Jasa & Laporan Jenis Order (satu logika, dua halaman): pembagian pendapatan per jenis servis
- * (PPF / Kaca Film / 50:50 untuk keduanya / "Lainnya" untuk booking tanpa keduanya, sehingga persentase
- * berjumlah 100%), total bersih = kotor − refund, per toko, cakupan toko, izin menu terpisah per halaman,
+ * Laporan Jasa & Laporan Jenis Order (satu logika, dua halaman): pembagian pendapatan per jenis layanan
+ * (PPF / Kaca Film / Detailing / Premium Wash, dibagi rata kalau lebih dari satu; "Lainnya" untuk booking tanpa jenis,
+ * sehingga persentase berjumlah 100% dan sama dengan Jurnal Umum), total bersih = kotor − refund, per toko, cakupan toko, izin menu terpisah per halaman,
  * isi Excel/PDF (judul & nama file mengikuti halaman), log ekspor.
  * "Hari ini" dibekukan di 8 Oktober 2026.
  */
@@ -92,8 +92,8 @@ class LayananReportTest extends TestCase
     }
 
     /**
-     * Oktober 2026 -- A: PPF 1.000.000, Kaca Film 400.000, PPF + Detailing 100.000; B: PPF + Kaca Film 600.001
-     * (dibagi dua), hanya Detailing 200.000. Kotor 2.300.001.
+     * Oktober 2026 -- A: PPF 1.000.000, Kaca Film 400.000, PPF + Detailing 100.000 (dibagi dua); B: PPF + Kaca Film
+     * 600.001 (dibagi dua), hanya Detailing 200.000. Kotor 2.300.001.
      */
     private function october(): array
     {
@@ -124,22 +124,36 @@ class LayananReportTest extends TestCase
 
     // ------------------------------------------------------------- pembagian per jenis
 
-    public function test_revenue_is_split_by_service_type_with_an_other_row_so_percentages_reach_100(): void
+    public function test_revenue_is_split_equally_across_the_service_types_of_a_booking_like_the_journal(): void
     {
         $this->october();
 
         $result = $this->report(LayananReport::class);
         $type = $result['byType'];
 
-        $this->assertSame(3, $type['ppf']['count'], 'PPF, PPF + Kaca Film, dan PPF + Detailing.');
+        $this->assertSame(3, $type['ppf']['count'], 'PPF, PPF + Kaca Film, PPF + Detailing.');
         $this->assertSame(2, $type['kaca_film']['count']);
-        $this->assertSame(1, $type['lainnya']['count'], 'Hanya Detailing.');
-        $this->assertEquals(1400000.5, $type['ppf']['revenue'], '1.000.000 + 300.000,5 (separuh) + 100.000 (PPF + Detailing seluruhnya ke PPF).');
+        $this->assertSame(2, $type['detailing']['count'], 'Detailing saja, dan PPF + Detailing.');
+        $this->assertSame(0, $type['premium_wash']['count']);
+        $this->assertSame(0, $type['lainnya']['count']);
+        $this->assertEquals(1350000.5, $type['ppf']['revenue'], '1.000.000 + 300.000,5 + 50.000.');
         $this->assertEquals(700000.5, $type['kaca_film']['revenue'], '400.000 + 300.000,5.');
-        $this->assertEquals(200000.0, $type['lainnya']['revenue']);
+        $this->assertEquals(250000.0, $type['detailing']['revenue'], '200.000 + 50.000.');
         $this->assertEqualsWithDelta($result['grossRevenue'], array_sum(array_column($type, 'revenue')), 0.001);
         $this->assertEqualsWithDelta(100.0, array_sum(array_column($type, 'revenuePct')), 0.0001);
         $this->assertEqualsWithDelta(100.0, array_sum(array_column($type, 'countPct')), 0.0001);
+    }
+
+    public function test_premium_wash_and_bookings_without_any_type_get_their_own_rows(): void
+    {
+        $this->sale(300000, '2026-10-03', $this->storeA, ['product_ppf' => false, 'product_premium_wash' => true]);
+        $this->sale(90000, '2026-10-04', $this->storeA, ['product_ppf' => false]);
+
+        $type = $this->report(LayananReport::class)['byType'];
+
+        $this->assertEquals([1, 300000.0], [$type['premium_wash']['count'], $type['premium_wash']['revenue']]);
+        $this->assertEquals([1, 90000.0], [$type['lainnya']['count'], $type['lainnya']['revenue']], 'Tanpa jenis: dibukukan ke Pendapatan Lain-lain.');
+        $this->assertEqualsWithDelta(100.0, array_sum(array_column($type, 'revenuePct')), 0.0001);
     }
 
     public function test_totals_net_of_refunds_average_and_the_store_breakdown(): void
@@ -268,7 +282,7 @@ class LayananReportTest extends TestCase
     // ------------------------------------------------------------- ekspor & tampilan
 
     #[DataProvider('pages')]
-    public function test_excel_has_the_page_title_the_type_rows_including_other_and_the_store_rows(string $class, string $title): void
+    public function test_excel_has_the_page_title_all_type_rows_and_the_store_rows(string $class, string $title): void
     {
         $this->october();
         $rows = (new LayananReportExport($this->report($class), $title))->array();
@@ -279,10 +293,11 @@ class LayananReportTest extends TestCase
         $this->assertSame(5, $by['Transaksi'][1]);
         $this->assertSame('2.300.001', $by['Total Pendapatan (kotor)'][1]);
         $this->assertSame('2.300.001', $by['Total Pendapatan (bersih)'][1]);
-        $this->assertSame([3, '1.400.001'], [$by['PPF'][1], $by['PPF'][3]], 'number_format membulatkan 1.400.000,5 ke atas.');
+        $this->assertSame([3, '1.350.001'], [$by['PPF'][1], $by['PPF'][3]], 'number_format membulatkan 1.350.000,5 ke atas.');
         $this->assertSame([2, '700.001'], [$by['Kaca Film'][1], $by['Kaca Film'][3]]);
-        $this->assertSame(1, $by['Lainnya (Detailing / Premium Wash / tanpa jenis)'][1]);
-        $this->assertSame('200.000', $by['Lainnya (Detailing / Premium Wash / tanpa jenis)'][3]);
+        $this->assertSame([2, '250.000'], [$by['Detailing'][1], $by['Detailing'][3]]);
+        $this->assertSame([0, '0'], [$by['Premium Wash'][1], $by['Premium Wash'][3]]);
+        $this->assertSame(0, $by['Lainnya (tanpa jenis)'][1]);
         $this->assertSame([3, '1.500.000'], [$by['Toko A'][1], $by['Toko A'][2]]);
         $this->assertSame([2, '800.001'], [$by['Toko B'][1], $by['Toko B'][2]]);
     }
@@ -295,6 +310,8 @@ class LayananReportTest extends TestCase
 
         $this->page($class)
             ->assertSuccessful()
+            ->assertSee('Detailing')
+            ->assertSee('Premium Wash')
             ->assertSee('Lainnya')
             ->assertSee('Rp2.200.001')
             ->assertSee('Per Toko')
