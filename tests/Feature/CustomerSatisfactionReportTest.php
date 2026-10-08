@@ -260,9 +260,9 @@ class CustomerSatisfactionReportTest extends TestCase
         $this->assertSame(['RINGKASAN'], $rows[0]);
         $this->assertSame(['Total Review', 6], $rows[1]);
         $this->assertSame(['Tingkat Positif (%)', 50.0], $rows[5]);
-        $this->assertSame(['Toko A', 5, 3, 2], $byFirst['Toko A']->all());
-        $this->assertSame(['2026-10-02', 'Toko A', 'Siti', 'Positif', 'Hasil Rapi & Memuaskan, Pelayanan Ramah', 'Bagus'], $byFirst['2026-10-02']->all());
-        $this->assertSame(['2026-10-03', 'Toko B', 'Pelanggan', 'Netral', '', '-'], $byFirst['2026-10-03']->all(), 'Pelanggan yang dihapus tampil "Pelanggan"; tanpa tag kosong.');
+        $this->assertSame(['Toko A', 5, 3, 2], $byFirst['Toko A']);
+        $this->assertSame(['2026-10-02', 'Toko A', 'Siti', 'Positif', 'Hasil Rapi & Memuaskan, Pelayanan Ramah', 'Bagus'], $byFirst['2026-10-02']);
+        $this->assertSame(['2026-10-03', 'Toko B', 'Pelanggan', 'Netral', '', '-'], $byFirst['2026-10-03'], 'Pelanggan yang dihapus tampil "Pelanggan"; tanpa tag kosong.');
     }
 
     public function test_exports_download_and_the_log_records_the_effective_store(): void
