@@ -282,8 +282,8 @@ class BayZoneUtilizationReportTest extends TestCase
 
         $this->page($this->week())
             ->assertSuccessful()
-            ->assertSee('Zona Detailing & Persiapan', false)
-            ->assertSee('Zona Instalasi & QC', false)
+            ->assertSee('Zona Detailing & Persiapan')
+            ->assertSee('Zona Instalasi & QC')
             ->assertSee('12,0 jam')
             ->assertSee('66,0 jam')
             ->assertSee('3,6%', false)
