@@ -250,9 +250,9 @@ class PeakSalesTimeReportTest extends TestCase
             ->assertSee('Rp2.400.000', false)
             ->assertSee('Rp1.800.000', false)
             ->assertSee('Senin')
-            ->assertSee("Jum'at", false)
+            ->assertSee("Jum'at")
             ->assertSee('75.0%', false)
-            ->assertSee('Pelanggan unik', false);
+            ->assertSee('pelanggan UNIK');
     }
 
     public function test_excel_rows_are_aligned_with_headings(): void
