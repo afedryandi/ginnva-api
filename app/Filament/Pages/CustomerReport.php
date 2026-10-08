@@ -190,6 +190,24 @@ class CustomerReport extends Page implements HasForms
         ])->columns($isFullAccess ? 4 : 3)->statePath('data');
     }
 
+    /**
+     * Toko yang BENAR-BENAR berlaku untuk tabel Top Pelanggan: full-access memilih (null = semua cabang), staf toko
+     * dikunci ke tokonya, dan staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti
+     * semua cabang. Dipakai getResult() dan log ekspor supaya keduanya merujuk toko yang sama.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            $chosen = $this->data['store_id'] ?? null;
+
+            return $chosen ? (int) $chosen : null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
     /** Link drill-down ke halaman detail customer. */
     public function customerUrl(int $customerId): string
     {
@@ -202,7 +220,7 @@ class CustomerReport extends Page implements HasForms
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'customer', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
+                ->withProperties(['report' => 'customer', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Laporan Pelanggan (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -247,7 +265,9 @@ class CustomerReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini pelanggan yang mendaftar sebelum jam itu di hari
+        // pertama tidak terhitung "baru".
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
 
         // "Pelanggan Baru Daftar" & "Pelanggan Repeat" SENGAJA TETAP
@@ -264,11 +284,7 @@ class CustomerReport extends Page implements HasForms
         // access tetap company-wide, staff toko cuma lihat booking di
         // tokonya sendiri (jadi "Top Pelanggan DI TOKO INI", bukan
         // lintas-cabang).
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
-        // GAP DIPERBAIKI 2026-09-29: full-access sebelumnya tidak bisa mempersempit ke 1 cabang --
-        // sekarang filter 'store_id' di form dipakai kalau full-access memilihnya.
-        $storeId = $isFullAccess ? ($this->data['store_id'] ?? null) : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         // "Repeat" = pelanggan yang punya >1 booking BERBAYAR (bukan
         // sekadar >1 pengajuan booking apa pun) SEPANJANG WAKTU (bukan
@@ -302,6 +318,7 @@ class CustomerReport extends Page implements HasForms
                 ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))], 'preferred_date')
             ->having('bookings_in_period', '>', 0)
             ->orderByDesc('spend_in_period')
+            ->orderBy('customers.id')   // urutan tetap kalau belanja sama
             ->limit(20)
             ->get()
             ->map(function (Customer $customer) {
@@ -316,17 +333,14 @@ class CustomerReport extends Page implements HasForms
                 return $customer;
             });
 
-        // ->get()->count() (bukan ->count() langsung) — count() Query
-        // Builder tidak selalu aman dikombinasikan dengan having() di atas
-        // kolom hasil withCount() (bukan kolom GROUP BY sungguhan), jadi
-        // ambil koleksinya dulu baru dihitung supaya query yang benar-
-        // benar dieksekusi PERSIS sama dengan yang dipakai $topCustomers.
+        // Repeat dihitung di database dan SENGAJA company-wide (lihat catatan di atas): global scope toko pada Booking &
+        // JournalEntry dilepas di sini, kalau tidak staf toko hanya akan menghitung booking tokonya sendiri -- padahal
+        // yang dimaksud headcount lintas-cabang.
         $repeatCount = Customer::query()
-            ->withCount(['bookings as bookings_all_time' => fn ($q) => $q
-                ->whereHas('journalEntry')
-                ->where('transaction_amount', '>', 0)])
-            ->having('bookings_all_time', '>', 1)
-            ->get()
+            ->whereHas('bookings', fn ($q) => $q
+                ->withoutGlobalScopes()
+                ->whereHas('journalEntry', fn ($q2) => $q2->withoutGlobalScopes())
+                ->where('transaction_amount', '>', 0), '>', 1)
             ->count();
 
         return [
