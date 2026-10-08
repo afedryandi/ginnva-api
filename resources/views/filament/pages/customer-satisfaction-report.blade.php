@@ -51,7 +51,7 @@
             <div class="flex flex-wrap gap-2">
                 @foreach ($result['tagCounts'] as $tag => $count)
                     <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 dark:bg-white/5 dark:text-gray-300">
-                        {{ $tag }}
+                        {{ \App\Models\StoreReview::tagLabel((string) $tag) }}
                         <span class="rounded-full bg-gray-300 px-1.5 text-gray-700 dark:bg-white/10 dark:text-gray-300">{{ $count }}</span>
                     </span>
                 @endforeach
@@ -126,7 +126,7 @@
                     @if (! empty($review->tags))
                         <div class="mb-1.5 flex flex-wrap gap-1">
                             @foreach ($review->tags as $tag)
-                                <span class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-white/5 dark:text-gray-400">{{ $tag }}</span>
+                                <span class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-white/5 dark:text-gray-400">{{ \App\Models\StoreReview::tagLabel((string) $tag) }}</span>
                             @endforeach
                         </div>
                     @endif

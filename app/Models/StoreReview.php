@@ -63,6 +63,18 @@ class StoreReview extends Model
         'proses_lambat'        => 'Proses Lambat',
     ];
 
+    /** Label Indonesia sebuah tag (kunci tersimpan, mis. "hasil_rapi"); kunci tak dikenal dirapikan seperlunya. */
+    public static function tagLabel(string $key): string
+    {
+        return self::TAGS[$key] ?? ucfirst(str_replace('_', ' ', $key));
+    }
+
+    /** @return list<string> */
+    public function tagLabels(): array
+    {
+        return array_map(fn ($key) => self::tagLabel((string) $key), $this->tags ?? []);
+    }
+
     public function booking()
     {
         return $this->belongsTo(Booking::class);

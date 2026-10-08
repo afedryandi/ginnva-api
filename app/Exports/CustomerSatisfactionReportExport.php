@@ -51,7 +51,7 @@ class CustomerSatisfactionReportExport implements FromArray, WithStyles
                 $review->store?->name ?? '-',
                 $review->customer?->name ?? 'Pelanggan',
                 self::SENTIMENT_LABEL[$review->sentiment] ?? $review->sentiment,
-                implode(', ', $review->tags ?? []),
+                implode(', ', $review->tagLabels()),
                 $review->comment ?: '-',
             ];
         }

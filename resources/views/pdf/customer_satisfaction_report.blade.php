@@ -62,7 +62,7 @@
                 <td>{{ $review->store?->name ?? '-' }}</td>
                 <td>{{ $review->customer?->name ?? 'Pelanggan' }}</td>
                 <td>{{ $sentimentLabel($review->sentiment) }}</td>
-                <td>{{ implode(', ', $review->tags ?? []) ?: '-' }}</td>
+                <td>{{ implode(', ', $review->tagLabels()) ?: '-' }}</td>
                 <td>{{ $review->comment ?: '-' }}</td>
             </tr>
         @empty
