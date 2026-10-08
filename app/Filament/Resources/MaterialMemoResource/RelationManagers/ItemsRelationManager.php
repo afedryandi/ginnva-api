@@ -437,8 +437,11 @@ class ItemsRelationManager extends RelationManager
                     ->modalHeading('Hapus Barang Ini?')
                     ->modalDescription('Stok/sisa meter yang masih tercatat keluar akan dikembalikan, baru barisnya dihapus.')
                     ->action(function (MaterialMemoItem $record) {
-                        MaterialMemoStockService::reverseItem($record, auth()->id(), $this->getOwnerRecord());
-                        $record->delete();
+                        // Satu transaksi: kalau penghapusan baris gagal, stok yang sudah dibalik ikut dibatalkan.
+                        \Illuminate\Support\Facades\DB::transaction(function () use ($record) {
+                            MaterialMemoStockService::reverseItem($record, auth()->id(), $this->getOwnerRecord());
+                            $record->delete();
+                        });
                     }),
             ]);
     }

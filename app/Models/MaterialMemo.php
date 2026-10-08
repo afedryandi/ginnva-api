@@ -46,9 +46,17 @@ class MaterialMemo extends Model
     public static function generateMemoNumber(): string
     {
         $datePart = now()->format('Ymd');
-        $todayCount = static::where('memo_number', 'like', "MEMO-{$datePart}-%")->count();
+        $prefix = "MEMO-{$datePart}-";
 
-        return sprintf('MEMO-%s-%04d', $datePart, $todayCount + 1);
+        // Ambil urutan TERBESAR hari ini, bukan jumlah baris: kalau memo hari ini pernah dihapus, jumlah baris mengecil
+        // dan nomor berikutnya menabrak memo yang masih ada (retry pun menghasilkan nomor yang sama terus).
+        $last = static::withoutGlobalScopes()
+            ->where('memo_number', 'like', $prefix . '%')
+            ->pluck('memo_number')
+            ->map(fn (string $number) => (int) substr($number, strlen($prefix)))
+            ->max() ?? 0;
+
+        return sprintf('MEMO-%s-%04d', $datePart, $last + 1);
     }
 
     public function store(): BelongsTo
