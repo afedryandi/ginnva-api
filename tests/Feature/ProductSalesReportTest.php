@@ -309,7 +309,7 @@ class ProductSalesReportTest extends TestCase
         foreach ($rows as $row) {
             $this->assertCount(count($export->headings()), $row);
         }
-        $this->assertEquals(['PPF Premium', 'PPF-1', 'PPF', 2, 62.5, 1500000.0], array_slice($rows['PPF Premium'], 0, 6));
+        $this->assertEquals(['PPF Premium', 'PPF-1', 'PPF', 2, 40.0, 1500000.0], array_slice($rows['PPF Premium'], 0, 6), 'Jumlah % = 2 dari 5 transaksi.');
         $this->assertSame(62.5, $rows['PPF Premium'][6], 'Persentase berupa angka.');
         $this->assertEquals([0.0, 0.0, 1500000.0], [$rows['PPF Premium'][9], $rows['PPF Premium'][10], $rows['PPF Premium'][11]]);
         $this->assertSame('0 *', $rows['Kaca Tint'][9], 'Komisi belum lengkap ditandai bintang.');
