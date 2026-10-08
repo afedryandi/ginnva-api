@@ -40,10 +40,10 @@ class SalesByOutletExport implements FromArray, WithHeadings, WithStyles
                 $row['store']->name,
                 $row['count'],
                 $row['revenue'],
-                round($row['revenuePct'], 1) . '%',
+                round($row['revenuePct'], 1), // angka (kolom berjudul %), bukan teks, supaya bisa dijumlah/difilter
                 $row['refund'],
                 $row['products'],
-                round($row['productsPct'], 1) . '%',
+                round($row['productsPct'], 1),
                 round($row['avg']),
                 round($row['productsPerTransaction'], 2),
                 $row['outstanding'],

@@ -187,6 +187,22 @@ class SalesByOutletReport extends Page implements HasForms
     }
 
     /**
+     * Toko yang BENAR-BENAR berlaku: full-access melihat semua outlet (null), staf toko hanya tokonya.
+     * Staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun), BUKAN null -- null akan menampilkan daftar
+     * semua outlet (dengan angka nol) kepada akun yang tidak punya cakupan toko.
+     */
+    private function effectiveStoreId(): ?int
+    {
+        $user = auth()->user();
+
+        if ($user?->isFullAccess() ?? false) {
+            return null;
+        }
+
+        return $user?->store_id ?? -1;
+    }
+
+    /**
      * "Ekspor Laporan" (audit 2026-09-11, temuan B) — pola sama laporan
      * Penjualan lain, dibangun dari getResult() yang sama dipakai layar.
      */
@@ -196,7 +212,7 @@ class SalesByOutletReport extends Page implements HasForms
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
-                ->withProperties(['report' => 'sales_by_outlet', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null])
+                ->withProperties(['report' => 'sales_by_outlet', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
                 ->log('Ekspor Penjualan Outlet (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
@@ -237,11 +253,10 @@ class SalesByOutletReport extends Page implements HasForms
 
     public function getResult(): array
     {
-        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth());
+        // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini refund sebelum jam itu di hari pertama tidak terhitung.
+        $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
-        $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
-        $storeId = $isFullAccess ? null : $user?->store_id;
+        $storeId = $this->effectiveStoreId();
 
         // Refund per toko -- SAMA definisi dengan seluruh laporan
         // Penjualan lain: dikelompokkan berdasarkan created_at refund itu
@@ -266,7 +281,8 @@ class SalesByOutletReport extends Page implements HasForms
                 . ' COUNT(*) as cnt,'
                 . ' COALESCE(SUM(transaction_amount), 0) as revenue,'
                 . ' COALESCE(SUM(COALESCE(amount_received, transaction_amount)), 0) as received,'
-                . ' COALESCE(SUM(COALESCE(product_kaca_film, 0) + COALESCE(product_ppf, 0)), 0) as products'
+                // Keempat jenis layanan (sama dengan "Produk Terjual" di Dashboard & Booking::salesProductCount()).
+                . ' COALESCE(SUM(COALESCE(product_kaca_film, 0) + COALESCE(product_ppf, 0) + COALESCE(product_detailing, 0) + COALESCE(product_premium_wash, 0)), 0) as products'
             )
             ->toBase()
             ->get()
