@@ -264,7 +264,7 @@ class ReservationReportTest extends TestCase
             ->assertSuccessful()
             ->assertSee('Total Reservasi Dibuat')
             ->assertSee('Tingkat Pembatalan')
-            ->assertSee('20,0%', false)
+            ->assertSee('20.0%', false)
             ->assertSee($b['confirmed']->booking_number)
             ->assertSee('Budi Aplikasi')
             ->assertSee('PPF + Detailing')
