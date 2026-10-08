@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Exports\PeakProductTimeReportExport;
 use App\Filament\Pages\PeakProductTimeReport;
 use App\Models\Booking;
+use App\Models\BookingFilmProduct;
+use App\Models\Refund;
 use App\Models\Customer;
 use App\Models\FilmProduct;
 use App\Models\Store;
@@ -288,4 +290,48 @@ class PeakProductTimeReportTest extends TestCase
         $this->october();
         $this->page()->callAction('exportPdf')->assertHasNoActionErrors();
     }
+
+    public function test_a_multi_product_booking_counts_once_for_each_product_and_splits_its_value_equally(): void
+    {
+        // Senin 5 Okt, toko A, 900.000: produk utama PPF-01 + tambahan KF-01 + OLD-1 (duplikat produk utama diabaikan).
+        $booking = $this->sale(900000, '2026-10-05', $this->storeA, $this->ppf);
+        BookingFilmProduct::create(['booking_id' => $booking->id, 'film_product_id' => $this->kaca->id, 'position' => 'depan']);
+        BookingFilmProduct::create(['booking_id' => $booking->id, 'film_product_id' => $this->old->id, 'position' => 'belakang']);
+        BookingFilmProduct::create(['booking_id' => $booking->id, 'film_product_id' => $this->ppf->id, 'position' => 'atap']);
+
+        $result = $this->report();
+        $monday = collect($result['rows'])->where('dayName', 'Senin')->keyBy(fn ($r) => $r['product']->sku);
+
+        $this->assertSame(1, $result['totalCount'], 'Satu booking.');
+        $this->assertSame(3, $result['totalLines'], 'Tiga baris produk.');
+        $this->assertSame([1, 1, 1], [$monday['PPF-01']['count'], $monday['KF-01']['count'], $monday['OLD-1']['count']]);
+        $this->assertEqualsWithDelta(300000.0, $monday['KF-01']['revenue'], 0.001);
+        $this->assertEqualsWithDelta(900000.0, collect($result['rows'])->sum('revenue'), 0.001, 'Total nilai tetap sama dengan penjualan sungguhan.');
+        $this->assertEqualsWithDelta(100.0, collect($result['rows'])->sum('countPct'), 0.001);
+        $this->assertEqualsWithDelta(33.333, $monday['KF-01']['countPct'], 0.01);
+    }
+
+    public function test_a_booking_with_only_extra_products_is_grouped_by_them_and_unassigned_ones_stay_unassigned(): void
+    {
+        $extraOnly = $this->sale(200000, '2026-10-06', $this->storeA, null);
+        BookingFilmProduct::create(['booking_id' => $extraOnly->id, 'film_product_id' => $this->kaca->id, 'position' => 'depan']);
+        $this->sale(100000, '2026-10-07', $this->storeA, null);
+
+        $result = $this->report();
+
+        $this->assertSame(1, $result['unassignedCount'], 'Hanya yang tanpa produk sama sekali.');
+        $this->assertSame(['KF-01|Selasa', 'none|Rabu'], $this->labels($result));
+    }
+
+    public function test_sales_are_net_of_refunds(): void
+    {
+        $booking = $this->sale(500000, '2026-10-05', $this->storeA, $this->ppf);
+        Refund::create(['refund_number' => 'RF-TEST-5', 'booking_id' => $booking->id, 'amount' => 125000]);
+
+        $result = $this->report();
+
+        $this->assertEqualsWithDelta(375000.0, $result['rows'][0]['revenue'], 0.001);
+        $this->assertEqualsWithDelta(100.0, $result['rows'][0]['revenuePct'], 0.001);
+    }
+
 }

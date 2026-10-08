@@ -29,7 +29,7 @@
 
     <x-filament::section>
         <x-slot name="heading">Produk × Hari Tersibuk</x-slot>
-        <x-slot name="description">Diurutkan dari jumlah transaksi tertinggi. "Hari" diambil dari tanggal booking tercatat sebagai pendapatan.</x-slot>
+        <x-slot name="description">Diurutkan dari jumlah transaksi tertinggi. "Hari" diambil dari tanggal booking tercatat sebagai pendapatan. Booking dengan lebih dari satu produk film dihitung sekali untuk tiap produknya (nilainya dibagi rata, dan "Jumlah %" dihitung dari total baris produk). Penjualan adalah nilai bersih setelah refund.</x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">

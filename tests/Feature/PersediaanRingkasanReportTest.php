@@ -6,6 +6,7 @@ use App\Exports\PersediaanRingkasanReportExport;
 use App\Filament\Pages\PersediaanRingkasanReport;
 use App\Models\ConsumableItem;
 use App\Models\RawMaterial;
+use App\Models\RawMaterialBatch;
 use App\Models\Store;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -199,4 +200,30 @@ class PersediaanRingkasanReportTest extends TestCase
         $this->stock();
         $this->page()->callAction('exportPdf')->assertHasNoActionErrors();
     }
+
+    public function test_raw_materials_are_valued_from_their_batches_fifo_with_the_material_cost_as_fallback(): void
+    {
+        // Stok 10, batch lama 5 @100 dan baru 8 @200 (total batch 13 > stok): yang terpakai FIFO adalah batch TERTUA,
+        // jadi sisa = 8 @200 + 2 @100 = 1.800.
+        $fifo = RawMaterial::create(['name' => 'Bahan FIFO', 'unit' => 'meter', 'current_stock' => 10, 'unit_cost' => 999]);
+        RawMaterialBatch::create(['raw_material_id' => $fifo->id, 'quantity' => 5, 'unit_cost' => 100, 'received_date' => '2026-08-01']);
+        RawMaterialBatch::create(['raw_material_id' => $fifo->id, 'quantity' => 8, 'unit_cost' => 200, 'received_date' => '2026-09-01']);
+
+        // Stok 10: batch 4 @50 + 6 yang tidak tercatat di batch manapun dinilai harga bahan 30 => 200 + 180 = 380.
+        $partial = RawMaterial::create(['name' => 'Bahan Sebagian', 'unit' => 'pcs', 'current_stock' => 10, 'unit_cost' => 30]);
+        RawMaterialBatch::create(['raw_material_id' => $partial->id, 'quantity' => 4, 'unit_cost' => 50, 'received_date' => '2026-09-01']);
+
+        // Batch tanpa harga (mis. hasil penyesuaian) jatuh ke harga bahan: 3 @ 40 = 120.
+        $noPrice = RawMaterial::create(['name' => 'Bahan Tanpa Harga Batch', 'unit' => 'pcs', 'current_stock' => 3, 'unit_cost' => 40]);
+        RawMaterialBatch::create(['raw_material_id' => $noPrice->id, 'quantity' => 3, 'unit_cost' => null, 'received_date' => '2026-09-01']);
+
+        $rows = $this->report()['rows']->keyBy('name');
+
+        $this->assertEqualsWithDelta(1800.0, $rows['Bahan FIFO']['totalValue'], 0.001);
+        $this->assertEqualsWithDelta(180.0, $rows['Bahan FIFO']['unitCost'], 0.001, 'Harga modal tampil = nilai / kuantitas.');
+        $this->assertEqualsWithDelta(380.0, $rows['Bahan Sebagian']['totalValue'], 0.001);
+        $this->assertEqualsWithDelta(120.0, $rows['Bahan Tanpa Harga Batch']['totalValue'], 0.001);
+        $this->assertEqualsWithDelta(1800.0, $fifo->fresh()->stockValue(), 0.001);
+    }
+
 }

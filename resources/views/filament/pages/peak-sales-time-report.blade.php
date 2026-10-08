@@ -24,7 +24,7 @@
          compile Tailwind project ini, lihat catatan di SalesResource. --}}
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
         <x-filament::section>
-            <div class="text-xs text-gray-500 dark:text-gray-400">Total Penjualan</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total Penjualan (bersih)</div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">{{ $rupiah($result['totalRevenue']) }}</div>
         </x-filament::section>
 
@@ -46,7 +46,7 @@
 
     <x-filament::section>
         <x-slot name="heading">Waktu Teramai per Hari</x-slot>
-        <x-slot name="description">"Pelanggan" dihitung pelanggan UNIK per hari-dalam-seminggu (bukan per tanggal kalender) — pelanggan yang sama datang di 2 hari Senin berbeda minggu tetap dihitung 1x.</x-slot>
+        <x-slot name="description">"Pelanggan" dihitung pelanggan UNIK per hari-dalam-seminggu (bukan per tanggal kalender) — pelanggan yang sama datang di 2 hari Senin berbeda minggu tetap dihitung 1x. Penjualan adalah nilai bersih: sudah dikurangi refund booking-nya, dicatat pada hari booking itu.</x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">

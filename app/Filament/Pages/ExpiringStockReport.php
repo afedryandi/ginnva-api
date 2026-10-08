@@ -69,7 +69,9 @@ class ExpiringStockReport extends Page implements HasForms
         // Default beda dari laporan lain (bukan bulan berjalan) --
         // "hari ini s/d 30 hari ke depan" (proyeksi kedaluwarsa terdekat)
         // supaya nilainya tidak perlu divalidasi urutan tanggal ke sini.
-        $this->from = $this->queryDateOrDefault($this->from, now());
+        // Default mundur 90 hari supaya batch yang SUDAH kedaluwarsa tapi stoknya masih ada ikut tampil (itu yang paling perlu
+        // dilihat); sebelumnya mulai dari hari ini sehingga kartu "Sudah Kedaluwarsa" selalu 0 di tampilan awal.
+        $this->from = $this->queryDateOrDefault($this->from, now()->subDays(90));
         $this->to = $this->queryDateOrDefault($this->to, now()->addDays(30));
 
         // "Sampai" < "Dari" via URL diutak-atik manual (audit Stok Kedaluwarsa 2026-09-29):

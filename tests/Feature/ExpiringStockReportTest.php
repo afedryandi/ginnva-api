@@ -97,16 +97,16 @@ class ExpiringStockReportTest extends TestCase
         return $this->page($data, $as)->instance()->getResult();
     }
 
-    public function test_default_range_is_today_to_thirty_days_with_stocked_batches_only_sorted_by_expiry(): void
+    public function test_default_range_starts_90_days_back_and_ends_30_days_ahead_with_stocked_batches_only_sorted_by_expiry(): void
     {
         $b = $this->stock();
 
         $result = $this->report();
 
-        $this->assertSame([$b['today']->id, $b['liquid']->id, $b['soon']->id], $result['batches']->pluck('id')->all(), 'Habis, tanpa kedaluwarsa, sudah lewat (sebelum hari ini) dan >30 hari tidak ikut.');
-        $this->assertSame('2026-10-08', $result['from']->toDateString());
+        $this->assertSame([$b['expired']->id, $b['today']->id, $b['liquid']->id, $b['soon']->id], $result['batches']->pluck('id')->all(), 'Batch yang sudah lewat ikut tampil secara default; habis, tanpa kedaluwarsa, dan >30 hari ke depan tidak.');
+        $this->assertSame('2026-07-10', $result['from']->toDateString(), '90 hari sebelum hari ini.');
         $this->assertSame('2026-11-07', $result['to']->toDateString());
-        $this->assertSame([0, 3], [$result['expiredCount'], $result['nearExpiryCount']], 'Yang kedaluwarsa hari ini belum dihitung "sudah kedaluwarsa".');
+        $this->assertSame([1, 3], [$result['expiredCount'], $result['nearExpiryCount']], 'Yang kedaluwarsa hari ini belum dihitung "sudah kedaluwarsa".');
     }
 
     public function test_a_wider_range_includes_expired_batches_and_values_fall_back_to_the_material_cost(): void
@@ -150,7 +150,7 @@ class ExpiringStockReportTest extends TestCase
         $staff = $this->user('kasir', $store, ['menu_access' => ['ExpiringStockReport']]);
         $this->actingAs($staff, 'web');
         $this->assertTrue(ExpiringStockReport::canAccess());
-        $this->assertCount(3, $this->report([], $staff)['batches'], 'Stok nasional: staf toko melihat batch yang sama.');
+        $this->assertCount(4, $this->report([], $staff)['batches'], 'Stok nasional: staf toko melihat batch yang sama.');
 
         $this->actingAs($this->user('kasir', $store, ['menu_access' => ['BookingResource']]), 'web');
         $this->assertFalse(ExpiringStockReport::canAccess());
@@ -161,7 +161,7 @@ class ExpiringStockReportTest extends TestCase
         $this->actingAs($this->user('super_admin'), 'web');
 
         $bad = Livewire::withQueryParams(['from' => 'kemarin', 'to' => ''])->test(ExpiringStockReport::class);
-        $this->assertSame(['2026-10-08', '2026-11-07'], [$bad->get('from'), $bad->get('to')]);
+        $this->assertSame(['2026-07-10', '2026-11-07'], [$bad->get('from'), $bad->get('to')]);
 
         $reversed = Livewire::withQueryParams(['from' => '2026-10-20', 'to' => '2026-10-10'])->test(ExpiringStockReport::class);
         $this->assertSame('2026-10-20', $reversed->get('to'));

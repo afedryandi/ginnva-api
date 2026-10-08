@@ -269,7 +269,7 @@ class PointReport extends Page implements HasForms
         while ($cursor->lte($to)) {
             $rows[$cursor->toDateString()] = [
                 'label' => $cursor->format('d M Y'),
-                'earned' => 0, 'earnCount' => 0, 'earnRp' => 0.0,
+                'earned' => 0, 'earnCount' => 0, 'earnRp' => 0.0, 'earnBookings' => [],
                 'spent' => 0, 'spentCount' => 0,
             ];
             $cursor->addDay();
@@ -283,12 +283,19 @@ class PointReport extends Page implements HasForms
                 $rows[$key]['earned'] += $tx->points;
                 $rows[$key]['earnCount']++;
                 if ($tx->reference_type === 'booking') {
-                    $rows[$key]['earnRp'] += (float) ($bookingAmounts[$tx->reference_id] ?? 0);
+                    // Satu booking bisa memberi poin ke Customer DAN Partner (referral): catat id-nya saja, nilainya dijumlah sekali
+                    // per booking per hari di bawah supaya Rp tidak terhitung dobel.
+                    $rows[$key]['earnBookings'][$tx->reference_id] = true;
                 }
             } elseif ($tx->type === 'spend') {
                 $rows[$key]['spent'] += $tx->points;
                 $rows[$key]['spentCount']++;
             }
+        }
+
+        foreach ($rows as $key => $row) {
+            $rows[$key]['earnRp'] = (float) collect(array_keys($row['earnBookings']))->sum(fn ($id) => (float) ($bookingAmounts[$id] ?? 0));
+            unset($rows[$key]['earnBookings']);
         }
 
         return [

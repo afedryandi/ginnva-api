@@ -182,6 +182,12 @@ class PeakProductTimeReport extends Page implements HasForms
     }
 
     /** Log ekspor (audit 2026-09-30), konsisten dengan laporan lain. */
+    /** Penjualan bersih sebuah booking: nilai transaksi dikurangi seluruh refund-nya (tidak negatif). */
+    private function netSales(Booking $booking): float
+    {
+        return max(0.0, (float) $booking->transaction_amount - (float) $booking->refunds->sum('amount'));
+    }
+
     /**
      * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya, dan
      * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
@@ -264,33 +270,60 @@ class PeakProductTimeReport extends Page implements HasForms
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->with(['journalEntry:id,entry_date', 'filmProduct:id,sku,name'])
+            ->with(['journalEntry:id,entry_date', 'filmProduct:id,sku,name', 'filmProducts.filmProduct:id,sku,name', 'refunds:id,booking_id,amount'])
             ->get(['id', 'transaction_amount', 'journal_entry_id', 'film_product_id']);
 
         $totalCount = $bookings->count();
-        $totalRevenue = (float) $bookings->sum('transaction_amount');
-        $unassignedCount = $bookings->whereNull('film_product_id')->count();
+        $totalRevenue = (float) $bookings->sum(fn (Booking $b) => $this->netSales($b));
 
-        // Kelompok: [film_product_id, hari] => agregat
+        // Produk sebuah booking = produk utama + produk tambahan per bagian kendaraan (tanpa duplikat). Booking tanpa
+        // satu pun SKU masuk "Belum Diisi SKU".
+        $productsOf = function (Booking $booking): array {
+            $products = [];
+            if ($booking->film_product_id !== null) {
+                $products[$booking->film_product_id] = $booking->filmProduct;
+            }
+            foreach ($booking->filmProducts as $extra) {
+                if ($extra->film_product_id !== null && ! array_key_exists($extra->film_product_id, $products)) {
+                    $products[$extra->film_product_id] = $extra->filmProduct;
+                }
+            }
+
+            return $products;
+        };
+
+        $unassignedCount = $bookings->filter(fn (Booking $b) => $productsOf($b) === [])->count();
+
+        // Kelompok: [film_product_id, hari] => agregat. Booking dengan beberapa produk dihitung SEKALI untuk TIAP produknya
+        // (jumlah transaksi per produk lengkap); nilai penjualannya dibagi rata antar produk supaya total nilai tetap sama
+        // dengan penjualan sungguhan.
         $groups = [];
         foreach ($bookings as $booking) {
             $day = $booking->journalEntry?->entry_date?->dayOfWeek;
             if ($day === null) continue;
 
-            $key = ($booking->film_product_id ?? 'none') . '|' . $day;
-            $groups[$key] ??= [
-                'product' => $booking->filmProduct,
-                'day' => $day,
-                'count' => 0,
-                'revenue' => 0.0,
-            ];
-            $groups[$key]['count']++;
-            $groups[$key]['revenue'] += (float) $booking->transaction_amount;
+            $products = $productsOf($booking) ?: ['none' => null];
+            $share = $this->netSales($booking) / count($products);
+
+            foreach ($products as $productId => $product) {
+                $key = $productId . '|' . $day;
+                $groups[$key] ??= [
+                    'product' => $product,
+                    'day' => $day,
+                    'count' => 0,
+                    'revenue' => 0.0,
+                ];
+                $groups[$key]['count']++;
+                $groups[$key]['revenue'] += $share;
+            }
         }
 
+        // "Jumlah %" dihitung dari total baris produk (satu booking multi-produk menyumbang beberapa baris).
+        $totalLines = (int) collect($groups)->sum('count');
+
         $rows = collect($groups)
-            ->map(function ($row) use ($totalCount, $totalRevenue) {
-                $row['countPct'] = $totalCount > 0 ? $row['count'] / $totalCount * 100 : 0;
+            ->map(function ($row) use ($totalLines, $totalRevenue) {
+                $row['countPct'] = $totalLines > 0 ? $row['count'] / $totalLines * 100 : 0;
                 $row['revenuePct'] = $totalRevenue > 0 ? $row['revenue'] / $totalRevenue * 100 : 0;
                 $row['dayName'] = self::DAY_NAMES[$row['day']];
 
@@ -308,6 +341,7 @@ class PeakProductTimeReport extends Page implements HasForms
             'to' => $to,
             'rows' => $rows,
             'totalCount' => $totalCount,
+            'totalLines' => $totalLines,
             'unassignedCount' => $unassignedCount,
             'rangeClamped' => $rangeClamped,
         ];

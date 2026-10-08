@@ -99,6 +99,33 @@ class RawMaterial extends Model
      * Diurut received_date lalu id — urutan ini JUGA yang dipakai
      * consumeBatchesFifo() untuk menentukan batch mana dihabiskan duluan.
      */
+    /**
+     * Nilai stok bahan baku: sisa stok dinilai dari harga beli tiap BATCH (konsumsi memakai urutan FIFO, jadi kalau jumlah
+     * batch lebih besar dari stok, yang dianggap sudah terpakai adalah batch TERTUA). Batch tanpa harga dan stok yang tidak
+     * tercatat di batch mana pun (mis. stok lama sebelum pelacakan batch) dinilai dengan harga terakhir bahan ini.
+     */
+    public function stockValue(): float
+    {
+        $remaining = max(0.0, (float) $this->current_stock);
+        $value = 0.0;
+
+        foreach ($this->batches->reverse() as $batch) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $take = min($remaining, (float) $batch->quantity);
+            if ($take <= 0) {
+                continue;
+            }
+
+            $value += $take * (float) ($batch->unit_cost ?? $this->unit_cost ?? 0);
+            $remaining -= $take;
+        }
+
+        return $value + $remaining * (float) ($this->unit_cost ?? 0);
+    }
+
     public function batches(): HasMany
     {
         return $this->hasMany(RawMaterialBatch::class)->orderBy('received_date')->orderBy('id');

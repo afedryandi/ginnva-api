@@ -251,4 +251,17 @@ class PointReportTest extends TestCase
         $this->october();
         $this->page()->callAction('exportPdf')->assertHasNoActionErrors();
     }
+
+    public function test_a_booking_that_gives_points_to_a_customer_and_a_partner_is_counted_once_in_rupiah(): void
+    {
+        $booking = $this->booking(1000000);
+        $this->customerTx('earn', 100, '2026-10-02 10:00:00', 'booking', $booking->id);
+        $this->partnerTx('earn', 50, '2026-10-02 11:00:00', 'booking', $booking->id);
+
+        $day = $this->report()['rows']['2026-10-02'];
+
+        $this->assertSame([150, 2], [$day['earned'], $day['earnCount']], 'Poin dan jumlah transaksi poin tetap lengkap.');
+        $this->assertEqualsWithDelta(1000000.0, $day['earnRp'], 0.001, 'Nilai booking yang sama hanya dihitung sekali.');
+    }
+
 }

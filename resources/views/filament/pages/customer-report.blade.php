@@ -31,7 +31,7 @@
             @if (! (auth()->user()?->isFullAccess() ?? false))
                 Peringkat & belanja di bawah cuma menghitung booking di TOKO ANDA — belanja pelanggan di cabang lain tidak ikut.
             @endif
-            "Alamat" dan "Outlet Registrasi" ala Majoo tidak ditampilkan — akun customer Ginnva tidak punya field alamat maupun toko pendaftaran (akun dibuat lewat mobile app, bukan didaftarkan staff di 1 outlet tertentu).
+            "Outlet Registrasi" ala Majoo tidak ditampilkan — akun customer Ginnva dibuat lewat mobile app, tidak terdaftar di 1 outlet tertentu.
         </x-slot>
 
         <div class="overflow-x-auto">

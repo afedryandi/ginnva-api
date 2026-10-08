@@ -45,7 +45,7 @@
         <x-slot name="description">
             Gabungan poin Customer &amp; Partner. "Poin Didapat (Rp)" cuma valid untuk poin dari transaksi booking
             (nilai transaksi yang memicu poin, BUKAN nilai poinnya) — poin dari sumber lain (mis. klaim garansi) ditandai "—".
-            "Nilai Tukar (Rp)" tidak ditampilkan — Reward tidak punya nilai Rupiah tersimpan.
+            "Nilai Tukar (Rp)" tidak ditampilkan — Reward tidak punya nilai Rupiah tersimpan. Satu booking yang memberi poin ke Customer dan Partner dihitung sekali. @unless (auth()->user()?->isFullAccess()) Poin tampil untuk semua toko, tetapi "Poin Didapat (Rp)" hanya menghitung booking di TOKO ANDA. @endunless
         </x-slot>
 
         <div class="overflow-x-auto">

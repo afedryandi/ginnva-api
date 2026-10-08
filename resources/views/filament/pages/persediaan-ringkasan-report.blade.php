@@ -10,7 +10,7 @@
     <x-filament::section>
         <div class="text-xs text-gray-500 dark:text-gray-400">Total Nilai Persediaan</div>
         <div class="mt-1 text-2xl font-bold tabular-nums">{{ $rupiah($result['totalValue']) }}</div>
-        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Kondisi stok &amp; harga modal terkini — bukan snapshot per tanggal (sistem tidak menyimpan riwayat harga modal).</div>
+        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Kondisi stok &amp; harga modal terkini — bukan snapshot per tanggal (sistem tidak menyimpan riwayat harga modal). Bahan Baku dinilai dari sisa tiap batch × harga beli batch itu (FIFO); Harga Modal yang tampil adalah rata-ratanya.</div>
     </x-filament::section>
 
     <x-filament::section>

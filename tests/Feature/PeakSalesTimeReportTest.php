@@ -6,6 +6,7 @@ use App\Exports\PeakSalesTimeReportExport;
 use App\Filament\Pages\PeakSalesTimeReport;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Refund;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\BookingPostingService;
@@ -292,4 +293,31 @@ class PeakSalesTimeReportTest extends TestCase
         $this->october();
         $this->page()->callAction('exportPdf')->assertHasNoActionErrors();
     }
+
+    public function test_sales_are_net_of_refunds_on_the_day_of_the_original_booking(): void
+    {
+        $this->october();
+        $customer = $this->customer('C9');
+        $booking = $this->sale($customer, 600000, '2026-10-07', $this->storeA, ['product_ppf' => true]);
+        Refund::create(['refund_number' => 'RF-TEST-1', 'booking_id' => $booking->id, 'amount' => 150000]);
+        Refund::create(['refund_number' => 'RF-TEST-2', 'booking_id' => $booking->id, 'amount' => 50000]);
+
+        $result = $this->report();
+        $wednesday = $this->row($result, 'Rabu');
+
+        $this->assertEqualsWithDelta(400000.0, $wednesday['revenue'], 0.001, '600.000 - 150.000 - 50.000.');
+        $this->assertSame(1, $wednesday['count'], 'Jumlah transaksi tidak berkurang karena refund.');
+        $this->assertEqualsWithDelta(2800000.0, $result['totalRevenue'], 0.001, '2.400.000 + 400.000.');
+        $this->assertEqualsWithDelta(100.0, collect($result['rows'])->sum('revenuePct'), 0.001);
+    }
+
+    public function test_a_fully_refunded_booking_never_makes_revenue_negative(): void
+    {
+        $booking = $this->sale($this->customer('C10'), 100000, '2026-10-07', $this->storeA);
+        Refund::create(['refund_number' => 'RF-TEST-3', 'booking_id' => $booking->id, 'amount' => 100000]);
+        Refund::create(['refund_number' => 'RF-TEST-4', 'booking_id' => $booking->id, 'amount' => 5000]);
+
+        $this->assertEquals(0, $this->row($this->report(), 'Rabu')['revenue']);
+    }
+
 }

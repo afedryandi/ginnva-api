@@ -185,6 +185,12 @@ class PeakSalesTimeReport extends Page implements HasForms
      * "Ekspor Laporan" (audit 2026-09-11, temuan B) — pola sama laporan
      * Penjualan lain.
      */
+    /** Penjualan bersih sebuah booking: nilai transaksi dikurangi seluruh refund-nya (tidak negatif). */
+    private function netSales(Booking $booking): float
+    {
+        return max(0.0, (float) $booking->transaction_amount - (float) $booking->refunds->sum('amount'));
+    }
+
     /**
      * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya, dan
      * staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
@@ -271,7 +277,7 @@ class PeakSalesTimeReport extends Page implements HasForms
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->with('journalEntry:id,entry_date')
+            ->with(['journalEntry:id,entry_date', 'refunds:id,booking_id,amount'])
             ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash', 'customer_id']);
 
         $days = [];
@@ -289,7 +295,7 @@ class PeakSalesTimeReport extends Page implements HasForms
             $day = $booking->journalEntry?->entry_date?->dayOfWeek;
             if ($day === null) continue;
 
-            $days[$day]['revenue'] += (float) $booking->transaction_amount;
+            $days[$day]['revenue'] += $this->netSales($booking);
             $days[$day]['count']++;
             // Keempat jenis layanan dihitung (PPF, Kaca Film, Detailing, Premium Wash) -- SEBELUMNYA hanya dua pertama,
             // jadi booking Detailing/Premium Wash tercatat 0 produk.
@@ -299,7 +305,7 @@ class PeakSalesTimeReport extends Page implements HasForms
             }
         }
 
-        $totalRevenue = (float) $bookings->sum('transaction_amount');
+        $totalRevenue = (float) $bookings->sum(fn (Booking $b) => $this->netSales($b));
         $totalCount = $bookings->count();
         $totalProducts = array_sum(array_column($days, 'products'));
         $totalCustomers = $bookings->pluck('customer_id')->filter()->unique()->count();

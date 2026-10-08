@@ -110,7 +110,7 @@ class PersediaanRingkasanReport extends Page
 
     public function getResult(): array
     {
-        $materials = RawMaterial::query()->orderBy('name')->get()
+        $materials = RawMaterial::query()->with('batches')->orderBy('name')->get()
             ->map(fn (RawMaterial $m) => [
                 'id' => $m->id,
                 'source' => 'raw_material',
@@ -120,8 +120,9 @@ class PersediaanRingkasanReport extends Page
                 'category' => $m->category ?? '—',
                 'quantity' => (float) $m->current_stock,
                 'unit' => $m->unit,
-                'unitCost' => (float) ($m->unit_cost ?? 0),
-                'totalValue' => (float) $m->current_stock * (float) ($m->unit_cost ?? 0),
+                // Harga modal yang tampil = rata-rata tertimbang nilai batch sisa (sama dengan Total Nilai / Kuantitas).
+                'unitCost' => (float) $m->current_stock > 0 ? $m->stockValue() / (float) $m->current_stock : (float) ($m->unit_cost ?? 0),
+                'totalValue' => $m->stockValue(),
             ]);
 
         $consumables = ConsumableItem::query()->orderBy('name')->get()
