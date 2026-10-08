@@ -293,8 +293,8 @@ class FilmProductResource extends Resource
                 Tables\Columns\TextColumn::make('price_status')
                     ->label('Status Harga')
                     ->badge()
-                    ->state(fn (FilmProduct $record): string => ((float) $record->base_price > 0 || ($record->prices_count ?? 0) > 0) ? 'Terisi' : 'Belum diisi')
-                    ->color(fn (FilmProduct $record): string => ((float) $record->base_price > 0 || ($record->prices_count ?? 0) > 0) ? 'success' : 'gray'),
+                    ->state(fn (FilmProduct $record): string => static::hasPrice($record) ? 'Terisi' : 'Belum diisi')
+                    ->color(fn (FilmProduct $record): string => static::hasPrice($record) ? 'success' : 'gray'),
 
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Aktif')
@@ -354,8 +354,11 @@ class FilmProductResource extends Resource
                 // dari DeleteAction) -- ->visible() eksplisit di sini
                 // supaya tetap setara hak akses "delete", bukan terbuka ke
                 // siapapun yang bisa lihat menu ini.
+                // ->hidden() (bukan ->visible()): di Filament v3 ->visible() MENIMPA kondisi bawaan RestoreAction
+                // "sembunyikan kalau baris belum terhapus", jadi tombol Pulihkan sebelumnya tampil di SEMUA baris produk
+                // aktif. Kondisi bawaan itu sekarang dipertahankan sambil tetap menuntut hak "hapus".
                 Tables\Actions\RestoreAction::make()
-                    ->visible(fn () => static::canDeleteAny()),
+                    ->hidden(fn (FilmProduct $record): bool => ! $record->trashed() || ! static::canDeleteAny()),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -414,6 +417,12 @@ class FilmProductResource extends Resource
                 ]),
             ])
             ->defaultSort('name');
+    }
+
+    /** Harga dianggap terisi kalau harga dasar > 0 atau ada minimal satu harga per ukuran (prices_count dari withCount; kalau tidak ada, dihitung langsung). */
+    public static function hasPrice(FilmProduct $record): bool
+    {
+        return (float) $record->base_price > 0 || (int) ($record->prices_count ?? $record->prices()->count()) > 0;
     }
 
     public static function getEloquentQuery(): Builder
