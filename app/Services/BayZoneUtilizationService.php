@@ -88,7 +88,10 @@ class BayZoneUtilizationService
         }
 
         $intervalsByZone = $this->buildZoneIntervals($store, $from, $to);
-        $availableHours = $this->availableHoursInRange($store, $from, $to);
+        // Jam tersedia hanya dihitung sampai SEKARANG: jam yang belum terjadi tidak mungkin terpakai, jadi kalau
+        // periodenya masih berjalan (mis. "Bulan ini" di tanggal 8) penyebutnya tidak ikut menghitung sisa bulan --
+        // kalau tidak utilisasi tampak jauh lebih rendah dari kenyataan. Periode yang sudah lewat tidak berubah.
+        $availableHours = $this->availableHoursInRange($store, $from, $to->copy()->addSecond()->min(Carbon::now()));
 
         $result = [];
 
@@ -162,25 +165,24 @@ class BayZoneUtilizationService
      * (opening_hours kosong/tidak match), dianggap 24 jam penuh — sama
      * "tidak menganggap tutup" seperti isClosedOn() default false.
      */
-    private function availableHoursInRange(Store $store, Carbon $from, Carbon $to): float
+    private function availableHoursInRange(Store $store, Carbon $from, Carbon $until): float
     {
         $hours = 0.0;
         $cursor = $from->copy()->startOfDay();
-        $end = $to->copy()->startOfDay();
 
-        while ($cursor->lte($end)) {
+        while ($cursor->lt($until)) {
             if (! $store->isClosedOn($cursor)) {
+                $dayStart = $cursor->copy()->startOfDay();
+                $windowEnd = $dayStart->copy()->addDay()->min($until);
                 $open = $store->openingTimeOn($cursor);
                 $close = $store->closingTimeOn($cursor);
 
                 if ($open && $close) {
                     $openAt = Carbon::parse($cursor->toDateString() . ' ' . $open);
                     $closeAt = Carbon::parse($cursor->toDateString() . ' ' . $close);
-                    $dayStart = $cursor->copy()->startOfDay();
-                    $dayEnd = $cursor->copy()->endOfDay();
-                    $hours += max(0, $openAt->max($dayStart)->floatDiffInHours($closeAt->min($dayEnd->addSecond())));
+                    $hours += max(0, $openAt->max($dayStart)->floatDiffInHours($closeAt->min($windowEnd)));
                 } else {
-                    $hours += 24;
+                    $hours += max(0, $dayStart->floatDiffInHours($windowEnd));
                 }
             }
 
