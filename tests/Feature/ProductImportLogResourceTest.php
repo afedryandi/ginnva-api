@@ -171,8 +171,12 @@ class ProductImportLogResourceTest extends TestCase
         $this->get(ProductImportLogResource::getUrl('index'))->assertOk();
         $this->get(ProductImportLogResource::getUrl('view', ['record' => $log]))->assertOk();
 
+        // Staf biasa: tidak boleh mendapat halamannya (403 atau dialihkan Filament), dan isinya tidak boleh bocor.
         $this->actingAs($this->user('kasir'), 'web');
-        $this->get(ProductImportLogResource::getUrl('index'))->assertForbidden();
-        $this->get(ProductImportLogResource::getUrl('view', ['record' => $log]))->assertForbidden();
+        foreach ([ProductImportLogResource::getUrl('index'), ProductImportLogResource::getUrl('view', ['record' => $log])] as $url) {
+            $response = $this->get($url);
+            $this->assertContains($response->getStatusCode(), [302, 403], $url);
+            $response->assertDontSee('rahasia.xlsx');
+        }
     }
 }
