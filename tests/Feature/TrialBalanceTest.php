@@ -323,11 +323,19 @@ class TrialBalanceTest extends TestCase
     {
         $original = $this->sale('2026-08-05', 100000);
         app(JournalEntryService::class)->reverse($original, null, 'Batal', '2026-09-20');
+        // Beban yang lahir dan habis seluruhnya di bulan periode: tanpa saldo awal, saldo akhir nol.
+        $expense = $this->entry('2026-09-05', [
+            ['chart_of_account_id' => $this->id('6110'), 'debit' => 5000],
+            ['chart_of_account_id' => $this->id('1101'), 'credit' => 5000],
+        ]);
+        app(JournalEntryService::class)->reverse($expense, null, 'Batal', '2026-09-21');
         $this->actingAs($this->admin(), 'web');
 
-        $page = Livewire::test(TrialBalanceReport::class)->set('data.from', '2026-09-01')->set('data.hide_zero', true);
+        $page = Livewire::test(TrialBalanceReport::class)->set('data.from', '2026-09-01');
+        $this->assertSame(['aset', 'pendapatan', 'beban_operasional'], $page->instance()->getGroupedRows($page->instance()->getResult())->keys()->all());
 
-        $this->assertSame(['aset'], $page->instance()->getGroupedRows($page->instance()->getResult())->keys()->all(), 'Kas punya saldo awal 100.000 sehingga tampil; pendapatan (hanya tahun berjalan, awal 0) disembunyikan.');
+        $page->set('data.hide_zero', true);
+        $this->assertSame(['aset', 'pendapatan'], $page->instance()->getGroupedRows($page->instance()->getResult())->keys()->all(), 'Kas dan pendapatan punya saldo awal 100.000 sehingga tetap tampil; beban 6110 (awal 0, akhir 0) disembunyikan.');
     }
 
     public function test_page_applies_the_period_and_the_store_choice(): void
