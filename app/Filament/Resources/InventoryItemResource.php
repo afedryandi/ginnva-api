@@ -150,6 +150,9 @@ class InventoryItemResource extends Resource
                             'PPF' => 'PPF',
                             'Window Film' => 'Window Film',
                         ])
+                        // Select tidak otomatis menolak nilai di luar pilihan -- request yang diubah tangan bisa menyimpan
+                        // kategori liar yang tidak muncul di filter.
+                        ->in(['PPF', 'Window Film'])
                         ->required(),
 
                     Forms\Components\DatePicker::make('received_date')
