@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use Maatwebsite\Excel\Concerns\FromArray;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -13,7 +14,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * audit 2026-09-11, temuan B. Snapshot kondisi TERKINI (bukan per
  * tanggal) — konsisten dengan halaman sumbernya, tidak ada filter.
  */
-class PersediaanRingkasanReportExport implements FromArray, WithHeadings, WithStyles
+class PersediaanRingkasanReportExport implements FromArray, WithHeadings, WithStyles, WithColumnFormatting
 {
     public function __construct(private array $result) {}
 
@@ -46,6 +47,12 @@ class PersediaanRingkasanReportExport implements FromArray, WithHeadings, WithSt
             ])
             ->values()
             ->all();
+    }
+
+    /** Kuantitas & Harga Modal 2 desimal (harga per satuan dasar bisa pecahan), Total Nilai ribuan. */
+    public function columnFormats(): array
+    {
+        return ['E' => '#,##0.00', 'G' => '#,##0.00', 'H' => '#,##0;(#,##0);"-"'];
     }
 
     public function styles(Worksheet $sheet): array

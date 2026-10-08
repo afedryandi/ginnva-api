@@ -16,6 +16,9 @@
 <body>
     @php
         $rupiah = fn ($n) => 'Rp' . number_format((float) $n, 0, ',', '.');
+        // Harga modal per satuan dasar bisa pecahan (mis. Rp7,50/gram) -- ditampilkan sampai 2 desimal (nol di belakang
+        // dibuang) supaya Kuantitas x Harga Modal = Total yang tampil; total tetap dibulatkan ke rupiah.
+        $cost = fn ($n) => 'Rp' . rtrim(rtrim(number_format((float) $n, 2, ',', '.'), '0'), ',');
     @endphp
 
     <h1>Ringkasan Persediaan</h1>
@@ -43,7 +46,7 @@
                     <td>{{ $row['category'] }}</td>
                     <td>{{ number_format($row['quantity'], 2, ',', '.') }}</td>
                     <td>{{ $row['unit'] }}</td>
-                    <td>{{ $rupiah($row['unitCost']) }}</td>
+                    <td>{{ $cost($row['unitCost']) }}</td>
                     <td>{{ $rupiah($row['totalValue']) }}</td>
                 </tr>
             @endforeach

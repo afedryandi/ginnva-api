@@ -2,6 +2,9 @@
     @php
         $result = $this->getResult();
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
+        // Harga modal per satuan dasar bisa pecahan (mis. Rp7,50/gram) -- ditampilkan sampai 2 desimal (nol di belakang
+        // dibuang) supaya Kuantitas x Harga Modal = Total yang tampil; total tetap dibulatkan ke rupiah.
+        $cost = fn ($n) => 'Rp' . rtrim(rtrim(number_format((float) $n, 2, ',', '.'), '0'), ',');
     @endphp
 
     <x-filament::section>
@@ -39,7 +42,7 @@
                             <td class="py-2 pr-3">{{ $row['category'] }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ number_format($row['quantity'], 2) }}</td>
                             <td class="py-2 pr-3">{{ $row['unit'] }}</td>
-                            <td class="py-2 pr-3 text-right tabular-nums">{{ $rupiah($row['unitCost']) }}</td>
+                            <td class="py-2 pr-3 text-right tabular-nums">{{ $cost($row['unitCost']) }}</td>
                             <td class="py-2 pl-3 text-right tabular-nums font-medium">{{ $rupiah($row['totalValue']) }}</td>
                         </tr>
                     @empty
