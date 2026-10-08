@@ -48,8 +48,8 @@
                     <td>{{ $batch->received_date?->format('d M Y') ?? '-' }}</td>
                     <td>{{ $batch->expiry_date->format('d M Y') }}</td>
                     <td class="value">{{ number_format((float) $batch->quantity, 2, ',', '.') }} {{ $batch->rawMaterial?->unit }}</td>
-                    <td class="value">{{ $rupiah((float) $batch->quantity * (float) ($batch->unit_cost ?? 0)) }}</td>
-                    <td>{{ $isExpired ? 'Kedaluwarsa (' . $today->diffInDays($batch->expiry_date) . ' hari lalu)' : 'Kedaluwarsa dalam ' . $today->diffInDays($batch->expiry_date) . ' hari' }}</td>
+                    <td class="value">{{ $rupiah($batch->stockValue()) }}</td>
+                    <td>{{ $isExpired ? 'Kedaluwarsa (' . abs($batch->daysUntilExpiry()) . ' hari lalu)' : 'Kedaluwarsa dalam ' . abs($batch->daysUntilExpiry()) . ' hari' }}</td>
                 </tr>
             @endforeach
         </tbody>

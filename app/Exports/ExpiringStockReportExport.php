@@ -37,7 +37,7 @@ class ExpiringStockReportExport implements FromArray, WithHeadings, WithStyles
         return collect($this->result['batches'])
             ->map(function (RawMaterialBatch $batch) use ($today) {
                 $isExpired = $batch->expiry_date->lt($today);
-                $days = $today->diffInDays($batch->expiry_date);
+                $days = abs($batch->daysUntilExpiry());
 
                 return [
                     $batch->rawMaterial?->code ?? '-',
@@ -45,7 +45,7 @@ class ExpiringStockReportExport implements FromArray, WithHeadings, WithStyles
                     $batch->received_date?->format('Y-m-d') ?? '-',
                     $batch->expiry_date->format('Y-m-d'),
                     (float) $batch->quantity,
-                    (float) $batch->quantity * (float) ($batch->unit_cost ?? 0),
+                    $batch->stockValue(),
                     $isExpired ? "Kedaluwarsa ({$days} hari lalu)" : "Kedaluwarsa dalam {$days} hari",
                 ];
             })

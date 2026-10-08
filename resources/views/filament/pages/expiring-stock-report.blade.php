@@ -65,10 +65,10 @@
                             <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $batch->received_date?->format('d M Y') ?? '—' }}</td>
                             <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $batch->expiry_date->format('d M Y') }}</td>
                             <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ number_format((float) $batch->quantity, 2) }} {{ $batch->rawMaterial?->unit }}</td>
-                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $rupiah((float) $batch->quantity * (float) ($batch->unit_cost ?? 0)) }}</td>
+                            <td class="whitespace-nowrap py-2 px-3 text-right tabular-nums">{{ $rupiah($batch->stockValue()) }}</td>
                             <td class="whitespace-nowrap py-2 px-3">
                                 <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ $isExpired ? 'bg-danger-100 text-danger-700 dark:bg-danger-500/10 dark:text-danger-400' : 'bg-warning-100 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400' }}">
-                                    {{ $isExpired ? 'Kedaluwarsa (' . $today->diffInDays($batch->expiry_date) . ' hari lalu)' : 'Kedaluwarsa dalam ' . $today->diffInDays($batch->expiry_date) . ' hari' }}
+                                    {{ $isExpired ? 'Kedaluwarsa (' . abs($batch->daysUntilExpiry()) . ' hari lalu)' : 'Kedaluwarsa dalam ' . abs($batch->daysUntilExpiry()) . ' hari' }}
                                 </span>
                             </td>
                         </tr>

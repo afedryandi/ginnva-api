@@ -192,7 +192,7 @@ class ExpiringStockReport extends Page implements HasForms
         $today = now()->startOfDay();
 
         $batches = RawMaterialBatch::query()
-            ->with('rawMaterial:id,name,code,unit,category')
+            ->with('rawMaterial:id,name,code,unit,category,unit_cost')
             ->where('quantity', '>', 0)
             ->whereNotNull('expiry_date')
             ->whereBetween('expiry_date', [$from->toDateString(), $to->toDateString()])
@@ -208,7 +208,7 @@ class ExpiringStockReport extends Page implements HasForms
             'batches' => $batches,
             'expiredCount' => $expired->count(),
             'nearExpiryCount' => $nearExpiry->count(),
-            'totalValue' => (float) $batches->sum(fn (RawMaterialBatch $b) => (float) $b->quantity * (float) ($b->unit_cost ?? 0)),
+            'totalValue' => (float) $batches->sum(fn (RawMaterialBatch $b) => $b->stockValue()),
         ];
     }
 }
