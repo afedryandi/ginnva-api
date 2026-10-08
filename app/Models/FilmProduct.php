@@ -41,6 +41,48 @@ class FilmProduct extends Model
         'tracks_batch' => 'boolean',
     ];
 
+    /** Status roll yang MASIH berlaku (belum habis dipakai) -- produk dengan roll seperti ini tidak boleh dihapus. */
+    public const ACTIVE_ROLL_STATUSES = ['unallocated', 'allocated'];
+
+    protected static function booted(): void
+    {
+        // Pengaman terakhir (selain pesan ramah di Filament): kembalikan false = penghapusan dibatalkan tanpa error. Hapus
+        // lembut tidak memicu foreign key restrict, jadi tanpa ini produk yang masih dipakai roll aktif bisa hilang dari katalog.
+        static::deleting(function (self $product) {
+            if ($product->isForceDeleting()) {
+                return null;
+            }
+
+            return $product->canBeDeleted() ? null : false;
+        });
+    }
+
+    public function scrollCodes()
+    {
+        return $this->hasMany(ScrollCode::class);
+    }
+
+    /** Jumlah roll (kode gulungan) aktif yang masih memakai produk ini. */
+    public function activeScrollCodesCount(): int
+    {
+        return $this->scrollCodes()->whereIn('status', self::ACTIVE_ROLL_STATUSES)->count();
+    }
+
+    public function canBeDeleted(): bool
+    {
+        return $this->activeScrollCodesCount() === 0;
+    }
+
+    /** Pesan untuk staf kalau penghapusan ditolak: berapa roll & beberapa kodenya. */
+    public function deletionBlockedMessage(): string
+    {
+        $codes = $this->scrollCodes()->whereIn('status', self::ACTIVE_ROLL_STATUSES)->orderBy('code')->limit(3)->pluck('code')->implode(', ');
+        $count = $this->activeScrollCodesCount();
+
+        return "Produk ini masih dipakai {$count} roll aktif (kode gulungan: {$codes}" . ($count > 3 ? ', dst.' : '') . '). '
+            . 'Habiskan, pindahkan, atau hapus roll tersebut dulu — atau nonaktifkan produk ini saja lewat toggle "Aktif".';
+    }
+
     public function quotationItems()
     {
         return $this->hasMany(QuotationItem::class);

@@ -332,6 +332,10 @@ class FilmProductResource extends Resource
                 // mentah.
                 Tables\Actions\DeleteAction::make()
                     ->action(function (FilmProduct $record) {
+                        if (! static::guardDelete($record)) {
+                            return;
+                        }
+
                         try {
                             $record->delete();
                         } catch (QueryException $e) {
@@ -391,6 +395,13 @@ class FilmProductResource extends Resource
                             $blocked = 0;
 
                             foreach ($records as $record) {
+                                // Produk yang masih dipakai roll aktif dilewati (lihat FilmProduct::canBeDeleted()).
+                                if (! $record->canBeDeleted()) {
+                                    $blocked++;
+
+                                    continue;
+                                }
+
                                 try {
                                     $record->delete();
                                     $deleted++;
@@ -404,7 +415,7 @@ class FilmProductResource extends Resource
                                     ->title($deleted > 0
                                         ? "{$deleted} produk dihapus, {$blocked} tidak bisa dihapus"
                                         : 'Tidak ada produk yang bisa dihapus')
-                                    ->body("{$blocked} produk masih dipakai oleh kode gulungan yang terdaftar, dilewati. Nonaktifkan lewat toggle \"Aktif\" saja kalau perlu.")
+                                    ->body("{$blocked} produk masih dipakai roll aktif (kode gulungan), dilewati. Habiskan/pindahkan rollnya dulu, atau nonaktifkan lewat toggle \"Aktif\" saja.")
                                     ->warning()
                                     ->send();
 
@@ -417,6 +428,22 @@ class FilmProductResource extends Resource
                 ]),
             ])
             ->defaultSort('name');
+    }
+
+    /** Tolak penghapusan produk yang masih dipakai roll aktif, dengan pesan jelas. True = boleh dihapus. */
+    public static function guardDelete(FilmProduct $record): bool
+    {
+        if ($record->canBeDeleted()) {
+            return true;
+        }
+
+        Notification::make()
+            ->title('Tidak bisa menghapus produk ini')
+            ->body($record->deletionBlockedMessage())
+            ->danger()
+            ->send();
+
+        return false;
     }
 
     /** Harga dianggap terisi kalau harga dasar > 0 atau ada minimal satu harga per ukuran (prices_count dari withCount; kalau tidak ada, dihitung langsung). */

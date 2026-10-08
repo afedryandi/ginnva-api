@@ -298,12 +298,13 @@ class FilmProductResourceTest extends TestCase
             'booking_number' => 'BKG-HIST', 'customer_id' => $customer->id, 'store_id' => $store->id, 'film_product_id' => $product->id,
             'service_type' => 'PPF', 'product_ppf' => true, 'preferred_date' => '2026-10-05', 'status' => 'completed',
         ]);
-        $roll = ScrollCode::create(['code' => 'ROLL-HIST', 'film_product_id' => $product->id, 'store_id' => $store->id, 'status' => 'allocated', 'usage_count' => 0, 'allocated_at' => now()]);
+        $roll = ScrollCode::create(['code' => 'ROLL-HIST', 'film_product_id' => $product->id, 'store_id' => $store->id, 'status' => 'used', 'usage_count' => 0, 'allocated_at' => now()]);
 
         $product->delete();
+        $this->assertSoftDeleted('film_products', ['id' => $product->id]);
 
         $this->assertSame('HIST-1', $booking->fresh()->filmProduct->sku);
-        $this->assertSame('HIST-1', $roll->fresh()->filmProduct->sku, 'Roll yang masih memakai produk ini tetap menampilkan produknya.');
+        $this->assertSame('HIST-1', $roll->fresh()->filmProduct->sku, 'Roll (yang sudah habis dipakai) tetap menampilkan produknya.');
     }
 
     public function test_the_edit_page_header_can_delete_the_product(): void
@@ -364,5 +365,110 @@ class FilmProductResourceTest extends TestCase
         Livewire::test(ListFilmProducts::class)
             ->assertActionHidden('importPrices')
             ->assertActionHidden('downloadImportTemplate');
+    }
+
+    // ------------------------------------------------------------- perlindungan hapus
+
+    private function roll(FilmProduct $product, string $code, string $status): ScrollCode
+    {
+        $store = Store::firstOrCreate(['name' => 'Toko Roll'], ['city' => 'Jakarta', 'address' => 'Jl. R', 'is_active' => true]);
+
+        return ScrollCode::create(['code' => $code, 'film_product_id' => $product->id, 'store_id' => $store->id, 'status' => $status, 'usage_count' => 0]);
+    }
+
+    public function test_a_product_with_active_rolls_cannot_be_deleted_but_one_with_only_finished_rolls_can(): void
+    {
+        $this->admin();
+        $blocked = $this->product('LOCK-1');
+        $this->roll($blocked, 'ROLL-LOCK-A', 'allocated');
+        $this->roll($blocked, 'ROLL-LOCK-B', 'unallocated');
+        $this->roll($blocked, 'ROLL-LOCK-C', 'used');
+        $free = $this->product('LOCK-2');
+        $this->roll($free, 'ROLL-DONE', 'used');
+
+        $this->assertSame(2, $blocked->activeScrollCodesCount(), 'Roll "habis dipakai" tidak dihitung.');
+        $this->assertFalse($blocked->canBeDeleted());
+        $this->assertTrue($free->canBeDeleted());
+
+        Livewire::test(ListFilmProducts::class)
+            ->callTableAction('delete', $blocked);
+        $this->assertNull($blocked->fresh()->deleted_at, 'Produk dengan roll aktif tetap ada.');
+
+        Livewire::test(ListFilmProducts::class)
+            ->callTableAction('delete', $free);
+        $this->assertSoftDeleted('film_products', ['id' => $free->id]);
+    }
+
+    public function test_the_blocked_message_names_the_count_and_the_roll_codes(): void
+    {
+        $product = $this->product('LOCK-MSG');
+        foreach (['R-1', 'R-2', 'R-3', 'R-4'] as $code) {
+            $this->roll($product, $code, 'allocated');
+        }
+
+        $message = $product->deletionBlockedMessage();
+
+        $this->assertStringContainsString('4 roll aktif', $message);
+        $this->assertStringContainsString('R-1, R-2, R-3, dst.', $message);
+        $this->assertStringContainsString('toggle "Aktif"', $message);
+    }
+
+    public function test_the_model_itself_refuses_to_soft_delete_a_product_with_active_rolls(): void
+    {
+        $product = $this->product('LOCK-MODEL');
+        $this->roll($product, 'ROLL-MODEL', 'allocated');
+
+        $this->assertFalse($product->delete());
+        $this->assertNull($product->fresh()->deleted_at);
+    }
+
+    public function test_bulk_delete_skips_products_with_active_rolls_and_deletes_the_rest(): void
+    {
+        $this->admin();
+        $blocked = $this->product('BLK-1');
+        $this->roll($blocked, 'ROLL-BLK', 'allocated');
+        $free = $this->product('BLK-2');
+
+        Livewire::test(ListFilmProducts::class)
+            ->callTableBulkAction('delete', [$blocked, $free])
+            ->assertHasNoTableBulkActionErrors();
+
+        $this->assertNull($blocked->fresh()->deleted_at);
+        $this->assertSoftDeleted('film_products', ['id' => $free->id]);
+    }
+
+    public function test_the_edit_page_header_delete_is_also_protected(): void
+    {
+        $this->admin();
+        $blocked = $this->product('HDR-BLK');
+        $this->roll($blocked, 'ROLL-HDR', 'unallocated');
+
+        Livewire::test(EditFilmProduct::class, ['record' => $blocked->getKey()])
+            ->callAction('delete');
+
+        $this->assertNull($blocked->fresh()->deleted_at);
+    }
+
+    public function test_a_product_becomes_deletable_once_its_rolls_are_finished(): void
+    {
+        $product = $this->product('LOCK-FREE');
+        $roll = $this->roll($product, 'ROLL-FREE', 'allocated');
+        $this->assertFalse($product->canBeDeleted());
+
+        $roll->update(['status' => 'used']);
+
+        $this->assertTrue($product->fresh()->canBeDeleted());
+    }
+
+    public function test_case_studies_keep_the_name_of_a_product_removed_from_the_catalogue(): void
+    {
+        $product = $this->product('CASE-1');
+        $vehicle = \App\Models\Vehicle::create(['brand' => 'Toyota', 'model' => 'Fortuner', 'size_category' => 'L']);
+        $case = \App\Models\CaseStudy::create(['vehicle_id' => $vehicle->id, 'film_product_id' => $product->id, 'title' => 'Fortuner Full Film', 'short_title' => 'Fortuner', 'image' => 'case-studies/x.jpg', 'sort_order' => 1, 'is_active' => true]);
+
+        $product->delete();
+
+        $this->assertSame('CASE-1', $case->fresh()->filmProduct->sku);
+        $this->assertSame('Produk CASE-1', $case->fresh()->filmProduct->name);
     }
 }

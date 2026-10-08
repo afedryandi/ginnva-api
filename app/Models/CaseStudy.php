@@ -44,6 +44,8 @@ class CaseStudy extends Model
 
     public function filmProduct()
     {
-        return $this->belongsTo(FilmProduct::class);
+        // withTrashed(): studi kasus tetap menampilkan nama produknya walau produk itu sudah dihapus dari katalog aktif
+        // (sama dengan relasi produk di Booking / roll / quotation).
+        return $this->belongsTo(FilmProduct::class)->withTrashed();
     }
 }
