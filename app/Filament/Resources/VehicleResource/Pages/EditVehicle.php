@@ -7,6 +7,7 @@ use App\Models\Vehicle;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Database\QueryException;
 use Filament\Support\Exceptions\Halt;
 
 class EditVehicle extends EditRecord
@@ -16,7 +17,26 @@ class EditVehicle extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            // Sama dengan tombol Hapus di daftar: kendaraan yang masih dipakai quotation / studi kasus ditolak database
+            // (restrict); tanpa penangkapan ini staf melihat error 500 mentah dari halaman ubah.
+            Actions\DeleteAction::make()
+                ->action(function () {
+                    try {
+                        $this->record->delete();
+                    } catch (QueryException $e) {
+                        Notification::make()
+                            ->title('Tidak bisa menghapus kendaraan ini')
+                            ->body('Data kendaraan ini masih dipakai oleh quotation atau studi kasus yang terdaftar.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    Notification::make()->title('Kendaraan dihapus')->success()->send();
+
+                    $this->redirect($this->getResource()::getUrl('index'));
+                }),
         ];
     }
 
@@ -30,6 +50,12 @@ class EditVehicle extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        // Spasi di tepi dibuang dan isian spasi-saja dianggap kosong: "Honda " dan "Honda" adalah merek yang sama, dan model/varian
+        // kosong harus null (bukan string kosong) supaya pengecekan duplikat di bawah mengenalinya.
+        $data['brand'] = trim((string) ($data['brand'] ?? ''));
+        $data['model'] = filled(trim((string) ($data['model'] ?? ''))) ? trim($data['model']) : null;
+        $data['variant'] = filled(trim((string) ($data['variant'] ?? ''))) ? trim($data['variant']) : null;
+
         $exists = Vehicle::where('brand', $data['brand'])
             ->where('model', $data['model'] ?? null)
             ->where('variant', $data['variant'] ?? null)

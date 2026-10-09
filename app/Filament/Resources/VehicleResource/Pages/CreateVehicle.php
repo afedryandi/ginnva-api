@@ -32,6 +32,12 @@ class CreateVehicle extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        // Spasi di tepi dibuang dan isian spasi-saja dianggap kosong: "Honda " dan "Honda" adalah merek yang sama, dan model/varian
+        // kosong harus null (bukan string kosong) supaya pengecekan duplikat di bawah mengenalinya.
+        $data['brand'] = trim((string) ($data['brand'] ?? ''));
+        $data['model'] = filled(trim((string) ($data['model'] ?? ''))) ? trim($data['model']) : null;
+        $data['variant'] = filled(trim((string) ($data['variant'] ?? ''))) ? trim($data['variant']) : null;
+
         $exists = Vehicle::where('brand', $data['brand'])
             ->where('model', $data['model'] ?? null)
             ->where('variant', $data['variant'] ?? null)

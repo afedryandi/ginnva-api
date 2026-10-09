@@ -140,6 +140,7 @@ class VehicleResource extends Resource
                             'XL'  => 'XL — Sangat Besar (double cabin, van)',
                             'XXL' => 'XXL — Ekstra Besar (sport car, luxury)',
                         ])
+                        ->in(['S', 'M', 'L', 'XL', 'XXL'])
                         ->required(),
                 ]),
         ]);
@@ -200,7 +201,7 @@ class VehicleResource extends Resource
                         } catch (QueryException $e) {
                             Notification::make()
                                 ->title('Tidak bisa menghapus kendaraan ini')
-                                ->body('Data kendaraan ini masih dipakai oleh quotation yang terdaftar.')
+                                ->body('Data kendaraan ini masih dipakai oleh quotation atau studi kasus yang terdaftar.')
                                 ->danger()
                                 ->send();
 
@@ -247,7 +248,7 @@ class VehicleResource extends Resource
                                     ->title($deleted > 0
                                         ? "{$deleted} kendaraan dihapus, {$blocked} tidak bisa dihapus"
                                         : 'Tidak ada kendaraan yang bisa dihapus')
-                                    ->body("{$blocked} kendaraan masih dipakai oleh quotation yang terdaftar, dilewati.")
+                                    ->body("{$blocked} kendaraan masih dipakai oleh quotation atau studi kasus yang terdaftar, dilewati.")
                                     ->warning()
                                     ->send();
 
