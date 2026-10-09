@@ -90,6 +90,8 @@ class SpendPromoResource extends Resource
                         // tidak masuk akal (berarti SEMUA booking otomatis
                         // "memenuhi syarat").
                         ->minValue(1)
+                        // Kolom decimal(14,2): angka lebih besar dari ini meluap dan ditolak database dengan error mentah.
+                        ->maxValue(999999999999)
                         ->required(),
 
                     Forms\Components\TextInput::make('discount_amount')
@@ -101,6 +103,11 @@ class SpendPromoResource extends Resource
                         // potongan Rp0 adalah promo no-op (tidak ada
                         // gunanya dibuat).
                         ->minValue(1)
+                        // Potongan tidak boleh melebihi ambang pembeliannya sendiri -- kalau lebih besar, booking yang baru
+                        // memenuhi syarat justru bernilai bersih nol (atau gratis).
+                        ->maxValue(fn (Forms\Get $get) => filled($get('min_purchase_amount'))
+                            ? min((float) $get('min_purchase_amount'), 999999999999)
+                            : 999999999999)
                         ->required(),
 
                     Forms\Components\DatePicker::make('starts_on')
@@ -177,7 +184,10 @@ class SpendPromoResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->modalDescription(fn (SpendPromo $record) => $record->bookings()->exists()
+                        ? "{$record->bookings()->count()} booking pernah memakai promo ini. Potongan di booking itu tetap tersimpan, tapi tautan ke promo ini hilang (tampil \"promo dihapus\"). Nonaktifkan saja kalau cuma tidak mau dipakai lagi."
+                        : null),
             ])
             ->defaultSort('created_at', 'desc');
     }
