@@ -12,7 +12,8 @@ class ViewCustomer extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            CustomerResource::setReferralHeaderAction(),
+            CustomerResource::setReferralHeaderAction()
+                ->visible(fn () => ! $this->record->deleted_at && CustomerResource::canEdit($this->record)),
         ];
     }
 }

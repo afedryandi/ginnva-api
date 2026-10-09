@@ -14,6 +14,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\HtmlString;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -190,6 +191,13 @@ class CustomerResource extends Resource
      */
     private static function saveReferral(Customer $record, array $data): void
     {
+        // Daftar pilihan sudah mengecualikan pelanggan itu sendiri, tapi nilai kiriman tidak divalidasi di server.
+        if ((int) ($data['referred_by_customer_id'] ?? 0) === (int) $record->id) {
+            Notification::make()->title('Pelanggan tidak bisa mereferensikan dirinya sendiri.')->danger()->send();
+
+            return;
+        }
+
         if (filled($data['referred_by_customer_id'] ?? null) && filled($data['referred_by_partner_id'] ?? null)) {
             // Yang berubah dari nilai lama dianggap input yang dimaksud.
             if ((int) $data['referred_by_customer_id'] !== (int) $record->referred_by_customer_id) {
@@ -213,11 +221,13 @@ class CustomerResource extends Resource
             ->label('Data Pribadi')
             ->icon('heroicon-o-identification')
             ->color('gray')
-            ->visible(fn (Customer $record) => ! $record->deleted_at)
+            // Mengubah data pelanggan: butuh hak "ubah", bukan sekadar bisa melihat daftar.
+            ->visible(fn (Customer $record) => ! $record->deleted_at && static::canEdit($record))
             ->form([
                 Forms\Components\Select::make('gender')
                     ->label('Jenis Kelamin')
                     ->options(Customer::GENDER_LABELS)
+                    ->in(array_keys(Customer::GENDER_LABELS))
                     ->native(false)
                     ->nullable(),
 
@@ -243,8 +253,8 @@ class CustomerResource extends Resource
             ->icon('heroicon-o-user-plus')
             ->color('gray')
             // Akun yang sudah dihapus/dianonimkan tidak relevan lagi
-            // diberi/diubah referral.
-            ->visible(fn (Customer $record) => ! $record->deleted_at)
+            // diberi/diubah referral. Butuh hak "ubah".
+            ->visible(fn (Customer $record) => ! $record->deleted_at && static::canEdit($record))
             ->form(fn (Customer $record): array => static::referralFormSchema($record))
             ->fillForm(fn (Customer $record): array => static::referralFillForm($record))
             ->action(fn (Customer $record, array $data) => static::saveReferral($record, $data));
@@ -256,6 +266,7 @@ class CustomerResource extends Resource
             ->label('Set Referral')
             ->icon('heroicon-o-user-plus')
             ->color('gray')
+            ->visible(fn (Customer $record) => ! $record->deleted_at && static::canEdit($record))
             ->form(fn (Customer $record): array => static::referralFormSchema($record))
             ->fillForm(fn (Customer $record): array => static::referralFillForm($record))
             ->action(fn (Customer $record, array $data) => static::saveReferral($record, $data));
@@ -347,7 +358,12 @@ class CustomerResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with(['referredBy', 'referredByPartner']);
+        // Akun yang dihapus (soft delete, PII sudah dianonimkan) HARUS ikut masuk: tanpa ini Global Scope SoftDeletes
+        // menyembunyikannya, sehingga label "(Akun Dihapus)", opsi filter "Akun Dihapus" dan seluruh pengecekan
+        // deleted_at di resource ini tidak pernah terpakai. Daftar default-nya tetap hanya akun aktif (lihat filter).
+        return parent::getEloquentQuery()
+            ->withoutGlobalScopes([SoftDeletingScope::class])
+            ->with(['referredBy', 'referredByPartner']);
     }
 
     public static function table(Table $table): Table
@@ -429,6 +445,7 @@ class CustomerResource extends Resource
                 Tables\Filters\TernaryFilter::make('deleted_at')
                     ->label('Status Akun')
                     ->placeholder('Semua')
+                    ->default(false)
                     ->trueLabel('Akun Dihapus')
                     ->falseLabel('Aktif')
                     ->queries(
@@ -442,16 +459,29 @@ class CustomerResource extends Resource
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
                     ->visible(fn () => auth()->user()?->isFullAccess())
-                    ->action(fn () => Excel::download(
-                        new CustomerExport(),
-                        'customers-' . now()->format('Ymd') . '.xlsx'
-                    )),
+                    ->action(function () {
+                        // Ekspor berisi data pribadi (nama, email, WhatsApp, alamat): dicatat, konsisten dengan laporan lain.
+                        try {
+                            activity('report_export')
+                                ->causedBy(auth()->user())
+                                ->withProperties(['report' => 'customer', 'format' => 'xlsx'])
+                                ->log('Ekspor Daftar Pelanggan (xlsx)');
+                        } catch (\Throwable $e) {
+                            report($e);
+                        }
+
+                        return Excel::download(
+                            new CustomerExport(),
+                            'customers-' . now()->format('Ymd') . '.xlsx'
+                        );
+                    }),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 static::personalDataTableAction(),
                 static::setReferralTableAction(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn (Customer $record) => ! $record->deleted_at),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -464,10 +494,13 @@ class CustomerResource extends Resource
                         ->label('Atur Grup Pelanggan')
                         ->icon('heroicon-o-user-group')
                         ->color('gray')
+                        // Grup menentukan harga khusus pelanggan: butuh hak "ubah".
+                        ->visible(fn () => static::canEdit(new Customer()))
                         ->form([
                             Forms\Components\Select::make('customer_group_id')
                                 ->label('Grup Pelanggan')
                                 ->options(fn () => \App\Models\CustomerGroup::where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
+                                ->in(fn () => \App\Models\CustomerGroup::where('is_active', true)->pluck('id')->all())
                                 ->placeholder('Tidak ada grup (hapus dari grup)')
                                 ->native(false),
                         ])
