@@ -6,11 +6,16 @@ use App\Exports\CustomerExport;
 use App\Filament\Resources\CustomerResource;
 use App\Filament\Resources\CustomerResource\Pages\ListCustomers;
 use App\Filament\Resources\CustomerResource\Pages\ViewCustomer;
+use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Models\DeviceToken;
 use App\Models\Partner;
+use App\Models\ProductInquiry;
+use App\Models\Quotation;
 use App\Models\Store;
 use App\Models\User;
+use App\Models\Vehicle;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -20,6 +25,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * Daftar Pelanggan: akun dibuat lewat app (bukan admin), daftar + pencarian + filter status akun (akun yang dihapus
@@ -275,21 +281,87 @@ class CustomerResourceTest extends TestCase
 
     // ------------------------------------------------------------- hapus
 
-    public function test_admin_delete_is_a_soft_delete_and_the_row_stays_reachable(): void
+    public function test_admin_delete_anonymises_the_account_but_keeps_the_history(): void
     {
-        $customer = $this->customer('Budi Santoso');
-        $this->as($this->user('super_admin'));
+        $customer = $this->customer('Budi Santoso', ['email' => 'budi@example.com', 'phone_number' => '081234567890']);
+        $booking = Booking::create([
+            'booking_number' => 'BKG-T-' . strtoupper(uniqid()), 'customer_id' => $customer->id, 'store_id' => $this->store->id,
+            'service_type' => 'PPF', 'product_ppf' => true, 'preferred_date' => '2026-10-09', 'status' => 'completed',
+        ]);
+        DeviceToken::create(['customer_id' => $customer->id, 'token' => 'tok-' . uniqid(), 'platform' => 'android']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Raize', 'size_category' => 'M']);
+        $byPhone = Quotation::create(['quotation_number' => 'QTN-A-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Budi', 'customer_phone' => '081234567890', 'customer_email' => 'lain@example.com', 'status' => 'draft']);
+        $byEmail = Quotation::create(['quotation_number' => 'QTN-B-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Budi', 'customer_phone' => '0899000111', 'customer_email' => 'budi@example.com', 'status' => 'draft']);
+        $other = Quotation::create(['quotation_number' => 'QTN-C-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Orang Lain', 'customer_phone' => '0877000222', 'customer_email' => 'orang@example.com', 'status' => 'draft']);
+        $inquiry = ProductInquiry::create(['customer_name' => 'Budi', 'customer_contact' => 'budi@example.com', 'message' => 'Tanya produk']);
 
+        $this->as($this->user('super_admin'));
         Livewire::test(ListCustomers::class)
             ->assertTableActionVisible('delete', $customer)
             ->callTableAction('delete', $customer);
 
         $this->assertNull(Customer::find($customer->id));
-        $this->assertNotNull(Customer::withTrashed()->find($customer->id)->deleted_at);
+        $gone = Customer::withTrashed()->findOrFail($customer->id);
+        $this->assertNotNull($gone->deleted_at);
+        $this->assertNull($gone->name);
+        $this->assertNull($gone->email, 'Data pribadi benar-benar dihapus, bukan hanya disembunyikan.');
+        $this->assertNull($gone->phone_number);
+
+        $this->assertSame($customer->id, $booking->fresh()->customer_id, 'Booking tetap utuh.');
+        $this->assertSame(0, DeviceToken::where('customer_id', $customer->id)->count());
+
+        foreach ([$byPhone, $byEmail] as $lead) {
+            $fresh = $lead->fresh();
+            $this->assertSame('Pelanggan Terhapus', $fresh->customer_name);
+            $this->assertNull($fresh->customer_phone);
+            $this->assertNull($fresh->customer_email, 'Email di lead ikut dihapus, baik cocok lewat telepon maupun email.');
+        }
+        $this->assertSame('Orang Lain', $other->fresh()->customer_name);
+        $this->assertSame('orang@example.com', $other->fresh()->customer_email);
+        $this->assertSame('-', $inquiry->fresh()->customer_contact);
 
         Livewire::test(ListCustomers::class)
             ->filterTable('deleted_at', true)
-            ->assertCanSeeTableRecords([Customer::withTrashed()->find($customer->id)]);
+            ->assertCanSeeTableRecords([$gone]);
+    }
+
+    public function test_bulk_delete_anonymises_every_selected_account_and_skips_deleted_ones(): void
+    {
+        $a = $this->customer('Budi Santoso', ['email' => 'a@example.com', 'phone_number' => '081111111111']);
+        $b = $this->customer('Siti Aminah', ['email' => 'b@example.com', 'phone_number' => '082222222222']);
+        $keep = $this->customer('Tidak Dipilih', ['email' => 'c@example.com']);
+
+        $this->as($this->user('kasir'));
+        Livewire::test(ListCustomers::class)->assertTableBulkActionHidden('delete');
+
+        $this->as($this->user('super_admin'));
+        Livewire::test(ListCustomers::class)
+            ->callTableBulkAction('delete', [$a, $b])
+            ->assertNotified('2 akun pelanggan dihapus');
+
+        foreach ([$a, $b] as $gone) {
+            $row = Customer::withTrashed()->findOrFail($gone->id);
+            $this->assertNotNull($row->deleted_at);
+            $this->assertNull($row->email);
+            $this->assertNull($row->phone_number);
+        }
+        $this->assertSame('c@example.com', $keep->fresh()->email);
+    }
+
+    public function test_the_app_delete_endpoint_uses_the_same_anonymisation(): void
+    {
+        $customer = $this->customer('Budi Santoso', ['email' => 'budi@example.com', 'phone_number' => '081234567890']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Raize', 'size_category' => 'M']);
+        $lead = Quotation::create(['quotation_number' => 'QTN-D-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Budi', 'customer_phone' => '0899000111', 'customer_email' => 'budi@example.com', 'status' => 'draft']);
+
+        $token = JWTAuth::fromUser($customer);
+        $this->withHeader('Authorization', "Bearer {$token}")->deleteJson('/api/customer/auth/account')->assertSuccessful();
+
+        $row = Customer::withTrashed()->findOrFail($customer->id);
+        $this->assertNull($row->email);
+        $this->assertNull($row->name);
+        $this->assertNull($lead->fresh()->customer_email);
+        $this->assertSame('Pelanggan Terhapus', $lead->fresh()->customer_name);
     }
 
     // ------------------------------------------------------------- halaman lihat

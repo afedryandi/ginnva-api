@@ -480,8 +480,17 @@ class CustomerResource extends Resource
                 Tables\Actions\ViewAction::make(),
                 static::personalDataTableAction(),
                 static::setReferralTableAction(),
+                // Hapus = jalur yang SAMA dengan "Hapus Akun" di app (CustomerAccountDeletionService): data pribadi
+                // dianonimkan, bukan sekadar disembunyikan. Booking & garansi tetap utuh.
                 Tables\Actions\DeleteAction::make()
-                    ->visible(fn (Customer $record) => ! $record->deleted_at),
+                    ->visible(fn (Customer $record) => ! $record->deleted_at)
+                    ->modalHeading('Hapus Akun Pelanggan?')
+                    ->modalDescription('Nama, email, dan nomor WhatsApp pelanggan ini akan dihapus PERMANEN (dianonimkan) dan tidak bisa dipulihkan. Riwayat booking dan garansinya tetap tersimpan tanpa identitas.')
+                    ->using(function (Customer $record) {
+                        app(\App\Services\CustomerAccountDeletionService::class)->delete($record);
+
+                        return true;
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -514,7 +523,32 @@ class CustomerResource extends Resource
                         })
                         ->deselectRecordsAfterCompletion(),
 
-                    Tables\Actions\DeleteBulkAction::make(),
+                    // Sama dengan hapus satuan: anonimisasi lewat CustomerAccountDeletionService (DeleteBulkAction bawaan
+                    // hanya soft delete dan meninggalkan data pribadi).
+                    Tables\Actions\BulkAction::make('delete')
+                        ->label('Hapus')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->visible(fn () => static::canDelete(new Customer()))
+                        ->requiresConfirmation()
+                        ->modalHeading('Hapus Akun Pelanggan Terpilih?')
+                        ->modalDescription('Nama, email, dan nomor WhatsApp semua pelanggan terpilih akan dihapus PERMANEN (dianonimkan) dan tidak bisa dipulihkan. Riwayat booking dan garansinya tetap tersimpan tanpa identitas.')
+                        ->action(function (\Illuminate\Support\Collection $records) {
+                            $service = app(\App\Services\CustomerAccountDeletionService::class);
+                            $deleted = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->deleted_at) {
+                                    continue;
+                                }
+
+                                $service->delete($record);
+                                $deleted++;
+                            }
+
+                            Notification::make()->title("{$deleted} akun pelanggan dihapus")->success()->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
