@@ -290,9 +290,9 @@ class CustomerResourceTest extends TestCase
         ]);
         DeviceToken::create(['customer_id' => $customer->id, 'token' => 'tok-' . uniqid(), 'platform' => 'android']);
         $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Raize', 'size_category' => 'M']);
-        $byPhone = Quotation::create(['quotation_number' => 'QTN-A-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Budi', 'customer_phone' => '081234567890', 'customer_email' => 'lain@example.com', 'status' => 'draft']);
-        $byEmail = Quotation::create(['quotation_number' => 'QTN-B-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Budi', 'customer_phone' => '0899000111', 'customer_email' => 'budi@example.com', 'status' => 'draft']);
-        $other = Quotation::create(['quotation_number' => 'QTN-C-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Orang Lain', 'customer_phone' => '0877000222', 'customer_email' => 'orang@example.com', 'status' => 'draft']);
+        $byPhone = Quotation::create(['quotation_number' => 'QTN-A-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Budi', 'customer_phone' => '081234567890', 'customer_email' => 'lain@example.com', 'status' => 'new']);
+        $byEmail = Quotation::create(['quotation_number' => 'QTN-B-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Budi', 'customer_phone' => '0899000111', 'customer_email' => 'budi@example.com', 'status' => 'new']);
+        $other = Quotation::create(['quotation_number' => 'QTN-C-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Orang Lain', 'customer_phone' => '0877000222', 'customer_email' => 'orang@example.com', 'status' => 'new']);
         $inquiry = ProductInquiry::create(['customer_name' => 'Budi', 'customer_contact' => 'budi@example.com', 'message' => 'Tanya produk']);
 
         $this->as($this->user('super_admin'));
@@ -352,7 +352,7 @@ class CustomerResourceTest extends TestCase
     {
         $customer = $this->customer('Budi Santoso', ['email' => 'budi@example.com', 'phone_number' => '081234567890']);
         $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Raize', 'size_category' => 'M']);
-        $lead = Quotation::create(['quotation_number' => 'QTN-D-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Budi', 'customer_phone' => '0899000111', 'customer_email' => 'budi@example.com', 'status' => 'draft']);
+        $lead = Quotation::create(['quotation_number' => 'QTN-D-' . uniqid(), 'vehicle_id' => $vehicle->id, 'customer_name' => 'Budi', 'customer_phone' => '0899000111', 'customer_email' => 'budi@example.com', 'status' => 'new']);
 
         $token = JWTAuth::fromUser($customer);
         $this->withHeader('Authorization', "Bearer {$token}")->deleteJson('/api/customer/auth/account')->assertSuccessful();
