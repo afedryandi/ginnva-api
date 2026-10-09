@@ -117,11 +117,11 @@ class RewardRedemptionResourceTest extends TestCase
         $this->assertTrue(RewardRedemptionResource::canViewAny());
         $this->assertTrue(RewardRedemptionResource::canEdit($record));
         $this->assertFalse(RewardRedemptionResource::canCreate(), 'Penukaran hanya dibuat dari app.');
-        $this->assertFalse(RewardRedemptionResource::canDelete($record));
 
         $this->as($this->user('kasir'));
         $this->assertTrue(RewardRedemptionResource::canViewAny());
         $this->assertTrue(RewardRedemptionResource::canEdit($record));
+        $this->assertFalse(RewardRedemptionResource::canDelete($record), 'Penukaran tidak pernah dihapus lewat panel.');
 
         $this->as($this->user('kasir', ['BookingResource']));
         $this->assertFalse(RewardRedemptionResource::canViewAny());

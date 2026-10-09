@@ -77,7 +77,7 @@ class RewardRedemptionObserver
             // poin lain yang mungkin berjalan bersamaan (input manual,
             // redeem baru, dst), sama seperti pola di RewardRedemptionService
             // & CreatePartnerPointTransaction.
-            $redeemer = $redeemer->newQuery()->where('id', $redeemer->id)->lockForUpdate()->first();
+            $redeemer = $redeemer->newQueryWithoutScopes()->where('id', $redeemer->id)->lockForUpdate()->first();
 
             if ($refund) {
                 $redeemer->increment($balanceField, $points);
