@@ -221,7 +221,7 @@ class TechnicianUtilizationReportTest extends TestCase
         $this->assertSame('2026-09-20', $page->instance()->to);
 
         $page = Livewire::test(TechnicianUtilizationReport::class)->set('from', '2026-09-07')->set('to', '2026-09-13');
-        $page->set('to', '2026-09-01')
+        $page->set('data.to', '2026-09-01')
             ->assertNotified('Tanggal "Sampai" tidak boleh sebelum "Dari"');
         $this->assertSame('2026-09-07', $page->instance()->to);
     }
