@@ -33,6 +33,20 @@ class SendNotification extends Page implements HasForms
 
     public ?array $data = [];
 
+    /** Rute tujuan deep link yang sah (harus sama dengan pilihan di form). */
+    private const DEEP_LINK_ROUTES = [
+        '/account/my-warranties', '/account/my-bookings', '/account/notifications', '/account/edit-profile',
+        '/warranty/check', '/booking', '/quotation', '/partnership',
+        '/news', '/brand', '/products',
+    ];
+
+    private function customerLabel($customer): string
+    {
+        return $customer->name
+            ? "{$customer->name} ({$customer->email})"
+            : ($customer->email ?? "Customer #{$customer->id}");
+    }
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -84,15 +98,22 @@ class SendNotification extends Page implements HasForms
                     ->label('Pilih Pelanggan')
                     ->multiple()
                     ->searchable()
-                    ->preload()
-                    ->options(fn () => Customer::query()
+                    // Pencarian bertahap (maks. 50 hasil), bukan memuat SEMUA pelanggan ke dropdown tiap halaman dibuka --
+                    // makin berat begitu basis pelanggan tumbuh.
+                    ->getSearchResultsUsing(fn (string $search) => Customer::query()
+                        ->where(fn ($q) => $q->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%")
+                            ->orWhere('phone_number', 'like', "%{$search}%"))
+                        ->orderBy('name')
+                        ->limit(50)
                         ->get(['id', 'name', 'email'])
-                        ->mapWithKeys(fn ($c) => [
-                            $c->id => $c->name
-                                ? "{$c->name} ({$c->email})"
-                                : ($c->email ?? "Customer #{$c->id}"),
-                        ])
-                    )
+                        ->mapWithKeys(fn ($c) => [$c->id => $this->customerLabel($c)])
+                        ->all())
+                    ->getOptionLabelsUsing(fn (array $values) => Customer::query()
+                        ->whereIn('id', $values)
+                        ->get(['id', 'name', 'email'])
+                        ->mapWithKeys(fn ($c) => [$c->id => $this->customerLabel($c)])
+                        ->all())
                     ->visible(fn ($get) => $get('audience') === 'customer' && !$get('broadcast'))
                     ->requiredIf('broadcast', false),
 
@@ -121,6 +142,9 @@ class SendNotification extends Page implements HasForms
                     ->schema([
                         Select::make('deep_link_route')
                             ->label('Tujuan Halaman')
+                            // Hanya rute yang ada di daftar yang boleh dikirim ke aplikasi (nilai kiriman tidak otomatis
+                            // divalidasi terhadap pilihan).
+                            ->in(self::DEEP_LINK_ROUTES)
                             ->placeholder('— Tidak ada (buka beranda) —')
                             ->options([
                                 'Akun'     => [
@@ -148,6 +172,8 @@ class SendNotification extends Page implements HasForms
                             ->placeholder('contoh: 42')
                             ->helperText('Isi ID garansi/booking jika tujuan adalah halaman detail spesifik.')
                             ->numeric()
+                            ->integer()
+                            ->minValue(1)
                             ->visible(fn ($get) => in_array($get('deep_link_route'), [
                                 '/account/my-warranties',
                                 '/account/my-bookings',

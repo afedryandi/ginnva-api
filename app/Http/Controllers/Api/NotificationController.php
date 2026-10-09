@@ -436,7 +436,8 @@ class NotificationController extends Controller
             // seluruh batch gagal kena FK constraint error mentah —
             // customer_notifications.customer_id bukan nullable-safe
             // terhadap ID yang tidak ada.
-            'customer_ids.*' => 'integer|exists:customers,id',
+            // whereNull('deleted_at'): akun yang sudah dihapus (dianonimkan) bukan penerima yang sah.
+            'customer_ids.*' => ['integer', \Illuminate\Validation\Rule::exists('customers', 'id')->whereNull('deleted_at')],
             'data'           => 'nullable|array',
         ]);
 
