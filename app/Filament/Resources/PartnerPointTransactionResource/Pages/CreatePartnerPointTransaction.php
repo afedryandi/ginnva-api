@@ -43,7 +43,9 @@ class CreatePartnerPointTransaction extends CreateRecord
             $partner = Partner::where('id', $data['partner_id'])->lockForUpdate()->first();
 
             if (! $partner) {
-                throw new RuntimeException('Partner tidak ditemukan.');
+                Notification::make()->title('Partner tidak ditemukan.')->danger()->send();
+
+                $this->halt();
             }
 
             if ($data['type'] === 'spend' && $partner->points_balance < $data['points']) {

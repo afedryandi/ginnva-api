@@ -112,19 +112,25 @@ class PartnerPointTransactionResource extends Resource
                     'earn'  => 'Dapat Poin (+)',
                     'spend' => 'Pakai Poin (-)',
                 ])
+                ->in(['earn', 'spend'])
                 ->required()
                 ->live(),
 
             Forms\Components\TextInput::make('points')
                 ->label('Jumlah Poin')
                 ->numeric()
+                // Kolom integer unsigned: desimal terpotong diam-diam, angka raksasa meluap dengan error mentah.
+                ->integer()
                 ->minValue(1)
+                ->maxValue(1000000)
                 ->required(),
 
             Forms\Components\Textarea::make('description')
                 ->label('Keterangan')
                 ->placeholder('Wajib diisi — jelaskan alasan poin ini diberikan/dikurangi, supaya bisa ditelusuri nanti.')
                 ->required()
+                // Kolom description hanya 255 karakter: lebih panjang ditolak database dengan error mentah.
+                ->maxLength(255)
                 ->columnSpanFull(),
         ]);
     }
