@@ -34,11 +34,13 @@ class CreatePointTransaction extends CreateRecord
      */
     protected function handleRecordCreation(array $data): Model
     {
-        return DB::transaction(function () use ($data) {
+        $record = DB::transaction(function () use ($data) {
             $customer = Customer::where('id', $data['customer_id'])->lockForUpdate()->first();
 
             if (! $customer) {
-                throw new RuntimeException('Customer tidak ditemukan.');
+                Notification::make()->title('Customer tidak ditemukan atau akunnya sudah dihapus.')->danger()->send();
+
+                $this->halt();
             }
 
             if ($data['type'] === 'spend' && $customer->loyalty_points < $data['points']) {
@@ -59,20 +61,24 @@ class CreatePointTransaction extends CreateRecord
                 $customer->decrement('loyalty_points', $data['points']);
             }
 
-            // Push notifikasi ditambahkan 2026-09-26 (audit Riwayat Poin
-            // Customer) -- SEBELUMNYA adjustment manual admin tidak
-            // memberi tahu customer sama sekali, tidak konsisten dengan
-            // Warranty/Reward yang sudah push saat customer dapat/
-            // kehilangan poin.
+            return $record;
+        });
+
+        // Push notifikasi ditambahkan 2026-09-26 (audit Riwayat Poin Customer) -- SEBELUMNYA adjustment manual admin tidak
+        // memberi tahu customer sama sekali. Dikirim SETELAH transaksi selesai dan dibungkus try/catch: kegagalan push
+        // tidak boleh membatalkan entri poin yang sudah sah.
+        try {
             app(\App\Services\PushNotificationService::class)->sendToCustomer(
-                $customer->id,
+                (int) $data['customer_id'],
                 $data['type'] === 'earn' ? 'Poin Bertambah' : 'Poin Berkurang',
                 $data['type'] === 'earn'
                     ? "Anda mendapat {$data['points']} poin: {$data['description']}"
                     : "{$data['points']} poin Anda dikurangi: {$data['description']}"
             );
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
-            return $record;
-        });
+        return $record;
     }
 }

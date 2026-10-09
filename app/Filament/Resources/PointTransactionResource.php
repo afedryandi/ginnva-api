@@ -116,19 +116,25 @@ class PointTransactionResource extends Resource
                     'earn'  => 'Dapat Poin (+)',
                     'spend' => 'Pakai Poin (-)',
                 ])
+                ->in(['earn', 'spend'])
                 ->required()
                 ->live(),
 
             Forms\Components\TextInput::make('points')
                 ->label('Jumlah Poin')
                 ->numeric()
+                // Kolom integer unsigned: desimal terpotong diam-diam, angka raksasa meluap dengan error mentah.
+                ->integer()
                 ->minValue(1)
+                ->maxValue(1000000)
                 ->required(),
 
             Forms\Components\Textarea::make('description')
                 ->label('Keterangan')
                 ->placeholder('Wajib diisi — jelaskan alasan poin ini diberikan/dikurangi, supaya bisa ditelusuri nanti.')
                 ->required()
+                // Kolom description hanya 255 karakter: lebih panjang ditolak database dengan error mentah.
+                ->maxLength(255)
                 ->columnSpanFull(),
         ]);
     }
@@ -143,7 +149,8 @@ class PointTransactionResource extends Resource
         // ->with('createdBy') ditambah 2026-09-26 (audit Riwayat Poin
         // Customer) -- kolom dot-notation createdBy.name baru, sama
         // pola N+1 yang harus dieager-load eksplisit.
-        return parent::getEloquentQuery()->with(['customer', 'createdBy']);
+        // Akun pelanggan yang sudah dihapus (dianonimkan) tetap dimuat supaya barisnya tidak kehilangan pemegang.
+        return parent::getEloquentQuery()->with(['customer' => fn ($query) => $query->withTrashed(), 'createdBy']);
     }
 
     public static function table(Table $table): Table
@@ -153,6 +160,7 @@ class PointTransactionResource extends Resource
                 Tables\Columns\TextColumn::make('customer.name')
                     ->label('Customer')
                     ->placeholder('—')
+                    ->formatStateUsing(fn (?string $state, PointTransaction $record) => $state ?? ($record->customer?->deleted_at ? '(Akun Dihapus)' : '—'))
                     ->searchable()
                     ->sortable(),
 
