@@ -14,6 +14,19 @@ class ListRewards extends ListRecords
 {
     protected static string $resource = RewardResource::class;
 
+    /** Log ekspor, konsisten dengan laporan lain. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'reward', 'format' => $format])
+                ->log('Ekspor Katalog Reward (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     /**
      * "Ekspor Reward" (audit 2026-09-14, temuan pola standar).
      */
@@ -24,16 +37,22 @@ class ListRewards extends ListRecords
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new RewardExport,
-                    'katalog-reward-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new RewardExport,
+                        'katalog-reward-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Actions\Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $rewards = Reward::query()->orderBy('points_cost')->get();
                     $pdf = Pdf::loadView('pdf.rewards', ['rewards' => $rewards])->setPaper('a4', 'portrait');
                     $filename = 'katalog-reward-' . now()->format('Ymd-His') . '.pdf';

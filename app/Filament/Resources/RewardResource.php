@@ -104,8 +104,11 @@ class RewardResource extends Resource
                     Forms\Components\TextInput::make('points_cost')
                         ->label('Harga (Poin)')
                         ->numeric()
+                        // Kolom integer: nilai desimal sebelumnya terpotong diam-diam, nilai raksasa meluap di database.
+                        ->integer()
                         ->required()
                         ->minValue(1)
+                        ->maxValue(100000000)
                         // Gap diperbaiki 2026-09-26 (audit Katalog Reward)
                         // -- riwayat penukaran LAMA tetap aman (points_spent
                         // sudah di-snapshot ke RewardRedemption, TIDAK
@@ -122,7 +125,9 @@ class RewardResource extends Resource
                     Forms\Components\TextInput::make('stock')
                         ->label('Stok')
                         ->numeric()
+                        ->integer()
                         ->minValue(0)
+                        ->maxValue(1000000)
                         ->helperText('Kosongkan kalau stok tidak dibatasi (mis. voucher diskon).'),
 
                     Forms\Components\Toggle::make('is_active')
