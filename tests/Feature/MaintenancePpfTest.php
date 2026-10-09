@@ -338,6 +338,8 @@ class MaintenancePpfTest extends TestCase
         $this->actingAs($me, 'customer')->postJson("/api/customer/maintenance-schedules/{$schedule->id}/confirm")->assertStatus(201);
         $booking = Booking::firstOrFail();
 
+        // Yang menyelesaikan booking adalah staf (pengamat booking mencatat pelakunya); actingAs customer di atas masih aktif.
+        $this->actingAs($this->staff('super_admin'), 'web');
         $booking->update(['status' => 'confirmed']);
         $booking->update(['status' => 'completed', 'current_stage' => 'completed']);
 
