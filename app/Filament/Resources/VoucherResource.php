@@ -112,6 +112,8 @@ class VoucherResource extends Resource
                         ->numeric()
                         ->required()
                         ->minValue(1)
+                        // Kolom decimal(12,2): angka lebih besar meluap dan ditolak database dengan error mentah.
+                        ->maxValue(9999999999)
                         // Bug diperbaiki 2026-09-26 (audit Voucher Promo) --
                         // SEBELUMNYA tetap bisa diedit bebas kapan saja.
                         // VoucherClaim TIDAK punya kolom discount_amount
@@ -137,6 +139,7 @@ class VoucherResource extends Resource
                         ->numeric()
                         ->required()
                         ->minValue(1)
+                        ->maxValue(1000000)
                         ->disabled(fn (?Voucher $record) => $record !== null)
                         ->dehydrated()
                         ->helperText(fn (?Voucher $record) => $record
@@ -145,6 +148,8 @@ class VoucherResource extends Resource
 
                     Forms\Components\DateTimePicker::make('expires_at')
                         ->label('Kedaluwarsa (opsional)')
+                        // Kampanye baru tidak boleh langsung lahir kedaluwarsa; saat mengubah kampanye lama tanggal bebas.
+                        ->minDate(fn (?Voucher $record) => $record === null ? now() : null)
                         ->helperText('Kosongkan kalau voucher berlaku selama stok masih ada.'),
 
                     Forms\Components\Toggle::make('is_active')

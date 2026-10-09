@@ -133,7 +133,8 @@ class ClaimsRelationManager extends RelationManager
                         Forms\Components\TextInput::make('code')
                             ->label('Kode Voucher Fisik')
                             ->required()
-                            ->maxLength(30)
+                            // Kolom voucher_claims.code hanya 20 karakter: lebih panjang ditolak database dengan error mentah.
+                            ->maxLength(20)
                             ->helperText('Salin persis kode yang tertera di voucher fisik.'),
 
                         // Opsional — kalau diisi, voucher ini tercatat dipakai

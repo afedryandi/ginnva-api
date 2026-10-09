@@ -126,6 +126,13 @@ class VoucherService
                 throw new RuntimeException("Kode \"{$codeUpper}\" sudah pernah diinput sebelumnya.");
             }
 
+            // Aturan basis data: 1 akun hanya 1 kode per kampanye. Diperiksa di sini supaya pesannya jelas (sebelumnya
+            // tertangkap sebagai "kode diklaim proses lain" yang menyesatkan).
+            if (isset($holderAttributes['customer_id'])
+                && VoucherClaim::where('voucher_id', $locked->id)->where('customer_id', $holderAttributes['customer_id'])->exists()) {
+                throw new RuntimeException('Customer ini sudah punya kode dari kampanye voucher ini (1 akun hanya 1 kode per kampanye).');
+            }
+
             $claim = VoucherClaim::create(array_merge([
                 'voucher_id' => $locked->id,
                 'code'       => $codeUpper,
