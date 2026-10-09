@@ -201,4 +201,38 @@ class TechnicianUtilizationReportTest extends TestCase
             ->callAction('exportPdf')
             ->assertFileDownloaded();
     }
+
+    // ------------------------------------------------------------- perbaikan audit
+
+    public function test_staff_without_a_store_sees_no_technicians(): void
+    {
+        $this->technician('Andi');
+        $viewer = $this->user('store_manager');
+        $viewer->forceFill(['store_id' => null])->save();
+
+        $this->assertSame([], $this->names($this->page($viewer->fresh())));
+    }
+
+    public function test_to_before_from_is_corrected_with_a_warning(): void
+    {
+        $this->actingAs($this->user('super_admin'), 'web');
+
+        $page = Livewire::test(TechnicianUtilizationReport::class, ['from' => '2026-09-20', 'to' => '2026-09-01']);
+        $this->assertSame('2026-09-20', $page->instance()->to);
+
+        $page = Livewire::test(TechnicianUtilizationReport::class)->set('from', '2026-09-07')->set('to', '2026-09-13');
+        $page->set('to', '2026-09-01')
+            ->assertNotified('Tanggal "Sampai" tidak boleh sebelum "Dari"');
+        $this->assertSame('2026-09-07', $page->instance()->to);
+    }
+
+    public function test_exports_are_logged(): void
+    {
+        $this->technician('Andi', null, 1);
+        \Maatwebsite\Excel\Facades\Excel::fake();
+
+        $this->page($this->user('super_admin'))->callAction('exportExcel');
+
+        $this->assertDatabaseHas('activity_log', ['log_name' => 'report_export', 'description' => 'Ekspor Utilisasi Teknisi (xlsx)']);
+    }
 }

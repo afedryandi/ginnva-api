@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Booking;
 use App\Models\Store;
 use App\Models\Technician;
 use Illuminate\Support\Carbon;
@@ -66,7 +67,11 @@ class TechnicianUtilizationService
             ->join('bookings', 'bookings.id', '=', 'booking_installers.booking_id')
             ->whereIn('booking_installers.user_id', $userIds)
             ->where('bookings.status', 'completed')
-            ->whereBetween('bookings.preferred_date', [$from->toDateString(), $to->toDateString()])
+            // Job yang MULAI sebelum rentang tapi masih berjalan di dalamnya ikut dihitung (bagian yang overlap saja):
+            // sebelumnya hanya yang preferred_date-nya di dalam rentang, jadi hari-hari awal bulan selalu terhitung kurang.
+            // 60 hari ke belakang cukup untuk durasi job terpanjang (maks. 14 hari kerja).
+            ->where('bookings.preferred_date', '<=', $to->toDateString())
+            ->where('bookings.preferred_date', '>=', $from->copy()->subDays(60)->toDateString())
             ->select('booking_installers.user_id', 'bookings.store_id', 'bookings.preferred_date', 'bookings.duration_days')
             ->get();
 
@@ -88,19 +93,29 @@ class TechnicianUtilizationService
         $jobHoursByUser = [];
         foreach ($bookingRows as $row) {
             $store = $storesById->get($row->store_id);
+            $duration = max(1, (int) ($row->duration_days ?? 1));
             $jobStart = Carbon::parse($row->preferred_date);
-            $jobEnd = $jobStart->copy()->addDays(max(0, (int) ($row->duration_days ?? 1) - 1));
 
-            $overlapStart = $jobStart->greaterThan($from) ? $jobStart : $from->copy();
-            $overlapEnd = $jobEnd->lessThan($to) ? $jobEnd : $to->copy();
-
-            if ($overlapStart->greaterThan($overlapEnd)) {
-                continue;
+            // duration_days adalah jumlah HARI KERJA (hari toko tutup tidak dihitung, sama dengan hitungan kapasitas di
+            // Booking): sebelumnya dijumlahkan sebagai hari kalender, jadi hari libur toko ikut dihitung 8 jam kerja.
+            try {
+                $workingDates = Booking::workingDatesInRange((int) $row->store_id, $jobStart->copy(), $duration, $store);
+            } catch (\RuntimeException $e) {
+                // Jam operasional toko salah isi (tutup terus): kembali ke hari kalender daripada menggagalkan laporan.
+                $workingDates = collect(range(0, $duration - 1))->map(fn ($i) => $jobStart->copy()->addDays($i)->toDateString())->all();
             }
 
             $hours = 0.0;
-            for ($day = $overlapStart->copy(); $day->lte($overlapEnd); $day->addDay()) {
-                $hours += $this->dailyStandardHours($store, $day);
+            foreach ($workingDates as $date) {
+                if ($date < $from->toDateString() || $date > $to->toDateString()) {
+                    continue;
+                }
+
+                $hours += $this->dailyStandardHours($store, Carbon::parse($date));
+            }
+
+            if ($hours <= 0) {
+                continue;
             }
 
             $jobHoursByUser[$row->user_id] = ($jobHoursByUser[$row->user_id] ?? 0) + $hours;

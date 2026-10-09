@@ -129,4 +129,54 @@ class TechnicianUtilizationServiceTest extends TestCase
 
         $this->assertSame(0.0, $row['job_hours']);
     }
+
+    private function jobHoursFor(Store $store, array $booking, string $from, string $to): float
+    {
+        $user = User::create(['name' => 'T ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $technician = Technician::create(['store_id' => $store->id, 'user_id' => $user->id, 'name' => $user->name, 'status' => 'active']);
+        $this->makeBooking($store, $booking)->installers()->attach($user->id);
+
+        $row = app(TechnicianUtilizationService::class)
+            ->summarize(Carbon::parse($from), Carbon::parse($to))
+            ->firstWhere('technician_id', $technician->id);
+
+        return $row['job_hours'];
+    }
+
+    public function test_a_job_that_started_before_the_range_counts_only_its_overlapping_days(): void
+    {
+        $store = $this->makeStore();
+
+        // 3 hari berjalan mulai 5 Sep (Sab) -> 5,6,7 Sep; rentang mulai 7 Sep => hanya 1 hari (8 jam).
+        $hours = $this->jobHoursFor($store, ['preferred_date' => '2026-09-05', 'duration_days' => 3], '2026-09-07', '2026-09-13');
+
+        $this->assertSame(8.0, $hours);
+    }
+
+    public function test_a_job_running_past_the_end_of_the_range_is_clipped(): void
+    {
+        $store = $this->makeStore();
+
+        // Mulai 12 Sep, 4 hari -> 12,13,14,15; rentang sampai 13 Sep => 2 hari (16 jam).
+        $hours = $this->jobHoursFor($store, ['preferred_date' => '2026-09-12', 'duration_days' => 4], '2026-09-07', '2026-09-13');
+
+        $this->assertSame(16.0, $hours);
+    }
+
+    public function test_store_closed_days_do_not_count_as_working_hours(): void
+    {
+        $store = Store::create([
+            'city' => 'Jakarta', 'address' => 'Jl. Test 2', 'name' => 'Toko Libur Minggu', 'is_active' => true,
+            'opening_hours' => [
+                ['days' => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'], 'open' => '08:00', 'close' => '16:00'],
+                ['days' => ['sun'], 'closed' => true],
+            ],
+        ]);
+
+        // Mulai Sab 12 Sep, 2 hari kerja -> Sabtu 12 + Senin 14 (Minggu 13 libur).
+        // Rentang 12-13 Sep: hanya Sabtu terhitung = 8 jam (sebelumnya Minggu ikut terhitung = 16 jam).
+        $hours = $this->jobHoursFor($store, ['preferred_date' => '2026-09-12', 'duration_days' => 2], '2026-09-07', '2026-09-13');
+
+        $this->assertSame(8.0, $hours);
+    }
 }

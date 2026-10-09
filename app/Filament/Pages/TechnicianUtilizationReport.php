@@ -82,6 +82,11 @@ class TechnicianUtilizationReport extends Page implements HasForms
             $this->storeId = null;
         }
 
+        // "Sampai" sebelum "Dari" lewat URL yang diutak-atik: dikoreksi diam-diam (sama pola dengan laporan lain).
+        if (Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+        }
+
         $this->form->fill([
             'from' => $this->from,
             'to' => $this->to,
@@ -112,6 +117,17 @@ class TechnicianUtilizationReport extends Page implements HasForms
             'sort' => $this->sort = $value,
             default => null,
         };
+
+        if (in_array($key, ['from', 'to'], true) && $this->from && $this->to && Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+            $this->data['to'] = $this->from;
+
+            \Filament\Notifications\Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
     }
 
     public function form(Form $form): Form
@@ -146,7 +162,8 @@ class TechnicianUtilizationReport extends Page implements HasForms
     public function getRows(): Collection
     {
         $user = auth()->user();
-        $storeId = $user?->isFullAccess() ? $this->storeId : $user?->store_id;
+        // Staf tanpa toko: -1 (tidak cocok toko mana pun), bukan null -- null artinya "semua cabang" di layanan.
+        $storeId = $user?->isFullAccess() ? $this->storeId : ($user?->store_id ?? -1);
 
         $rows = app(TechnicianUtilizationService::class)->summarize(
             Carbon::parse($this->from)->startOfDay(),
@@ -179,6 +196,19 @@ class TechnicianUtilizationReport extends Page implements HasForms
         ];
     }
 
+    /** Log ekspor, konsisten dengan laporan lain. */
+    private function logExport(string $format): void
+    {
+        try {
+            activity('report_export')
+                ->causedBy(auth()->user())
+                ->withProperties(['report' => 'technician_utilization', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->storeId])
+                ->log('Ekspor Utilisasi Teknisi (' . $format . ')');
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -186,16 +216,22 @@ class TechnicianUtilizationReport extends Page implements HasForms
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new TechnicianUtilizationExport($this->getResult()),
-                    'utilisasi-teknisi-' . now()->format('Ymd-His') . '.xlsx'
-                )),
+                ->action(function () {
+                    $this->logExport('xlsx');
+
+                    return Excel::download(
+                        new TechnicianUtilizationExport($this->getResult()),
+                        'utilisasi-teknisi-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
 
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
+                    $this->logExport('pdf');
+
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.technician_utilization_report', ['result' => $result])->setPaper('a4', 'landscape');
                     $filename = 'utilisasi-teknisi-' . now()->format('Ymd-His') . '.pdf';
