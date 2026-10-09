@@ -132,10 +132,12 @@ class StoreResourceTest extends TestCase
 
     public function test_list_search_filter_hours_and_review_score(): void
     {
-        $jkt = Store::create(['city' => 'Jakarta Selatan', 'address' => 'Jl. X', 'name' => 'Ginnva House', 'is_active' => true, 'reviews_count' => 4, 'positive_reviews_count' => 3, 'opening_hours' => [['days' => ['mon', 'tue', 'wed', 'thu', 'fri'], 'open' => '08:30', 'close' => '17:00', 'closed' => false], ['days' => ['sun'], 'closed' => true]]]);
+        $jkt = Store::create(['city' => 'Jakarta Selatan', 'address' => 'Jl. X', 'name' => 'Ginnva House', 'is_active' => true, 'opening_hours' => [['days' => ['mon', 'tue', 'wed', 'thu', 'fri'], 'open' => '08:30', 'close' => '17:00', 'closed' => false], ['days' => ['sun'], 'closed' => true]]]);
         $off = Store::create(['city' => 'Medan', 'address' => 'Jl. Y', 'name' => 'Toko Mati', 'is_active' => false]);
 
         $this->as($this->user('super_admin'));
+        // reviews_count dikelola observer ulasan (tidak mass-assignable): isi langsung lewat query.
+        \DB::table('stores')->where('id', $jkt->id)->update(['reviews_count' => 4, 'positive_reviews_count' => 3]);
         $withAppends = Store::findOrFail($jkt->id);
         Livewire::test(ListStores::class)
             ->assertCanSeeTableRecords([$jkt, $off])
