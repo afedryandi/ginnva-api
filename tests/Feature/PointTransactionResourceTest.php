@@ -126,6 +126,8 @@ class PointTransactionResourceTest extends TestCase
         $gone->delete();
 
         $this->as($this->user('kasir'));
+        // Model dimuat lewat query resource (relasi customer ikut dimuat termasuk akun terhapus), bukan model hasil create().
+        $ofGone = PointTransactionResource::getEloquentQuery()->findOrFail($ofGone->id);
         Livewire::test(ListPointTransactions::class)
             ->assertCanSeeTableRecords([$earn, $spend, $ofGone])
             ->assertTableColumnFormattedStateSet('type', 'Dapat Poin', record: $earn)
@@ -208,7 +210,8 @@ class PointTransactionResourceTest extends TestCase
     public function test_a_spend_larger_than_the_balance_is_refused_without_changes(): void
     {
         $customer = $this->customer('Budi Santoso', 30);
-        $this->mock(PushNotificationService::class)->shouldNotReceive('sendToCustomer');
+        // Hanya SATU kali kirim: untuk entri kedua yang sah (menghabiskan saldo); entri pertama yang ditolak tidak mengirim.
+        $this->mock(PushNotificationService::class)->shouldReceive('sendToCustomer')->once();
 
         $this->as($this->user('super_admin'));
         Livewire::test(CreatePointTransaction::class)
