@@ -185,7 +185,7 @@ class ActivityResourceTest extends TestCase
         Livewire::test(ViewActivity::class, ['record' => $activity->getRouteKey()])
             ->assertSuccessful()
             ->assertSee('Radius absen toko diubah')
-            ->assertSee('Toko Baru')
+            ->assertSee('Nilai Baru')
             ->assertSee('Toko pindah gedung')
             ->assertSee('attendance_radius_meters')
             ->assertSee('250')
