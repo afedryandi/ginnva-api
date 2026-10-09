@@ -295,14 +295,19 @@ class WarrantyResource extends Resource
 
             $remaining = $locked->maintenance_quota - ($used + 1);
 
+            // Pemberitahuan ke customer tidak boleh membatalkan pencatatan kunjungan yang sudah sah.
             if ($locked->customer_id) {
-                app(\App\Services\PushNotificationService::class)->sendToCustomer(
-                    $locked->customer_id,
-                    'Kunjungan Maintenance Tercatat',
-                    $remaining > 0
-                        ? "Kunjungan maintenance garansi #{$locked->warranty_code} tercatat. Sisa {$remaining} kunjungan lagi."
-                        : "Kunjungan maintenance garansi #{$locked->warranty_code} tercatat. Kuota maintenance Anda sudah habis."
-                );
+                try {
+                    app(\App\Services\PushNotificationService::class)->sendToCustomer(
+                        $locked->customer_id,
+                        'Kunjungan Maintenance Tercatat',
+                        $remaining > 0
+                            ? "Kunjungan maintenance garansi #{$locked->warranty_code} tercatat. Sisa {$remaining} kunjungan lagi."
+                            : "Kunjungan maintenance garansi #{$locked->warranty_code} tercatat. Kuota maintenance Anda sudah habis."
+                    );
+                } catch (\Throwable $e) {
+                    report($e);
+                }
             }
 
             Notification::make()
@@ -469,7 +474,9 @@ class WarrantyResource extends Resource
                     Forms\Components\TextInput::make('maintenance_quota')
                         ->label('Kuota Maintenance (kali)')
                         ->numeric()
+                        ->integer()
                         ->minValue(0)
+                        ->maxValue(50)
                         ->nullable()
                         ->live()
                         ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf')
@@ -484,7 +491,9 @@ class WarrantyResource extends Resource
                     Forms\Components\TextInput::make('maintenance_interval_months')
                         ->label('Interval Maintenance (bulan)')
                         ->numeric()
+                        ->integer()
                         ->minValue(1)
+                        ->maxValue(120)
                         ->nullable()
                         ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf' && $get('maintenance_quota') !== null)
                         ->helperText('Jarak antar kunjungan maintenance, mis. 6 = tiap 6 bulan. Jadwal kunjungan pertama & konfirmasi otomatis ke customer baru AKTIF setelah garansi ini disetujui (review_status Approved) — kalau diisi sebelum approve, baru akan menjadwalkan begitu disetujui. Tidak bisa dibatalkan lewat form ini, cuma lihat riwayatnya di tab "Jadwal Maintenance".'),

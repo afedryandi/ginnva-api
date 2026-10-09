@@ -27,7 +27,9 @@ class MaintenanceScheduleController extends Controller
         $customerId = $request->user('customer')->id;
 
         $schedules = WarrantyMaintenanceSchedule::whereIn('status', ['pending', 'confirmation_sent'])
-            ->whereHas('warranty', fn ($q) => $q->where('customer_id', $customerId))
+            // Garansi yang sudah dibatalkan tidak boleh menampilkan banner (konfirmasinya ditolak server, jadi kartunya
+            // hanya membingungkan).
+            ->whereHas('warranty', fn ($q) => $q->where('customer_id', $customerId)->where('status', '!=', 'revoked'))
             ->with('warranty:id,warranty_code')
             ->orderBy('scheduled_date')
             ->get();

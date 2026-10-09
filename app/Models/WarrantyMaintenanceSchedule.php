@@ -74,6 +74,28 @@ class WarrantyMaintenanceSchedule extends Model
     }
 
     /**
+     * Majukan tanggal sebesar kelipatan interval sampai TIDAK lagi di masa lalu. Tanpa ini garansi lama yang jadwalnya
+     * baru diaktifkan (mis. dipasang 2 tahun lalu, interval 6 bulan) menghasilkan occurrence yang sudah lewat tanggal:
+     * command harian menghanguskannya satu per hari, menghabiskan kuota tanpa pernah menawarkan maintenance ke customer,
+     * lalu mengirim "Siklus Maintenance Berakhir". Siklus yang dilewati tidak memakan nomor urut (sequence).
+     */
+    private static function notBeforeToday(Warranty $warranty, \Illuminate\Support\Carbon $date): \Illuminate\Support\Carbon
+    {
+        $date = $date->copy();
+        $interval = (int) $warranty->maintenance_interval_months;
+
+        if ($interval < 1) {
+            return $date;
+        }
+
+        for ($guard = 0; $date->lt(today()) && $guard < 240; $guard++) {
+            $date->addMonths($interval);
+        }
+
+        return $date;
+    }
+
+    /**
      * Occurrence pertama (sequence=1) untuk warranty yang baru saja
      * diaktifkan maintenance-nya (maintenance_interval_months diisi). Tidak
      * ada apa-apa terjadi kalau warranty tidak punya installation_date atau
@@ -86,7 +108,7 @@ class WarrantyMaintenanceSchedule extends Model
             'sequence'        => 1,
             'scheduled_date'  => static::nextOpenDate(
                 $warranty,
-                $warranty->installation_date->copy()->addMonths($warranty->maintenance_interval_months)
+                static::notBeforeToday($warranty, $warranty->installation_date->copy()->addMonths($warranty->maintenance_interval_months))
             ),
             'status'          => 'pending',
         ]);
@@ -128,7 +150,7 @@ class WarrantyMaintenanceSchedule extends Model
                     'sequence'       => $locked->sequence + 1,
                     'scheduled_date' => static::nextOpenDate(
                         $warranty,
-                        $locked->scheduled_date->copy()->addMonths($warranty->maintenance_interval_months)
+                        static::notBeforeToday($warranty, $locked->scheduled_date->copy()->addMonths($warranty->maintenance_interval_months))
                     ),
                     'status'         => 'pending',
                 ]);
@@ -177,7 +199,7 @@ class WarrantyMaintenanceSchedule extends Model
                     'sequence'       => $locked->sequence + 1,
                     'scheduled_date' => static::nextOpenDate(
                         $warranty,
-                        $locked->scheduled_date->copy()->addMonths($warranty->maintenance_interval_months)
+                        static::notBeforeToday($warranty, $locked->scheduled_date->copy()->addMonths($warranty->maintenance_interval_months))
                     ),
                     'status'         => 'pending',
                 ]);
