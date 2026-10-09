@@ -2,16 +2,25 @@
 
 namespace App\Filament\Resources\WarrantyResource\RelationManagers;
 
+use App\Models\WarrantyMaintenanceSchedule;
+use App\Services\MaintenanceBookingService;
+use App\Services\PushNotificationService;
+use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Carbon;
 
 /**
- * Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01) -- read-only,
- * murni untuk staff lihat riwayat tiap occurrence (semua status berubah
- * OTOMATIS lewat sistem: command harian + aksi customer di app, lihat
- * WarrantyMaintenanceSchedule). Tidak ada create/edit manual -- sesuai
- * keputusan user, staff tidak override, cukup lihat.
+ * Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01) -- murni untuk staff
+ * lihat riwayat tiap occurrence (semua status berubah OTOMATIS lewat sistem:
+ * command harian + aksi customer di app, lihat WarrantyMaintenanceSchedule).
+ * Tidak ada create/edit manual -- sesuai keputusan user, staff tidak override.
+ *
+ * Satu pengecualian (2026-10-09): selain customer konfirmasi sendiri di aplikasi, sales/staf boleh menindaklanjuti
+ * customer (mis. lewat WhatsApp) dan membuatkan booking maintenance-nya lewat aksi "Buatkan Booking". Aturannya sama
+ * persis dengan jalur customer (MaintenanceBookingService).
  */
 class MaintenanceSchedulesRelationManager extends RelationManager
 {
@@ -93,7 +102,50 @@ class MaintenanceSchedulesRelationManager extends RelationManager
                     ]),
             ])
             ->headerActions([])
-            ->actions([])
+            ->actions([
+                Tables\Actions\Action::make('book_for_customer')
+                    ->label('Buatkan Booking')
+                    ->icon('heroicon-o-calendar-days')
+                    ->color('primary')
+                    ->visible(fn (WarrantyMaintenanceSchedule $record) => in_array($record->status, ['pending', 'confirmation_sent'], true)
+                        && $record->warranty?->status !== 'revoked')
+                    ->modalHeading('Buatkan Booking Maintenance')
+                    ->modalDescription('Gunakan setelah customer dihubungi dan setuju datang. Booking dibuat berstatus Menunggu untuk customer ini.')
+                    ->form([
+                        Forms\Components\DatePicker::make('preferred_date')
+                            ->label('Tanggal Kedatangan')
+                            ->required()
+                            ->default(fn (WarrantyMaintenanceSchedule $record) => $record->scheduled_date->copy()->max(today())->toDateString())
+                            ->minDate(today())
+                            ->maxDate(today()->addDays(30))
+                            ->helperText('Boleh berbeda dari tanggal jadwal. Maksimal 30 hari ke depan; toko tidak boleh tutup dan kapasitas harus cukup.'),
+                    ])
+                    ->action(function (WarrantyMaintenanceSchedule $record, array $data) {
+                        $result = app(MaintenanceBookingService::class)->book($record, Carbon::parse($data['preferred_date']), 'whatsapp');
+
+                        if (! $result['ok']) {
+                            Notification::make()->title('Booking tidak dibuat')->body($result['message'])->danger()->send();
+
+                            return;
+                        }
+
+                        $booking = $result['booking'];
+
+                        // Customer diberi tahu (push gagal tidak boleh membatalkan booking yang sudah tercatat).
+                        try {
+                            app(PushNotificationService::class)->sendToCustomer(
+                                $booking->customer_id,
+                                'Booking Maintenance PPF Dibuat',
+                                "Tim kami membuatkan booking maintenance PPF untuk {$booking->preferred_date->format('d M Y')}. Toko akan menghubungi Anda untuk finalisasi jadwal.",
+                                ['type' => 'ppf_maintenance_booked', 'booking_id' => $booking->id, 'route' => "/booking/{$booking->id}/chat"]
+                            );
+                        } catch (\Throwable $e) {
+                            report($e);
+                        }
+
+                        Notification::make()->title('Booking maintenance dibuat')->body("Nomor: {$booking->booking_number}")->success()->send();
+                    }),
+            ])
             ->bulkActions([]);
     }
 }

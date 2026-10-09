@@ -68,130 +68,24 @@ class MaintenanceScheduleController extends Controller
     {
         $schedule = $this->authorizeOwn($request, $id);
 
-        if (! in_array($schedule->status, ['pending', 'confirmation_sent'], true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Jadwal ini sudah diproses sebelumnya.',
-            ], 422);
-        }
-
-        $warranty = $schedule->warranty;
-
-        // Bug ditutup 2026-10-01 (audit Maintenance PPF) -- SEBELUMNYA tidak
-        // dicek sama sekali, customer masih bisa konfirmasi (bikin Booking
-        // baru) untuk garansi yang sudah di-revoke staff.
-        if ($warranty->status === 'revoked') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Garansi ini sudah dibatalkan, konfirmasi tidak bisa diproses.',
-            ], 422);
-        }
-
-        if (! $warranty->store_id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Garansi ini tidak terhubung ke toko mana pun, konfirmasi tidak bisa diproses lewat app. Hubungi tim kami langsung.',
-            ], 422);
-        }
-
-        // Gap ditutup 2026-10-01 (audit Bagian C) -- SEBELUMNYA tidak dicek
-        // sama sekali, beda dari Bagian B (storeClaim()). scheduled_date di
-        // sini dihitung OTOMATIS dari interval (bukan dipilih customer),
-        // jadi bisa saja jatuh di hari toko tutup/libur -- tidak ada langkah
-        // pilih tanggal lain di alur ini, jadi staff yang perlu dihubungi.
-        // Tanggal jadwal sudah lewat: tidak bisa dikonfirmasi (nanti dihanguskan
-        // otomatis oleh ProcessMaintenanceSchedules).
-        // Tanggal baru (reschedule) opsional; WAJIB kalau jadwal sudah lewat masa toleransi (2026-10-09).
+        // Tanggal baru (reschedule) opsional; wajib kalau jadwal sudah lewat masa toleransi (lihat MaintenanceBookingService).
         $request->validate(['preferred_date' => 'nullable|date_format:Y-m-d']);
         $requestedDay = $request->filled('preferred_date')
-            ? \Illuminate\Support\Carbon::parse($request->input('preferred_date'))->startOfDay()
+            ? \Illuminate\Support\Carbon::parse($request->input('preferred_date'))
             : null;
 
-        if (! $requestedDay && $schedule->validUntil()->lt(today())) {
-            return response()->json([
-                'success' => false,
-                'requires_new_date' => true,
-                'message' => 'Jadwal maintenance ini sudah terlewat. Pilih tanggal baru untuk maintenance Anda.',
-            ], 422);
-        }
+        $result = app(\App\Services\MaintenanceBookingService::class)->book($schedule, $requestedDay, 'app');
 
-        if ($requestedDay && ($requestedDay->lt(today()) || $requestedDay->gt(today()->addDays(30)))) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tanggal baru harus dalam 30 hari ke depan.',
-            ], 422);
-        }
-
-        // Masa toleransi: tanggal jadwal boleh sudah lewat, booking dibuat untuk hari ini (bukan tanggal lampau).
-        $bookingDay = $requestedDay ?? \Illuminate\Support\Carbon::parse($schedule->scheduled_date)->max(today());
-
-        $store = \App\Models\Store::find($warranty->store_id);
-
-        // Bug ditutup 2026-10-01 (audit Maintenance PPF) -- SEBELUMNYA tidak
-        // dicek sama sekali, customer masih bisa konfirmasi ke toko yang
-        // sudah dinonaktifkan (is_active=false).
-        if ($store && ! $store->is_active) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Toko ini sudah tidak aktif. Hubungi tim kami langsung untuk menyesuaikan jadwal maintenance Anda.',
-            ], 422);
-        }
-
-        if ($store?->isClosedOn($bookingDay)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Toko tutup/libur pada tanggal jadwal ini. Hubungi toko langsung untuk menyesuaikan jadwal maintenance Anda.',
-            ], 422);
-        }
-
-        // Kapasitas tanggal jadwal juga dicek (2026-10-02), sama dengan
-        // booking biasa -- sebelumnya jalur ini melewatinya.
-        if (\App\Models\Booking::confirmedOverlapCount($warranty->store_id, $bookingDay) >= \App\Models\Booking::capacityForDate($warranty->store_id, $bookingDay)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Kapasitas toko pada tanggal jadwal ini sudah penuh. Hubungi toko langsung untuk menyesuaikan jadwal maintenance Anda.',
-            ], 422);
-        }
-
-        $booking = DB::transaction(function () use ($schedule, $warranty, $request, $bookingDay, $requestedDay) {
-            $locked = WarrantyMaintenanceSchedule::whereKey($schedule->id)->lockForUpdate()->first();
-
-            if (! in_array($locked->status, ['pending', 'confirmation_sent'], true)) {
-                return null;
-            }
-
-            $booking = Booking::create([
-                'customer_id'    => $request->user('customer')->id,
-                'store_id'       => $warranty->store_id,
-                'service_type'   => 'Maintenance PPF',
-                'preferred_date' => $bookingDay->toDateString(),
-                'warranty_id'    => $warranty->id,
-                'source'         => 'app',
-                'status'         => 'pending',
-            ]);
-
-            $locked->update([
-                'status'         => 'confirmed',
-                'booking_id'     => $booking->id,
-                'responded_at'   => now(),
-                // Reschedule: jadwal ikut pindah ke tanggal yang dipilih customer.
-                'scheduled_date' => $requestedDay ? $bookingDay->toDateString() : $locked->scheduled_date,
-            ]);
-
-            return $booking;
-        });
-
-        if (! $booking) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Jadwal ini sudah diproses sebelumnya.',
-            ], 422);
+        if (! $result['ok']) {
+            return response()->json(['success' => false] + array_filter([
+                'requires_new_date' => $result['requires_new_date'] ?? null,
+            ]) + ['message' => $result['message']], 422);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Konfirmasi diterima. Toko akan menghubungi Anda untuk finalisasi jadwal.',
-            'data'    => ['booking' => $booking],
+            'message' => $result['message'],
+            'data'    => ['booking' => $result['booking']],
         ], 201);
     }
 

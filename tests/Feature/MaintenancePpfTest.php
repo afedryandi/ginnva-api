@@ -512,4 +512,78 @@ class MaintenancePpfTest extends TestCase
             ->assertCanSeeTableRecords([$lost])
             ->assertCanNotSeeTableRecords([$done, $next]);
     }
+
+    // ------------------------------------------------------------- sales membuatkan booking
+
+    private function ownerManager(Warranty $warranty)
+    {
+        return Livewire::test(MaintenanceSchedulesRelationManager::class, ['ownerRecord' => $warranty, 'pageClass' => ViewWarranty::class]);
+    }
+
+    public function test_staff_can_book_a_maintenance_for_the_customer_after_following_up(): void
+    {
+        $customer = $this->customer();
+        $warranty = $this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => null]);
+        $schedule = $this->schedule($warranty, 1, '2026-10-20');
+        $this->actingAs($this->staff('super_admin'), 'web');
+
+        $this->ownerManager($warranty)
+            ->assertTableActionVisible('book_for_customer', $schedule)
+            ->callTableAction('book_for_customer', $schedule, ['preferred_date' => '2026-10-22'])
+            ->assertNotified('Booking maintenance dibuat');
+
+        $booking = Booking::firstOrFail();
+        $this->assertSame(['Maintenance PPF', 'pending', 'whatsapp', $customer->id, $warranty->id, '2026-10-22'], [
+            $booking->service_type, $booking->status, $booking->source, $booking->customer_id, $booking->warranty_id, $booking->preferred_date->toDateString(),
+        ]);
+        $fresh = $schedule->fresh();
+        $this->assertSame(['confirmed', $booking->id, '2026-10-22'], [$fresh->status, $fresh->booking_id, $fresh->scheduled_date->toDateString()]);
+        $this->assertSame('Booking Maintenance PPF Dibuat', CustomerNotification::where('customer_id', $customer->id)->firstOrFail()->title);
+    }
+
+    public function test_the_staff_action_is_hidden_for_processed_schedules_and_revoked_warranties(): void
+    {
+        $warranty = $this->warranty(['customer_id' => $this->customer()->id, 'maintenance_interval_months' => null]);
+        $done = $this->schedule($warranty, 1, '2026-04-20', 'completed');
+        $lost = $this->schedule($warranty, 2, '2026-07-20', 'forfeited');
+        $open = $this->schedule($warranty, 3, '2026-10-20', 'confirmation_sent');
+        $revoked = $this->warranty(['customer_id' => $this->customer()->id, 'status' => 'revoked', 'maintenance_interval_months' => null]);
+        $revokedOpen = $this->schedule($revoked, 1, '2026-10-20');
+        $this->actingAs($this->staff('super_admin'), 'web');
+
+        $this->ownerManager($warranty)
+            ->assertTableActionHidden('book_for_customer', $done)
+            ->assertTableActionHidden('book_for_customer', $lost)
+            ->assertTableActionVisible('book_for_customer', $open);
+        $this->ownerManager($revoked)->assertTableActionHidden('book_for_customer', $revokedOpen);
+    }
+
+    public function test_the_staff_action_follows_the_same_rules_as_the_customer_path(): void
+    {
+        $customer = $this->customer();
+        $this->store->update(['opening_hours' => [['days' => ['sun'], 'closed' => true]]]);
+        $warranty = $this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => null]);
+        $schedule = $this->schedule($warranty, 1, '2026-10-20');
+        $this->actingAs($this->staff('super_admin'), 'web');
+
+        // Hari Minggu (toko tutup) dan tanggal di luar 30 hari ke depan ditolak.
+        $this->ownerManager($warranty)->callTableAction('book_for_customer', $schedule, ['preferred_date' => '2026-10-11'])->assertNotified('Booking tidak dibuat');
+        $this->assertSame(0, Booking::count());
+        $this->assertSame('pending', $schedule->fresh()->status);
+    }
+
+    public function test_a_second_booking_for_the_same_schedule_is_refused(): void
+    {
+        $customer = $this->customer();
+        $warranty = $this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => null]);
+        $schedule = $this->schedule($warranty, 1, '2026-10-20');
+        $this->actingAs($this->staff('super_admin'), 'web');
+
+        $this->ownerManager($warranty)->callTableAction('book_for_customer', $schedule, ['preferred_date' => '2026-10-20']);
+        $this->assertSame(1, Booking::count());
+
+        // Customer yang lalu menekan konfirmasi di aplikasi tidak membuat booking dobel.
+        $this->actingAs($customer, 'customer')->postJson("/api/customer/maintenance-schedules/{$schedule->id}/confirm")->assertStatus(422);
+        $this->assertSame(1, Booking::count());
+    }
 }
