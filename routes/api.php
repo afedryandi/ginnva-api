@@ -85,6 +85,7 @@ Route::prefix('stores')->group(function () {
     Route::get('/{id}', [StoreController::class, 'show']);
     Route::get('/{id}/blocked-dates', [StoreController::class, 'blockedDates']);
     Route::get('/{id}/full-dates', [StoreController::class, 'fullDates'])->middleware('throttle:30,1');
+    Route::get('/{id}/limited-dates', [StoreController::class, 'limitedDates'])->middleware('throttle:30,1');
     Route::get('/{id}/unavailable-dates', [StoreController::class, 'unavailableDates'])->middleware('throttle:30,1');
 });
 

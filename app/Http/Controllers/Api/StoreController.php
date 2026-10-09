@@ -226,4 +226,35 @@ class StoreController extends Controller
             'data'    => $dates,
         ]);
     }
+
+    /**
+     * GET /api/stores/{id}/limited-dates -- tanggal (30 hari ke depan) yang
+     * kapasitas instalasinya "hampir penuh": tinggal 1 slot dan toko punya
+     * lebih dari 1 slot per hari. Hanya status, TANPA angka kapasitas (tidak
+     * membuka data internal toko). Dipakai pemilih tanggal booking customer
+     * untuk memberi penanda "Hampir penuh". Booking pending belum mengunci
+     * slot, jadi ini perkiraan. Di-cache 60 detik karena endpoint publik.
+     */
+    public function limitedDates(int $id): JsonResponse
+    {
+        if (! \App\Models\Store::whereKey($id)->where('is_active', true)->exists()) {
+            abort(404);
+        }
+
+        $dates = \Illuminate\Support\Facades\Cache::remember("store-limited-dates:{$id}", 60, function () use ($id) {
+            $counts = \App\Models\Booking::confirmedOverlapCountsForRange($id, today(), today()->addDays(30));
+
+            return collect($counts)
+                ->filter(function (int $used, string $date) use ($id) {
+                    $capacity = \App\Models\Booking::capacityForDate($id, \Illuminate\Support\Carbon::parse($date));
+
+                    return $capacity > 1 && ($capacity - $used) === 1;
+                })
+                ->keys()
+                ->values()
+                ->all();
+        });
+
+        return response()->json(['success' => true, 'data' => $dates]);
+    }
 }

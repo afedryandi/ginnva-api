@@ -165,11 +165,40 @@ class BookingCustomerFlowTest extends TestCase
         $this->assertContains($this->date(8), $unavailable);
     }
 
+    public function test_limited_dates_flags_only_dates_with_exactly_one_slot_left(): void
+    {
+        $this->store->update(['install_capacity_per_day' => 3]);
+        $other = Customer::create(['name' => 'Siti', 'phone_number' => '0813' . random_int(1000000, 9999999)]);
+
+        // Tgl +5: 2 dari 3 terpakai -> hampir penuh. Tgl +6: 1 dari 3 -> longgar. Tgl +7: 3 dari 3 -> penuh (bukan "hampir").
+        foreach ([5, 5, 6, 7, 7, 7] as $offset) {
+            $this->booking(['customer_id' => $other->id, 'status' => 'confirmed', 'preferred_date' => $this->date($offset)]);
+        }
+
+        $limited = $this->getJson("/api/stores/{$this->store->id}/limited-dates")->assertSuccessful()->json('data');
+
+        $this->assertContains($this->date(5), $limited);
+        $this->assertNotContains($this->date(6), $limited);
+        $this->assertNotContains($this->date(7), $limited);
+    }
+
+    public function test_limited_dates_never_flags_single_slot_stores_or_exposes_numbers(): void
+    {
+        $this->store->update(['install_capacity_per_day' => 1]);
+        $this->booking(['status' => 'confirmed', 'preferred_date' => $this->date(5)]);
+
+        $response = $this->getJson("/api/stores/{$this->store->id}/limited-dates")->assertSuccessful();
+
+        $this->assertSame([], $response->json('data'));
+        $this->assertSame(['success', 'data'], array_keys($response->json()));
+    }
+
     public function test_availability_for_inactive_store_is_not_found(): void
     {
         $inactive = Store::create(['city' => 'Bandung', 'address' => 'Jl. Test 2', 'name' => 'Toko Nonaktif', 'is_active' => false]);
 
         $this->getJson("/api/stores/{$inactive->id}/full-dates")->assertStatus(404);
+        $this->getJson("/api/stores/{$inactive->id}/limited-dates")->assertStatus(404);
         $this->getJson("/api/stores/{$inactive->id}/unavailable-dates")->assertStatus(404);
     }
 
