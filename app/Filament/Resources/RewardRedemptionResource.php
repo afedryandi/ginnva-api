@@ -50,6 +50,21 @@ class RewardRedemptionResource extends Resource
     }
 
     /**
+     * Riwayat penukaran tidak pernah dihapus (poin & stok terikat ke baris ini; membatalkan dilakukan lewat status
+     * "Dibatalkan"). Tidak ada tombol hapus di UI, tapi tanpa override ini izin hapus bawaan Resource mengikuti Gate dan
+     * bisa terbuka untuk staf.
+     */
+    public static function canDelete($record): bool
+    {
+        return false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return false;
+    }
+
+    /**
      * Gap diperbaiki 2026-09-26 (audit Katalog Reward) -- kolom
      * 'reward.name' (dot-notation) di table() TIDAK auto-eager-load
      * sendiri di Filament v3 (pola yang sama ditemukan di 13 resource
