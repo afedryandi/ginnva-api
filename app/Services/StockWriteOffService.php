@@ -104,6 +104,12 @@ class StockWriteOffService
                 $journalId = $entry->id;
             }
 
+            // Penanda toko = toko pencatat (staf non-full-access). SEBELUMNYA selalu NULL, padahal daftar "Stok Terbuang" dan
+            // Global Scope memfilter staf ke store_id akunnya -- staf tidak pernah melihat satu pun write-off, termasuk yang
+            // ia catat sendiri. Full-access tidak terikat toko, jadi catatannya tetap NULL (terlihat oleh full-access).
+            $recorder = $userId ? \App\Models\User::find($userId) : null;
+            $recorderStoreId = ($recorder && ! $recorder->isFullAccess()) ? $recorder->store_id : null;
+
             return StockWriteOff::create([
                 'write_off_number' => StockWriteOff::generateNumber(),
                 'writeoffable_type' => $itemType,
@@ -115,7 +121,7 @@ class StockWriteOffService
                 'total_value' => $totalValue,
                 'reason' => $reason,
                 'note' => $note,
-                'store_id' => null,
+                'store_id' => $recorderStoreId,
                 'journal_entry_id' => $journalId,
                 'created_by' => $userId,
             ]);

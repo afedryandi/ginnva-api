@@ -65,9 +65,17 @@ class StockWriteOff extends Model
     public static function generateNumber(): string
     {
         $datePart = now()->format('Ymd');
-        $todayCount = static::where('write_off_number', 'like', "WO-{$datePart}-%")->count();
+        $prefix = "WO-{$datePart}-";
 
-        return sprintf('WO-%s-%04d', $datePart, $todayCount + 1);
+        // Urutan TERBESAR hari ini, bukan jumlah baris -- nomor harus unik lintas toko (withoutGlobalScopes), bukan hanya
+        // di antara baris yang terlihat oleh pengguna ini.
+        $last = static::withoutGlobalScopes()
+            ->where('write_off_number', 'like', $prefix . '%')
+            ->pluck('write_off_number')
+            ->map(fn (string $number) => (int) substr($number, strlen($prefix)))
+            ->max() ?? 0;
+
+        return sprintf('WO-%s-%04d', $datePart, $last + 1);
     }
 
     public function resolveItem(): RawMaterial|ConsumableItem|null
