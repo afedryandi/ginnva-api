@@ -321,6 +321,61 @@ class Store extends Model
         return $earthRadiusMeters * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
+    /** Tabel yang menunjuk ke toko tapi hanya pengaturan (bukan data operasional), jadi tidak menghalangi penghapusan. */
+    private const CONFIG_ONLY_TABLES = ['blocked_dates', 'store_capacity_overrides'];
+
+    private const USAGE_LABELS = [
+        'bookings' => 'Booking',
+        'users' => 'Akun staf',
+        'technicians' => 'Teknisi',
+        'warranties' => 'Garansi',
+        'quotations' => 'Quotation',
+        'attendances' => 'Absensi',
+        'store_reviews' => 'Ulasan',
+        'assets' => 'Aset',
+        'material_memos' => 'Memo Barang',
+        'purchase_requests' => 'Permohonan Pembelian',
+        'stock_opnames' => 'Stok Opname',
+        'stock_write_offs' => 'Stok Terbuang',
+        'journal_entries' => 'Jurnal',
+        'finance_transactions' => 'Transaksi Keuangan',
+    ];
+
+    /**
+     * Data operasional yang masih menunjuk ke toko ini: [label => jumlah baris]. Dibaca dari skema (semua tabel yang
+     * punya foreign key ke stores), supaya tabel baru di masa depan otomatis ikut terhitung. Hapus toko meng-cascade-kan
+     * sebagian besar tabel ini (booking, teknisi, ulasan, ...) -- satu klik bisa menghapus seluruh riwayat transaksi toko.
+     *
+     * @return array<string, int>
+     */
+    public function usageSummary(): array
+    {
+        $references = \Illuminate\Support\Facades\DB::select(
+            'SELECT DISTINCT TABLE_NAME AS tbl, COLUMN_NAME AS col FROM information_schema.KEY_COLUMN_USAGE '
+            . 'WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME = ?',
+            ['stores']
+        );
+
+        $usage = [];
+
+        foreach ($references as $reference) {
+            if (in_array($reference->tbl, self::CONFIG_ONLY_TABLES, true)) {
+                continue;
+            }
+
+            $count = \Illuminate\Support\Facades\DB::table($reference->tbl)->where($reference->col, $this->getKey())->count();
+
+            if ($count > 0) {
+                $label = self::USAGE_LABELS[$reference->tbl] ?? $reference->tbl;
+                $usage[$label] = ($usage[$label] ?? 0) + $count;
+            }
+        }
+
+        ksort($usage);
+
+        return $usage;
+    }
+
     public function blockedDates()
     {
         return $this->hasMany(BlockedDate::class);

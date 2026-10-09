@@ -99,7 +99,9 @@ class StoreResource extends Resource
                         ->label('Kapasitas Instalasi / Hari (Default)')
                         ->helperText('Berapa mobil yang biasanya bisa dikerjakan toko ini per hari — jadi nilai awal saat staff approve booking, tapi tetap bisa diubah sesaat per booking kalau kondisinya beda.')
                         ->numeric()
+                        ->integer()
                         ->minValue(1)
+                        ->maxValue(1000)
                         ->default(3)
                         ->required(),
 
@@ -116,35 +118,44 @@ class StoreResource extends Resource
                         ->label('Jumlah Slot Detailing')
                         ->helperText('Kapasitas fisik Zona Detailing & Persiapan (Cuci/Pembersihan/Pemanasan/Detailing) toko ini. Kosongkan kalau belum ditentukan — laporan "Laporan Utilisasi Zona/Bay" akan melewati toko ini sampai diisi.')
                         ->numeric()
+                        ->integer()
                         ->minValue(0)
+                        ->maxValue(1000)
                         ->nullable(),
 
                     Forms\Components\TextInput::make('instalasi_qc_slot_count')
                         ->label('Jumlah Slot Instalasi & QC')
                         ->helperText('Kapasitas fisik Zona Instalasi & QC toko ini. Kosongkan kalau belum ditentukan — laporan "Laporan Utilisasi Zona/Bay" akan melewati toko ini sampai diisi.')
                         ->numeric()
+                        ->integer()
                         ->minValue(0)
+                        ->maxValue(1000)
                         ->nullable(),
 
                     Forms\Components\TextInput::make('attendance_radius_meters')
                         ->label('Radius Absen (meter)')
                         ->helperText('Jarak maksimum dari lokasi toko ini supaya absen dari app dianggap wajar. Kosongkan untuk pakai default sistem (150 m).')
                         ->numeric()
+                        ->integer()
                         ->minValue(10)
+                        ->maxValue(100000)
                         ->live(onBlur: true),
 
                     Forms\Components\TextInput::make('late_tolerance_minutes')
                         ->label('Toleransi Telat / Bulan (menit)')
                         ->helperText('Total menit telat yang masih ditoleransi dalam 1 bulan sebelum dianggap perlu ditindaklanjuti (potongan gaji dihitung manual di Penggajian). Kosongkan untuk pakai default sistem (15 menit).')
                         ->numeric()
-                        ->minValue(0),
+                        ->integer()
+                        ->minValue(0)
+                        ->maxValue(44640),
 
                     Forms\Components\TextInput::make('late_deduction_amount')
                         ->label('Potongan per Pelanggaran (Rp)')
                         ->helperText('Nominal potongan gaji setelah toleransi telat bulanan terlampaui — dipakai sebagai acuan saat hitung Penggajian, belum otomatis memotong gaji.')
                         ->numeric()
                         ->prefix('Rp')
-                        ->minValue(0),
+                        ->minValue(0)
+                        ->maxValue(9999999999),
 
                     Forms\Components\Repeater::make('opening_hours')
                         ->label('Jam Operasional')
@@ -182,6 +193,31 @@ class StoreResource extends Resource
                             : 'Baris baru')
                         ->addActionLabel('Tambah Baris Jam')
                         ->reorderable(false)
+                        // Satu hari hanya boleh ada di satu baris, dan jam tutup harus setelah jam buka -- kalau tidak,
+                        // jam operasional ambigu (dipakai validasi booking dan perhitungan telat absen).
+                        ->rules([
+                            fn () => function (string $attribute, $value, \Closure $fail) {
+                                $seen = [];
+
+                                foreach ((array) $value as $row) {
+                                    foreach ((array) ($row['days'] ?? []) as $day) {
+                                        if (isset($seen[$day])) {
+                                            $fail('Hari ' . (Store::DAY_LABELS[$day] ?? $day) . ' muncul di lebih dari satu baris jam operasional.');
+
+                                            return;
+                                        }
+                                        $seen[$day] = true;
+                                    }
+
+                                    if (empty($row['closed']) && filled($row['open'] ?? null) && filled($row['close'] ?? null)
+                                        && strtotime((string) $row['close']) <= strtotime((string) $row['open'])) {
+                                        $fail('Jam tutup harus setelah jam buka.');
+
+                                        return;
+                                    }
+                                }
+                            },
+                        ])
                         ->collapsible()
                         ->collapsed(false)
                         ->helperText('Kelompokkan hari dengan jam yang sama jadi 1 baris, mis. "Senin–Jumat" 1 baris, "Sabtu" baris lain, "Minggu" ditandai Libur.')
@@ -191,6 +227,7 @@ class StoreResource extends Resource
                         ->label('Tempel Link Google Maps')
                         ->helperText('Cari toko di Google Maps → Bagikan → salin link (boleh link pendek maps.app.goo.gl) → tempel di sini. Latitude/Longitude di bawah terisi otomatis, dan link ini yang dibuka saat customer tap "Buka Peta" di mobile app.')
                         ->url()
+                        ->maxLength(255)
                         ->columnSpanFull()
                         ->live(onBlur: true)
                         ->afterStateUpdated(function (?string $state, Forms\Set $set) {
@@ -223,11 +260,15 @@ class StoreResource extends Resource
                     Forms\Components\TextInput::make('latitude')
                         ->label('Latitude')
                         ->numeric()
+                        ->minValue(-90)
+                        ->maxValue(90)
                         ->live(onBlur: true),
 
                     Forms\Components\TextInput::make('longitude')
                         ->label('Longitude')
                         ->numeric()
+                        ->minValue(-180)
+                        ->maxValue(180)
                         ->live(onBlur: true),
 
                     // Pratinjau peta radius absen (audit Majoo vs Ginnva,
@@ -376,15 +417,66 @@ class StoreResource extends Resource
                 // Manager atas tokonya sendiri, tanpa restriksi sama
                 // sekali. Sekarang cuma super_admin/direksi.
                 Tables\Actions\DeleteAction::make()
-                    ->visible(fn () => auth()->user()?->isFullAccess()),
+                    ->visible(fn () => auth()->user()?->isFullAccess())
+                    ->modalDescription('Toko yang masih punya data (booking, staf, teknisi, garansi, dst) tidak bisa dihapus -- nonaktifkan saja lewat toggle "Aktif".')
+                    ->action(function (Store $record) {
+                        if (static::deleteGuarded($record)) {
+                            Notification::make()->title('Toko dihapus')->success()->send();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()
-                        ->visible(fn () => auth()->user()?->isFullAccess()),
+                    Tables\Actions\BulkAction::make('delete')
+                        ->label('Hapus')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->visible(fn () => auth()->user()?->isFullAccess())
+                        ->requiresConfirmation()
+                        ->action(function (\Illuminate\Support\Collection $records) {
+                            $deleted = $records->filter(fn (Store $store) => static::deleteGuarded($store, notify: false))->count();
+                            $blocked = $records->count() - $deleted;
+
+                            Notification::make()
+                                ->title($blocked > 0
+                                    ? ($deleted > 0 ? "{$deleted} toko dihapus, {$blocked} tidak bisa dihapus" : 'Tidak ada toko yang bisa dihapus')
+                                    : "{$deleted} toko dihapus")
+                                ->body($blocked > 0 ? "{$blocked} toko masih punya data (booking, staf, teknisi, dst), dilewati. Nonaktifkan saja lewat toggle \"Aktif\"." : null)
+                                ->{$blocked > 0 ? 'warning' : 'success'}()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
                 ]),
             ])
             ->defaultSort('name');
+    }
+
+    /**
+     * Hapus toko HANYA kalau tidak ada data operasional yang menunjuk ke sana. Hapus toko meng-cascade-kan booking,
+     * teknisi, ulasan, dll (lihat Store::usageSummary()) -- tanpa penjagaan ini satu klik menghapus seluruh riwayat
+     * transaksi toko. Mengembalikan true kalau terhapus.
+     */
+    public static function deleteGuarded(Store $store, bool $notify = true): bool
+    {
+        $usage = $store->usageSummary();
+
+        if (! empty($usage)) {
+            if ($notify) {
+                $detail = collect($usage)->map(fn ($count, $label) => "{$label} ({$count})")->implode(', ');
+
+                Notification::make()
+                    ->title('Tidak bisa menghapus toko ini')
+                    ->body("Toko masih punya data: {$detail}. Menghapusnya akan ikut menghapus riwayat itu. Nonaktifkan saja lewat toggle \"Aktif\".")
+                    ->danger()
+                    ->send();
+            }
+
+            return false;
+        }
+
+        $store->delete();
+
+        return true;
     }
 
     public static function getPages(): array

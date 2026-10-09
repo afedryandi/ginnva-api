@@ -4,6 +4,7 @@ namespace App\Filament\Resources\StoreResource\Pages;
 
 use App\Filament\Resources\StoreResource;
 use Filament\Actions;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
 class EditStore extends EditRecord
@@ -16,7 +17,14 @@ class EditStore extends EditRecord
             // Sama seperti tabel — hapus toko cascade ke seluruh booking,
             // teknisi, dan review-nya. Cuma super_admin/direksi.
             Actions\DeleteAction::make()
-                ->visible(fn () => auth()->user()?->isFullAccess()),
+                ->visible(fn () => auth()->user()?->isFullAccess())
+                ->action(function () {
+                    if (StoreResource::deleteGuarded($this->record)) {
+                        Notification::make()->title('Toko dihapus')->success()->send();
+
+                        $this->redirect($this->getResource()::getUrl('index'));
+                    }
+                }),
         ];
     }
 }
