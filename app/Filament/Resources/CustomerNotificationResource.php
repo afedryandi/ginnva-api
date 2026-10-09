@@ -58,7 +58,9 @@ class CustomerNotificationResource extends Resource
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
         // Eager-load sentBy (audit 2026-09-30) -- kolom "Dikirim Oleh" akan N+1 tanpa ini.
-        return parent::getEloquentQuery()->with('sentBy:id,name');
+        // Kolom "Target" memanggil relasi customer per baris: dimuat sekaligus (termasuk akun yang sudah dihapus, supaya
+        // notifikasi lama tidak kehilangan targetnya) -- sebelumnya satu query per baris.
+        return parent::getEloquentQuery()->with(['sentBy:id,name', 'customer' => fn ($query) => $query->withTrashed()]);
     }
 
     public static function table(Table $table): Table
@@ -83,6 +85,10 @@ class CustomerNotificationResource extends Resource
                         if ($record->customer_id === null) {
                             return 'Broadcast (semua user)';
                         }
+                        if ($record->customer?->deleted_at) {
+                            return '(Akun Dihapus)';
+                        }
+
                         return $record->customer?->name ?? "Customer #{$record->customer_id}";
                     })
                     ->badge()

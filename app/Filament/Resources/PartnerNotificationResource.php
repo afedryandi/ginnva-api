@@ -58,7 +58,8 @@ class PartnerNotificationResource extends Resource
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
         // Eager-load sentBy (audit 2026-09-30) -- kolom "Dikirim Oleh" akan N+1 tanpa ini.
-        return parent::getEloquentQuery()->with('sentBy:id,name');
+        // Kolom "Target" memanggil relasi partner per baris: dimuat sekaligus (sebelumnya satu query per baris).
+        return parent::getEloquentQuery()->with(['sentBy:id,name', 'partner']);
     }
 
     public static function table(Table $table): Table
