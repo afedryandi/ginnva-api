@@ -101,15 +101,29 @@ class MaintenanceScheduleController extends Controller
         // pilih tanggal lain di alur ini, jadi staff yang perlu dihubungi.
         // Tanggal jadwal sudah lewat: tidak bisa dikonfirmasi (nanti dihanguskan
         // otomatis oleh ProcessMaintenanceSchedules).
-        if ($schedule->validUntil()->lt(today())) {
+        // Tanggal baru (reschedule) opsional; WAJIB kalau jadwal sudah lewat masa toleransi (2026-10-09).
+        $request->validate(['preferred_date' => 'nullable|date_format:Y-m-d']);
+        $requestedDay = $request->filled('preferred_date')
+            ? \Illuminate\Support\Carbon::parse($request->input('preferred_date'))->startOfDay()
+            : null;
+
+        if (! $requestedDay && $schedule->validUntil()->lt(today())) {
             return response()->json([
                 'success' => false,
-                'message' => 'Masa berlaku jadwal maintenance ini sudah lewat. Hubungi toko langsung untuk mengatur jadwal baru.',
+                'requires_new_date' => true,
+                'message' => 'Jadwal maintenance ini sudah terlewat. Pilih tanggal baru untuk maintenance Anda.',
+            ], 422);
+        }
+
+        if ($requestedDay && ($requestedDay->lt(today()) || $requestedDay->gt(today()->addDays(30)))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tanggal baru harus dalam 30 hari ke depan.',
             ], 422);
         }
 
         // Masa toleransi: tanggal jadwal boleh sudah lewat, booking dibuat untuk hari ini (bukan tanggal lampau).
-        $bookingDay = \Illuminate\Support\Carbon::parse($schedule->scheduled_date)->max(today());
+        $bookingDay = $requestedDay ?? \Illuminate\Support\Carbon::parse($schedule->scheduled_date)->max(today());
 
         $store = \App\Models\Store::find($warranty->store_id);
 
@@ -157,9 +171,11 @@ class MaintenanceScheduleController extends Controller
             ]);
 
             $locked->update([
-                'status'       => 'confirmed',
-                'booking_id'   => $booking->id,
-                'responded_at' => now(),
+                'status'         => 'confirmed',
+                'booking_id'     => $booking->id,
+                'responded_at'   => now(),
+                // Reschedule: jadwal ikut pindah ke tanggal yang dipilih customer.
+                'scheduled_date' => $requestedDay ? $bookingDay->toDateString() : $locked->scheduled_date,
             ]);
 
             return $booking;

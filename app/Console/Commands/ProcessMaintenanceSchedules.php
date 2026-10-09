@@ -13,22 +13,20 @@ use Illuminate\Support\Facades\DB;
  *
  * 1. Kirim push "Konfirmasi Kedatangan" untuk occurrence yang scheduled_date
  *    sudah dekat (H-7) dan belum pernah dikirim ('pending' -> 'confirmation_sent').
- * 2. Hanguskan (forfeit) occurrence yang scheduled_date-nya sudah LEWAT tapi
- *    customer tidak pernah merespons -- otomatis siapkan occurrence
- *    berikutnya selama kuota belum habis (lihat WarrantyMaintenanceSchedule::forfeit()).
+ * 2. (Diubah 2026-10-09) Occurrence yang sudah lewat masa toleransi TIDAK lagi dihanguskan otomatis: kuota tidak
+ *    terpakai, customer diminta memilih tanggal baru (reschedule) lewat konfirmasi dengan preferred_date. Hangus
+ *    hanya terjadi kalau customer menolak sendiri (WarrantyMaintenanceSchedule::forfeit()).
  */
 class ProcessMaintenanceSchedules extends Command
 {
     protected $signature = 'maintenance:process-schedules';
 
-    protected $description = 'Kirim konfirmasi kedatangan maintenance PPF yang mendekati jadwal, dan hanguskan yang lewat tanggal tanpa respons';
+    protected $description = 'Kirim konfirmasi kedatangan maintenance PPF yang mendekati/melewati jadwal (yang terlewat diminta pilih tanggal baru)';
 
     private const REMINDER_WINDOW_DAYS = 7;
 
     public function handle(PushNotificationService $push): int
     {
-        // Hangus dulu: jadwal lewat tanggal tidak boleh lagi dikirimi konfirmasi.
-        $this->forfeitOverdue();
         $this->sendConfirmations($push);
 
         return self::SUCCESS;
@@ -36,10 +34,8 @@ class ProcessMaintenanceSchedules extends Command
 
     private function sendConfirmations(PushNotificationService $push): void
     {
-        // Hanya jadwal yang BELUM melewati masa toleransi: yang lewat dihanguskan oleh forfeitOverdue()
-        // (konfirmasi untuk jadwal yang sudah hangus ditolak server, jadi tidak boleh dikirimi push).
+        // Termasuk jadwal yang sudah lewat tanggal: customer diminta memilih tanggal baru (tidak ada lagi hangus otomatis).
         $due = WarrantyMaintenanceSchedule::where('status', 'pending')
-            ->whereDate('scheduled_date', '>=', today()->subDays(WarrantyMaintenanceSchedule::GRACE_DAYS))
             ->whereDate('scheduled_date', '<=', today()->addDays(self::REMINDER_WINDOW_DAYS))
             ->with('warranty.store')
             ->get()
@@ -67,10 +63,14 @@ class ProcessMaintenanceSchedules extends Command
 
                 $warranty = $schedule->warranty;
 
+                $expired = $locked->validUntil()->lt(today());
+
                 $push->sendToCustomer(
                     $warranty->customer_id,
-                    'Konfirmasi Kedatangan Maintenance PPF',
-                    "Waktunya maintenance PPF untuk {$warranty->warranty_code} (jadwal: {$locked->scheduled_date->format('d M Y')}). Konfirmasi kedatangan Anda sekarang.",
+                    $expired ? 'Jadwalkan Ulang Maintenance PPF' : 'Konfirmasi Kedatangan Maintenance PPF',
+                    $expired
+                        ? "Jadwal maintenance PPF untuk {$warranty->warranty_code} ({$locked->scheduled_date->format('d M Y')}) sudah terlewat. Pilih tanggal baru di aplikasi."
+                        : "Waktunya maintenance PPF untuk {$warranty->warranty_code} (jadwal: {$locked->scheduled_date->format('d M Y')}). Konfirmasi kedatangan Anda sekarang.",
                     [
                         'type'        => 'ppf_maintenance_confirm',
                         'schedule_id' => $locked->id,
@@ -90,29 +90,5 @@ class ProcessMaintenanceSchedules extends Command
         }
 
         $this->info("Konfirmasi dikirim: {$due->count()}.");
-    }
-
-    private function forfeitOverdue(): void
-    {
-        // Eager-load warranty.store (audit 2026-10-01, N+1 diperbaiki) --
-        // forfeit() akses $warranty->store lewat WarrantyMaintenanceSchedule::nextOpenDate()
-        // (fitur "geser ke hari buka"), tanpa ini tiap baris yang hangus
-        // memicu 2 query lazy-load tambahan (warranty + store).
-        // 'pending' yang tanggalnya lewat (tidak pernah sempat dikonfirmasi) ikut
-        // hangus -- kecuali garansi di-revoke / toko nonaktif, yang sengaja
-        // dibiarkan pending supaya siklus bisa lanjut kalau diaktifkan lagi.
-        $overdue = WarrantyMaintenanceSchedule::whereIn('status', ['pending', 'confirmation_sent'])
-            // Masa toleransi 30 hari setelah tanggal jadwal (2026-10-09): baru hangus kalau lewat dari itu.
-            ->whereDate('scheduled_date', '<', today()->subDays(WarrantyMaintenanceSchedule::GRACE_DAYS))
-            ->with('warranty.store')
-            ->get()
-            ->filter(fn (WarrantyMaintenanceSchedule $s) => $s->status === 'confirmation_sent'
-                || ($s->warranty && $s->warranty->status !== 'revoked' && ($s->warranty->store?->is_active ?? true)));
-
-        foreach ($overdue as $schedule) {
-            $schedule->forfeit(explicit: false);
-        }
-
-        $this->info("Occurrence hangus (lewat tanggal tanpa respons): {$overdue->count()}.");
     }
 }
