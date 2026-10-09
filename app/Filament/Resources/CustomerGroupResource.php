@@ -87,7 +87,19 @@ class CustomerGroupResource extends Resource
                 ->placeholder('mis. Member, Korporat, Reseller')
                 ->required()
                 ->maxLength(100)
-                ->unique(ignoreRecord: true),
+                ->unique(ignoreRecord: true)
+                // "VIP " dan " VIP" adalah grup yang sama dengan "VIP": cek unik memakai nama yang sudah dirapikan, dan
+                // yang tersimpan juga nama yang sudah dirapikan.
+                ->rule(fn (?\Illuminate\Database\Eloquent\Model $record) => function (string $attribute, $value, \Closure $fail) use ($record) {
+                    $exists = CustomerGroup::where('name', trim((string) $value))
+                        ->when($record, fn ($query) => $query->whereKeyNot($record->getKey()))
+                        ->exists();
+
+                    if ($exists) {
+                        $fail('Nama grup sudah dipakai.');
+                    }
+                })
+                ->dehydrateStateUsing(fn ($state) => trim((string) $state)),
 
             Forms\Components\Textarea::make('description')
                 ->label('Deskripsi (opsional)')
