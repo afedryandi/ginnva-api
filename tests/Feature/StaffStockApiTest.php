@@ -321,6 +321,33 @@ class StaffStockApiTest extends TestCase
         $this->assertEquals(15, (float) $scroll->fresh()->remaining_length_meters);
     }
 
+    public function test_only_full_access_can_delete_a_whole_memo_but_staff_can_still_remove_a_row(): void
+    {
+        $staff = $this->staff('kasir', $this->storeA);
+        $memo = $this->memo($this->storeA);
+        $material = $this->material('Adhesive', 10);
+        $this->api($staff)->postJson("/api/staff/memos/{$memo->id}/items", ['item_type' => 'raw_material', 'item_id' => $material->id, 'qty_taken' => 4])->assertSuccessful();
+        $row = $memo->items()->firstOrFail();
+
+        $this->api($staff)->deleteJson("/api/staff/memos/{$memo->id}")
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Hanya akun akses penuh yang boleh menghapus memo utuh. Hapus baris barang yang salah, atau hubungi admin.');
+        $this->assertNotNull(MaterialMemo::withoutGlobalScopes()->find($memo->id));
+        $this->assertEquals(6, (float) $material->fresh()->current_stock, 'Stok tidak berubah karena penghapusan ditolak.');
+
+        $this->api($staff)->deleteJson("/api/staff/memos/{$memo->id}/items/{$row->id}")->assertSuccessful();
+        $this->assertEquals(10, (float) $material->fresh()->current_stock);
+
+        $this->api($this->staff('super_admin'))->deleteJson("/api/staff/memos/{$memo->id}")->assertSuccessful();
+        $this->assertNull(MaterialMemo::withoutGlobalScopes()->find($memo->id));
+    }
+
+    public function test_the_login_profile_tells_the_app_whether_the_delete_button_is_allowed(): void
+    {
+        $this->api($this->staff('kasir'))->getJson('/api/staff/auth/me')->assertSuccessful()->assertJsonPath('user.can_delete_memo', false);
+        $this->api($this->staff('super_admin'))->getJson('/api/staff/auth/me')->assertSuccessful()->assertJsonPath('user.can_delete_memo', true);
+    }
+
     public function test_memo_item_validation_and_errors(): void
     {
         $staff = $this->staff();

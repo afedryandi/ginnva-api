@@ -244,6 +244,15 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
+        // Hapus memo utuh hanya untuk akses penuh (keputusan 2026-10-09), sama dengan tombol Hapus di panel admin
+        // (EditMaterialMemo): staf biasa cukup mengoreksi / menghapus baris barang di dalam memo.
+        if (! $request->user('api')->isFullAccess()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya akun akses penuh yang boleh menghapus memo utuh. Hapus baris barang yang salah, atau hubungi admin.',
+            ], 403);
+        }
+
         $userId = $request->user('api')->id;
 
         DB::transaction(function () use ($memo, $userId) {
