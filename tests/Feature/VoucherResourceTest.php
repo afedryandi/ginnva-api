@@ -135,7 +135,7 @@ class VoucherResourceTest extends TestCase
         $this->get(VoucherResource::getUrl('create'))->assertForbidden();
 
         $this->as($this->user('super_admin'));
-        $this->get(VoucherResource::getUrl('create'))->assertSuccessful();
+        Livewire::test(CreateVoucher::class)->assertSuccessful();
     }
 
     // ------------------------------------------------------------- daftar
