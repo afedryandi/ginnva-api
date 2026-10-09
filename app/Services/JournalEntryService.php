@@ -75,7 +75,7 @@ class JournalEntryService
     public function update(JournalEntry $entry, array $header, array $lines): JournalEntry
     {
         return DB::transaction(function () use ($entry, $header, $lines) {
-            $locked = JournalEntry::whereKey($entry->id)->lockForUpdate()->firstOrFail();
+            $locked = JournalEntry::withoutGlobalScopes()->whereKey($entry->id)->lockForUpdate()->firstOrFail();
 
             if (! $locked->isDraft()) {
                 throw new RuntimeException('Jurnal yang sudah diposting terkunci — tidak bisa diedit langsung. Buat jurnal pembalik kalau perlu koreksi.');
@@ -110,7 +110,7 @@ class JournalEntryService
     public function post(JournalEntry $entry, ?int $userId): JournalEntry
     {
         return DB::transaction(function () use ($entry, $userId) {
-            $locked = JournalEntry::whereKey($entry->id)->lockForUpdate()->firstOrFail();
+            $locked = JournalEntry::withoutGlobalScopes()->whereKey($entry->id)->lockForUpdate()->firstOrFail();
 
             if (! $locked->isDraft()) {
                 throw new RuntimeException('Cuma jurnal berstatus Draft yang bisa diposting.');
@@ -165,7 +165,7 @@ class JournalEntryService
     public function reverse(JournalEntry $entry, ?int $userId, ?string $note = null, ?string $date = null): JournalEntry
     {
         return DB::transaction(function () use ($entry, $userId, $note, $date) {
-            $locked = JournalEntry::whereKey($entry->id)->lockForUpdate()->firstOrFail();
+            $locked = JournalEntry::withoutGlobalScopes()->whereKey($entry->id)->lockForUpdate()->firstOrFail();
 
             if (! $locked->isPosted()) {
                 throw new RuntimeException('Cuma jurnal yang sudah diposting yang bisa dibalik.');
