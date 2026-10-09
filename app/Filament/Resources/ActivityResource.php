@@ -42,6 +42,8 @@ class ActivityResource extends Resource
     'bank_statement_line' => 'Mutasi Rekening Bank',
     'blocked_date' => 'Tanggal Diblokir',
     'booking' => 'Booking',
+    'booking_cancellation_request' => 'Permintaan Pembatalan Booking',
+    'booking_reschedule_request' => 'Permintaan Jadwal Ulang Booking',
     'carousel' => 'Banner/Carousel',
     'case_study' => 'Studi Kasus',
     'chart_of_account' => 'Bagan Akun',
@@ -103,9 +105,11 @@ class ActivityResource extends Resource
     'transaction_approval_request' => 'Approval Referral/Refund',
     'user' => 'User Admin',
     'vehicle' => 'Kendaraan',
+    'voucher' => 'Kampanye Voucher',
     'voucher_claim' => 'Voucher',
     'warning_letter' => 'Surat Peringatan',
     'warranty' => 'Garansi',
+    'warranty_maintenance_schedule' => 'Jadwal Maintenance Garansi',
     'work_schedule' => 'Jadwal Kerja',
     ];
 
@@ -214,6 +218,7 @@ class ActivityResource extends Resource
 
                 Tables\Columns\TextColumn::make('description')
                     ->label('Deskripsi')
+                    ->searchable()
                     ->limit(60),
             ])
             ->filters([
@@ -276,15 +281,35 @@ class ActivityResource extends Resource
                 ->label('Alasan')
                 ->columnSpanFull()
                 ->visible(fn (Activity $record) => filled($record->properties['reason'] ?? null)),
+            // Nilai bersarang (array/objek, mis. jam operasional) diubah jadi teks JSON: KeyValueEntry hanya bisa
+            // menampilkan teks, dan nilai array membuat halaman detail error.
             KeyValueEntry::make('properties.old')
                 ->label('Nilai Sebelumnya')
                 ->columnSpanFull()
+                ->state(fn (Activity $record) => static::stringifyValues($record->properties['old'] ?? []))
                 ->visible(fn (Activity $record) => filled($record->properties['old'] ?? null)),
             KeyValueEntry::make('properties.attributes')
                 ->label('Nilai Baru')
                 ->columnSpanFull()
+                ->state(fn (Activity $record) => static::stringifyValues($record->properties['attributes'] ?? []))
                 ->visible(fn (Activity $record) => filled($record->properties['attributes'] ?? null)),
         ]);
+    }
+
+    /**
+     * @param  mixed  $values
+     * @return array<string, string>
+     */
+    public static function stringifyValues($values): array
+    {
+        return collect(is_array($values) ? $values : [])
+            ->map(fn ($value) => match (true) {
+                $value === null => '—',
+                is_bool($value) => $value ? 'ya' : 'tidak',
+                is_scalar($value) => (string) $value,
+                default => (string) json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            })
+            ->all();
     }
 
     public static function getEloquentQuery(): Builder
