@@ -41,6 +41,7 @@ class MaintenanceScheduleController extends Controller
                 'warranty_id'    => $s->warranty_id,
                 'warranty_code'  => $s->warranty->warranty_code,
                 'scheduled_date' => $s->scheduled_date->format('Y-m-d'),
+                'valid_until'    => $s->validUntil()->format('Y-m-d'),
                 'status'         => $s->status,
             ]),
         ]);
@@ -100,12 +101,15 @@ class MaintenanceScheduleController extends Controller
         // pilih tanggal lain di alur ini, jadi staff yang perlu dihubungi.
         // Tanggal jadwal sudah lewat: tidak bisa dikonfirmasi (nanti dihanguskan
         // otomatis oleh ProcessMaintenanceSchedules).
-        if (\Illuminate\Support\Carbon::parse($schedule->scheduled_date)->lt(today())) {
+        if ($schedule->validUntil()->lt(today())) {
             return response()->json([
                 'success' => false,
-                'message' => 'Tanggal jadwal maintenance ini sudah lewat. Hubungi toko langsung untuk mengatur jadwal baru.',
+                'message' => 'Masa berlaku jadwal maintenance ini sudah lewat. Hubungi toko langsung untuk mengatur jadwal baru.',
             ], 422);
         }
+
+        // Masa toleransi: tanggal jadwal boleh sudah lewat, booking dibuat untuk hari ini (bukan tanggal lampau).
+        $bookingDay = \Illuminate\Support\Carbon::parse($schedule->scheduled_date)->max(today());
 
         $store = \App\Models\Store::find($warranty->store_id);
 
@@ -119,7 +123,7 @@ class MaintenanceScheduleController extends Controller
             ], 422);
         }
 
-        if ($store?->isClosedOn(\Illuminate\Support\Carbon::parse($schedule->scheduled_date))) {
+        if ($store?->isClosedOn($bookingDay)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Toko tutup/libur pada tanggal jadwal ini. Hubungi toko langsung untuk menyesuaikan jadwal maintenance Anda.',
@@ -128,15 +132,14 @@ class MaintenanceScheduleController extends Controller
 
         // Kapasitas tanggal jadwal juga dicek (2026-10-02), sama dengan
         // booking biasa -- sebelumnya jalur ini melewatinya.
-        $scheduledDay = \Illuminate\Support\Carbon::parse($schedule->scheduled_date);
-        if (\App\Models\Booking::confirmedOverlapCount($warranty->store_id, $scheduledDay) >= \App\Models\Booking::capacityForDate($warranty->store_id, $scheduledDay)) {
+        if (\App\Models\Booking::confirmedOverlapCount($warranty->store_id, $bookingDay) >= \App\Models\Booking::capacityForDate($warranty->store_id, $bookingDay)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Kapasitas toko pada tanggal jadwal ini sudah penuh. Hubungi toko langsung untuk menyesuaikan jadwal maintenance Anda.',
             ], 422);
         }
 
-        $booking = DB::transaction(function () use ($schedule, $warranty, $request) {
+        $booking = DB::transaction(function () use ($schedule, $warranty, $request, $bookingDay) {
             $locked = WarrantyMaintenanceSchedule::whereKey($schedule->id)->lockForUpdate()->first();
 
             if (! in_array($locked->status, ['pending', 'confirmation_sent'], true)) {
@@ -147,7 +150,7 @@ class MaintenanceScheduleController extends Controller
                 'customer_id'    => $request->user('customer')->id,
                 'store_id'       => $warranty->store_id,
                 'service_type'   => 'Maintenance PPF',
-                'preferred_date' => $locked->scheduled_date,
+                'preferred_date' => $bookingDay->toDateString(),
                 'warranty_id'    => $warranty->id,
                 'source'         => 'app',
                 'status'         => 'pending',

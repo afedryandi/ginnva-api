@@ -205,15 +205,29 @@ class MaintenancePpfTest extends TestCase
         $customer = $this->customer();
         $warranty = $this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => 6, 'installation_date' => '2026-04-20']);
         $warranty->maintenanceSchedules()->delete();
-        $overdue = $this->schedule($warranty, 1, '2026-10-01');
-        $sent = $this->schedule($this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => null]), 1, '2026-10-02', 'confirmation_sent');
+        // Hangus hanya setelah masa toleransi 30 hari (2026-10-09): 2026-09-07 sudah lewat 31 hari.
+        $overdue = $this->schedule($warranty, 1, '2026-09-07');
+        $sent = $this->schedule($this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => null]), 1, '2026-09-06', 'confirmation_sent');
 
         $this->artisan('maintenance:process-schedules')->assertSuccessful();
 
         $this->assertSame('forfeited', $overdue->fresh()->status);
         $this->assertSame('forfeited', $sent->fresh()->status);
         $next = $warranty->maintenanceSchedules()->where('sequence', 2)->firstOrFail();
-        $this->assertSame('2027-04-01', $next->scheduled_date->toDateString());
+        $this->assertSame('2027-03-07', $next->scheduled_date->toDateString());
+    }
+
+    public function test_a_schedule_inside_the_grace_period_is_not_forfeited_yet(): void
+    {
+        $customer = $this->customer();
+        $inGrace = $this->schedule($this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => null]), 1, '2026-09-09');
+        $sentInGrace = $this->schedule($this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => null]), 1, '2026-10-01', 'confirmation_sent');
+
+        $this->artisan('maintenance:process-schedules')->assertSuccessful();
+
+        $this->assertSame('confirmation_sent', $inGrace->fresh()->status, 'Pending di masa toleransi dikirimi konfirmasi, belum hangus.');
+        $this->assertSame('confirmation_sent', $sentInGrace->fresh()->status);
+        $this->assertSame('2026-10-09', $inGrace->fresh()->validUntil()->toDateString());
     }
 
     public function test_revoked_warranties_and_inactive_stores_are_skipped(): void
@@ -223,8 +237,8 @@ class MaintenancePpfTest extends TestCase
         $offStore = Store::create(['city' => 'Medan', 'address' => 'Jl. M', 'name' => 'Toko Tutup', 'is_active' => false]);
         $inactive = $this->warranty(['customer_id' => $customer->id, 'store_id' => $offStore->id, 'maintenance_interval_months' => null]);
         $revokedSoon = $this->schedule($revoked, 1, '2026-10-12');
-        $inactiveOverdue = $this->schedule($inactive, 1, '2026-10-01');
-        $revokedOverdue = $this->schedule($revoked, 2, '2026-10-02');
+        $inactiveOverdue = $this->schedule($inactive, 1, '2026-09-01');
+        $revokedOverdue = $this->schedule($revoked, 2, '2026-09-02');
 
         $this->artisan('maintenance:process-schedules')->assertSuccessful();
 
@@ -291,6 +305,28 @@ class MaintenancePpfTest extends TestCase
         $this->assertSame(1, Booking::count());
     }
 
+    public function test_confirming_inside_the_grace_period_books_today_not_a_past_date(): void
+    {
+        $me = $this->customer();
+        $schedule = $this->schedule($this->warranty(['customer_id' => $me->id, 'maintenance_interval_months' => null]), 1, '2026-10-01');
+
+        $this->actingAs($me, 'customer')->postJson("/api/customer/maintenance-schedules/{$schedule->id}/confirm")->assertStatus(201);
+
+        $booking = Booking::firstOrFail();
+        $this->assertSame('2026-10-08', $booking->preferred_date->toDateString());
+        $this->assertSame('confirmed', $schedule->fresh()->status);
+    }
+
+    public function test_pending_list_exposes_the_validity_end_date(): void
+    {
+        $me = $this->customer();
+        $this->schedule($this->warranty(['customer_id' => $me->id, 'maintenance_interval_months' => null]), 1, '2026-10-20');
+
+        $this->actingAs($me, 'customer')->getJson('/api/customer/maintenance-schedules/pending')
+            ->assertSuccessful()
+            ->assertJsonPath('data.0.valid_until', '2026-11-19');
+    }
+
     public function test_confirming_is_refused_in_the_unsafe_cases(): void
     {
         $me = $this->customer();
@@ -298,7 +334,7 @@ class MaintenancePpfTest extends TestCase
         $this->store->update(['opening_hours' => [['days' => ['sun'], 'closed' => true]]]);
 
         $revoked = $this->schedule($this->warranty(['customer_id' => $me->id, 'status' => 'revoked', 'maintenance_interval_months' => null]), 1, '2026-10-20');
-        $past = $this->schedule($this->warranty(['customer_id' => $me->id, 'maintenance_interval_months' => null]), 1, '2026-10-01');
+        $past = $this->schedule($this->warranty(['customer_id' => $me->id, 'maintenance_interval_months' => null]), 1, '2026-09-01');
         $closedDay = $this->schedule($this->warranty(['customer_id' => $me->id, 'maintenance_interval_months' => null]), 1, '2026-10-11');
         $offStore = Store::create(['city' => 'Medan', 'address' => 'Jl. M', 'name' => 'Toko Tutup', 'is_active' => false]);
         $inactive = $this->schedule($this->warranty(['customer_id' => $me->id, 'store_id' => $offStore->id, 'maintenance_interval_months' => null]), 1, '2026-10-20');

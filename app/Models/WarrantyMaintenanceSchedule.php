@@ -22,6 +22,12 @@ class WarrantyMaintenanceSchedule extends Model
 {
     use LogsActivity;
 
+    /**
+     * Masa toleransi (hari) setelah scheduled_date: customer masih boleh datang / konfirmasi dan jadwal belum
+     * dihanguskan (keputusan 2026-10-09: tanggal kedatangan tidak perlu terlalu spesifik).
+     */
+    public const GRACE_DAYS = 30;
+
     protected $fillable = [
         'warranty_id',
         'sequence',
@@ -41,6 +47,12 @@ class WarrantyMaintenanceSchedule extends Model
     public function warranty()
     {
         return $this->belongsTo(Warranty::class);
+    }
+
+    /** Batas akhir toleransi (hari terakhir jadwal ini masih berlaku). */
+    public function validUntil(): \Illuminate\Support\Carbon
+    {
+        return $this->scheduled_date->copy()->addDays(self::GRACE_DAYS);
     }
 
     public function booking()
