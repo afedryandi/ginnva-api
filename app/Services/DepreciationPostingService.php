@@ -75,6 +75,12 @@ class DepreciationPostingService
      */
     private function postForAsset(Asset $asset, Carbon $monthStart, ChartOfAccount $bebanPenyusutan): true|string|null
     {
+        // Aset belum dibeli pada bulan ini (mis. menjalankan ulang bulan lalu untuk pengisian riwayat): tidak boleh
+        // disusutkan sebelum ada.
+        if ($asset->purchase_date->gt($monthStart->copy()->endOfMonth())) {
+            return null;
+        }
+
         $alreadyPostedThisMonth = JournalEntry::where('reference_type', 'asset_depreciation')
             ->where('reference_id', $asset->id)
             ->whereYear('entry_date', $monthStart->year)
@@ -107,6 +113,13 @@ class DepreciationPostingService
             ->where('status', 'posted')
             ->count();
 
+        $totalMonths = (int) ($asset->useful_life_years * 12);
+
+        // Umur ekonomis sudah terlewati: berhenti, walau pembulatan menyisakan beberapa sen.
+        if ($monthsAlreadyPosted >= $totalMonths) {
+            return null;
+        }
+
         $accumulatedSoFar = round($monthsAlreadyPosted * $monthlyAmount, 2);
         $remaining = round($depreciable - $accumulatedSoFar, 2);
 
@@ -114,7 +127,11 @@ class DepreciationPostingService
             return null;
         }
 
-        $amount = min($monthlyAmount, $remaining);
+        // Bulan TERAKHIR menghabiskan seluruh sisa (termasuk selisih pembulatan), supaya total akumulasi tepat sama dengan
+        // harga beli dikurangi nilai residu -- tanpa ini sisa beberapa sen memicu satu jurnal tambahan di bulan ke-(umur + 1).
+        $amount = ($monthsAlreadyPosted + 1 === $totalMonths)
+            ? $remaining
+            : min($monthlyAmount, $remaining);
 
         try {
             $service = app(JournalEntryService::class);

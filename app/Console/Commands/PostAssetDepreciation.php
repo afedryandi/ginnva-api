@@ -25,9 +25,15 @@ class PostAssetDepreciation extends Command
 
     public function handle(): int
     {
-        $month = $this->option('month')
-            ? Carbon::parse($this->option('month'))
-            : now()->subMonth();
+        try {
+            $month = $this->option('month')
+                ? Carbon::parse($this->option('month'))
+                : now()->subMonth();
+        } catch (\Throwable $e) {
+            $this->error('Format --month tidak valid. Contoh: --month=2026-09 atau --month=2026-09-01');
+
+            return self::FAILURE;
+        }
 
         $result = app(DepreciationPostingService::class)->postForMonth($month);
 
