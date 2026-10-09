@@ -302,7 +302,7 @@ class CustomerResourceTest extends TestCase
         $this->as($this->user('kasir'));
         Livewire::test(ViewCustomer::class, ['record' => $customer->getRouteKey()])
             ->assertSuccessful()
-            ->assertSee('Budi Santoso')
+            ->assertFormSet(['name' => 'Budi Santoso', 'email' => 'budi.santoso@test.local'])
             ->assertSee('Laki-Laki')
             ->assertSee('Jl. Merdeka 1')
             ->assertSee($referrer->referral_code)
