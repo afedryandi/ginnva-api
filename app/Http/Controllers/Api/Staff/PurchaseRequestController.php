@@ -106,8 +106,10 @@ class PurchaseRequestController extends Controller
             'item_type' => 'required|in:raw_material,consumable_item,asset',
             'item_id' => 'required_if:item_type,raw_material,consumable_item|nullable|integer',
             'item_name' => 'required_if:item_type,asset|nullable|string|max:255',
-            'quantity' => 'required|numeric|min:0.01',
+            'quantity' => 'required|numeric|min:0.01|max:1000000',
             'reason' => 'nullable|string|max:1000',
+            // Hanya dipakai full-access (staf biasa selalu tokonya sendiri); tanpa exists, id ngawur menjadi error 500 FK.
+            'store_id' => 'nullable|integer|exists:stores,id',
         ]);
 
         if ($validator->fails()) {

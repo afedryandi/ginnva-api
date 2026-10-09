@@ -51,8 +51,10 @@ class AssetController extends Controller
         $assets = Asset::query()
             ->visibleTo($user)
             ->when($request->boolean('assigned_to_me'), fn ($q) => $q->where('assigned_to', $user->id))
-            ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
-                ->orWhere('asset_tag', 'like', "%{$search}%"))
+            // Dikelompokkan dalam kurung: tanpa itu "toko = X AND nama LIKE .. OR kode LIKE .." membuat pencocokan kode aset
+            // lolos dari pembatasan toko (dan dari filter "ditugaskan ke saya").
+            ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('name', 'like', "%{$search}%")
+                ->orWhere('asset_tag', 'like', "%{$search}%")))
             ->orderBy('name')
             ->limit(20)
             ->get(['id', 'asset_tag', 'name', 'category', 'status']);

@@ -68,9 +68,9 @@ class InventoryController extends Controller
 
         $items = InventoryItem::query()
             ->with('scrollCode:id,code,remaining_length_meters')
-            ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
+            ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%")
-                ->orWhereHas('scrollCode', fn ($sq) => $sq->where('code', 'like', "%{$search}%")))
+                ->orWhereHas('scrollCode', fn ($sq) => $sq->where('code', 'like', "%{$search}%"))))
             ->orderBy('name')
             ->limit(30)
             ->get(['id', 'code', 'name', 'category', 'status', 'scroll_code_id']);
@@ -310,7 +310,7 @@ class InventoryController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'meters' => 'required|numeric|min:0.01',
+            'meters' => 'required|numeric|min:0.01|max:100000',
             'note' => 'nullable|string|max:500',
             'booking_id' => 'nullable|integer|exists:bookings,id',
         ]);

@@ -36,8 +36,8 @@ class ConsumableItemController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $items = ConsumableItem::query()
-            ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
-                ->orWhere('code', 'like', "%{$search}%"))
+            ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('name', 'like', "%{$search}%")
+                ->orWhere('code', 'like', "%{$search}%")))
             ->orderBy('name')
             ->limit(30)
             ->get(['id', 'name', 'code', 'category', 'unit', 'current_stock', 'reorder_point']);
@@ -135,13 +135,13 @@ class ConsumableItemController extends Controller
 
         $validator = Validator::make($request->all(), [
             'type' => 'required|in:in,out',
-            'quantity' => 'required|numeric|min:0.01',
+            'quantity' => 'required|numeric|min:0.01|max:1000000',
             'note' => 'nullable|string|max:500',
             // Opsional, cuma relevan untuk type=in — lihat
             // ConsumableItem::recordMovement(). Tidak ada UI-nya di
             // mobile (harga tetap tugas admin/Filament), API-nya
             // disiapkan supaya konsisten dengan RawMaterialController.
-            'unit_cost' => 'nullable|numeric|min:0',
+            'unit_cost' => 'nullable|numeric|min:0|max:999999999',
         ]);
 
         if ($validator->fails()) {
@@ -205,7 +205,7 @@ class ConsumableItemController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'actual_quantity' => 'required|numeric|min:0',
+            'actual_quantity' => 'required|numeric|min:0|max:1000000',
             'note' => 'nullable|string|max:500',
         ]);
 

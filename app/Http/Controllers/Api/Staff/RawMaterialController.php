@@ -48,8 +48,8 @@ class RawMaterialController extends Controller
         $materials = RawMaterial::query()
             ->select(['id', 'name', 'code', 'category', 'unit', 'current_stock', 'reorder_point'])
             ->with(['batches' => fn ($q) => $q->where('quantity', '>', 0)->whereNotNull('expiry_date')])
-            ->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%")
-                ->orWhere('code', 'like', "%{$search}%"))
+            ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('name', 'like', "%{$search}%")
+                ->orWhere('code', 'like', "%{$search}%")))
             ->orderBy('name')
             ->limit(30)
             ->get()
@@ -163,7 +163,7 @@ class RawMaterialController extends Controller
 
         $validator = Validator::make($request->all(), [
             'type' => 'required|in:in,out',
-            'quantity' => 'required|numeric|min:0.01',
+            'quantity' => 'required|numeric|min:0.01|max:1000000',
             'note' => 'nullable|string|max:500',
             // Cuma relevan untuk type=in — dipakai jadi tanggal batch baru
             // (lihat RawMaterial::recordMovement()). Boleh kosong (default
@@ -172,7 +172,7 @@ class RawMaterialController extends Controller
             'expiry_date' => 'nullable|date',
             // Opsional, cuma relevan untuk type=in — harga beli batch ini
             // sendiri (untuk valuasi stok), lihat RawMaterial::recordMovement().
-            'unit_cost' => 'nullable|numeric|min:0',
+            'unit_cost' => 'nullable|numeric|min:0|max:999999999',
         ]);
 
         if ($validator->fails()) {
@@ -245,7 +245,7 @@ class RawMaterialController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'actual_quantity' => 'required|numeric|min:0',
+            'actual_quantity' => 'required|numeric|min:0|max:1000000',
             'note' => 'nullable|string|max:500',
         ]);
 

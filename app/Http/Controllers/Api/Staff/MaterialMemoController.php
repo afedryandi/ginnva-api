@@ -282,8 +282,8 @@ class MaterialMemoController extends Controller
         $validator = Validator::make($request->all(), [
             'item_type' => 'required|in:raw_material,consumable_item,inventory_item',
             'item_id' => 'required|integer',
-            'qty_taken' => 'required_if:item_type,raw_material,consumable_item|nullable|numeric|min:0.01',
-            'meters_used' => 'required_if:item_type,inventory_item|nullable|numeric|min:0.01',
+            'qty_taken' => 'required_if:item_type,raw_material,consumable_item|nullable|numeric|min:0.01|max:1000000',
+            'meters_used' => 'required_if:item_type,inventory_item|nullable|numeric|min:0.01|max:100000',
             'condition_notes' => 'nullable|string|max:500',
         ]);
 
@@ -360,7 +360,7 @@ class MaterialMemoController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'qty_returned' => ['required', 'numeric', 'min:0'],
+            'qty_returned' => ['required', 'numeric', 'min:0', 'max:1000000'],
         ]);
 
         if ($validator->fails()) {
@@ -414,8 +414,8 @@ class MaterialMemoController extends Controller
 
         $isInventory = $memoItem->item_type === 'inventory_item';
         $validator = Validator::make($request->all(), [
-            'qty_taken' => $isInventory ? 'nullable' : 'required|numeric|min:0.01',
-            'meters_used' => $isInventory ? 'required|numeric|min:0.01' : 'nullable',
+            'qty_taken' => $isInventory ? 'nullable' : 'required|numeric|min:0.01|max:1000000',
+            'meters_used' => $isInventory ? 'required|numeric|min:0.01|max:100000' : 'nullable',
         ]);
 
         if ($validator->fails()) {
