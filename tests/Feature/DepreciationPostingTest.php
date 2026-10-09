@@ -153,7 +153,8 @@ class DepreciationPostingTest extends TestCase
     public function test_a_missing_expense_account_stops_everything_with_a_message(): void
     {
         $this->asset('Mesin Cutting');
-        ChartOfAccount::where('code', '6420')->delete();
+        // Lewat query langsung: model menolak menghapus akun sistem.
+        \DB::table('chart_of_accounts')->where('code', '6420')->delete();
 
         $result = app(DepreciationPostingService::class)->postForMonth(Carbon::parse('2026-09-01'));
 
