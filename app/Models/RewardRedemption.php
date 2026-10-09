@@ -43,6 +43,18 @@ class RewardRedemption extends Model
      */
     private static array $redeemerCache = [];
 
+    /** Kosongkan cache redeemer (dipanggil otomatis tiap penukaran disimpan/dihapus, dan oleh test). */
+    public static function flushRedeemerCache(): void
+    {
+        static::$redeemerCache = [];
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(fn () => static::flushRedeemerCache());
+        static::deleted(fn () => static::flushRedeemerCache());
+    }
+
     /**
      * Bukan morphTo Eloquent standar — redeemer_type cuma 'partner' atau
      * 'customer', dua tabel yang tidak share base class. Resolve manual.
@@ -57,7 +69,9 @@ class RewardRedemption extends Model
 
         return static::$redeemerCache[$cacheKey] = match ($this->redeemer_type) {
             'partner'  => Partner::find($this->redeemer_id),
-            'customer' => Customer::find($this->redeemer_id),
+            // withTrashed: akun yang sudah dihapus (dianonimkan) tetap ditemukan, supaya penukarannya tidak hilang
+            // identitas "Customer" di daftar dan pembatalan tetap bisa mengembalikan stok reward.
+            'customer' => Customer::withTrashed()->find($this->redeemer_id),
             default    => null,
         };
     }
@@ -70,7 +84,7 @@ class RewardRedemption extends Model
 
         return match (true) {
             $redeemer instanceof Partner  => $redeemer->business_name . ' (Partner)',
-            $redeemer instanceof Customer => $redeemer->name . ' (Customer)',
+            $redeemer instanceof Customer => ($redeemer->name ?? 'Pelanggan Terhapus') . ' (Customer)',
             default                       => '—',
         };
     }

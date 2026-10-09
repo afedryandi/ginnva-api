@@ -92,6 +92,7 @@ class RewardRedemptionResource extends Resource
                     'fulfilled' => 'Sudah Dikirim',
                     'cancelled' => 'Dibatalkan',
                 ])
+                ->in(['pending', 'fulfilled', 'cancelled'])
                 ->required(),
 
             Forms\Components\Textarea::make('notes')

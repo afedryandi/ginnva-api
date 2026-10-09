@@ -53,7 +53,12 @@ class RewardRedemptionObserver
                     ? "Reward \"{$redemption->reward?->name}\" Anda sudah diproses toko."
                     : "Penukaran reward \"{$redemption->reward?->name}\" dibatalkan, poin Anda sudah dikembalikan.";
 
-                app(PushNotificationService::class)->sendToCustomer($customer->id, $title, $body);
+                // Gagal kirim notifikasi tidak boleh menggagalkan perubahan status penukaran (poin & stok sudah disesuaikan).
+                try {
+                    app(PushNotificationService::class)->sendToCustomer($customer->id, $title, $body);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
             }
         }
     }
@@ -110,8 +115,14 @@ class RewardRedemptionObserver
             // reversal), TAPI cuma untuk reward yang memang lacak stok
             // (stock !== null, lihat RewardRedemptionService::redeem()).
             $reward = $redemption->reward;
+            // Kolom stok unsigned: mengurangi dari 0 (batal-dibatalkan saat stok reward sudah habis) membuat database
+            // menolak dengan error 500. Stok sudah 0, jadi tidak ada yang perlu dikurangi lagi.
             if ($reward && $reward->stock !== null) {
-                $refund ? $reward->increment('stock') : $reward->decrement('stock');
+                if ($refund) {
+                    $reward->increment('stock');
+                } elseif ($reward->stock > 0) {
+                    $reward->decrement('stock');
+                }
             }
         });
     }
