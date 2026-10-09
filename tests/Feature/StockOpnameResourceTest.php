@@ -153,10 +153,13 @@ class StockOpnameResourceTest extends TestCase
         $staff = $this->as($this->user('kasir', $this->storeA));
 
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeB, [
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeB, [
                 ['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 7.5],
                 ['item_type' => 'consumable_item', 'item_id' => $consumable->id, 'actual_quantity' => 8],
             ], ['notes' => 'Opname bulanan']))
+            ->callMountedTableAction()
             ->assertHasNoTableActionErrors()
             ->assertNotified('Sesi Stok Opname dicatat, stok disesuaikan.');
 
@@ -188,7 +191,10 @@ class StockOpnameResourceTest extends TestCase
         $this->as($this->user('super_admin'));
 
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeB, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 9]]))
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeB, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 9]]))
+            ->callMountedTableAction()
             ->assertHasNoTableActionErrors();
 
         $this->assertSame($this->storeB->id, StockOpname::withoutGlobalScopes()->firstOrFail()->store_id);
@@ -200,12 +206,18 @@ class StockOpnameResourceTest extends TestCase
 
         $this->as($this->user('kasir', $this->storeA));
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 9]]))
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 9]]))
+            ->callMountedTableAction()
             ->assertNotified('Sesi Stok Opname dicatat, stok disesuaikan.');
 
         $this->as($this->user('kasir', $this->storeB));
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeB, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 8]]))
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeB, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 8]]))
+            ->callMountedTableAction()
             ->assertNotified('Sesi Stok Opname dicatat, stok disesuaikan.');
 
         $numbers = StockOpname::withoutGlobalScopes()->orderBy('id')->pluck('opname_number')->all();
@@ -218,7 +230,10 @@ class StockOpnameResourceTest extends TestCase
         $this->as($this->user('kasir', $this->storeA));
 
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 10]]))
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 10]]))
+            ->callMountedTableAction()
             ->assertHasNoTableActionErrors();
 
         $row = StockOpnameItem::firstOrFail();
@@ -234,15 +249,24 @@ class StockOpnameResourceTest extends TestCase
         $this->as($this->user('kasir', $this->storeA));
 
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeA, []))
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeA, []))
+            ->callMountedTableAction()
             ->assertHasTableActionErrors(['items']);
 
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => -1]]))
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => -1]]))
+            ->callMountedTableAction()
             ->assertHasTableActionErrors(['items.0.actual_quantity']);
 
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => null]]))
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => null]]))
+            ->callMountedTableAction()
             ->assertHasTableActionErrors(['items.0.actual_quantity' => 'required']);
 
         $this->assertSame(0, StockOpname::withoutGlobalScopes()->count());
@@ -256,17 +280,23 @@ class StockOpnameResourceTest extends TestCase
         $this->as($this->user('kasir', $this->storeA));
 
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeA, [
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeA, [
                 ['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 9],
                 ['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 8],
             ]))
+            ->callMountedTableAction()
             ->assertNotified('Item yang sama tidak boleh dihitung dua kali dalam satu sesi.');
 
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeA, [
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeA, [
                 ['item_type' => 'raw_material', 'item_id' => $other->id, 'actual_quantity' => 1],
                 ['item_type' => 'raw_material', 'item_id' => 999999, 'actual_quantity' => 1],
-            ]));
+            ]))
+            ->callMountedTableAction();
 
         $this->assertSame(0, StockOpname::withoutGlobalScopes()->count());
         $this->assertSame(0, StockOpnameItem::count());
@@ -280,7 +310,10 @@ class StockOpnameResourceTest extends TestCase
         $this->as(tap(User::create(['name' => 'Tanpa Toko', 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => null, 'is_active' => true]), fn (User $u) => $u->assignRole('kasir')));
 
         Livewire::test(ListStockOpnames::class)
-            ->callTableAction('create_opname', data: $this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 9]]))
+            ->mountTableAction('create_opname')
+            ->set('mountedTableActionsData.0.items', [])
+            ->setTableActionData($this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 9]]))
+            ->callMountedTableAction()
             ->assertNotified('Akun Anda belum terikat ke toko, sesi tidak bisa dibuat.');
 
         $this->assertSame(0, StockOpname::withoutGlobalScopes()->count());
