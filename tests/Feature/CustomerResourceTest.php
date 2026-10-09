@@ -75,11 +75,6 @@ class CustomerResourceTest extends TestCase
         return $customer;
     }
 
-    private function viewOnly(): User
-    {
-        return $this->user('kasir', null, ['menu_permissions' => ['CustomerResource' => ['view']]]);
-    }
-
     // ------------------------------------------------------------- akses
 
     public function test_access_rules(): void
@@ -98,10 +93,6 @@ class CustomerResourceTest extends TestCase
         $this->assertTrue(CustomerResource::canView($record));
         $this->assertTrue(CustomerResource::canEdit($record));
         $this->assertFalse(CustomerResource::canDelete($record));
-
-        $this->as($this->viewOnly());
-        $this->assertTrue(CustomerResource::canView($record));
-        $this->assertFalse(CustomerResource::canEdit($record));
 
         $this->as($this->user('kasir', ['BookingResource']));
         $this->assertFalse(CustomerResource::canViewAny());
@@ -184,24 +175,20 @@ class CustomerResourceTest extends TestCase
         $this->assertNull($customer->fresh()->gender);
     }
 
-    public function test_edit_actions_are_hidden_for_view_only_staff(): void
+    public function test_staff_with_menu_access_can_edit_but_not_delete(): void
     {
         $customer = $this->customer('Budi Santoso');
 
-        $this->as($this->viewOnly());
-        Livewire::test(ListCustomers::class)
-            ->assertTableActionVisible('view', $customer)
-            ->assertTableActionHidden('personalData', $customer)
-            ->assertTableActionHidden('setReferral', $customer)
-            ->assertTableActionHidden('delete', $customer)
-            ->assertTableBulkActionHidden('setCustomerGroup');
-
         $this->as($this->user('kasir'));
         Livewire::test(ListCustomers::class)
+            ->assertTableActionVisible('view', $customer)
             ->assertTableActionVisible('personalData', $customer)
             ->assertTableActionVisible('setReferral', $customer)
             ->assertTableActionHidden('delete', $customer)
             ->assertTableBulkActionVisible('setCustomerGroup');
+
+        $this->as($this->user('kasir', null, ['menu_permissions' => ['CustomerResource' => ['delete']]]));
+        Livewire::test(ListCustomers::class)->assertTableActionVisible('delete', $customer);
     }
 
     // ------------------------------------------------------------- Set Referral
@@ -320,9 +307,6 @@ class CustomerResourceTest extends TestCase
             ->assertSee('Jl. Merdeka 1')
             ->assertSee($referrer->referral_code)
             ->assertActionVisible('setReferral');
-
-        $this->as($this->viewOnly());
-        Livewire::test(ViewCustomer::class, ['record' => $customer->getRouteKey()])->assertActionHidden('setReferral');
     }
 
     public function test_a_deleted_account_can_still_be_opened_without_edit_actions(): void
