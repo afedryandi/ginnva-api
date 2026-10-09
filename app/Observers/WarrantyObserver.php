@@ -202,7 +202,9 @@ class WarrantyObserver
             // interval-nya sudah terisi dari awal (created() juga manggil
             // method ini, 2 urutan kerja staff yang mungkin).
             && $warranty->review_status === 'approved'
-            && ($warranty->wasChanged('review_status') || $warranty->wasChanged('maintenance_interval_months'))
+            // wasRecentlyCreated: pada INSERT wasChanged() selalu false, jadi garansi yang langsung dibuat berstatus approved
+            // lengkap dengan interval (mis. diinput full-access / impor) tidak pernah mendapat jadwal pertamanya.
+            && ($warranty->wasRecentlyCreated || $warranty->wasChanged('review_status') || $warranty->wasChanged('maintenance_interval_months'))
             && $warranty->maintenanceSchedules()->doesntExist()
         ) {
             \App\Models\WarrantyMaintenanceSchedule::createFirstFor($warranty);

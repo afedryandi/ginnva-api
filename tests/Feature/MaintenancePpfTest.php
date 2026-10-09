@@ -70,7 +70,7 @@ class MaintenancePpfTest extends TestCase
     private function warranty(array $overrides = []): Warranty
     {
         return Warranty::create(array_merge([
-            'customer_name' => 'Budi Santoso', 'phone_number' => '081234567890', 'car_plate' => 'B 1234 XYZ', 'car_type' => 'Toyota Raize',
+            'warranty_code' => 'GNV-PPF-T' . strtoupper(substr(uniqid(), -6)), 'customer_name' => 'Budi Santoso', 'phone_number' => '081234567890', 'car_plate' => 'B 1234 XYZ', 'car_type' => 'Toyota Raize',
             'product_series' => 'Ginnva PPF Pro', 'product_category' => 'ppf', 'installation_date' => '2026-04-20', 'expiry_date' => '2031-04-20',
             'dealer_name' => 'Toko A', 'store_id' => $this->store->id, 'customer_id' => null, 'status' => 'active', 'review_status' => 'approved',
             'maintenance_quota' => 3, 'maintenance_interval_months' => 6,
