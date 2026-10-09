@@ -38,6 +38,21 @@ class StockOpnameService
             throw new RuntimeException('Stok Opname butuh minimal 1 item yang dihitung.');
         }
 
+        // Satu item hanya boleh dihitung sekali per sesi; angka negatif tidak masuk akal sebagai hasil hitung fisik.
+        $seen = [];
+        foreach ($items as $row) {
+            $key = ($row['item_type'] ?? '') . ':' . ($row['item_id'] ?? '');
+
+            if (isset($seen[$key])) {
+                throw new RuntimeException('Item yang sama tidak boleh dihitung dua kali dalam satu sesi.');
+            }
+            $seen[$key] = true;
+
+            if ((float) ($row['actual_quantity'] ?? 0) < 0) {
+                throw new RuntimeException('Hasil hitung fisik tidak boleh negatif.');
+            }
+        }
+
         return DB::transaction(function () use ($storeId, $opnameDate, $notes, $items, $userId) {
             $opname = StockOpname::create([
                 'opname_number' => StockOpname::generateOpnameNumber(),
@@ -48,9 +63,10 @@ class StockOpnameService
             ]);
 
             foreach ($items as $row) {
+                // lockForUpdate: stok sistem yang dicatat di baris sesi harus sama dengan yang dipakai adjustStock().
                 $material = match ($row['item_type']) {
-                    'raw_material' => RawMaterial::find($row['item_id']),
-                    'consumable_item' => ConsumableItem::find($row['item_id']),
+                    'raw_material' => RawMaterial::query()->whereKey($row['item_id'])->lockForUpdate()->first(),
+                    'consumable_item' => ConsumableItem::query()->whereKey($row['item_id'])->lockForUpdate()->first(),
                     default => throw new RuntimeException("Jenis item tidak dikenal: {$row['item_type']}"),
                 };
 

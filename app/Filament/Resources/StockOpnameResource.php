@@ -192,9 +192,20 @@ class StockOpnameResource extends Resource
                             ]),
                     ])
                     ->action(function (array $data) {
+                        // Kolom toko hanya di-disable di form (state-nya masih bisa dimanipulasi dari klien) -- staf
+                        // non-full-access dipaksa ke tokonya sendiri di sisi server.
+                        $user = auth()->user();
+                        $storeId = $user->isFullAccess() ? (int) $data['store_id'] : (int) $user->store_id;
+
+                        if ($storeId <= 0) {
+                            Notification::make()->title('Akun Anda belum terikat ke toko, sesi tidak bisa dibuat.')->danger()->send();
+
+                            return;
+                        }
+
                         try {
                             app(StockOpnameService::class)->create(
-                                (int) $data['store_id'],
+                                $storeId,
                                 $data['opname_date'],
                                 $data['notes'] ?: null,
                                 $data['items'],

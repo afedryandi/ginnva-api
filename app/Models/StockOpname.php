@@ -34,9 +34,18 @@ class StockOpname extends Model
     public static function generateOpnameNumber(): string
     {
         $datePart = now()->format('Ymd');
-        $todayCount = static::where('opname_number', 'like', "OPN-{$datePart}-%")->count();
+        $prefix = "OPN-{$datePart}-";
 
-        return sprintf('OPN-%s-%04d', $datePart, $todayCount + 1);
+        // Urutan TERBESAR hari ini LINTAS TOKO (withoutGlobalScopes). SEBELUMNYA menghitung baris lewat Global Scope toko:
+        // staf toko B menghitung 0 sesi (milik toko A tidak terlihat), menghasilkan nomor yang sama dengan toko A, lalu
+        // ditolak constraint UNIQUE opname_number.
+        $last = static::withoutGlobalScopes()
+            ->where('opname_number', 'like', $prefix . '%')
+            ->pluck('opname_number')
+            ->map(fn (string $number) => (int) substr($number, strlen($prefix)))
+            ->max() ?? 0;
+
+        return sprintf('OPN-%s-%04d', $datePart, $last + 1);
     }
 
     public function store(): BelongsTo
