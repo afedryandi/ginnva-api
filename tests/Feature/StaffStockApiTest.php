@@ -87,6 +87,8 @@ class StaffStockApiTest extends TestCase
 
         foreach (["/api/staff/materials/{$material->id}", "/api/staff/consumables/{$consumable->id}"] as $url) {
             $this->getJson($url)->assertStatus(401);
+        }
+        foreach (["/api/staff/materials/{$material->id}", "/api/staff/consumables/{$consumable->id}"] as $url) {
             $this->api($noMenu)->getJson($url)->assertStatus(403);
             $this->api($noMenu)->getJson($url . '/movements')->assertStatus(403);
             $this->api($noMenu)->postJson($url . '/movement', ['type' => 'in', 'quantity' => 1])->assertStatus(403);
@@ -106,7 +108,7 @@ class StaffStockApiTest extends TestCase
 
         $rows = collect($this->api($user)->getJson('/api/staff/materials?search=Adhesive')->assertSuccessful()->json('data'));
         $this->assertSame(['Adhesive'], $rows->pluck('name')->all());
-        $this->assertSame('2026-10-20', substr($rows[0]['nearest_expiry_date'], 0, 10));
+        $this->assertSame('2026-10-20', Carbon::parse($rows[0]['nearest_expiry_date'])->setTimezone(config('app.timezone'))->toDateString());
         $this->assertTrue($rows[0]['is_near_expiry']);
         $this->assertFalse($rows[0]['is_expired']);
 
@@ -244,9 +246,11 @@ class StaffStockApiTest extends TestCase
         $ids = collect($this->api($staff)->getJson('/api/staff/memos')->assertSuccessful()->json('data'))->pluck('id')->all();
         $this->assertSame([$memo->id], $ids);
 
-        $this->api($staff)->getJson("/api/staff/memos/{$theirs->id}")->assertForbidden();
-        $this->api($staff)->patchJson("/api/staff/memos/{$theirs->id}", ['notes' => 'x'])->assertForbidden();
-        $this->api($staff)->deleteJson("/api/staff/memos/{$theirs->id}")->assertForbidden();
+        // Memo toko lain tidak terlihat oleh staf (Global Scope toko): 404, tanpa membocorkan keberadaannya.
+        $this->api($staff)->getJson("/api/staff/memos/{$theirs->id}")->assertNotFound();
+        $this->api($staff)->patchJson("/api/staff/memos/{$theirs->id}", ['notes' => 'x'])->assertNotFound();
+        $this->api($staff)->deleteJson("/api/staff/memos/{$theirs->id}")->assertNotFound();
+        $this->assertNotNull(MaterialMemo::withoutGlobalScopes()->find($theirs->id));
         $this->api($staff)->getJson('/api/staff/memos/999999')->assertNotFound();
 
         $this->api($this->staff('super_admin'))->getJson('/api/staff/memos')->assertJsonCount(2, 'data');
@@ -363,7 +367,7 @@ class StaffStockApiTest extends TestCase
         $request = PurchaseRequest::withoutGlobalScopes()->findOrFail($response->json('data.id'));
         $this->assertSame([$this->storeA->id, 'Slip Solution', 'liter', 'pending', $staff->id], [$request->store_id, $request->item_name, $request->unit, $request->status, $request->requested_by]);
         $this->assertMatchesRegularExpression('/^PR-202610-[A-Z0-9]{4}$/', $request->request_number);
-        $this->assertSame(6.0, $response->json('data.quantity'));
+        $this->assertEquals(6, $response->json('data.quantity'));
 
         $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'asset', 'item_name' => 'Kompresor', 'quantity' => 1])->assertStatus(201);
         $this->assertNull(PurchaseRequest::withoutGlobalScopes()->where('item_name', 'Kompresor')->firstOrFail()->item_id);

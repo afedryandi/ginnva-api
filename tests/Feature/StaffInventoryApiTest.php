@@ -86,8 +86,10 @@ class StaffInventoryApiTest extends TestCase
         ];
 
         foreach ($calls as [$method, $url, $payload]) {
-            $this->{$method}($url, $payload ?? [])->assertStatus(401);
-            $this->api($noMenu)->{$method}($url, $payload ?? [])->assertStatus(403);
+            $this->{$method}($url, $payload)->assertStatus(401);
+        }
+        foreach ($calls as [$method, $url, $payload]) {
+            $this->api($noMenu)->{$method}($url, $payload)->assertStatus(403);
         }
 
         $this->assertSame('in_stock', $item->fresh()->status);
@@ -284,7 +286,8 @@ class StaffInventoryApiTest extends TestCase
         $user = $this->staff('kasir', $this->storeA);
 
         $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1, 'booking_id' => $pending->id])->assertStatus(422);
-        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1, 'booking_id' => $theirs->id])->assertForbidden();
+        // Booking toko lain tidak terlihat oleh staf (Global Scope toko): dijawab "tidak valid", tanpa membocorkan keberadaannya.
+        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1, 'booking_id' => $theirs->id])->assertStatus(422);
         $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1, 'booking_id' => 99999])->assertStatus(422)->assertJsonValidationErrors('booking_id');
         $this->assertEquals(15, (float) $scroll->fresh()->remaining_length_meters, 'Semua yang ditolak tidak memakai meter.');
 
