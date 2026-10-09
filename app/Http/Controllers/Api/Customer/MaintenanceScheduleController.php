@@ -153,7 +153,7 @@ class MaintenanceScheduleController extends Controller
             ], 422);
         }
 
-        $booking = DB::transaction(function () use ($schedule, $warranty, $request, $bookingDay) {
+        $booking = DB::transaction(function () use ($schedule, $warranty, $request, $bookingDay, $requestedDay) {
             $locked = WarrantyMaintenanceSchedule::whereKey($schedule->id)->lockForUpdate()->first();
 
             if (! in_array($locked->status, ['pending', 'confirmation_sent'], true)) {
