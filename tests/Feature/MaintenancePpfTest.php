@@ -586,4 +586,17 @@ class MaintenancePpfTest extends TestCase
         $this->actingAs($customer, 'customer')->postJson("/api/customer/maintenance-schedules/{$schedule->id}/confirm")->assertStatus(422);
         $this->assertSame(1, Booking::count());
     }
+
+    public function test_the_warranty_detail_exposes_validity_expiry_and_store_for_the_reschedule_picker(): void
+    {
+        $me = $this->customer();
+        $warranty = $this->warranty(['customer_id' => $me->id, 'maintenance_interval_months' => null]);
+        $this->schedule($warranty, 1, '2026-09-01');
+
+        $this->actingAs($me, 'customer')->getJson("/api/customer/warranties/{$warranty->id}")
+            ->assertSuccessful()
+            ->assertJsonPath('data.maintenance_schedule.valid_until', '2026-10-01')
+            ->assertJsonPath('data.maintenance_schedule.expired', true)
+            ->assertJsonPath('data.maintenance_schedule.store_id', $this->store->id);
+    }
 }

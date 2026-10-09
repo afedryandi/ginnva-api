@@ -255,6 +255,10 @@ class MyWarrantyController extends Controller
                 'sequence'       => $w->activeMaintenanceSchedule->sequence,
                 'scheduled_date' => $w->activeMaintenanceSchedule->scheduled_date->format('Y-m-d'),
                 'status'         => $w->activeMaintenanceSchedule->status,
+                // Masa toleransi 30 hari; lewat dari ini customer wajib memilih tanggal baru (2026-10-09).
+                'valid_until'    => $w->activeMaintenanceSchedule->validUntil()->format('Y-m-d'),
+                'expired'        => $w->activeMaintenanceSchedule->validUntil()->lt(today()),
+                'store_id'       => $w->store_id,
             ] : null,
             // Gap ditutup 2026-10-01 (audit Maintenance PPF, sisi mobile) --
             // dipakai mobile untuk membedakan "siklus otomatis memang belum
