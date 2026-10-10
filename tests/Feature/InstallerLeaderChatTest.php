@@ -89,8 +89,8 @@ class InstallerLeaderChatTest extends TestCase
         $booking = $this->booking();
         $outsider = $this->staff('installer_leader', $this->otherStore);
 
-        $this->actingAs($outsider, 'api')->getJson("/api/staff/bookings/{$booking->id}/messages")->assertStatus(403);
-        $this->actingAs($outsider, 'api')->postJson("/api/staff/bookings/{$booking->id}/messages", ['type' => 'text', 'body' => 'Halo'])->assertStatus(403);
+        $this->actingAs($outsider, 'api')->getJson("/api/staff/bookings/{$booking->id}/messages")->assertStatus(404);
+        $this->actingAs($outsider, 'api')->postJson("/api/staff/bookings/{$booking->id}/messages", ['type' => 'text', 'body' => 'Halo'])->assertStatus(404);
     }
 
     public function test_assigned_installers_no_longer_have_chat_access_but_are_recorded(): void
