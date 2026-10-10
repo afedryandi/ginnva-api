@@ -1385,15 +1385,19 @@ class BookingResource extends Resource
                             ->options(function (Booking $record) {
                                 return \App\Models\VoucherClaim::query()
                                     ->where(function ($q) use ($record) {
+                                        // Voucher aktif, belum tertaut booking lain, belum kedaluwarsa. Voucher hasil tukar poin
+                                        // melekat ke akun penukarnya: hanya muncul untuk booking customer yang sama.
                                         $q->where('status', 'active')
-                                            ->whereNull('booking_id');
+                                            ->whereNull('booking_id')
+                                            ->where(fn ($e) => $e->whereNull('expires_at')->orWhereDate('expires_at', '>=', today()))
+                                            ->where(fn ($o) => $o->whereNull('reward_id')->orWhere('customer_id', $record->customer_id));
                                     })
                                     ->orWhere('id', $record->voucher_claim_id)
-                                    ->with('voucher:id,name,discount_amount')
+                                    ->with(['voucher:id,name,discount_amount', 'reward:id,name'])
                                     ->orderByDesc('created_at')
                                     ->get()
                                     ->mapWithKeys(fn (\App\Models\VoucherClaim $c) => [
-                                        $c->id => "{$c->code} — {$c->voucher?->name} (Rp" . number_format((float) ($c->voucher?->discount_amount ?? 0), 0, ',', '.') . ')' . ($c->holder_name ? " — {$c->holder_name}" : ''),
+                                        $c->id => "{$c->code} — {$c->displayName()} (Rp" . number_format($c->faceValue(), 0, ',', '.') . ')' . ($c->holder_name ? " — {$c->holder_name}" : ''),
                                     ]);
                             })
                             ->default(fn (Booking $record) => $record->voucher_claim_id)

@@ -338,7 +338,7 @@ class PromoLoyaltyReport extends Page implements HasForms
             ->whereNotNull('booking_id')
             ->whereBetween('used_at', [$from, $to])
             ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
-            ->with(['voucher:id,name,discount_amount', 'booking:id,booking_number,store_id,transaction_amount,voucher_discount', 'booking.store:id,name'])
+            ->with(['voucher:id,name,discount_amount', 'reward:id,name', 'booking:id,booking_number,store_id,transaction_amount,voucher_discount', 'booking.store:id,name'])
             ->orderByDesc('used_at')
             ->get();
 

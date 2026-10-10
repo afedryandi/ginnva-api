@@ -91,6 +91,40 @@ class RewardResource extends Resource
                         ->maxLength(255)
                         ->columnSpanFull(),
 
+                    // Voucher dipindah ke menu Reward (2026-10-10): tipe "Voucher" otomatis menerbitkan voucher diskon
+                    // ke akun customer yang menukar poinnya. Tipe tidak bisa diubah setelah reward pernah ditukar.
+                    Forms\Components\Select::make('type')
+                        ->label('Jenis Reward')
+                        ->options([
+                            Reward::TYPE_ITEM    => 'Barang / Layanan (diproses staf)',
+                            Reward::TYPE_VOUCHER => 'Voucher Diskon (langsung masuk "Voucher Saya")',
+                        ])
+                        ->in([Reward::TYPE_ITEM, Reward::TYPE_VOUCHER])
+                        ->default(Reward::TYPE_ITEM)
+                        ->required()
+                        ->live()
+                        ->disabled(fn (?Reward $record) => $record?->redemptions()->exists() ?? false)
+                        ->columnSpanFull(),
+
+                    Forms\Components\TextInput::make('voucher_discount')
+                        ->label('Nominal Diskon Voucher (Rp)')
+                        ->numeric()
+                        ->minValue(1000)
+                        ->maxValue(1000000000)
+                        ->required(fn (Forms\Get $get) => $get('type') === Reward::TYPE_VOUCHER)
+                        ->visible(fn (Forms\Get $get) => $get('type') === Reward::TYPE_VOUCHER)
+                        ->helperText('Potongan harga yang didapat customer saat voucher dipakai di booking.'),
+
+                    Forms\Components\TextInput::make('voucher_valid_days')
+                        ->label('Masa Berlaku Voucher (hari)')
+                        ->numeric()
+                        ->integer()
+                        ->minValue(1)
+                        ->maxValue(3650)
+                        ->required(fn (Forms\Get $get) => $get('type') === Reward::TYPE_VOUCHER)
+                        ->visible(fn (Forms\Get $get) => $get('type') === Reward::TYPE_VOUCHER)
+                        ->helperText('Dihitung sejak customer menukar poin. Voucher yang lewat masa berlaku tidak bisa dipakai.'),
+
                     Forms\Components\Textarea::make('description')
                         ->label('Deskripsi')
                         ->columnSpanFull(),
@@ -151,6 +185,17 @@ class RewardResource extends Resource
                     ->searchable()
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('type')
+                    ->label('Jenis')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => $state === Reward::TYPE_VOUCHER ? 'Voucher' : 'Barang/Layanan')
+                    ->color(fn (?string $state): string => $state === Reward::TYPE_VOUCHER ? 'info' : 'gray'),
+
+                Tables\Columns\TextColumn::make('voucher_discount')
+                    ->label('Diskon Voucher')
+                    ->money('IDR', locale: 'id')
+                    ->placeholder('—'),
+
                 Tables\Columns\TextColumn::make('points_cost')
                     ->label('Harga Poin')
                     ->numeric()
@@ -193,6 +238,14 @@ class RewardResource extends Resource
 
                         Notification::make()->title('Reward dihapus')->success()->send();
                     }),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('type')
+                    ->label('Jenis')
+                    ->options([
+                        Reward::TYPE_ITEM    => 'Barang/Layanan',
+                        Reward::TYPE_VOUCHER => 'Voucher',
+                    ]),
             ])
             ->defaultSort('points_cost');
     }

@@ -60,7 +60,7 @@ class PromoLoyaltyReportExport implements FromArray, WithStyles
             /** @var VoucherClaim $claim */
             $rows[] = [
                 optional($claim->used_at)->format('Y-m-d'),
-                $claim->voucher?->name ?? '-',
+                $claim->displayName(),
                 $claim->booking?->booking_number ?? '-',
                 $claim->booking?->store?->name ?? '-',
                 $negative($claim->appliedDiscount()),

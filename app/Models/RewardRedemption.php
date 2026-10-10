@@ -29,6 +29,12 @@ class RewardRedemption extends Model
         return $this->belongsTo(Reward::class);
     }
 
+    /** Voucher yang terbit dari penukaran ini (hanya untuk reward bertipe voucher). */
+    public function voucherClaim(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(VoucherClaim::class, 'reward_redemption_id');
+    }
+
     /**
      * Cache statis per (type,id) diperbaiki 2026-09-26 (audit Katalog
      * Reward, gap N+1) -- redeemer_type/redeemer_id bukan morphTo Eloquent

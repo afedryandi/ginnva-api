@@ -3,65 +3,48 @@
 namespace App\Services;
 
 use App\Models\Booking;
-use App\Models\Voucher;
+use App\Models\Reward;
+use App\Models\RewardRedemption;
 use App\Models\VoucherClaim;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
- * Voucher fisik — dicetak dengan kode unik per lembar, dibagikan ke
- * customer yang sudah bayar DP. Tidak ada lagi klaim self-service dari
- * app (dulu ada, sudah dihapus) — staff yang input kode fisiknya lewat
- * Filament (assignToCustomer()), lalu otomatis tampil di "Voucher Saya"
- * customer terkait. Tidak terikat ke booking/discount sama sekali —
- * murni catatan "customer ini pernah dapat voucher fisik ini".
+ * Voucher hasil tukar poin (keputusan 2026-10-10, menggantikan voucher fisik): staf membuat Reward bertipe Voucher,
+ * customer menukar poin, lalu voucher langsung muncul di "Voucher Saya" dengan kode unik. Customer menunjukkan kode itu
+ * saat booking berikutnya dan staf memilihnya di transaksi (applyToBooking()). Voucher melekat ke akun yang menukarnya.
+ *
+ * Klaim voucher fisik lama (voucher_id terisi, tanpa reward) tetap bisa dipakai lewat applyToBooking() yang sama.
  */
 class VoucherService
 {
     /**
-     * Assign 1 kode voucher fisik ke 1 customer. Dipanggil dari Filament
-     * (VoucherResource\RelationManagers\ClaimsRelationManager) saat staff
-     * input kode yang tertera di voucher fisik yang dipegang customer.
-     *
-     * @throws RuntimeException kalau stok voucher jenis ini sudah habis,
-     *                           atau kode yang diinput sudah pernah
-     *                           dipakai/di-assign sebelumnya (duplikat).
+     * Terbitkan voucher untuk satu penukaran poin. Dipanggil dari RewardRedemptionService::redeem() di dalam
+     * transaksinya (reward & saldo sudah dikunci di sana).
      */
-    public function assignToCustomer(Voucher $voucher, string $code, int $customerId, ?int $bookingId = null): VoucherClaim
+    public function issueForRedemption(RewardRedemption $redemption, Reward $reward, int $customerId): VoucherClaim
     {
-        return $this->assign($voucher, $code, ['customer_id' => $customerId, 'booking_id' => $bookingId]);
-    }
+        $validDays = (int) $reward->voucher_valid_days;
 
-    /**
-     * Assign 1 kode voucher fisik ke customer WALK-IN — belum/tidak
-     * install mobile app, jadi tidak ada akun untuk ditempeli. Nama/HP
-     * dicatat manual oleh staff sebagai pengganti akun (lihat
-     * VoucherClaim::getHolderNameAttribute()).
-     *
-     * @throws RuntimeException sama seperti assignToCustomer().
-     */
-    public function assignToWalkin(Voucher $voucher, string $code, ?string $name, ?string $phone, ?int $bookingId = null): VoucherClaim
-    {
-        return $this->assign($voucher, $code, [
-            'walkin_name'  => $name,
-            'walkin_phone' => $phone,
-            'booking_id'   => $bookingId,
+        return VoucherClaim::create([
+            'reward_id'            => $reward->id,
+            'reward_redemption_id' => $redemption->id,
+            'customer_id'          => $customerId,
+            'code'                 => $this->generateCode(),
+            'status'               => 'active',
+            // Nominal & masa berlaku di-snapshot: mengubah reward kemudian tidak menulis ulang voucher yang sudah terbit.
+            'discount_amount'      => $reward->voucher_discount,
+            'expires_at'           => $validDays > 0 ? today()->addDays($validDays)->toDateString() : null,
         ]);
     }
 
     /**
-     * Gap ditutup 2026-09-26 (audit Voucher Promo) -- SEBELUMNYA voucher
-     * murni status tracking (ditandai "Terpakai" lewat menu Voucher),
-     * tidak pernah benar-benar memotong nominal booking. Dipanggil dari
-     * BookingResource::process_referral & TransactionApprovalService::approve()
-     * (jalur full-access langsung MAUPUN jalur approval staff non-full-
-     * access, supaya konsisten) -- WAJIB dalam DB::transaction() milik
-     * pemanggil (booking juga di-lockForUpdate() di sana), lockForUpdate()
-     * di sini mengunci baris claim itu sendiri.
+     * Pakai voucher pada booking: tandai terpakai & kembalikan nominal potongan. Dipanggil dari
+     * BookingResource::process_referral & TransactionApprovalService::approve() -- WAJIB di dalam DB::transaction()
+     * pemanggil (booking juga di-lockForUpdate() di sana); lockForUpdate() di sini mengunci baris klaim itu sendiri.
      *
-     * @throws RuntimeException kalau klaim sudah dipakai/tertaut booking
-     *         LAIN sejak staff memilihnya di form (race condition 2 staff
-     *         pilih kode yang sama nyaris bersamaan).
+     * @throws RuntimeException kalau voucher tidak ditemukan, sudah dipakai di transaksi lain, kedaluwarsa, atau milik
+     *                           customer lain (voucher hasil tukar poin melekat ke akun penukarnya).
      */
     public function applyToBooking(int $voucherClaimId, Booking $booking): float
     {
@@ -71,12 +54,22 @@ class VoucherService
             throw new RuntimeException('Kode voucher tidak ditemukan.');
         }
 
-        if ($claim->status !== 'active' && $claim->booking_id !== $booking->id) {
+        $alreadyOnThisBooking = $claim->booking_id === $booking->id;
+
+        if ($claim->status !== 'active' && ! $alreadyOnThisBooking) {
             throw new RuntimeException("Kode voucher {$claim->code} sudah dipakai/dipilih di transaksi lain.");
         }
 
+        if (! $alreadyOnThisBooking && $claim->isExpired()) {
+            throw new RuntimeException("Voucher {$claim->code} sudah kedaluwarsa.");
+        }
+
+        if ($claim->reward_id && $claim->customer_id && $booking->customer_id && (int) $claim->customer_id !== (int) $booking->customer_id) {
+            throw new RuntimeException("Voucher {$claim->code} milik customer lain dan tidak bisa dipakai di booking ini.");
+        }
+
         $claim->loadMissing('voucher:id,discount_amount');
-        $discount = (float) ($claim->voucher?->discount_amount ?? 0);
+        $discount = $claim->faceValue();
 
         $claim->update([
             'status'     => 'used',
@@ -88,11 +81,9 @@ class VoucherService
     }
 
     /**
-     * Lawan applyToBooking() -- dipanggil saat staff MELEPAS pilihan
-     * voucher dari booking ini (ganti ke voucher lain, atau kosongkan).
-     * Klaim dikembalikan jadi 'active' & lepas dari booking, supaya bisa
-     * dipilih lagi di transaksi lain -- bukan hangus permanen cuma
-     * karena sempat salah pilih.
+     * Lawan applyToBooking() -- dipanggil saat staf MELEPAS pilihan voucher dari booking ini (ganti ke voucher lain,
+     * atau kosongkan). Klaim dikembalikan jadi 'active' & lepas dari booking, supaya bisa dipilih lagi -- bukan hangus
+     * permanen cuma karena sempat salah pilih.
      */
     public function releaseFromBooking(int $voucherClaimId): void
     {
@@ -109,39 +100,12 @@ class VoucherService
         ]);
     }
 
-    private function assign(Voucher $voucher, string $code, array $holderAttributes): VoucherClaim
+    private function generateCode(): string
     {
-        return DB::transaction(function () use ($voucher, $code, $holderAttributes) {
-            /** @var Voucher $locked */
-            $locked = Voucher::where('id', $voucher->id)->lockForUpdate()->first();
+        do {
+            $code = 'GNV-' . Str::upper(Str::random(8));
+        } while (VoucherClaim::whereRaw('UPPER(code) = ?', [$code])->exists());
 
-            if (! $locked->isClaimable()) {
-                throw new RuntimeException('Stok voucher jenis ini sudah habis atau sudah tidak aktif.');
-            }
-
-            $codeUpper = strtoupper(trim($code));
-
-            $duplicate = VoucherClaim::whereRaw('UPPER(code) = ?', [$codeUpper])->exists();
-            if ($duplicate) {
-                throw new RuntimeException("Kode \"{$codeUpper}\" sudah pernah diinput sebelumnya.");
-            }
-
-            // Aturan basis data: 1 akun hanya 1 kode per kampanye. Diperiksa di sini supaya pesannya jelas (sebelumnya
-            // tertangkap sebagai "kode diklaim proses lain" yang menyesatkan).
-            if (isset($holderAttributes['customer_id'])
-                && VoucherClaim::where('voucher_id', $locked->id)->where('customer_id', $holderAttributes['customer_id'])->exists()) {
-                throw new RuntimeException('Customer ini sudah punya kode dari kampanye voucher ini (1 akun hanya 1 kode per kampanye).');
-            }
-
-            $claim = VoucherClaim::create(array_merge([
-                'voucher_id' => $locked->id,
-                'code'       => $codeUpper,
-                'status'     => 'active',
-            ], $holderAttributes));
-
-            $locked->increment('claimed_count');
-
-            return $claim;
-        });
+        return $code;
     }
 }

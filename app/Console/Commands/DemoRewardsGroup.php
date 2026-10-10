@@ -12,7 +12,7 @@ use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherClaim;
 use App\Services\RewardRedemptionService;
-use App\Services\VoucherService;
+
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -246,26 +246,23 @@ class DemoRewardsGroup extends Command
     }
 
     /**
-     * VoucherService::assignToCustomer() dipakai ulang persis — kode unik
-     * di-generate di sini (marker "DEMO-"), stok/claimed_count ikut
-     * ter-update otomatis lewat service, sama seperti staff input kode
-     * voucher fisik sungguhan lewat ClaimsRelationManager.
+     * Voucher fisik sudah dihapus (2026-10-10): klaim demo dibuat langsung (kode bermarker "DEMO-") untuk kampanye lama,
+     * murni supaya laporan promo punya data contoh.
      */
     private function createVoucherClaims(\Illuminate\Support\Collection $vouchers, \Illuminate\Support\Collection $customers): void
     {
-        $service = new VoucherService();
         $count = 0;
 
         foreach ($vouchers as $voucher) {
             foreach ($customers->take(2) as $customer) {
-                $code = 'DEMO-' . Str::upper(Str::random(6));
-
-                try {
-                    $service->assignToCustomer($voucher, $code, $customer->id);
-                    $count++;
-                } catch (\RuntimeException $e) {
-                    $this->warn("Lewati klaim voucher demo: {$e->getMessage()}");
-                }
+                \App\Models\VoucherClaim::create([
+                    'voucher_id'  => $voucher->id,
+                    'customer_id' => $customer->id,
+                    'code'        => 'DEMO-' . Str::upper(Str::random(6)),
+                    'status'      => 'active',
+                ]);
+                $voucher->increment('claimed_count');
+                $count++;
             }
         }
 

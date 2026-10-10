@@ -102,11 +102,27 @@ class RewardRedemptionResource extends Resource
         return $form->schema([
             Forms\Components\Select::make('status')
                 ->label('Status')
-                ->options([
-                    'pending'   => 'Menunggu Diproses',
-                    'fulfilled' => 'Sudah Dikirim',
-                    'cancelled' => 'Dibatalkan',
-                ])
+                ->options(function (?\App\Models\RewardRedemption $record): array {
+                    $all = [
+                        'pending'   => 'Menunggu Diproses',
+                        'fulfilled' => 'Sudah Dikirim',
+                        'cancelled' => 'Dibatalkan',
+                    ];
+
+                    // Voucher terbit otomatis: tidak ada "menunggu"; batal hanya selama belum dipakai di booking, dan
+                    // penukaran yang sudah batal tidak bisa dihidupkan lagi.
+                    if ($record?->reward?->isVoucher()) {
+                        if ($record->status === 'cancelled') {
+                            return ['cancelled' => $all['cancelled']];
+                        }
+
+                        return $record->voucherClaim?->status === 'used'
+                            ? ['fulfilled' => 'Voucher Sudah Dipakai']
+                            : ['fulfilled' => 'Voucher Terbit', 'cancelled' => $all['cancelled']];
+                    }
+
+                    return $all;
+                })
                 ->in(['pending', 'fulfilled', 'cancelled'])
                 ->required(),
 
@@ -130,6 +146,11 @@ class RewardRedemptionResource extends Resource
                 Tables\Columns\TextColumn::make('points_spent')
                     ->label('Poin')
                     ->numeric(),
+
+                Tables\Columns\TextColumn::make('voucherClaim.code')
+                    ->label('Kode Voucher')
+                    ->placeholder('—')
+                    ->copyable(),
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')

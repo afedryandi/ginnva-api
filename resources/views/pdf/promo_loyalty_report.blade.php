@@ -32,7 +32,7 @@
         @forelse ($result['usedClaims'] as $claim)
             <tr>
                 <td>{{ optional($claim->used_at)->format('d M Y') }}</td>
-                <td>{{ $claim->voucher?->name ?? '-' }}</td>
+                <td>{{ $claim->displayName() }}</td>
                 <td>{{ $claim->booking?->booking_number ?? '-' }}</td>
                 <td>{{ $claim->booking?->store?->name ?? '-' }}</td>
                 <td class="value">({{ $rupiah($claim->appliedDiscount()) }})</td>

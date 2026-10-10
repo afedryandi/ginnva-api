@@ -16,6 +16,10 @@ class VoucherClaim extends Model
         'customer_id',
         'walkin_name',
         'walkin_phone',
+        'reward_id',
+        'reward_redemption_id',
+        'discount_amount',
+        'expires_at',
         'code',
         'status',
         'booking_id',
@@ -33,8 +37,33 @@ class VoucherClaim extends Model
     }
 
     protected $casts = [
-        'used_at' => 'datetime',
+        'used_at'         => 'datetime',
+        'expires_at'      => 'date',
+        'discount_amount' => 'decimal:2',
     ];
+
+    public function reward(): BelongsTo
+    {
+        return $this->belongsTo(Reward::class);
+    }
+
+    /** Nominal diskon voucher ini: snapshot saat diterbitkan, atau nominal kampanye untuk voucher fisik lama. */
+    public function faceValue(): float
+    {
+        return (float) ($this->discount_amount ?? $this->voucher?->discount_amount ?? 0);
+    }
+
+    /** Nama voucher untuk ditampilkan (kampanye lama atau reward penerbit). */
+    public function displayName(): string
+    {
+        return $this->voucher?->name ?? $this->reward?->name ?? 'Voucher';
+    }
+
+    /** Sudah lewat masa berlakunya (hari terakhir berlaku adalah expires_at itu sendiri). */
+    public function isExpired(): bool
+    {
+        return $this->expires_at !== null && $this->expires_at->lt(today());
+    }
 
     /**
      * Potongan yang BENAR-BENAR diberikan pada booking ini: snapshot Booking::voucher_discount (dicatat saat voucher
@@ -44,7 +73,7 @@ class VoucherClaim extends Model
      */
     public function appliedDiscount(): float
     {
-        return (float) ($this->booking?->voucher_discount ?? $this->voucher?->discount_amount ?? 0);
+        return (float) ($this->booking?->voucher_discount ?? $this->faceValue());
     }
 
     public function voucher(): BelongsTo
@@ -65,12 +94,12 @@ class VoucherClaim extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['code', 'status', 'booking_id', 'used_at', 'walkin_name', 'walkin_phone'])
+            ->logOnly(['code', 'status', 'booking_id', 'used_at', 'walkin_name', 'walkin_phone', 'discount_amount', 'expires_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('voucher_claim')
             ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
-                'created' => "Voucher {$this->code} di-assign ke customer",
+                'created' => "Voucher {$this->code} diterbitkan ke customer",
                 'updated' => "Voucher {$this->code} diubah",
                 'deleted' => "Voucher {$this->code} dihapus",
                 default   => "Voucher {$this->code} — {$eventName}",

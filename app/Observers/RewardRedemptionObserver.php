@@ -22,6 +22,29 @@ use Illuminate\Support\Facades\DB;
  */
 class RewardRedemptionObserver
 {
+    /**
+     * Penukaran voucher: membatalkan hanya boleh selama voucher belum dipakai di booking, dan penukaran yang sudah
+     * dibatalkan tidak bisa dihidupkan lagi (voucher-nya sudah dihapus; tukar ulang dengan poin). Dicek SEBELUM tersimpan.
+     */
+    public function updating(RewardRedemption $redemption): void
+    {
+        if (! $redemption->isDirty('status') || ! $redemption->reward?->isVoucher()) {
+            return;
+        }
+
+        $from = $redemption->getOriginal('status');
+        $to   = $redemption->status;
+
+        if ($to === 'cancelled' && $from !== 'cancelled'
+            && $redemption->voucherClaim()->where('status', 'used')->exists()) {
+            throw new \RuntimeException('Voucher dari penukaran ini sudah dipakai di booking, penukaran tidak bisa dibatalkan.');
+        }
+
+        if ($from === 'cancelled' && $to !== 'cancelled') {
+            throw new \RuntimeException('Penukaran voucher yang sudah dibatalkan tidak bisa diaktifkan lagi. Customer perlu menukar ulang.');
+        }
+    }
+
     public function updated(RewardRedemption $redemption): void
     {
         if (! $redemption->wasChanged('status')) {
@@ -33,6 +56,11 @@ class RewardRedemptionObserver
 
         if ($to === 'cancelled' && $from !== 'cancelled') {
             $this->adjustBalance($redemption, refund: true);
+
+            // Voucher yang belum dipakai ikut ditarik (dihapus); jejaknya ada di log aktivitas.
+            if ($redemption->reward?->isVoucher()) {
+                $redemption->voucherClaim()->where('status', 'active')->get()->each->delete();
+            }
         } elseif ($from === 'cancelled' && $to !== 'cancelled') {
             $this->adjustBalance($redemption, refund: false);
         }

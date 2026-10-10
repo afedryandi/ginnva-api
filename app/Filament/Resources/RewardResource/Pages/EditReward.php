@@ -12,6 +12,16 @@ class EditReward extends EditRecord
 {
     protected static string $resource = RewardResource::class;
 
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        if (($data['type'] ?? $this->record->type) !== 'voucher') {
+            $data['voucher_discount'] = null;
+            $data['voucher_valid_days'] = null;
+        }
+
+        return $data;
+    }
+
     protected function getHeaderActions(): array
     {
         return [

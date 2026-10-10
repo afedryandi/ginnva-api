@@ -35,6 +35,16 @@ class RewardRedemptionService
                 throw new RuntimeException('Reward ini sudah tidak tersedia.');
             }
 
+            if ($lockedReward->isVoucher()) {
+                if ($redeemer instanceof Partner) {
+                    throw new RuntimeException('Voucher diskon hanya bisa ditukar oleh customer.');
+                }
+
+                if ((float) $lockedReward->voucher_discount <= 0) {
+                    throw new RuntimeException('Voucher ini belum siap ditukar. Silakan hubungi toko.');
+                }
+            }
+
             $balanceField = $redeemer instanceof Partner ? 'points_balance' : 'loyalty_points';
 
             $lockedRedeemer = $redeemer->newQuery()->where('id', $redeemer->id)->lockForUpdate()->first();
@@ -54,8 +64,13 @@ class RewardRedemptionService
                 'redeemer_id'   => $redeemer->id,
                 'reward_id'     => $reward->id,
                 'points_spent'  => $reward->points_cost,
-                'status'        => 'pending',
+                // Voucher langsung terbit tanpa menunggu diproses staf; barang tetap menunggu.
+                'status'        => $reward->isVoucher() ? 'fulfilled' : 'pending',
             ]);
+
+            if ($reward->isVoucher()) {
+                app(VoucherService::class)->issueForRedemption($redemption, $reward, $redeemer->id);
+            }
 
             $redeemer->decrement($balanceField, $reward->points_cost);
 

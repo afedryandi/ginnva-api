@@ -80,7 +80,7 @@
                     @forelse ($result['usedClaims'] as $claim)
                         <tr class="border-b border-gray-100 dark:border-white/5">
                             <td class="py-2 pr-3 tabular-nums">{{ optional($claim->used_at)->format('d M Y') }}</td>
-                            <td class="py-2 pr-3">{{ $claim->voucher?->name ?? '—' }}</td>
+                            <td class="py-2 pr-3">{{ $claim->displayName() }}</td>
                             <td class="py-2 pr-3">
                                 @if ($claim->booking)
                                     <a href="{{ $this->bookingUrl($claim->booking->id) }}" class="hover:underline" title="Lihat booking ini">{{ $claim->booking->booking_number }}</a>

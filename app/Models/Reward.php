@@ -18,20 +18,34 @@ class Reward extends Model
 {
     use LogsActivity;
 
+    public const TYPE_ITEM = 'item';
+    public const TYPE_VOUCHER = 'voucher';
+
     protected $fillable = [
         'name',
+        'type',
         'description',
         'image',
         'points_cost',
         'stock',
+        'voucher_discount',
+        'voucher_valid_days',
         'is_active',
     ];
 
     protected $casts = [
-        'points_cost' => 'integer',
-        'stock'       => 'integer',
-        'is_active'   => 'boolean',
+        'points_cost'        => 'integer',
+        'stock'              => 'integer',
+        'voucher_discount'   => 'decimal:2',
+        'voucher_valid_days' => 'integer',
+        'is_active'          => 'boolean',
     ];
+
+    /** Reward bertipe voucher: menukar poin langsung menerbitkan voucher diskon ke akun customer. */
+    public function isVoucher(): bool
+    {
+        return $this->type === self::TYPE_VOUCHER;
+    }
 
     public function redemptions(): HasMany
     {
@@ -46,7 +60,7 @@ class Reward extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'points_cost', 'stock', 'is_active'])
+            ->logOnly(['name', 'type', 'points_cost', 'stock', 'voucher_discount', 'voucher_valid_days', 'is_active'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('reward')

@@ -44,6 +44,10 @@ class RewardController extends Controller
                 'image'           => $this->fullImageUrl($r->image),
                 'points_cost'     => $r->points_cost,
                 'stock'           => $r->stock,
+                // Reward bertipe voucher: menukar poin langsung menerbitkan voucher diskon ke "Voucher Saya".
+                'type'               => $r->type,
+                'voucher_discount'   => $r->isVoucher() ? (float) $r->voucher_discount : null,
+                'voucher_valid_days' => $r->isVoucher() ? $r->voucher_valid_days : null,
             ]),
         ]);
     }
@@ -84,10 +88,19 @@ class RewardController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
+        $claim = $reward->isVoucher() ? $redemption->voucherClaim : null;
+
         return response()->json([
             'success' => true,
             'data'    => $redemption,
-            'message' => 'Reward berhasil ditukar. Tim kami akan menghubungi Anda untuk proses selanjutnya.',
+            'voucher' => $claim ? [
+                'code'            => $claim->code,
+                'discount_amount' => (float) $claim->discount_amount,
+                'expires_at'      => $claim->expires_at?->format('Y-m-d'),
+            ] : null,
+            'message' => $claim
+                ? 'Voucher berhasil ditukar. Cek menu "Voucher Saya" dan tunjukkan kodenya saat booking berikutnya.'
+                : 'Reward berhasil ditukar. Tim kami akan menghubungi Anda untuk proses selanjutnya.',
         ]);
     }
 }
