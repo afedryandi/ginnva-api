@@ -294,7 +294,7 @@ class RewardVoucherTest extends TestCase
 
     public function test_the_physical_voucher_menu_and_assignment_are_gone(): void
     {
-        $this->assertFalse(class_exists(\App\Filament\Resources\VoucherResource::class));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/VoucherResource.php'));
         $this->assertFalse(method_exists(VoucherService::class, 'assignToCustomer'));
         $this->assertFalse(method_exists(VoucherService::class, 'assignToWalkin'));
     }
