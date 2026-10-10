@@ -117,11 +117,19 @@ class BookingObserver
             // kunjungan yang lahir dari alur konfirmasi app ikut tercatat
             // sama seperti kunjungan walk-in yang dicatat manual staff lewat
             // WarrantyResource::performRecordMaintenanceVisit().
-            \App\Models\WarrantyMaintenanceVisit::create([
+            $visit = \App\Models\WarrantyMaintenanceVisit::create([
                 'warranty_id' => $booking->warranty_id,
                 'visited_at'  => $booking->preferred_date ?? today(),
                 'note'        => "Maintenance via booking #{$booking->booking_number}",
             ]);
+
+            // Poin kunjungan maintenance (0 = nonaktif, lihat config/loyalty.php). Kegagalan poin tidak boleh
+            // menggagalkan penyelesaian booking.
+            try {
+                app(\App\Services\MaintenanceVisitPointService::class)->award($visit);
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         // Bug ditutup 2026-10-01 (audit Maintenance PPF) -- SEBELUMNYA kalau

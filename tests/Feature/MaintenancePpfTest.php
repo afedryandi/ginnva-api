@@ -599,4 +599,104 @@ class MaintenancePpfTest extends TestCase
             ->assertJsonPath('data.maintenance_schedule.expired', true)
             ->assertJsonPath('data.maintenance_schedule.store_id', $this->store->id);
     }
+
+    // ------------------------------------------------------------- poin kunjungan maintenance
+
+    private function points(Customer $customer): array
+    {
+        return \App\Models\PointTransaction::where('customer_id', $customer->id)->orderBy('id')->get(['type', 'points', 'reference_type'])->map(fn ($t) => [$t->type, (int) $t->points, $t->reference_type])->all();
+    }
+
+    public function test_a_walk_in_visit_gives_the_configured_points_once(): void
+    {
+        config(['loyalty.maintenance_visit_points' => 20]);
+        $customer = $this->customer();
+        $warranty = $this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => null]);
+        $this->actingAs($this->staff('super_admin'), 'web');
+
+        Livewire::test(ListWarranties::class)->callTableAction('record_maintenance_visit', $warranty, data: ['visited_at' => '2026-10-05']);
+
+        $this->assertSame([['earn', 20, 'maintenance_visit']], $this->points($customer));
+        $this->assertSame(20, (int) $customer->fresh()->loyalty_points);
+
+        // Dipanggil ulang untuk kunjungan yang sama: tidak dobel.
+        app(\App\Services\MaintenanceVisitPointService::class)->award(WarrantyMaintenanceVisit::firstOrFail());
+        $this->assertCount(1, $this->points($customer));
+    }
+
+    public function test_the_feature_is_off_by_default(): void
+    {
+        $customer = $this->customer();
+        $warranty = $this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => null]);
+        $this->actingAs($this->staff('super_admin'), 'web');
+
+        Livewire::test(ListWarranties::class)->callTableAction('record_maintenance_visit', $warranty, data: ['visited_at' => '2026-10-05']);
+
+        $this->assertSame(0, (int) config('loyalty.maintenance_visit_points'));
+        $this->assertSame([], $this->points($customer));
+        $this->assertSame(1, WarrantyMaintenanceVisit::count());
+    }
+
+    public function test_a_completed_maintenance_booking_gives_points_to_the_customer(): void
+    {
+        config(['loyalty.maintenance_visit_points' => 25]);
+        $me = $this->customer();
+        $warranty = $this->warranty(['customer_id' => $me->id, 'maintenance_interval_months' => 6]);
+        $schedule = $warranty->maintenanceSchedules()->firstOrFail();
+        $this->actingAs($me, 'customer')->postJson("/api/customer/maintenance-schedules/{$schedule->id}/confirm")->assertStatus(201);
+        $booking = Booking::firstOrFail();
+
+        $this->actingAs($this->staff('super_admin'), 'web');
+        $booking->update(['status' => 'confirmed']);
+        $booking->update(['status' => 'completed', 'current_stage' => 'completed']);
+
+        $this->assertSame([['earn', 25, 'maintenance_visit']], $this->points($me));
+        $this->assertSame(25, (int) $me->fresh()->loyalty_points);
+    }
+
+    public function test_a_warranty_without_a_customer_account_gives_no_points_and_no_error(): void
+    {
+        config(['loyalty.maintenance_visit_points' => 20]);
+        $warranty = $this->warranty(['customer_id' => null, 'maintenance_interval_months' => null]);
+        $this->actingAs($this->staff('super_admin'), 'web');
+
+        Livewire::test(ListWarranties::class)->callTableAction('record_maintenance_visit', $warranty, data: ['visited_at' => '2026-10-05'])->assertNotified('Kunjungan maintenance dicatat');
+
+        $this->assertSame(0, \App\Models\PointTransaction::count());
+    }
+
+    public function test_cancelling_the_visit_takes_the_points_back(): void
+    {
+        config(['loyalty.maintenance_visit_points' => 20]);
+        $customer = $this->customer();
+        $warranty = $this->warranty(['customer_id' => $customer->id, 'maintenance_quota' => 1, 'maintenance_interval_months' => null]);
+        $this->actingAs($this->staff('super_admin'), 'web');
+        Livewire::test(ListWarranties::class)->callTableAction('record_maintenance_visit', $warranty, data: ['visited_at' => '2026-10-05']);
+        $visit = WarrantyMaintenanceVisit::firstOrFail();
+        $withCount = WarrantyResource::getEloquentQuery()->findOrFail($warranty->id);
+
+        Livewire::test(ListWarranties::class)
+            ->callTableAction('cancel_maintenance_visit', $withCount, data: ['visit_id' => $visit->id, 'cancel_reason' => 'Salah pilih garansi']);
+
+        $this->assertSame([['earn', 20, 'maintenance_visit'], ['spend', 20, 'maintenance_visit_reversal']], $this->points($customer));
+        $this->assertSame(0, (int) $customer->fresh()->loyalty_points);
+    }
+
+    public function test_the_reversal_never_takes_more_than_the_remaining_balance(): void
+    {
+        config(['loyalty.maintenance_visit_points' => 20]);
+        $customer = $this->customer();
+        $warranty = $this->warranty(['customer_id' => $customer->id, 'maintenance_interval_months' => null]);
+        $visit = WarrantyMaintenanceVisit::create(['warranty_id' => $warranty->id, 'visited_at' => '2026-10-05']);
+        $service = app(\App\Services\MaintenanceVisitPointService::class);
+        $service->award($visit);
+
+        // Customer sudah memakai 15 dari 20 poin (sisa 5).
+        $customer->forceFill(['loyalty_points' => 5])->save();
+        $service->revoke($visit);
+        $service->revoke($visit); // dipanggil ulang: tidak dobel
+
+        $this->assertSame([['earn', 20, 'maintenance_visit'], ['spend', 5, 'maintenance_visit_reversal']], $this->points($customer));
+        $this->assertSame(0, (int) $customer->fresh()->loyalty_points);
+    }
 }

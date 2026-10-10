@@ -48,6 +48,8 @@ class ViewPointTransaction extends ViewRecord
                             'reward_redemption'          => 'Tukar Reward',
                             'reward_redemption_refund'   => 'Refund Pembatalan Reward',
                             'reward_redemption_reversal' => 'Pembatalan Reward Dibatalkan',
+                            'maintenance_visit'          => 'Kunjungan Maintenance',
+                            'maintenance_visit_reversal' => 'Kunjungan Maintenance Dibatalkan',
                             'manual'                     => 'Entri Manual Admin',
                             default                      => $record?->reference_type ?? '—',
                         }),

@@ -286,12 +286,19 @@ class WarrantyResource extends Resource
                 return;
             }
 
-            WarrantyMaintenanceVisit::create([
+            $visit = WarrantyMaintenanceVisit::create([
                 'warranty_id'  => $locked->id,
                 'visited_at'   => $data['visited_at'],
                 'note'         => $data['note'] ?? null,
                 'recorded_by'  => auth()->id(),
             ]);
+
+            // Poin kunjungan maintenance (0 = nonaktif, lihat config/loyalty.php).
+            try {
+                app(\App\Services\MaintenanceVisitPointService::class)->award($visit);
+            } catch (\Throwable $e) {
+                report($e);
+            }
 
             $remaining = $locked->maintenance_quota - ($used + 1);
 
@@ -352,6 +359,13 @@ class WarrantyResource extends Resource
                 'cancelled_by'   => auth()->id(),
                 'cancel_reason'  => $data['cancel_reason'],
             ]);
+
+            // Poin dari kunjungan yang salah catat ikut ditarik kembali.
+            try {
+                app(\App\Services\MaintenanceVisitPointService::class)->revoke($visit);
+            } catch (\Throwable $e) {
+                report($e);
+            }
 
             if ($warranty->customer_id) {
                 app(\App\Services\PushNotificationService::class)->sendToCustomer(

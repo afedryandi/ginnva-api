@@ -186,6 +186,8 @@ class PointTransactionResource extends Resource
                         'reward_redemption'          => 'Tukar Reward',
                         'reward_redemption_refund'   => 'Refund Reward',
                         'reward_redemption_reversal' => 'Reward Dibatalkan Ulang',
+                        'maintenance_visit'          => 'Kunjungan Maintenance',
+                        'maintenance_visit_reversal' => 'Kunjungan Maintenance Dibatalkan',
                         'manual'                     => 'Entri Manual Admin',
                         default                      => $state ?? '—',
                     })
@@ -226,6 +228,8 @@ class PointTransactionResource extends Resource
                         'reward_redemption'          => 'Tukar Reward',
                         'reward_redemption_refund'   => 'Refund Reward',
                         'reward_redemption_reversal' => 'Reward Dibatalkan Ulang',
+                        'maintenance_visit'          => 'Kunjungan Maintenance',
+                        'maintenance_visit_reversal' => 'Kunjungan Maintenance Dibatalkan',
                         'manual'                     => 'Entri Manual Admin',
                     ]),
             ])
