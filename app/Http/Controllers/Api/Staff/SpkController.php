@@ -133,6 +133,12 @@ class SpkController extends Controller
 
         $user = $request->user('api');
 
+        // SPK baru hanya dibuat leader installer dan atasannya (2026-10-10). Installer dan staf lain tetap bisa melihat /
+        // melengkapi SPK sesuai aksesnya.
+        if (! $user->canCreateSpk()) {
+            return response()->json(['success' => false, 'message' => 'Hanya leader installer dan atasannya (store manager, direksi) yang bisa membuat SPK baru.'], 403);
+        }
+
         $validator = Validator::make($request->all(), $this->validationRules());
 
         if ($validator->fails()) {

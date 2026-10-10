@@ -32,7 +32,7 @@ class SpkApiFlowTest extends TestCase
         parent::setUp();
 
         Http::fake();
-        foreach (['kasir', 'installer', 'partner'] as $role) {
+        foreach (['store_manager', 'installer', 'partner'] as $role) {
             Role::findOrCreate($role, 'web');
         }
 
@@ -87,7 +87,7 @@ class SpkApiFlowTest extends TestCase
 
     private function createSpk(Booking $booking, ?User $by = null): Spk
     {
-        $this->actingAs($by ?? $this->staff('kasir'), 'api')
+        $this->actingAs($by ?? $this->staff('store_manager'), 'api')
             ->postJson('/api/staff/spks', $this->payload($booking))
             ->assertStatus(201);
 
@@ -96,7 +96,7 @@ class SpkApiFlowTest extends TestCase
 
     public function test_checklist_template_is_available(): void
     {
-        $this->actingAs($this->staff('kasir'), 'api')
+        $this->actingAs($this->staff('store_manager'), 'api')
             ->getJson('/api/staff/spks/checklist-template')
             ->assertSuccessful()
             ->assertJsonStructure(['data' => ['pekerjaan', 'extra_service', 'perlengkapan']]);
@@ -106,7 +106,7 @@ class SpkApiFlowTest extends TestCase
     {
         $booking = $this->booking();
 
-        $response = $this->actingAs($this->staff('kasir'), 'api')
+        $response = $this->actingAs($this->staff('store_manager'), 'api')
             ->postJson('/api/staff/spks', $this->payload($booking))
             ->assertStatus(201);
 
@@ -121,7 +121,7 @@ class SpkApiFlowTest extends TestCase
 
     public function test_spk_cannot_be_created_for_pending_booking_or_twice(): void
     {
-        $kasir = $this->staff('kasir');
+        $kasir = $this->staff('store_manager');
         $pending = $this->booking(['status' => 'pending']);
 
         $this->actingAs($kasir, 'api')->postJson('/api/staff/spks', $this->payload($pending))->assertStatus(422);
@@ -136,7 +136,7 @@ class SpkApiFlowTest extends TestCase
     public function test_spk_validation_and_partner_access(): void
     {
         $booking = $this->booking();
-        $kasir = $this->staff('kasir');
+        $kasir = $this->staff('store_manager');
 
         $this->actingAs($kasir, 'api')->postJson('/api/staff/spks', $this->payload($booking, ['customer_name' => '']))->assertStatus(422);
         $this->actingAs($kasir, 'api')->postJson('/api/staff/spks', $this->payload($booking, ['vehicle_type' => 'truk']))->assertStatus(422);
@@ -151,14 +151,14 @@ class SpkApiFlowTest extends TestCase
     public function test_store_staff_cannot_create_or_open_spk_of_another_store(): void
     {
         $otherBooking = $this->booking([], $this->otherStore);
-        $kasirA = $this->staff('kasir');
+        $kasirA = $this->staff('store_manager');
 
         // Booking toko lain tidak terlihat sama sekali oleh staf toko ini (scope toko),
         // jadi ditolak sebagai "tidak valid" tanpa membocorkan keberadaannya.
         $this->actingAs($kasirA, 'api')->postJson('/api/staff/spks', $this->payload($otherBooking))->assertStatus(422);
         $this->assertSame(0, Spk::where('booking_id', $otherBooking->id)->count());
 
-        $otherSpk = $this->createSpk($otherBooking, $this->staff('kasir', $this->otherStore));
+        $otherSpk = $this->createSpk($otherBooking, $this->staff('store_manager', $this->otherStore));
         $this->actingAs($kasirA, 'api')->getJson("/api/staff/spks/{$otherSpk->id}")->assertStatus(404);
         $this->actingAs($kasirA, 'api')->putJson("/api/staff/spks/{$otherSpk->id}", ['customer_name' => 'X'])->assertStatus(404);
 
@@ -173,7 +173,7 @@ class SpkApiFlowTest extends TestCase
         $mine->installers()->attach($installer->id);
         $notMine = $this->booking();
 
-        $kasir = $this->staff('kasir');
+        $kasir = $this->staff('store_manager');
         $mineSpk = $this->createSpk($mine, $kasir);
         $notMineSpk = $this->createSpk($notMine, $kasir);
 
@@ -185,15 +185,45 @@ class SpkApiFlowTest extends TestCase
         $this->actingAs($installer, 'api')->putJson("/api/staff/spks/{$notMineSpk->id}/damage-marks", ['damage_marks' => []])->assertStatus(404);
         $this->actingAs($installer, 'api')->putJson("/api/staff/spks/{$mineSpk->id}", ['customer_name' => 'Budi Baru'])->assertSuccessful();
 
-        // Installer tidak boleh membuat SPK untuk booking yang bukan miliknya.
+        // Installer tidak boleh membuat SPK baru sama sekali (2026-10-10), baik untuk booking yang bukan miliknya...
         $another = $this->booking();
         $this->actingAs($installer, 'api')->postJson('/api/staff/spks', $this->payload($another))->assertStatus(403);
+    }
+
+    public function test_installer_cannot_create_a_new_spk_even_for_an_assigned_booking(): void
+    {
+        $installer = $this->staff('installer');
+        $booking = $this->booking();
+        $booking->installers()->attach($installer->id);
+
+        $this->actingAs($installer, 'api')->postJson('/api/staff/spks', $this->payload($booking))
+            ->assertStatus(403)
+            ->assertJsonPath('message', 'Hanya leader installer dan atasannya (store manager, direksi) yang bisa membuat SPK baru.');
+
+        $this->assertSame(0, \App\Models\Spk::where('booking_id', $booking->id)->count());
+    }
+
+    public function test_only_the_installer_leader_and_their_superiors_can_create_an_spk(): void
+    {
+        \Spatie\Permission\Models\Role::findOrCreate('kasir', 'web');
+        \Spatie\Permission\Models\Role::findOrCreate('installer_leader', 'web');
+
+        // Staf biasa (kasir) ditolak.
+        $booking = $this->booking();
+        $this->actingAs($this->staff('kasir'), 'api')->postJson('/api/staff/spks', $this->payload($booking))->assertStatus(403);
+        $this->assertSame(0, \App\Models\Spk::where('booking_id', $booking->id)->count());
+
+        // Leader installer, store manager, dan direksi/super admin boleh (satu SPK per booking).
+        foreach (['installer_leader', 'store_manager', 'super_admin'] as $role) {
+            $b = $this->booking();
+            $this->actingAs($this->staff($role), 'api')->postJson('/api/staff/spks', $this->payload($b))->assertStatus(201);
+        }
     }
 
     public function test_update_replaces_checklist_and_only_touches_damage_marks_when_sent(): void
     {
         $spk = $this->createSpk($this->booking());
-        $kasir = $this->staff('kasir');
+        $kasir = $this->staff('store_manager');
 
         // Tanpa kunci damage_marks: titik kerusakan lama tetap ada.
         $this->actingAs($kasir, 'api')->putJson("/api/staff/spks/{$spk->id}", [
@@ -218,7 +248,7 @@ class SpkApiFlowTest extends TestCase
     public function test_damage_marks_endpoint_validates_and_saves(): void
     {
         $spk = $this->createSpk($this->booking());
-        $kasir = $this->staff('kasir');
+        $kasir = $this->staff('store_manager');
 
         $this->actingAs($kasir, 'api')->putJson("/api/staff/spks/{$spk->id}/damage-marks", [
             'damage_marks' => [['x_percent' => 10, 'y_percent' => 10, 'code' => 'ZZ']],
@@ -242,7 +272,7 @@ class SpkApiFlowTest extends TestCase
         ]);
         $booking = $this->booking(['film_product_id' => $product->id]);
         $spk = $this->createSpk($booking);
-        $kasir = $this->staff('kasir');
+        $kasir = $this->staff('store_manager');
 
         $complete = ['customer_name' => 'Budi', 'checked_out_at' => now()->toDateTimeString()];
 
@@ -262,7 +292,7 @@ class SpkApiFlowTest extends TestCase
     {
         $spk = $this->createSpk($this->booking());
 
-        $this->actingAs($this->staff('kasir'), 'api')
+        $this->actingAs($this->staff('store_manager'), 'api')
             ->putJson("/api/staff/spks/{$spk->id}", ['customer_name' => 'Budi', 'checked_out_at' => now()->toDateTimeString()])
             ->assertSuccessful();
 
@@ -271,7 +301,7 @@ class SpkApiFlowTest extends TestCase
 
     public function test_spk_numbers_are_unique_and_sequential_per_store_per_day(): void
     {
-        $kasir = $this->staff('kasir');
+        $kasir = $this->staff('store_manager');
         $numbers = [];
         foreach (range(1, 3) as $i) {
             $numbers[] = $this->createSpk($this->booking(), $kasir)->spk_number;
@@ -291,7 +321,7 @@ class SpkApiFlowTest extends TestCase
             'name' => 'Tanpa Menu SPK', 'email' => uniqid() . '@test.local', 'password' => 'x',
             'store_id' => $this->store->id, 'menu_access' => ['SomeOtherResource'],
         ]);
-        $noSpkMenu->assignRole('kasir');
+        $noSpkMenu->assignRole('store_manager');
 
         $this->actingAs($noSpkMenu, 'api')->getJson('/api/staff/spks')->assertStatus(403);
         $this->actingAs($noSpkMenu, 'api')->getJson("/api/staff/spks/{$spk->id}")->assertStatus(403);

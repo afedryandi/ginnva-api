@@ -252,6 +252,8 @@ class AuthController extends Controller
             'can_decide_booking_requests' => $user->isFullAccess() || $user->isStoreManager(),
             // Hapus memo utuh hanya akses penuh (sama dengan gate server di MaterialMemoController::destroy()).
             'can_delete_memo' => $user->isFullAccess(),
+            // Membuat SPK baru hanya leader installer dan atasannya (sama dengan gate server di SpkController::store()).
+            'can_create_spk'       => $user->canCreateSpk(),
             'has_spk_access'       => $user->hasSpkAccess(),
             'has_quotation_access' => $user->hasQuotationAccess(),
             'has_inventory_access' => $user->hasInventoryAccess(),

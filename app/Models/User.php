@@ -428,6 +428,15 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
      * pekerjaannya, scoping ke booking miliknya ditegakkan di controller);
      * staf lain wajib punya menu SPK (keputusan 2026-10-06).
      */
+    /**
+     * Membuat SPK baru hanya untuk leader installer dan atasannya (keputusan 2026-10-10): store manager, direksi,
+     * super admin. Installer dan staf lain tetap bisa melihat / melengkapi SPK sesuai akses menunya.
+     */
+    public function canCreateSpk(): bool
+    {
+        return $this->isFullAccess() || $this->hasAnyRole(['store_manager', 'installer_leader']);
+    }
+
     public function hasSpkAccess(): bool
     {
         if ($this->hasRole('installer')) {

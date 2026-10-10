@@ -50,6 +50,7 @@ class SpkResource extends Resource
     public static function canCreate(): bool
     {
         return static::canViewAny()
+            && (auth()->user()?->canCreateSpk() ?? false)
             && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
     }
 
