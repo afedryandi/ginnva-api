@@ -23,7 +23,7 @@ class RolePermissionSeeder extends Seeder
      *   developer,
      *   management_trainee,
      *   general_affair,
-     *   ppf_leader,
+     *   installer_leader,
      *   spv_finance        : role per-divisi — semuanya login Filament (guard
      *                         'web'), tapi akses menunya dibatasi lewat kolom
      *                         users.menu_access (centang "Akses Menu" di form
@@ -95,7 +95,7 @@ class RolePermissionSeeder extends Seeder
             'developer',
             'management_trainee',
             'general_affair',
-            'ppf_leader',
+            'installer_leader',
             'spv_finance',
         ] as $divisionRole) {
             Role::findOrCreate($divisionRole, 'web')->syncPermissions($staffPermissions);

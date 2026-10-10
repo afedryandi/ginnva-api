@@ -58,6 +58,8 @@ class BookingMessageController extends Controller
                 'secondary_stage'   => $booking->secondary_stage,
                 'product_kaca_film' => $booking->product_kaca_film,
                 'product_ppf'       => $booking->product_ppf,
+                // Siapa installer yang mengerjakan booking ini (dicatat lewat penugasan; terlihat oleh leader di chat).
+                'installers'        => $booking->installers()->pluck('users.name')->all(),
                 'stages'            => BookingMessage::allStages(),
                 'product_stages'    => BookingMessage::PRODUCT_STAGES,
                 'shared_stages'     => BookingMessage::SHARED_STAGES,
@@ -78,10 +80,9 @@ class BookingMessageController extends Controller
         $user = $request->user('api');
         $booking = $this->authorizedBooking($request, $bookingId);
 
-        // Installer HANYA boleh chat teks — foto & update tahap adalah
-        // wewenang Store Manager/Direksi (kontrol kualitas apa yang
-        // sampai ke customer).
-        $allowedTypes = $user->hasRole('installer') ? ['text'] : ['text', 'photo', 'stage'];
+        // Installer tidak ikut chat booking sama sekali (ditolak di authorizedBooking()); yang berbicara dengan
+        // customer adalah leader installer, store manager, dan direksi, semuanya boleh teks, foto, dan tahap.
+        $allowedTypes = ['text', 'photo', 'stage'];
 
         // Tahap yang boleh dipilih dibatasi ke produk yang BENERAN dipesan
         // booking ini (+ tahap bersama) — supaya staff tidak bisa keliru
@@ -115,12 +116,7 @@ class BookingMessageController extends Controller
             'photos.*.max'   => 'Ukuran tiap foto maksimal 10MB. Kompres atau pilih foto lain, lalu coba lagi.',
         ]);
 
-        // Installer hanya boleh chat teks: foto juga wewenang Store Manager/
-        // Direksi (sebelumnya lolos lewat type=text + photos[]). Pesan teks
-        // tidak boleh kosong (sebelumnya tetap dibuat & memicu push).
-        if ($user->hasRole('installer') && $request->hasFile('photos')) {
-            abort(422, 'Installer hanya boleh mengirim pesan teks.');
-        }
+        // Pesan teks tidak boleh kosong (sebelumnya tetap dibuat & memicu push).
 
         if ($request->type === 'text' && blank(trim((string) $request->body)) && ! $request->hasFile('photos')) {
             abort(422, 'Pesan tidak boleh kosong.');
@@ -259,15 +255,16 @@ class BookingMessageController extends Controller
             abort(403, 'Partner tidak punya akses ke booking toko.');
         }
 
-        // Konsisten dengan modul lain & filter notifikasi: staff toko wajib
-        // punya akses menu Booking (installer yang ditugaskan tetap boleh).
+        // Installer tidak memakai chat booking (2026-10-10): komunikasi dengan customer lewat leader installer.
+        // Mereka tetap tercatat sebagai pengerja (booking_installers) dan tetap melihat tugasnya.
+        if ($user->hasRole('installer')) {
+            abort(403, 'Chat booking dipegang leader installer. Hubungi leader installer Anda.');
+        }
+
+        // Konsisten dengan modul lain & filter notifikasi: staff toko wajib punya akses menu Booking.
         abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
 
-        if ($user->hasRole('installer')) {
-            if (! $booking->installers()->where('user_id', $user->id)->exists()) {
-                abort(403, 'Booking ini tidak ditugaskan ke Anda.');
-            }
-        } elseif (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
+        if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
             abort(403, 'Anda tidak punya akses ke booking toko lain.');
         }
 

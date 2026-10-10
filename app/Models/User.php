@@ -271,6 +271,11 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
             return 'Tim Instalasi';
         }
 
+        // Leader installer mewakili tim instalasi di chat booking (installer sendiri tidak ikut chat, 2026-10-10).
+        if ($this->hasRole('installer_leader')) {
+            return 'Leader Installer';
+        }
+
         if ($this->isRestrictedStaff()) {
             return $this->store ? "Admin Toko {$this->store->name}" : 'Admin Toko';
         }

@@ -67,13 +67,10 @@ class BookingMessageObserver
                 'route'      => "/staff/bookings/{$booking->id}",
             ];
 
-            // Staff toko + watcher direksi + installer yang ditugaskan, DIGABUNG
-            // dan di-dedupe lalu dikirim SEKALI (2026-10-03) -- sebelumnya
-            // tiga panggilan terpisah, orang yang punya dua peran menerima
-            // push identik 2-3x.
+            // Staff toko (termasuk leader installer) + watcher direksi, DIGABUNG dan di-dedupe lalu dikirim SEKALI
+            // (2026-10-03). Installer yang ditugaskan tidak lagi dikirimi: mereka tidak ikut chat (2026-10-10).
             $recipientIds = $this->push->storeStaffIds($booking->store_id, BookingResource::class)
                 ->merge($booking->watchers()->pluck('users.id'))
-                ->merge($booking->installers()->pluck('users.id'))
                 ->unique()
                 ->values();
 
