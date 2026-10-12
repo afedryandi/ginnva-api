@@ -21,7 +21,10 @@ class PriceRuleAuditTest extends TestCase
         $admin->assignRole('super_admin');
         $this->actingAs($admin, 'web');
 
-        $rule = PriceRule::create(['vehicle_size' => 'tes_ukuran', 'car_part' => 'tes_bagian', 'coefficient' => 1.50]);
+        // Kombinasi ukuran x bagian unik dan sudah terisi dari data awal: kosongkan dulu (tanpa memicu log) agar bisa dibuat ulang.
+        PriceRule::query()->where('vehicle_size', 'XXL')->where('car_part', 'full_set')->delete();
+
+        $rule = PriceRule::create(['vehicle_size' => 'XXL', 'car_part' => 'full_set', 'coefficient' => 1.50]);
         $rule->update(['coefficient' => 2.00]);
         $rule->delete();
 
@@ -36,7 +39,8 @@ class PriceRuleAuditTest extends TestCase
 
     public function test_an_unchanged_save_writes_no_log(): void
     {
-        $rule = PriceRule::create(['vehicle_size' => 'tes_ukuran2', 'car_part' => 'tes_bagian2', 'coefficient' => 1.25]);
+        PriceRule::query()->where('vehicle_size', 'S')->where('car_part', 'front')->delete();
+        $rule = PriceRule::create(['vehicle_size' => 'S', 'car_part' => 'front', 'coefficient' => 1.25]);
         $before = Activity::where('log_name', 'price_rule')->count();
 
         $rule->update(['coefficient' => 1.25]);
