@@ -79,6 +79,7 @@ class ActivityResource extends Resource
     'payable' => 'Utang',
     'payable_payment' => 'Pembayaran Utang',
     'payroll' => 'Penggajian',
+    'price_rule' => 'Aturan Harga (Koefisien)',
     'product_inquiry' => 'Inquiry Produk',
     'purchase_request' => 'Permohonan Pembelian',
     'quotation' => 'Penawaran',
