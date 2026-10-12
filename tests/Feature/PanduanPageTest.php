@@ -82,19 +82,22 @@ class PanduanPageTest extends TestCase
         $this->assertNotContains('Stok dan Inventaris', $titles);
     }
 
-    public function test_search_filters_guides(): void
+    public function test_search_runs_in_the_browser_without_livewire_requests(): void
     {
         $this->actingAs($this->user('super_admin'), 'web');
 
-        $page = Livewire::test(Panduan::class)->set('search', 'voucher');
-        $titles = $this->titles($page);
+        $page = Livewire::test(Panduan::class);
 
-        $this->assertContains('Reward dan Voucher', $titles);
-        $this->assertNotContains('Absensi dan Jadwal Kerja', $titles);
+        // Semua panduan dirender sekali dan disaring di browser (Alpine), bukan lewat permintaan Livewire.
+        $page->assertSee('x-model="q"', false)->assertSee('data-guide="booking"', false);
 
-        $page->set('search', 'zzz-tidak-ada')->assertSee('Tidak ada panduan yang cocok');
+        // Teks pencarian tiap panduan memuat isinya (huruf kecil, tanpa penanda tebal).
+        $voucher = collect(GuideCatalog::all())->firstWhere('id', 'reward-voucher');
+        $text = Panduan::searchText($voucher);
+        $this->assertStringContainsString('voucher diskon', $text);
+        $this->assertStringNotContainsString('**', $text);
+        $this->assertSame(mb_strtolower($text), $text);
     }
-
     public function test_the_page_is_open_to_staff_even_with_a_restricted_menu(): void
     {
         $this->actingAs($this->user('kasir', ['BookingResource']), 'web');
