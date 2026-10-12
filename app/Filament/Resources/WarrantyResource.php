@@ -473,6 +473,37 @@ class WarrantyResource extends Resource
                             return new \Illuminate\Support\HtmlString(implode('<br>', array_map('e', $lines)));
                         }),
 
+                    Forms\Components\TextInput::make('car_plate')
+                        ->label('Plat Nomor')
+                        ->required()
+                        ->maxLength(255)
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
+
+                    Forms\Components\TextInput::make('car_type')
+                        ->label('Tipe Mobil')
+                        ->required()
+                        ->maxLength(255)
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
+
+                    Forms\Components\TextInput::make('product_series')
+                        ->label('Seri Produk')
+                        ->placeholder('Contoh: A70')
+                        ->required()
+                        ->maxLength(255)
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
+
+                    Forms\Components\Select::make('product_category')
+                        ->label('Kategori Produk')
+                        ->options([
+                            'window_film' => 'Window Film',
+                            'ppf'         => 'PPF',
+                        ])
+                        ->live()
+                        ->required()
+                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
+
+                    // Blok Maintenance dipindah ke sini (2026-10-12, laporan user): sebelumnya ada di ATAS Kategori Produk, jadi
+                    // kolom Kuota Maintenance yang muncul saat memilih PPF tampil di atasnya. Sekarang tepat di bawah Kategori Produk.
                     // Fitur "Kuota Maintenance" (2026-09-25) -- berapa kali
                     // customer ini boleh datang maintenance setelah
                     // instalasi. Nullable (kosongkan kalau garansi ini
@@ -558,35 +589,6 @@ class WarrantyResource extends Resource
 
                             return new \Illuminate\Support\HtmlString($header . '<br>' . implode('<br>', array_map('e', $lines)));
                         }),
-
-                    Forms\Components\TextInput::make('car_plate')
-                        ->label('Plat Nomor')
-                        ->required()
-                        ->maxLength(255)
-                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
-
-                    Forms\Components\TextInput::make('car_type')
-                        ->label('Tipe Mobil')
-                        ->required()
-                        ->maxLength(255)
-                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
-
-                    Forms\Components\TextInput::make('product_series')
-                        ->label('Seri Produk')
-                        ->placeholder('Contoh: A70')
-                        ->required()
-                        ->maxLength(255)
-                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
-
-                    Forms\Components\Select::make('product_category')
-                        ->label('Kategori Produk')
-                        ->options([
-                            'window_film' => 'Window Film',
-                            'ppf'         => 'PPF',
-                        ])
-                        ->live()
-                        ->required()
-                        ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     Forms\Components\TextInput::make('vin')
                         ->label('VIN (Nomor Rangka)')

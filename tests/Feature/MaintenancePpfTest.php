@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\WarrantyResource;
+use App\Filament\Resources\WarrantyResource\Pages\CreateWarranty;
 use App\Filament\Resources\WarrantyResource\Pages\ListWarranties;
 use App\Filament\Resources\WarrantyResource\Pages\ViewWarranty;
 use App\Filament\Resources\WarrantyResource\RelationManagers\MaintenanceSchedulesRelationManager;
@@ -698,5 +699,23 @@ class MaintenancePpfTest extends TestCase
 
         $this->assertSame([['earn', 20, 'maintenance_visit'], ['spend', 5, 'maintenance_visit_reversal']], $this->points($customer));
         $this->assertSame(0, (int) $customer->fresh()->loyalty_points);
+    }
+
+    public function test_the_maintenance_fields_follow_the_product_category_in_the_form(): void
+    {
+        $this->actingAs($this->staff('super_admin'), 'web');
+
+        $order = array_keys(Livewire::test(CreateWarranty::class)->instance()->form->getFlatFields(withHidden: true));
+
+        $category = array_search('product_category', $order, true);
+        $quota = array_search('maintenance_quota', $order, true);
+        $interval = array_search('maintenance_interval_months', $order, true);
+        $vin = array_search('vin', $order, true);
+
+        $this->assertNotFalse($category);
+        $this->assertNotFalse($quota);
+        $this->assertGreaterThan($category, $quota, 'Kuota Maintenance harus di bawah Kategori Produk.');
+        $this->assertGreaterThan($quota, $interval, 'Interval mengikuti Kuota.');
+        $this->assertGreaterThan($interval, $vin, 'Blok maintenance tidak menyelip di atas isian lain setelah Kategori Produk.');
     }
 }
