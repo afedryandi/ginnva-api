@@ -11,8 +11,18 @@ use App\Models\User;
  */
 class AdminTour
 {
+    public static function enabled(): bool
+    {
+        return (bool) config('features.admin_tour', false);
+    }
+
     public static function shouldShow(?User $user, bool $forced = false): bool
     {
+        // Fitur disembunyikan dulu (config/features.php).
+        if (! self::enabled()) {
+            return false;
+        }
+
         if (! $user || ! $user->canAccessStaffArea()) {
             return false;
         }

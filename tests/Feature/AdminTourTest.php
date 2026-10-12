@@ -27,6 +27,7 @@ class AdminTourTest extends TestCase
         Role::findOrCreate('kasir', 'web');
         Role::findOrCreate('installer', 'web');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
+        config(['features.admin_tour' => true]);
     }
 
     private function user(string $role): User
@@ -80,6 +81,24 @@ class AdminTourTest extends TestCase
     public function test_the_done_endpoint_requires_login(): void
     {
         $this->getJson('/admin-tour/selesai')->assertUnauthorized();
+    }
+
+    public function test_the_tour_is_hidden_by_default_and_hides_the_replay_link(): void
+    {
+        config(['features.admin_tour' => false]);
+        $staff = $this->user('kasir');
+
+        $this->assertFalse(AdminTour::enabled());
+        $this->assertFalse(AdminTour::shouldShow($staff));
+        $this->assertFalse(AdminTour::shouldShow($staff, forced: true));
+
+        $this->actingAs($staff, 'web');
+        Livewire::test(Panduan::class)->assertDontSee('Ulangi tur pengenalan');
+    }
+
+    public function test_the_feature_flag_defaults_to_off(): void
+    {
+        $this->assertFalse((include base_path('config/features.php'))['admin_tour']);
     }
 
     public function test_the_tour_view_lists_the_steps_and_the_done_url(): void
