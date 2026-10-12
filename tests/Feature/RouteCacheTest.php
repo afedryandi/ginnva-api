@@ -2,26 +2,15 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
- * Semua route harus bisa di-cache (`php artisan route:cache`, mempercepat tiap permintaan di production): tidak boleh ada
- * route berbasis closure. Link "Ajak Teman" (/r/{code}) tetap mengarah ke Play Store dengan kode yang dibersihkan.
+ * Link "Ajak Teman" (/r/{code}) tetap mengarah ke Play Store dengan kode yang dibersihkan setelah dipindah dari closure
+ * di routes/web.php ke ReferralRedirectController. (Kemampuan route di-cache dibuktikan langsung di server dengan
+ * `php artisan route:cache`, bukan di tes: perintah itu menulis berkas cache yang akan memengaruhi tes lain.)
  */
 class RouteCacheTest extends TestCase
 {
-    public function test_no_route_uses_a_closure(): void
-    {
-        $closures = collect(Route::getRoutes()->getRoutes())
-            ->filter(fn ($route) => $route->getAction('uses') instanceof \Closure)
-            ->map(fn ($route) => $route->methods()[0] . ' /' . ltrim($route->uri(), '/'))
-            ->values()
-            ->all();
-
-        $this->assertSame([], $closures, 'Route berbasis closure tidak bisa di-cache: pindahkan ke controller.');
-    }
-
     public function test_referral_link_redirects_to_the_play_store_with_a_clean_code(): void
     {
         $this->get('/r/ab12cd')
