@@ -21,6 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Middleware CORS bawaan Laravel 11 — wajib supaya frontend Vercel
         // (domain berbeda) bisa fetch ke API ini tanpa diblok browser.
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+        // Alihkan HTTP -> HTTPS di production + header keamanan standar (lihat SecureTransport).
+        $middleware->append(\App\Http\Middleware\SecureTransport::class);
 
         // Supaya spatie/laravel-activitylog tahu "siapa" yang melakukan
         // aksi lewat mobile app (guard 'api'), bukan cuma lewat Filament
