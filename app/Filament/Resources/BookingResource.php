@@ -159,7 +159,7 @@ class BookingResource extends Resource
 
         return $form->schema([
             Forms\Components\Section::make('Sumber Booking')
-                ->columns(2)
+                ->columns(1)
                 ->schema([
                     Forms\Components\Select::make('source')
                         ->label('Asal Booking')
@@ -180,7 +180,7 @@ class BookingResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Data Customer')
-                ->columns(2)
+                ->columns(1)
                 ->schema([
                     // Booking dari app — pilih dari akun terdaftar
                     Forms\Components\Select::make('customer_id')
@@ -218,7 +218,7 @@ class BookingResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Detail Booking')
-                ->columns(2)
+                ->columns(1)
                 ->schema([
                     Forms\Components\Select::make('store_id')
                         ->label('Toko / Workshop')

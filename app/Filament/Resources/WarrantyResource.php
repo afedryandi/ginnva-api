@@ -385,7 +385,7 @@ class WarrantyResource extends Resource
 
         return $form->schema([
             Forms\Components\Section::make('Data Garansi')
-                ->columns(2)
+                ->columns(1)
                 ->schema([
                     // Tidak diisi manual — nomor sekuensial GNV-PPF-00001 /
                     // GNV-WF-00001 dst, di-generate sekali begitu kode
@@ -653,7 +653,7 @@ class WarrantyResource extends Resource
             // Depan vs Kaca Samping & Belakang, karena biasanya pakai
             // roll film yang berbeda (卷芯号 前挡 vs 侧后).
             Forms\Components\Section::make('Detail Instalasi (PPF)')
-                ->columns(2)
+                ->columns(1)
                 ->schema([
                     Forms\Components\Select::make('installation_position')
                         ->label('Posisi Pemasangan')
@@ -731,7 +731,7 @@ class WarrantyResource extends Resource
                 ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf'),
 
             Forms\Components\Section::make('Detail Instalasi (Window Film)')
-                ->columns(2)
+                ->columns(1)
                 ->schema([
                     Forms\Components\Select::make('roll_number_front')
                         ->label('Kode Gulungan — Kaca Depan')
@@ -809,7 +809,7 @@ class WarrantyResource extends Resource
             // (lihat getHeaderActions di EditWarranty), bukan field form,
             // supaya tidak bisa "diam-diam" diubah lewat save form biasa.
             Forms\Components\Section::make('Status Review (QA Certificate)')
-                ->columns(2)
+                ->columns(1)
                 ->schema([
                     Forms\Components\Placeholder::make('review_status')
                         ->label('Status Review')

@@ -23,4 +23,10 @@ class CreateWarranty extends CreateRecord
 
         return $data;
     }
+
+    /** Form satu kolom (2026-10-12, panduan UI minimalis): lebar dibatasi supaya isian tidak membentang selebar layar. */
+    public function getMaxContentWidth(): \Filament\Support\Enums\MaxWidth|string|null
+    {
+        return \Filament\Support\Enums\MaxWidth::ThreeXL;
+    }
 }
