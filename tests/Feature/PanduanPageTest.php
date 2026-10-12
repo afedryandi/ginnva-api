@@ -105,6 +105,16 @@ class PanduanPageTest extends TestCase
         $this->assertTrue(Panduan::canAccess());
     }
 
+    public function test_the_guide_is_reachable_from_the_menu_without_typing_the_url(): void
+    {
+        // Dropdown "Lainnya" di bar atas.
+        $this->assertSame('Lainnya', Panduan::getNavigationGroup());
+
+        // Pintasan di menu avatar.
+        $labels = collect(Filament::getPanel('admin')->getUserMenuItems())->map(fn ($item) => $item->getLabel())->all();
+        $this->assertContains('Panduan', $labels);
+    }
+
     public function test_bold_markers_are_rendered_safely(): void
     {
         $this->assertSame('a <strong>b</strong> c', Panduan::format('a **b** c'));

@@ -184,6 +184,13 @@ class AdminPanelProvider extends PanelProvider
             // supaya admin tidak perlu buka Dashboard Inventaris manual
             // tiap hari untuk tahu ada yang perlu ditinjau.
             ->databaseNotifications()
+            // Pintasan "Panduan" di menu avatar (pojok kanan atas): tempat yang biasa dicari staf untuk bantuan.
+            ->userMenuItems([
+                \Filament\Navigation\MenuItem::make()
+                    ->label('Panduan')
+                    ->icon('heroicon-o-question-mark-circle')
+                    ->url(fn (): string => \App\Filament\Pages\Panduan::getUrl()),
+            ])
             // Spacing antar-grup sidebar (diminta 2026-09-09) — jarak
             // vertikal bawaan Filament v3 antar heading grup ("Laporan
             // Penjualan", "Laporan Jasa", dst) dirasa terlalu jauh.
