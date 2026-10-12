@@ -28,6 +28,10 @@
             />
         </x-filament::input.wrapper>
 
+        <p style="font-size: 0.875rem;">
+            Baru memakai panel ini? <a href="{{ filament()->getUrl() }}?tur=1" style="text-decoration: underline; font-weight: 600;">Ulangi tur pengenalan</a>
+        </p>
+
         @foreach ($guides as $index => $guide)
             <div x-show="match({{ $index }})" data-guide="{{ $guide['id'] }}">
                 <x-filament::section :heading="$guide['title']" :description="$guide['summary']">

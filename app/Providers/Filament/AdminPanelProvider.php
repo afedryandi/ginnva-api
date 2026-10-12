@@ -184,6 +184,13 @@ class AdminPanelProvider extends PanelProvider
             // supaya admin tidak perlu buka Dashboard Inventaris manual
             // tiap hari untuk tahu ada yang perlu ditinjau.
             ->databaseNotifications()
+            // Tur pengenalan (sekali per staf, atau lewat ?tur=1): lihat App\Support\AdminTour.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::BODY_END,
+                fn (): string => \App\Support\AdminTour::shouldShow(auth()->user(), request()->boolean('tur'))
+                    ? view('filament.admin-tour')->render()
+                    : ''
+            )
             // Pintasan "Panduan" di menu avatar (pojok kanan atas): tempat yang biasa dicari staf untuk bantuan.
             ->userMenuItems([
                 \Filament\Navigation\MenuItem::make()
