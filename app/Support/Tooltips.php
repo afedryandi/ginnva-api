@@ -100,7 +100,7 @@ class Tooltips
             'new'       => 'Permintaan penawaran baru masuk, belum dihubungi.',
             'contacted' => 'Sudah dihubungi (follow up) oleh staf.',
             'closed'    => 'Selesai: penawaran ditutup.',
-            'cancelled' => 'Dibatalkan.',
+            'cancelled' => 'Permintaan penawaran dibatalkan.',
             default     => null,
         };
     }
