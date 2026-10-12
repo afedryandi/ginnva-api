@@ -92,11 +92,13 @@ class BackupDatabase extends Command
         $uploaded = false;
 
         if ($remote) {
-            $uploadResult = Process::timeout(600)->run(['rclone', 'copy', $gzPath, $remote]);
+            $rclone = (string) config('services.backup.rclone_binary', 'rclone');
+            $uploadResult = Process::timeout(600)->run([$rclone, 'copy', $gzPath, $remote]);
 
             if ($uploadResult->successful()) {
                 $uploaded = true;
                 $this->info("Berhasil upload ke remote: {$remote}");
+                $this->pruneRemote($rclone, $remote);
             } else {
                 Log::error('[BackupDatabase] Upload rclone gagal — backup TETAP ada secara lokal', [
                     'remote' => $remote,
@@ -122,6 +124,28 @@ class BackupDatabase extends Command
         ]);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Hapus salinan off-site yang lebih tua dari BACKUP_REMOTE_RETENTION_DAYS (default 90 hari) supaya penyimpanan
+     * remote tidak membengkak. Hanya menyentuh file ginnva_backup_*.sql.gz; kegagalan di sini tidak menggagalkan backup.
+     */
+    private function pruneRemote(string $rclone, string $remote): void
+    {
+        $days = (int) config('services.backup.remote_retention_days', 90);
+
+        if ($days <= 0) {
+            return;
+        }
+
+        $result = Process::timeout(300)->run([$rclone, 'delete', $remote, '--include', 'ginnva_backup_*.sql.gz', '--min-age', "{$days}d"]);
+
+        if (! $result->successful()) {
+            Log::warning('[BackupDatabase] Pembersihan backup lama di remote gagal (backup hari ini tetap tersimpan)', [
+                'remote' => $remote,
+                'error' => $result->errorOutput(),
+            ]);
+        }
     }
 
     private function pruneOldBackups(string $backupDir, int $retentionDays): void

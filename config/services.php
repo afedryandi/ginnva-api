@@ -79,7 +79,11 @@ return [
     // tetap dibuat & disimpan lokal, cuma tidak ada salinan off-site.
     'backup' => [
         'rclone_remote' => env('RCLONE_BACKUP_REMOTE'),
+        // Path lengkap rclone kalau tidak ada di PATH scheduler/cron (mis. dipasang di ~/bin tanpa root di hosting).
+        'rclone_binary' => env('RCLONE_BINARY', 'rclone'),
         'retention_days' => env('BACKUP_RETENTION_DAYS', 14),
+        // Retensi di remote (hari): salinan off-site yang lebih tua dihapus otomatis. 0 = tidak pernah dihapus.
+        'remote_retention_days' => env('BACKUP_REMOTE_RETENTION_DAYS', 90),
     ],
 
     // Kalkulator "Price List Kaca Film" (halaman terpisah di ginnva-web)

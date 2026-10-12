@@ -126,6 +126,18 @@ _Ganti `remote-gdrive` dengan nama remote sesuai hasil `rclone config` yang suda
 
 **Jadwal:** lakukan backup manual ini sebelum setiap deploy besar/migrasi berisiko, dan idealnya juga terjadwal rutin (mingguan) lewat cron + `rclone` supaya tidak bergantung pada backup manual saja.
 
+**Setup off-site otomatis (Google Drive + enkripsi), 2026-10-12** -- supaya `backup:database` (harian 03:00) ikut mengunggah salinan terenkripsi ke luar server:
+
+1. Pasang `rclone` tanpa root di server: unduh `rclone-current-linux-amd64.zip` dari downloads.rclone.org, ekstrak, salin binary ke `~/bin/rclone`, cek `~/bin/rclone version`.
+2. Di komputer lokal (ada browser): `rclone authorize "drive"` lalu login akun Google tim; salin token JSON yang tercetak.
+3. Di server: `~/bin/rclone config` -> remote baru `gdrive` (type `drive`, scope `drive.file`, auto config = **n**, tempel token) -> remote baru `gdrive-crypt` (type `crypt`, remote `gdrive:Ginnva-Backups`, enkripsi nama file standard, password & salt = generate).
+4. **Simpan password & salt crypt di password manager, DI LUAR server** (`rclone config show gdrive-crypt`). Tanpa keduanya backup tidak bisa dibuka.
+5. `.env` production: `RCLONE_BACKUP_REMOTE=gdrive-crypt:`, `RCLONE_BINARY=/home/<user>/bin/rclone`, lalu `php artisan config:cache`.
+6. Uji: `php artisan backup:database` (harus ada "Berhasil upload ke remote"), lalu `~/bin/rclone ls gdrive-crypt:`.
+7. Restore: `~/bin/rclone copy gdrive-crypt:ginnva_backup_YYYYMMDD_HHMMSS.sql.gz .` (otomatis didekripsi), lalu `gunzip -c ... | mysql ...`.
+
+Salinan off-site lebih tua dari `BACKUP_REMOTE_RETENTION_DAYS` (default 90 hari) dihapus otomatis; set 0 untuk menyimpan selamanya.
+
 ## 6. Git Tagging (rilis)
 
 ```bash
