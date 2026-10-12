@@ -379,6 +379,7 @@ class QuotationResource extends Resource
                     ->toggleable(),
 
                 Tables\Columns\BadgeColumn::make('status')
+                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::quotationStatus($state))
                     ->colors([
                         'info'    => 'new',
                         'warning' => 'contacted',

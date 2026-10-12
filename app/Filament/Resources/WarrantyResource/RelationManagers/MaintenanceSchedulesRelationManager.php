@@ -105,6 +105,7 @@ class MaintenanceSchedulesRelationManager extends RelationManager
             ->actions([
                 Tables\Actions\Action::make('book_for_customer')
                     ->label('Buatkan Booking')
+                    ->tooltip('Buatkan booking maintenance untuk customer yang sudah dihubungi dan setuju datang.')
                     ->icon('heroicon-o-calendar-days')
                     ->color('primary')
                     ->visible(fn (WarrantyMaintenanceSchedule $record) => in_array($record->status, ['pending', 'confirmation_sent'], true)

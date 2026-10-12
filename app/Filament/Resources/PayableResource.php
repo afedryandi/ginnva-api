@@ -294,6 +294,7 @@ class PayableResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
+                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::payableStatus($state))
                     ->colors([
                         'danger' => 'unpaid',
                         'warning' => 'partial',

@@ -419,6 +419,7 @@ class JournalEntryResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
+                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::journalStatus($state))
                     ->colors([
                         'warning' => 'draft',
                         'success' => 'posted',

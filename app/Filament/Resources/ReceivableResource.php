@@ -273,6 +273,7 @@ class ReceivableResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
+                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::receivableStatus($state))
                     ->colors([
                         'danger' => 'unpaid',
                         'warning' => 'partial',

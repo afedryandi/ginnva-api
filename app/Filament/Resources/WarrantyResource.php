@@ -889,6 +889,7 @@ class WarrantyResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('review_status')
                     ->label('Review QA')
+                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::warrantyReview($state))
                     ->colors([
                         'warning' => 'pending_review',
                         'success' => 'approved',
@@ -903,6 +904,7 @@ class WarrantyResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status Garansi')
+                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::warrantyStatus($state))
                     ->formatStateUsing(fn (string $state): string => $state === 'revoked' ? 'Revoked' : $state)
                     ->colors([
                         'success' => 'active',
@@ -1177,6 +1179,7 @@ class WarrantyResource extends Resource
                 // (lockForUpdate()), ini cuma UI convenience.
                 Tables\Actions\Action::make('record_maintenance_visit')
                     ->label('Catat Kunjungan Maintenance')
+                    ->tooltip('Catat customer yang datang maintenance tanpa jadwal. Mengurangi kuota maintenance garansi ini.')
                     ->icon('heroicon-o-wrench-screwdriver')
                     ->color('success')
                     ->visible(fn (Warranty $record) => $record->review_status === 'approved'
@@ -1211,6 +1214,7 @@ class WarrantyResource extends Resource
                 // biasa.
                 Tables\Actions\Action::make('cancel_maintenance_visit')
                     ->label('Batalkan Kunjungan Maintenance')
+                    ->tooltip('Batalkan kunjungan yang salah catat. Kuota dikembalikan. Hanya untuk akses penuh.')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     // Pakai active_maintenance_visits_count dari

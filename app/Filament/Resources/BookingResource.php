@@ -984,6 +984,7 @@ class BookingResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('source')
                     ->label('Asal')
+                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::bookingSource($state))
                     ->colors([
                         'primary' => 'app',
                         'success' => 'whatsapp',
@@ -1043,6 +1044,7 @@ class BookingResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
+                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::bookingStatus($state))
                     ->colors([
                         'warning' => 'pending',
                         'info'    => 'confirmed',

@@ -154,6 +154,7 @@ class RewardRedemptionResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
+                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::rewardRedemptionStatus($state))
                     ->colors([
                         'warning' => 'pending',
                         'success' => 'fulfilled',
