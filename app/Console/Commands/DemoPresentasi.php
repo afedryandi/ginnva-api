@@ -120,7 +120,7 @@ class DemoPresentasi extends Command
         if (! $this->option('skip-others')) {
             foreach ([
                 ['quotations:demo', []],
-                ['booking-group:demo', ['--count' => 12]],
+                ['booking-group:demo', ['--count' => 30]],
                 ['inventaris-group:demo', []],
                 ['karyawan-group:demo', []],
                 ['marketing-group:demo', []],
@@ -413,7 +413,27 @@ class DemoPresentasi extends Command
         $out = FinanceCategory::where('type', 'out')->where('is_group', false)->whereNotNull('chart_of_account_id')->get();
         $in = FinanceCategory::where('type', 'in')->where('is_group', false)->whereNotNull('chart_of_account_id')->get();
         if ($out->isEmpty()) {
-            throw new \RuntimeException('Belum ada Kategori Keuangan pengeluaran yang terhubung ke akun. Jalankan FinanceCategorySeeder.');
+            // Server dev bisa punya kategori lama yang belum terhubung ke akun (seeder melewati nama yang sudah ada),
+            // jadi buat kategori demo yang sudah terhubung ke akun Bagan Akun.
+            foreach (['Gaji & Tunjangan' => '6', 'Sewa & Listrik' => '6', 'Bahan & Perlengkapan' => '6', 'Pemasaran & Iklan' => '6', 'Transportasi & Operasional' => '6'] as $name => $_) {
+                $account = ChartOfAccount::where('type', 'beban_operasional')->where('is_postable', true)->where('is_active', true)->inRandomOrder()->first();
+                if ($account) {
+                    FinanceCategory::create(['name' => self::TAG . ' ' . $name, 'type' => 'out', 'is_group' => false, 'chart_of_account_id' => $account->id, 'sort_order' => 900, 'is_active' => true]);
+                }
+            }
+            $out = FinanceCategory::where('type', 'out')->where('is_group', false)->whereNotNull('chart_of_account_id')->get();
+        }
+
+        if ($in->isEmpty()) {
+            $income = ChartOfAccount::whereIn('type', ['pendapatan', 'pendapatan_lain'])->where('code', '!=', '4100')->where('is_postable', true)->where('is_active', true)->first();
+            if ($income) {
+                FinanceCategory::create(['name' => self::TAG . ' Pendapatan Lain-lain', 'type' => 'in', 'is_group' => false, 'chart_of_account_id' => $income->id, 'sort_order' => 900, 'is_active' => true]);
+                $in = FinanceCategory::where('type', 'in')->where('is_group', false)->whereNotNull('chart_of_account_id')->get();
+            }
+        }
+
+        if ($out->isEmpty()) {
+            throw new \RuntimeException('Tidak ada akun beban aktif di Bagan Akun untuk dihubungkan ke kategori pengeluaran.');
         }
 
         $posting = app(FinanceTransactionPostingService::class);
@@ -649,6 +669,7 @@ class DemoPresentasi extends Command
                 DB::table('payables')->whereIn('id', $payableIds)->delete();
                 DB::table('suppliers')->where('notes', self::TAG)->delete();
                 DB::table('finance_transactions')->where('description', 'like', self::TAG . '%')->delete();
+                DB::table('finance_categories')->where('name', 'like', self::TAG . '%')->delete();
                 DB::table('recurring_bill_templates')->where('name', 'like', self::TAG . '%')->delete();
                 DB::table('bank_statement_lines')->where('description', 'like', self::TAG . '%')->delete();
                 DB::table('spend_promos')->where('name', 'like', self::TAG . '%')->delete();

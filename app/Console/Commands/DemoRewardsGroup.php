@@ -384,7 +384,10 @@ class DemoRewardsGroup extends Command
         $total += VoucherClaim::whereIn('voucher_id', $demoVoucherIds)->delete();
         $total += Voucher::whereIn('id', $demoVoucherIds)->delete();
 
-        $total += Reward::where('name', 'like', self::MARK_PREFIX . '%')->delete();
+        // Klaim atas reward demo (oleh siapa pun) harus dihapus dulu — reward_redemptions.reward_id RESTRICT.
+        $demoRewardIds = Reward::where('name', 'like', self::MARK_PREFIX . '%')->pluck('id');
+        $total += RewardRedemption::whereIn('reward_id', $demoRewardIds)->delete();
+        $total += Reward::whereIn('id', $demoRewardIds)->delete();
 
         $total += Partner::whereIn('id', $demoPartnerIds)->delete();
         $total += User::whereIn('id', $demoPartnerUserIds)->delete();
