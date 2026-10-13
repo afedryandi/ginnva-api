@@ -58,6 +58,8 @@ class AttendanceController extends Controller
      */
     public function clockIn(Request $request)
     {
+        $this->normalizeMockedFlag($request);
+
         $request->validate([
             'latitude'  => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
@@ -120,10 +122,24 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Request multipart (unggah foto selfie) mengirim semua nilai sebagai teks, jadi aplikasi mengirim is_mocked sebagai
+     * "true"/"false" — aturan `boolean` Laravel hanya menerima true/false/1/0 dan menolak teks itu (2026-10-13).
+     */
+    private function normalizeMockedFlag(Request $request): void
+    {
+        $value = $request->input('is_mocked');
+        if (is_string($value) && in_array(strtolower(trim($value)), ['true', 'false'], true)) {
+            $request->merge(['is_mocked' => strtolower(trim($value)) === 'true']);
+        }
+    }
+
+    /**
      * POST /api/staff/attendance/clock-out
      */
     public function clockOut(Request $request)
     {
+        $this->normalizeMockedFlag($request);
+
         $request->validate([
             'latitude'  => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',

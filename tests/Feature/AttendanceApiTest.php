@@ -178,6 +178,19 @@ class AttendanceApiTest extends TestCase
         $this->clockIn()->assertSuccessful(); // iOS: tidak mengirim is_mocked
     }
 
+    public function test_is_mocked_sent_as_text_from_a_multipart_upload_is_accepted(): void
+    {
+        // Aplikasi mengirim "false"/"true" (teks) lewat FormData saat unggah foto selfie.
+        $this->clockIn(null, ['is_mocked' => 'false'])->assertSuccessful();
+        $this->assertFalse((bool) Attendance::firstOrFail()->clock_in_is_mocked);
+
+        $this->clockOut(null, ['is_mocked' => 'false'])->assertSuccessful();
+
+        Attendance::query()->delete();
+        $this->clockIn(null, ['is_mocked' => 'true'])->assertStatus(422)
+            ->assertJsonPath('message', fn ($m) => str_contains($m, 'GPS palsu'));
+    }
+
     public function test_a_second_clock_in_the_same_day_is_rejected(): void
     {
         $this->clockIn()->assertSuccessful();
