@@ -30,11 +30,24 @@ class SmokePanel extends Command
 
     protected $description = 'Buka semua halaman panel admin sebagai tiap role dan laporkan yang error (hanya server dev)';
 
+    private string $current = '';
+
     public function handle(): int
     {
         if ($this->refuseOutsideDemoEnvironment()) {
             return self::FAILURE;
         }
+
+        // Kalau PHP mati mendadak (kehabisan memori / exit di tengah halaman), tampilkan halaman terakhir yang dibuka.
+        register_shutdown_function(function () {
+            $error = error_get_last();
+            if ($error && in_array($error['type'], [E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR, E_PARSE], true)) {
+                fwrite(STDERR, "
+PROSES MATI saat membuka: {$this->current}
+  {$error['message']} @ " . basename($error['file']) . ':' . $error['line'] . "
+");
+            }
+        });
 
         // Tanpa sesi database (jangan menumpuk ratusan baris sesi), dan pesan error asli di respons JSON.
         config(['session.driver' => 'array', 'app.debug' => true]);
@@ -75,7 +88,9 @@ class SmokePanel extends Command
                 }
 
                 $total++;
+                $this->current = "{$role} / {$label}";
                 [$status, $message] = $this->hit($url, $user);
+                $this->line(sprintf('  %s  %s', $status, $label));
 
                 if ($status === 200) {
                     $stats['200']++;
