@@ -28,7 +28,7 @@ class DemoPresentasiCommandTest extends TestCase
 
         $this->seed(ChartOfAccountSeeder::class);
         $this->seed(FinanceCategorySeeder::class);
-        foreach (['installer', 'store_manager'] as $role) {
+        foreach (['installer', 'installer_leader', 'store_manager'] as $role) {
             Role::findOrCreate($role, 'web');
         }
         Store::create(['city' => 'Jakarta', 'address' => 'Jl. Demo 1', 'name' => 'Toko Demo A', 'is_active' => true]);

@@ -41,7 +41,7 @@ class SmokeApi extends Command
     use DemoDataGuard;
 
     protected $signature = 'smoke:api
-        {--actor=* : Aktor yang dicoba: publik, pelanggan, partner, store_manager, installer, direksi (default: semua)}
+        {--actor=* : Aktor yang dicoba: publik, pelanggan, partner, store_manager, installer, installer_leader, direksi (default: semua)}
         {--only= : Hanya endpoint yang alamatnya mengandung teks ini}';
 
     protected $description = 'Buka semua endpoint GET API mobile sebagai pelanggan/staf/partner dan laporkan yang error (hanya server dev)';
@@ -56,7 +56,7 @@ class SmokeApi extends Command
         config(['cache.default' => 'array', 'app.debug' => true]);
 
         $only = (string) $this->option('only');
-        $wanted = $this->option('actor') ?: ['publik', 'pelanggan', 'partner', 'store_manager', 'installer', 'direksi'];
+        $wanted = $this->option('actor') ?: ['publik', 'pelanggan', 'partner', 'store_manager', 'installer', 'installer_leader', 'direksi'];
 
         $routes = collect(Route::getRoutes()->getRoutes())
             ->filter(fn (LaravelRoute $r) => in_array('GET', $r->methods(), true) && str_starts_with($r->uri(), 'api/'))
@@ -149,7 +149,7 @@ class SmokeApi extends Command
         if (str_contains($middleware, 'auth:api')) {
             return match (true) {
                 str_starts_with($uri, 'api/partner') => $actorName === 'partner',
-                default => in_array($actorName, ['store_manager', 'installer', 'direksi'], true),
+                default => in_array($actorName, ['store_manager', 'installer', 'installer_leader', 'direksi'], true),
             };
         }
 

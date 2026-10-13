@@ -189,7 +189,7 @@ class DemoPresentasi extends Command
     private function installers(object $ctx): void
     {
         foreach ($ctx->stores as $store) {
-            foreach ([['Demo Installer Satu', 150000, 'advanced'], ['Demo Installer Dua', 200000, 'mentor']] as [$name, $commission, $level]) {
+            foreach ([['Demo Installer Satu', 150000, 'advanced', 'installer'], ['Demo Installer Dua', 200000, 'mentor', 'installer'], ['Demo Leader Installer', 250000, 'mentor', 'installer_leader']] as [$name, $commission, $level, $role]) {
                 $user = User::create([
                     'name' => $name . ' ' . $store->id,
                     'email' => 'installer' . $store->id . Str::slug($name) . self::EMAIL_SUFFIX,
@@ -200,7 +200,7 @@ class DemoPresentasi extends Command
                     'base_salary' => 4000000,
                     'is_active' => true,
                 ]);
-                $user->syncRoles(['installer']);
+                $user->syncRoles([$role]);
 
                 Technician::create([
                     'store_id' => $store->id,
