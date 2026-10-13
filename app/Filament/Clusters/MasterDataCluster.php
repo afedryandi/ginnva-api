@@ -30,4 +30,14 @@ class MasterDataCluster extends Cluster
     // Sort terkecil di grup "Lainnya" — menjaga posisi top-nav "Lainnya"
     // tetap sama seperti LainnyaCluster lama (sort 60).
     protected static ?int $navigationSort = 60;
+
+    /**
+     * Halaman induk menu hanya bisa dibuka kalau ada isi yang boleh diakses role ini. Tanpa ini, role yang tidak punya
+     * satu pun menu di dalamnya (mis. store_manager di Sistem) yang mengetik alamatnya langsung mendapat error 500
+     * (tidak ada tujuan alihan), bukan 403.
+     */
+    public static function canAccess(): bool
+    {
+        return static::canAccessClusteredComponents();
+    }
 }

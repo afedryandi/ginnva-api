@@ -19,6 +19,10 @@ use Throwable;
  *
  * Penjelasan hasil: 200 = halaman terbuka; 403/404 = ditolak/tidak ada untuk role itu (normal bila memang dibatasi);
  * 302 = dialihkan (mis. ke halaman lain); 5xx atau exception = BUG yang harus diperbaiki.
+ *
+ * CATATAN: semua halaman diproses dalam SATU proses PHP, dan Livewire mengganti fungsi redirect() saat halaman induk menu
+ * (Cluster) dialihkan tanpa mengembalikannya. Karena itu halaman Cluster pada role KEDUA dst. bisa salah melapor 500
+ * ("Redirector could not be converted to int"). Jalankan SATU role per perintah (--role=store_manager) untuk hasil yang bersih.
  */
 class SmokePanel extends Command
 {
