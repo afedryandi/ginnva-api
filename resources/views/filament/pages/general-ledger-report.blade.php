@@ -38,8 +38,9 @@
                 </p>
             @endif
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
+            <style>.gl-table th, .gl-table td { white-space: nowrap; padding-right: 1.5rem; } .gl-table th:last-child, .gl-table td:last-child { padding-right: 0; }</style>
+            <div class="overflow-x-auto" style="overflow-x: auto; max-width: 100%;">
+                <table class="w-full text-sm gl-table" style="min-width: 64rem;">
                     <thead>
                         <tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500 dark:border-white/10 dark:text-gray-400">
                             <th class="py-2 pr-4">Tanggal</th>
