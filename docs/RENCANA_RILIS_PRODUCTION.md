@@ -8,7 +8,7 @@ Perintah di sini untuk server cPanel Ginnva (user `ginnva`); isi dokumen belum d
 | Hal | Production (`/home/ginnva/public_html/ginnva-api`) | Target (`origin/development`) |
 |---|---|---|
 | Commit | `8009cfb` (4 September 2026), branch `development` | terbaru |
-| Jarak | tertinggal **681 commit**, **143 migrasi baru**, 994 file berubah | - |
+| Jarak | tertinggal **681 commit**, **143 migrasi baru (+1 pembersih)**, 994 file berubah | - |
 | Komposer | tidak berubah (`composer.json`/`lock` sama) | - |
 | Perubahan lokal di server | `QuotationController.php` (email opsional; **sudah ada di Git** sebagai commit `37fe4a2`) dan berkas `vehicles-backup-20260827.sql` (tidak dilacak) | - |
 | Backup | skrip harian `~/backup_ginnva.sh` jam 03:00 ke Google Drive terenkripsi, terbukti jalan | `backup:database` bawaan aplikasi (menggantikan skrip) |
@@ -63,6 +63,29 @@ Ini yang mengubah atau menghapus **data yang sudah ada**, atau mengimpor data aw
 
 Tabel baru (akuntansi, SPK, jadwal kerja, dst.) kosong di production, jadi batasan unik pada tabel itu aman.
 
+## 3b. Hasil Fase A (dijalankan 2026-10-13 pada salinan backup 13 Oktober 03:00)
+
+| Ukuran | Hasil |
+|---|---|
+| Pemulihan salinan production | 1 menit 3 detik (pertama kali 2 menit 7 detik) |
+| Migrasi | **144 migrasi dalam 25,7 detik**, 0 gagal (143 migrasi baru + 1 migrasi pembersih, lihat di bawah) |
+| Tabel `migrations` setelahnya | 312 baris (168 + 144) |
+| Data bisnis production | 6 customers, 1 booking, 75 users, 12 warranties, `activity_log` 1.122 baris; **semuanya utuh setelah migrasi** |
+| Role | `installer_leader` ada, `ppf_leader` tidak ada |
+| Seeder aman | `ChartOfAccountSeeder` (77 akun), `FinanceCategorySeeder` (19 kategori), `EmployeeTypeSeeder` (2 jenis) sukses |
+| Uji asap aplikasi pada salinan | booking dan garansi lama termuat dengan relasi baru; 7 endpoint API publik 200 |
+
+**Dua masalah ditemukan dan sudah diperbaiki di kode (tanpa latihan, rilis sebenarnya akan berhenti di tengah):**
+
+1. Production punya tabel `invoices` **bentuk lama** (kosong; sisa fitur lama, migrasinya tidak ada di kode) yang menabrak
+   `create_invoices_table` (modul Invoice baru). Migrasi pembersih `2026_09_15_000001_a_drop_legacy_invoices_table`
+   menghapusnya hanya kalau bentuk lama dan kosong; kalau berisi data, berhenti dengan pesan.
+2. Production sudah punya tabel `activity_log` lengkap (1.122 baris). Tiga migrasi `activity_log` kini dilewati kalau
+   tabel atau kolomnya sudah ada; riwayat audit tidak disentuh.
+
+**Catatan:** bagan akun di production hanya 3 akun (modul akuntansi belum pernah aktif). Seeder di bawah **wajib** dijalankan
+setelah migrasi supaya jurnal dan laporan keuangan punya akun.
+
 ## 4. Fase B, hari rilis (production)
 
 **Jadwal:** pilih hari dan jam sepi (mis. pagi setelah backup 03:00 selesai). Umumkan ke staf. Perkiraan durasi baru diketahui dari Fase A.
@@ -98,8 +121,17 @@ php artisan optimize && php artisan filament:optimize
 php artisan queue:restart
 ```
 
-Hal yang **harus diputuskan sebelum rilis** (dari Fase A):
-- Apakah perlu `php artisan db:seed --class=ChartOfAccountSeeder` (aman diulang, memakai `updateOrCreate` per kode akun); akun 6520 pernah hilang dari seeder. **Jangan** menjalankan `RolePermissionSeeder` atau `DatabaseSeeder` di production: keduanya dapat membuat akun admin dengan kata sandi acak.
+**Seeder yang dijalankan setelah `migrate` (sudah terbukti aman di salinan, urutannya penting):**
+
+```bash
+php artisan db:seed --class=ChartOfAccountSeeder --force
+php artisan db:seed --class=FinanceCategorySeeder --force
+php artisan db:seed --class=EmployeeTypeSeeder --force
+```
+
+`ChartOfAccountSeeder` harus sebelum `FinanceCategorySeeder`. Ketiganya aman diulang. **Jangan** menjalankan
+`RolePermissionSeeder` atau `DatabaseSeeder` di production: keduanya dapat membuat akun contoh (`admin@ginnva.test` dan
+sejenisnya) dengan kata sandi acak.
 - Setelah rilis: aktifkan `backup:database` bawaan (isi `RCLONE_BACKUP_REMOTE=gdrive-crypt:` dan `RCLONE_BINARY` yang sudah ada di `.env`), lalu **matikan** skrip `backup_ginnva.sh` dan baris cron-nya, supaya tidak ada dua backup sekaligus.
 
 ## 5. Uji asap setelah rilis (hari yang sama)
