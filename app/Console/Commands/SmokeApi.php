@@ -170,7 +170,11 @@ class SmokeApi extends Command
             }
 
             $previous = $segments[$i - 1] ?? '';
-            $value = $this->sample($previous, $m[1], $actor, $actorName, $segments);
+            try {
+                $value = $this->sample($previous, $m[1], $actor, $actorName, $segments);
+            } catch (Throwable) {
+                $value = null; // contoh tidak bisa diambil (kolom/tabel berbeda) — endpoint dilewati, bukan sapuan dibatalkan
+            }
 
             if ($value === null) {
                 if (($m[2] ?? '') === '?') {
@@ -203,10 +207,10 @@ class SmokeApi extends Command
             'materials' => RawMaterial::orderBy('id')->value('id'),
             'consumables' => ConsumableItem::orderBy('id')->value('id'),
             'inventory' => InventoryItem::orderBy('id')->value('code'),
-            'assets' => Asset::orderBy('id')->value('code'),
+            'assets' => Asset::orderBy('id')->value('asset_tag'),
             'quotations' => Quotation::withoutGlobalScopes()->orderBy('id')->value('id'),
-            'payroll' => Payroll::where('user_id', $actor?->id)->orderBy('id')->value('id'),
-            'news' => News::orderBy('id')->value('slug'),
+            'payroll' => Payroll::where('user_id', $actor?->id)->where('status', 'paid')->orderBy('id')->value('id'),
+            'news' => News::where('is_published', true)->where(fn ($q) => $q->whereNull('published_at')->orWhere('published_at', '<=', now()))->orderBy('id')->value('slug'),
             'products' => 'ppf',
             default => $param === 'id' && $previous === 'api' ? $store() : null,
         };
