@@ -20,7 +20,7 @@
                 <x-heroicon-o-building-storefront class="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 <select
                     wire:model.live="storeId"
-                    class="border-0 bg-transparent p-0 pr-7 text-sm font-medium outline-none focus:outline-none focus:ring-0 dark:[color-scheme:dark]" style="outline: none; box-shadow: none;"
+                    class="border-0 bg-transparent p-0 pr-7 text-sm font-medium outline-none focus:outline-none focus:ring-0 dark:[color-scheme:dark]" style="border: 0; background-color: transparent; box-shadow: none; outline: none; padding: 0 1.75rem 0 0; font: inherit; font-size: 0.875rem; font-weight: 500; color: inherit;"
                 >
                     <option value="">Semua cabang</option>
                     @foreach ($storeOptions as $id => $name)
