@@ -38,7 +38,7 @@
                 </p>
             @endif
 
-            <style>.gl-table th, .gl-table td { white-space: nowrap; padding-right: 1.5rem; } .gl-table th:last-child, .gl-table td:last-child { padding-right: 0; }</style>
+            <style>.gl-table th, .gl-table td { white-space: nowrap; padding-right: 1.5rem; } .gl-table th:last-child, .gl-table td:last-child { padding-right: 0; } .gl-table .gl-desc { white-space: normal; min-width: 18rem; max-width: 24rem; }</style>
             <div class="overflow-x-auto" style="overflow-x: auto; max-width: 100%;">
                 <table class="w-full text-sm gl-table" style="min-width: 64rem;">
                     <thead>
@@ -46,7 +46,7 @@
                             <th class="py-2 pr-4">Tanggal</th>
                             <th class="py-2 pr-4">No. Jurnal</th>
                             <th class="py-2 pr-4">Sumber</th>
-                            <th class="py-2 pr-4">Keterangan</th>
+                            <th class="py-2 pr-4 gl-desc">Keterangan</th>
                             <th class="py-2 pr-4 text-right">Debit</th>
                             <th class="py-2 pr-4 text-right">Kredit</th>
                             <th class="py-2 pr-4 text-right">Saldo Berjalan</th>
@@ -65,7 +65,7 @@
                                 <td class="py-2 pr-4 whitespace-nowrap">{{ $row['entry_date']->format('d M Y') }}</td>
                                 <td class="py-2 pr-4 font-mono text-xs text-gray-500 dark:text-gray-400"><a href="{{ \App\Filament\Resources\JournalEntryResource::getUrl('view', ['record' => $row['entry_id']]) }}" class="hover:underline" title="Lihat jurnal">{{ $row['entry_number'] }}</a></td>
                                 <td class="py-2 pr-4 text-xs text-gray-500 dark:text-gray-400">{{ $row['source'] }}</td>
-                                <td class="py-2 pr-4">{{ $row['description'] }}</td>
+                                <td class="py-2 pr-4 gl-desc">{{ $row['description'] }}</td>
                                 <td class="py-2 pr-4 text-right tabular-nums">{{ $row['debit'] > 0 ? $rupiah($row['debit']) : '—' }}</td>
                                 <td class="py-2 pr-4 text-right tabular-nums">{{ $row['credit'] > 0 ? $rupiah($row['credit']) : '—' }}</td>
                                 <td class="py-2 pr-4 text-right tabular-nums">{{ $rupiah($row['running_balance']) }}</td>
