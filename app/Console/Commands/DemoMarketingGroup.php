@@ -53,6 +53,8 @@ use Illuminate\Support\Str;
  */
 class DemoMarketingGroup extends Command
 {
+    use \App\Console\Commands\Concerns\DemoDataGuard;
+
     protected $signature = 'marketing-group:demo
         {--count=6 : Jumlah baris dummy per fitur (sebagian fitur pakai jumlah tetap lebih kecil)}
         {--cleanup : Hapus semua data demo grup ini, bukan generate}';
@@ -67,6 +69,10 @@ class DemoMarketingGroup extends Command
 
     public function handle(): int
     {
+        if ($this->refuseOutsideDemoEnvironment()) {
+            return self::FAILURE;
+        }
+
         if ($this->option('cleanup')) {
             return $this->cleanup();
         }

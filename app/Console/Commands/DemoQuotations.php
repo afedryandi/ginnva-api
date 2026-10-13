@@ -29,6 +29,8 @@ use Illuminate\Support\Carbon;
  */
 class DemoQuotations extends Command
 {
+    use \App\Console\Commands\Concerns\DemoDataGuard;
+
     protected $signature = 'quotations:demo
         {--count=15 : Jumlah lead dummy yang dibuat}
         {--store_id= : Batasi ke 1 toko saja (default: tersebar ke semua toko aktif)}
@@ -56,6 +58,10 @@ class DemoQuotations extends Command
 
     public function handle(): int
     {
+        if ($this->refuseOutsideDemoEnvironment()) {
+            return self::FAILURE;
+        }
+
         if ($this->option('cleanup')) {
             return $this->cleanup();
         }

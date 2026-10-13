@@ -46,6 +46,8 @@ use Illuminate\Support\Str;
  */
 class DemoKaryawanGroup extends Command
 {
+    use \App\Console\Commands\Concerns\DemoDataGuard;
+
     protected $signature = 'karyawan-group:demo
         {--cleanup : Hapus semua data demo grup ini, bukan generate}';
 
@@ -56,6 +58,10 @@ class DemoKaryawanGroup extends Command
 
     public function handle(): int
     {
+        if ($this->refuseOutsideDemoEnvironment()) {
+            return self::FAILURE;
+        }
+
         if ($this->option('cleanup')) {
             return $this->cleanup();
         }

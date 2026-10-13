@@ -53,6 +53,8 @@ use Throwable;
  */
 class DemoPresentasi extends Command
 {
+    use \App\Console\Commands\Concerns\DemoDataGuard;
+
     protected $signature = 'demo:presentasi
         {--bookings=48 : Jumlah booking dummy}
         {--skip-others : Lewati perintah demo per-grup yang sudah ada}
@@ -73,6 +75,10 @@ class DemoPresentasi extends Command
 
     public function handle(): int
     {
+        if ($this->refuseOutsideDemoEnvironment()) {
+            return self::FAILURE;
+        }
+
         if ($this->option('cleanup')) {
             return $this->cleanup();
         }

@@ -20,6 +20,8 @@ use Illuminate\Support\Str;
  */
 class DemoPayroll extends Command
 {
+    use \App\Console\Commands\Concerns\DemoDataGuard;
+
     protected $signature = 'payroll:demo
         {--store_id= : ID toko yang dipakai (default: toko aktif pertama)}
         {--cleanup : Hapus user & data demo ini, bukan generate}';
@@ -30,6 +32,10 @@ class DemoPayroll extends Command
 
     public function handle(): int
     {
+        if ($this->refuseOutsideDemoEnvironment()) {
+            return self::FAILURE;
+        }
+
         if ($this->option('cleanup')) {
             return $this->cleanup();
         }

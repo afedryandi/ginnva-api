@@ -43,6 +43,8 @@ use Illuminate\Support\Str;
  */
 class DemoInventarisGroup extends Command
 {
+    use \App\Console\Commands\Concerns\DemoDataGuard;
+
     protected $signature = 'inventaris-group:demo
         {--cleanup : Hapus semua data demo grup ini, bukan generate}';
 
@@ -52,6 +54,10 @@ class DemoInventarisGroup extends Command
 
     public function handle(): int
     {
+        if ($this->refuseOutsideDemoEnvironment()) {
+            return self::FAILURE;
+        }
+
         if ($this->option('cleanup')) {
             return $this->cleanup();
         }

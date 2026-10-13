@@ -38,12 +38,18 @@ use Illuminate\Console\Command;
  */
 class WipeInventarisGroup extends Command
 {
+    use \App\Console\Commands\Concerns\DemoDataGuard;
+
     protected $signature = 'inventaris-group:wipe {--confirm : Wajib disebutkan untuk benar-benar menghapus}';
 
     protected $description = 'HAPUS PERMANEN semua data nav group Inventaris (bukan cuma data demo) — hanya untuk dev/testing';
 
     public function handle(): int
     {
+        if ($this->refuseOutsideDemoEnvironment()) {
+            return self::FAILURE;
+        }
+
         if (! $this->option('confirm')) {
             $this->error('Command ini menghapus PERMANEN semua data di grup Inventaris (Produk PPF/WF, Bahan Baku, Aset Tetap, Barang Habis Pakai, Memo, Permohonan Pembelian) beserta seluruh riwayatnya.');
             $this->warn('Jalankan lagi dengan --confirm kalau memang yakin: php artisan inventaris-group:wipe --confirm');

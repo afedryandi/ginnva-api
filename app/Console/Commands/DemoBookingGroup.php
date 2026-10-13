@@ -38,6 +38,8 @@ use Illuminate\Support\Str;
  */
 class DemoBookingGroup extends Command
 {
+    use \App\Console\Commands\Concerns\DemoDataGuard;
+
     protected $signature = 'booking-group:demo
         {--count=10 : Jumlah Booking dummy yang dibuat}
         {--store_id= : Batasi ke 1 toko saja (default: tersebar ke semua toko aktif)}
@@ -62,6 +64,10 @@ class DemoBookingGroup extends Command
 
     public function handle(): int
     {
+        if ($this->refuseOutsideDemoEnvironment()) {
+            return self::FAILURE;
+        }
+
         if ($this->option('cleanup')) {
             return $this->cleanup();
         }

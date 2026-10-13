@@ -48,6 +48,8 @@ use Illuminate\Support\Str;
  */
 class DemoRewardsGroup extends Command
 {
+    use \App\Console\Commands\Concerns\DemoDataGuard;
+
     protected $signature = 'rewards-group:demo
         {--cleanup : Hapus semua data demo grup ini, bukan generate}';
 
@@ -61,6 +63,10 @@ class DemoRewardsGroup extends Command
 
     public function handle(): int
     {
+        if ($this->refuseOutsideDemoEnvironment()) {
+            return self::FAILURE;
+        }
+
         if ($this->option('cleanup')) {
             return $this->cleanup();
         }
