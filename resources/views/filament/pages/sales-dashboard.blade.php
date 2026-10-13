@@ -142,7 +142,7 @@
                 type="date"
                 wire:model.live="referenceDate"
                 max="{{ now()->toDateString() }}"
-                class="border-0 bg-transparent p-0 text-sm font-medium focus:ring-0 dark:[color-scheme:dark]"
+                class="border-0 bg-transparent p-0 text-sm font-medium outline-none focus:outline-none focus:ring-0 dark:[color-scheme:dark]" style="outline: none; box-shadow: none;"
             />
         </label>
 
@@ -151,7 +151,7 @@
                 <x-heroicon-o-building-storefront class="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 <select
                     wire:model.live="storeId"
-                    class="border-0 bg-transparent p-0 pr-7 text-sm font-medium focus:ring-0 dark:[color-scheme:dark]"
+                    class="border-0 bg-transparent p-0 pr-7 text-sm font-medium outline-none focus:outline-none focus:ring-0 dark:[color-scheme:dark]" style="outline: none; box-shadow: none;"
                 >
                     <option value="">Semua cabang</option>
                     @foreach ($storeOptions as $id => $name)
