@@ -155,6 +155,21 @@ Perubahan API yang bisa memengaruhi aplikasi lama (semua dicatat saat dikerjakan
 - Detail garansi menambah field (`valid_until`, `expired`, `store_id`), tetap kompatibel.
 - Tanggal "hampir penuh": endpoint baru `limited-dates` (tambahan).
 
+### Hasil pemeriksaan kompatibilitas (2026-10-13, dari perbandingan kode `8009cfb` dan terbaru, belum dari perangkat)
+
+- **Tidak ada route API yang dihapus atau diganti nama** sejak versi production. Route lama yang berubah hanya ditambah pembatas laju
+  (`throttle`), mis. profil, hapus akun, ganti kata sandi, tandai notifikasi dibaca (10 sampai 20 per menit), jadi aman untuk pemakaian normal.
+- **Validasi yang lebih ketat pada endpoint yang dipakai aplikasi lama** (semuanya membalas 422 dengan pesan Indonesia yang jelas, dan layar
+  profil dan booking menampilkan pesan itu):
+  - Nomor WhatsApp di profil: harus angka saja, 8 sampai 15 digit (tanpa spasi, tanda plus, atau nol di depan).
+  - Booking: toko harus aktif; tanggal booking dan jadwal ulang tidak boleh di masa lalu.
+  - Klaim garansi: kategori hanya `worry_free_wrap`, `product_warranty`, atau `other` (aplikasi lama memakai dua yang pertama).
+- **Pelonggaran:** email di form penawaran publik tidak lagi wajib.
+- **Perubahan respons bersifat tambahan** (field baru), dan "Voucher Saya" tetap menyertakan objek `voucher` untuk aplikasi lama.
+- **Installer di aplikasi lama:** chat booking ditolak (403) dan pembuatan SPK ditolak sampai build baru dirilis; sesuai keputusan.
+- **Belum teruji di perangkat.** Karena aplikasi Play Store memanggil API production, ujinya dilakukan **setelah rilis** (lihat bagian 5): login,
+  daftar booking, buat booking, chat booking, garansi, poin, voucher saya, reward. Kalau salah satu alur utama rusak, pertimbangkan jalur mundur.
+
 Rilis build aplikasi baru **setelah** API production diperbarui, bukan sebelumnya. Layar Reward di mobile masih "Coming Soon".
 
 ## 6b. Jalur mundur
