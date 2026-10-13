@@ -56,6 +56,10 @@ PROSES MATI saat membuka: {$this->current}
         // Tanpa sesi database (jangan menumpuk ratusan baris sesi), dan pesan error asli di respons JSON.
         config(['session.driver' => 'array', 'app.debug' => true]);
 
+        // Halaman memakai auth()->user() (guard bawaan) untuk canAccess(); di server middleware Filament mengalihkannya ke 'web'
+        // saat ada request. Tanpa ini pengecekan akses SEBELUM request pertama membaca user kosong (semua dianggap ditolak).
+        Auth::shouldUse('web');
+
         $panel = Filament::getPanel('admin');
         Filament::setCurrentPanel($panel);
 
