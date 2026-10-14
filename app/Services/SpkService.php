@@ -200,6 +200,10 @@ class SpkService
             'booking_id' => $booking->id,
             'customer_name' => $booking->customer_name ?? $booking->customer?->name ?? '',
             'phone_number' => $booking->phone_number ?? $booking->customer?->phone_number,
+            // Data kendaraan dari booking (Fase 1 pengerjaan ulang booking, 2026-10-15) supaya tidak diketik ulang.
+            'vehicle_plate' => $booking->vehicle_plate,
+            'vehicle_brand' => trim(implode(' ', array_filter([$booking->vehicle_brand, $booking->vehicle_model, $booking->vehicle_variant]))) ?: null,
+            'vehicle_year' => $booking->vehicle_year ? (string) $booking->vehicle_year : null,
             'checked_in_at' => now(),
         ], $checklist, $createdBy);
     }

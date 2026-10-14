@@ -208,6 +208,15 @@ class Booking extends Model
         'spend_promo_id',
         'spend_promo_discount',
         'journal_entry_id',
+        // Kendaraan (Fase 1 pengerjaan ulang booking, 2026-10-15): salinan data kendaraan saat booking dibuat.
+        // `vehicle_size` (di atas) ikut diisi dari ukuran kendaraan. Lihat migrasi 2026_10_15_000002.
+        'customer_vehicle_id',
+        'vehicle_plate',
+        'vehicle_brand',
+        'vehicle_model',
+        'vehicle_variant',
+        'vehicle_color',
+        'vehicle_year',
     ];
 
     // Kolom internal tidak ikut diserialisasi ke API (2026-10-03) -- customer
@@ -567,6 +576,11 @@ class Booking extends Model
     public function store()
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function customerVehicle()
+    {
+        return $this->belongsTo(CustomerVehicle::class);
     }
 
     /**

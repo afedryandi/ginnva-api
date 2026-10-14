@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\AppConfigController;
+use App\Http\Controllers\Api\BookingCatalogController;
+use App\Http\Controllers\Api\VehicleCatalogController;
 use App\Http\Controllers\Api\CarouselController;
 use App\Http\Controllers\Api\FeaturedProductController;
 use App\Http\Controllers\Api\MaterialController;
@@ -21,6 +23,7 @@ use App\Http\Controllers\Api\Customer\InvoiceController;
 use App\Http\Controllers\Api\Customer\MyWarrantyController;
 use App\Http\Controllers\Api\Customer\MaintenanceScheduleController;
 use App\Http\Controllers\Api\Customer\StoreReviewController;
+use App\Http\Controllers\Api\Customer\VehicleController as CustomerVehicleController;
 use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
 use App\Http\Controllers\Api\Staff\SpkController as StaffSpkController;
@@ -47,6 +50,11 @@ use App\Http\Controllers\Api\PricelistController;
 
 // Konfigurasi versi aplikasi mobile (versi minimum/terbaru, tautan toko) -- publik, lihat config/app_version.php.
 Route::get('/app/config', [AppConfigController::class, 'show'])->middleware('throttle:60,1');
+
+// Katalog untuk booking v2 (Fase 1 pengerjaan ulang booking, 2026-10-15): layanan + estimasi harga/durasi, dan merek/model
+// kendaraan dengan ukuran. Publik, hanya baca.
+Route::get('/booking/services', [BookingCatalogController::class, 'services'])->middleware('throttle:30,1');
+Route::get('/vehicles/catalog', [VehicleCatalogController::class, 'index'])->middleware('throttle:30,1');
 
 Route::get('/carousels', [CarouselController::class, 'index']);
 Route::get('/featured-products', [FeaturedProductController::class, 'index']);
@@ -172,6 +180,12 @@ Route::prefix('customer')->group(function () {
             ->middleware('throttle:10,1');
         Route::post('/maintenance-schedules/{id}/decline', [MaintenanceScheduleController::class, 'decline'])
             ->middleware('throttle:10,1');
+
+        // Kendaraan Saya (Fase 1 pengerjaan ulang booking, 2026-10-15).
+        Route::get('/vehicles', [CustomerVehicleController::class, 'index']);
+        Route::post('/vehicles', [CustomerVehicleController::class, 'store'])->middleware('throttle:30,1');
+        Route::put('/vehicles/{id}', [CustomerVehicleController::class, 'update'])->middleware('throttle:30,1');
+        Route::delete('/vehicles/{id}', [CustomerVehicleController::class, 'destroy'])->middleware('throttle:30,1');
 
         // 我的预约 — Booking Saya
         Route::get('/bookings', [BookingController::class, 'index']);

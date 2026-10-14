@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Customer;
+use App\Models\CustomerVehicle;
 use App\Models\DeviceToken;
 use App\Models\ProductInquiry;
 use App\Models\Quotation;
@@ -49,6 +50,8 @@ class CustomerAccountDeletionService
             }
 
             DeviceToken::where('customer_id', $customer->id)->delete();
+            // Kendaraan Saya (plat nomor = data pribadi) dihapus; booking lama tetap menyimpan salinannya sebagai catatan transaksi.
+            CustomerVehicle::where('customer_id', $customer->id)->delete();
 
             $customer->update([
                 'name'              => null,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Customer;
 
+use App\Http\Controllers\Api\BookingCatalogController;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Store;
@@ -77,18 +78,38 @@ class BookingController extends Controller
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        // Booking v2 (Fase 1 pengerjaan ulang booking, 2026-10-15): `services` (array kunci layanan) + `customer_vehicle_id`
+        // (wajib). Payload lama (service_type + product_kaca_film/product_ppf, tanpa kendaraan) TETAP diterima supaya
+        // aplikasi versi lama tidak rusak.
+        $isV2 = $request->has('services');
+        $serviceKeys = array_keys(BookingCatalogController::SERVICES);
+
+        $rules = [
             // Hanya toko aktif (2026-10-05).
-            'store_id'          => 'required|exists:stores,id,is_active,1',
-            'service_type'      => 'required|string|max:255',
-            'product_kaca_film' => 'sometimes|boolean',
-            'product_ppf'       => 'sometimes|boolean',
-            'preferred_date'    => 'required|date|after_or_equal:today',
-            'preferred_time'    => 'nullable|string|max:50',
-            // 'Lainnya' wajib dijelaskan (diperbaiki 2026-10-02) -- tanpa
-            // catatan staff tidak tahu jasa apa yang diminta.
-            'notes'             => 'required_if:service_type,Lainnya|nullable|string|max:2000',
-        ]);
+            'store_id'       => 'required|exists:stores,id,is_active,1',
+            'preferred_date' => 'required|date|after_or_equal:today',
+            'preferred_time' => 'nullable|string|max:50',
+        ];
+
+        if ($isV2) {
+            $rules += [
+                'services'            => 'required|array|min:1|max:' . count($serviceKeys),
+                'services.*'          => 'required|string|distinct|in:' . implode(',', $serviceKeys),
+                'customer_vehicle_id' => 'required|integer',
+                'notes'               => 'nullable|string|max:2000',
+            ];
+        } else {
+            $rules += [
+                'service_type'      => 'required|string|max:255',
+                'product_kaca_film' => 'sometimes|boolean',
+                'product_ppf'       => 'sometimes|boolean',
+                // 'Lainnya' wajib dijelaskan (diperbaiki 2026-10-02) -- tanpa
+                // catatan staff tidak tahu jasa apa yang diminta.
+                'notes'             => 'required_if:service_type,Lainnya|nullable|string|max:2000',
+            ];
+        }
+
+        $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
             return response()->json([
@@ -96,6 +117,36 @@ class BookingController extends Controller
                 'message' => 'Data yang dikirim tidak valid.',
                 'errors'  => $validator->errors(),
             ], 422);
+        }
+
+        $customer = $request->user('customer');
+        $vehicle = null;
+        $flags = [];
+
+        if ($isV2) {
+            $vehicle = $customer->vehicles()->where('id', $request->customer_vehicle_id)->first();
+
+            if (! $vehicle) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kendaraan tidak ditemukan. Pilih atau tambahkan kendaraan dulu.',
+                    'errors'  => ['customer_vehicle_id' => ['Kendaraan tidak ditemukan.']],
+                ], 422);
+            }
+
+            // Urutan tetap (kaca film, PPF, detailing, premium wash) supaya service_type konsisten untuk cek duplikat.
+            $selected = collect($serviceKeys)->filter(fn (string $key) => in_array($key, $request->input('services'), true))->values();
+            $serviceType = $selected->map(fn (string $key) => BookingCatalogController::SERVICES[$key]['label'])->implode(', ');
+
+            foreach (BookingCatalogController::SERVICES as $key => $service) {
+                $flags[$service['flag']] = $selected->contains($key);
+            }
+        } else {
+            $serviceType = $request->service_type;
+            $flags = [
+                'product_kaca_film' => $request->boolean('product_kaca_film'),
+                'product_ppf'       => $request->boolean('product_ppf'),
+            ];
         }
 
         // Mobile app sudah nonaktifkan tanggal di hari toko tutup/diblokir
@@ -118,7 +169,7 @@ class BookingController extends Controller
         // Pencegahan booking ganda (keputusan 2026-10-05): maksimal 3 booking
         // pending aktif per customer, dan tidak boleh duplikat persis (toko,
         // tanggal, layanan sama) dengan booking pending/confirmed miliknya.
-        $customerId = $request->user('customer')->id;
+        $customerId = $customer->id;
 
         if (Booking::where('customer_id', $customerId)->where('status', 'pending')->count() >= 3) {
             return response()->json([
@@ -130,7 +181,7 @@ class BookingController extends Controller
         $duplicate = Booking::where('customer_id', $customerId)
             ->where('store_id', $request->store_id)
             ->whereDate('preferred_date', $request->preferred_date)
-            ->where('service_type', $request->service_type)
+            ->where('service_type', $serviceType)
             ->whereIn('status', ['pending', 'confirmed'])
             ->first();
 
@@ -155,18 +206,32 @@ class BookingController extends Controller
             ], 422);
         }
 
-        $booking = Booking::create([
-            'customer_id'       => $request->user('customer')->id,
-            'store_id'          => $request->store_id,
-            'service_type'      => $request->service_type,
-            'product_kaca_film' => $request->boolean('product_kaca_film'),
-            'product_ppf'       => $request->boolean('product_ppf'),
-            'preferred_date'    => $request->preferred_date,
-            'preferred_time'    => $request->preferred_time,
-            'notes'             => $request->notes,
-            'source'            => 'app',
-            'status'            => 'pending',
-        ]);
+        $attributes = [
+            'customer_id'    => $customerId,
+            'store_id'       => $request->store_id,
+            'service_type'   => $serviceType,
+            'preferred_date' => $request->preferred_date,
+            'preferred_time' => $request->preferred_time,
+            'notes'          => $request->notes,
+            'source'         => 'app',
+            'status'         => 'pending',
+        ] + $flags;
+
+        if ($vehicle) {
+            // Salinan data kendaraan saat booking dibuat: riwayat tidak berubah kalau kendaraan diubah/dihapus kemudian.
+            $attributes += [
+                'customer_vehicle_id' => $vehicle->id,
+                'vehicle_plate'       => $vehicle->plate,
+                'vehicle_brand'       => $vehicle->brand,
+                'vehicle_model'       => $vehicle->model,
+                'vehicle_variant'     => $vehicle->variant,
+                'vehicle_color'       => $vehicle->color,
+                'vehicle_year'        => $vehicle->year,
+                'vehicle_size'        => $vehicle->size_category,
+            ];
+        }
+
+        $booking = Booking::create($attributes);
 
         return response()->json([
             'success' => true,

@@ -133,6 +133,12 @@ class Customer extends Model implements Authenticatable, JWTSubject
         return $this->hasMany(Booking::class);
     }
 
+    /** "Kendaraan Saya" (Fase 1 pengerjaan ulang booking, 2026-10-15). */
+    public function vehicles()
+    {
+        return $this->hasMany(CustomerVehicle::class);
+    }
+
     public function redemptions()
     {
         return RewardRedemption::where('redeemer_type', 'customer')->where('redeemer_id', $this->id);
