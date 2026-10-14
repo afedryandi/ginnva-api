@@ -156,7 +156,7 @@ class EditBooking extends EditRecord
         $formVersion = $data['form_version'] ?? null;
         unset($data['reschedule_reason'], $data['form_version']);
 
-        return DB::transaction(function () use ($record, $data, $rescheduleReason) {
+        return DB::transaction(function () use ($record, $data, $rescheduleReason, $formVersion) {
             // Kunci baris booking DULU, baru toko -- urutan sama dengan jalur
             // mobile (confirm/reschedule) supaya tidak deadlock. Hasil lock
             // DIPAKAI (2026-10-03): kalau status/tanggal sudah diubah jalur
