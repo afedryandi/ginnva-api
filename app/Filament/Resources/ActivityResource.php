@@ -107,6 +107,7 @@ class ActivityResource extends Resource
     'user' => 'User Admin',
     'vehicle' => 'Kendaraan',
     'booking_service_type' => 'Layanan Booking',
+    'qc_checklist_item' => 'Daftar Periksa QC',
     'voucher' => 'Kampanye Voucher',
     'voucher_claim' => 'Voucher',
     'warning_letter' => 'Surat Peringatan',

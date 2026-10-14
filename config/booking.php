@@ -21,4 +21,8 @@ return [
     ],
 
     'light_capacity_default' => (int) env('BOOKING_LIGHT_CAPACITY_DEFAULT', 2),
+
+    // Fase 3A: bila true, booking baru bisa diselesaikan hanya setelah Quality Check terbaru LULUS. Bawaan false supaya
+    // aplikasi staf lama (yang belum punya layar QC) tetap bisa menyelesaikan booking; nyalakan setelah build baru beredar.
+    'qc_required' => (bool) env('BOOKING_QC_REQUIRED', false),
 ];

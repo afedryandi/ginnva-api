@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\Customer\StoreReviewController;
 use App\Http\Controllers\Api\Customer\VehicleController as CustomerVehicleController;
 use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
+use App\Http\Controllers\Api\Staff\BookingQcController as StaffBookingQcController;
 use App\Http\Controllers\Api\Staff\SpkController as StaffSpkController;
 use App\Http\Controllers\Api\Staff\QuotationController as StaffQuotationController;
 use App\Http\Controllers\Api\Staff\BookingMessageController as StaffBookingMessageController;
@@ -302,6 +303,10 @@ Route::prefix('staff')->group(function () {
         // Tandai booking selesai + input kode referral & nominal transaksi
         // (kalau customer datang lewat kode partner) — lihat ReferralPointService.
         Route::post('/bookings/{id}/complete', [StaffBookingController::class, 'complete'])
+            ->middleware('throttle:20,1');
+        // Quality Check dengan daftar periksa per layanan (Fase 3A): Leader/Store Manager, bukan pengerja unit.
+        Route::get('/bookings/{id}/qc', [StaffBookingQcController::class, 'show']);
+        Route::post('/bookings/{id}/qc', [StaffBookingQcController::class, 'store'])
             ->middleware('throttle:20,1');
         // Ganti tanggal booking + keputusan atas pengajuan jadwal ulang
         // customer (2026-10-02).

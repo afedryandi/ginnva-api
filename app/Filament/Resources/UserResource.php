@@ -96,6 +96,7 @@ class UserResource extends Resource
                 'BookingResource' => 'Booking Instalasi',
                 'BlockedDateResource' => 'Tanggal Tidak Tersedia',
                 'BookingServiceTypeResource' => 'Layanan Booking',
+                'QcChecklistItemResource' => 'Daftar Periksa QC',
                 'TechnicianResource' => 'Teknisi',
                 'WarrantyResource' => 'Garansi',
                 'StoreReviewResource' => 'Review Toko',

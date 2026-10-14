@@ -236,6 +236,7 @@ class Booking extends Model
         // yang salah (mis. label "(saat ini)").
         'preferred_date' => 'date:Y-m-d',
         'cancelled_at' => 'datetime',
+        'ready_at' => 'datetime',
         'pending_reminder_sent_at' => 'datetime',
         'transaction_amount' => 'decimal:2',
         'dpp_amount' => 'decimal:2',
@@ -795,6 +796,18 @@ class Booking extends Model
         return $this->belongsToMany(User::class, 'booking_installers')->withTimestamps();
     }
 
+    /** Pemeriksaan Quality Check (Fase 3A), terbaru dulu. */
+    public function qcResults()
+    {
+        return $this->hasMany(BookingQcResult::class)->orderByDesc('id');
+    }
+
+    /** Kunci layanan yang dipesan booking ini (kaca_film/ppf/detailing/premium_wash), urut mengikuti BookingServiceType::FLAGS. */
+    public function serviceKeys(): array
+    {
+        return collect(BookingServiceType::FLAGS)->filter(fn (string $column) => (bool) $this->{$column})->keys()->values()->all();
+    }
+
     /**
      * Direksi yang ditunjuk Store Manager untuk memantau booking ini secara
      * khusus — dipakai supaya notifikasi chat (push & email) tidak di-blast
@@ -1015,9 +1028,16 @@ class Booking extends Model
      */
     public function completionBlocker(): ?string
     {
-        return $this->current_stage === 'qc'
-            ? null
-            : 'Booking belum bisa diselesaikan: tandai tahap Quality Check dulu (semua produk harus sudah sampai tahap terakhir).';
+        if ($this->current_stage !== 'qc') {
+            return 'Booking belum bisa diselesaikan: tandai tahap Quality Check dulu (semua produk harus sudah sampai tahap terakhir).';
+        }
+
+        // Fase 3A: bila diwajibkan (config booking.qc_required), pemeriksaan QC terbaru harus LULUS.
+        if (config('booking.qc_required') && ! $this->qcResults()->first()?->passed) {
+            return 'Booking belum bisa diselesaikan: Quality Check (daftar periksa) belum lulus.';
+        }
+
+        return null;
     }
 
     /**
