@@ -243,7 +243,7 @@ class CustomerVehicleAndBookingV2Test extends TestCase
     {
         $vehicleId = $this->addVehicle()->json('data.id');
 
-        $id = $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['premium_wash']]))->assertStatus(201)->json('data.id');
+        $id = $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId, ['services' => ['premium_wash'], 'preferred_time' => '09:00 - 11:00']))->assertStatus(201)->json('data.id');
 
         $this->assertSame(1, Booking::findOrFail($id)->duration_days);
         $this->assertTrue((bool) Booking::findOrFail($id)->product_premium_wash);
