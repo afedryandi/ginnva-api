@@ -76,6 +76,7 @@
             <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-primary-500"></span> Hari ini</span>
             <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full border-2 border-primary-500"></span> Sudah di-override</span>
             <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-danger-500"></span> Kapasitas penuh</span>
+            <span class="text-gray-400 dark:text-gray-500">Angka = kapasitas harian layanan berat (PPF/kaca film). Detailing &amp; Premium Wash dihitung per jam, diatur di data Toko.</span>
             <span class="ml-auto text-gray-400 dark:text-gray-500">Klik tanggal (hari ini/ke depan) untuk atur kapasitas.</span>
         </div>
 

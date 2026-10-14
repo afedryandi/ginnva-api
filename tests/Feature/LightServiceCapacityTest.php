@@ -247,4 +247,33 @@ class LightServiceCapacityTest extends TestCase
         $this->store->update(['light_capacity_per_slot' => null]);
         $this->assertSame((int) config('booking.light_capacity_default'), Booking::lightCapacityPerSlot($this->store->id));
     }
+
+    public function test_staff_capacity_overview_adds_light_slots_without_changing_heavy_numbers(): void
+    {
+        $staff = $this->staff();
+        $this->makeBooking(['preferred_time' => self::SLOT_A]);
+
+        $rows = collect($this->actingAs($staff, 'api')->getJson("/api/staff/bookings/capacity-overview?store_id={$this->store->id}&days=10")
+            ->assertOk()->json('data'))->keyBy('date');
+
+        $row = $rows[$this->date];
+        $this->assertSame(0, $row['used'], 'Booking ringan tidak masuk angka harian berat.');
+        $slots = collect($row['light_slots'])->keyBy('slot');
+        $this->assertSame(1, $slots[self::SLOT_A]['used']);
+        $this->assertFalse($slots[self::SLOT_A]['available']);
+        $this->assertTrue($slots[self::SLOT_B]['available']);
+    }
+
+    public function test_staff_capacity_preview_includes_slots_only_for_light_bookings(): void
+    {
+        $staff = $this->staff();
+        $light = $this->makeBooking(['status' => 'pending']);
+        $heavy = $this->makeBooking(['status' => 'pending', 'service_type' => 'PPF', 'product_detailing' => false, 'product_ppf' => true, 'preferred_time' => null]);
+
+        $lightRow = $this->actingAs($staff, 'api')->getJson("/api/staff/bookings/{$light->id}/capacity-preview?duration_days=1")->assertOk()->json('data.0');
+        $heavyRow = $this->actingAs($staff, 'api')->getJson("/api/staff/bookings/{$heavy->id}/capacity-preview?duration_days=1")->assertOk()->json('data.0');
+
+        $this->assertCount(count(Booking::lightSlots()), $lightRow['light_slots']);
+        $this->assertNull($heavyRow['light_slots']);
+    }
 }

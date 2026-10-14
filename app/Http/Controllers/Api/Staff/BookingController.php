@@ -244,6 +244,9 @@ class BookingController extends Controller
                 // strip mobile ini.
                 'default_capacity' => Booking::capacityForDate($storeId, $day),
                 'pending_count'    => $pending,
+                // Fase 2: 'used'/'default_capacity' di atas = kapasitas HARIAN layanan berat (PPF/kaca film).
+                // Layanan ringan (detailing/premium wash) dihitung per slot jam di sini.
+                'light_slots'      => Booking::lightSlotAvailability($storeId, $day),
             ];
         }
 
@@ -278,7 +281,9 @@ class BookingController extends Controller
 
         $walk = Booking::calendarWalkWithClosedDays($booking->store_id, $booking->preferred_date->copy(), $durationDays);
 
-        $dates = collect($walk['dates'])->map(function (array $row) use ($booking) {
+        $isLight = $booking->isLightOnly();
+
+        $dates = collect($walk['dates'])->map(function (array $row) use ($booking, $isLight) {
             if ($row['closed']) {
                 return ['date' => $row['date'], 'closed' => true];
             }
@@ -290,6 +295,7 @@ class BookingController extends Controller
                 'closed'           => false,
                 'used'             => Booking::confirmedOverlapCount($booking->store_id, $day, $booking->id),
                 'default_capacity' => Booking::capacityForDate($booking->store_id, $day),
+                'light_slots'      => $isLight ? Booking::lightSlotAvailability($booking->store_id, $day, $booking->id) : null,
             ];
         })->values();
 
