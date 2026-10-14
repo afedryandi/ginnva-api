@@ -100,6 +100,9 @@ Schedule::command('backup:database')->dailyAt('03:00');
 // penghapusan data historis") -- lihat App\Console\Commands\PruneExpiredOtpCodes.
 Schedule::command('otp:prune-expired')->dailyAt('04:00');
 
+// Hapus kunci idempotensi yang sudah kedaluwarsa (24 jam) -- lihat App\Console\Commands\PruneIdempotencyKeys.
+Schedule::command('idempotency:prune')->dailyAt('04:20');
+
 // Generate tagihan rutin (audit Majoo f48, "Template tagihan rutin")
 // -- lihat App\Console\Commands\GenerateRecurringBills.
 Schedule::command('billing:generate-recurring')->dailyAt('05:00')->withoutOverlapping();

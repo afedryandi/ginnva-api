@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\CarouselController;
 use App\Http\Controllers\Api\FeaturedProductController;
 use App\Http\Controllers\Api\MaterialController;
@@ -43,6 +44,9 @@ use App\Http\Controllers\Api\RewardController;
 use App\Http\Controllers\Api\VoucherController;
 use App\Http\Controllers\Api\Partner\PartnerController;
 use App\Http\Controllers\Api\PricelistController;
+
+// Konfigurasi versi aplikasi mobile (versi minimum/terbaru, tautan toko) -- publik, lihat config/app_version.php.
+Route::get('/app/config', [AppConfigController::class, 'show'])->middleware('throttle:60,1');
 
 Route::get('/carousels', [CarouselController::class, 'index']);
 Route::get('/featured-products', [FeaturedProductController::class, 'index']);
@@ -176,8 +180,10 @@ Route::prefix('customer')->group(function () {
         // throttle:10,1 key berdasarkan guard DEFAULT ('api'/staff), yang
         // selalu null untuk request customer, jadi diam-diam jadi
         // per-IP bukan per-akun. Lihat komentar di AppServiceProvider.
+        // 'idempotent' (Fase 0 pengerjaan ulang booking, 2026-10-14): kiriman ulang dengan header Idempotency-Key yang sama
+        // mengembalikan booking pertama, bukan error "booking sudah ada".
         Route::post('/bookings', [BookingController::class, 'store'])
-            ->middleware('throttle:customer-booking-submit');
+            ->middleware(['throttle:customer-booking-submit', 'idempotent']);
         // Batalkan booking milik sendiri — sebelumnya cuma staff yang bisa
         // cancel, customer terpaksa hubungi toko manual. Lihat audit modul
         // Booking 2026-08-27.

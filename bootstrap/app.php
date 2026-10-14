@@ -29,6 +29,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // (guard 'web', sudah otomatis ke-detect oleh package-nya).
         $middleware->api(append: [\App\Http\Middleware\SetActivityLogCauser::class]);
 
+        // Paksa pembaruan aplikasi mobile yang terlalu lama (header X-App-Version) -- lihat EnforceMinimumAppVersion.
+        $middleware->api(prepend: [\App\Http\Middleware\EnforceMinimumAppVersion::class]);
+
         // Ganti middleware 'auth' bawaan dengan versi yang tidak pernah
         // coba redirect ke route('login') — lihat App\Http\Middleware\
         // Authenticate untuk alasannya (project ini API-only).
@@ -37,6 +40,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // Auth khusus API Price List Kaca Film — token HMAC stateless,
             // sama sekali terpisah dari guard 'auth:api'/'auth:customer'.
             'pricelist.auth' => \App\Http\Middleware\VerifyPricelistToken::class,
+            // Idempotensi tindakan (header Idempotency-Key) -- lihat App\Http\Middleware\Idempotent.
+            'idempotent' => \App\Http\Middleware\Idempotent::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
