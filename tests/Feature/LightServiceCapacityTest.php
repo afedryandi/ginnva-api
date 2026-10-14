@@ -359,4 +359,24 @@ class LightServiceCapacityTest extends TestCase
 
         $this->assertSame(['total' => 2, 'available' => 1], $row['installers']);
     }
+
+    public function test_full_dates_with_duration_blocks_start_dates_whose_later_days_are_full(): void
+    {
+        $this->store->update(['opening_hours' => [['days' => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], 'open' => '09:00', 'close' => '18:00']]]);
+        \Illuminate\Support\Facades\Cache::flush();
+
+        // Hari ke-5 penuh (kapasitas 1, satu booking berat 1 hari).
+        $this->heavyBooking(['duration_days' => 1]);
+
+        $single = $this->getJson("/api/stores/{$this->store->id}/full-dates")->assertOk()->json('data');
+        $this->assertContains($this->date, $single);
+        $this->assertNotContains(now()->addDays(4)->toDateString(), $single, 'Tanpa durasi hanya hari itu sendiri.');
+
+        $three = $this->getJson("/api/stores/{$this->store->id}/full-dates?duration_days=3")->assertOk()->json('data');
+        foreach ([3, 4, 5] as $offset) {
+            $this->assertContains(now()->addDays($offset)->toDateString(), $three, "Mulai H+{$offset} melewati hari penuh H+5.");
+        }
+        $this->assertNotContains(now()->addDays(2)->toDateString(), $three);
+        $this->assertNotContains(now()->addDays(6)->toDateString(), $three);
+    }
 }

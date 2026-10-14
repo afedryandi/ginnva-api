@@ -205,23 +205,50 @@ class StoreController extends Controller
      * tanggal booking customer untuk menonaktifkan tanggal penuh (keputusan
      * 2026-10-02). Di-cache 60 detik karena endpoint publik.
      */
-    public function fullDates(int $id): JsonResponse
+    public function fullDates(Request $request, int $id): JsonResponse
     {
         // Hanya toko aktif -- mencegah enumerasi id mengisi cache & membebani DB.
         if (! \App\Models\Store::whereKey($id)->where('is_active', true)->exists()) {
             abort(404);
         }
 
-        $dates = \Illuminate\Support\Facades\Cache::remember("store-full-dates:{$id}", 60, function () use ($id) {
+        // Opsional (Fase 2): lama pengerjaan layanan yang dipesan. Dengan durasi > 1, sebuah tanggal MULAI dianggap penuh
+        // bila salah satu hari kerja dalam rentang pengerjaannya penuh (supaya PPF 3 hari tidak bisa dimulai di tanggal
+        // yang hari ke-2/ke-3-nya sudah penuh). Tanpa parameter = perilaku lama (hanya hari itu sendiri).
+        $span = max(1, min(14, (int) $request->query('duration_days', 1)));
+
+        $dates = \Illuminate\Support\Facades\Cache::remember("store-full-dates:{$id}:{$span}", 60, function () use ($id, $span) {
             $start = today();
             $end = today()->addDays(30);
-            $counts = \App\Models\Booking::confirmedOverlapCountsForRange($id, $start->copy(), $end->copy());
+            // Rentang hitungan diperluas supaya hari-hari lanjutan dari tanggal mulai terakhir ikut terhitung.
+            $counts = \App\Models\Booking::confirmedOverlapCountsForRange($id, $start->copy(), $end->copy()->addDays($span * 3));
+            $capacity = [];
+            $isFull = function (string $date) use ($id, $counts, &$capacity): bool {
+                $capacity[$date] ??= \App\Models\Booking::capacityForDate($id, \Illuminate\Support\Carbon::parse($date));
 
-            return collect($counts)
-                ->filter(fn (int $used, string $date) => $used >= \App\Models\Booking::capacityForDate($id, \Illuminate\Support\Carbon::parse($date)))
-                ->keys()
-                ->values()
-                ->all();
+                return ($counts[$date] ?? 0) >= $capacity[$date];
+            };
+
+            if ($span === 1) {
+                return collect($counts)->keys()->filter(fn (string $date) => $date <= $end->toDateString() && $isFull($date))->values()->all();
+            }
+
+            $store = \App\Models\Store::find($id);
+            $full = [];
+
+            for ($day = $start->copy(); $day->lte($end); $day->addDay()) {
+                try {
+                    $working = \App\Models\Booking::workingDatesInRange($id, $day->copy(), $span, $store);
+                } catch (\Throwable) {
+                    continue;
+                }
+
+                if (collect($working)->contains(fn (string $date) => $isFull($date))) {
+                    $full[] = $day->toDateString();
+                }
+            }
+
+            return $full;
         });
 
         return response()->json([
