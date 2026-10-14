@@ -174,4 +174,6 @@ Prasyarat: kapasitas layanan ringan per jam toko sudah diatur (form Toko, "Kapas
 - [ ] Ganti tanggal setelah memilih jam yang di tanggal baru penuh → pilihan jam otomatis dikosongkan.
 - [ ] Panel admin: Buat/Ubah Booking layanan ringan pada jam yang penuh ditolak dengan notifikasi "Jam layanan ringan penuh".
 - [ ] Panel admin: menu Operasional → Layanan Booking; ubah kategori sebuah layanan lalu cek perilaku kapasitasnya berubah (hanya akun akses penuh yang bisa mengubah).
+- [ ] ⚠ **PPF 3 hari**: pilih toko yang hari ke-2 atau ke-3 setelah sebuah tanggal sudah penuh → tanggal mulai itu nonaktif di pemilih tanggal (bukan hanya tanggal yang penuh sendiri).
+- [ ] Staf: konfirmasi booking PPF saat installer yang masuk kerja lebih sedikit dari booking berat aktif → konfirmasi tetap berhasil dan respons memuat peringatan (cek lewat panel/aplikasi staf yang sudah menampilkannya).
 
