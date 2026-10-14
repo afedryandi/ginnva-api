@@ -217,6 +217,34 @@ class BookingResource extends Resource
                         ->maxLength(50),
                 ]),
 
+            Forms\Components\Section::make('Kendaraan')
+                ->description('Opsional. Booking dari aplikasi sudah terisi otomatis dari "Kendaraan Saya" milik pelanggan.')
+                ->columns(1)
+                ->schema([
+                    Forms\Components\TextInput::make('vehicle_plate')
+                        ->label('Plat Nomor')
+                        ->placeholder('B 1234 ABC')
+                        ->maxLength(20)
+                        ->rule(fn () => function (string $attribute, $value, \Closure $fail) {
+                            if (filled($value) && ! \App\Models\CustomerVehicle::isValidPlate(\App\Models\CustomerVehicle::normalizePlate((string) $value))) {
+                                $fail('Format plat nomor tidak valid. Contoh: B 1234 ABC.');
+                            }
+                        })
+                        ->dehydrateStateUsing(fn ($state) => filled($state)
+                            ? \App\Models\CustomerVehicle::formatPlate(\App\Models\CustomerVehicle::normalizePlate((string) $state))
+                            : null),
+                    Forms\Components\TextInput::make('vehicle_brand')->label('Merek')->maxLength(80),
+                    Forms\Components\TextInput::make('vehicle_model')->label('Model')->maxLength(120),
+                    Forms\Components\TextInput::make('vehicle_variant')->label('Varian')->maxLength(120),
+                    Forms\Components\TextInput::make('vehicle_color')->label('Warna')->maxLength(40),
+                    Forms\Components\TextInput::make('vehicle_year')->label('Tahun')->numeric()->minValue(1980)->maxValue((int) now()->year + 1),
+                    Forms\Components\Select::make('vehicle_size')
+                        ->label('Ukuran Mobil')
+                        ->options(array_combine(\App\Models\CustomerVehicle::SIZES, \App\Models\CustomerVehicle::SIZES))
+                        ->placeholder('Belum ditentukan')
+                        ->helperText('Menentukan harga acuan PPF dan Kaca Film. Kosongkan kalau belum tahu.'),
+                ]),
+
             Forms\Components\Section::make('Detail Booking')
                 ->columns(1)
                 ->schema([
@@ -765,6 +793,19 @@ class BookingResource extends Resource
                         ->state(fn (Booking $record) => $record->display_phone_number),
                 ]),
 
+            InfolistSection::make('Kendaraan')
+                ->columns(2)
+                ->schema([
+                    TextEntry::make('vehicle_plate')->label('Plat Nomor')->placeholder('—'),
+                    TextEntry::make('vehicle_label')
+                        ->label('Kendaraan')
+                        ->placeholder('—')
+                        ->state(fn (Booking $record) => trim(implode(' ', array_filter([$record->vehicle_brand, $record->vehicle_model, $record->vehicle_variant]))) ?: null),
+                    TextEntry::make('vehicle_color')->label('Warna')->placeholder('—'),
+                    TextEntry::make('vehicle_year')->label('Tahun')->placeholder('—'),
+                    TextEntry::make('vehicle_size')->label('Ukuran Mobil')->badge()->placeholder('Belum ditentukan'),
+                ]),
+
             InfolistSection::make('Detail Booking')
                 ->columns(2)
                 ->schema([
@@ -976,6 +1017,13 @@ class BookingResource extends Resource
                             ->orWhere('email', 'like', "%{$search}%")
                         )
                     ),
+
+                Tables\Columns\TextColumn::make('vehicle_plate')
+                    ->label('Plat')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->description(fn (Booking $record) => trim(implode(' ', array_filter([$record->vehicle_brand, $record->vehicle_model]))) ?: null)
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('phone_number')
                     ->label('No. Telepon')

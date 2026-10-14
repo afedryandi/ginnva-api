@@ -136,4 +136,58 @@ class BookingFilamentSmokeTest extends TestCase
         $this->assertNull($this->confirmed->fresh()->completionBlocker());
         $this->assertTrue(BookingResource::canViewAny());
     }
+
+    // ------------------------------------------------------------- kendaraan (Fase 1 pengerjaan ulang booking)
+
+    private function withVehicle(): Booking
+    {
+        $this->confirmed->update([
+            'vehicle_plate' => 'B 1234 ABC', 'vehicle_brand' => 'Toyota', 'vehicle_model' => 'Fortuner',
+            'vehicle_variant' => 'VRZ', 'vehicle_color' => 'Hitam', 'vehicle_year' => 2022, 'vehicle_size' => 'L',
+        ]);
+
+        return $this->confirmed->fresh();
+    }
+
+    public function test_the_list_shows_and_searches_the_vehicle_plate(): void
+    {
+        $booking = $this->withVehicle();
+
+        Livewire::test(ListBookings::class)
+            ->assertSuccessful()
+            ->assertSee('B 1234 ABC')
+            ->assertSee('Toyota Fortuner')
+            ->searchTable('B 1234 ABC')
+            ->assertCanSeeTableRecords([$booking]);
+    }
+
+    public function test_the_view_page_shows_the_vehicle_section(): void
+    {
+        $booking = $this->withVehicle();
+
+        Livewire::test(ViewBooking::class, ['record' => $booking->getKey()])
+            ->assertSuccessful()
+            ->assertSee('Kendaraan')
+            ->assertSee('B 1234 ABC')
+            ->assertSee('Toyota Fortuner VRZ')
+            ->assertSee('Hitam');
+    }
+
+    public function test_the_edit_form_accepts_a_valid_plate_in_any_spelling_and_rejects_an_invalid_one(): void
+    {
+        $booking = $this->withVehicle();
+
+        Livewire::test(EditBooking::class, ['record' => $booking->getKey()])
+            ->assertFormFieldExists('vehicle_plate')
+            ->fillForm(['vehicle_plate' => 'ABC'])
+            ->call('save')
+            ->assertHasFormErrors(['vehicle_plate']);
+
+        Livewire::test(EditBooking::class, ['record' => $booking->getKey()])
+            ->fillForm(['vehicle_plate' => 'd 99-xy'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame('D 99 XY', $booking->fresh()->vehicle_plate);
+    }
 }
