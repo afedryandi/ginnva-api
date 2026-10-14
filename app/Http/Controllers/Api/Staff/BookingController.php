@@ -247,6 +247,7 @@ class BookingController extends Controller
                 // Fase 2: 'used'/'default_capacity' di atas = kapasitas HARIAN layanan berat (PPF/kaca film).
                 // Layanan ringan (detailing/premium wash) dihitung per slot jam di sini.
                 'light_slots'      => Booking::lightSlotAvailability($storeId, $day),
+                'installers'       => collect(app(\App\Services\InstallerAvailabilityService::class)->forDate($storeId, $day))->only(['total', 'available'])->all(),
             ];
         }
 
@@ -392,10 +393,26 @@ class BookingController extends Controller
                 'duration_days' => $durationDays,
             ]);
 
+            // Peringatan ketersediaan installer (hanya informasi, tidak memblokir): booking berat aktif pada hari mulai
+            // lebih banyak daripada installer yang masuk kerja hari itu.
+            $warnings = [];
+
+            if (! $locked->isLightOnly()) {
+                $day = $locked->preferred_date->copy();
+                $crew = app(\App\Services\InstallerAvailabilityService::class)->forDate((int) $locked->store_id, $day);
+                $load = Booking::confirmedOverlapCount((int) $locked->store_id, $day);
+
+                if ($crew['total'] > 0 && $load > $crew['available']) {
+                    $warnings[] = "Peringatan: {$load} booking berat aktif pada tanggal ini, tetapi hanya {$crew['available']} dari {$crew['total']} installer yang masuk kerja."
+                        . ($crew['unavailable'] ? ' Tidak masuk: ' . collect($crew['unavailable'])->map(fn ($u) => "{$u['name']} ({$u['reason']})")->implode(', ') . '.' : '');
+                }
+            }
+
             return response()->json([
-                'success' => true,
-                'data'    => $locked->fresh(),
-                'message' => 'Booking dikonfirmasi.',
+                'success'  => true,
+                'data'     => $locked->fresh(),
+                'message'  => 'Booking dikonfirmasi.',
+                'warnings' => $warnings,
             ]);
         });
     }

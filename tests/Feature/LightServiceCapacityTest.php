@@ -276,4 +276,87 @@ class LightServiceCapacityTest extends TestCase
         $this->assertCount(count(Booking::lightSlots()), $lightRow['light_slots']);
         $this->assertNull($heavyRow['light_slots']);
     }
+
+    private function installer(string $name): User
+    {
+        Role::findOrCreate('installer', 'web');
+        $user = User::create(['name' => $name, 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $this->store->id, 'join_date' => '2025-01-01', 'is_active' => true]);
+        $user->assignRole('installer');
+
+        return $user;
+    }
+
+    private function leave(User $user, string $status): void
+    {
+        \App\Models\LeaveRequest::create([
+            'request_number' => 'REQ-' . uniqid(), 'user_id' => $user->id, 'store_id' => $this->store->id, 'type' => 'cuti',
+            'start_date' => $this->date, 'end_date' => $this->date, 'reason' => 'x', 'status' => $status,
+        ]);
+    }
+
+    private function heavyBooking(array $overrides = []): Booking
+    {
+        return $this->makeBooking(array_merge(['service_type' => 'PPF', 'product_detailing' => false, 'product_ppf' => true, 'preferred_time' => null], $overrides));
+    }
+
+    public function test_installer_availability_excludes_approved_leave_and_day_off_overrides(): void
+    {
+        $a = $this->installer('Andi');
+        $b = $this->installer('Budi');
+        $this->installer('Cici');
+
+        $service = app(\App\Services\InstallerAvailabilityService::class);
+        $day = Carbon::parse($this->date);
+
+        $this->assertSame(3, $service->forDate($this->store->id, $day)['available']);
+
+        $this->leave($a, 'approved');
+        $this->leave($b, 'pending');
+
+        $result = $service->forDate($this->store->id, $day);
+        $this->assertSame(3, $result['total']);
+        $this->assertSame(2, $result['available'], 'Hanya cuti approved yang mengurangi.');
+        $this->assertSame('Andi', $result['unavailable'][0]['name']);
+
+        \App\Models\ScheduleDayOverride::create(['user_id' => $b->id, 'store_id' => $this->store->id, 'date' => $this->date, 'shift_id' => null]);
+        $this->assertSame(1, $service->forDate($this->store->id, $day)['available']);
+    }
+
+    public function test_confirming_a_heavy_booking_warns_when_installers_are_short_but_still_confirms(): void
+    {
+        $staff = $this->staff();
+        $this->store->update(['install_capacity_per_day' => 5]);
+        $this->installer('Andi');
+
+        $this->heavyBooking();
+        $second = $this->heavyBooking(['status' => 'pending']);
+
+        $response = $this->actingAs($staff, 'api')->postJson("/api/staff/bookings/{$second->id}/confirm")->assertOk();
+
+        $this->assertSame('confirmed', $second->fresh()->status);
+        $this->assertCount(1, $response->json('warnings'));
+        $this->assertStringContainsString('1 dari 1 installer', $response->json('warnings.0'));
+    }
+
+    public function test_confirming_without_a_shortage_returns_no_warning(): void
+    {
+        $staff = $this->staff();
+        $this->installer('Andi');
+        $booking = $this->heavyBooking(['status' => 'pending']);
+
+        $this->actingAs($staff, 'api')->postJson("/api/staff/bookings/{$booking->id}/confirm")->assertOk()->assertJsonPath('warnings', []);
+    }
+
+    public function test_capacity_overview_reports_installer_counts(): void
+    {
+        $staff = $this->staff();
+        $a = $this->installer('Andi');
+        $this->installer('Budi');
+        $this->leave($a, 'approved');
+
+        $row = collect($this->actingAs($staff, 'api')->getJson("/api/staff/bookings/capacity-overview?store_id={$this->store->id}&days=10")
+            ->assertOk()->json('data'))->firstWhere('date', $this->date);
+
+        $this->assertSame(['total' => 2, 'available' => 1], $row['installers']);
+    }
 }
