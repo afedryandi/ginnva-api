@@ -205,7 +205,7 @@ class BlockedDateResource extends Resource
                     $lines = [];
                     $day = $start->copy();
                     while ($day->lte($end)) {
-                        $count = Booking::confirmedOverlapCount((int) $storeId, $day);
+                        $count = Booking::confirmedOverlapCount((int) $storeId, $day, null, true); // termasuk layanan ringan
                         if ($count > 0) {
                             $lines[] = $day->format('d M Y') . ": {$count} booking confirmed (tidak ikut dibatalkan, cuma info)";
                         }

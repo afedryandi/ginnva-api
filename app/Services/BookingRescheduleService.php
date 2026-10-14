@@ -57,7 +57,14 @@ class BookingRescheduleService
                 throw new RuntimeException('Toko tutup/libur atau tanggal diblokir pada tanggal itu. Pilih tanggal lain.');
             }
 
-            if ($locked->status === 'confirmed') {
+            if ($locked->isLightOnly()) {
+                // Layanan ringan (Fase 2): jam yang sama harus tersedia di tanggal baru (jam kosong pada data lama dilewati).
+                $problem = Booking::lightSlotProblem((int) $locked->store_id, $newDate, $locked->preferred_time, $locked->id, $locked->status === 'confirmed', false);
+
+                if ($problem) {
+                    throw new RuntimeException($problem);
+                }
+            } elseif ($locked->status === 'confirmed') {
                 $full = Booking::fullDatesInRangeLocked(
                     (int) $locked->store_id,
                     $newDate,

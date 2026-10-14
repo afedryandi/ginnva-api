@@ -78,7 +78,15 @@ class CreateBooking extends CreateRecord
             }
         }
 
-        if (($data['status'] ?? null) === 'confirmed') {
+        // Layanan ringan (Fase 2): cek slot jam, bukan kapasitas harian berat.
+        if (($data['status'] ?? null) === 'confirmed' && Booking::flagsAreLightOnly($data)
+            && ($problem = Booking::lightSlotProblem((int) $data['store_id'], Carbon::parse($data['preferred_date']), $data['preferred_time'] ?? null, null, false, false))) {
+            Notification::make()->title('Jam layanan ringan penuh')->body($problem)->danger()->persistent()->send();
+
+            throw new Halt();
+        }
+
+        if (($data['status'] ?? null) === 'confirmed' && ! Booking::flagsAreLightOnly($data)) {
             $durationDays = max(1, (int) ($data['duration_days'] ?? 1));
 
             $fullDates = Booking::fullDatesInRange(
@@ -125,7 +133,14 @@ class CreateBooking extends CreateRecord
                 throw new Halt();
             }
 
-            if (($data['status'] ?? null) === 'confirmed') {
+            if (($data['status'] ?? null) === 'confirmed' && Booking::flagsAreLightOnly($data)
+                && ($problem = Booking::lightSlotProblem((int) $data['store_id'], Carbon::parse($data['preferred_date']), $data['preferred_time'] ?? null, null, true, false))) {
+                Notification::make()->title('Jam layanan ringan penuh')->body($problem)->danger()->persistent()->send();
+
+                throw new Halt();
+            }
+
+            if (($data['status'] ?? null) === 'confirmed' && ! Booking::flagsAreLightOnly($data)) {
                 $fullDates = Booking::fullDatesInRangeLocked(
                     (int) $data['store_id'],
                     Carbon::parse($data['preferred_date']),

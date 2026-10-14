@@ -361,15 +361,24 @@ class BookingController extends Controller
             // Urutan lock selalu booking -> toko di semua jalur.
             \App\Models\Store::whereKey($locked->store_id)->lockForUpdate()->first();
 
-            $fullDates = Booking::fullDatesInRange(
-                $locked->store_id,
-                $locked->preferred_date->copy(),
-                $durationDays,
-                excludeBookingId: $locked->id,
-            );
+            if ($locked->isLightOnly()) {
+                // Layanan ringan (Fase 2): cek slot jam, bukan kapasitas harian berat (jam kosong pada data lama dilewati).
+                $problem = Booking::lightSlotProblem((int) $locked->store_id, $locked->preferred_date->copy(), $locked->preferred_time, $locked->id, true, false);
 
-            if (! empty($fullDates)) {
-                abort(422, 'Kapasitas instalasi toko sudah penuh di tanggal: ' . implode(', ', $fullDates) . '. Pilih tanggal lain, sesuaikan kapasitas lewat Kalender Kapasitas, atau selesaikan/batalkan booking lain yang bentrok dulu.');
+                if ($problem) {
+                    abort(422, $problem);
+                }
+            } else {
+                $fullDates = Booking::fullDatesInRange(
+                    $locked->store_id,
+                    $locked->preferred_date->copy(),
+                    $durationDays,
+                    excludeBookingId: $locked->id,
+                );
+
+                if (! empty($fullDates)) {
+                    abort(422, 'Kapasitas instalasi toko sudah penuh di tanggal: ' . implode(', ', $fullDates) . '. Pilih tanggal lain, sesuaikan kapasitas lewat Kalender Kapasitas, atau selesaikan/batalkan booking lain yang bentrok dulu.');
+                }
             }
 
             $locked->update([

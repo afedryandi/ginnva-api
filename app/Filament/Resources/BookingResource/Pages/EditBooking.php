@@ -98,7 +98,18 @@ class EditBooking extends EditRecord
 
         $this->existingWatcherIds = $this->record->watchers()->pluck('users.id')->all();
 
-        if (($data['status'] ?? null) === 'confirmed') {
+        // Layanan ringan (Fase 2): cek slot jam, bukan kapasitas harian berat. Penanda produk diambil dari data form
+        // dilengkapi atribut tersimpan (form bisa tidak memuat semuanya).
+        $flagSource = array_merge($this->record->only(array_values(\App\Models\BookingServiceType::FLAGS)), $data);
+
+        if (($data['status'] ?? null) === 'confirmed' && Booking::flagsAreLightOnly($flagSource)
+            && ($problem = Booking::lightSlotProblem((int) $data['store_id'], Carbon::parse($data['preferred_date']), $data['preferred_time'] ?? null, $this->record->id, false, false))) {
+            Notification::make()->title('Jam layanan ringan penuh')->body($problem)->danger()->persistent()->send();
+
+            throw new Halt();
+        }
+
+        if (($data['status'] ?? null) === 'confirmed' && ! Booking::flagsAreLightOnly($flagSource)) {
             $durationDays = max(1, (int) ($data['duration_days'] ?? 1));
 
             $fullDates = Booking::fullDatesInRange(
@@ -254,7 +265,16 @@ class EditBooking extends EditRecord
                 throw new Halt();
             }
 
-            if (($data['status'] ?? null) === 'confirmed') {
+            $flagSource = array_merge($record->only(array_values(\App\Models\BookingServiceType::FLAGS)), $data);
+
+            if (($data['status'] ?? null) === 'confirmed' && Booking::flagsAreLightOnly($flagSource)
+                && ($problem = Booking::lightSlotProblem((int) ($data['store_id'] ?? $record->store_id), Carbon::parse($data['preferred_date'] ?? $record->preferred_date), $data['preferred_time'] ?? $record->preferred_time, $record->id, true, false))) {
+                Notification::make()->title('Jam layanan ringan penuh')->body($problem)->danger()->persistent()->send();
+
+                throw new Halt();
+            }
+
+            if (($data['status'] ?? null) === 'confirmed' && ! Booking::flagsAreLightOnly($flagSource)) {
                 $fullDates = Booking::fullDatesInRangeLocked(
                     (int) ($data['store_id'] ?? $record->store_id),
                     Carbon::parse($data['preferred_date'] ?? $record->preferred_date),

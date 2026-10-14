@@ -374,13 +374,15 @@ class Booking extends Model
      * rentang booking lama) supaya tidak scan semua booking 'confirmed'
      * sepanjang sejarah toko.
      */
-    public static function confirmedOverlapCount(int $storeId, Carbon $date, ?int $excludeBookingId = null): int
+    public static function confirmedOverlapCount(int $storeId, Carbon $date, ?int $excludeBookingId = null, bool $includeLight = false): int
     {
         $store = Store::find($storeId);
 
         return static::query()
             ->where('store_id', $storeId)
             ->where('status', 'confirmed')
+            // Kapasitas harian = layanan BERAT saja; booking layanan ringan memakai slot jam (lihat lightSlotUsage()).
+            ->when(! $includeLight, fn ($q) => $q->heavy())
             ->when($excludeBookingId, fn ($q) => $q->where('id', '!=', $excludeBookingId))
             ->whereDate('preferred_date', '<=', $date)
             ->whereDate('preferred_date', '>=', $date->copy()->subDays(45))
@@ -419,6 +421,7 @@ class Booking extends Model
         $bookings = static::query()
             ->where('store_id', $storeId)
             ->where('status', 'confirmed')
+            ->heavy()
             ->when($excludeBookingId, fn ($q) => $q->where('id', '!=', $excludeBookingId))
             ->whereDate('preferred_date', '<=', $rangeEnd)
             ->whereDate('preferred_date', '>=', $rangeStart->copy()->subDays(45))
@@ -441,6 +444,205 @@ class Booking extends Model
         }
 
         return $counts;
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Kapasitas berat vs ringan (Fase 2 pengerjaan ulang booking, 2026-10-16; keputusan pemilik 2026-10-15)
+    //
+    // - Layanan BERAT (kategori di Layanan Booking, mis. PPF/kaca film): kapasitas harian toko (confirmedOverlapCount).
+    // - Layanan RINGAN (mis. detailing/premium wash): slot jam, kapasitas per slot (lightCapacityPerSlot). Booking yang hanya
+    //   berisi layanan ringan TIDAK memakan kapasitas harian berat. Booking campuran (berat + ringan) dihitung sebagai berat.
+    // - Booking tanpa penanda produk apa pun (mis. "Lainnya", data lama) dihitung berat (konservatif).
+    // - Hanya booking 'confirmed' yang dihitung; 'pending' tidak mengunci slot (sama dengan kapasitas harian).
+    // ------------------------------------------------------------------------------------------------------------
+
+    /** Kondisi SQL "hanya layanan ringan": ada penanda ringan menyala DAN tidak ada penanda berat menyala. */
+    private static function applyLightOnlyConditions($query): void
+    {
+        $light = BookingServiceType::flagColumnsFor(BookingServiceType::CATEGORY_LIGHT);
+        $heavy = BookingServiceType::flagColumnsFor(BookingServiceType::CATEGORY_HEAVY);
+
+        if (empty($light)) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function ($q) use ($light) {
+            foreach ($light as $column) {
+                $q->orWhere($column, true);
+            }
+        });
+
+        foreach ($heavy as $column) {
+            $query->where($column, false);
+        }
+    }
+
+    public function scopeLightOnly($query)
+    {
+        static::applyLightOnlyConditions($query);
+
+        return $query;
+    }
+
+    /** Kebalikan scopeLightOnly: semua booking yang memakai kapasitas harian berat. */
+    public function scopeHeavy($query)
+    {
+        return $query->whereNot(function ($q) {
+            static::applyLightOnlyConditions($q);
+        });
+    }
+
+    /** @param array<string, mixed> $flags kolom penanda produk (product_ppf, product_detailing, ...) => benar/salah */
+    public static function flagsAreLightOnly(array $flags): bool
+    {
+        $anyLight = collect(BookingServiceType::flagColumnsFor(BookingServiceType::CATEGORY_LIGHT))->contains(fn (string $column) => ! empty($flags[$column]));
+        $anyHeavy = collect(BookingServiceType::flagColumnsFor(BookingServiceType::CATEGORY_HEAVY))->contains(fn (string $column) => ! empty($flags[$column]));
+
+        return $anyLight && ! $anyHeavy;
+    }
+
+    public function isLightOnly(): bool
+    {
+        return static::flagsAreLightOnly($this->only(array_values(BookingServiceType::FLAGS)));
+    }
+
+    /** @return array<int, string> slot jam kedatangan layanan ringan, mis. "09:00 - 11:00" */
+    public static function lightSlots(): array
+    {
+        return array_values((array) config('booking.light_slots', []));
+    }
+
+    /** Berapa mobil layanan ringan yang bisa dikerjakan bersamaan di SATU slot jam toko ini. */
+    public static function lightCapacityPerSlot(int $storeId): int
+    {
+        $own = (int) Store::whereKey($storeId)->value('light_capacity_per_slot');
+
+        return $own > 0 ? $own : max(1, (int) config('booking.light_capacity_default', 2));
+    }
+
+    /**
+     * Jumlah booking ringan 'confirmed' per slot jam pada satu tanggal.
+     *
+     * @return array<string, int> [slot => jumlah]
+     */
+    public static function lightSlotUsage(int $storeId, Carbon $date, ?int $excludeBookingId = null): array
+    {
+        return static::query()
+            ->where('store_id', $storeId)
+            ->where('status', 'confirmed')
+            ->lightOnly()
+            ->when($excludeBookingId, fn ($q) => $q->where('id', '!=', $excludeBookingId))
+            ->whereDate('preferred_date', $date)
+            ->whereNotNull('preferred_time')
+            ->selectRaw('preferred_time, COUNT(*) as aggregate')
+            ->groupBy('preferred_time')
+            ->pluck('aggregate', 'preferred_time')
+            ->map(fn ($count) => (int) $count)
+            ->all();
+    }
+
+    /**
+     * Ketersediaan tiap slot jam layanan ringan pada satu tanggal (toko tutup = semua slot tidak tersedia).
+     *
+     * @return array<int, array{slot: string, capacity: int, used: int, available: bool}>
+     */
+    public static function lightSlotAvailability(int $storeId, Carbon $date, ?int $excludeBookingId = null): array
+    {
+        $closed = (bool) Store::find($storeId)?->isClosedOn($date);
+        $capacity = static::lightCapacityPerSlot($storeId);
+        $usage = static::lightSlotUsage($storeId, $date, $excludeBookingId);
+
+        return array_map(fn (string $slot) => [
+            'slot' => $slot,
+            'capacity' => $capacity,
+            'used' => $usage[$slot] ?? 0,
+            'available' => ! $closed && ($usage[$slot] ?? 0) < $capacity,
+        ], static::lightSlots());
+    }
+
+    /**
+     * Tanggal (Y-m-d) dalam rentang yang toko-nya BUKA tetapi SEMUA slot jam layanan ringan sudah penuh.
+     *
+     * @return array<int, string>
+     */
+    public static function lightFullDates(int $storeId, Carbon $start, Carbon $end): array
+    {
+        $slots = static::lightSlots();
+
+        if (empty($slots)) {
+            return [];
+        }
+
+        $capacity = static::lightCapacityPerSlot($storeId);
+        $store = Store::find($storeId);
+
+        $rows = static::query()
+            ->where('store_id', $storeId)
+            ->where('status', 'confirmed')
+            ->lightOnly()
+            ->whereDate('preferred_date', '>=', $start)
+            ->whereDate('preferred_date', '<=', $end)
+            ->whereNotNull('preferred_time')
+            ->selectRaw('preferred_date, preferred_time, COUNT(*) as aggregate')
+            ->groupBy('preferred_date', 'preferred_time')
+            ->get();
+
+        $byDate = [];
+        foreach ($rows as $row) {
+            $byDate[Carbon::parse($row->preferred_date)->toDateString()][$row->preferred_time] = (int) $row->aggregate;
+        }
+
+        $full = [];
+        foreach ($byDate as $date => $perSlot) {
+            if ($store?->isClosedOn(Carbon::parse($date))) {
+                continue;
+            }
+
+            if (collect($slots)->every(fn (string $slot) => ($perSlot[$slot] ?? 0) >= $capacity)) {
+                $full[] = $date;
+            }
+        }
+
+        sort($full);
+
+        return $full;
+    }
+
+    /**
+     * Alasan slot jam layanan ringan TIDAK bisa dipakai pada tanggal itu, atau null kalau bisa.
+     *
+     * @param  bool  $lock         kunci baris toko (wajib di dalam DB::transaction() saat mengonfirmasi)
+     * @param  bool  $requireSlot  true = jam wajib diisi (pembuatan booking oleh pelanggan); false = jam kosong dilewati
+     *                             tanpa pengecekan (jalur staf, supaya booking lama tanpa jam tidak terblokir)
+     */
+    public static function lightSlotProblem(int $storeId, Carbon $date, ?string $slot, ?int $excludeBookingId = null, bool $lock = false, bool $requireSlot = true): ?string
+    {
+        if (blank($slot)) {
+            return $requireSlot ? 'Pilih jam kedatangan untuk layanan ini.' : null;
+        }
+
+        if (! in_array($slot, static::lightSlots(), true)) {
+            // Jalur staf memakai teks bebas di form admin: jam yang tidak dikenal tidak bisa dihitung, jadi dilewati.
+            return $requireSlot ? 'Jam kedatangan tidak valid. Pilih salah satu jam yang tersedia.' : null;
+        }
+
+        if (Store::find($storeId)?->isClosedOn($date)) {
+            return 'Toko tutup/libur atau tanggal diblokir pada tanggal itu. Pilih tanggal lain.';
+        }
+
+        if ($lock) {
+            Store::whereKey($storeId)->lockForUpdate()->first();
+        }
+
+        $used = static::lightSlotUsage($storeId, $date, $excludeBookingId)[$slot] ?? 0;
+
+        if ($used >= static::lightCapacityPerSlot($storeId)) {
+            return "Jam {$slot} pada tanggal itu sudah penuh. Pilih jam atau tanggal lain.";
+        }
+
+        return null;
     }
 
     /**

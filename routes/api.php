@@ -98,6 +98,9 @@ Route::prefix('stores')->group(function () {
     Route::get('/{id}/blocked-dates', [StoreController::class, 'blockedDates']);
     Route::get('/{id}/full-dates', [StoreController::class, 'fullDates'])->middleware('throttle:30,1');
     Route::get('/{id}/limited-dates', [StoreController::class, 'limitedDates'])->middleware('throttle:30,1');
+    // Layanan ringan (Fase 2 pengerjaan ulang booking): slot jam dan tanggal yang semua slotnya penuh.
+    Route::get('/{id}/light-slots', [StoreController::class, 'lightSlots'])->middleware('throttle:60,1');
+    Route::get('/{id}/light-full-dates', [StoreController::class, 'lightFullDates'])->middleware('throttle:30,1');
     Route::get('/{id}/unavailable-dates', [StoreController::class, 'unavailableDates'])->middleware('throttle:30,1');
 });
 

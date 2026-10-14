@@ -198,7 +198,19 @@ class BookingController extends Controller
         // hit langsung/data basi. Hanya hari mulai yang dicek; pengecekan
         // seluruh durasi tetap saat staff mengonfirmasi.
         $preferred = Carbon::parse($request->preferred_date);
-        if (Booking::confirmedOverlapCount((int) $request->store_id, $preferred) >= Booking::capacityForDate((int) $request->store_id, $preferred)) {
+
+        if ($isV2 && Booking::flagsAreLightOnly($flags)) {
+            // Layanan ringan saja (Fase 2): jam kedatangan WAJIB dan dihitung per slot jam, tidak memakan kapasitas harian berat.
+            $problem = Booking::lightSlotProblem((int) $request->store_id, $preferred, $request->preferred_time);
+
+            if ($problem) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $problem,
+                    'errors'  => ['preferred_time' => [$problem]],
+                ], 422);
+            }
+        } elseif (Booking::confirmedOverlapCount((int) $request->store_id, $preferred) >= Booking::capacityForDate((int) $request->store_id, $preferred)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Kapasitas toko pada tanggal itu sudah penuh. Silakan pilih tanggal lain.',
@@ -350,7 +362,14 @@ class BookingController extends Controller
             abort(422, 'Toko tutup/libur atau tanggal diblokir pada tanggal itu. Pilih tanggal lain.');
         }
 
-        if (Booking::confirmedOverlapCount((int) $booking->store_id, $date, $booking->id) >= Booking::capacityForDate((int) $booking->store_id, $date)) {
+        if ($booking->isLightOnly()) {
+            // Layanan ringan: jam yang sama harus masih tersedia di tanggal baru (jam kosong pada data lama dilewati).
+            $problem = Booking::lightSlotProblem((int) $booking->store_id, $date, $booking->preferred_time, $booking->id, false, false);
+
+            if ($problem) {
+                abort(422, $problem);
+            }
+        } elseif (Booking::confirmedOverlapCount((int) $booking->store_id, $date, $booking->id) >= Booking::capacityForDate((int) $booking->store_id, $date)) {
             abort(422, 'Kapasitas toko pada tanggal itu sudah penuh. Pilih tanggal lain.');
         }
 

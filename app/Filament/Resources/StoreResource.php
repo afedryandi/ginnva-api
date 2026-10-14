@@ -105,6 +105,17 @@ class StoreResource extends Resource
                         ->default(3)
                         ->required(),
 
+                    // Fase 2 pengerjaan ulang booking (2026-10-16): kapasitas layanan RINGAN per slot jam, terpisah dari
+                    // kapasitas harian layanan berat di atas.
+                    Forms\Components\TextInput::make('light_capacity_per_slot')
+                        ->label('Kapasitas Layanan Ringan / Jam')
+                        ->helperText('Berapa mobil Detailing/Premium Wash yang bisa dikerjakan BERSAMAAN dalam satu slot jam (09-11, 11-13, 13-15, 15-17). Kosongkan untuk memakai nilai bawaan (2). Terpisah dari kapasitas harian PPF/Kaca Film.')
+                        ->numeric()
+                        ->integer()
+                        ->minValue(1)
+                        ->maxValue(50)
+                        ->nullable(),
+
                     // f18 "Metrik Utilisasi Bay/Stall" (2026-09-24) — beda
                     // dari install_capacity_per_day di atas (1 angka
                     // instalasi/hari agregat), 2 field ini kapasitas FISIK

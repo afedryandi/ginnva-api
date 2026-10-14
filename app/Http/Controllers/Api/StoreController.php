@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\BlockedDate;
+use App\Models\Booking;
 use App\Models\Store;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -254,6 +257,44 @@ class StoreController extends Controller
                 ->values()
                 ->all();
         });
+
+        return response()->json(['success' => true, 'data' => $dates]);
+    }
+
+    /**
+     * GET /api/stores/{id}/light-slots?date=YYYY-MM-DD -- slot jam layanan ringan (Detailing, Premium Wash) pada satu
+     * tanggal beserta ketersediaannya (Fase 2 pengerjaan ulang booking). Hanya status tersedia/penuh, TANPA angka kapasitas
+     * (tidak membuka data internal toko). Booking pending belum mengunci slot, jadi ini perkiraan. Di-cache 30 detik.
+     */
+    public function lightSlots(Request $request, int $id): JsonResponse
+    {
+        if (! Store::whereKey($id)->where('is_active', true)->exists()) {
+            abort(404);
+        }
+
+        $request->validate(['date' => 'required|date_format:Y-m-d|after_or_equal:today']);
+
+        $date = Carbon::parse($request->query('date'));
+
+        $slots = Cache::remember("store-light-slots:{$id}:{$date->toDateString()}", 30, fn () => collect(Booking::lightSlotAvailability($id, $date))
+            ->map(fn (array $row) => ['slot' => $row['slot'], 'available' => $row['available']])
+            ->values()
+            ->all());
+
+        return response()->json(['success' => true, 'data' => ['date' => $date->toDateString(), 'slots' => $slots]]);
+    }
+
+    /**
+     * GET /api/stores/{id}/light-full-dates -- tanggal (30 hari ke depan) yang toko-nya buka tetapi SEMUA slot jam layanan
+     * ringan sudah penuh. Dipakai pemilih tanggal booking layanan ringan. Di-cache 60 detik.
+     */
+    public function lightFullDates(int $id): JsonResponse
+    {
+        if (! Store::whereKey($id)->where('is_active', true)->exists()) {
+            abort(404);
+        }
+
+        $dates = Cache::remember("store-light-full-dates:{$id}", 60, fn () => Booking::lightFullDates($id, today(), today()->addDays(30)));
 
         return response()->json(['success' => true, 'data' => $dates]);
     }

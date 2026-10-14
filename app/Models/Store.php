@@ -43,6 +43,8 @@ class Store extends Model
         'google_place_id',
         'is_active',
         'install_capacity_per_day',
+        // Kapasitas layanan ringan per slot jam (Fase 2 pengerjaan ulang booking); null = bawaan config booking.
+        'light_capacity_per_slot',
         // f18 "Metrik Utilisasi Bay/Stall" (2026-09-24) — jumlah slot fisik
         // per zona, BEDA per toko, nullable = belum dikonfigurasi (lihat
         // migration add_slot_counts_to_stores_table & BayZoneUtilizationService).
