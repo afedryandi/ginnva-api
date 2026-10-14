@@ -27,7 +27,7 @@ class InstallerAvailabilityService
         $installers = User::query()
             ->where('store_id', $storeId)
             ->where('is_active', true)
-            ->role(['installer', 'installer_leader'])
+            ->whereHas('roles', fn ($q) => $q->whereIn('name', ['installer', 'installer_leader']))
             ->get(['id', 'name']);
 
         if ($installers->isEmpty()) {

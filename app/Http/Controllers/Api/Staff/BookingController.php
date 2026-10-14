@@ -397,15 +397,20 @@ class BookingController extends Controller
             // lebih banyak daripada installer yang masuk kerja hari itu.
             $warnings = [];
 
-            if (! $locked->isLightOnly()) {
-                $day = $locked->preferred_date->copy();
-                $crew = app(\App\Services\InstallerAvailabilityService::class)->forDate((int) $locked->store_id, $day);
-                $load = Booking::confirmedOverlapCount((int) $locked->store_id, $day);
+            try {
+                if (! $locked->isLightOnly()) {
+                    $day = $locked->preferred_date->copy();
+                    $crew = app(\App\Services\InstallerAvailabilityService::class)->forDate((int) $locked->store_id, $day);
+                    $load = Booking::confirmedOverlapCount((int) $locked->store_id, $day);
 
-                if ($crew['total'] > 0 && $load > $crew['available']) {
-                    $warnings[] = "Peringatan: {$load} booking berat aktif pada tanggal ini, tetapi hanya {$crew['available']} dari {$crew['total']} installer yang masuk kerja."
-                        . ($crew['unavailable'] ? ' Tidak masuk: ' . collect($crew['unavailable'])->map(fn ($u) => "{$u['name']} ({$u['reason']})")->implode(', ') . '.' : '');
+                    if ($crew['total'] > 0 && $load > $crew['available']) {
+                        $warnings[] = "Peringatan: {$load} booking berat aktif pada tanggal ini, tetapi hanya {$crew['available']} dari {$crew['total']} installer yang masuk kerja."
+                            . ($crew['unavailable'] ? ' Tidak masuk: ' . collect($crew['unavailable'])->map(fn ($u) => "{$u['name']} ({$u['reason']})")->implode(', ') . '.' : '');
+                    }
                 }
+            } catch (\Throwable $e) {
+                // Peringatan hanya tambahan: kegagalan menghitungnya tidak boleh menggagalkan konfirmasi yang sudah tersimpan.
+                report($e);
             }
 
             return response()->json([
