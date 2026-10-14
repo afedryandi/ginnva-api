@@ -11,6 +11,7 @@ Cakupan: PPF, Kaca Film, Detailing, Premium Wash; data, alur kerja, fungsi, fitu
 3. **Ginnva tidak menjual coating.** Semua rujukan coating di dokumen ini berasal dari riset industri umum dan **tidak berlaku** untuk Ginnva (abaikan prasyarat "koreksi cat" dan coating).
 4. **Deposit tidak wajib, persentase belum ditentukan, dan tidak hangus** bila pelanggan tidak datang. Bagian deposit di Fase 4 dan keputusan nomor 5 dan 6 pada bagian 6 **ditunda/tidak dikerjakan**; kebijakan batal tetap perlu ditampilkan.
 5. Urutan pengerjaan: mulai dari **Fase 0**, lanjut Fase 1.
+6. **Harga TIDAK ditampilkan di aplikasi pelanggan** (keputusan 2026-10-15, menggantikan keputusan Fase 1 tentang estimasi harga). Harga dikonfirmasi toko. API katalog layanan tidak mengirim harga (`price: null`) kecuali `BOOKING_SHOW_PRICES=true`. Data ukuran mobil tetap dikumpulkan untuk keperluan toko.
 
 **Status pengerjaan:**
 

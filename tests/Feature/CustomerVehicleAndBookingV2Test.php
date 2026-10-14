@@ -151,8 +151,23 @@ class CustomerVehicleAndBookingV2Test extends TestCase
         $this->assertContains('Honda', $response->json('data.brands'));
     }
 
-    public function test_service_catalog_shows_fixed_prices_for_detailing_and_wash_and_from_prices_for_ppf(): void
+    public function test_service_catalog_does_not_expose_prices_by_default(): void
     {
+        FilmProduct::where('product_type', 'detailing')->update(['base_price' => 450_000, 'is_active' => true]);
+
+        $services = $this->getJson('/api/booking/services')->assertOk()->json('data.services');
+
+        $this->assertNotEmpty($services);
+        foreach ($services as $service) {
+            $this->assertNull($service['price'], 'Harga tidak boleh bocor lewat API publik.');
+        }
+        $this->assertStringNotContainsString('450000', json_encode($services));
+    }
+
+    public function test_service_catalog_shows_fixed_prices_for_detailing_and_wash_and_from_prices_for_ppf_when_enabled(): void
+    {
+        config(['booking.show_prices' => true]);
+
         // Migrasi bisa menanam produk bawaan; mulai dari katalog PPF/kaca film yang bersih supaya angkanya pasti.
         FilmProduct::whereIn('product_type', ['ppf', 'window_film'])->get()->each->delete();
         FilmProduct::where('product_type', 'detailing')->update(['base_price' => 450_000, 'is_active' => true]);

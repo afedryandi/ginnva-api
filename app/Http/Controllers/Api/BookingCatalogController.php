@@ -15,8 +15,9 @@ use Illuminate\Http\Request;
  * "Layanan" di booking v2 (Fase 1 pengerjaan ulang booking, 2026-10-15). Opsional ?vehicle_size=S|M|L|XL|XXL untuk harga
  * PPF/kaca film sesuai ukuran mobil.
  *
- * Aturan harga (keputusan pemilik 2026-10-14): Detailing dan Premium Wash = SATU harga tetap (FilmProduct.base_price) untuk
- * semua ukuran; PPF dan Kaca Film = "mulai dari" dari matriks harga per ukuran. Harga final tetap dikonfirmasi toko.
+ * Harga TIDAK dikirim secara bawaan (keputusan pemilik 2026-10-15: harga dikonfirmasi toko). Kalau config('booking.show_prices')
+ * dinyalakan: Detailing dan Premium Wash = SATU harga tetap (FilmProduct.base_price) untuk semua ukuran; PPF dan Kaca Film =
+ * "mulai dari" dari matriks harga per ukuran. Harga final tetap dikonfirmasi toko.
  */
 class BookingCatalogController extends Controller
 {
@@ -65,7 +66,7 @@ class BookingCatalogController extends Controller
                 'description' => $service['description'],
                 'capacity_category' => $service['capacity_category'],
                 'estimated_duration_days' => $key === 'ppf' ? Booking::DEFAULT_DURATION_DAYS_PPF : Booking::DEFAULT_DURATION_DAYS_DEFAULT,
-                'price' => $this->price($products, $service['fixed_price'], $size),
+                'price' => config('booking.show_prices') ? $this->price($products, $service['fixed_price'], $size) : null,
             ];
         }
 
