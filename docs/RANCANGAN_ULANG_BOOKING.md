@@ -3,6 +3,24 @@
 Dibuat 2026-10-14. Status: **usulan untuk diputuskan, belum ada yang dibangun.**
 Cakupan: PPF, Kaca Film, Detailing, Premium Wash; data, alur kerja, fungsi, fitur, menu, UI/UX di API, aplikasi mobile (pelanggan dan staf), dan panel admin.
 
+## Status dan keputusan (diperbarui 2026-10-14)
+
+**Keputusan pemilik:**
+1. Model kapasitas **dua kategori** (berat: PPF/kaca film; ringan: detailing/premium wash). Disetujui.
+2. **Detailing dan Premium Wash berharga tetap untuk semua ukuran mobil** (tidak per ukuran). PPF dan kaca film tetap memakai matriks harga per ukuran. Keduanya dibuka di aplikasi pelanggan dengan paket tetap.
+3. **Ginnva tidak menjual coating.** Semua rujukan coating di dokumen ini berasal dari riset industri umum dan **tidak berlaku** untuk Ginnva (abaikan prasyarat "koreksi cat" dan coating).
+4. **Deposit tidak wajib, persentase belum ditentukan, dan tidak hangus** bila pelanggan tidak datang. Bagian deposit di Fase 4 dan keputusan nomor 5 dan 6 pada bagian 6 **ditunda/tidak dikerjakan**; kebijakan batal tetap perlu ditampilkan.
+5. Urutan pengerjaan: mulai dari **Fase 0**, lanjut Fase 1.
+
+**Status pengerjaan:**
+
+| Fase | Status |
+|---|---|
+| 0. Fondasi | **Sisi API selesai dan di-push (`b4e8bb3`), menunggu uji di server dev.** Isi: versi minimum aplikasi (`X-App-Version`, 426, `GET /api/app/config`, variabel `APP_MIN_VERSION_ANDROID/IOS`), kunci idempotensi pada `POST /api/customer/bookings` (header `Idempotency-Key`, tabel `idempotency_keys`, pembersihan harian), dan tes kontrak multipart. Sisi aplikasi (header versi, layar "Perbarui Aplikasi", kunci idempotensi di booking) sudah ditulis di working copy mobile, **belum di-commit** (developer yang meng-commit). |
+| 1–5 | Belum dimulai. |
+
+---
+
 Dokumen ini terdiri dari: (1) ringkasan, (2) riset standar industri, (3) audit sistem sekarang, (4) rancangan target, (5) peta jalan bertahap, (6) keputusan yang dibutuhkan, (7) batasan riset, (8) sumber.
 
 ---
