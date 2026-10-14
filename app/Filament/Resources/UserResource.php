@@ -95,6 +95,7 @@ class UserResource extends Resource
                 'QuotationResource' => 'Quotation (Lead)',
                 'BookingResource' => 'Booking Instalasi',
                 'BlockedDateResource' => 'Tanggal Tidak Tersedia',
+                'BookingServiceTypeResource' => 'Layanan Booking',
                 'TechnicianResource' => 'Teknisi',
                 'WarrantyResource' => 'Garansi',
                 'StoreReviewResource' => 'Review Toko',

@@ -106,6 +106,7 @@ class ActivityResource extends Resource
     'transaction_approval_request' => 'Approval Referral/Refund',
     'user' => 'User Admin',
     'vehicle' => 'Kendaraan',
+    'booking_service_type' => 'Layanan Booking',
     'voucher' => 'Kampanye Voucher',
     'voucher_claim' => 'Voucher',
     'warning_letter' => 'Surat Peringatan',

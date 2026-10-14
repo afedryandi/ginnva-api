@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api\Customer;
 
-use App\Http\Controllers\Api\BookingCatalogController;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\BookingServiceType;
 use App\Models\Store;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -82,7 +82,7 @@ class BookingController extends Controller
         // (wajib). Payload lama (service_type + product_kaca_film/product_ppf, tanpa kendaraan) TETAP diterima supaya
         // aplikasi versi lama tidak rusak.
         $isV2 = $request->has('services');
-        $serviceKeys = array_keys(BookingCatalogController::SERVICES);
+        $serviceKeys = array_keys(BookingServiceType::FLAGS);
 
         $rules = [
             // Hanya toko aktif (2026-10-05).
@@ -136,10 +136,10 @@ class BookingController extends Controller
 
             // Urutan tetap (kaca film, PPF, detailing, premium wash) supaya service_type konsisten untuk cek duplikat.
             $selected = collect($serviceKeys)->filter(fn (string $key) => in_array($key, $request->input('services'), true))->values();
-            $serviceType = $selected->map(fn (string $key) => BookingCatalogController::SERVICES[$key]['label'])->implode(', ');
+            $serviceType = $selected->map(fn (string $key) => BookingServiceType::labelFor($key))->implode(', ');
 
-            foreach (BookingCatalogController::SERVICES as $key => $service) {
-                $flags[$service['flag']] = $selected->contains($key);
+            foreach (BookingServiceType::FLAGS as $key => $column) {
+                $flags[$column] = $selected->contains($key);
             }
         } else {
             $serviceType = $request->service_type;

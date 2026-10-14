@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Booking;
+use App\Models\BookingServiceType;
 use App\Models\Customer;
 use App\Models\CustomerVehicle;
 use App\Models\FilmProduct;
@@ -13,6 +14,7 @@ use App\Models\Vehicle;
 use App\Services\CustomerAccountDeletionService;
 use App\Services\SpkService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
@@ -198,9 +200,10 @@ class CustomerVehicleAndBookingV2Test extends TestCase
         $this->assertSame('Rp450.000', $sized['detailing']['price']['label'], 'Harga tetap tidak bergantung ukuran.');
     }
 
-    public function test_inactive_detailing_is_hidden_from_the_catalog(): void
+    public function test_an_inactive_service_is_hidden_from_the_catalog(): void
     {
-        FilmProduct::where('product_type', 'detailing')->update(['is_active' => false]);
+        BookingServiceType::where('key', 'detailing')->update(['is_active' => false]);
+        Cache::forget('booking_service_types.v1');
 
         $keys = collect($this->getJson('/api/booking/services')->json('data.services'))->pluck('key')->all();
 
