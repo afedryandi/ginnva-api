@@ -8,12 +8,14 @@ use App\Models\CustomerVehicle;
 use App\Models\FilmProduct;
 use App\Models\Spk;
 use App\Models\Store;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\CustomerAccountDeletionService;
 use App\Services\SpkService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
@@ -307,5 +309,24 @@ class CustomerVehicleAndBookingV2Test extends TestCase
 
         $this->assertSame(0, CustomerVehicle::count());
         $this->assertSame('B 1234 ABC', Booking::withoutGlobalScopes()->findOrFail($id)->vehicle_plate);
+    }
+
+    public function test_staff_see_the_vehicle_on_the_booking_detail_and_list(): void
+    {
+        Role::findOrCreate('store_manager', 'web');
+        $staff = User::create(['name' => 'SM', 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $this->store->id, 'join_date' => '2025-01-01']);
+        $staff->assignRole('store_manager');
+
+        $vehicleId = $this->addVehicle()->json('data.id');
+        $id = $this->as()->postJson('/api/customer/bookings', $this->bookingPayload($vehicleId))->assertStatus(201)->json('data.id');
+
+        $this->actingAs($staff, 'api')->getJson("/api/staff/bookings/{$id}")->assertOk()
+            ->assertJsonPath('data.vehicle_plate', 'B 1234 ABC')
+            ->assertJsonPath('data.vehicle_brand', 'Toyota')
+            ->assertJsonPath('data.vehicle_model', 'Fortuner')
+            ->assertJsonPath('data.vehicle_size', 'L');
+
+        $this->actingAs($staff, 'api')->getJson('/api/staff/bookings')->assertOk()
+            ->assertJsonFragment(['vehicle_plate' => 'B 1234 ABC']);
     }
 }
