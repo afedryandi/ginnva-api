@@ -140,9 +140,13 @@ class CustomerVehicleAndBookingV2Test extends TestCase
 
     public function test_vehicle_catalog_is_public_and_includes_the_size(): void
     {
-        $this->getJson('/api/vehicles/catalog')->assertOk()
-            ->assertJsonPath('data.brands', ['Honda', 'Toyota'])
-            ->assertJsonFragment(['brand' => 'Toyota', 'model' => 'Fortuner', 'variant' => 'VRZ', 'size_category' => 'L']);
+        // Migrasi sudah menanam katalog kendaraan asli, jadi periksa isi yang kita tambahkan, bukan daftar lengkapnya.
+        $response = $this->getJson('/api/vehicles/catalog')->assertOk()
+            ->assertJsonFragment(['brand' => 'Toyota', 'model' => 'Fortuner', 'variant' => 'VRZ', 'size_category' => 'L'])
+            ->assertJsonFragment(['brand' => 'Honda', 'model' => 'Brio', 'size_category' => 'S']);
+
+        $this->assertContains('Toyota', $response->json('data.brands'));
+        $this->assertContains('Honda', $response->json('data.brands'));
     }
 
     public function test_service_catalog_shows_fixed_prices_for_detailing_and_wash_and_from_prices_for_ppf(): void
