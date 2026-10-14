@@ -17,7 +17,8 @@ Cakupan: PPF, Kaca Film, Detailing, Premium Wash; data, alur kerja, fungsi, fitu
 | Fase | Status |
 |---|---|
 | 0. Fondasi | **Sisi API selesai dan di-push (`b4e8bb3`), menunggu uji di server dev.** Isi: versi minimum aplikasi (`X-App-Version`, 426, `GET /api/app/config`, variabel `APP_MIN_VERSION_ANDROID/IOS`), kunci idempotensi pada `POST /api/customer/bookings` (header `Idempotency-Key`, tabel `idempotency_keys`, pembersihan harian), dan tes kontrak multipart. Sisi aplikasi (header versi, layar "Perbarui Aplikasi", kunci idempotensi di booking) sudah ditulis di working copy mobile, **belum di-commit** (developer yang meng-commit). |
-| 1–5 | Belum dimulai. |
+| 1. Kendaraan dan katalog | **Sisi API dan panel admin selesai dan di-push (`44bfdf2`, `5e50189`, `a02e994`), tes dev hijau (16 tes Fase 1).** Isi: tabel `customer_vehicles` dan endpoint `/api/customer/vehicles`, katalog `GET /api/vehicles/catalog` dan `GET /api/booking/services` (harga tetap Detailing/Premium Wash, "mulai dari" PPF/kaca film per ukuran), booking v2 (`services` + `customer_vehicle_id`, payload lama tetap diterima), salinan kendaraan di booking, SPK terisi dari booking, kolom plat dan bagian Kendaraan di panel admin. Sisi aplikasi (layar Kendaraan Saya, booking 5 langkah, kendaraan di aplikasi staf dan Booking Saya) sudah ditulis di working copy mobile, **belum di-commit dan belum diuji di HP**. **Syarat rilis:** API Fase 1 (migrasi) harus naik ke production SEBELUM build mobile ini dirilis; harga Detailing dan Premium Wash harus diisi di panel admin (sekarang Rp 0 dari migrasi). |
+| 2–5 | Belum dimulai. |
 
 ---
 

@@ -143,3 +143,21 @@ yang paling mungkin lolos dari tes otomatis. Kerjakan yang ⚠ lebih dulu.
 | Layar / langkah | Hasil | Pesan error / catatan |
 |---|---|---|
 | | | |
+
+---
+
+## E. Layar baru Fase 1 booking (uji setelah API Fase 1 aktif di server yang dipakai build)
+
+Prasyarat: API Fase 1 sudah dimigrasi di server yang dituju; harga Detailing dan Premium Wash sudah diisi di panel admin.
+
+- [ ] **Kendaraan Saya** (Akun → Kendaraan Saya): kosong → tombol Tambah Kendaraan; tambah dari katalog (pilih merek → model), ukuran mobil tampil otomatis; tambah manual ("Mobil saya tidak ada di daftar") dengan ukuran opsional.
+- [ ] ⚠ Plat nomor: ketik huruf kecil dan tanda baca (`b 1234-abc`) → tampil `B 1234 ABC`; plat tidak valid (`ABC`) ditolak dengan pesan; plat yang sama dua kali ditolak.
+- [ ] Ubah kendaraan (warna, tahun, jadikan utama), hapus kendaraan (kendaraan utama berpindah), batas 10 kendaraan.
+- [ ] ⚠ **Booking 5 langkah** (Toko → Kendaraan → Layanan → Jadwal → Ringkasan): dari tab Toko (toko terpilih) langsung ke langkah Kendaraan; kendaraan utama terpilih otomatis; tombol Lanjut mati sampai langkah terisi.
+- [ ] Langkah Layanan: empat layanan tampil dengan harga (Detailing dan Premium Wash harga tetap, PPF dan Kaca Film "Mulai dari" sesuai ukuran mobil), lama pengerjaan, pilih lebih dari satu; "Lainnya" menghapus pilihan lain dan mewajibkan catatan.
+- [ ] Ganti kendaraan (ukuran berbeda) → harga "Mulai dari" PPF/Kaca Film ikut berubah.
+- [ ] Ringkasan: kendaraan, layanan, perkiraan lama dan harga tampil benar; kirim → booking masuk dengan plat di Booking Saya.
+- [ ] ⚠ Matikan data saat menekan Kirim Booking lalu nyalakan dan tekan lagi → hanya satu booking terbentuk (kunci idempotensi).
+- [ ] Staf: daftar booking menampilkan plat dan merek/model; detail booking menampilkan bar kendaraan; installer melihat plat, kendaraan, warna, dan ukuran.
+- [ ] Panel admin: kolom Plat di daftar booking bisa dicari; detail booking punya bagian Kendaraan.
+- [ ] Layar "Perbarui Aplikasi": hanya muncul bila server mengirim 426 (uji dengan `APP_MIN_VERSION_ANDROID` lebih tinggi dari versi build di dev).
