@@ -163,7 +163,8 @@ class QualityCheckTest extends TestCase
         $otherStore = Store::create(['city' => 'Bandung', 'address' => 'Jl. B', 'name' => 'Toko B', 'is_active' => true]);
         $outsider = $this->user('store_manager', 'Luar');
         $outsider->update(['store_id' => $otherStore->id]);
-        $this->actingAs($outsider, 'api')->getJson("/api/staff/bookings/{$booking->id}/qc")->assertStatus(403);
+        // Scope toko menyembunyikan booking toko lain (404, bukan 403).
+        $this->actingAs($outsider, 'api')->getJson("/api/staff/bookings/{$booking->id}/qc")->assertStatus(404);
     }
 
     public function test_qc_needs_all_product_stages_finished_and_a_confirmed_booking(): void

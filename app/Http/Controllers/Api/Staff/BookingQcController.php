@@ -204,7 +204,8 @@ class BookingQcController extends Controller
             return 'Anda mengerjakan unit ini, jadi tidak bisa memeriksanya sendiri. Minta Leader atau Store Manager lain.';
         }
 
-        if ($blocker = $booking->qualityCheckBlocker()) {
+        // Boleh diisi sebelum atau sesudah tahap "Quality Check" ditandai di chat (setelah ditandai, tahap produk tidak lagi di titik akhirnya).
+        if ($booking->current_stage !== 'qc' && ($blocker = $booking->qualityCheckBlocker())) {
             return $blocker;
         }
 
