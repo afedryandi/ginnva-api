@@ -160,3 +160,18 @@ Prasyarat: API Fase 1 sudah dimigrasi di server yang dituju; harga Detailing dan
 - [ ] Staf: daftar booking menampilkan plat dan merek/model; detail booking menampilkan bar kendaraan; installer melihat plat, kendaraan, warna, dan ukuran.
 - [ ] Panel admin: kolom Plat di daftar booking bisa dicari; detail booking punya bagian Kendaraan.
 - [ ] Layar "Perbarui Aplikasi": hanya muncul bila server mengirim 426 (uji dengan `APP_MIN_VERSION_ANDROID` lebih tinggi dari versi build di dev).
+
+## F. Jadwal layanan ringan Fase 2 (uji setelah migrasi `2026_10_16_000001` dan `000002` aktif)
+
+Prasyarat: kapasitas layanan ringan per jam toko sudah diatur (form Toko, "Kapasitas Layanan Ringan / Jam"; kosong = 2).
+
+- [ ] ⚠ Booking **hanya Detailing atau Premium Wash**: di langkah Jadwal, label berubah menjadi "Jam Kedatangan (wajib)"; sebelum tanggal dipilih tampil petunjuk, sesudahnya daftar jam muncul; tombol Lanjut mati sampai jam dipilih.
+- [ ] ⚠ Konfirmasikan satu booking ringan di panel/app staf pada tanggal dan jam tertentu sampai kapasitas jam itu habis → di app pelanggan jam itu tampil redup "(penuh)" dan tidak bisa dipilih; jam lain masih bisa.
+- [ ] Semua jam satu tanggal penuh → tanggal itu nonaktif di pemilih tanggal untuk layanan ringan, tetapi tetap bisa dipilih untuk PPF/kaca film.
+- [ ] ⚠ Booking PPF atau kaca film yang mengisi kapasitas harian **tidak** menutup jam layanan ringan di tanggal yang sama (dan sebaliknya).
+- [ ] Booking **campuran** (PPF + Detailing): jam tetap opsional dan tanggal mengikuti kapasitas harian layanan berat.
+- [ ] Matikan data saat memuat jam → muncul pesan "Jam gagal dimuat. Ketuk untuk coba lagi."; ketuk setelah data menyala → jam muncul.
+- [ ] Ganti tanggal setelah memilih jam yang di tanggal baru penuh → pilihan jam otomatis dikosongkan.
+- [ ] Panel admin: Buat/Ubah Booking layanan ringan pada jam yang penuh ditolak dengan notifikasi "Jam layanan ringan penuh".
+- [ ] Panel admin: menu Operasional → Layanan Booking; ubah kategori sebuah layanan lalu cek perilaku kapasitasnya berubah (hanya akun akses penuh yang bisa mengubah).
+

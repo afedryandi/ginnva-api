@@ -3,7 +3,7 @@
 Dibuat 2026-10-14. Status: **usulan untuk diputuskan, belum ada yang dibangun.**
 Cakupan: PPF, Kaca Film, Detailing, Premium Wash; data, alur kerja, fungsi, fitur, menu, UI/UX di API, aplikasi mobile (pelanggan dan staf), dan panel admin.
 
-## Status dan keputusan (diperbarui 2026-10-14)
+## Status dan keputusan (diperbarui 2026-10-16)
 
 **Keputusan pemilik:**
 1. Model kapasitas **dua kategori** (berat: PPF/kaca film; ringan: detailing/premium wash). Disetujui.
@@ -12,6 +12,7 @@ Cakupan: PPF, Kaca Film, Detailing, Premium Wash; data, alur kerja, fungsi, fitu
 4. **Deposit tidak wajib, persentase belum ditentukan, dan tidak hangus** bila pelanggan tidak datang. Bagian deposit di Fase 4 dan keputusan nomor 5 dan 6 pada bagian 6 **ditunda/tidak dikerjakan**; kebijakan batal tetap perlu ditampilkan.
 5. Urutan pengerjaan: mulai dari **Fase 0**, lanjut Fase 1.
 6. **Harga TIDAK ditampilkan di aplikasi pelanggan** (keputusan 2026-10-15, menggantikan keputusan Fase 1 tentang estimasi harga). Harga dikonfirmasi toko. API katalog layanan tidak mengirim harga (`price: null`) kecuali `BOOKING_SHOW_PRICES=true`. Data ukuran mobil tetap dikumpulkan untuk keperluan toko.
+7. **Fase 2 (2026-10-15):** jam kedatangan **wajib** untuk layanan ringan; kapasitas ringan dihitung **per jam**; booking campuran berat+ringan dihitung **berat**; menu Layanan Booking di panel admin dibuat sekarang.
 
 **Status pengerjaan:**
 
@@ -19,7 +20,8 @@ Cakupan: PPF, Kaca Film, Detailing, Premium Wash; data, alur kerja, fungsi, fitu
 |---|---|
 | 0. Fondasi | **Sisi API selesai dan di-push (`b4e8bb3`), menunggu uji di server dev.** Isi: versi minimum aplikasi (`X-App-Version`, 426, `GET /api/app/config`, variabel `APP_MIN_VERSION_ANDROID/IOS`), kunci idempotensi pada `POST /api/customer/bookings` (header `Idempotency-Key`, tabel `idempotency_keys`, pembersihan harian), dan tes kontrak multipart. Sisi aplikasi (header versi, layar "Perbarui Aplikasi", kunci idempotensi di booking) sudah ditulis di working copy mobile, **belum di-commit** (developer yang meng-commit). |
 | 1. Kendaraan dan katalog | **Sisi API dan panel admin selesai dan di-push (`44bfdf2`, `5e50189`, `a02e994`), tes dev hijau (16 tes Fase 1).** Isi: tabel `customer_vehicles` dan endpoint `/api/customer/vehicles`, katalog `GET /api/vehicles/catalog` dan `GET /api/booking/services` (harga tetap Detailing/Premium Wash, "mulai dari" PPF/kaca film per ukuran), booking v2 (`services` + `customer_vehicle_id`, payload lama tetap diterima), salinan kendaraan di booking, SPK terisi dari booking, kolom plat dan bagian Kendaraan di panel admin. Sisi aplikasi (layar Kendaraan Saya, booking 5 langkah, kendaraan di aplikasi staf dan Booking Saya) sudah ditulis di working copy mobile, **belum di-commit dan belum diuji di HP**. **Syarat rilis:** API Fase 1 (migrasi) harus naik ke production SEBELUM build mobile ini dirilis; harga Detailing dan Premium Wash harus diisi di panel admin (sekarang Rp 0 dari migrasi). |
-| 2–5 | Belum dimulai. |
+| 2. Kapasitas dan jadwal | **Sisi API dan panel admin selesai dan di-push (`a72203f`, `af08ec2`), tes dev hijau (13 tes baru + regresi booking).** Isi: kapasitas dua kategori. Layanan **berat** (PPF, kaca film) memakai kapasitas harian toko; layanan **ringan** (Detailing, Premium Wash) memakai slot jam (09-11, 11-13, 13-15, 15-17) dengan kapasitas per jam (`stores.light_capacity_per_slot`, bawaan 2, diatur di form Toko). Booking ringan tidak memakan kapasitas harian berat; booking campuran dihitung berat; booking tanpa penanda produk dihitung berat. Jam **wajib** untuk pelanggan pada layanan ringan. Endpoint publik `GET /api/stores/{id}/light-slots?date=` dan `/light-full-dates`. Aturan berlaku di booking pelanggan, konfirmasi staf, pindah jadwal, dan form Create/Edit Booking di panel admin. Menu **Layanan Booking** (Operasional) mengatur nama, deskripsi, durasi, dan kategori berat/ringan tiap layanan. Sisi aplikasi (langkah Jadwal: pemilih jam wajib dan tanggal penuh khusus ringan) sudah ditulis di working copy mobile, **belum di-commit dan belum diuji di HP**. **Syarat rilis:** migrasi `2026_10_16_000001` dan `000002` harus naik ke production SEBELUM build mobile dirilis. **Belum dikerjakan:** blok multi-hari PPF, ketersediaan installer, antrean tunggu; pratinjau kapasitas staf (`capacity-preview/overview`) dan Kalender Kapasitas masih menampilkan angka kapasitas berat saja. Hanya booking berstatus `confirmed` yang mengunci slot; `pending` tidak. |
+| 3–5 | Belum dimulai. |
 
 ---
 
