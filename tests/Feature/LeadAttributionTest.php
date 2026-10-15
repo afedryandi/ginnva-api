@@ -177,11 +177,17 @@ class LeadAttributionTest extends TestCase
         $this->assertSame(0, ProductInquiry::count());
     }
 
-    public function test_staff_without_the_menu_cannot_log_leads_and_guests_are_rejected(): void
+    public function test_staff_without_the_menu_cannot_log_leads(): void
     {
         $noMenu = $this->staff('kasir', ['SomeOtherResource']);
 
         $this->actingAs($noMenu, 'api')->postJson('/api/staff/leads', ['customer_name' => 'R', 'customer_contact' => '1', 'channel' => 'whatsapp'])->assertStatus(403);
+        $this->assertSame(0, ProductInquiry::count());
+    }
+
+    public function test_guests_cannot_log_leads(): void
+    {
+        // Tes terpisah: pengguna dari actingAs() di tes lain dalam satu metode tetap dianggap login.
         $this->postJson('/api/staff/leads', ['customer_name' => 'R', 'customer_contact' => '1', 'channel' => 'whatsapp'])->assertStatus(401);
     }
 
