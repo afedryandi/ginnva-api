@@ -221,3 +221,20 @@ Prasyarat: ada booking terkonfirmasi yang semua tahap produknya sudah selesai (a
 - [ ] Staf: detail booking (pending/confirmed) punya ikon **WhatsApp**; pilih "Konfirmasi jadwal" → WhatsApp terbuka dengan chat ke nomor pelanggan dan pesan terisi (nama, layanan, toko, tanggal, jam); "Kendaraan siap diambil" hanya muncul setelah QC lulus. Pesan baru terkirim bila staf menekan kirim.
 - [ ] Nomor pelanggan berformat "08xx" atau "+62xx" sama-sama membuka chat yang benar.
 
+## K. Privasi dan laporan, Fase 5 (uji setelah migrasi `2026_10_21_000001` aktif)
+
+- [ ] ⚠ Ringkasan booking menampilkan **Pemberitahuan Privasi** dengan kotak centang; tombol Kirim Booking mati sampai dicentang; kirim → booking masuk.
+- [ ] Ubah teks pemberitahuan di panel (Operasional → Teks Aplikasi), tunggu sampai 5 menit → teks baru tampil di booking berikutnya; booking lama tetap tercatat pada versi lamanya (kolom `consent_version`).
+- [ ] Alur "Lainnya" (jalur lama) juga mengirim persetujuan dan tercatat.
+- [ ] Panel admin: Laporan Jasa → **Laporan SLA & Tidak Datang** terbuka; ganti periode dan cabang (akses penuh); akun staf toko hanya melihat toko sendiri.
+- [ ] Konfirmasi satu booking pending, buka laporan → "Konfirmasi dalam Target" dan "Lama Tunggu" terisi; tandai satu booking tidak datang → "Tingkat Tidak Datang" bertambah dan tidak ikut di "Dibatalkan".
+- [ ] Server dev: `php artisan bookings:prune-photos --dry-run` melaporkan jumlah foto yang akan dihapus tanpa menghapus (jalankan di server dev, bukan production, sebelum menyalakan jadwalnya).
+
+## L. Penutupan celah (2026-10-22)
+
+- [ ] ⚠ Booking terkonfirmasi untuk lusa → push H-2 menyebut layanan/toko/jam dan **kalimat kebijakan**; ketuk → langsung terbuka **form Ajukan Jadwal Ulang** booking itu (bukan daftar saja). Booking yang sudah dikerjakan atau punya pengajuan menunggu: daftar tampil biasa tanpa form.
+- [ ] Push H-1 juga membuka form jadwal ulang; push "Booking Dikonfirmasi" memuat kalimat kebijakan.
+- [ ] ⚠ Panel admin, Buat/Ubah Booking dengan Detailing atau Premium Wash saja: kolom **Jam Diinginkan** menyarankan slot (daftar saat diketik), teks bantuan menampilkan jam tersedia dan penuh untuk toko+tanggal yang dipilih; mengetik jam di luar slot (mis. 10:30) ditolak dengan pesan; booking PPF/kaca film tetap bisa teks bebas.
+- [ ] Panel admin: simpan booking berat terkonfirmasi saat booking berat aktif lebih banyak daripada installer yang masuk kerja → muncul notifikasi kuning "Installer mungkin kurang"; booking tetap tersimpan.
+- [ ] ⚠ Panel admin, detail Booking (terkonfirmasi/selesai): bagian **Penerimaan, QC, dan Serah Terima** menampilkan empat foto sudut, foto kerusakan beserta keterangan, hasil QC terbaru (pemeriksa, butir gagal), dan catatan serah terima (tanda tangan basah, foto akhir); klik foto membukanya di tab baru.
+

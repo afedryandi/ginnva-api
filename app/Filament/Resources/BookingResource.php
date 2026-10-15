@@ -18,6 +18,7 @@ use Filament\Forms\Form;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\ViewEntry;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
@@ -531,6 +532,7 @@ class BookingResource extends Resource
                     Forms\Components\Toggle::make('product_detailing')
                         ->label('Termasuk Jasa Detailing')
                         ->helperText('Centang kalau booking ini mencakup detailing (poles/coating/cuci interior/dll) — baik dijual sendiri maupun bareng pemasangan film.')
+                        ->live()
                         ->default(false),
 
                     // Premium Wash -- pola sama persis product_detailing
@@ -538,6 +540,7 @@ class BookingResource extends Resource
                     Forms\Components\Toggle::make('product_premium_wash')
                         ->label('Termasuk Jasa Premium Wash')
                         ->helperText('Centang kalau booking ini mencakup Premium Wash (cuci premium) — baik dijual sendiri maupun bareng pemasangan film.')
+                        ->live()
                         ->default(false),
 
                     Forms\Components\DatePicker::make('preferred_date')
@@ -571,7 +574,40 @@ class BookingResource extends Resource
                     Forms\Components\TextInput::make('preferred_time')
                         ->label('Jam Diinginkan')
                         ->placeholder('Contoh: 09:00')
-                        ->maxLength(50),
+                        ->maxLength(50)
+                        // Layanan ringan (detailing/premium wash) memakai slot jam; layanan berat tetap teks bebas (Fase 2).
+                        ->datalist(fn () => Booking::lightSlots())
+                        ->helperText(function (Forms\Get $get, ?Booking $record) {
+                            $flags = collect(\App\Models\BookingServiceType::FLAGS)->mapWithKeys(fn (string $column) => [$column => (bool) $get($column)])->all();
+                            if (! Booking::flagsAreLightOnly($flags)) {
+                                return null;
+                            }
+
+                            $storeId = $get('store_id');
+                            $date = $get('preferred_date');
+                            if (! $storeId || ! $date) {
+                                return 'Layanan ringan memakai slot jam. Pilih toko dan tanggal untuk melihat jam yang tersedia.';
+                            }
+
+                            $slots = collect(Booking::lightSlotAvailability((int) $storeId, \Illuminate\Support\Carbon::parse($date), $record?->id));
+
+                            return 'Layanan ringan memakai slot jam. Tersedia: '
+                                . ($slots->where('available', true)->pluck('slot')->implode(', ') ?: 'tidak ada')
+                                . ($slots->where('available', false)->isNotEmpty() ? '. Penuh: ' . $slots->where('available', false)->pluck('slot')->implode(', ') : '') . '.';
+                        })
+                        ->rules([
+                            fn (Forms\Get $get) => function (string $attribute, $value, \Closure $fail) use ($get) {
+                                if (blank($value)) {
+                                    return;
+                                }
+
+                                $flags = collect(\App\Models\BookingServiceType::FLAGS)->mapWithKeys(fn (string $column) => [$column => (bool) $get($column)])->all();
+
+                                if (Booking::flagsAreLightOnly($flags) && ! in_array($value, Booking::lightSlots(), true)) {
+                                    $fail('Untuk layanan ringan pilih salah satu jam: ' . implode(', ', Booking::lightSlots()) . '.');
+                                }
+                            },
+                        ]),
 
                     Forms\Components\TextInput::make('duration_days')
                         ->label('Lama Pengerjaan (hari)')
@@ -915,6 +951,16 @@ class BookingResource extends Resource
                         ->helperText(fn (Booking $record) => $record->next_service_reminder_at
                             ? ($record->service_reminder_sent_at ? 'Sudah terkirim' : 'Belum terkirim')
                             : null),
+                ]),
+
+            // Penerimaan, QC, dan serah terima (koreksi celah Fase 3, 2026-10-22): bukti yang sebelumnya hanya terlihat di
+            // aplikasi staf. Hanya muncul bila booking sudah dikonfirmasi/selesai atau sudah punya salah satu catatannya.
+            InfolistSection::make('Penerimaan, QC, dan Serah Terima')
+                ->visible(fn (Booking $record) => in_array($record->status, ['confirmed', 'completed'], true)
+                    || $record->intakePhotos()->exists() || $record->qcResults()->exists() || $record->handover()->exists())
+                ->collapsible()
+                ->schema([
+                    ViewEntry::make('handling')->hiddenLabel()->view('filament.infolists.booking-handling')->columnSpanFull(),
                 ]),
 
             // "Inventori Terpakai" (diminta 2026-09-09) -- data bahan

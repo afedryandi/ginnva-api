@@ -80,6 +80,8 @@ class ReminderSequenceAndPolicyTest extends TestCase
         $this->assertStringContainsString('Premium Wash', $sent[0]['body']);
         $this->assertStringContainsString('Toko Kemang', $sent[0]['body']);
         $this->assertStringContainsString('09:00 - 11:00', $sent[0]['body']);
+        $this->assertStringContainsString('Kebijakan:', $sent[0]['body'], 'H-2 menyertakan kalimat kebijakan batal.');
+        $this->assertSame(['reschedule' => (string) $booking->id], $sent[0]['data']['params'], 'Membuka langsung ajuan jadwal ulang booking ini.');
         $this->assertNotNull($booking->fresh()->h2_reminder_sent_at);
 
         // Run kedua tidak mengirim ulang.
@@ -112,6 +114,20 @@ class ReminderSequenceAndPolicyTest extends TestCase
         $this->assertSame('booking_reminder_h1', $sent[0]['data']['type']);
         $this->assertSame('/account/my-bookings', $sent[0]['data']['route']);
         $this->assertStringContainsString('Toko Kemang', $sent[0]['body']);
+        $this->assertArrayHasKey('reschedule', $sent[0]['data']['params']);
+    }
+
+    public function test_the_confirmation_push_carries_the_cancellation_policy(): void
+    {
+        // Mock dipasang SEBELUM model dipakai: observer menerima layanan push saat model pertama kali di-boot.
+        $sent = $this->capturePushes();
+        $booking = $this->booking(3, ['status' => 'pending']);
+
+        $booking->update(['status' => 'confirmed']);
+
+        $confirm = collect($sent->getArrayCopy())->firstWhere('data.type', 'booking_confirmed');
+        $this->assertNotNull($confirm);
+        $this->assertStringContainsString('Kebijakan:', $confirm['body']);
     }
 
     public function test_only_confirmed_bookings_in_the_right_window_are_reminded(): void

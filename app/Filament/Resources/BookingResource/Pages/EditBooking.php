@@ -315,6 +315,15 @@ class EditBooking extends EditRecord
         $addedIds = array_diff($newWatcherIds, $this->existingWatcherIds);
 
         BookingResource::notifyNewWatchers($this->record, $addedIds, auth()->user()?->name ?? 'Admin');
+
+        // Peringatan ketersediaan installer (hanya informasi; booking sudah tersimpan).
+        try {
+            if ($warning = $this->record->installerShortageWarning()) {
+                \Filament\Notifications\Notification::make()->title('Installer mungkin kurang')->body($warning)->warning()->persistent()->send();
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /** Form satu kolom (2026-10-12, panduan UI minimalis): lebar dibatasi supaya isian tidak membentang selebar layar. */

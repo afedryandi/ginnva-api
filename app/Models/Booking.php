@@ -803,6 +803,29 @@ class Booking extends Model
         return $this->belongsToMany(User::class, 'booking_installers')->withTimestamps();
     }
 
+    /**
+     * Peringatan (bukan blokir) bila booking BERAT terkonfirmasi ini membuat jumlah booking berat aktif di hari mulainya lebih banyak
+     * daripada installer yang masuk kerja hari itu. null bila tidak ada kekurangan, booking bukan confirmed, atau layanan ringan.
+     * Dipakai konfirmasi staf (API) dan form Booking di panel admin.
+     */
+    public function installerShortageWarning(): ?string
+    {
+        if ($this->status !== 'confirmed' || $this->isLightOnly() || ! $this->preferred_date) {
+            return null;
+        }
+
+        $day = $this->preferred_date->copy();
+        $crew = app(\App\Services\InstallerAvailabilityService::class)->forDate((int) $this->store_id, $day);
+        $load = static::confirmedOverlapCount((int) $this->store_id, $day);
+
+        if ($crew['total'] <= 0 || $load <= $crew['available']) {
+            return null;
+        }
+
+        return "Peringatan: {$load} booking berat aktif pada tanggal ini, tetapi hanya {$crew['available']} dari {$crew['total']} installer yang masuk kerja."
+            . ($crew['unavailable'] ? ' Tidak masuk: ' . collect($crew['unavailable'])->map(fn ($u) => "{$u['name']} ({$u['reason']})")->implode(', ') . '.' : '');
+    }
+
     /** Foto penerimaan kendaraan (Fase 3C): 4 sudut baku + foto kerusakan. */
     public function intakePhotos()
     {

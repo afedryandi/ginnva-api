@@ -255,7 +255,7 @@ class BookingObserver
                 'confirmed' => $this->push->sendToCustomer(
                     $booking->customer_id,
                     'Booking Dikonfirmasi',
-                    "Booking #{$booking->booking_number} Anda sudah dikonfirmasi toko untuk tanggal {$tanggal}.",
+                    trim("Booking #{$booking->booking_number} Anda sudah dikonfirmasi toko untuk tanggal {$tanggal}. " . \App\Services\BookingReminderService::policyLine()),
                     [
                         'type'       => 'booking_confirmed',
                         'booking_id' => $booking->id,

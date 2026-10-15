@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\AppSetting;
 use App\Models\BookingServiceType;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Pengingat booking confirmed. Pelanggan menerima H-2, H-1, dan pagi hari-H (Fase 4 pengerjaan ulang booking, 2026-10-20);
@@ -31,7 +33,8 @@ class BookingReminderService
             'h2_reminder_sent_at',
             'booking_reminder_h2',
             'Pengingat Jadwal 2 Hari Lagi',
-            fn (string $detail) => "Booking {$detail} tinggal 2 hari lagi. Perlu ubah jadwal atau batal? Ketuk untuk membuka booking Anda.",
+            fn (string $detail) => "Booking {$detail} tinggal 2 hari lagi. Perlu ubah jadwal? Ketuk untuk mengajukannya. " . static::policyLine(),
+            withReschedule: true,
         );
     }
 
@@ -63,7 +66,7 @@ class BookingReminderService
                     $b->customer_id,
                     'Pengingat Jadwal Besok',
                     "Besok jadwal Anda: {$this->detail($b)}. Jika berhalangan, ubah jadwal atau batalkan dari booking Anda.",
-                    ['type' => 'booking_reminder_h1', 'booking_id' => $b->id, 'route' => self::CUSTOMER_ROUTE]
+                    ['type' => 'booking_reminder_h1', 'booking_id' => $b->id, 'route' => self::CUSTOMER_ROUTE, 'params' => ['reschedule' => (string) $b->id]]
                 );
             }
 
@@ -87,7 +90,15 @@ class BookingReminderService
         return true;
     }
 
-    private function sendToCustomer(Booking $b, string $flagColumn, string $type, string $title, \Closure $body): bool
+    /** Satu kalimat kebijakan pembatalan (dipotong) untuk badan push; kosong bila admin mengosongkannya. */
+    public static function policyLine(): string
+    {
+        $policy = trim(AppSetting::get(AppSetting::CANCELLATION_POLICY));
+
+        return $policy === '' ? '' : 'Kebijakan: ' . Str::limit($policy, 110);
+    }
+
+    private function sendToCustomer(Booking $b, string $flagColumn, string $type, string $title, \Closure $body, bool $withReschedule = false): bool
     {
         if ($b->status !== 'confirmed' || ! $b->customer_id || $b->{$flagColumn} !== null) {
             return false;
@@ -99,6 +110,7 @@ class BookingReminderService
                 $title,
                 $body($this->detail($b)),
                 ['type' => $type, 'booking_id' => $b->id, 'route' => self::CUSTOMER_ROUTE]
+                + ($withReschedule ? ['params' => ['reschedule' => (string) $b->id]] : [])
             );
         } catch (\Throwable $e) {
             report($e);
