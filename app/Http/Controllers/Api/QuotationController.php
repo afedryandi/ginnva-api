@@ -178,7 +178,7 @@ class QuotationController extends Controller
                 'status'           => 'new',
                 'source'           => 'customer',
                 'message'          => $request->message,
-            ]);
+            ] + \App\Support\LeadAttribution::fromRequest($request));
 
             foreach ($request->items as $item) {
                 QuotationItem::create([

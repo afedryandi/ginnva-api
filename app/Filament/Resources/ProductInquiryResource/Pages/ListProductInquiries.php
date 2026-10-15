@@ -9,10 +9,11 @@ class ListProductInquiries extends ListRecords
 {
     protected static string $resource = ProductInquiryResource::class;
 
-    // Tidak ada CreateAction di sini — inquiry hanya masuk lewat
-    // form publik (POST /api/inquiry/submit), bukan dibuat manual admin.
+    // Lead dari formulir publik masuk lewat POST /api/inquiry/submit; lead dari WhatsApp/telepon/datang langsung dicatat staf lewat tombol ini.
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            \Filament\Actions\CreateAction::make()->label('Catat Lead Manual'),
+        ];
     }
 }

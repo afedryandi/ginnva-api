@@ -21,6 +21,11 @@ class ProductInquiryObserver
 {
     public function created(ProductInquiry $inquiry): void
     {
+        // Lead yang dicatat staf sendiri (mis. dari WhatsApp) tidak perlu memberi tahu staf lain: sudah ditangani pencatatnya.
+        if ($inquiry->created_by_user_id) {
+            return;
+        }
+
         // Company-wide (bukan per-toko, lihat komentar canViewAny() di
         // ProductInquiryResource) — semua full-access + staff yang
         // dicentang akses menu ini yang dapat notifikasi, bukan cuma

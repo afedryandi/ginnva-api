@@ -411,6 +411,19 @@ class QuotationResource extends Resource
                     ->color(fn (Quotation $record) => ! $record->contacted_at && $record->created_at->lt(now()->subHours(24)) ? 'danger' : null)
                     ->toggleable(),
 
+                Tables\Columns\TextColumn::make('channel')
+                    ->label('Kanal')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => \App\Support\LeadAttribution::CHANNELS[$state] ?? 'Tidak tercatat')
+                    ->color(fn (?string $state) => $state ? 'info' : 'gray')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('utm_campaign')
+                    ->label('Kampanye')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 // Sebelumnya cuma terlihat setelah buka form — toggleable
                 // & disembunyikan default (bukan info yang selalu perlu
                 // tampil), tapi bisa dimunculkan kalau staff mau baca
@@ -424,6 +437,9 @@ class QuotationResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('channel')
+                    ->label('Kanal')
+                    ->options(\App\Support\LeadAttribution::CHANNELS),
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
                         'new'       => 'New',

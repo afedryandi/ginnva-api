@@ -239,12 +239,28 @@ class PartnershipInquiryResource extends Resource
                     ->color('info')
                     ->placeholder('Belum jadi partner'),
 
+                Tables\Columns\TextColumn::make('channel')
+                    ->label('Kanal')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => \App\Support\LeadAttribution::CHANNELS[$state] ?? 'Tidak tercatat')
+                    ->color(fn (?string $state) => $state ? 'info' : 'gray')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('utm_campaign')
+                    ->label('Kampanye')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Diajukan')
                     ->dateTime('d M Y, H:i')
                     ->sortable(),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('channel')
+                    ->label('Kanal')
+                    ->options(\App\Support\LeadAttribution::CHANNELS),
                 Tables\Filters\SelectFilter::make('category')
                     ->label('Kategori')
                     ->options([

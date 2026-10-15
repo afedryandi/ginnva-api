@@ -39,7 +39,7 @@ class ProductInquiryController extends Controller
             'customer_contact' => $validated['customer_contact'],
             'message'          => $validated['message'] ?? null,
             'status'           => 'new',
-        ]);
+        ] + \App\Support\LeadAttribution::fromRequest($request));
 
         return response()->json([
             'success' => true,

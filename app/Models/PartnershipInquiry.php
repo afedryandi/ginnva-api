@@ -36,6 +36,14 @@ class PartnershipInquiry extends Model
         'status',
         'notes',
         'partner_id',
+        'channel',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_content',
+        'click_id',
+        'landing_path',
+        'referrer',
     ];
 
     public function customer()

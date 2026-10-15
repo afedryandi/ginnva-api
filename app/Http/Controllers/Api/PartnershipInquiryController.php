@@ -53,7 +53,7 @@ class PartnershipInquiryController extends Controller
             'city'            => $request->city,
             'message'         => $request->message,
             'status'          => 'new',
-        ]);
+        ] + \App\Support\LeadAttribution::fromRequest($request));
 
         return response()->json([
             'success' => true,

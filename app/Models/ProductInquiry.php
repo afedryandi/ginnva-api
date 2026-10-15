@@ -32,6 +32,16 @@ class ProductInquiry extends Model
         'message',
         'status',
         'notes',
+        'interest',
+        'created_by_user_id',
+        'channel',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_content',
+        'click_id',
+        'landing_path',
+        'referrer',
     ];
 
     /**

@@ -22,6 +22,14 @@ class Quotation extends Model
         'source',
         'message',
         'contacted_at',
+        'channel',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_content',
+        'click_id',
+        'landing_path',
+        'referrer',
     ];
 
     protected $casts = [

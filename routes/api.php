@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
 use App\Http\Controllers\Api\Staff\BookingHandoverController as StaffBookingHandoverController;
 use App\Http\Controllers\Api\Staff\BookingIntakeController as StaffBookingIntakeController;
 use App\Http\Controllers\Api\Staff\BookingQcController as StaffBookingQcController;
+use App\Http\Controllers\Api\Staff\LeadController as StaffLeadController;
 use App\Http\Controllers\Api\Staff\SpkController as StaffSpkController;
 use App\Http\Controllers\Api\Staff\QuotationController as StaffQuotationController;
 use App\Http\Controllers\Api\Staff\BookingMessageController as StaffBookingMessageController;
@@ -278,6 +279,9 @@ Route::prefix('staff')->group(function () {
 
         // Lead Quotation — SEBELUMNYA tidak ada visibilitas mobile sama
         // sekali, lihat audit modul Quotation 2026-08-27.
+        // Catat lead manual (WhatsApp/telepon/DM/datang langsung) -- Marketing/Konten Fase 0.
+        Route::post('/leads', [StaffLeadController::class, 'store'])
+            ->middleware('throttle:30,1');
         Route::get('/quotations', [StaffQuotationController::class, 'index']);
         Route::get('/quotations/{id}', [StaffQuotationController::class, 'show']);
         Route::patch('/quotations/{id}/status', [StaffQuotationController::class, 'updateStatus'])

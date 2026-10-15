@@ -56,11 +56,11 @@ class ProductInquiryResource extends Resource
             && $user->hasMenuAccess(static::class);
     }
 
+    // Lead manual (mis. dari WhatsApp, telepon, atau datang langsung) dicatat staf di sini; lead dari formulir publik tetap masuk lewat API.
     public static function canCreate(): bool
     {
-        // Inquiry hanya masuk lewat form publik di web (POST /api/inquiry/submit),
-        // admin tidak perlu/tidak boleh membuat inquiry palsu dari panel.
-        return false;
+        return static::canViewAny()
+            && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
     }
 
     /**
@@ -95,15 +95,33 @@ class ProductInquiryResource extends Resource
                 ->schema([
                     Forms\Components\TextInput::make('inquiry_number')
                         ->label('No. Inquiry')
+                        ->visible(fn (string $operation) => $operation === 'edit')
                         ->disabled(),
 
                     Forms\Components\TextInput::make('customer_name')
                         ->label('Nama Customer')
-                        ->disabled(),
+                        ->required(fn (string $operation) => $operation === 'create')
+                        ->maxLength(255)
+                        ->disabled(fn (string $operation) => $operation === 'edit'),
 
                     Forms\Components\TextInput::make('customer_contact')
                         ->label('Kontak (Telepon/Email)')
-                        ->disabled(),
+                        ->required(fn (string $operation) => $operation === 'create')
+                        ->maxLength(255)
+                        ->disabled(fn (string $operation) => $operation === 'edit'),
+
+                    Forms\Components\Select::make('channel')
+                        ->label('Kanal Masuk')
+                        ->options(array_intersect_key(\App\Support\LeadAttribution::CHANNELS, array_flip(\App\Support\LeadAttribution::MANUAL_CHANNELS)))
+                        ->required()
+                        ->visible(fn (string $operation) => $operation === 'create')
+                        ->helperText('Dari mana lead ini datang. Lead dari formulir web dan aplikasi terisi otomatis.'),
+
+                    Forms\Components\Select::make('interest')
+                        ->label('Jenis Minat')
+                        ->options(['ppf' => 'PPF', 'kaca_film' => 'Kaca Film', 'detailing' => 'Detailing', 'premium_wash' => 'Premium Wash', 'color_change' => 'Color Change', 'kaca_bangunan' => 'Kaca Bangunan', 'lainnya' => 'Lainnya'])
+                        ->placeholder('Belum jelas')
+                        ->disabled(fn (string $operation) => $operation === 'edit'),
 
                     Forms\Components\Select::make('status')
                         ->label('Status Follow-up')
@@ -112,17 +130,33 @@ class ProductInquiryResource extends Resource
                             'contacted' => 'Sudah Dihubungi',
                             'closed' => 'Selesai',
                         ])
+                        ->default('new')
                         ->required(),
 
                     Forms\Components\Textarea::make('message')
                         ->label('Pertanyaan dari Customer')
-                        ->disabled()
+                        ->maxLength(2000)
+                        ->disabled(fn (string $operation) => $operation === 'edit')
                         ->columnSpanFull(),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan Internal Sales')
                         ->placeholder('Catatan follow-up, hasil komunikasi, dll — tidak terlihat oleh customer.')
                         ->columnSpanFull(),
+                ]),
+
+            Forms\Components\Section::make('Sumber Lead')
+                ->description('Dari mana lead ini datang (otomatis dari situs/aplikasi; lead manual hanya punya kanal).')
+                ->visible(fn (string $operation) => $operation === 'edit')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\Placeholder::make('channel_label')->label('Kanal')
+                        ->content(fn (?\App\Models\ProductInquiry $record) => \App\Support\LeadAttribution::CHANNELS[$record?->channel] ?? 'Tidak tercatat'),
+                    Forms\Components\Placeholder::make('utm_campaign_label')->label('Kampanye (utm_campaign)')->content(fn (?\App\Models\ProductInquiry $record) => $record?->utm_campaign ?: '—'),
+                    Forms\Components\Placeholder::make('utm_source_label')->label('Sumber (utm_source / medium)')->content(fn (?\App\Models\ProductInquiry $record) => trim(($record?->utm_source ?: '—') . ' / ' . ($record?->utm_medium ?: '—'))),
+                    Forms\Components\Placeholder::make('utm_content_label')->label('Materi (utm_content)')->content(fn (?\App\Models\ProductInquiry $record) => $record?->utm_content ?: '—'),
+                    Forms\Components\Placeholder::make('landing_label')->label('Halaman asal')->content(fn (?\App\Models\ProductInquiry $record) => $record?->landing_path ?: '—'),
+                    Forms\Components\Placeholder::make('referrer_label')->label('Perujuk')->content(fn (?\App\Models\ProductInquiry $record) => $record?->referrer ?: '—'),
                 ]),
         ]);
     }
@@ -166,12 +200,33 @@ class ProductInquiryResource extends Resource
                         default => $state,
                     }),
 
+                Tables\Columns\TextColumn::make('channel')
+                    ->label('Kanal')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => \App\Support\LeadAttribution::CHANNELS[$state] ?? 'Tidak tercatat')
+                    ->color(fn (?string $state) => $state ? 'info' : 'gray')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('utm_campaign')
+                    ->label('Kampanye')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('interest')
+                    ->label('Minat')
+                    ->formatStateUsing(fn (?string $state) => ['ppf' => 'PPF', 'kaca_film' => 'Kaca Film', 'detailing' => 'Detailing', 'premium_wash' => 'Premium Wash', 'color_change' => 'Color Change', 'kaca_bangunan' => 'Kaca Bangunan', 'lainnya' => 'Lainnya'][$state] ?? '—')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Masuk Pada')
                     ->dateTime('d M Y, H:i')
                     ->sortable(),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('channel')
+                    ->label('Kanal')
+                    ->options(\App\Support\LeadAttribution::CHANNELS),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
                     ->options([
@@ -197,6 +252,7 @@ class ProductInquiryResource extends Resource
     {
         return [
             'index' => Pages\ListProductInquiries::route('/'),
+            'create' => Pages\CreateProductInquiry::route('/create'),
             'edit' => Pages\EditProductInquiry::route('/{record}/edit'),
         ];
     }
