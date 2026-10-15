@@ -91,7 +91,7 @@ class BookingServiceTypeResourceTest extends TestCase
         $vehicleId = $this->actingAs($customer, 'customer')->postJson('/api/customer/vehicles', ['brand' => 'Toyota', 'model' => 'Avanza', 'plate' => 'B 1234 ABC'])->json('data.id');
 
         $id = $this->actingAs($customer, 'customer')->postJson('/api/customer/bookings', [
-            'store_id' => $store->id, 'services' => ['ppf'], 'customer_vehicle_id' => $vehicleId, 'preferred_date' => now()->addDays(5)->toDateString(),
+            'store_id' => $store->id, 'services' => ['ppf'], 'customer_vehicle_id' => $vehicleId, 'preferred_date' => now()->addDays(5)->toDateString(), 'privacy_consent' => true,
         ])->assertStatus(201)->json('data.id');
 
         $this->assertSame('Paint Protection Film', Booking::findOrFail($id)->service_type);

@@ -67,6 +67,7 @@ class CustomerVehicleAndBookingV2Test extends TestCase
             'services' => ['ppf'],
             'customer_vehicle_id' => $vehicleId,
             'preferred_date' => now()->addDays(5)->toDateString(),
+            'privacy_consent' => true,
         ], $overrides);
     }
 

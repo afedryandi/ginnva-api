@@ -57,6 +57,8 @@ class BookingCatalogController extends Controller
             'services' => $services,
             // Fase 4: teks kebijakan pembatalan (diedit admin di menu Teks Aplikasi), tampil di ringkasan booking.
             'cancellation_policy' => \App\Models\AppSetting::get(\App\Models\AppSetting::CANCELLATION_POLICY),
+            // Fase 5: pemberitahuan privasi + versinya; aplikasi menampilkannya dengan kotak persetujuan.
+            'privacy_notice' => \App\Models\AppSetting::privacyNotice(),
         ]]);
     }
 

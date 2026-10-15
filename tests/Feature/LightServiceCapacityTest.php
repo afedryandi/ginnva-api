@@ -70,6 +70,7 @@ class LightServiceCapacityTest extends TestCase
             'services' => $services,
             'customer_vehicle_id' => $this->vehicleId,
             'preferred_date' => $this->date,
+            'privacy_consent' => true,
         ], $overrides));
     }
 

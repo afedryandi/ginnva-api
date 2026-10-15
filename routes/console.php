@@ -37,6 +37,9 @@ Schedule::command('bookings:daily-reminders')->dailyAt('08:00')->withoutOverlapp
 // Run sore: booking yang baru dikonfirmasi/dipindah ke "besok" setelah 08:00.
 Schedule::command('bookings:daily-reminders --h1-only')->dailyAt('16:00')->withoutOverlapping();
 
+// Retensi foto kendaraan booking (24 bulan, UU PDP) -- lihat PruneBookingPhotos. Mingguan, Minggu dini hari.
+Schedule::command('bookings:prune-photos')->weeklyOn(0, '04:40')->withoutOverlapping();
+
 // Alert bahan baku menipis/kedaluwarsa/tidak bergerak yang belum
 // ditinjau — lihat App\Console\Commands\NotifyExpiringMaterials.
 Schedule::command('materials:notify-expiring')->dailyAt('07:00');

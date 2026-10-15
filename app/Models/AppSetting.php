@@ -17,12 +17,19 @@ class AppSetting extends Model
 
     public const CANCELLATION_POLICY = 'booking.cancellation_policy';
 
+    public const PRIVACY_NOTICE = 'booking.privacy_notice';
+
     /** Kunci yang dikenal: label di admin dan nilai bawaan bila baris belum ada / kosong. */
     public const DEFINITIONS = [
         self::CANCELLATION_POLICY => [
             'label' => 'Kebijakan Pembatalan Booking',
             'help' => 'Tampil di ringkasan booking pelanggan. Tulis ringkas dan tanpa janji yang tidak Anda terapkan.',
             'default' => 'Jika berhalangan, mohon ubah jadwal atau batalkan booking sedini mungkin agar slot bisa dipakai pelanggan lain. Tidak ada biaya pembatalan.',
+        ],
+        self::PRIVACY_NOTICE => [
+            'label' => 'Pemberitahuan Privasi Booking',
+            'help' => 'Tampil di ringkasan booking dengan kotak persetujuan. Mengubah isi membuat versi baru; persetujuan lama tetap tercatat pada versi yang disetujui. Sebut data yang dipakai, tujuan, masa simpan foto, dan cara meminta akses/penghapusan.',
+            'default' => 'Kami memakai nama, nomor HP, data kendaraan, dan foto kendaraan Anda hanya untuk memproses booking, pengerjaan, garansi, dan komunikasi layanan. Foto kendaraan disimpan 24 bulan setelah layanan selesai, lalu dihapus. Anda dapat meminta akses, koreksi, atau penghapusan data dengan menghubungi toko, atau menghapus akun dari aplikasi.',
         ],
     ];
 
@@ -43,6 +50,14 @@ class AppSetting extends Model
 
             return filled($value) ? (string) $value : $default;
         });
+    }
+
+    /** @return array{text: string, version: string} teks pemberitahuan privasi saat ini dan versinya (hash singkat dari teks). */
+    public static function privacyNotice(): array
+    {
+        $text = static::get(self::PRIVACY_NOTICE);
+
+        return ['text' => $text, 'version' => substr(sha1($text), 0, 8)];
     }
 
     protected static function booted(): void

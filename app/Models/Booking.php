@@ -158,6 +158,8 @@ class Booking extends Model
         // cap nego harga (lihat isWithinNegotiationCap()). Lihat migrasi
         // 2026_09_22_000012.
         'vehicle_size',
+        'consent_at',
+        'consent_version',
         'preferred_date',
         'preferred_time',
         'duration_days',
@@ -240,6 +242,8 @@ class Booking extends Model
         'cancelled_at' => 'datetime',
         'ready_at' => 'datetime',
         'no_show_at' => 'datetime',
+        'confirmed_at' => 'datetime',
+        'consent_at' => 'datetime',
         'pending_reminder_sent_at' => 'datetime',
         'transaction_amount' => 'decimal:2',
         'dpp_amount' => 'decimal:2',
@@ -1159,10 +1163,19 @@ class Booking extends Model
                 if (! static::canTransition($from, (string) $booking->status)) {
                     throw new \DomainException("Status booking tidak bisa diubah dari \"{$from}\" ke \"{$booking->status}\".");
                 }
+
+                // Fase 5: waktu konfirmasi (dasar laporan SLA), terisi sekali.
+                if ($booking->status === 'confirmed' && empty($booking->confirmed_at)) {
+                    $booking->confirmed_at = now();
+                }
             }
         });
 
         static::creating(function (Booking $booking) {
+            if ($booking->status === 'confirmed' && empty($booking->confirmed_at)) {
+                $booking->confirmed_at = now();
+            }
+
             if (empty($booking->booking_number)) {
                 $booking->booking_number = static::generateBookingNumber();
             }

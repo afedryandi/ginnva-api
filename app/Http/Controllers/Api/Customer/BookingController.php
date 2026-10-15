@@ -97,6 +97,8 @@ class BookingController extends Controller
                 'services.*'          => 'required|string|distinct|in:' . implode(',', $serviceKeys),
                 'customer_vehicle_id' => 'required|integer',
                 'notes'               => 'nullable|string|max:2000',
+                // Fase 5: persetujuan pemberitahuan privasi (UU PDP) wajib di booking v2.
+                'privacy_consent'     => 'required|accepted',
             ];
         } else {
             $rules += [
@@ -106,10 +108,14 @@ class BookingController extends Controller
                 // 'Lainnya' wajib dijelaskan (diperbaiki 2026-10-02) -- tanpa
                 // catatan staff tidak tahu jasa apa yang diminta.
                 'notes'             => 'required_if:service_type,Lainnya|nullable|string|max:2000',
+                'privacy_consent'   => 'sometimes|boolean',
             ];
         }
 
-        $validator = Validator::make($request->all(), $rules);
+        $validator = Validator::make($request->all(), $rules, [
+            'privacy_consent.accepted' => 'Anda perlu menyetujui pemberitahuan privasi untuk melanjutkan.',
+            'privacy_consent.required' => 'Anda perlu menyetujui pemberitahuan privasi untuk melanjutkan.',
+        ]);
 
         if ($validator->fails()) {
             return response()->json([
@@ -228,6 +234,13 @@ class BookingController extends Controller
             'source'         => 'app',
             'status'         => 'pending',
         ] + $flags;
+
+        if ($request->boolean('privacy_consent')) {
+            $attributes += [
+                'consent_at'      => now(),
+                'consent_version' => \App\Models\AppSetting::privacyNotice()['version'],
+            ];
+        }
 
         if ($vehicle) {
             // Salinan data kendaraan saat booking dibuat: riwayat tidak berubah kalau kendaraan diubah/dihapus kemudian.

@@ -29,4 +29,10 @@ return [
     // Fase 3B: bila true, booking baru bisa diselesaikan hanya setelah serah terima dicatat. Nyalakan bersama qc_required
     // setelah build mobile baru beredar (aplikasi lama tidak punya layar serah terima).
     'handover_required' => (bool) env('BOOKING_HANDOVER_REQUIRED', false),
+
+    // Fase 5: target lama booking pending sampai dikonfirmasi (jam), dasar laporan SLA. Sama dengan pengingat booking pending (4 jam).
+    'confirm_sla_hours' => (int) env('BOOKING_CONFIRM_SLA_HOURS', 4),
+
+    // Fase 5: masa simpan foto kendaraan (bulan) sejak tanggal layanan; lihat bookings:prune-photos. Keputusan pemilik: 24 bulan.
+    'photo_retention_months' => (int) env('BOOKING_PHOTO_RETENTION_MONTHS', 24),
 ];
