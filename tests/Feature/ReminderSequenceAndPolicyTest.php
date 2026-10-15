@@ -63,6 +63,7 @@ class ReminderSequenceAndPolicyTest extends TestCase
             $sent[] = compact('customerId', 'title', 'body', 'data');
         });
         $push->shouldReceive('sendToUsers')->andReturnNull();
+        $push->shouldReceive('sendToStoreStaff')->andReturnNull();
 
         return $sent;
     }
