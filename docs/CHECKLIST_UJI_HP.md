@@ -201,3 +201,13 @@ Prasyarat: ada booking terkonfirmasi yang semua tahap produknya sudah selesai (a
 - [ ] Setelah `BOOKING_QC_REQUIRED=true`: serah terima ditolak sebelum QC lulus.
 - [ ] Setelah `BOOKING_HANDOVER_REQUIRED=true`: "Selesaikan Booking" ditolak sebelum serah terima dicatat, berhasil sesudahnya.
 
+## I. Foto penerimaan dan tidak datang, Fase 3C (uji setelah migrasi `2026_10_19_000001` aktif)
+
+- [ ] ⚠ Detail booking (staf, terkonfirmasi) punya ikon **kamera** (Foto Penerimaan); installer tidak melihatnya.
+- [ ] Ketuk kotak Depan → kamera terbuka → foto tersimpan dan kotak menampilkan fotonya; ulangi untuk Belakang, Kiri, Kanan → teks berubah menjadi "Keempat sudut sudah difoto".
+- [ ] Foto ulang di sudut yang sama → foto lama diganti, bukan bertambah.
+- [ ] ⚠ Foto kerusakan: tombol Foto kerusakan mati sampai keterangan diisi; setelah foto, muncul di daftar dengan keterangannya; hapus foto kerusakan berhasil, foto sudut baku tidak punya tombol hapus.
+- [ ] Izin kamera ditolak → muncul penjelasan, aplikasi tidak error.
+- [ ] ⚠ Tombol **Tandai Tidak Datang** (ikon orang dicoret) hanya muncul untuk Store Manager/akses penuh pada booking confirmed yang tanggalnya hari ini atau lewat dan belum ada tahap pengerjaan; tidak muncul untuk tanggal besok.
+- [ ] Tandai Tidak Datang → konfirmasi → status booking menjadi Dibatalkan, alasan "Pelanggan tidak datang (no-show)", slot tanggal itu kembali kosong di kalender kapasitas, DP (bila ada) dikembalikan penuh.
+
