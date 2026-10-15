@@ -484,6 +484,52 @@ class BookingController extends Controller
     }
 
     /**
+     * POST /api/staff/bookings/{id}/no-show  (Fase 3C pengerjaan ulang booking, 2026-10-19)
+     *
+     * Pelanggan terkonfirmasi tidak datang. Dicatat sebagai pembatalan (status 'cancelled': slot kapasitas langsung terlepas,
+     * DP dikembalikan penuh lewat alur batal yang sudah ada) dengan penanda no_show_at supaya laporan bisa menghitung tingkat
+     * tidak-datang. Hanya Store Manager / akses penuh (sama seperti membatalkan), hanya booking confirmed yang tanggalnya
+     * hari ini atau sudah lewat, dan belum ada pengerjaan yang dimulai (pelanggan yang datang bukan no-show).
+     */
+    public function noShow(Request $request, int $id)
+    {
+        $user = $request->user('api');
+        $booking = $this->authorizeManage($user, Booking::findOrFail($id));
+
+        if (! $user->isFullAccess() && ! $user->isStoreManager()) {
+            abort(403, 'Cuma Store Manager atau akses penuh yang bisa menandai pelanggan tidak datang.');
+        }
+
+        return DB::transaction(function () use ($booking, $user) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+            if ($locked->status !== 'confirmed') {
+                abort(422, 'Hanya booking yang sudah dikonfirmasi yang bisa ditandai tidak datang.');
+            }
+
+            if ($locked->preferred_date->copy()->startOfDay()->gt(today())) {
+                abort(422, 'Tanggal booking belum tiba, jadi belum bisa ditandai tidak datang.');
+            }
+
+            if ($locked->hasWorkStarted()) {
+                abort(422, 'Pengerjaan sudah dimulai, jadi booking ini tidak bisa ditandai tidak datang.');
+            }
+
+            $locked->cancelWith('staff', $user->id, 'Pelanggan tidak datang (no-show)');
+            $locked->forceFill(['no_show_at' => now()])->saveQuietly();
+
+            app(\App\Services\DownPaymentService::class)
+                ->refundAllOnCancellation($locked->id, $user->id);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $locked->fresh(),
+                'message' => 'Booking ditandai pelanggan tidak datang dan dibatalkan.',
+            ]);
+        });
+    }
+
+    /**
      * POST /api/staff/bookings/{id}/complete
      *
      * Ditandai staff toko saat customer selesai bayar di toko — MURNI

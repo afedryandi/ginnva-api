@@ -237,6 +237,7 @@ class Booking extends Model
         'preferred_date' => 'date:Y-m-d',
         'cancelled_at' => 'datetime',
         'ready_at' => 'datetime',
+        'no_show_at' => 'datetime',
         'pending_reminder_sent_at' => 'datetime',
         'transaction_amount' => 'decimal:2',
         'dpp_amount' => 'decimal:2',
@@ -796,6 +797,12 @@ class Booking extends Model
         return $this->belongsToMany(User::class, 'booking_installers')->withTimestamps();
     }
 
+    /** Foto penerimaan kendaraan (Fase 3C): 4 sudut baku + foto kerusakan. */
+    public function intakePhotos()
+    {
+        return $this->hasMany(BookingIntakePhoto::class);
+    }
+
     /** Catatan serah terima unit (Fase 3B); satu per booking. */
     public function handover()
     {
@@ -1232,7 +1239,7 @@ class Booking extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'preferred_date', 'duration_days', 'notes', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id', 'warranty_id', 'cancel_reason', 'cancelled_by_type', 'cancelled_at'])
+            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'preferred_date', 'duration_days', 'notes', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id', 'warranty_id', 'cancel_reason', 'cancelled_by_type', 'cancelled_at', 'no_show_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('booking')

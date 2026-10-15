@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\Customer\VehicleController as CustomerVehicleContro
 use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
 use App\Http\Controllers\Api\Staff\BookingHandoverController as StaffBookingHandoverController;
+use App\Http\Controllers\Api\Staff\BookingIntakeController as StaffBookingIntakeController;
 use App\Http\Controllers\Api\Staff\BookingQcController as StaffBookingQcController;
 use App\Http\Controllers\Api\Staff\SpkController as StaffSpkController;
 use App\Http\Controllers\Api\Staff\QuotationController as StaffQuotationController;
@@ -310,6 +311,15 @@ Route::prefix('staff')->group(function () {
         Route::post('/bookings/{id}/qc', [StaffBookingQcController::class, 'store'])
             ->middleware('throttle:20,1');
         // Serah terima unit (Fase 3B): petunjuk perawatan, tanda tangan basah diterima, foto akhir.
+        // Pelanggan tidak datang (Fase 3C): batal + penanda no_show_at.
+        Route::post('/bookings/{id}/no-show', [StaffBookingController::class, 'noShow'])
+            ->middleware('throttle:20,1');
+        // Foto penerimaan kendaraan (Fase 3C): 4 sudut baku + foto kerusakan.
+        Route::get('/bookings/{id}/intake-photos', [StaffBookingIntakeController::class, 'index']);
+        Route::post('/bookings/{id}/intake-photos', [StaffBookingIntakeController::class, 'store'])
+            ->middleware('throttle:30,1');
+        Route::delete('/bookings/{id}/intake-photos/{photoId}', [StaffBookingIntakeController::class, 'destroy'])
+            ->middleware('throttle:30,1');
         Route::get('/bookings/{id}/handover', [StaffBookingHandoverController::class, 'show']);
         Route::post('/bookings/{id}/handover', [StaffBookingHandoverController::class, 'store'])
             ->middleware('throttle:20,1');
