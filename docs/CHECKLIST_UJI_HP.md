@@ -211,3 +211,13 @@ Prasyarat: ada booking terkonfirmasi yang semua tahap produknya sudah selesai (a
 - [ ] ⚠ Tombol **Tandai Tidak Datang** (ikon orang dicoret) hanya muncul untuk Store Manager/akses penuh pada booking confirmed yang tanggalnya hari ini atau lewat dan belum ada tahap pengerjaan; tidak muncul untuk tanggal besok.
 - [ ] Tandai Tidak Datang → konfirmasi → status booking menjadi Dibatalkan, alasan "Pelanggan tidak datang (no-show)", slot tanggal itu kembali kosong di kalender kapasitas, DP (bila ada) dikembalikan penuh.
 
+## J. Komunikasi Fase 4 (uji setelah migrasi `2026_10_20_000001` aktif)
+
+- [ ] ⚠ Ringkasan booking (langkah terakhir) menampilkan blok **Kebijakan Pembatalan** dengan teks dari admin; ubah teks di panel (Operasional → Teks Aplikasi), tunggu sampai 5 menit (cache), buka ulang → teks baru tampil tanpa rilis aplikasi.
+- [ ] ⚠ Booking terkonfirmasi untuk lusa → keesokan pagi (08:00) pelanggan menerima push **"Pengingat Jadwal 2 Hari Lagi"** yang menyebut layanan, toko, tanggal, jam; ketuk → terbuka Booking Saya dengan tombol ubah jadwal/batal.
+- [ ] Besok pagi → push H-1 (sore 16:00 juga bila belum terkirim); hari-H pagi → push "Jadwal Anda Hari Ini". Masing-masing hanya sekali per booking.
+- [ ] Pindah jadwal booking yang sudah diingatkan → pengingat untuk tanggal baru dikirim lagi sesuai jadwalnya.
+- [ ] Booking pending atau dibatalkan tidak menerima pengingat.
+- [ ] Staf: detail booking (pending/confirmed) punya ikon **WhatsApp**; pilih "Konfirmasi jadwal" → WhatsApp terbuka dengan chat ke nomor pelanggan dan pesan terisi (nama, layanan, toko, tanggal, jam); "Kendaraan siap diambil" hanya muncul setelah QC lulus. Pesan baru terkirim bila staf menekan kirim.
+- [ ] Nomor pelanggan berformat "08xx" atau "+62xx" sama-sama membuka chat yang benar.
+
