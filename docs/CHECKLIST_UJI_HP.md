@@ -177,3 +177,17 @@ Prasyarat: kapasitas layanan ringan per jam toko sudah diatur (form Toko, "Kapas
 - [ ] ⚠ **PPF 3 hari**: pilih toko yang hari ke-2 atau ke-3 setelah sebuah tanggal sudah penuh → tanggal mulai itu nonaktif di pemilih tanggal (bukan hanya tanggal yang penuh sendiri).
 - [ ] Staf: konfirmasi booking PPF saat installer yang masuk kerja lebih sedikit dari booking berat aktif → konfirmasi tetap berhasil dan respons memuat peringatan (cek lewat panel/aplikasi staf yang sudah menampilkannya).
 
+## G. Quality Check Fase 3A (uji setelah migrasi `2026_10_17_000001` aktif)
+
+Prasyarat: ada booking terkonfirmasi yang semua tahap produknya sudah selesai (atau tahap Quality Check sudah ditandai); satu akun Store Manager atau Leader yang BUKAN penugasan installer booking itu.
+
+- [ ] ⚠ Detail booking (staf, terkonfirmasi) punya ikon **Quality Check**; ketuk → daftar periksa tampil per layanan yang dipesan.
+- [ ] ⚠ Tandai satu butir **Tidak lulus** tanpa catatan → tombol Kirim tetap mati dan tertulis berapa butir butuh catatan; isi catatan → aktif.
+- [ ] Kirim dengan satu butir tidak lulus → pesan "Belum lulus"; pelanggan TIDAK mendapat notifikasi; buka lagi → hasil terakhir menampilkan butir yang gagal dan catatannya.
+- [ ] Periksa ulang, semua lulus → pesan "Lulus"; pelanggan menerima notifikasi "Kendaraan Siap Diambil"; di Booking Saya pelanggan label booking menjadi **Siap Diambil**.
+- [ ] ⚠ Login sebagai installer yang mengerjakan unit itu (atau leader yang ditugaskan di booking itu) → layar hanya menampilkan hasil dan alasan "tidak bisa memeriksa sendiri", tanpa tombol kirim.
+- [ ] Installer biasa tidak melihat tombol Quality Check (layar installer tidak punya aksi booking).
+- [ ] Booking layanan ringan saja (Detailing/Premium Wash) bisa diperiksa tanpa tahap kerja.
+- [ ] Panel admin: Operasional → Daftar Periksa QC; tambah/ubah/nonaktifkan butir; akun non-akses-penuh hanya bisa melihat. Setelah butir diubah, pemeriksaan berikutnya memakai daftar baru sedangkan hasil lama tetap menampilkan butir lamanya.
+- [ ] Setelah `BOOKING_QC_REQUIRED=true`: "Selesaikan Booking" ditolak bila QC terbaru belum lulus, dan berhasil setelah lulus.
+
