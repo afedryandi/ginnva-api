@@ -796,6 +796,18 @@ class Booking extends Model
         return $this->belongsToMany(User::class, 'booking_installers')->withTimestamps();
     }
 
+    /** Catatan serah terima unit (Fase 3B); satu per booking. */
+    public function handover()
+    {
+        return $this->hasOne(BookingHandover::class);
+    }
+
+    /** Tanda tangan serah terima BASAH wajib bila ada layanan berat (PPF/kaca film); layanan ringan opsional. */
+    public function requiresWetSignature(): bool
+    {
+        return collect($this->serviceKeys())->contains(fn (string $key) => BookingServiceType::categoryFor($key) === BookingServiceType::CATEGORY_HEAVY);
+    }
+
     /** Pemeriksaan Quality Check (Fase 3A), terbaru dulu. */
     public function qcResults()
     {
@@ -1035,6 +1047,11 @@ class Booking extends Model
         // Fase 3A: bila diwajibkan (config booking.qc_required), pemeriksaan QC terbaru harus LULUS.
         if (config('booking.qc_required') && ! $this->qcResults()->first()?->passed) {
             return 'Booking belum bisa diselesaikan: Quality Check (daftar periksa) belum lulus.';
+        }
+
+        // Fase 3B: bila diwajibkan (config booking.handover_required), serah terima harus sudah dicatat.
+        if (config('booking.handover_required') && ! $this->handover()->exists()) {
+            return 'Booking belum bisa diselesaikan: catat serah terima unit dulu.';
         }
 
         return null;

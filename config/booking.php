@@ -25,4 +25,8 @@ return [
     // Fase 3A: bila true, booking baru bisa diselesaikan hanya setelah Quality Check terbaru LULUS. Bawaan false supaya
     // aplikasi staf lama (yang belum punya layar QC) tetap bisa menyelesaikan booking; nyalakan setelah build baru beredar.
     'qc_required' => (bool) env('BOOKING_QC_REQUIRED', false),
+
+    // Fase 3B: bila true, booking baru bisa diselesaikan hanya setelah serah terima dicatat. Nyalakan bersama qc_required
+    // setelah build mobile baru beredar (aplikasi lama tidak punya layar serah terima).
+    'handover_required' => (bool) env('BOOKING_HANDOVER_REQUIRED', false),
 ];
