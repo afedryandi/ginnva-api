@@ -16,6 +16,13 @@ yang paling mungkin lolos dari tes otomatis. Kerjakan yang ⚠ lebih dulu.
 
 ---
 
+## Sebelum uji HP: sapuan otomatis dari command (server dev saja)
+
+Dua perintah menjalankan sebagian besar kontrak server yang dipakai aplikasi, jadi checklist HP bisa fokus pada hal yang butuh manusia (kamera, push sungguhan, tampilan):
+
+- `php artisan smoke:api` membuka semua endpoint BACA sebagai pelanggan, staf, dan partner pada data dev.
+- `php artisan smoke:flow` menjalankan alur booking lengkap lewat HTTP: pelanggan memesan (persetujuan privasi, kunci idempotensi), Store Manager mengonfirmasi, foto penerimaan, QC, serah terima, selesai, tandai tidak datang, pengingat, dan laporan SLA. Membuat data bertanda `[SMOKE]` dan membersihkannya; `--keep` mempertahankannya. Catatan: saat booking uji dibuat, staf toko dev yang berhak ikut menerima notifikasi/email "booking baru".
+
 ## A. Pelanggan (login lewat OTP email)
 
 ### A1. Tanpa login
