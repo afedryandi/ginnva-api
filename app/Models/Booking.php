@@ -227,6 +227,8 @@ class Booking extends Model
         'pending_reminder_count',
         'pending_reminder_sent_at',
         'h1_reminder_sent_at',
+        'h2_reminder_sent_at',
+        'dayof_reminder_sent_at',
     ];
 
     protected $casts = [

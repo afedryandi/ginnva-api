@@ -52,7 +52,12 @@ class BookingCatalogController extends Controller
             ];
         }
 
-        return response()->json(['success' => true, 'data' => ['vehicle_size' => $size, 'services' => $services]]);
+        return response()->json(['success' => true, 'data' => [
+            'vehicle_size' => $size,
+            'services' => $services,
+            // Fase 4: teks kebijakan pembatalan (diedit admin di menu Teks Aplikasi), tampil di ringkasan booking.
+            'cancellation_policy' => \App\Models\AppSetting::get(\App\Models\AppSetting::CANCELLATION_POLICY),
+        ]]);
     }
 
     /**

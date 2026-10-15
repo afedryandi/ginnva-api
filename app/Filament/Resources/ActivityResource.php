@@ -108,6 +108,7 @@ class ActivityResource extends Resource
     'vehicle' => 'Kendaraan',
     'booking_service_type' => 'Layanan Booking',
     'qc_checklist_item' => 'Daftar Periksa QC',
+    'app_setting' => 'Teks Aplikasi',
     'voucher' => 'Kampanye Voucher',
     'voucher_claim' => 'Voucher',
     'warning_letter' => 'Surat Peringatan',

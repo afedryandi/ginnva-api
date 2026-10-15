@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
  * Pengingat harian booking (keputusan user 2026-10-06):
  *  1. H-1: booking confirmed yang jadwalnya BESOK diingatkan ke customer dan
  *     installer yang ditugaskan (sekali per booking, h1_reminder_sent_at).
+ *  1b. Fase 4 (2026-10-20): pelanggan juga diingatkan H-2 dan pagi hari-H (h2_reminder_sent_at, dayof_reminder_sent_at),
+ *     hanya pada run penuh pagi hari (bukan --h1-only).
  *  2. Perlu tindakan: booking confirmed yang tanggalnya sudah lewat tapi
  *     belum dikerjakan (belum ada tahap) -- ringkasan ke Store Manager toko
  *     itu tiap hari sampai ditindak. TIDAK ada pembatalan/perubahan status
@@ -28,7 +30,7 @@ class SendBookingDailyReminders extends Command
         $tomorrow = Booking::where('status', 'confirmed')
             ->whereDate('preferred_date', today()->addDay())
             ->whereNull('h1_reminder_sent_at')
-            ->with('installers:id')
+            ->with(['installers:id', 'store:id,name'])
             ->get();
 
         $reminders = app(\App\Services\BookingReminderService::class);
@@ -40,6 +42,17 @@ class SendBookingDailyReminders extends Command
             $this->info("H-1: {$tomorrow->count()} booking.");
 
             return self::SUCCESS;
+        }
+
+        // H-2 dan pagi hari-H ke pelanggan (hanya run penuh).
+        $h2 = Booking::where('status', 'confirmed')->whereDate('preferred_date', today()->addDays(2))->whereNull('h2_reminder_sent_at')->with('store:id,name')->get();
+        foreach ($h2 as $b) {
+            $reminders->sendH2($b);
+        }
+
+        $dayOf = Booking::where('status', 'confirmed')->whereDate('preferred_date', today())->whereNull('dayof_reminder_sent_at')->with('store:id,name')->get();
+        foreach ($dayOf as $b) {
+            $reminders->sendDayOf($b);
         }
 
         $overdue = Booking::where('status', 'confirmed')
@@ -74,7 +87,7 @@ class SendBookingDailyReminders extends Command
             }
         }
 
-        $this->info("H-1: {$tomorrow->count()} booking. Lewat tanggal: {$overdue->flatten()->count()} booking.");
+        $this->info("H-2: {$h2->count()}, H-1: {$tomorrow->count()}, hari-H: {$dayOf->count()} booking. Lewat tanggal: {$overdue->flatten()->count()} booking.");
 
         return self::SUCCESS;
     }

@@ -97,6 +97,7 @@ class UserResource extends Resource
                 'BlockedDateResource' => 'Tanggal Tidak Tersedia',
                 'BookingServiceTypeResource' => 'Layanan Booking',
                 'QcChecklistItemResource' => 'Daftar Periksa QC',
+                'AppSettingResource' => 'Teks Aplikasi',
                 'TechnicianResource' => 'Teknisi',
                 'WarrantyResource' => 'Garansi',
                 'StoreReviewResource' => 'Review Toko',

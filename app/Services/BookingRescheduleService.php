@@ -85,7 +85,7 @@ class BookingRescheduleService
             $old = $locked->preferred_date;
             $locked->rescheduleReason = $reason !== null && trim($reason) !== '' ? trim($reason) : null;
             // Penanda pengingat H-1 direset: tanggal baru perlu diingatkan lagi.
-            $locked->forceFill(['preferred_date' => $newDate->toDateString(), 'h1_reminder_sent_at' => null])->save();
+            $locked->forceFill(['preferred_date' => $newDate->toDateString(), 'h1_reminder_sent_at' => null, 'h2_reminder_sent_at' => null, 'dayof_reminder_sent_at' => null])->save();
 
 
             // Booking Maintenance PPF: tanggal jadwal garansinya ikut pindah
