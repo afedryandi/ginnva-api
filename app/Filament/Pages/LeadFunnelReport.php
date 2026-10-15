@@ -31,7 +31,7 @@ class LeadFunnelReport extends Page implements HasForms
 
     protected static ?string $title = 'Dasbor Lead';
 
-    protected static ?int $navigationSort = 303;
+    protected static ?int $navigationSort = -4;
 
     protected static string $view = 'filament.pages.lead-funnel-report';
 

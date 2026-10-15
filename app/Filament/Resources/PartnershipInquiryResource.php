@@ -25,7 +25,7 @@ class PartnershipInquiryResource extends Resource
     // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Inquiry & Kemitraan".
     protected static ?string $navigationGroup = 'Inquiry & Kemitraan';
 
-    protected static ?int $navigationSort = 301;
+    protected static ?int $navigationSort = -2;
 
     protected static ?string $navigationLabel = 'Kemitraan & Sales Referral';
 

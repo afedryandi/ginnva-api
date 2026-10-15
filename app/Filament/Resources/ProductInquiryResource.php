@@ -21,7 +21,7 @@ class ProductInquiryResource extends Resource
     // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Inquiry & Kemitraan".
     protected static ?string $navigationGroup = 'Inquiry & Kemitraan';
 
-    protected static ?int $navigationSort = 300;
+    protected static ?int $navigationSort = -3;
 
     protected static ?string $navigationLabel = 'Inquiry Produk';
 

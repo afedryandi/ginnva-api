@@ -28,7 +28,7 @@ class PartnerResource extends Resource
     // dipindah ke PromosiCluster 2026-09-15, cluster berbeda).
     protected static ?string $navigationGroup = 'Inquiry & Kemitraan';
 
-    protected static ?int $navigationSort = 302;
+    protected static ?int $navigationSort = -1;
 
     protected static ?string $navigationLabel = 'Partner';
 
