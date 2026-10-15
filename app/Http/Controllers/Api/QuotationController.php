@@ -115,7 +115,8 @@ class QuotationController extends Controller
                 // menangani 'orWhereNull(store_id)' untuk "lead lama yang
                 // store_id-nya masih null". Staff assign toko belakangan
                 // saat follow-up. Ditemukan & diperbaiki 2026-08-29.
-                'store_id'        => 'nullable|exists:stores,id',
+                // store_id TIDAK dipakai lagi (2026-10-15): semua quotation pelanggan masuk ke toko tetap (Store::forQuotations()).
+                // Aplikasi mobile lama masih mengirimnya; nilainya diabaikan dan tidak divalidasi.
                 'customer_name'   => 'required|string|max:255',
                 // Opsional (revisi 2026-10-02) -- kontak utama WhatsApp.
                 'customer_email'  => 'nullable|email|max:255',
@@ -157,13 +158,19 @@ class QuotationController extends Controller
             ], 429);
         }
 
-        $quotation = DB::transaction(function () use ($request) {
+        $quotationStore = \App\Models\Store::forQuotations();
+
+        if (! $quotationStore) {
+            Log::warning('[Quotation] Toko tujuan quotation "' . config('quotation.store_name') . '" tidak ditemukan; quotation disimpan tanpa toko.');
+        }
+
+        $quotation = DB::transaction(function () use ($request, $quotationStore) {
             $quotationNumber = $this->generateQuotationNumber();
 
             $quotation = Quotation::create([
                 'quotation_number' => $quotationNumber,
                 'vehicle_id'       => $request->vehicle_id,
-                'store_id'         => $request->store_id,
+                'store_id'         => $quotationStore?->id,
                 'customer_name'    => $request->customer_name,
                 'customer_phone'   => $request->customer_phone,
                 'customer_email'   => $request->customer_email,

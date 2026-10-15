@@ -268,6 +268,21 @@ class Store extends Model
      * acuan "jam masuk yang diharapkan" untuk hitung telat. TIDAK
      * membedakan shift per karyawan, cuma per toko (cukup untuk Fase 1).
      */
+    /**
+     * Toko tujuan SEMUA quotation dari pelanggan (config quotation.store_name, bawaan "Ginnva House"). Dicari berdasarkan nama
+     * tanpa membedakan huruf besar/kecil; bila ada beberapa, yang aktif didahulukan. null bila tidak ada toko bernama itu.
+     */
+    public static function forQuotations(): ?self
+    {
+        $name = trim((string) config('quotation.store_name'));
+
+        if ($name === '') {
+            return null;
+        }
+
+        return static::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->orderByDesc('is_active')->orderBy('id')->first();
+    }
+
     public function openingTimeOn(\Illuminate\Support\Carbon $date): ?string
     {
         if ($this->isClosedOn($date)) {
