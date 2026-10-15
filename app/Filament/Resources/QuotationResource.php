@@ -136,6 +136,14 @@ class QuotationResource extends Resource
                         ->preload()
                         ->visible($isSuperAdmin)
                         ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id),
+
+                    // Marketing/Konten Fase 0: lead yang diinput staf wajib menyebut dari mana datangnya (lead dari web/aplikasi terisi otomatis).
+                    Forms\Components\Select::make('channel')
+                        ->label('Kanal Masuk')
+                        ->options(array_intersect_key(\App\Support\LeadAttribution::CHANNELS, array_flip(\App\Support\LeadAttribution::MANUAL_CHANNELS)))
+                        ->required()
+                        ->visible(fn (string $operation) => $operation === 'create')
+                        ->helperText('Dari mana lead ini datang (WhatsApp, telepon, datang langsung, dst.).'),
                 ]),
 
             /* ── DATA PELANGGAN ─────────────────────────────────────── */
@@ -296,6 +304,12 @@ class QuotationResource extends Resource
                     TextEntry::make('source')
                         ->label('Sumber')
                         ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Customer' : 'Input Staff'),
+                    TextEntry::make('channel')
+                        ->label('Kanal')
+                        ->state(fn (Quotation $record) => \App\Support\LeadAttribution::CHANNELS[$record->channel] ?? 'Tidak tercatat'),
+                    TextEntry::make('utm_campaign')
+                        ->label('Kampanye')
+                        ->placeholder('—'),
                 ]),
 
             InfolistSection::make('Data Pelanggan')

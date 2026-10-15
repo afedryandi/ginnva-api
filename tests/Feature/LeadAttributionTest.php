@@ -239,4 +239,26 @@ class LeadAttributionTest extends TestCase
             ->call('create')
             ->assertHasFormErrors(['channel' => 'required']);
     }
+
+    public function test_the_manual_quotation_form_requires_the_channel_and_the_detail_shows_it(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($this->staff('super_admin'), 'web');
+
+        Livewire::test(\App\Filament\Resources\QuotationResource\Pages\CreateQuotation::class)
+            ->fillForm(['customer_name' => 'Dewi', 'customer_phone' => '0812777'])
+            ->call('create')
+            ->assertHasFormErrors(['channel' => 'required']);
+
+        $quotation = Quotation::create([
+            'quotation_number' => 'INQ-TEST-1', 'vehicle_id' => $this->vehicle->id, 'customer_name' => 'Budi',
+            'customer_phone' => '0812', 'status' => 'new', 'source' => 'customer', 'channel' => 'whatsapp', 'utm_campaign' => 'ppf-h10',
+        ]);
+
+        Livewire::test(\App\Filament\Resources\QuotationResource\Pages\ViewQuotation::class, ['record' => $quotation->getKey()])
+            ->assertSuccessful()
+            ->assertSee('WhatsApp')
+            ->assertSee('ppf-h10');
+    }
 }
+
