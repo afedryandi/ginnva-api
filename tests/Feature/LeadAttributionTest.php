@@ -242,6 +242,8 @@ class LeadAttributionTest extends TestCase
 
     public function test_the_manual_quotation_form_requires_the_channel_and_the_detail_shows_it(): void
     {
+        // Izin 'quotation.manage' (buat/ubah quotation) dibagikan oleh seeder ke super_admin, sama seperti QuotationFilamentSmokeTest.
+        $this->seed(\Database\Seeders\RolePermissionSeeder::class);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $this->actingAs($this->staff('super_admin'), 'web');
 
