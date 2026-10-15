@@ -522,6 +522,36 @@ class Booking extends Model
         return array_values((array) config('booking.light_slots', []));
     }
 
+    /**
+     * Slot jam layanan ringan yang BERLAKU untuk satu toko pada satu tanggal: hanya yang seluruhnya berada di dalam jam buka
+     * toko hari itu (toko yang tutup lebih awal atau buka lebih siang tidak menawarkan jam di luar jam bukanya). Bila toko belum
+     * punya jam buka untuk hari itu, semua slot standar berlaku (perilaku sebelumnya).
+     *
+     * @return array<int, string>
+     */
+    public static function lightSlotsFor(int $storeId, Carbon $date): array
+    {
+        $store = Store::find($storeId);
+        // Jam buka tersimpan sebagai "HH:MM" atau "HH:MM:SS"; dibandingkan sebagai "HH:MM".
+        $open = $store?->openingTimeOn($date);
+        $close = $store?->closingTimeOn($date);
+
+        if (! $open || ! $close) {
+            return static::lightSlots();
+        }
+
+        $open = substr($open, 0, 5);
+        $close = substr($close, 0, 5);
+
+        return array_values(array_filter(static::lightSlots(), function (string $slot) use ($open, $close) {
+            if (! preg_match('/^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})$/', $slot, $m)) {
+                return true;
+            }
+
+            return $m[1] >= $open && $m[2] <= $close;
+        }));
+    }
+
     /** Berapa mobil layanan ringan yang bisa dikerjakan bersamaan di SATU slot jam toko ini. */
     public static function lightCapacityPerSlot(int $storeId): int
     {
@@ -567,7 +597,7 @@ class Booking extends Model
             'capacity' => $capacity,
             'used' => $usage[$slot] ?? 0,
             'available' => ! $closed && ($usage[$slot] ?? 0) < $capacity,
-        ], static::lightSlots());
+        ], static::lightSlotsFor($storeId, $date));
     }
 
     /**
@@ -577,9 +607,7 @@ class Booking extends Model
      */
     public static function lightFullDates(int $storeId, Carbon $start, Carbon $end): array
     {
-        $slots = static::lightSlots();
-
-        if (empty($slots)) {
+        if (empty(static::lightSlots())) {
             return [];
         }
 
@@ -605,6 +633,12 @@ class Booking extends Model
         $full = [];
         foreach ($byDate as $date => $perSlot) {
             if ($store?->isClosedOn(Carbon::parse($date))) {
+                continue;
+            }
+
+            $slots = static::lightSlotsFor($storeId, Carbon::parse($date));
+
+            if (empty($slots)) {
                 continue;
             }
 
@@ -638,6 +672,10 @@ class Booking extends Model
 
         if (Store::find($storeId)?->isClosedOn($date)) {
             return 'Toko tutup/libur atau tanggal diblokir pada tanggal itu. Pilih tanggal lain.';
+        }
+
+        if (! in_array($slot, static::lightSlotsFor($storeId, $date), true)) {
+            return 'Jam itu di luar jam buka toko pada tanggal tersebut. Pilih jam lain.';
         }
 
         if ($lock) {

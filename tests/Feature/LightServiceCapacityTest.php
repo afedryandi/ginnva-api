@@ -380,4 +380,47 @@ class LightServiceCapacityTest extends TestCase
         $this->assertNotContains(now()->addDays(2)->toDateString(), $three);
         $this->assertNotContains(now()->addDays(6)->toDateString(), $three);
     }
+
+    public function test_light_slots_follow_the_store_opening_hours(): void
+    {
+        $this->store->update(['opening_hours' => [['days' => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], 'open' => '10:00', 'close' => '14:00']]]);
+        $day = Carbon::parse($this->date);
+
+        $this->assertSame(['11:00 - 13:00'], Booking::lightSlotsFor($this->store->id, $day), 'Hanya slot yang seluruhnya di dalam 10:00-14:00.');
+
+        $listed = collect(Booking::lightSlotAvailability($this->store->id, $day))->pluck('slot')->all();
+        $this->assertSame(['11:00 - 13:00'], $listed);
+
+        $this->book(['premium_wash'], ['preferred_time' => '15:00 - 17:00'])->assertStatus(422);
+        $this->book(['premium_wash'], ['preferred_time' => '11:00 - 13:00'])->assertStatus(201);
+
+        $apiSlots = collect($this->getJson("/api/stores/{$this->store->id}/light-slots?date={$this->date}")->assertOk()->json('data.slots'))->pluck('slot')->all();
+        $this->assertSame(['11:00 - 13:00'], $apiSlots);
+    }
+
+    public function test_a_date_counts_as_full_when_every_slot_inside_the_opening_hours_is_taken(): void
+    {
+        $this->store->update(['opening_hours' => [['days' => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], 'open' => '10:00', 'close' => '14:00']]]);
+
+        $this->assertNotContains($this->date, Booking::lightFullDates($this->store->id, today(), today()->addDays(30)));
+
+        $this->makeBooking(['preferred_time' => '11:00 - 13:00']); // satu-satunya slot yang berlaku, kapasitas 1
+
+        $this->assertContains($this->date, Booking::lightFullDates($this->store->id, today(), today()->addDays(30)), 'Slot di luar jam buka tidak boleh menghalangi tanggal dinyatakan penuh.');
+    }
+
+    public function test_stores_without_opening_hours_keep_all_standard_slots(): void
+    {
+        $this->store->update(['opening_hours' => null]);
+
+        $this->assertSame(Booking::lightSlots(), Booking::lightSlotsFor($this->store->id, Carbon::parse($this->date)));
+    }
+
+    public function test_opening_hours_with_seconds_are_compared_correctly(): void
+    {
+        $this->store->update(['opening_hours' => [['days' => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], 'open' => '09:00:00', 'close' => '17:00:00']]]);
+
+        $this->assertSame(Booking::lightSlots(), Booking::lightSlotsFor($this->store->id, Carbon::parse($this->date)), '09:00:00-17:00:00 mencakup semua slot standar.');
+    }
 }
+
