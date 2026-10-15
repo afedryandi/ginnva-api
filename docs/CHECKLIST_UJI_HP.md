@@ -191,3 +191,13 @@ Prasyarat: ada booking terkonfirmasi yang semua tahap produknya sudah selesai (a
 - [ ] Panel admin: Operasional → Daftar Periksa QC; tambah/ubah/nonaktifkan butir; akun non-akses-penuh hanya bisa melihat. Setelah butir diubah, pemeriksaan berikutnya memakai daftar baru sedangkan hasil lama tetap menampilkan butir lamanya.
 - [ ] Setelah `BOOKING_QC_REQUIRED=true`: "Selesaikan Booking" ditolak bila QC terbaru belum lulus, dan berhasil setelah lulus.
 
+## H. Serah terima Fase 3B (uji setelah migrasi `2026_10_18_000001` aktif)
+
+- [ ] ⚠ Detail booking (staf, terkonfirmasi) punya ikon **kunci** (Serah Terima Unit); installer tidak melihatnya.
+- [ ] ⚠ Booking **PPF atau kaca film**: tombol Catat Serah Terima mati sampai petunjuk perawatan dan tanda tangan basah dicentang; teks bantuan di bawah menjelaskan yang kurang.
+- [ ] Booking **Detailing/Premium Wash**: cukup centang petunjuk perawatan; tanda tangan basah opsional.
+- [ ] Ambil foto akhir dari kamera → pratinjau tampil; simpan → foto tersimpan; buka lagi layar yang sama → ringkasan serah terima (oleh siapa, kapan, foto) tampil dan tidak ada tombol catat lagi.
+- [ ] Catat serah terima untuk booking yang sama dua kali (dari dua HP) → yang kedua ditolak dengan pesan.
+- [ ] Setelah `BOOKING_QC_REQUIRED=true`: serah terima ditolak sebelum QC lulus.
+- [ ] Setelah `BOOKING_HANDOVER_REQUIRED=true`: "Selesaikan Booking" ditolak sebelum serah terima dicatat, berhasil sesudahnya.
+
