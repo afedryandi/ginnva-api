@@ -56,7 +56,7 @@ class QuotationResource extends Resource
         // Eager-load 'items.filmProduct' — dipakai kolom "Produk Diminati"
         // di tabel (lihat audit UI/UX Filament Quotation 2026-08-27),
         // tanpa ini tiap baris akan N+1.
-        $query = parent::getEloquentQuery()->with('items.filmProduct');
+        $query = parent::getEloquentQuery()->with(['items.filmProduct', 'owner']);
 
         // Kolom sort virtual — SEBELUMNYA pakai ->defaultSort(Closure),
         // TERNYATA tidak didukung Filament v3 di sini (diam-diam
@@ -144,6 +144,30 @@ class QuotationResource extends Resource
                         ->required()
                         ->visible(fn (string $operation) => $operation === 'create')
                         ->helperText('Dari mana lead ini datang (WhatsApp, telepon, datang langsung, dst.).'),
+
+                    Forms\Components\Select::make('owner_user_id')
+                        ->label('Penanggung Jawab')
+                        ->options(fn () => \App\Models\User::query()
+                            ->where('is_active', true)
+                            ->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['installer', 'partner']))
+                            ->orderBy('name')
+                            ->pluck('name', 'id'))
+                        ->searchable()
+                        ->placeholder('Belum ditentukan')
+                        ->default(fn (string $operation) => $operation === 'create' ? auth()->id() : null),
+
+                    Forms\Components\Select::make('outcome')
+                        ->label('Hasil')
+                        ->options(\App\Support\LeadOutcome::OUTCOMES)
+                        ->placeholder('Belum ada hasil')
+                        ->live()
+                        ->helperText('Tandai Menang bila lead sudah jadi pelanggan/booking/partner, Kalah bila tidak jadi.'),
+
+                    Forms\Components\Select::make('outcome_reason')
+                        ->label('Alasan Kalah')
+                        ->options(\App\Support\LeadOutcome::REASONS)
+                        ->visible(fn (Forms\Get $get) => $get('outcome') === 'lost')
+                        ->required(fn (Forms\Get $get) => $get('outcome') === 'lost'),
                 ]),
 
             /* ── DATA PELANGGAN ─────────────────────────────────────── */
@@ -438,6 +462,18 @@ class QuotationResource extends Resource
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                Tables\Columns\TextColumn::make('owner.name')
+                    ->label('Penanggung Jawab')
+                    ->placeholder('Belum ditentukan')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('outcome')
+                    ->label('Hasil')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => $state === 'won' ? 'Menang' : ($state === 'lost' ? 'Kalah' : '—'))
+                    ->color(fn (?string $state) => match ($state) { 'won' => 'success', 'lost' => 'danger', default => 'gray' })
+                    ->toggleable(),
+
                 // Sebelumnya cuma terlihat setelah buka form — toggleable
                 // & disembunyikan default (bukan info yang selalu perlu
                 // tampil), tapi bisa dimunculkan kalau staff mau baca
@@ -454,6 +490,12 @@ class QuotationResource extends Resource
                 Tables\Filters\SelectFilter::make('channel')
                     ->label('Kanal')
                     ->options(\App\Support\LeadAttribution::CHANNELS),
+                Tables\Filters\SelectFilter::make('outcome')
+                    ->label('Hasil')
+                    ->options(\App\Support\LeadOutcome::OUTCOMES),
+                Tables\Filters\SelectFilter::make('owner_user_id')
+                    ->label('Penanggung Jawab')
+                    ->relationship('owner', 'name'),
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
                         'new'       => 'New',

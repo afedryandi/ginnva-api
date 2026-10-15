@@ -30,11 +30,21 @@ class Quotation extends Model
         'click_id',
         'landing_path',
         'referrer',
+        'owner_user_id',
+        'outcome',
+        'outcome_reason',
+        'outcome_at',
     ];
 
     protected $casts = [
         'contacted_at' => 'datetime',
+        'outcome_at' => 'datetime',
     ];
+
+    public function owner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'owner_user_id');
+    }
 
     public function vehicle()
     {

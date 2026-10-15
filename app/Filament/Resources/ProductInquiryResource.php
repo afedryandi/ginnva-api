@@ -87,6 +87,12 @@ class ProductInquiryResource extends Resource
             || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
     }
 
+    // Kolom Penanggung Jawab memuat relasi owner: di-eager-load supaya tidak N+1 per baris.
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()->with('owner');
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -132,6 +138,30 @@ class ProductInquiryResource extends Resource
                         ])
                         ->default('new')
                         ->required(),
+
+                    Forms\Components\Select::make('owner_user_id')
+                        ->label('Penanggung Jawab')
+                        ->options(fn () => \App\Models\User::query()
+                            ->where('is_active', true)
+                            ->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['installer', 'partner']))
+                            ->orderBy('name')
+                            ->pluck('name', 'id'))
+                        ->searchable()
+                        ->placeholder('Belum ditentukan')
+                        ->default(fn (string $operation) => $operation === 'create' ? auth()->id() : null),
+
+                    Forms\Components\Select::make('outcome')
+                        ->label('Hasil')
+                        ->options(\App\Support\LeadOutcome::OUTCOMES)
+                        ->placeholder('Belum ada hasil')
+                        ->live()
+                        ->helperText('Tandai Menang bila lead sudah jadi pelanggan/booking/partner, Kalah bila tidak jadi.'),
+
+                    Forms\Components\Select::make('outcome_reason')
+                        ->label('Alasan Kalah')
+                        ->options(\App\Support\LeadOutcome::REASONS)
+                        ->visible(fn (Forms\Get $get) => $get('outcome') === 'lost')
+                        ->required(fn (Forms\Get $get) => $get('outcome') === 'lost'),
 
                     Forms\Components\Textarea::make('message')
                         ->label('Pertanyaan dari Customer')
@@ -213,6 +243,18 @@ class ProductInquiryResource extends Resource
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                Tables\Columns\TextColumn::make('owner.name')
+                    ->label('Penanggung Jawab')
+                    ->placeholder('Belum ditentukan')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('outcome')
+                    ->label('Hasil')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => $state === 'won' ? 'Menang' : ($state === 'lost' ? 'Kalah' : '—'))
+                    ->color(fn (?string $state) => match ($state) { 'won' => 'success', 'lost' => 'danger', default => 'gray' })
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('interest')
                     ->label('Minat')
                     ->formatStateUsing(fn (?string $state) => ['ppf' => 'PPF', 'kaca_film' => 'Kaca Film', 'detailing' => 'Detailing', 'premium_wash' => 'Premium Wash', 'color_change' => 'Color Change', 'kaca_bangunan' => 'Kaca Bangunan', 'lainnya' => 'Lainnya'][$state] ?? '—')
@@ -227,6 +269,12 @@ class ProductInquiryResource extends Resource
                 Tables\Filters\SelectFilter::make('channel')
                     ->label('Kanal')
                     ->options(\App\Support\LeadAttribution::CHANNELS),
+                Tables\Filters\SelectFilter::make('outcome')
+                    ->label('Hasil')
+                    ->options(\App\Support\LeadOutcome::OUTCOMES),
+                Tables\Filters\SelectFilter::make('owner_user_id')
+                    ->label('Penanggung Jawab')
+                    ->relationship('owner', 'name'),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
                     ->options([

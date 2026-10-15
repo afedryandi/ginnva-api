@@ -85,6 +85,10 @@ Schedule::command('attendance:mark-absences')->dailyAt('01:00');
 // App\Console\Commands\NotifyStaleQuotations.
 Schedule::command('quotations:notify-stale')->dailyAt('08:00');
 
+// Alert lead Inquiry Produk & Kemitraan yang belum ditindak melewati target respons — lihat
+// App\Console\Commands\RemindStaleLeads.
+Schedule::command('leads:remind-stale')->dailyAt('08:00')->withoutOverlapping();
+
 // Alert garansi yang akan berakhir (bell staff + push customer H-30/H-7) —
 // lihat App\Console\Commands\NotifyExpiringWarranties.
 Schedule::command('warranty:notify-expiring')->dailyAt('08:00');

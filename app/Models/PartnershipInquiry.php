@@ -22,6 +22,11 @@ class PartnershipInquiry extends Model
             ->useLogName('partnership_inquiry');
     }
 
+    protected $casts = [
+        'contacted_at' => 'datetime',
+        'outcome_at' => 'datetime',
+    ];
+
     protected $fillable = [
         'customer_id',
         'category',
@@ -44,6 +49,11 @@ class PartnershipInquiry extends Model
         'click_id',
         'landing_path',
         'referrer',
+        'owner_user_id',
+        'outcome',
+        'outcome_reason',
+        'outcome_at',
+        'contacted_at',
     ];
 
     public function customer()
@@ -54,5 +64,10 @@ class PartnershipInquiry extends Model
     public function partner()
     {
         return $this->belongsTo(Partner::class);
+    }
+
+    public function owner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'owner_user_id');
     }
 }

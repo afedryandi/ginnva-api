@@ -25,6 +25,12 @@ class QuotationObserver
      * itu — contacted_at mewakili "kapan PERTAMA kali direspons", bukan
      * "terakhir diubah".
      */
+    /** Hasil lead (Marketing/Konten Fase 1): outcome_at terisi otomatis, alasan hanya untuk "kalah". */
+    public function saving(Quotation $quotation): void
+    {
+        \App\Support\LeadOutcome::sync($quotation);
+    }
+
     public function updating(Quotation $quotation): void
     {
         if ($quotation->isDirty('status')

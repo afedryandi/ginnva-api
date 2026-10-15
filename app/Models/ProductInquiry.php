@@ -25,6 +25,11 @@ class ProductInquiry extends Model
             ->useLogName('product_inquiry');
     }
 
+    protected $casts = [
+        'contacted_at' => 'datetime',
+        'outcome_at' => 'datetime',
+    ];
+
     protected $fillable = [
         'inquiry_number',
         'customer_name',
@@ -42,6 +47,11 @@ class ProductInquiry extends Model
         'click_id',
         'landing_path',
         'referrer',
+        'owner_user_id',
+        'outcome',
+        'outcome_reason',
+        'outcome_at',
+        'contacted_at',
     ];
 
     /**
@@ -69,5 +79,10 @@ class ProductInquiry extends Model
         } while (static::where('inquiry_number', $candidate)->exists());
 
         return $candidate;
+    }
+
+    public function owner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'owner_user_id');
     }
 }

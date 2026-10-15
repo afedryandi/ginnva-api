@@ -19,6 +19,20 @@ use Filament\Notifications\Notification;
  */
 class ProductInquiryObserver
 {
+    /** Hasil lead (Marketing/Konten Fase 1): outcome_at terisi otomatis, alasan hanya untuk "kalah". */
+    public function saving(ProductInquiry $inquiry): void
+    {
+        \App\Support\LeadOutcome::sync($inquiry);
+    }
+
+    /** contacted_at = kapan lead PERTAMA kali ditindak (status berganti dari 'new'); tidak ditimpa lagi sesudahnya. */
+    public function updating(ProductInquiry $inquiry): void
+    {
+        if ($inquiry->isDirty('status') && $inquiry->getOriginal('status') === 'new' && $inquiry->status !== 'new' && ! $inquiry->contacted_at) {
+            $inquiry->contacted_at = now();
+        }
+    }
+
     public function created(ProductInquiry $inquiry): void
     {
         // Lead yang dicatat staf sendiri (mis. dari WhatsApp) tidak perlu memberi tahu staf lain: sudah ditangani pencatatnya.

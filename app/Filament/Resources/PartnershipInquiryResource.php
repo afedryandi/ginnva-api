@@ -139,6 +139,30 @@ class PartnershipInquiryResource extends Resource
                         ])
                         ->required(),
 
+                    Forms\Components\Select::make('owner_user_id')
+                        ->label('Penanggung Jawab')
+                        ->options(fn () => \App\Models\User::query()
+                            ->where('is_active', true)
+                            ->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['installer', 'partner']))
+                            ->orderBy('name')
+                            ->pluck('name', 'id'))
+                        ->searchable()
+                        ->placeholder('Belum ditentukan')
+                        ->default(fn (string $operation) => $operation === 'create' ? auth()->id() : null),
+
+                    Forms\Components\Select::make('outcome')
+                        ->label('Hasil')
+                        ->options(\App\Support\LeadOutcome::OUTCOMES)
+                        ->placeholder('Belum ada hasil')
+                        ->live()
+                        ->helperText('Tandai Menang bila lead sudah jadi pelanggan/booking/partner, Kalah bila tidak jadi.'),
+
+                    Forms\Components\Select::make('outcome_reason')
+                        ->label('Alasan Kalah')
+                        ->options(\App\Support\LeadOutcome::REASONS)
+                        ->visible(fn (Forms\Get $get) => $get('outcome') === 'lost')
+                        ->required(fn (Forms\Get $get) => $get('outcome') === 'lost'),
+
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan Internal')
                         ->placeholder('Catatan follow-up, hasil komunikasi, dll — tidak terlihat oleh pemohon.')
@@ -154,7 +178,7 @@ class PartnershipInquiryResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with('partner');
+        return parent::getEloquentQuery()->with(['partner', 'owner']);
     }
 
     public static function table(Table $table): Table
@@ -252,6 +276,18 @@ class PartnershipInquiryResource extends Resource
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                Tables\Columns\TextColumn::make('owner.name')
+                    ->label('Penanggung Jawab')
+                    ->placeholder('Belum ditentukan')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('outcome')
+                    ->label('Hasil')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => $state === 'won' ? 'Menang' : ($state === 'lost' ? 'Kalah' : '—'))
+                    ->color(fn (?string $state) => match ($state) { 'won' => 'success', 'lost' => 'danger', default => 'gray' })
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Diajukan')
                     ->dateTime('d M Y, H:i')
@@ -261,6 +297,12 @@ class PartnershipInquiryResource extends Resource
                 Tables\Filters\SelectFilter::make('channel')
                     ->label('Kanal')
                     ->options(\App\Support\LeadAttribution::CHANNELS),
+                Tables\Filters\SelectFilter::make('outcome')
+                    ->label('Hasil')
+                    ->options(\App\Support\LeadOutcome::OUTCOMES),
+                Tables\Filters\SelectFilter::make('owner_user_id')
+                    ->label('Penanggung Jawab')
+                    ->relationship('owner', 'name'),
                 Tables\Filters\SelectFilter::make('category')
                     ->label('Kategori')
                     ->options([

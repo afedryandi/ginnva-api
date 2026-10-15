@@ -18,6 +18,20 @@ use Filament\Notifications\Notification;
  */
 class PartnershipInquiryObserver
 {
+    /** Hasil lead (Marketing/Konten Fase 1): outcome_at terisi otomatis, alasan hanya untuk "kalah". */
+    public function saving(PartnershipInquiry $inquiry): void
+    {
+        \App\Support\LeadOutcome::sync($inquiry);
+    }
+
+    /** contacted_at = kapan lead PERTAMA kali ditindak (status berganti dari 'new'); tidak ditimpa lagi sesudahnya. */
+    public function updating(PartnershipInquiry $inquiry): void
+    {
+        if ($inquiry->isDirty('status') && $inquiry->getOriginal('status') === 'new' && $inquiry->status !== 'new' && ! $inquiry->contacted_at) {
+            $inquiry->contacted_at = now();
+        }
+    }
+
     public function created(PartnershipInquiry $inquiry): void
     {
         $recipients = User::where('is_active', true)->get()->filter(fn (User $user) => $user->isFullAccess()
