@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CustomerNotification extends Model
 {
-    protected $fillable = ['customer_id', 'title', 'body', 'data', 'read_at', 'sent_by'];
+    protected $fillable = ['customer_id', 'title', 'body', 'data', 'read_at', 'sent_by', 'category', 'campaign_key'];
 
     protected $casts = [
         'data'    => 'array',

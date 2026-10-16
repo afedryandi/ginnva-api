@@ -179,6 +179,11 @@ class CarouselResource extends Resource
                     ->label('Tampil')
                     ->boolean(),
 
+                Tables\Columns\TextColumn::make('click_count')
+                    ->label('Klik')
+                    ->numeric()
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('airing')
                     ->label('Status Tayang')
                     ->badge()

@@ -9,4 +9,7 @@
  */
 return [
     'lead_response_sla_hours' => max(1, (int) env('LEAD_RESPONSE_SLA_HOURS', 24)),
+
+    // Fase 5: batas kiriman promosi (kampanye) per 7 hari ke pelanggan; mencegah pelanggan kebanjiran lalu mematikan semua notifikasi.
+    'promo_max_campaigns_per_week' => max(1, (int) env('PROMO_MAX_CAMPAIGNS_PER_WEEK', 2)),
 ];

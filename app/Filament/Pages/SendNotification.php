@@ -57,7 +57,7 @@ class SendNotification extends Page implements HasForms
 
     public function mount(): void
     {
-        $this->form->fill(['audience' => 'customer', 'broadcast' => true]);
+        $this->form->fill(['audience' => 'customer', 'broadcast' => true, 'category' => 'promo']);
     }
 
     public function form(Form $form): Form
@@ -74,6 +74,20 @@ class SendNotification extends Page implements HasForms
                     ->inline()
                     ->live()
                     ->required(),
+
+                Radio::make('category')
+                    ->label('Jenis Pesan')
+                    ->options([
+                        'promo' => 'Promosi (diskon, penawaran, ajakan membeli)',
+                        'info'  => 'Informasi penting (jadwal, perubahan layanan, pemberitahuan)',
+                    ])
+                    ->descriptions([
+                        'promo' => 'Hanya dikirim ke pelanggan yang sudah menyetujui menerima promo di aplikasi. Dibatasi beberapa kali per minggu.',
+                        'info'  => 'Dikirim ke semua pelanggan. Jangan dipakai untuk promosi.',
+                    ])
+                    ->default('promo')
+                    ->required()
+                    ->visible(fn ($get) => $get('audience') === 'customer'),
 
                 TextInput::make('title')
                     ->label('Judul Notifikasi')
@@ -221,6 +235,7 @@ class SendNotification extends Page implements HasForms
             'body'         => $state['body'],
             'customer_ids' => empty($state['broadcast']) ? ($state['customer_ids'] ?? []) : null,
             'data'         => $deepLinkData,
+            'category'     => ($state['category'] ?? 'promo') === 'info' ? 'info' : 'promo',
         ]);
 
         // $controller->send() dipanggil langsung (bukan lewat HTTP kernel),
@@ -254,12 +269,24 @@ class SendNotification extends Page implements HasForms
         $sent   = $result['sent']   ?? 0;
         $failed = $result['failed'] ?? 0;
 
+        $title = "Terkirim: {$sent} perangkat" . ($failed > 0 ? ", gagal: {$failed}" : '');
+        $body = null;
+
+        if (isset($result['recipients'])) {
+            $title = "Promosi dikirim ke {$result['recipients']} pelanggan yang setuju promo ({$sent} perangkat)" . ($failed > 0 ? ", gagal: {$failed}" : '');
+            $body = ($result['skipped'] ?? 0) > 0 ? "{$result['skipped']} pelanggan yang dipilih dilewati karena belum menyetujui promo." : null;
+            if (($result['recipients'] ?? 0) === 0) {
+                $title = $result['message'] ?? 'Tidak ada penerima.';
+            }
+        }
+
         Notification::make()
-            ->title("Terkirim: {$sent} perangkat" . ($failed > 0 ? ", gagal: {$failed}" : ''))
+            ->title($title)
+            ->body($body)
             ->success()
             ->send();
 
-        $this->form->fill(['audience' => 'customer', 'broadcast' => true]);
+        $this->form->fill(['audience' => 'customer', 'broadcast' => true, 'category' => 'promo']);
     }
 
     /**

@@ -32,6 +32,7 @@ class Carousel extends Model
         'is_active',
         'starts_at',
         'ends_at',
+        'click_count',
         'sort_order',
     ];
 

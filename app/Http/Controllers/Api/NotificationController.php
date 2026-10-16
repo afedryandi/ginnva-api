@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Customer;
 use App\Models\CustomerNotification;
 use App\Models\CustomerNotificationRead;
 use App\Models\DeviceToken;
@@ -423,6 +424,74 @@ class NotificationController extends Controller
     }
 
     /**
+     * Promosi ke pelanggan (Marketing/Konten Fase 5): HANYA pelanggan yang menyetujui promo (customers.promo_opt_in), dibatasi
+     * jumlah kampanye per 7 hari. Riwayat dibuat per pelanggan penerima (bukan satu baris broadcast), jadi pelanggan yang tidak
+     * menyetujui tidak pernah melihatnya di daftar notifikasi.
+     */
+    private function sendPromo(Request $request)
+    {
+        $max = (int) config('marketing.promo_max_campaigns_per_week', 2);
+        $recent = CustomerNotification::where('category', 'promo')
+            ->whereNotNull('campaign_key')
+            ->where('created_at', '>=', now()->subDays(7))
+            ->distinct()
+            ->count('campaign_key');
+
+        if ($recent >= $max) {
+            return response()->json([
+                'success' => false,
+                'message' => "Batas promosi tercapai: maksimal {$max} kiriman promosi per 7 hari (sudah {$recent}). Tunggu sampai kiriman terlama lewat 7 hari, atau kirim sebagai Informasi penting bila memang bukan promosi.",
+            ], 429);
+        }
+
+        $targeted = array_values(array_unique($request->input('customer_ids') ?? []));
+        $query = Customer::query()->where('promo_opt_in', true);
+
+        if (! empty($targeted)) {
+            $query->whereIn('id', $targeted);
+        }
+
+        $ids = $query->pluck('id');
+        $skipped = ! empty($targeted) ? count($targeted) - $ids->count() : 0;
+
+        if ($ids->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Tidak ada pelanggan yang menyetujui menerima promo, jadi tidak ada yang dikirimi.',
+                'sent' => 0, 'failed' => 0, 'recipients' => 0, 'skipped' => $skipped,
+            ]);
+        }
+
+        $campaignKey = (string) \Illuminate\Support\Str::uuid();
+        $now = now();
+        $sentBy = auth()->id();
+        $data = $request->data ? json_encode($request->data) : null;
+
+        foreach ($ids->chunk(500) as $chunk) {
+            CustomerNotification::insert($chunk->map(fn ($id) => [
+                'customer_id' => $id, 'title' => $request->title, 'body' => $request->body, 'data' => $data,
+                'sent_by' => $sentBy, 'category' => 'promo', 'campaign_key' => $campaignKey,
+                'created_at' => $now, 'updated_at' => $now,
+            ])->all());
+        }
+
+        $tokens = DeviceToken::whereIn('customer_id', $ids)->pluck('token')->toArray();
+        $result = empty($tokens)
+            ? ['sent' => 0, 'failed' => 0]
+            : app(PushNotificationService::class)->pushToTokens($tokens, $request->title, $request->body, $request->data ?? []);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Done.',
+            'sent' => $result['sent'],
+            'failed' => $result['failed'],
+            'recipients' => $ids->count(),
+            'skipped' => $skipped,
+            'campaign_key' => $campaignKey,
+        ]);
+    }
+
+    /**
      * Kirim notifikasi via Expo Push Service dan simpan ke history.
      */
     public function send(Request $request)
@@ -439,7 +508,13 @@ class NotificationController extends Controller
             // whereNull('deleted_at'): akun yang sudah dihapus (dianonimkan) bukan penerima yang sah.
             'customer_ids.*' => ['integer', \Illuminate\Validation\Rule::exists('customers', 'id')->whereNull('deleted_at')],
             'data'           => 'nullable|array',
+            'category'       => 'nullable|in:info,promo',
         ]);
+
+        // Promosi punya aturan sendiri (opt-in eksplisit + batas frekuensi); pesan informasi tetap seperti sebelumnya.
+        if ($request->input('category') === 'promo') {
+            return $this->sendPromo($request);
+        }
 
         // SEBELUMNYA broadcast ("kirim ke semua pengguna") tidak difilter
         // sama sekali — device_tokens adalah tabel GABUNGAN (customer_id

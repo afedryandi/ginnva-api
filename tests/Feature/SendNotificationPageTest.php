@@ -136,7 +136,7 @@ class SendNotificationPageTest extends TestCase
         $admin = $this->as($this->user('super_admin'));
 
         Livewire::test(SendNotification::class)
-            ->fillForm(['audience' => 'customer', 'title' => 'Promo Spesial', 'body' => 'Diskon 20% PPF bulan ini', 'broadcast' => true])
+            ->fillForm(['audience' => 'customer', 'category' => 'info', 'title' => 'Promo Spesial', 'body' => 'Diskon 20% PPF bulan ini', 'broadcast' => true])
             ->call('send')
             ->assertNotified('Terkirim: 2 perangkat');
 
@@ -155,7 +155,7 @@ class SendNotificationPageTest extends TestCase
         $this->as($this->user('super_admin'));
 
         Livewire::test(SendNotification::class)
-            ->fillForm(['audience' => 'customer', 'title' => 'Halo', 'body' => 'Pesan pribadi', 'broadcast' => false, 'customer_ids' => [$a->id, $b->id]])
+            ->fillForm(['audience' => 'customer', 'category' => 'info', 'title' => 'Halo', 'body' => 'Pesan pribadi', 'broadcast' => false, 'customer_ids' => [$a->id, $b->id]])
             ->call('send')
             ->assertNotified('Terkirim: 2 perangkat');
 
@@ -170,7 +170,7 @@ class SendNotificationPageTest extends TestCase
         $this->as($this->user('super_admin'));
 
         Livewire::test(SendNotification::class)
-            ->fillForm(['audience' => 'customer', 'title' => 'Halo', 'body' => 'Tanpa perangkat', 'broadcast' => true])
+            ->fillForm(['audience' => 'customer', 'category' => 'info', 'title' => 'Halo', 'body' => 'Tanpa perangkat', 'broadcast' => true])
             ->call('send')
             ->assertNotified('Terkirim: 0 perangkat');
 
@@ -185,7 +185,7 @@ class SendNotificationPageTest extends TestCase
         $this->as($this->user('super_admin'));
 
         Livewire::test(SendNotification::class)
-            ->fillForm(['audience' => 'customer', 'title' => 'Halo', 'body' => 'Uji', 'broadcast' => true])
+            ->fillForm(['audience' => 'customer', 'category' => 'info', 'title' => 'Halo', 'body' => 'Uji', 'broadcast' => true])
             ->call('send')
             ->assertNotified('Terkirim: 1 perangkat, gagal: 1');
 
@@ -198,7 +198,7 @@ class SendNotificationPageTest extends TestCase
         $this->as($this->user('super_admin'));
 
         Livewire::test(SendNotification::class)
-            ->fillForm(['audience' => 'customer', 'title' => 'Halo', 'body' => 'Uji', 'broadcast' => true])
+            ->fillForm(['audience' => 'customer', 'category' => 'info', 'title' => 'Halo', 'body' => 'Uji', 'broadcast' => true])
             ->call('send')
             ->assertFormSet(['audience' => 'customer', 'broadcast' => true, 'title' => null]);
     }
@@ -211,17 +211,17 @@ class SendNotificationPageTest extends TestCase
         $this->as($this->user('super_admin'));
 
         Livewire::test(SendNotification::class)
-            ->fillForm(['audience' => 'customer', 'title' => 'Booking Anda', 'body' => 'Cek status', 'broadcast' => true, 'deep_link_route' => '/account/my-bookings', 'deep_link_param_id' => 42])
+            ->fillForm(['audience' => 'customer', 'category' => 'info', 'title' => 'Booking Anda', 'body' => 'Cek status', 'broadcast' => true, 'deep_link_route' => '/account/my-bookings', 'deep_link_param_id' => 42])
             ->call('send');
         $this->assertSame(['route' => '/account/my-bookings', 'params' => ['id' => '42']], CustomerNotification::latest('id')->firstOrFail()->data);
 
         Livewire::test(SendNotification::class)
-            ->fillForm(['audience' => 'customer', 'title' => 'Berita', 'body' => 'Baca', 'broadcast' => true, 'deep_link_route' => '/news', 'deep_link_param_id' => 99])
+            ->fillForm(['audience' => 'customer', 'category' => 'info', 'title' => 'Berita', 'body' => 'Baca', 'broadcast' => true, 'deep_link_route' => '/news', 'deep_link_param_id' => 99])
             ->call('send');
         $this->assertSame(['route' => '/news'], CustomerNotification::latest('id')->firstOrFail()->data, 'ID basi tidak ikut untuk rute yang tidak memerlukannya.');
 
         Livewire::test(SendNotification::class)
-            ->fillForm(['audience' => 'customer', 'title' => 'Tanpa Link', 'body' => 'Biasa', 'broadcast' => true])
+            ->fillForm(['audience' => 'customer', 'category' => 'info', 'title' => 'Tanpa Link', 'body' => 'Biasa', 'broadcast' => true])
             ->call('send');
         $this->assertEmpty(CustomerNotification::latest('id')->firstOrFail()->data);
     }
@@ -231,7 +231,7 @@ class SendNotificationPageTest extends TestCase
         $this->as($this->user('super_admin'));
 
         Livewire::test(SendNotification::class)
-            ->fillForm(['audience' => 'customer', 'title' => 'Halo', 'body' => 'Uji', 'broadcast' => true, 'deep_link_route' => '/admin/rahasia'])
+            ->fillForm(['audience' => 'customer', 'category' => 'info', 'title' => 'Halo', 'body' => 'Uji', 'broadcast' => true, 'deep_link_route' => '/admin/rahasia'])
             ->call('send')
             ->assertHasFormErrors(['deep_link_route']);
 
@@ -280,7 +280,7 @@ class SendNotificationPageTest extends TestCase
     public function test_form_validation(): void
     {
         $this->as($this->user('super_admin'));
-        $valid = ['audience' => 'customer', 'title' => 'Halo', 'body' => 'Uji', 'broadcast' => true];
+        $valid = ['audience' => 'customer', 'category' => 'info', 'title' => 'Halo', 'body' => 'Uji', 'broadcast' => true];
 
         Livewire::test(SendNotification::class)->fillForm(array_merge($valid, ['title' => '']))->call('send')->assertHasFormErrors(['title' => 'required']);
         Livewire::test(SendNotification::class)->fillForm(array_merge($valid, ['title' => str_repeat('a', 201)]))->call('send')->assertHasFormErrors(['title' => 'max']);
@@ -301,7 +301,7 @@ class SendNotificationPageTest extends TestCase
         $this->as($this->user('super_admin'));
 
         Livewire::test(SendNotification::class)
-            ->fillForm(['audience' => 'customer', 'title' => 'Halo', 'body' => 'Uji', 'broadcast' => false, 'customer_ids' => [$gone->id]])
+            ->fillForm(['audience' => 'customer', 'category' => 'info', 'title' => 'Halo', 'body' => 'Uji', 'broadcast' => false, 'customer_ids' => [$gone->id]])
             ->call('send');
 
         $this->assertSame(0, CustomerNotification::count(), 'Tidak ada riwayat untuk akun terhapus.');

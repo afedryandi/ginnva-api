@@ -61,6 +61,7 @@ Route::get('/booking/services', [BookingCatalogController::class, 'services'])->
 Route::get('/vehicles/catalog', [VehicleCatalogController::class, 'index'])->middleware('throttle:30,1');
 
 Route::get('/carousels', [CarouselController::class, 'index']);
+Route::post('/carousels/{id}/click', [CarouselController::class, 'click'])->middleware('throttle:30,1');
 Route::get('/featured-products', [FeaturedProductController::class, 'index']);
 Route::get('/featured-products/all', [FeaturedProductController::class, 'all']);
 Route::get('/materials', [MaterialController::class, 'index']);
@@ -555,6 +556,9 @@ Route::middleware('auth:customer')->group(function () {
     Route::post('/customer/notifications/read-all', [NotificationController::class, 'markAllRead'])
         ->middleware('throttle:20,1');
     Route::get('/customer/points', [PointController::class, 'index']);
+    Route::get('/customer/promo-preference', [\App\Http\Controllers\Api\Customer\PromoPreferenceController::class, 'show']);
+    Route::put('/customer/promo-preference', [\App\Http\Controllers\Api\Customer\PromoPreferenceController::class, 'update'])
+        ->middleware('throttle:20,1');
 });
 
 /*

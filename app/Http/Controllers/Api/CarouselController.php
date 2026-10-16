@@ -38,6 +38,17 @@ class CarouselController extends Controller
         ]);
     }
 
+    /**
+     * POST /api/carousels/{id}/click -- menghitung ketukan banner (Marketing/Konten Fase 5). Hanya banner yang sedang tayang yang dihitung;
+     * angka kasar (tanpa identitas pengguna), cukup untuk membandingkan banner.
+     */
+    public function click(int $id): JsonResponse
+    {
+        $counted = Carousel::live()->whereKey($id)->increment('click_count');
+
+        return response()->json(['success' => true, 'counted' => $counted > 0]);
+    }
+
     private function transform($carousels)
     {
         return $carousels->map(fn ($c) => [

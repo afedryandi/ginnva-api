@@ -436,12 +436,22 @@ class CustomerResource extends Resource
                     ->counts('referrals')
                     ->toggleable(),
 
+                Tables\Columns\IconColumn::make('promo_opt_in')
+                    ->label('Setuju Promo')
+                    ->boolean()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Daftar Pada')
                     ->dateTime('d M Y')
                     ->sortable(),
             ])
             ->filters([
+                Tables\Filters\TernaryFilter::make('promo_opt_in')
+                    ->label('Setuju Promo')
+                    ->placeholder('Semua')
+                    ->trueLabel('Setuju')
+                    ->falseLabel('Belum setuju'),
                 Tables\Filters\TernaryFilter::make('deleted_at')
                     ->label('Status Akun')
                     ->placeholder('Semua')
