@@ -24,7 +24,7 @@ use Tests\TestCase;
 
 /**
  * Marketing/Konten Fase 3 "Bukti sosial" (2026-10-25): izin foto pelanggan dicatat saat serah terima (bawaan TIDAK), foto pekerjaan hanya
- * bisa dinominasikan ke galeri dengan izin aktif, dan materi dari booking baru tayang bila plat diburamkan dan teks alternatif terisi.
+ * bisa dinominasikan ke galeri dengan izin aktif, dan materi dari booking baru tayang bila plat tertutup stiker dan teks alternatif terisi.
  */
 class PhotoConsentGalleryTest extends TestCase
 {
@@ -158,7 +158,7 @@ class PhotoConsentGalleryTest extends TestCase
 
     // ------------------------------------------------------------- syarat tayang
 
-    public function test_booking_material_only_goes_live_with_consent_blurred_plate_and_alt_text(): void
+    public function test_booking_material_only_goes_live_with_consent_covered_plate_and_alt_text(): void
     {
         $case = app(GalleryNominationService::class)->nominate($this->handedOver());
 

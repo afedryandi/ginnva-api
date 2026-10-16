@@ -18,7 +18,7 @@ class EditCaseStudy extends EditRecord
         ];
     }
 
-    /** Materi dari booking tidak boleh ditayangkan tanpa izin aktif, plat diburamkan, dan teks alternatif (lihat CaseStudy::activationBlocker()). */
+    /** Materi dari booking tidak boleh ditayangkan tanpa izin aktif, plat tertutup stiker, dan teks alternatif (lihat CaseStudy::activationBlocker()). */
     protected function beforeSave(): void
     {
         $probe = (clone $this->record)->fill($this->form->getState());

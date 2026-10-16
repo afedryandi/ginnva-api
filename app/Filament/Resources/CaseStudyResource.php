@@ -157,8 +157,8 @@ class CaseStudyResource extends Resource
                         ->columnSpanFull(),
 
                     Forms\Components\Toggle::make('plate_blurred')
-                        ->label('Plat nomor sudah diburamkan')
-                        ->helperText('Centang hanya setelah foto yang diunggah di atas adalah versi dengan plat nomor diburamkan. Wajib untuk materi dari booking.')
+                        ->label('Plat nomor tertutup stiker di foto')
+                        ->helperText('Centang hanya bila foto yang diunggah di atas memperlihatkan plat nomor tertutup stiker. Bila plat masih terlihat, unggah foto lain yang platnya tertutup. Wajib untuk materi dari booking.')
                         ->visible(fn (?CaseStudy $record) => (bool) $record?->booking_id),
 
                     Forms\Components\Placeholder::make('consent_info')
@@ -169,7 +169,7 @@ class CaseStudyResource extends Resource
                     Forms\Components\Toggle::make('is_active')
                         ->label('Tampilkan di Website')
                         ->default(fn (string $operation) => $operation === 'create')
-                        ->helperText('Materi dari booking hanya bisa tayang bila izin pelanggan aktif, plat sudah diburamkan, dan teks alternatif terisi.'),
+                        ->helperText('Materi dari booking hanya bisa tayang bila izin pelanggan aktif, plat tertutup stiker di foto, dan teks alternatif terisi.'),
                 ]),
         ]);
     }

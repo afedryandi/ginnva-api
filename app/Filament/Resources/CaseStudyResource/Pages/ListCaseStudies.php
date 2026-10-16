@@ -24,7 +24,7 @@ class ListCaseStudies extends ListRecords
                 ->icon('heroicon-o-sparkles')
                 ->color('gray')
                 ->visible(fn () => CaseStudyResource::canCreate())
-                ->modalDescription('Hanya booking yang pelanggannya memberi izin foto dan sudah punya foto akhir serah terima. Materi dibuat TIDAK tayang: ganti fotonya dengan versi plat nomor diburamkan, isi teks alternatif, lalu tayangkan.')
+                ->modalDescription('Hanya booking yang pelanggannya memberi izin foto dan sudah punya foto akhir serah terima. Materi dibuat TIDAK tayang: periksa apakah plat nomor di foto tertutup stiker (bila masih terlihat, unggah foto lain yang platnya tertutup), isi teks alternatif, lalu tayangkan.')
                 ->form([
                     Forms\Components\Select::make('booking_id')
                         ->label('Booking')
@@ -55,7 +55,7 @@ class ListCaseStudies extends ListRecords
                         return;
                     }
 
-                    Notification::make()->title('Dinominasikan')->body('Ganti foto dengan versi plat diburamkan, lalu tayangkan.')->success()->send();
+                    Notification::make()->title('Dinominasikan')->body('Pastikan plat di foto tertutup stiker dan isi teks alternatif, lalu tayangkan.')->success()->send();
                     $this->redirect(CaseStudyResource::getUrl('edit', ['record' => $case]));
                 }),
             Actions\CreateAction::make(),

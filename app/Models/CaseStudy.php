@@ -46,7 +46,7 @@ class CaseStudy extends Model
 
     protected static function booted(): void
     {
-        // Pengaman terakhir: materi dari booking tidak boleh tayang tanpa izin aktif, plat diburamkan, dan teks alternatif.
+        // Pengaman terakhir: materi dari booking tidak boleh tayang tanpa izin aktif, plat tertutup stiker di foto, dan teks alternatif.
         static::saving(function (CaseStudy $case) {
             if ($case->is_active && ($blocker = $case->activationBlocker())) {
                 throw \Illuminate\Validation\ValidationException::withMessages(['is_active' => $blocker]);
@@ -68,7 +68,7 @@ class CaseStudy extends Model
         }
 
         if (! $this->plate_blurred) {
-            return 'Pastikan plat nomor sudah diburamkan di foto, lalu centang "Plat nomor sudah diburamkan".';
+            return 'Pastikan plat nomor di foto tertutup stiker (bukan terlihat), lalu centang "Plat nomor tertutup stiker di foto".';
         }
 
         if (blank($this->alt_text)) {

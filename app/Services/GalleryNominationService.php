@@ -12,8 +12,8 @@ use RuntimeException;
 /**
  * Menominasikan hasil pekerjaan sebuah booking ke Galeri Pemasangan (Marketing/Konten Fase 3). Syarat: pelanggan memberi izin foto
  * (dan belum menariknya), ada foto akhir serah terima, dan booking itu belum pernah dinominasikan. Materi dibuat TIDAK tayang: foto
- * disalin apa adanya (plat nomor masih terlihat), jadi staf wajib mengganti dengan versi yang plat nomornya diburamkan, mengisi teks
- * alternatif, dan mencentang "plat sudah diburamkan" sebelum bisa ditayangkan (lihat CaseStudy::activationBlocker()).
+ * disalin apa adanya, jadi staf wajib memeriksa bahwa plat nomor di foto tertutup stiker (cara kerja perusahaan; sistem tidak mengaburkan
+ * plat), mengisi teks alternatif, dan mencentang "plat tertutup stiker" sebelum bisa ditayangkan (lihat CaseStudy::activationBlocker()).
  */
 class GalleryNominationService
 {
