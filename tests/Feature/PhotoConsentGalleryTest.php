@@ -163,6 +163,8 @@ class PhotoConsentGalleryTest extends TestCase
         $case = app(GalleryNominationService::class)->nominate($this->handedOver());
 
         foreach ([[], ['plate_blurred' => true], ['alt_text' => 'Toyota Raize dengan PPF']] as $partial) {
+            $case = $case->fresh(); // tiap percobaan mulai dari keadaan tersimpan, bukan sisa isian percobaan sebelumnya
+
             try {
                 $case->fill($partial + ['is_active' => true])->save();
                 $this->fail('Seharusnya ditolak, syarat belum lengkap.');

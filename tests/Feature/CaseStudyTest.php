@@ -87,7 +87,7 @@ class CaseStudyTest extends TestCase
 
         $row = $this->getJson('/api/case-studies')->json('data.0');
 
-        $this->assertSame(['id', 'title', 'short_title', 'image', 'vehicle', 'film_product', 'sort_order'], array_keys($row));
+        $this->assertSame(['id', 'title', 'short_title', 'image', 'before_image', 'alt_text', 'service_type', 'vehicle', 'film_product', 'sort_order'], array_keys($row));
         $this->assertSame($item->id, $row['id']);
         $this->assertStringStartsWith('http', $row['image']);
         $this->assertStringEndsWith('/storage/case-studies/hasil.jpg', $row['image']);
