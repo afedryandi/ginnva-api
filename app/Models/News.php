@@ -19,7 +19,7 @@ class News extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['title', 'slug', 'excerpt', 'source_url', 'is_published', 'published_at'])
+            ->logOnly(['title', 'slug', 'excerpt', 'meta_title', 'meta_description', 'category', 'source_url', 'is_published', 'published_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('news');
@@ -29,8 +29,12 @@ class News extends Model
         'title',
         'slug',
         'excerpt',
+        'meta_title',
+        'meta_description',
+        'category',
         'content',
         'cover_image',
+        'cover_alt',
         'source_url',
         'is_published',
         'published_at',

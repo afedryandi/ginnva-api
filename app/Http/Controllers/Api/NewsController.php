@@ -100,7 +100,11 @@ class NewsController extends Controller
             'title'        => $news->title,
             'slug'         => $news->slug,
             'excerpt'      => $news->excerpt,
+            'meta_title'   => $news->meta_title,
+            'meta_description' => $news->meta_description,
+            'category'     => $news->category,
             'cover_image'  => $this->fullImageUrl($news->cover_image),
+            'cover_alt'    => $news->cover_alt,
             'source_url'   => $news->source_url,
             'published_at' => $news->published_at,
         ];

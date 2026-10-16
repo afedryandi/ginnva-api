@@ -213,6 +213,8 @@ class UserResource extends Resource
                 'PointTransactionResource' => 'Riwayat Poin Customer',
                 'PartnershipInquiryResource' => 'Pengajuan Kemitraan',
                 'ProductInquiryResource' => 'Inquiry Produk',
+                'LeadFunnelReport' => 'Dasbor Lead',
+                'ProductClaimResource' => 'Klaim & Bukti Produk',
                 'CaseStudyResource' => 'Galeri Pemasangan',
                 'CustomerGalleryPhotoResource' => 'Galeri Customer',
                 'NewsResource' => 'News / Berita',

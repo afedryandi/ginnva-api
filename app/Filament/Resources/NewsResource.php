@@ -70,6 +70,23 @@ class NewsResource extends Resource
                         ->label('Ringkasan Singkat')
                         ->columnSpanFull(),
 
+                    Forms\Components\TextInput::make('meta_title')
+                        ->label('Judul untuk Google (opsional)')
+                        ->maxLength(70)
+                        ->helperText('Maks. 70 karakter. Kosong = memakai judul berita.'),
+
+                    Forms\Components\TextInput::make('category')
+                        ->label('Kategori (opsional)')
+                        ->maxLength(60)
+                        ->datalist(['Produk', 'Tips Perawatan', 'Promo', 'Kabar Perusahaan']),
+
+                    Forms\Components\Textarea::make('meta_description')
+                        ->label('Deskripsi untuk Google (opsional)')
+                        ->rows(2)
+                        ->maxLength(170)
+                        ->helperText('Maks. 170 karakter. Kosong = memakai ringkasan singkat.')
+                        ->columnSpanFull(),
+
                     Forms\Components\RichEditor::make('content')
                         ->label('Isi Berita')
                         ->columnSpanFull(),
@@ -80,6 +97,12 @@ class NewsResource extends Resource
                         ->directory('news')
                         ->maxSize(2048)
                         ->helperText('Maks. 2 MB. Format: JPG, PNG, WebP.')
+                        ->columnSpanFull(),
+
+                    Forms\Components\TextInput::make('cover_alt')
+                        ->label('Teks Alternatif Cover')
+                        ->maxLength(255)
+                        ->helperText('Deskripsi singkat isi gambar cover, untuk pembaca layar dan mesin pencari.')
                         ->columnSpanFull(),
 
                     // Bug diperbaiki 2026-09-29 (audit Berita) -- SEBELUMNYA field ini bernama

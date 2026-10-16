@@ -89,6 +89,12 @@ class CarouselResource extends Resource
                         ->required()
                         ->columnSpanFull(),
 
+                    Forms\Components\TextInput::make('alt_text')
+                        ->label('Teks Alternatif Gambar')
+                        ->maxLength(255)
+                        ->helperText('Deskripsi singkat isi gambar untuk pembaca layar. Contoh: "Promo kaca film Ginnva A70 bulan November".')
+                        ->columnSpanFull(),
+
                     Forms\Components\TextInput::make('title')
                         ->label('Judul (opsional)')
                         ->maxLength(255),
@@ -122,6 +128,15 @@ class CarouselResource extends Resource
                     Forms\Components\Toggle::make('is_active')
                         ->label('Tampilkan')
                         ->default(true),
+
+                    Forms\Components\DateTimePicker::make('starts_at')
+                        ->label('Mulai Tayang (opsional)')
+                        ->helperText('Kosongkan untuk tayang langsung.'),
+
+                    Forms\Components\DateTimePicker::make('ends_at')
+                        ->label('Berhenti Tayang (opsional)')
+                        ->after('starts_at')
+                        ->helperText('Kosongkan bila tidak ada batas. Setelah lewat, banner berhenti tayang sendiri.'),
                 ]),
         ]);
     }
@@ -163,6 +178,23 @@ class CarouselResource extends Resource
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Tampil')
                     ->boolean(),
+
+                Tables\Columns\TextColumn::make('airing')
+                    ->label('Status Tayang')
+                    ->badge()
+                    ->state(fn (Carousel $record) => $record->airingStatus())
+                    ->formatStateUsing(fn (string $state) => match ($state) {
+                        'tayang' => 'Tayang',
+                        'terjadwal' => 'Terjadwal',
+                        'berakhir' => 'Berakhir',
+                        default => 'Nonaktif',
+                    })
+                    ->color(fn (string $state) => match ($state) {
+                        'tayang' => 'success',
+                        'terjadwal' => 'info',
+                        'berakhir' => 'danger',
+                        default => 'gray',
+                    }),
 
                 Tables\Columns\TextColumn::make('sort_order')
                     ->label('Urutan')

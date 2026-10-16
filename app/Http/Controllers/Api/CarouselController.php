@@ -10,10 +10,10 @@ class CarouselController extends Controller
 {
     public function index(): JsonResponse
     {
-        $carousels = Carousel::where('is_active', true)
+        $carousels = Carousel::live()
             ->whereIn('audience', ['customer', 'both'])
             ->orderBy('sort_order')
-            ->get(['id', 'title', 'subtitle', 'image', 'link_url']);
+            ->get(['id', 'title', 'subtitle', 'image', 'alt_text', 'link_url']);
 
         return response()->json([
             'success' => true,
@@ -27,10 +27,10 @@ class CarouselController extends Controller
      */
     public function partnerPromos(): JsonResponse
     {
-        $carousels = Carousel::where('is_active', true)
+        $carousels = Carousel::live()
             ->whereIn('audience', ['partner', 'both'])
             ->orderBy('sort_order')
-            ->get(['id', 'title', 'subtitle', 'image', 'link_url']);
+            ->get(['id', 'title', 'subtitle', 'image', 'alt_text', 'link_url']);
 
         return response()->json([
             'success' => true,
@@ -45,6 +45,7 @@ class CarouselController extends Controller
             'title'    => $c->title,
             'subtitle' => $c->subtitle,
             'image'    => $c->image ? asset('storage/' . $c->image) : null,
+            'alt_text' => $c->alt_text,
             'link_url' => $c->link_url,
         ]);
     }
