@@ -66,6 +66,7 @@ class Customer extends Model implements Authenticatable, JWTSubject
         'promo_opt_in',
         'promo_opt_in_at',
         'promo_opt_in_source',
+        'promo_prompted_at',
         'deleted_at',
     ];
 
@@ -76,6 +77,7 @@ class Customer extends Model implements Authenticatable, JWTSubject
         'loyalty_points'     => 'integer',
         'promo_opt_in'       => 'boolean',
         'promo_opt_in_at'    => 'datetime',
+        'promo_prompted_at'  => 'datetime',
     ];
 
     protected static function booted(): void

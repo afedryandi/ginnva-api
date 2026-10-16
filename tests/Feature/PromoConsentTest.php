@@ -64,7 +64,7 @@ class PromoConsentTest extends TestCase
     {
         $customer = $this->customer('Budi', false);
 
-        $this->actingAs($customer, 'customer')->getJson('/api/customer/promo-preference')->assertOk()->assertJsonPath('data.opt_in', false);
+        $this->actingAs($customer, 'customer')->getJson('/api/customer/promo-preference')->assertOk()->assertJsonPath('data.opt_in', false)->assertJsonPath('data.prompted', false);
         $this->assertFalse((bool) Customer::create(['name' => 'Baru', 'phone_number' => '0812' . random_int(10000000, 99999999)])->fresh()->promo_opt_in, 'Pelanggan baru tanpa persetujuan.');
 
         Carbon::setTestNow('2026-11-01 10:00:00');
@@ -78,6 +78,7 @@ class PromoConsentTest extends TestCase
 
         $this->actingAs($customer, 'customer')->putJson('/api/customer/promo-preference', ['opt_in' => false])->assertOk();
         $this->assertFalse($customer->fresh()->promo_opt_in);
+        $this->assertNotNull($customer->fresh()->promo_prompted_at, 'Sudah pernah ditanya.');
 
         $this->actingAs($customer, 'customer')->putJson('/api/customer/promo-preference', [])->assertStatus(422);
 

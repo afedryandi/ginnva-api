@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
  * transaksional (booking, garansi, chat) tetap terkirim. Perubahan dicatat bersama waktunya.
  *
  *  GET /api/customer/promo-preference
- *  PUT /api/customer/promo-preference   { "opt_in": true|false }
+ *  PUT /api/customer/promo-preference   { "opt_in": true|false }   (juga menandai pelanggan sudah ditanya)
  */
 class PromoPreferenceController extends Controller
 {
@@ -30,8 +30,15 @@ class PromoPreferenceController extends Controller
                 'promo_opt_in' => $optIn,
                 'promo_opt_in_at' => now(),
                 'promo_opt_in_source' => 'app',
-            ])->save();
+            ]);
         }
+
+        // Pilihan apa pun (ya atau tidak) berarti pelanggan sudah ditanya; pertanyaan awal di aplikasi tidak muncul lagi.
+        if (! $customer->promo_prompted_at) {
+            $customer->promo_prompted_at = now();
+        }
+
+        $customer->save();
 
         return response()->json([
             'success' => true,
@@ -45,6 +52,7 @@ class PromoPreferenceController extends Controller
         return [
             'opt_in' => (bool) $customer->promo_opt_in,
             'changed_at' => $customer->promo_opt_in_at?->toIso8601String(),
+            'prompted' => $customer->promo_prompted_at !== null,
         ];
     }
 }
