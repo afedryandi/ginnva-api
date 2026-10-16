@@ -65,7 +65,7 @@ class CarouselTest extends TestCase
         $data = $this->getJson('/api/carousels')->assertSuccessful()->json('data');
 
         $this->assertSame([$first->id, $second->id], collect($data)->pluck('id')->all());
-        $this->assertSame(['id', 'title', 'subtitle', 'image', 'link_url'], array_keys($data[0]));
+        $this->assertSame(['id', 'title', 'subtitle', 'image', 'alt_text', 'link_url'], array_keys($data[0]));
     }
 
     public function test_carousel_image_url_is_absolute_and_null_when_missing(): void

@@ -79,7 +79,7 @@ class NewsTest extends TestCase
         $data = $this->getJson('/api/news?limit=3')->assertSuccessful()->json('data');
 
         $this->assertCount(3, $data);
-        $this->assertSame(['id', 'title', 'slug', 'excerpt', 'cover_image', 'source_url', 'published_at'], array_keys($data[0]));
+        $this->assertSame(['id', 'title', 'slug', 'excerpt', 'meta_title', 'meta_description', 'category', 'cover_image', 'cover_alt', 'source_url', 'published_at'], array_keys($data[0]));
         $this->assertArrayNotHasKey('content', $data[0], 'Isi lengkap hanya di detail.');
     }
 
