@@ -73,7 +73,7 @@ class JobOpeningTest extends TestCase
         $data = collect($this->getJson('/api/job-openings')->json('data'));
         $row = $data->firstWhere('id', $job->id);
 
-        $this->assertSame(['id', 'title', 'department', 'location', 'type', 'description', 'requirements'], array_keys($row));
+        $this->assertSame(['id', 'title', 'department', 'location', 'type', 'description', 'requirements', 'posted_at', 'valid_through'], array_keys($row));
         $this->assertSame('Installer PPF', $row['title']);
         $this->assertSame(['Teliti', 'Bisa bekerja dalam tim'], $row['requirements']);
         $this->assertSame([], $data->firstWhere('id', $noReq->id)['requirements'], 'Tanpa kualifikasi tetap array kosong, bukan null.');

@@ -85,6 +85,16 @@ class JobOpeningResource extends Resource
                         ->reorderable()
                         ->columnSpanFull(),
 
+                    Forms\Components\DateTimePicker::make('posted_at')
+                        ->label('Tanggal Terbit')
+                        ->default(now())
+                        ->helperText('Dipakai Google Jobs sebagai tanggal lowongan dibuka.'),
+
+                    Forms\Components\DatePicker::make('valid_through')
+                        ->label('Berlaku Sampai (opsional)')
+                        ->native(false)
+                        ->helperText('Setelah lewat, lowongan hilang sendiri dari website dan Google. Kosongkan bila belum ada batas.'),
+
                     Forms\Components\Toggle::make('is_published')
                         ->label('Tampilkan di Website')
                         ->default(true)
@@ -119,6 +129,26 @@ class JobOpeningResource extends Resource
                 Tables\Columns\IconColumn::make('is_published')
                     ->label('Tampil')
                     ->boolean(),
+
+                Tables\Columns\TextColumn::make('listing')
+                    ->label('Status')
+                    ->badge()
+                    ->state(fn (\App\Models\JobOpening $record) => $record->listingStatus())
+                    ->formatStateUsing(fn (string $state) => match ($state) {
+                        'tayang' => 'Tayang',
+                        'berakhir' => 'Berakhir',
+                        default => 'Draft',
+                    })
+                    ->color(fn (string $state) => match ($state) {
+                        'tayang' => 'success',
+                        'berakhir' => 'danger',
+                        default => 'gray',
+                    }),
+
+                Tables\Columns\TextColumn::make('valid_through')
+                    ->label('Berlaku Sampai')
+                    ->date('d M Y')
+                    ->placeholder('Tanpa batas'),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Dibuat')

@@ -18,8 +18,7 @@ class JobOpeningController extends Controller
      */
     public function index(): JsonResponse
     {
-        $jobs = JobOpening::query()
-            ->where('is_published', true)
+        $jobs = JobOpening::open()
             ->orderBy('sort_order')
             ->orderByDesc('created_at')
             ->get()
@@ -31,6 +30,8 @@ class JobOpeningController extends Controller
                 'type'         => $job->type,
                 'description'  => $job->description,
                 'requirements' => $job->requirements ?? [],
+                'posted_at'    => ($job->posted_at ?? $job->created_at)?->toIso8601String(),
+                'valid_through' => $job->valid_through?->toDateString(),
             ]);
 
         return response()->json([
