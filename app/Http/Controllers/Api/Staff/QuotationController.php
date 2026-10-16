@@ -68,7 +68,7 @@ class QuotationController extends Controller
             abort(403, 'Anda tidak punya akses ke menu Quotation.');
         }
 
-        $quotation = Quotation::with(['vehicle', 'store:id,name', 'items.filmProduct:id,name'])
+        $quotation = Quotation::with(['vehicle', 'store:id,name', 'items.filmProduct:id,name', 'owner:id,name'])
             ->findOrFail($id);
 
         if (! $user->isFullAccess() && $quotation->store_id && $quotation->store_id !== $user->store_id) {
@@ -113,6 +113,43 @@ class QuotationController extends Controller
         // `.items.length`). Disamakan dengan show() supaya bentuk respons
         // konsisten di kedua endpoint. Ditemukan & diperbaiki 2026-08-27.
         $quotation->load(['vehicle', 'store:id,name', 'items.filmProduct:id,name']);
+
+        return response()->json(['success' => true, 'data' => $quotation]);
+    }
+
+    /**
+     * PATCH /api/staff/quotations/{id}/lead
+     * Marketing/Konten Fase 1: penanggung jawab lead dan hasilnya (menang/kalah + alasan). Kolom turunan (outcome_at, alasan hanya untuk
+     * kalah) diselaraskan oleh QuotationObserver. Mengirim outcome null menghapus hasil.
+     */
+    public function updateLead(Request $request, int $id)
+    {
+        $user = $request->user('api');
+
+        if (! $user->hasQuotationAccess()) {
+            abort(403, 'Anda tidak punya akses ke menu Quotation.');
+        }
+
+        $data = $request->validate([
+            'owner_user_id' => ['sometimes', 'nullable', 'integer', \Illuminate\Validation\Rule::exists('users', 'id')->where('is_active', true)],
+            'outcome' => ['sometimes', 'nullable', 'in:' . implode(',', array_keys(\App\Support\LeadOutcome::OUTCOMES))],
+            'outcome_reason' => ['sometimes', 'nullable', 'in:' . implode(',', array_keys(\App\Support\LeadOutcome::REASONS))],
+        ]);
+
+        $quotation = Quotation::findOrFail($id);
+
+        if (! $user->isFullAccess() && $quotation->store_id && $quotation->store_id !== $user->store_id) {
+            abort(403, 'Quotation ini milik toko lain.');
+        }
+
+        $outcome = array_key_exists('outcome', $data) ? $data['outcome'] : $quotation->outcome;
+
+        if ($outcome === \App\Support\LeadOutcome::LOST && blank($data['outcome_reason'] ?? $quotation->outcome_reason)) {
+            return response()->json(['success' => false, 'message' => 'Alasan wajib diisi bila lead ditandai kalah.', 'errors' => ['outcome_reason' => ['Alasan wajib diisi bila lead ditandai kalah.']]], 422);
+        }
+
+        $quotation->update($data);
+        $quotation->load(['vehicle', 'store:id,name', 'items.filmProduct:id,name', 'owner:id,name']);
 
         return response()->json(['success' => true, 'data' => $quotation]);
     }

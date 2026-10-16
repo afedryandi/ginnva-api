@@ -248,4 +248,86 @@ class LeadManagementTest extends TestCase
         $this->artisan('leads:remind-stale')->assertSuccessful();
         $this->assertSame(0, DB::table('notifications')->count());
     }
+
+    // ------------------------------------------------------------- API staf (mobile)
+
+    private function quotation(): \App\Models\Quotation
+    {
+        $vehicle = \App\Models\Vehicle::create(['brand' => 'Toyota', 'model' => 'Raize', 'size_category' => 'M']);
+        $product = \App\Models\FilmProduct::create([
+            'sku' => 'WF-A1', 'name' => 'Produk A1', 'product_type' => 'window_film',
+            'position' => 'front', 'base_price' => 100_000, 'is_active' => true,
+        ]);
+        $this->postJson('/api/quotation/submit', [
+            'vehicle_id' => $vehicle->id, 'customer_name' => 'Budi', 'customer_phone' => '081234567890',
+            'items' => [['film_product_id' => $product->id]],
+        ])->assertStatus(201);
+
+        return \App\Models\Quotation::firstOrFail();
+    }
+
+    public function test_staff_can_set_owner_and_outcome_of_a_quotation_through_the_api(): void
+    {
+        $quotation = $this->quotation();
+        $staff = $this->staff();
+
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/quotations/{$quotation->id}/lead", ['outcome' => 'lost'])
+            ->assertStatus(422);
+
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/quotations/{$quotation->id}/lead", [
+            'owner_user_id' => $staff->id, 'outcome' => 'lost', 'outcome_reason' => 'harga',
+        ])->assertOk()->assertJsonPath('data.owner.id', $staff->id);
+
+        $quotation = $quotation->fresh();
+        $this->assertSame('lost', $quotation->outcome);
+        $this->assertSame('harga', $quotation->outcome_reason);
+        $this->assertNotNull($quotation->outcome_at);
+
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/quotations/{$quotation->id}/lead", ['outcome' => 'won'])->assertOk();
+        $this->assertNull($quotation->fresh()->outcome_reason);
+
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/quotations/{$quotation->id}/lead", ['outcome' => 'invalid'])->assertStatus(422);
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/quotations/{$quotation->id}/lead", ['owner_user_id' => 999999])->assertStatus(422);
+    }
+
+    public function test_staff_without_quotation_access_cannot_set_the_outcome(): void
+    {
+        $quotation = $this->quotation();
+        $noMenu = $this->staff('kasir');
+        $noMenu->update(['menu_access' => []]);
+
+        $this->actingAs($noMenu->fresh(), 'api')->patchJson("/api/staff/quotations/{$quotation->id}/lead", ['outcome' => 'won'])->assertStatus(403);
+    }
+
+    public function test_staff_can_list_and_follow_up_inquiries_and_partnerships_through_the_api(): void
+    {
+        $staff = $this->staff();
+        $inquiry = $this->inquiry();
+        $partnership = $this->partnership();
+
+        $this->actingAs($staff, 'api')->getJson('/api/staff/lead-inbox/product-inquiry')->assertOk()->assertJsonPath('data.total', 1);
+        $this->actingAs($staff, 'api')->getJson('/api/staff/lead-inbox/partnership?status=new')->assertOk()->assertJsonPath('data.total', 1);
+        $this->actingAs($staff, 'api')->getJson('/api/staff/lead-inbox/unknown')->assertStatus(404);
+
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/lead-inbox/product-inquiry/{$inquiry->id}", ['status' => 'contacted', 'owner_user_id' => $staff->id])
+            ->assertOk()->assertJsonPath('data.owner.id', $staff->id);
+        $this->assertNotNull($inquiry->fresh()->contacted_at);
+
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/lead-inbox/partnership/{$partnership->id}", ['outcome' => 'lost'])->assertStatus(422);
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/lead-inbox/partnership/{$partnership->id}", ['outcome' => 'lost', 'outcome_reason' => 'lokasi_jauh'])->assertOk();
+        $this->assertSame('lost', $partnership->fresh()->outcome);
+
+        // Deal/Ditolak/Selesai tetap lewat panel.
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/lead-inbox/partnership/{$partnership->id}", ['status' => 'deal'])->assertStatus(422);
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/lead-inbox/product-inquiry/{$inquiry->id}", ['status' => 'closed'])->assertStatus(422);
+    }
+
+    public function test_staff_without_the_menu_cannot_use_the_lead_inbox(): void
+    {
+        $this->inquiry();
+        $noMenu = $this->staff('kasir');
+        $noMenu->update(['menu_access' => []]);
+
+        $this->actingAs($noMenu->fresh(), 'api')->getJson('/api/staff/lead-inbox/product-inquiry')->assertStatus(403);
+    }
 }

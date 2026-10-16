@@ -256,6 +256,10 @@ class AuthController extends Controller
             'can_create_spk'       => $user->canCreateSpk(),
             'has_spk_access'       => $user->hasSpkAccess(),
             'has_quotation_access' => $user->hasQuotationAccess(),
+            // Lead Masuk (Inquiry Produk & Kemitraan), Marketing/Konten Fase 1 -- cukup salah satu menunya.
+            'has_lead_inbox_access' => $user->canAccessStaffArea()
+                && ($user->hasMenuAccess(\App\Filament\Resources\ProductInquiryResource::class)
+                    || $user->hasMenuAccess(\App\Filament\Resources\PartnershipInquiryResource::class)),
             'has_inventory_access' => $user->hasInventoryAccess(),
             // Granular per-submenu — dipakai buat filter menu MANA yang
             // ditampilkan di hub Inventaris/menu kubus, supaya staff yang

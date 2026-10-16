@@ -286,6 +286,11 @@ Route::prefix('staff')->group(function () {
         Route::get('/quotations/{id}', [StaffQuotationController::class, 'show']);
         Route::patch('/quotations/{id}/status', [StaffQuotationController::class, 'updateStatus'])
             ->middleware('throttle:20,1');
+        Route::patch('/quotations/{id}/lead', [StaffQuotationController::class, 'updateLead'])
+            ->middleware('throttle:20,1');
+        Route::get('/lead-inbox/{type}', [\App\Http\Controllers\Api\Staff\LeadInboxController::class, 'index']);
+        Route::patch('/lead-inbox/{type}/{id}', [\App\Http\Controllers\Api\Staff\LeadInboxController::class, 'update'])
+            ->middleware('throttle:20,1');
 
         Route::get('/bookings', [StaffBookingController::class, 'index']);
         // Ringkasan kapasitas N hari ke depan (bukan per-booking) — WAJIB

@@ -209,12 +209,13 @@ class ProductInquiryTest extends TestCase
         $this->assertNull(ProductInquiryResource::getNavigationBadge());
     }
 
-    public function test_admin_cannot_create_inquiries_from_the_panel_but_can_delete(): void
+    public function test_admin_can_log_manual_leads_from_the_panel_and_can_delete(): void
     {
         $admin = $this->asAdmin();
         $inquiry = $this->inquiry();
 
-        $this->assertFalse(ProductInquiryResource::canCreate());
+        // Sejak Marketing Fase 0 staf boleh mencatat lead manual (WhatsApp, telepon, datang langsung) dari panel.
+        $this->assertTrue(ProductInquiryResource::canCreate());
 
         Livewire::test(ListProductInquiries::class)->callTableAction('delete', $inquiry);
 
