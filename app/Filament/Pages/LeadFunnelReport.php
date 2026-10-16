@@ -14,7 +14,7 @@ use Livewire\Attributes\Url;
 
 /**
  * "Dasbor Lead" (Marketing/Konten Fase 1, 2026-10-23): corong lead dari tiga sumber (quotation, inquiry produk, kemitraan) per kanal
- * dan kampanye: berapa masuk, berapa yang direspons dan seberapa cepat, berapa menang/kalah, dan alasan kalah. Hitungan ada di
+ * dan kampanye: berapa masuk, berapa yang direspons dan seberapa cepat, berapa deal/tidak jadi, dan alasannya. Hitungan ada di
  * LeadFunnelService.
  */
 class LeadFunnelReport extends Page implements HasForms

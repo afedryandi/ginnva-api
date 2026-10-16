@@ -11,7 +11,7 @@
         $filterTargets = 'data.from, data.to, data.type';
 
         // Tabel ringkas yang dipakai berulang: kolom sama untuk jenis, kanal, dan kampanye.
-        $headers = ['Masuk', 'Direspons', 'Median Respons', 'Dalam Target', 'Menang', 'Kalah', 'Terbuka', 'Tingkat Menang'];
+        $headers = ['Masuk', 'Direspons', 'Median Respons', 'Dalam Target', 'Deal', 'Tidak Jadi', 'Terbuka', 'Tingkat Deal'];
     @endphp
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
@@ -42,9 +42,9 @@
             </x-filament::section>
 
             <x-filament::section>
-                <div class="text-xs text-gray-500 dark:text-gray-400">Tingkat Menang</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">Tingkat Deal</div>
                 <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">{{ $pct($t['win_rate_percent']) }}</div>
-                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t['won'] }} menang, {{ $t['lost'] }} kalah</div>
+                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t['won'] }} deal, {{ $t['lost'] }} tidak jadi</div>
             </x-filament::section>
         </div>
 
@@ -84,9 +84,9 @@
             </x-filament::section>
         @endforeach
 
-        <x-filament::section heading="Alasan Kalah Terbanyak">
+        <x-filament::section heading="Alasan Tidak Jadi Terbanyak">
             @if (empty($r['lost_reasons']))
-                <div class="text-sm text-gray-500 dark:text-gray-400">Belum ada lead kalah dengan alasan tercatat.</div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">Belum ada lead tidak jadi dengan alasan tercatat.</div>
             @else
                 <table class="w-full text-sm">
                     @foreach ($r['lost_reasons'] as $row)
@@ -101,7 +101,7 @@
 
         <p class="text-xs text-gray-500 dark:text-gray-400">
             Periode menurut waktu lead masuk. Waktu respons = dari lead masuk sampai pertama kali ditindak (status berganti dari Baru); hanya lead
-            yang sudah ditindak sejak fitur ini aktif yang tercatat waktunya. Untuk kemitraan, status Deal dibaca Menang dan Ditolak dibaca Kalah
+            yang sudah ditindak sejak fitur ini aktif yang tercatat waktunya. Untuk kemitraan, status Deal dihitung Deal dan Ditolak dihitung Tidak Jadi
             bila kolom Hasil belum diisi. Kampanye terisi dari UTM situs; lead tanpa UTM tidak muncul di tabel kampanye.
         </p>
     </div>

@@ -19,7 +19,7 @@ use Filament\Notifications\Notification;
  */
 class ProductInquiryObserver
 {
-    /** Hasil lead (Marketing/Konten Fase 1): outcome_at terisi otomatis, alasan hanya untuk "kalah". */
+    /** Hasil lead (Marketing/Konten Fase 1): outcome_at terisi otomatis, alasan hanya untuk "tidak jadi". */
     public function saving(ProductInquiry $inquiry): void
     {
         \App\Support\LeadOutcome::sync($inquiry);

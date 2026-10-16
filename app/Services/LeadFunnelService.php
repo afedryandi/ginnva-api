@@ -15,7 +15,7 @@ use Illuminate\Support\Collection;
  * digabung menjadi satu daftar baris seragam lalu dikelompokkan per kanal, per kampanye, dan per tipe.
  *
  * Patokan periode: waktu lead masuk (created_at). Hasil: kolom outcome; khusus kemitraan, bila outcome kosong, status "deal" dibaca
- * Menang dan "rejected" dibaca Kalah (status itu sudah ada sebelum kolom hasil). Waktu respons = contacted_at - created_at, hanya untuk
+ * Deal dan "rejected" dibaca Tidak Jadi (status itu sudah ada sebelum kolom hasil). Waktu respons = contacted_at - created_at, hanya untuk
  * lead yang sudah ditindak. Cakupan data mengikuti global scope tiap model (staf hanya melihat yang berhak dilihatnya).
  */
 class LeadFunnelService

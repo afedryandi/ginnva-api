@@ -161,10 +161,10 @@ class QuotationResource extends Resource
                         ->options(\App\Support\LeadOutcome::OUTCOMES)
                         ->placeholder('Belum ada hasil')
                         ->live()
-                        ->helperText('Tandai Menang bila lead sudah jadi pelanggan/booking/partner, Kalah bila tidak jadi.'),
+                        ->helperText('Tandai Deal bila lead sudah jadi pelanggan/booking/partner, Tidak Jadi bila batal.'),
 
                     Forms\Components\Select::make('outcome_reason')
-                        ->label('Alasan Kalah')
+                        ->label('Alasan Tidak Jadi')
                         ->options(\App\Support\LeadOutcome::REASONS)
                         ->visible(fn (Forms\Get $get) => $get('outcome') === 'lost')
                         ->required(fn (Forms\Get $get) => $get('outcome') === 'lost'),
@@ -470,7 +470,7 @@ class QuotationResource extends Resource
                 Tables\Columns\TextColumn::make('outcome')
                     ->label('Hasil')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state) => $state === 'won' ? 'Menang' : ($state === 'lost' ? 'Kalah' : '—'))
+                    ->formatStateUsing(fn (?string $state) => $state === 'won' ? 'Deal' : ($state === 'lost' ? 'Tidak Jadi' : '—'))
                     ->color(fn (?string $state) => match ($state) { 'won' => 'success', 'lost' => 'danger', default => 'gray' })
                     ->toggleable(),
 

@@ -119,7 +119,7 @@ class QuotationController extends Controller
 
     /**
      * PATCH /api/staff/quotations/{id}/lead
-     * Marketing/Konten Fase 1: penanggung jawab lead dan hasilnya (menang/kalah + alasan). Kolom turunan (outcome_at, alasan hanya untuk
+     * Marketing/Konten Fase 1: penanggung jawab lead dan hasilnya (deal/tidak jadi + alasan). Kolom turunan (outcome_at, alasan hanya untuk
      * kalah) diselaraskan oleh QuotationObserver. Mengirim outcome null menghapus hasil.
      */
     public function updateLead(Request $request, int $id)
@@ -145,7 +145,7 @@ class QuotationController extends Controller
         $outcome = array_key_exists('outcome', $data) ? $data['outcome'] : $quotation->outcome;
 
         if ($outcome === \App\Support\LeadOutcome::LOST && blank($data['outcome_reason'] ?? $quotation->outcome_reason)) {
-            return response()->json(['success' => false, 'message' => 'Alasan wajib diisi bila lead ditandai kalah.', 'errors' => ['outcome_reason' => ['Alasan wajib diisi bila lead ditandai kalah.']]], 422);
+            return response()->json(['success' => false, 'message' => 'Alasan wajib diisi bila lead ditandai tidak jadi.', 'errors' => ['outcome_reason' => ['Alasan wajib diisi bila lead ditandai tidak jadi.']]], 422);
         }
 
         $quotation->update($data);

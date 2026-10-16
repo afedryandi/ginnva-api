@@ -16,10 +16,10 @@ use Illuminate\Validation\Rule;
  * endpointnya sendiri (StaffQuotationController).
  *
  *  GET   /api/staff/lead-inbox/{type}        type = product-inquiry | partnership
- *  PATCH /api/staff/lead-inbox/{type}/{id}   status, pemilik, hasil, alasan kalah
+ *  PATCH /api/staff/lead-inbox/{type}/{id}   status, pemilik, hasil, alasan tidak jadi
  *
  * Staf hanya boleh memindahkan status antara Baru dan Sudah Dihubungi. "Deal" (yang membuat partner) dan "Ditolak" pada kemitraan, serta
- * "Selesai" pada inquiry produk, tetap lewat panel web yang punya alur lengkapnya; hasil Menang/Kalah dicatat lewat kolom hasil.
+ * "Selesai" pada inquiry produk, tetap lewat panel web yang punya alur lengkapnya; hasil Deal/Tidak Jadi dicatat lewat kolom hasil.
  */
 class LeadInboxController extends Controller
 {
@@ -63,8 +63,8 @@ class LeadInboxController extends Controller
         if ($outcome === LeadOutcome::LOST && blank($data['outcome_reason'] ?? $lead->outcome_reason)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Alasan wajib diisi bila lead ditandai kalah.',
-                'errors' => ['outcome_reason' => ['Alasan wajib diisi bila lead ditandai kalah.']],
+                'message' => 'Alasan wajib diisi bila lead ditandai tidak jadi.',
+                'errors' => ['outcome_reason' => ['Alasan wajib diisi bila lead ditandai tidak jadi.']],
             ], 422);
         }
 
