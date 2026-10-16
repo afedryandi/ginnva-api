@@ -106,14 +106,14 @@ class StoreReviewTest extends TestCase
         $this->assertSame(1, (int) $this->store->fresh()->positive_reviews_count);
     }
 
-    public function test_neutral_and_negative_reviews_do_not_suggest_google_nor_count_as_positive(): void
+    public function test_every_sentiment_is_offered_the_google_review_but_only_positive_ones_count_as_positive(): void
     {
         foreach (['neutral', 'negative'] as $sentiment) {
             $customer = $this->customer();
             $booking = $this->booking($customer);
 
             $this->actingAs($customer, 'customer')->postJson("/api/customer/bookings/{$booking->id}/review", ['sentiment' => $sentiment])
-                ->assertStatus(201)->assertJsonPath('data.suggest_google_review', false);
+                ->assertStatus(201)->assertJsonPath('data.suggest_google_review', true);
         }
 
         $store = $this->store->fresh();

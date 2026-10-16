@@ -109,7 +109,7 @@ class CaseStudyResource extends Resource
                             ->mapWithKeys(fn (Vehicle $v) => [$v->id => trim("{$v->model} {$v->variant}")])
                         )
                         ->searchable()
-                        ->required()
+                        ->required(fn (?CaseStudy $record) => ! $record?->booking_id)
                         ->disabled(fn (Forms\Get $get) => ! $get('vehicle_brand')),
 
                     Forms\Components\Select::make('film_product_id')
@@ -117,7 +117,8 @@ class CaseStudyResource extends Resource
                         ->relationship('filmProduct', 'name')
                         ->searchable()
                         ->preload()
-                        ->required(),
+                        ->required(fn (?CaseStudy $record) => ! $record?->booking_id)
+                        ->helperText('Kosongkan untuk layanan tanpa film (Detailing, Premium Wash).'),
 
                     Forms\Components\TextInput::make('title')
                         ->label('Judul Lengkap')
@@ -142,9 +143,33 @@ class CaseStudyResource extends Resource
                         ->required()
                         ->columnSpanFull(),
 
+                    Forms\Components\FileUpload::make('before_image')
+                        ->label('Foto Sebelum (opsional)')
+                        ->image()
+                        ->directory('case-studies')
+                        ->maxSize(2048)
+                        ->columnSpanFull(),
+
+                    Forms\Components\TextInput::make('alt_text')
+                        ->label('Teks Alternatif Foto')
+                        ->maxLength(255)
+                        ->helperText('Deskripsi singkat isi foto untuk pembaca layar dan mesin pencari. Wajib untuk materi dari booking.')
+                        ->columnSpanFull(),
+
+                    Forms\Components\Toggle::make('plate_blurred')
+                        ->label('Plat nomor sudah diburamkan')
+                        ->helperText('Centang hanya setelah foto yang diunggah di atas adalah versi dengan plat nomor diburamkan. Wajib untuk materi dari booking.')
+                        ->visible(fn (?CaseStudy $record) => (bool) $record?->booking_id),
+
+                    Forms\Components\Placeholder::make('consent_info')
+                        ->label('Izin Pelanggan')
+                        ->content(fn (?CaseStudy $record) => $record?->consent ? ($record->consent->isActive() ? 'Aktif sejak ' . $record->consent->granted_at->format('d M Y') : 'DITARIK pada ' . $record->consent->withdrawn_at->format('d M Y')) : '—')
+                        ->visible(fn (?CaseStudy $record) => (bool) $record?->booking_id),
+
                     Forms\Components\Toggle::make('is_active')
                         ->label('Tampilkan di Website')
-                        ->default(true),
+                        ->default(fn (string $operation) => $operation === 'create')
+                        ->helperText('Materi dari booking hanya bisa tayang bila izin pelanggan aktif, plat sudah diburamkan, dan teks alternatif terisi.'),
                 ]),
         ]);
     }
@@ -156,7 +181,7 @@ class CaseStudyResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with(['filmProduct', 'vehicle']);
+        return parent::getEloquentQuery()->with(['filmProduct', 'vehicle', 'consent']);
     }
 
     public static function table(Table $table): Table

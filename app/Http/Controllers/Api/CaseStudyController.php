@@ -57,6 +57,9 @@ class CaseStudyController extends Controller
             'title'        => $item->title,
             'short_title'  => $item->short_title,
             'image'        => $this->fullImageUrl($item->image),
+            'before_image' => $item->before_image ? $this->fullImageUrl($item->before_image) : null,
+            'alt_text'     => $item->alt_text,
+            'service_type' => $item->service_type,
             'vehicle'      => $item->vehicle ? [
                 'id'    => $item->vehicle->id,
                 'brand' => $item->vehicle->brand,

@@ -870,6 +870,12 @@ class Booking extends Model
         return $this->hasMany(BookingIntakePhoto::class);
     }
 
+    /** Izin pelanggan memakai foto pekerjaan untuk pemasaran (Marketing/Konten Fase 3); ada baris = pernah diberikan, cek isActive(). */
+    public function photoConsent()
+    {
+        return $this->hasOne(MarketingConsent::class)->where('scope', MarketingConsent::SCOPE_JOB_PHOTOS);
+    }
+
     /** Catatan serah terima unit (Fase 3B); satu per booking. */
     public function handover()
     {

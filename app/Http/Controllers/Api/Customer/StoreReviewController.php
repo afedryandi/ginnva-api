@@ -97,9 +97,9 @@ class StoreReviewController extends Controller
             'data'     => [
                 'id'                  => $review->id,
                 'sentiment'           => $review->sentiment,
-                // Cuma sentimen positif yang diarahkan ke Google Maps —
-                // biar mobile app tidak perlu duplikasi aturan ini sendiri.
-                'suggest_google_review' => $review->sentiment === 'positive',
+                // SEMUA pelanggan ditawari ulasan Google, apa pun sentimen internalnya (Marketing/Konten Fase 3). SEBELUMNYA hanya yang
+                // positif: itu "review gating" yang dilarang kebijakan ulasan Google (meminta ulasan hanya dari pelanggan puas).
+                'suggest_google_review' => true,
             ],
         ], 201);
     }

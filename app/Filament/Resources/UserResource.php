@@ -216,6 +216,7 @@ class UserResource extends Resource
                 'LeadFunnelReport' => 'Dasbor Lead',
                 'ProductClaimResource' => 'Klaim & Bukti Produk',
                 'CaseStudyResource' => 'Galeri Pemasangan',
+                'MarketingConsentResource' => 'Izin Foto Pelanggan',
                 'CustomerGalleryPhotoResource' => 'Galeri Customer',
                 'NewsResource' => 'News / Berita',
                 'CarouselResource' => 'Banner / Carousel',

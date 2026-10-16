@@ -16,7 +16,7 @@ class CaseStudy extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['vehicle_id', 'film_product_id', 'title', 'short_title', 'sort_order', 'is_active'])
+            ->logOnly(['vehicle_id', 'film_product_id', 'booking_id', 'marketing_consent_id', 'service_type', 'title', 'short_title', 'alt_text', 'plate_blurred', 'sort_order', 'is_active'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('case_study');
@@ -25,17 +25,68 @@ class CaseStudy extends Model
     protected $fillable = [
         'vehicle_id',
         'film_product_id',
+        'booking_id',
+        'marketing_consent_id',
+        'service_type',
         'title',
         'short_title',
         'image',
+        'before_image',
+        'alt_text',
+        'plate_blurred',
         'sort_order',
         'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'plate_blurred' => 'boolean',
         'sort_order' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        // Pengaman terakhir: materi dari booking tidak boleh tayang tanpa izin aktif, plat diburamkan, dan teks alternatif.
+        static::saving(function (CaseStudy $case) {
+            if ($case->is_active && ($blocker = $case->activationBlocker())) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['is_active' => $blocker]);
+            }
+        });
+    }
+
+    /**
+     * Syarat sebelum materi dari booking boleh tayang (null = boleh). Materi lama tanpa booking tidak dibatasi.
+     */
+    public function activationBlocker(): ?string
+    {
+        if (! $this->booking_id) {
+            return null;
+        }
+
+        if (! $this->marketing_consent_id || ! $this->consent?->isActive()) {
+            return 'Pelanggan belum memberi izin, atau izinnya sudah ditarik. Foto ini tidak boleh tayang.';
+        }
+
+        if (! $this->plate_blurred) {
+            return 'Pastikan plat nomor sudah diburamkan di foto, lalu centang "Plat nomor sudah diburamkan".';
+        }
+
+        if (blank($this->alt_text)) {
+            return 'Isi teks alternatif foto (deskripsi singkat isi gambar).';
+        }
+
+        return null;
+    }
+
+    public function booking()
+    {
+        return $this->belongsTo(Booking::class);
+    }
+
+    public function consent()
+    {
+        return $this->belongsTo(MarketingConsent::class, 'marketing_consent_id');
+    }
 
     public function vehicle()
     {

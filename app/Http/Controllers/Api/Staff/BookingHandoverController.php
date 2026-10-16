@@ -35,6 +35,7 @@ class BookingHandoverController extends Controller
                     'wet_signature_received' => $handover->wet_signature_received,
                     'final_photo_url' => $handover->final_photo_path ? Storage::disk('public')->url($handover->final_photo_path) : null,
                     'notes' => $handover->notes,
+                    'photo_consent' => (bool) $booking->photoConsent?->isActive(),
                     'recorded_by' => $handover->recorder?->name,
                     'handed_over_at' => $handover->handed_over_at?->toIso8601String(),
                 ] : null,
@@ -55,6 +56,7 @@ class BookingHandoverController extends Controller
             'care_instructions_given' => 'required|boolean',
             'wet_signature_received' => 'required|boolean',
             'notes' => 'nullable|string|max:1000',
+            'photo_consent' => 'nullable|boolean',
             'photo' => 'nullable|image|max:10240',
         ], [
             'photo.image' => 'File yang dipilih bukan gambar.',
@@ -91,6 +93,14 @@ class BookingHandoverController extends Controller
                     'notes' => $request->input('notes'),
                     'handed_over_at' => now(),
                 ]);
+
+                // Izin foto pekerjaan untuk pemasaran: opt-in, bawaan TIDAK ada izin (Marketing/Konten Fase 3).
+                if ($request->boolean('photo_consent')) {
+                    \App\Models\MarketingConsent::firstOrCreate(
+                        ['booking_id' => $locked->id, 'scope' => \App\Models\MarketingConsent::SCOPE_JOB_PHOTOS],
+                        ['customer_id' => $locked->customer_id, 'granted_at' => now(), 'recorded_by_user_id' => $user->id],
+                    );
+                }
 
                 return response()->json([
                     'success' => true,
