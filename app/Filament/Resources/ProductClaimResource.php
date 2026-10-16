@@ -12,8 +12,9 @@ use Filament\Tables;
 use Filament\Tables\Table;
 
 /**
- * Klaim Produk (Marketing/Konten Fase 2): satu-satunya sumber angka TSER/UV/VLT/garansi yang boleh tayang di web dan aplikasi. Staf
- * menyusun klaim beserta buktinya; hanya akses penuh yang dapat menyetujui. Mengubah klaim yang sudah disetujui mengembalikannya ke draft.
+ * Klaim Produk (Marketing/Konten Fase 2): arsip INTERNAL angka TSER/UV/VLT/garansi beserta buktinya, untuk melindungi perusahaan bila ada
+ * yang mempertanyakan klaim. Tidak mengatur apa yang tampil di web: angka di halaman web tetap yang tertulis di kodenya. Staf menyusun
+ * klaim; hanya akses penuh yang dapat menyetujui. Mengubah klaim yang sudah disetujui mengembalikannya ke draft.
  */
 class ProductClaimResource extends Resource
 {
@@ -94,7 +95,7 @@ class ProductClaimResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Bukti')
-                ->description('Angka hanya dapat disetujui bila ada berkas bukti atau catatan sumber, dan tanggalnya jelas. Mengubah klaim yang sudah disetujui membuatnya kembali berstatus draft.')
+                ->description('Arsip internal, tidak tampil di web. Angka hanya dapat disetujui bila ada berkas bukti atau catatan sumber, dan tanggalnya jelas. Mengubah klaim yang sudah disetujui membuatnya kembali berstatus draft.')
                 ->columns(2)
                 ->schema([
                     Forms\Components\FileUpload::make('evidence_path')
@@ -153,7 +154,7 @@ class ProductClaimResource extends Resource
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalDescription('Setelah disetujui, angka ini boleh tayang di web dan aplikasi.')
+                    ->modalDescription('Angka ini dicatat sebagai terbukti dan boleh dipakai di materi pemasaran. Ini tidak mengubah tampilan web.')
                     ->visible(fn (ProductClaim $record) => $record->status !== 'approved' && (auth()->user()?->isFullAccess() ?? false))
                     ->action(function (ProductClaim $record) {
                         if ($blocker = $record->approvalBlocker()) {
@@ -170,7 +171,7 @@ class ProductClaimResource extends Resource
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->modalDescription('Angka ini langsung berhenti tayang.')
+                    ->modalDescription('Angka ini ditandai tidak boleh lagi dipakai di materi pemasaran. Ini tidak mengubah tampilan web.')
                     ->visible(fn (ProductClaim $record) => $record->status === 'approved' && (auth()->user()?->isFullAccess() ?? false))
                     ->action(function (ProductClaim $record) {
                         $record->withdraw();

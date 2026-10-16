@@ -7,8 +7,8 @@ use Illuminate\Console\Command;
 
 /**
  * Memasukkan angka yang SAAT INI tertulis di halaman kampanye kaca film (web) sebagai klaim DRAFT (Marketing/Konten Fase 2), supaya
- * penyetuju tidak mengetik ulang dari nol. Semuanya berstatus draft tanpa bukti: tidak ada yang tayang dari tabel ini sampai
- * seseorang melampirkan bukti dan menyetujuinya. Aman dijalankan berulang (tidak menggandakan).
+ * penyetuju tidak mengetik ulang dari nol. Semuanya berstatus draft tanpa bukti sampai seseorang melampirkan bukti dan
+ * menyetujuinya. Tabel ini arsip internal dan tidak mempengaruhi halaman web. Aman dijalankan berulang (tidak menggandakan).
  */
 class SeedProductClaimDrafts extends Command
 {

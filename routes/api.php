@@ -4,7 +4,6 @@ use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\BookingCatalogController;
 use App\Http\Controllers\Api\VehicleCatalogController;
 use App\Http\Controllers\Api\CarouselController;
-use App\Http\Controllers\Api\ProductClaimController;
 use App\Http\Controllers\Api\FeaturedProductController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\CaseStudyController;
@@ -62,7 +61,6 @@ Route::get('/booking/services', [BookingCatalogController::class, 'services'])->
 Route::get('/vehicles/catalog', [VehicleCatalogController::class, 'index'])->middleware('throttle:30,1');
 
 Route::get('/carousels', [CarouselController::class, 'index']);
-Route::get('/product-claims', [ProductClaimController::class, 'index'])->middleware('throttle:60,1');
 Route::get('/featured-products', [FeaturedProductController::class, 'index']);
 Route::get('/featured-products/all', [FeaturedProductController::class, 'all']);
 Route::get('/materials', [MaterialController::class, 'index']);

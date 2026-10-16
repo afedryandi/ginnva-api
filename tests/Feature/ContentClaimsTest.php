@@ -80,20 +80,15 @@ class ContentClaimsTest extends TestCase
 
     // ------------------------------------------------------------- klaim produk
 
-    public function test_only_approved_claims_are_public(): void
+    public function test_claims_are_internal_only_and_have_no_public_endpoint(): void
     {
         $this->claim(['value' => '61%']);                                                              // draft
         $this->claim(['claim_type' => 'uv', 'label' => 'UV', 'value' => '99%', 'status' => 'approved', 'tested_at' => '2026-03-01', 'source_note' => 'Lembar data']);
         $this->claim(['series' => 'H30', 'value' => '56%', 'status' => 'withdrawn']);
 
-        $data = $this->getJson('/api/product-claims')->assertOk()->json('data');
+        $this->assertSame(['99%'], ProductClaim::approved()->pluck('value')->all());
 
-        $this->assertSame(['A70'], array_keys($data));
-        $this->assertCount(1, $data['A70']);
-        $this->assertSame('99%', $data['A70'][0]['value']);
-        $this->assertSame('uv', $data['A70'][0]['type']);
-
-        $this->getJson('/api/product-claims?series=H30')->assertOk()->assertJsonPath('data', []);
+        $this->getJson('/api/product-claims')->assertStatus(404);
     }
 
     public function test_a_claim_cannot_be_approved_without_evidence_and_a_date(): void
@@ -119,13 +114,13 @@ class ContentClaimsTest extends TestCase
         $this->assertSame('approved', $claim->status);
         $this->assertNotNull($claim->approved_by);
         $this->assertNotNull($claim->approved_at);
-        $this->assertSame(1, count($this->getJson('/api/product-claims')->json('data.A70')));
+        $this->assertSame(1, ProductClaim::approved()->count());
     }
 
-    public function test_editing_an_approved_claim_sends_it_back_to_draft_and_off_the_site(): void
+    public function test_editing_an_approved_claim_sends_it_back_to_draft(): void
     {
         $claim = $this->claim(['status' => 'approved', 'source_note' => 'Lembar data', 'tested_at' => '2026-03-01', 'approved_by' => $this->user()->id, 'approved_at' => now()]);
-        $this->assertCount(1, $this->getJson('/api/product-claims')->json('data.A70'));
+        $this->assertSame(1, ProductClaim::approved()->count());
 
         $claim->update(['value' => '65%']);
 
@@ -133,10 +128,10 @@ class ContentClaimsTest extends TestCase
         $this->assertSame('draft', $claim->status);
         $this->assertNull($claim->approved_by);
         $this->assertNull($claim->approved_at);
-        $this->getJson('/api/product-claims')->assertJsonPath('data', []);
+        $this->assertSame(0, ProductClaim::approved()->count());
     }
 
-    public function test_only_full_access_users_can_approve_or_withdraw_and_withdrawn_claims_leave_the_site(): void
+    public function test_only_full_access_users_can_approve_or_withdraw(): void
     {
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $draft = $this->claim(['source_note' => 'Lembar data', 'tested_at' => '2026-03-01']);
@@ -149,10 +144,10 @@ class ContentClaimsTest extends TestCase
         Livewire::test(ListProductClaims::class)->callTableAction('withdraw', $approved);
 
         $this->assertSame('withdrawn', $approved->fresh()->status);
-        $this->getJson('/api/product-claims')->assertJsonPath('data', []);
+        $this->assertSame(0, ProductClaim::approved()->count());
     }
 
-    public function test_the_draft_seeding_command_is_idempotent_and_publishes_nothing(): void
+    public function test_the_draft_seeding_command_is_idempotent_and_approves_nothing(): void
     {
         $this->artisan('claims:seed-drafts')->assertSuccessful();
         $first = ProductClaim::count();
@@ -162,6 +157,5 @@ class ContentClaimsTest extends TestCase
         $this->assertSame($first, ProductClaim::count());
 
         $this->assertSame(0, ProductClaim::approved()->count());
-        $this->getJson('/api/product-claims')->assertJsonPath('data', []);
     }
 }

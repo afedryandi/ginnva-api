@@ -8,9 +8,9 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
- * Klaim produk yang boleh dipakai di web, aplikasi, dan materi (Marketing/Konten Fase 2). Alur: draft -> disetujui (oleh akses penuh,
+ * Arsip internal klaim produk beserta bukti dan persetujuannya (Marketing/Konten Fase 2); TIDAK mengatur tampilan web atau aplikasi. Alur: draft -> disetujui (oleh akses penuh,
  * wajib ada bukti atau catatan sumber, plus tanggal uji) -> bisa ditarik. Mengubah isi klaim yang sudah disetujui mengembalikannya ke
- * draft, supaya angka yang tayang selalu persis angka yang pernah disetujui.
+ * draft, supaya angka berstatus disetujui selalu persis angka yang pernah diperiksa buktinya.
  */
 class ProductClaim extends Model
 {
