@@ -275,6 +275,8 @@ class WarningLetterTest extends TestCase
 
     public function test_the_staff_app_lists_only_my_own_letters_newest_first(): void
     {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        \Illuminate\Support\Facades\Storage::disk('local')->put('warning-letters/sp2.pdf', 'scan');
         $me = $this->user('kasir');
         $colleague = $this->user('kasir');
         $older = $this->letter($me, ['issued_date' => today()->subMonths(3)->toDateString()]);
@@ -285,7 +287,8 @@ class WarningLetterTest extends TestCase
 
         $this->assertSame([$newer->id, $older->id], collect($data)->pluck('id')->all());
         $this->assertSame(['id', 'warning_number', 'level', 'reason', 'issued_date', 'valid_until', 'acknowledged_at', 'document_url', 'issuer_name'], array_keys($data[0]));
-        $this->assertStringEndsWith('/storage/warning-letters/sp2.pdf', $data[0]['document_url']);
+        $this->assertStringContainsString('warning-letters/sp2.pdf', $data[0]['document_url']);
+        $this->assertMatchesRegularExpression('/expir/', $data[0]['document_url'], 'Tautan sementara, bukan alamat tetap yang terbuka untuk umum.');
         $this->assertNull($data[1]['document_url']);
     }
 

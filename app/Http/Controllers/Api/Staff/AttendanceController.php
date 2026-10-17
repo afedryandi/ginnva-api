@@ -90,7 +90,7 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        $photoPath = $request->file('photo')->store('attendance-photos', 'public');
+        $photoPath = \App\Support\SensitiveFiles::store($request->file('photo'), 'attendance-photos');
 
         // Bug diperbaiki 2026-09-27 (audit ulang, fitur foto) --
         // SEBELUMNYA cuma catch InvalidArgumentException (radius/mock),
@@ -109,11 +109,11 @@ class AttendanceController extends Controller
                 $photoPath
             );
         } catch (\InvalidArgumentException $e) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($photoPath);
+            \App\Support\SensitiveFiles::delete($photoPath);
 
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($photoPath);
+            \App\Support\SensitiveFiles::delete($photoPath);
 
             throw $e;
         }
@@ -148,7 +148,7 @@ class AttendanceController extends Controller
         ]);
 
         $user = $request->user('api');
-        $photoPath = $request->file('photo')->store('attendance-photos', 'public');
+        $photoPath = \App\Support\SensitiveFiles::store($request->file('photo'), 'attendance-photos');
 
         try {
             $attendance = Attendance::clockOut(
@@ -159,11 +159,11 @@ class AttendanceController extends Controller
                 $photoPath
             );
         } catch (\InvalidArgumentException $e) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($photoPath);
+            \App\Support\SensitiveFiles::delete($photoPath);
 
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($photoPath);
+            \App\Support\SensitiveFiles::delete($photoPath);
 
             throw $e;
         }
@@ -395,7 +395,7 @@ class AttendanceController extends Controller
         // di bawah adalah penjaga SEBENARNYA -- recheck overlap/kuota
         // DI DALAM lockForUpdate() tepat sebelum create(), menutup celah
         // TOCTOU kalau 2 submit dari device berbeda nyaris bersamaan.
-        $documentPath = $request->hasFile('document') ? $request->file('document')->store('leave-requests', 'public') : null;
+        $documentPath = $request->hasFile('document') ? \App\Support\SensitiveFiles::store($request->file('document'), 'leave-requests') : null;
 
         try {
             $leaveRequest = LeaveRequest::createLocked([
@@ -413,7 +413,7 @@ class AttendanceController extends Controller
             // yang sudah terlanjur ter-upload supaya tidak jadi file
             // yatim kalau ternyata gagal (race overlap/kuota).
             if ($documentPath) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($documentPath);
+                \App\Support\SensitiveFiles::delete($documentPath);
             }
 
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
@@ -459,8 +459,8 @@ class AttendanceController extends Controller
             'clock_in_at' => $attendance->clock_in_at?->toIso8601String(),
             'clock_out_at' => $attendance->clock_out_at?->toIso8601String(),
             'clock_in_distance_meters' => $attendance->clock_in_distance_meters,
-            'clock_in_photo_url' => $attendance->clock_in_photo ? \Illuminate\Support\Facades\Storage::disk('public')->url($attendance->clock_in_photo) : null,
-            'clock_out_photo_url' => $attendance->clock_out_photo ? \Illuminate\Support\Facades\Storage::disk('public')->url($attendance->clock_out_photo) : null,
+            'clock_in_photo_url' => \App\Support\SensitiveFiles::url($attendance->clock_in_photo),
+            'clock_out_photo_url' => \App\Support\SensitiveFiles::url($attendance->clock_out_photo),
             'late_minutes' => $attendance->late_minutes,
             'early_leave_minutes' => $attendance->early_leave_minutes,
             'note' => $attendance->note,
@@ -476,7 +476,7 @@ class AttendanceController extends Controller
             'start_date' => $r->start_date->toDateString(),
             'end_date' => $r->end_date->toDateString(),
             'reason' => $r->reason,
-            'document_url' => $r->document ? \Illuminate\Support\Facades\Storage::disk('public')->url($r->document) : null,
+            'document_url' => \App\Support\SensitiveFiles::url($r->document),
             'status' => $r->status,
             'review_note' => $r->review_note,
             'reviewer_name' => $r->reviewer?->name,

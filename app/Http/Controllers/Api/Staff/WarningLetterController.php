@@ -75,7 +75,7 @@ class WarningLetterController extends Controller
             'issued_date' => $w->issued_date->toDateString(),
             'valid_until' => $w->valid_until?->toDateString(),
             'acknowledged_at' => $w->acknowledged_at?->toIso8601String(),
-            'document_url' => $w->document ? Storage::disk('public')->url($w->document) : null,
+            'document_url' => \App\Support\SensitiveFiles::url($w->document),
             'issuer_name' => $w->issuer?->name,
         ];
     }

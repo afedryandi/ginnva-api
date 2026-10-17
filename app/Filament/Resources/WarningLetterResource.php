@@ -225,6 +225,8 @@ class WarningLetterResource extends Resource
 
                     Forms\Components\FileUpload::make('document')
                         ->label('Scan Surat (opsional)')
+                        ->disk('local')
+                        ->visibility('private')
                         ->directory('warning-letters')
                         ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
                         ->maxSize(10240),
@@ -354,7 +356,7 @@ class WarningLetterResource extends Resource
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('gray')
                     ->visible(fn (WarningLetter $record) => filled($record->document))
-                    ->url(fn (WarningLetter $record) => \Illuminate\Support\Facades\Storage::disk('public')->url($record->document))
+                    ->url(fn (WarningLetter $record) => \App\Support\SensitiveFiles::url($record->document))
                     ->openUrlInNewTab(),
 
                 Tables\Actions\EditAction::make(),

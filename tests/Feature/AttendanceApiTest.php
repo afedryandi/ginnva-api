@@ -38,6 +38,7 @@ class AttendanceApiTest extends TestCase
 
         Http::fake();
         Storage::fake('public');
+        Storage::fake('local');   // selfie dan lampiran izin kini disimpan di disk privat
         Role::findOrCreate('kasir', 'web');
         Role::findOrCreate('partner', 'web');
         Carbon::setTestNow('2026-10-07 09:10:00');
@@ -134,7 +135,7 @@ class AttendanceApiTest extends TestCase
         $row = Attendance::where('user_id', $this->staff->id)->firstOrFail();
         $this->assertSame('2026-10-07', $row->date->toDateString());
         $this->assertSame($this->store->id, $row->store_id);
-        Storage::disk('public')->assertExists($row->clock_in_photo);
+        Storage::disk('local')->assertExists($row->clock_in_photo);
 
         $this->actingAs($this->staff, 'api')->getJson('/api/staff/attendance/today')->assertJsonPath('attendance.id', $row->id);
     }
@@ -166,7 +167,7 @@ class AttendanceApiTest extends TestCase
 
         $this->assertStringContainsString('dari toko', $this->clockIn(null, ['latitude' => -6.3000])->json('message'));
         $this->assertSame(0, Attendance::count());
-        $this->assertSame([], Storage::disk('public')->allFiles('attendance-photos'), 'Foto yatim tidak boleh tertinggal.');
+        $this->assertSame([], Storage::disk('local')->allFiles('attendance-photos'), 'Foto yatim tidak boleh tertinggal.');
     }
 
     public function test_mock_location_is_rejected_but_unknown_platform_is_allowed(): void
@@ -256,7 +257,7 @@ class AttendanceApiTest extends TestCase
 
         $row = Attendance::firstOrFail();
         $this->assertNotNull($row->clock_out_at);
-        Storage::disk('public')->assertExists($row->clock_out_photo);
+        Storage::disk('local')->assertExists($row->clock_out_photo);
     }
 
     public function test_clock_out_is_also_checked_against_radius_and_mock_location(): void
@@ -267,7 +268,7 @@ class AttendanceApiTest extends TestCase
         $this->clockOut(null, ['is_mocked' => '1'])->assertStatus(422);
 
         $this->assertNull(Attendance::firstOrFail()->clock_out_at);
-        $this->assertCount(1, Storage::disk('public')->allFiles('attendance-photos'), 'Hanya foto absen masuk yang tersisa.');
+        $this->assertCount(1, Storage::disk('local')->allFiles('attendance-photos'), 'Hanya foto absen masuk yang tersisa.');
     }
 
     // ------------------------------------------------------------- riwayat

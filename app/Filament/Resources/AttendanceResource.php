@@ -226,7 +226,8 @@ class AttendanceResource extends Resource
                         // dengan disk yang dipakai controller upload
                         // (Storage::disk('public')->store()) supaya preview
                         // dijamin tidak broken.
-                        ->disk('public')
+                        ->disk('local')
+                        ->visibility('private')
                         ->disabled()
                         ->dehydrated(false)
                         ->visible(fn (?Attendance $record) => (bool) $record?->clock_in_photo),
@@ -235,7 +236,8 @@ class AttendanceResource extends Resource
                         ->label('Foto Absen Keluar')
                         ->image()
                         ->directory('attendance-photos')
-                        ->disk('public')
+                        ->disk('local')
+                        ->visibility('private')
                         ->disabled()
                         ->dehydrated(false)
                         ->visible(fn (?Attendance $record) => (bool) $record?->clock_out_photo),

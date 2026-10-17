@@ -30,6 +30,7 @@ class MobileMultipartContractTest extends TestCase
 
         Http::fake();
         Storage::fake('public');
+        Storage::fake('local');
         Role::findOrCreate('kasir', 'web');
 
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true]);

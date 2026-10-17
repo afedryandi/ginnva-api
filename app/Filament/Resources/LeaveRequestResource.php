@@ -207,6 +207,8 @@ class LeaveRequestResource extends Resource
                     Forms\Components\FileUpload::make('document')
                         ->label('Lampiran (opsional)')
                         ->helperText('Mis. surat keterangan dokter untuk Sakit — belum wajib, tapi disarankan untuk Sakit lebih dari 1 hari.')
+                        ->disk('local')
+                        ->visibility('private')
                         ->directory('leave-requests')
                         ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
                         ->maxSize(10240),

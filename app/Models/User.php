@@ -93,6 +93,12 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'base_salary' => 'decimal:2',
         'contract_end_date' => 'date',
         'is_active' => 'boolean',
+        // Data identitas terenkripsi di database (Karyawan Fase 0, UU PDP); terbaca normal lewat model.
+        'nik' => 'encrypted',
+        'npwp' => 'encrypted',
+        'bpjs_kesehatan_number' => 'encrypted',
+        'bpjs_ketenagakerjaan_number' => 'encrypted',
+        'bank_account_number' => 'encrypted',
     ];
 
     public function getJWTIdentifier()
