@@ -178,7 +178,7 @@ class LeaveTypesAndProfileTest extends TestCase
         $this->assertTrue(LeaveTypeResource::canDelete(LeaveType::where('code', 'sakit')->first()));
 
         Livewire::test(ListLeaveTypes::class)->assertSuccessful()
-            ->assertCanSeeTableRecords(LeaveType::all());
+            ->assertCanSeeTableRecords(LeaveType::orderBy('sort_order')->take(10)->get());
     }
 
     // ------------------------------------------------------------- Profil Saya
