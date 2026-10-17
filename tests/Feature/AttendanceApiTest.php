@@ -392,7 +392,7 @@ class AttendanceApiTest extends TestCase
         $newcomer = $this->makeStaff($this->store, ['join_date' => '2026-10-01']);
         $this->requestLeave(['type' => 'cuti'], $newcomer)->assertStatus(422);
 
-        $this->requestLeave(['type' => 'sakit'], $newcomer)->assertStatus(201); // sakit/izin tidak memotong jatah
+        $this->requestLeave(['type' => 'sakit', 'end_date' => '2026-10-12'], $newcomer)->assertStatus(201); // sakit/izin tidak memotong jatah
     }
 
     public function test_only_my_own_pending_requests_can_be_cancelled(): void

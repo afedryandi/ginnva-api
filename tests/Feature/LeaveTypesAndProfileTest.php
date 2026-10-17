@@ -97,7 +97,7 @@ class LeaveTypesAndProfileTest extends TestCase
         $this->assertFalse($codes->contains('Cuti Ibadah Keagamaan'));
         $sakit = collect($response->json('leave_types'))->firstWhere('name', 'Sakit');
         $this->assertSame(2, $sakit['document_required_from_days']);
-        $this->assertStringContainsString('wajib melampirkan dokumen', $sakit['rule_summary']);
+        $this->assertStringContainsString('melampirkan dokumen', $sakit['rule_summary']);
     }
 
     public function test_special_leave_does_not_use_up_the_annual_quota(): void

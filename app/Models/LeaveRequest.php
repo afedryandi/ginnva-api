@@ -294,6 +294,11 @@ class LeaveRequest extends Model
     protected static function booted(): void
     {
         static::creating(function (LeaveRequest $request) {
+            // Pembuat yang hanya menyebut kategori (aplikasi lama, seeder, impor) otomatis dikaitkan ke jenis dasarnya.
+            if (empty($request->leave_type_id) && ! empty($request->type)) {
+                $request->leave_type_id = LeaveType::forCategory($request->type)?->id;
+            }
+
             if (empty($request->request_number)) {
                 $request->request_number = static::generateRequestNumber($request->type);
             }
