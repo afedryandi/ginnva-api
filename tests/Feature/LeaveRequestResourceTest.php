@@ -67,8 +67,12 @@ class LeaveRequestResourceTest extends TestCase
 
     private function form(User $employee, array $overrides = []): array
     {
+        // Form memakai Jenis (leave_type_id); kategori 'type' diturunkan darinya. 'type' di sini hanya jalan pintas memilih jenis dasar.
+        $category = $overrides['type'] ?? 'izin';
+        unset($overrides['type']);
+
         return array_merge([
-            'user_id' => $employee->id, 'store_id' => $employee->store_id, 'type' => 'izin',
+            'user_id' => $employee->id, 'store_id' => $employee->store_id, 'leave_type_id' => \App\Models\LeaveType::forCategory($category)->id,
             'start_date' => now()->addDays(3)->toDateString(), 'end_date' => now()->addDays(4)->toDateString(), 'reason' => 'Urusan keluarga',
         ], $overrides);
     }
@@ -87,7 +91,7 @@ class LeaveRequestResourceTest extends TestCase
             ->assertCanSeeTableRecords([$mine, $approved])->assertCanNotSeeTableRecords([$theirs])
             ->filterTable('status', 'approved')
             ->assertCanSeeTableRecords([$approved])->assertCanNotSeeTableRecords([$mine]);
-        Livewire::test(ListLeaveRequests::class)->filterTable('type', 'cuti')
+        Livewire::test(ListLeaveRequests::class)->filterTable('leave_type_id', \App\Models\LeaveType::forCategory('cuti')->id)
             ->assertCanSeeTableRecords([$approved])->assertCanNotSeeTableRecords([$mine]);
         $this->assertSame('1', LeaveRequestResource::getNavigationBadge());
 
@@ -157,7 +161,7 @@ class LeaveRequestResourceTest extends TestCase
             ->call('create')->assertHasFormErrors(['end_date']);
 
         Livewire::test(CreateLeaveRequest::class)
-            ->fillForm($this->form($newcomer, ['type' => 'sakit']))
+            ->fillForm($this->form($newcomer, ['type' => 'sakit', 'end_date' => now()->addDays(3)->toDateString()]))
             ->call('create')->assertHasNoFormErrors();
 
         $this->assertSame(1, LeaveRequest::count(), 'Sakit tidak memotong jatah cuti.');

@@ -157,6 +157,7 @@ class UserResource extends Resource
                 'AttendanceResource' => 'Absensi Karyawan',
                 'AttendanceCorrectionRequestResource' => 'Koreksi Absensi',
                 'LeaveRequestResource' => 'Izin & Cuti',
+                'LeaveTypeResource' => 'Jenis Izin & Cuti',
                 'WarningLetterResource' => 'Surat Peringatan',
                 'ContractExtensionResource' => 'Perpanjang Kontrak',
                 // Modul Jadwal Kerja (audit Majoo, 2026-09-22).

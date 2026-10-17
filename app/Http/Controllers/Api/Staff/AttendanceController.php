@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrectionRequest;
 use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use App\Models\Store;
 use App\Services\AttendanceCorrectionService;
 use Illuminate\Http\Request;
@@ -315,7 +316,7 @@ class AttendanceController extends Controller
     {
         $user = $request->user('api');
         $paginated = LeaveRequest::where('user_id', $user->id)
-            ->with('reviewer:id,name')
+            ->with(['reviewer:id,name', 'leaveType:id,name'])
             ->orderByDesc('created_at')
             ->paginate(20, ['*'], 'page', (int) $request->query('page', 1));
 
@@ -336,12 +337,37 @@ class AttendanceController extends Controller
     }
 
     /**
+     * GET /api/staff/leave-types
+     * Jenis izin/cuti yang aktif beserta syaratnya (Karyawan Fase 2), supaya aplikasi menampilkan pilihan dan aturannya dari server.
+     */
+    public function leaveTypes()
+    {
+        LeaveType::ensureDefaults();
+
+        return response()->json([
+            'success' => true,
+            'leave_types' => LeaveType::where('is_active', true)->orderBy('sort_order')->orderBy('id')->get()->map(fn (LeaveType $t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'category' => $t->category,
+                'deducts_annual_quota' => $t->deducts_annual_quota,
+                'max_days' => $t->max_days,
+                'document_required_from_days' => $t->document_required_from_days,
+                'notes' => $t->notes,
+                'rule_summary' => $t->ruleSummary(),
+            ])->values(),
+        ]);
+    }
+
+    /**
      * POST /api/staff/leave-requests
      */
     public function leaveRequestsStore(Request $request)
     {
         $request->validate([
-            'type'       => 'required|in:izin,sakit,cuti',
+            // Aplikasi baru mengirim leave_type_id; aplikasi lama masih mengirim type (kategori) saja.
+            'leave_type_id' => 'nullable|integer|exists:leave_types,id',
+            'type'       => 'required_without:leave_type_id|nullable|in:izin,sakit,cuti',
             // after_or_equal:today — dulu bisa ajukan tanggal lampau lewat
             // panggilan API langsung (app cuma mencegah lewat UI stepper,
             // bukan validasi sungguhan). Lihat audit modul Izin & Cuti
@@ -365,10 +391,15 @@ class AttendanceController extends Controller
 
         $dayCount = Carbon::parse($request->start_date)->diffInDays(Carbon::parse($request->end_date)) + 1;
 
-        if ($dayCount > LeaveRequest::MAX_DURATION_DAYS) {
+        $leaveType = $request->filled('leave_type_id') ? LeaveType::find($request->leave_type_id) : LeaveType::forCategory((string) $request->type);
+        $maxDays = $leaveType?->max_days ?: LeaveRequest::MAX_DURATION_DAYS;
+
+        if ($dayCount > $maxDays) {
             return response()->json([
                 'success' => false,
-                'message' => 'Durasi pengajuan maksimal ' . LeaveRequest::MAX_DURATION_DAYS . ' hari. Hubungi admin untuk kasus khusus di luar itu.',
+                'message' => $leaveType?->max_days
+                    ? "{$leaveType->name} maksimal {$leaveType->max_days} hari."
+                    : 'Durasi pengajuan maksimal ' . LeaveRequest::MAX_DURATION_DAYS . ' hari. Hubungi admin untuk kasus khusus di luar itu.',
             ], 422);
         }
 
@@ -379,7 +410,7 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        if ($request->type === 'cuti') {
+        if ($leaveType ? $leaveType->deducts_annual_quota : $request->type === 'cuti') {
             $remaining = LeaveRequest::remainingCutiFor($user, Carbon::parse($request->start_date)->year);
             if ($dayCount > $remaining) {
                 return response()->json([
@@ -402,6 +433,7 @@ class AttendanceController extends Controller
                 'user_id'    => $user->id,
                 'store_id'   => $user->store_id,
                 'type'       => $request->type,
+                'leave_type_id' => $request->leave_type_id,
                 'start_date' => $request->start_date,
                 'end_date'   => $request->end_date,
                 'reason'     => $request->reason,
@@ -473,6 +505,8 @@ class AttendanceController extends Controller
             'id' => $r->id,
             'request_number' => $r->request_number,
             'type' => $r->type,
+            'leave_type_id' => $r->leave_type_id,
+            'leave_type_name' => $r->leaveType?->name,
             'start_date' => $r->start_date->toDateString(),
             'end_date' => $r->end_date->toDateString(),
             'reason' => $r->reason,

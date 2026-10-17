@@ -143,26 +143,29 @@ class LeaveRequestResource extends Resource
                         ->disabled(! $isSuperAdmin)
                         ->dehydrated(),
 
-                    Forms\Components\Select::make('type')
+                    // Jenis dari master Jenis Izin & Cuti (Karyawan Fase 2); kategori (type) diturunkan darinya saat disimpan.
+                    Forms\Components\Select::make('leave_type_id')
                         ->label('Jenis')
-                        ->options([
-                            'izin' => 'Izin',
-                            'sakit' => 'Sakit',
-                            'cuti' => 'Cuti',
-                        ])
+                        ->options(fn () => \App\Models\LeaveType::where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
                         ->required()
                         ->live()
-                        // Cuma 'cuti' yang potong jatah tahunan (Izin/Sakit
-                        // tidak) — lihat LeaveRequest::annualQuotaFor().
+                        ->native(false)
+                        ->afterStateUpdated(fn (Forms\Set $set, ?string $state) => $set('type', $state ? \App\Models\LeaveType::find($state)?->category : null))
+                        // Hanya jenis yang memotong jatah tahunan menampilkan sisa jatah -- lihat LeaveRequest::annualQuotaFor().
                         ->helperText(function (Forms\Get $get, ?LeaveRequest $record) {
-                            if ($get('type') !== 'cuti') return null;
+                            $leaveType = $get('leave_type_id') ? \App\Models\LeaveType::find($get('leave_type_id')) : null;
+                            if (! $leaveType) return null;
+                            $rule = $leaveType->ruleSummary();
                             $userId = $get('user_id');
-                            if (! $userId) return null;
-                            $user = User::find($userId);
-                            if (! $user) return null;
-                            $remaining = LeaveRequest::remainingCutiFor($user, today()->year) + ($record?->type === 'cuti' ? $record->dayCount() : 0);
-                            return "Sisa jatah cuti {$user->name} tahun ini: {$remaining} hari.";
+                            $user = $userId ? User::find($userId) : null;
+                            if (! $leaveType->deducts_annual_quota || ! $user) return $rule ?: null;
+                            $remaining = LeaveRequest::remainingCutiFor($user, today()->year) + ($record?->deductsAnnualQuota() ? $record->dayCount() : 0);
+                            return trim("Sisa jatah cuti {$user->name} tahun ini: {$remaining} hari. {$rule}");
                         }),
+
+                    Forms\Components\Hidden::make('type')
+                        ->dehydrated()
+                        ->dehydrateStateUsing(fn (Forms\Get $get, $state) => $get('leave_type_id') ? \App\Models\LeaveType::find($get('leave_type_id'))?->category : $state),
 
                     Forms\Components\DatePicker::make('start_date')
                         ->label('Dari Tanggal')
@@ -182,8 +185,10 @@ class LeaveRequestResource extends Resource
                             if (! $value || ! $get('start_date') || ! $get('user_id')) return;
 
                             $dayCount = Carbon::parse($get('start_date'))->diffInDays(Carbon::parse($value)) + 1;
-                            if ($dayCount > LeaveRequest::MAX_DURATION_DAYS) {
-                                $fail('Durasi pengajuan maksimal ' . LeaveRequest::MAX_DURATION_DAYS . ' hari.');
+                            $leaveType = $get('leave_type_id') ? \App\Models\LeaveType::find($get('leave_type_id')) : null;
+                            $maxDays = $leaveType?->max_days ?: LeaveRequest::MAX_DURATION_DAYS;
+                            if ($dayCount > $maxDays) {
+                                $fail($leaveType?->max_days ? "{$leaveType->name} maksimal {$maxDays} hari." : 'Durasi pengajuan maksimal ' . LeaveRequest::MAX_DURATION_DAYS . ' hari.');
                                 return;
                             }
 
@@ -195,9 +200,9 @@ class LeaveRequestResource extends Resource
                                 return;
                             }
 
-                            if ($get('type') === 'cuti') {
+                            if ($leaveType?->deducts_annual_quota) {
                                 $remaining = LeaveRequest::remainingCutiFor($user, Carbon::parse($get('start_date'))->year)
-                                    + ($record?->type === 'cuti' ? $record->dayCount() : 0);
+                                    + ($record?->deductsAnnualQuota() ? $record->dayCount() : 0);
                                 if ($dayCount > $remaining) {
                                     $fail("Sisa jatah cuti {$user->name} tahun ini tinggal {$remaining} hari, tidak cukup untuk {$dayCount} hari.");
                                 }
@@ -205,8 +210,8 @@ class LeaveRequestResource extends Resource
                         }),
 
                     Forms\Components\FileUpload::make('document')
-                        ->label('Lampiran (opsional)')
-                        ->helperText('Mis. surat keterangan dokter untuk Sakit — belum wajib, tapi disarankan untuk Sakit lebih dari 1 hari.')
+                        ->label('Lampiran')
+                        ->helperText('Mis. surat keterangan dokter. Wajib atau tidaknya mengikuti aturan jenis yang dipilih (menu Jenis Izin & Cuti).')
                         ->disk('local')
                         ->visibility('private')
                         ->directory('leave-requests')
@@ -240,14 +245,16 @@ class LeaveRequestResource extends Resource
                     ->label('Toko')
                     ->toggleable(),
 
-                Tables\Columns\BadgeColumn::make('type')
+                Tables\Columns\TextColumn::make('leaveType.name')
                     ->label('Jenis')
-                    ->colors([
-                        'gray'    => 'izin',
-                        'danger'  => 'sakit',
-                        'info'    => 'cuti',
-                    ])
-                    ->formatStateUsing(fn (string $state) => ucfirst($state)),
+                    ->badge()
+                    ->placeholder('—')
+                    ->color(fn (LeaveRequest $record) => match ($record->type) {
+                        'sakit' => 'danger',
+                        'cuti' => 'info',
+                        default => 'gray',
+                    })
+                    ->state(fn (LeaveRequest $record) => $record->leaveType?->name ?? ucfirst($record->type)),
 
                 Tables\Columns\TextColumn::make('start_date')
                     ->label('Dari')
@@ -289,13 +296,9 @@ class LeaveRequestResource extends Resource
                         'cancelled' => 'Dibatalkan Sendiri',
                     ]),
 
-                Tables\Filters\SelectFilter::make('type')
+                Tables\Filters\SelectFilter::make('leave_type_id')
                     ->label('Jenis')
-                    ->options([
-                        'izin' => 'Izin',
-                        'sakit' => 'Sakit',
-                        'cuti' => 'Cuti',
-                    ]),
+                    ->options(fn () => \App\Models\LeaveType::orderBy('sort_order')->pluck('name', 'id')),
 
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')

@@ -40,6 +40,7 @@ class LeaveRequest extends Model
         'user_id',
         'store_id',
         'type',
+        'leave_type_id',
         'start_date',
         'end_date',
         'reason',
@@ -64,6 +65,19 @@ class LeaveRequest extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function leaveType(): BelongsTo
+    {
+        return $this->belongsTo(LeaveType::class);
+    }
+
+    /**
+     * Pengajuan ini memotong jatah cuti tahunan? Pengajuan lama tanpa jenis dihitung dari kategorinya (cuti = memotong).
+     */
+    public function deductsAnnualQuota(): bool
+    {
+        return $this->leaveType ? $this->leaveType->deducts_annual_quota : $this->type === 'cuti';
     }
 
     public function reviewer(): BelongsTo
@@ -128,6 +142,8 @@ class LeaveRequest extends Model
         return self::where('user_id', $user->id)
             ->where('type', 'cuti')
             ->where('status', 'approved')
+            // Hanya jenis yang memotong jatah tahunan (Cuti Haid, Menikah, Melahirkan, dst. tidak).
+            ->where(fn ($q) => $q->whereNull('leave_type_id')->orWhereHas('leaveType', fn ($t) => $t->where('deducts_annual_quota', true)))
             ->whereYear('start_date', $year)
             ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
             ->get()
@@ -181,12 +197,35 @@ class LeaveRequest extends Model
                 throw new RuntimeException('Karyawan tidak ditemukan.');
             }
 
+            // Jenis menentukan kategori; pengajuan lama yang hanya menyebut kategori dipetakan ke jenis dasarnya.
+            $leaveType = ! empty($data['leave_type_id'])
+                ? LeaveType::find($data['leave_type_id'])
+                : (isset($data['type']) ? LeaveType::forCategory($data['type']) : null);
+
+            if (! empty($data['leave_type_id']) && (! $leaveType || ! $leaveType->is_active)) {
+                throw new RuntimeException('Jenis izin/cuti tidak valid atau sudah dinonaktifkan.');
+            }
+
+            if ($leaveType) {
+                $data['leave_type_id'] = $leaveType->id;
+                $data['type'] = $leaveType->category;
+            }
+
+            $dayCount = Carbon::parse($data['start_date'])->diffInDays(Carbon::parse($data['end_date'])) + 1;
+
+            if ($leaveType?->max_days && $dayCount > $leaveType->max_days) {
+                throw new RuntimeException("{$leaveType->name} maksimal {$leaveType->max_days} hari, tidak bisa mengajukan {$dayCount} hari.");
+            }
+
+            if ($leaveType?->requiresDocumentFor($dayCount) && empty($data['document'])) {
+                throw new RuntimeException("{$leaveType->name} untuk {$dayCount} hari wajib melampirkan dokumen pendukung (mis. surat dokter).");
+            }
+
             if (self::hasOverlap($user, $data['start_date'], $data['end_date'], $data['id'] ?? null)) {
                 throw new RuntimeException('Karyawan ini sudah punya pengajuan izin/cuti lain yang tanggalnya tumpang tindih.');
             }
 
-            if (($data['type'] ?? null) === 'cuti') {
-                $dayCount = Carbon::parse($data['start_date'])->diffInDays(Carbon::parse($data['end_date'])) + 1;
+            if ($leaveType ? $leaveType->deducts_annual_quota : (($data['type'] ?? null) === 'cuti')) {
                 $remaining = self::remainingCutiFor($user, Carbon::parse($data['start_date'])->year);
 
                 if ($dayCount > $remaining) {

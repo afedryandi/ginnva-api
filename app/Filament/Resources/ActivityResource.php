@@ -80,6 +80,7 @@ class ActivityResource extends Resource
     'payable' => 'Utang',
     'payable_payment' => 'Pembayaran Utang',
     'attendance_deduction_rule' => 'Aturan Potongan Absensi',
+    'leave_type' => 'Jenis Izin & Cuti',
     'payroll' => 'Penggajian',
     'payroll_item' => 'Komponen Gaji',
     'payroll_item_category' => 'Kategori Komponen Gaji',

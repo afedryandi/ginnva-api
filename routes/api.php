@@ -409,6 +409,8 @@ Route::prefix('staff')->group(function () {
         // sama pola dengan Absensi/Slip Gaji di atas, tidak dibatasi hasMenuAccess().
         Route::get('/schedule', [StaffScheduleController::class, 'index']);
 
+        Route::get('/leave-types', [StaffAttendanceController::class, 'leaveTypes']);
+        Route::get('/profile', [\App\Http\Controllers\Api\Staff\ProfileController::class, 'show']);
         Route::get('/leave-requests', [StaffAttendanceController::class, 'leaveRequestsIndex']);
         Route::post('/leave-requests', [StaffAttendanceController::class, 'leaveRequestsStore'])
             ->middleware('throttle:10,1');
