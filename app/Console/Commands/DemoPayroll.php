@@ -49,14 +49,14 @@ class DemoPayroll extends Command
             return self::FAILURE;
         }
 
-        $tolerance = $store->late_tolerance_minutes ?? Attendance::DEFAULT_LATE_TOLERANCE_MINUTES;
-        $deductionPerViolation = (float) ($store->late_deduction_amount ?? 0);
-
         $this->info("Toko dipakai: {$store->name} (ID {$store->id})");
-        $this->info("Toleransi telat bulanan: {$tolerance} menit");
-        $this->info('Potongan per hari (setelah toleransi habis): Rp' . number_format($deductionPerViolation, 0, ',', '.'));
-        if ($deductionPerViolation <= 0) {
-            $this->warn('⚠ Store::late_deduction_amount belum diisi (atau 0) — potongan di hasil demo ini akan Rp0 walau ada hari yang "kena". Isi field "Potongan per Pelanggaran" di Master Data > Toko kalau mau lihat angka potongan yang sebenarnya.');
+
+        $rule = \App\Models\AttendanceDeductionRule::effectiveFor(Carbon::now()->startOfMonth());
+
+        if ($rule) {
+            $this->info("Aturan potongan: blok telat {$rule->late_block_minutes} menit x Rp" . number_format((float) $rule->late_deduction_per_block, 0, ',', '.') . ', denda Alpha Rp' . number_format((float) $rule->alpha_fine_per_day, 0, ',', '.') . ' per hari');
+        } else {
+            $this->warn('⚠ Aturan Potongan Absensi belum diisi (menu Karyawan > Aturan Potongan Absensi); generate di bawah akan gagal sampai aturan dibuat.');
         }
 
         $baseSalary = 5000000;
@@ -125,8 +125,8 @@ class DemoPayroll extends Command
             ['Periode', $payroll->period_month->translatedFormat('F Y')],
             ['Gaji Pokok', 'Rp' . number_format($payroll->base_salary, 0, ',', '.')],
             ['Total Menit Telat', $payroll->total_late_minutes . ' menit'],
-            ['Hari Kena Potongan', $payroll->late_violation_days . ' hari'],
-            ['Potongan per Hari', 'Rp' . number_format($payroll->deduction_per_violation, 0, ',', '.')],
+            ['Blok Telat Terpotong', ($payroll->late_blocks ?? 0) . ' blok x ' . ($payroll->late_block_minutes ?? '-') . ' menit'],
+            ['Potongan per Blok', 'Rp' . number_format((float) $payroll->deduction_per_block, 0, ',', '.')],
             ['Total Potongan', 'Rp' . number_format($payroll->total_deduction, 0, ',', '.')],
             ['Gaji Bersih', 'Rp' . number_format($payroll->net_pay, 0, ',', '.')],
             ['Status', $payroll->status],

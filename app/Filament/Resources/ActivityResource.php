@@ -79,6 +79,7 @@ class ActivityResource extends Resource
     'partner_point_transaction' => 'Poin Partner',
     'payable' => 'Utang',
     'payable_payment' => 'Pembayaran Utang',
+    'attendance_deduction_rule' => 'Aturan Potongan Absensi',
     'payroll' => 'Penggajian',
     'price_rule' => 'Aturan Harga (Koefisien)',
     'product_claim' => 'Klaim Produk',

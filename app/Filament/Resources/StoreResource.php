@@ -153,20 +153,12 @@ class StoreResource extends Resource
                         ->live(onBlur: true),
 
                     Forms\Components\TextInput::make('late_tolerance_minutes')
-                        ->label('Toleransi Telat / Bulan (menit)')
-                        ->helperText('Total menit telat yang masih ditoleransi dalam 1 bulan sebelum dianggap perlu ditindaklanjuti (potongan gaji dihitung manual di Penggajian). Kosongkan untuk pakai default sistem (15 menit).')
+                        ->label('Toleransi Pengingat Absen & Pulang Cepat (menit)')
+                        ->helperText('Hanya dipakai untuk pengingat "belum absen masuk" dan menit pulang cepat. BUKAN dasar potongan telat: nominal dan aturan potongan telat/Alpha diisi di menu Karyawan > Aturan Potongan Absensi. Kosongkan untuk pakai default sistem (15 menit).')
                         ->numeric()
                         ->integer()
                         ->minValue(0)
                         ->maxValue(44640),
-
-                    Forms\Components\TextInput::make('late_deduction_amount')
-                        ->label('Potongan per Pelanggaran (Rp)')
-                        ->helperText('Nominal potongan gaji setelah toleransi telat bulanan terlampaui — dipakai sebagai acuan saat hitung Penggajian, belum otomatis memotong gaji.')
-                        ->numeric()
-                        ->prefix('Rp')
-                        ->minValue(0)
-                        ->maxValue(9999999999),
 
                     Forms\Components\Repeater::make('opening_hours')
                         ->label('Jam Operasional')
@@ -198,9 +190,23 @@ class StoreResource extends Resource
                                         ->required(fn (Forms\Get $get) => ! $get('closed'))
                                         ->hidden(fn (Forms\Get $get) => $get('closed')),
                                 ]),
+
+                            Forms\Components\Grid::make(2)
+                                ->hidden(fn (Forms\Get $get) => $get('closed'))
+                                ->schema([
+                                    Forms\Components\TimePicker::make('break_start')
+                                        ->label('Mulai Istirahat (opsional)')
+                                        ->seconds(false)
+                                        ->helperText('Jam istirahat dikurangi dari jam kerja efektif untuk potongan Alpha per jam. Kosongkan bila tidak ada.'),
+
+                                    Forms\Components\TimePicker::make('break_end')
+                                        ->label('Selesai Istirahat (opsional)')
+                                        ->seconds(false)
+                                        ->required(fn (Forms\Get $get) => filled($get('break_start'))),
+                                ]),
                         ])
                         ->itemLabel(fn (array $state): ?string => filled($state['days'] ?? null)
-                            ? Store::formatDayRange($state['days']) . (($state['closed'] ?? false) ? ' — Libur' : " — {$state['open']}–{$state['close']}")
+                            ? Store::formatDayRange($state['days']) . (($state['closed'] ?? false) ? ' — Libur' : " — {$state['open']}–{$state['close']}" . (filled($state['break_start'] ?? null) ? " (istirahat {$state['break_start']}–{$state['break_end']})" : ''))
                             : 'Baris baru')
                         ->addActionLabel('Tambah Baris Jam')
                         ->reorderable(false)
@@ -223,6 +229,15 @@ class StoreResource extends Resource
                                     if (empty($row['closed']) && filled($row['open'] ?? null) && filled($row['close'] ?? null)
                                         && strtotime((string) $row['close']) <= strtotime((string) $row['open'])) {
                                         $fail('Jam tutup harus setelah jam buka.');
+
+                                        return;
+                                    }
+
+                                    if (empty($row['closed']) && filled($row['break_start'] ?? null) && filled($row['break_end'] ?? null)
+                                        && (strtotime((string) $row['break_end']) <= strtotime((string) $row['break_start'])
+                                            || strtotime((string) $row['break_start']) < strtotime((string) $row['open'])
+                                            || strtotime((string) $row['break_end']) > strtotime((string) $row['close']))) {
+                                        $fail('Jam istirahat harus berada di dalam jam buka dan jam tutup, dan selesai setelah mulai.');
 
                                         return;
                                     }

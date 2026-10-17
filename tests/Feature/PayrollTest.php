@@ -49,6 +49,8 @@ class PayrollTest extends TestCase
         $this->seed(ChartOfAccountSeeder::class);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $this->month = Carbon::parse('2026-09-01');
+        // Aturan potongan absensi (diisi staf di panel): blok telat 15 menit x Rp50.000, tanpa denda Alpha.
+        \App\Models\AttendanceDeductionRule::create(['effective_from' => '2026-01-01', 'late_block_minutes' => 15, 'late_deduction_per_block' => 50000, 'alpha_fine_per_day' => 0]);
         $this->store = Store::create([
             'city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true,
             'late_tolerance_minutes' => 15, 'late_deduction_amount' => 50000,
@@ -122,7 +124,7 @@ class PayrollTest extends TestCase
         $this->assertEquals(2400000, $payroll->net_pay);
     }
 
-    public function test_late_minutes_are_a_cumulative_monthly_budget_before_any_day_is_penalised(): void
+    public function test_late_minutes_are_summed_for_the_month_and_charged_per_full_block(): void
     {
         $user = $this->user('kasir');
         foreach (['2026-09-02', '2026-09-03', '2026-09-04'] as $date) {
@@ -132,19 +134,19 @@ class PayrollTest extends TestCase
         $payroll = Payroll::generateForMonth($user, $this->month);
 
         $this->assertSame(30, $payroll->total_late_minutes);
-        $this->assertSame(2, $payroll->late_violation_days, 'Kumulatif 10 -> aman, 20 -> lewat budget 15 (kena), 30 -> kena.');
+        $this->assertSame(2, $payroll->late_blocks, 'Total 30 menit = 2 blok penuh (15 menit) -> 2 x Rp50.000.');
         $this->assertEquals(100000, $payroll->total_deduction);
         $this->assertEquals(2500000, $payroll->net_pay);
     }
 
-    public function test_lateness_within_the_budget_costs_nothing(): void
+    public function test_lateness_below_one_full_block_costs_nothing(): void
     {
         $user = $this->user('kasir');
-        $this->attend($user, '2026-09-02', 'clock', 15);
+        $this->attend($user, '2026-09-02', 'clock', 14);
 
         $payroll = Payroll::generateForMonth($user, $this->month);
 
-        $this->assertSame(0, $payroll->late_violation_days);
+        $this->assertSame(0, $payroll->late_blocks);
         $this->assertEquals(2600000, $payroll->net_pay);
     }
 

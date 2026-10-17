@@ -316,6 +316,57 @@ class Store extends Model
     }
 
     /**
+     * Baris jam operasional yang berlaku di hari $date (bukan baris libur), atau null. Dipisah supaya jam buka, jam tutup, dan
+     * jam istirahat selalu dibaca dari baris yang sama.
+     */
+    private function openingRowOn(\Illuminate\Support\Carbon $date): ?array
+    {
+        $dayCode = strtolower($date->format('D'));
+
+        return collect($this->opening_hours ?? [])
+            ->first(fn ($row) => empty($row['closed']) && in_array($dayCode, $row['days'] ?? []));
+    }
+
+    /**
+     * Jam kerja efektif (menit) di hari $date: jam tutup dikurangi jam buka dikurangi jam istirahat (bila diisi di baris jam operasional).
+     * 0 bila toko tutup atau jam buka/tutup belum diisi. Dasar potongan Alpha per jam (Karyawan Fase 0, 2026-10-28).
+     */
+    public function scheduledMinutesOn(\Illuminate\Support\Carbon $date): int
+    {
+        if ($this->isClosedOn($date)) {
+            return 0;
+        }
+
+        $row = $this->openingRowOn($date);
+
+        if (! $row || empty($row['open']) || empty($row['close'])) {
+            return 0;
+        }
+
+        $start = $date->copy()->setTimeFromTimeString($row['open']);
+        $end = $date->copy()->setTimeFromTimeString($row['close']);
+
+        if ($end->lte($start)) {
+            return 0;
+        }
+
+        $minutes = (int) $start->diffInMinutes($end);
+
+        if (! empty($row['break_start']) && ! empty($row['break_end'])) {
+            $breakStart = $date->copy()->setTimeFromTimeString($row['break_start']);
+            $breakEnd = $date->copy()->setTimeFromTimeString($row['break_end']);
+            $overlapStart = $breakStart->gt($start) ? $breakStart : $start;
+            $overlapEnd = $breakEnd->lt($end) ? $breakEnd : $end;
+
+            if ($overlapEnd->gt($overlapStart)) {
+                $minutes -= (int) $overlapStart->diffInMinutes($overlapEnd);
+            }
+        }
+
+        return max(0, $minutes);
+    }
+
+    /**
      * Jarak (meter) dari titik $lat/$lng ke toko ini — Haversine, cukup
      * akurat untuk cek "absen dari dekat toko" (bukan navigasi presisi
      * tinggi). Null kalau toko belum punya koordinat tersimpan (tidak bisa

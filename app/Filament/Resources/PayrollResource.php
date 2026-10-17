@@ -146,14 +146,18 @@ class PayrollResource extends Resource
                     ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} mnt" : '—'),
 
                 Tables\Columns\TextColumn::make('late_violation_days')
-                    ->label('Hari Kena Potongan Telat')
-                    ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} hari" : '—')
+                    ->label('Blok Telat Terpotong')
+                    ->formatStateUsing(fn (int $state, Payroll $record) => $state > 0 ? "{$state} blok x {$record->late_block_minutes} mnt" : '—')
+                    ->description(fn (Payroll $record) => ($record->late_deduction ?? 0) > 0 ? '- Rp ' . number_format((float) $record->late_deduction, 0, ',', '.') : null)
                     ->color(fn (int $state) => $state > 0 ? 'danger' : 'gray')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('alpha_days')
                     ->label('Hari Alpha')
                     ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} hari" : '—')
+                    ->description(fn (Payroll $record) => $record->alpha_days > 0 && $record->alpha_hours !== null
+                        ? number_format((float) $record->alpha_hours, 1, ',', '.') . ' jam' . ((float) $record->alpha_fine > 0 ? ' + denda Rp ' . number_format((float) $record->alpha_fine, 0, ',', '.') : '')
+                        : null)
                     ->color(fn (int $state) => $state > 0 ? 'danger' : 'gray'),
 
                 Tables\Columns\TextColumn::make('total_deduction')
@@ -271,6 +275,13 @@ class PayrollResource extends Resource
                                 Payroll::generateForMonth($user, $month);
                                 $generated++;
                             } catch (\InvalidArgumentException $e) {
+                                // Aturan potongan belum diisi berlaku untuk SEMUA karyawan: hentikan dan jelaskan, jangan dihitung sebagai "dilewati".
+                                if (str_contains($e->getMessage(), 'Aturan Potongan Absensi')) {
+                                    Notification::make()->title('Payroll tidak digenerate')->body($e->getMessage())->danger()->send();
+
+                                    return;
+                                }
+
                                 $skippedPaid++;
                             }
                         }

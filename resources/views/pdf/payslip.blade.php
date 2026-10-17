@@ -77,17 +77,38 @@
                 <td class="text-right">Rp {{ number_format($payroll->prorated_base_salary, 0, ',', '.') }}</td>
             </tr>
             @endif
-            @if ($payroll->late_violation_days > 0)
-            <tr>
-                <td>Potongan Telat ({{ $payroll->late_violation_days }} hari x Rp {{ number_format($payroll->deduction_per_violation, 0, ',', '.') }})</td>
-                <td class="text-right negative">- Rp {{ number_format($payroll->total_deduction - $payroll->alpha_deduction, 0, ',', '.') }}</td>
-            </tr>
-            @endif
-            @if ($payroll->alpha_days > 0)
-            <tr>
-                <td>Potongan Alpha / Tanpa Keterangan ({{ $payroll->alpha_days }} hari)</td>
-                <td class="text-right negative">- Rp {{ number_format($payroll->alpha_deduction, 0, ',', '.') }}</td>
-            </tr>
+            @if ($payroll->late_blocks !== null)
+                @if ($payroll->late_blocks > 0)
+                <tr>
+                    <td>Potongan Telat (total {{ $payroll->total_late_minutes }} menit; {{ $payroll->late_blocks }} blok x {{ $payroll->late_block_minutes }} menit x Rp {{ number_format($payroll->deduction_per_block, 0, ',', '.') }})</td>
+                    <td class="text-right negative">- Rp {{ number_format($payroll->late_deduction, 0, ',', '.') }}</td>
+                </tr>
+                @endif
+                @if ($payroll->alpha_days > 0)
+                <tr>
+                    <td>Potongan Alpha / Tanpa Keterangan ({{ $payroll->alpha_days }} hari{{ $payroll->alpha_hours !== null ? ', ' . rtrim(rtrim(number_format($payroll->alpha_hours, 2, ',', '.'), '0'), ',') . ' jam x Rp ' . number_format($payroll->hourly_rate, 0, ',', '.') . '/jam' : '' }})</td>
+                    <td class="text-right negative">- Rp {{ number_format($payroll->alpha_deduction - $payroll->alpha_fine, 0, ',', '.') }}</td>
+                </tr>
+                    @if ($payroll->alpha_fine > 0)
+                    <tr>
+                        <td>Denda Alpha ({{ $payroll->alpha_days }} hari)</td>
+                        <td class="text-right negative">- Rp {{ number_format($payroll->alpha_fine, 0, ',', '.') }}</td>
+                    </tr>
+                    @endif
+                @endif
+            @else
+                @if ($payroll->late_violation_days > 0)
+                <tr>
+                    <td>Potongan Telat ({{ $payroll->late_violation_days }} hari x Rp {{ number_format($payroll->deduction_per_violation, 0, ',', '.') }})</td>
+                    <td class="text-right negative">- Rp {{ number_format($payroll->total_deduction - $payroll->alpha_deduction, 0, ',', '.') }}</td>
+                </tr>
+                @endif
+                @if ($payroll->alpha_days > 0)
+                <tr>
+                    <td>Potongan Alpha / Tanpa Keterangan ({{ $payroll->alpha_days }} hari)</td>
+                    <td class="text-right negative">- Rp {{ number_format($payroll->alpha_deduction, 0, ',', '.') }}</td>
+                </tr>
+                @endif
             @endif
             @if ($payroll->total_commission > 0)
             <tr>

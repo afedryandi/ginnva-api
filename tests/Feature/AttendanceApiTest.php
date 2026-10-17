@@ -122,12 +122,12 @@ class AttendanceApiTest extends TestCase
 
     // ------------------------------------------------------------- absen masuk
 
-    public function test_clock_in_within_tolerance_records_attendance_without_lateness(): void
+    public function test_clock_in_records_attendance_with_the_raw_late_minutes(): void
     {
         $response = $this->clockIn()->assertSuccessful()->assertJsonPath('success', true);
 
         $this->assertSame('clock', $response->json('attendance.entry_type'));
-        $this->assertSame(0, $response->json('attendance.late_minutes'));
+        $this->assertSame(10, $response->json('attendance.late_minutes'), 'Buka 09:00, masuk 09:10: telat 10 menit dicatat apa adanya (toleransi bulanan dihitung di payroll).');
         $this->assertSame(0, $response->json('attendance.clock_in_distance_meters'));
         $this->assertNotNull($response->json('attendance.clock_in_photo_url'));
 
@@ -139,11 +139,11 @@ class AttendanceApiTest extends TestCase
         $this->actingAs($this->staff, 'api')->getJson('/api/staff/attendance/today')->assertJsonPath('attendance.id', $row->id);
     }
 
-    public function test_late_minutes_are_counted_after_the_store_tolerance(): void
+    public function test_late_minutes_are_counted_from_the_opening_time_without_a_daily_tolerance(): void
     {
-        Carbon::setTestNow('2026-10-07 09:40:00'); // buka 09:00, toleransi 15 mnt -> telat 25
+        Carbon::setTestNow('2026-10-07 09:40:00'); // buka 09:00 -> telat 40 menit apa adanya
 
-        $this->clockIn()->assertSuccessful()->assertJsonPath('attendance.late_minutes', 25);
+        $this->clockIn()->assertSuccessful()->assertJsonPath('attendance.late_minutes', 40);
     }
 
     public function test_individual_shift_overrides_the_store_opening_time(): void
@@ -152,12 +152,12 @@ class AttendanceApiTest extends TestCase
         ScheduleDayOverride::create(['user_id' => $this->staff->id, 'store_id' => $this->store->id, 'date' => '2026-10-07', 'shift_id' => $shift->id]);
 
         Carbon::setTestNow('2026-10-07 14:05:00');
-        $this->clockIn()->assertSuccessful()->assertJsonPath('attendance.late_minutes', 0);
+        $this->clockIn()->assertSuccessful()->assertJsonPath('attendance.late_minutes', 5);
 
         $other = $this->makeStaff($this->store);
         ScheduleDayOverride::create(['user_id' => $other->id, 'store_id' => $this->store->id, 'date' => '2026-10-07', 'shift_id' => $shift->id]);
         Carbon::setTestNow('2026-10-07 14:30:00');
-        $this->clockIn($other)->assertSuccessful()->assertJsonPath('attendance.late_minutes', 15);
+        $this->clockIn($other)->assertSuccessful()->assertJsonPath('attendance.late_minutes', 30);
     }
 
     public function test_clock_in_outside_the_radius_is_rejected_and_the_photo_is_not_kept(): void

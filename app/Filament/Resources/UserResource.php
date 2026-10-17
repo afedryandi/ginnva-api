@@ -171,6 +171,7 @@ class UserResource extends Resource
                 // PayrollResource::canViewAny()), centang di sini TIDAK
                 // cukup utk role lain.
                 'PayrollResource' => 'Payroll',
+                'AttendanceDeductionRuleResource' => 'Aturan Potongan Absensi',
             ],
             'Keuangan' => [
                 'FinanceCategoryResource' => 'Kategori Keuangan',

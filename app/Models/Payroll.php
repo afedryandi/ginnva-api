@@ -28,6 +28,14 @@ class Payroll extends Model
         'total_commission',
         'has_unrated_commission',
         'deduction_per_violation',
+        'late_blocks',
+        'late_block_minutes',
+        'deduction_per_block',
+        'late_deduction',
+        'scheduled_hours_in_month',
+        'hourly_rate',
+        'alpha_hours',
+        'alpha_fine',
         'total_deduction',
         'net_pay',
         'status',
@@ -51,6 +59,14 @@ class Payroll extends Model
         'has_unrated_commission'     => 'boolean',
         'deduction_per_violation'    => 'decimal:2',
         'total_deduction'            => 'decimal:2',
+        'late_blocks'                => 'integer',
+        'late_block_minutes'         => 'integer',
+        'deduction_per_block'        => 'decimal:2',
+        'late_deduction'             => 'decimal:2',
+        'scheduled_hours_in_month'   => 'decimal:2',
+        'hourly_rate'                => 'decimal:2',
+        'alpha_hours'                => 'decimal:2',
+        'alpha_fine'                 => 'decimal:2',
         'net_pay'                    => 'decimal:2',
         'payment_requested_at'       => 'datetime',
         'paid_at'                    => 'datetime',
@@ -101,25 +117,15 @@ class Payroll extends Model
      * — TIDAK pernah diketik manual, supaya potongan telat/alpha selalu
      * konsisten dengan riwayat absensi asli.
      *
-     * Cara hitung potongan telat (disepakati eksplisit, bukan tebakan):
-     * toleransi bulanan (Store::late_tolerance_minutes) itu BUDGET MENIT
-     * kumulatif, bukan jatah "boleh telat berapa hari". Selama menit telat
-     * yang terkumpul (urut tanggal) masih di bawah budget, tidak kena
-     * apa-apa. Begitu kumulatifnya lewat budget, HARI ITU dan setiap hari
-     * telat SETELAHNYA (dalam bulan yang sama) masing-masing kena potongan
-     * flat (Store::late_deduction_amount per hari).
-     *
-     * Cara hitung potongan Alpha & proporsi (disepakati 2026-08-27, audit
-     * modul Penggajian): "no work no pay" — gaji per hari = base_salary /
-     * jumlah hari toko BUKA bulan itu (working_days_in_month). Alpha
-     * (mangkir tanpa keterangan) memotong 1x gaji per hari untuk tiap hari
-     * alpha. Karyawan yang join_date-nya JATUH DI BULAN YANG SAMA cuma
-     * dihitung gaji pokoknya proporsional dari hari kerja sejak join_date
-     * (prorated_base_salary) — kalau join_date di bulan sebelumnya atau
-     * tidak ada, dianggap kerja penuh sebulan. Izin/Sakit/Cuti yang SUDAH
-     * DISETUJUI (entry_type 'leave') SENGAJA TIDAK memotong apa pun —
-     * dianggap tetap dibayar penuh, konsisten dengan Cuti yang memang
-     * berbayar menurut UU.
+     * Cara hitung potongan (aturan baru, keputusan pemilik 2026-10-17; nominal dari AttendanceDeductionRule yang diisi staf di panel):
+     * - Telat: TOTAL menit telat sebulan dibagi ukuran blok (bawaan 15 menit), hanya blok PENUH yang dipotong, masing-masing sebesar
+     *   potongan per blok. Tidak ada toleransi harian maupun menit bebas: 14 menit = 0 blok, 40 menit = 2 blok.
+     * - Alpha ("no work no pay"): tarif per jam = gaji pokok / total jam kerja terjadwal bulan itu (jam buka-tutup toko dikurangi istirahat);
+     *   potongan = tarif per jam x jam kerja hari Alpha itu, ditambah denda tetap per hari Alpha. Toko tanpa jam buka/tutup terisi memakai
+     *   tarif harian (gaji / hari toko buka).
+     * - Karyawan yang join_date-nya JATUH DI BULAN YANG SAMA hanya dihitung gaji pokoknya proporsional dari jam kerja sejak join_date.
+     * - Izin/Sakit/Cuti yang SUDAH DISETUJUI (entry_type 'leave') TIDAK memotong apa pun (tetap dibayar penuh). Pulang cepat hanya dicatat.
+     * - Tanpa aturan potongan yang berlaku, generate gagal dengan pesan jelas (bukan potongan Rp 0 diam-diam).
      *
      * Komisi teknisi (integrasi 2026-09-23) -- kalau $user punya baris
      * Technician (Technician::user_id), komisi dari SELURUH booking yang
@@ -180,6 +186,16 @@ class Payroll extends Model
 
             $store = $user->store;
 
+            // Aturan potongan absensi (nominal diisi staf di panel, bukan di kode). Tanpa aturan, payroll TIDAK digenerate: lebih baik
+            // berhenti dengan pesan jelas daripada diam-diam menghasilkan potongan Rp 0 atau potongan memakai aturan lama yang sudah diganti.
+            $rule = AttendanceDeductionRule::effectiveFor($periodStart);
+
+            if (! $rule) {
+                throw new \InvalidArgumentException(
+                    'Aturan Potongan Absensi belum diisi atau belum berlaku untuk bulan ini. Isi dulu di menu Karyawan > Aturan Potongan Absensi.'
+                );
+            }
+
             // Payroll dihitung PER KARYAWAN (user_id eksplisit) dan boleh dijalankan akun yang
             // bukan full-access & tanpa toko (spv_finance): StoreScope akun pelaksana tidak boleh ikut
             // menyaring -- sebelumnya query jadi "store_id = NULL" dan potongan telat/alpha serta
@@ -189,54 +205,76 @@ class Payroll extends Model
                 ->whereBetween('date', [$periodStart->toDateString(), $periodEnd->toDateString()])
                 ->get(['date', 'late_minutes', 'entry_type']);
 
-            $lateDays = $attendances->where('late_minutes', '>', 0)->sortBy('date')->pluck('late_minutes', 'date');
-            $alphaDaysCount = $attendances->where('entry_type', 'alpha')->count();
+            // Telat: TOTAL menit telat sebulan (dicatat apa adanya, tanpa toleransi harian) dibagi ukuran blok, hanya blok PENUH yang dipotong.
+            $totalLateMinutes = (int) $attendances->sum('late_minutes');
+            $lateBlocks = $rule->lateBlocksFor($totalLateMinutes);
+            $deductionPerBlock = (float) $rule->late_deduction_per_block;
+            $lateDeduction = round($lateBlocks * $deductionPerBlock, 2);
 
-            $tolerance = $store?->late_tolerance_minutes ?? Attendance::DEFAULT_LATE_TOLERANCE_MINUTES;
-            $deductionPerViolation = (float) ($store?->late_deduction_amount ?? 0);
-
-            $runningTotal = 0;
-            $violationDays = 0;
-            foreach ($lateDays as $lateMinutes) {
-                $runningTotal += $lateMinutes;
-                if ($runningTotal > $tolerance) {
-                    $violationDays++;
-                }
-            }
-
-            // Hari kerja bulan itu = hari toko TIDAK tutup (isClosedOn) —
-            // penyebut gaji per hari. Toko tanpa Store (seharusnya tidak
-            // pernah terjadi karena user_id selalu ada store_id sebelum
-            // digenerate, tapi dijaga) dianggap tidak ada hari kerja sama
-            // sekali, gaji per hari = 0 (bukan div-by-zero).
+            // Hari kerja dan jam kerja terjadwal bulan itu dari jam operasional toko (jam istirahat dikurangi). Toko tutup
+            // (libur rutin atau tanggal diblokir) tidak dihitung. Toko tanpa jam buka/tutup terisi jatuh ke tarif harian.
             $workingDaysInMonth = 0;
+            $monthMinutes = 0;
+            $minutesByDate = [];
             for ($day = $periodStart->copy(); $day->lte($periodEnd); $day->addDay()) {
-                if (! $store?->isClosedOn($day)) {
-                    $workingDaysInMonth++;
+                if ($store?->isClosedOn($day)) {
+                    continue;
                 }
+
+                $workingDaysInMonth++;
+                $minutes = $store ? $store->scheduledMinutesOn($day) : 0;
+                $minutesByDate[$day->toDateString()] = $minutes;
+                $monthMinutes += $minutes;
             }
 
+            $hoursBased = $monthMinutes > 0;
             $baseSalary = (float) ($user->base_salary ?? 0);
+            $hourlyRate = $hoursBased ? $baseSalary / ($monthMinutes / 60) : null;
             $dailyRate = $workingDaysInMonth > 0 ? $baseSalary / $workingDaysInMonth : 0;
 
-            // Proporsi HANYA kalau join_date jatuh DI DALAM bulan payroll
-            // ini — join_date di bulan-bulan sebelumnya (atau kosong)
-            // berarti karyawan sudah kerja penuh sebulan ini, tidak perlu
-            // diproporsikan lagi.
+            // Proporsi HANYA kalau join_date jatuh DI DALAM bulan payroll ini -- join_date di bulan-bulan sebelumnya (atau kosong)
+            // berarti karyawan sudah kerja penuh sebulan ini.
             if ($user->join_date && $user->join_date->between($periodStart, $periodEnd)) {
-                $employedWorkingDays = 0;
-                for ($day = $user->join_date->copy(); $day->lte($periodEnd); $day->addDay()) {
-                    if (! $store?->isClosedOn($day)) {
-                        $employedWorkingDays++;
+                if ($hoursBased) {
+                    $employedMinutes = 0;
+                    foreach ($minutesByDate as $date => $minutes) {
+                        if ($date >= $user->join_date->toDateString()) {
+                            $employedMinutes += $minutes;
+                        }
                     }
+                    $proratedBaseSalary = round(($hourlyRate / 60) * $employedMinutes, 2);
+                } else {
+                    $employedWorkingDays = 0;
+                    for ($day = $user->join_date->copy(); $day->lte($periodEnd); $day->addDay()) {
+                        if (! $store?->isClosedOn($day)) {
+                            $employedWorkingDays++;
+                        }
+                    }
+                    $proratedBaseSalary = round($dailyRate * $employedWorkingDays, 2);
                 }
-                $proratedBaseSalary = round($dailyRate * $employedWorkingDays, 2);
             } else {
                 $proratedBaseSalary = $baseSalary;
             }
 
-            $alphaDeduction = round($dailyRate * $alphaDaysCount, 2);
-            $lateDeduction = $violationDays * $deductionPerViolation;
+            // Alpha: potongan = tarif per jam x jam kerja hari itu (Sabtu pendek dipotong lebih kecil dari hari penuh), ditambah denda
+            // tetap per hari Alpha (nominal dari aturan). Tanpa jam kerja terisi, tarif harian seperti sebelumnya.
+            $alphaRows = $attendances->where('entry_type', 'alpha');
+            $alphaDaysCount = $alphaRows->count();
+            $alphaHours = 0.0;
+            $alphaWage = 0.0;
+
+            foreach ($alphaRows as $row) {
+                if ($hoursBased) {
+                    $hours = ($minutesByDate[$row->date->toDateString()] ?? 0) / 60;
+                    $alphaHours += $hours;
+                    $alphaWage += $hours * $hourlyRate;
+                } else {
+                    $alphaWage += $dailyRate;
+                }
+            }
+
+            $alphaFine = round($alphaDaysCount * (float) $rule->alpha_fine_per_day, 2);
+            $alphaDeduction = round($alphaWage, 2) + $alphaFine;
             $totalDeduction = $alphaDeduction + $lateDeduction;
 
             $totalCommission = 0.0;
@@ -274,13 +312,23 @@ class Payroll extends Model
                 'base_salary'              => $baseSalary,
                 'working_days_in_month'    => $workingDaysInMonth,
                 'prorated_base_salary'     => $proratedBaseSalary,
-                'total_late_minutes'       => (int) $lateDays->sum(),
-                'late_violation_days'      => $violationDays,
+                'total_late_minutes'       => $totalLateMinutes,
+                // late_violation_days dan deduction_per_violation dipertahankan untuk pembaca lama (aplikasi/laporan lama): sejak
+                // 2026-10-28 isinya jumlah blok telat dan potongan per blok.
+                'late_violation_days'      => $lateBlocks,
                 'alpha_days'               => $alphaDaysCount,
                 'alpha_deduction'          => $alphaDeduction,
                 'total_commission'         => $totalCommission,
                 'has_unrated_commission'   => $hasUnratedCommission,
-                'deduction_per_violation'  => $deductionPerViolation,
+                'deduction_per_violation'  => $deductionPerBlock,
+                'late_blocks'              => $lateBlocks,
+                'late_block_minutes'       => (int) $rule->late_block_minutes,
+                'deduction_per_block'      => $deductionPerBlock,
+                'late_deduction'           => $lateDeduction,
+                'scheduled_hours_in_month' => $hoursBased ? round($monthMinutes / 60, 2) : null,
+                'hourly_rate'              => $hoursBased ? round($hourlyRate, 2) : null,
+                'alpha_hours'              => $hoursBased ? round($alphaHours, 2) : null,
+                'alpha_fine'               => $alphaFine,
                 'total_deduction'          => $totalDeduction,
                 'net_pay'                  => $netPay,
             ];

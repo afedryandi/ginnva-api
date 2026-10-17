@@ -251,11 +251,9 @@ class Attendance extends Model
             return 0;
         }
 
-        $toleranceMinutes = $store->late_tolerance_minutes ?? self::DEFAULT_LATE_TOLERANCE_MINUTES;
-
-        $rawLateMinutes = (int) $expectedStart->diffInMinutes($clockInTime, false);
-
-        return max(0, $rawLateMinutes - $toleranceMinutes);
+        // Menit telat dicatat APA ADANYA, tanpa toleransi harian (keputusan pemilik 2026-10-17). Potongan dihitung di Payroll dari
+        // TOTAL menit sebulan per blok penuh (lihat AttendanceDeductionRule), jadi toleransi bukan lagi urusan baris absen.
+        return max(0, (int) $expectedStart->diffInMinutes($clockInTime, false));
     }
 
     /**

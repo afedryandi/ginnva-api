@@ -157,7 +157,7 @@ class StoreResourceTest extends TestCase
 
         Livewire::test(CreateStore::class)
             ->fillForm($this->valid([
-                'latitude' => -6.2088, 'longitude' => 106.8456, 'attendance_radius_meters' => 200, 'late_tolerance_minutes' => 30, 'late_deduction_amount' => 25000,
+                'latitude' => -6.2088, 'longitude' => 106.8456, 'attendance_radius_meters' => 200, 'late_tolerance_minutes' => 30,
                 'detailing_slot_count' => 2, 'instalasi_qc_slot_count' => 3,
                 'opening_hours' => [
                     ['days' => ['mon', 'tue', 'wed', 'thu', 'fri'], 'closed' => false, 'open' => '08:30', 'close' => '17:00'],
@@ -189,7 +189,6 @@ class StoreResourceTest extends TestCase
             [['detailing_slot_count' => -1], 'detailing_slot_count', null],
             [['attendance_radius_meters' => 5], 'attendance_radius_meters', null],
             [['late_tolerance_minutes' => 99999], 'late_tolerance_minutes', null],
-            [['late_deduction_amount' => -1], 'late_deduction_amount', null],
             [['latitude' => 95], 'latitude', null],
             [['longitude' => 200], 'longitude', null],
             [['maps_url' => 'bukan url'], 'maps_url', null],
@@ -267,13 +266,13 @@ class StoreResourceTest extends TestCase
         $admin = $this->as($this->user('super_admin'));
 
         Livewire::test(EditStore::class, ['record' => $this->storeA->getRouteKey()])
-            ->fillForm(['attendance_radius_meters' => 250, 'late_deduction_amount' => 50000])
+            ->fillForm(['attendance_radius_meters' => 250, 'late_tolerance_minutes' => 20])
             ->call('save')
             ->assertHasNoFormErrors();
 
         $fresh = $this->storeA->fresh();
         $this->assertSame(250, $fresh->attendance_radius_meters);
-        $this->assertEquals(50000, (float) $fresh->late_deduction_amount);
+        $this->assertSame(20, $fresh->late_tolerance_minutes);
         $log = Activity::where('log_name', 'store')->where('subject_id', $this->storeA->id)->where('description', 'updated')->latest('id')->firstOrFail();
         $this->assertSame($admin->id, $log->causer_id);
 

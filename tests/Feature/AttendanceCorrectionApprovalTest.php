@@ -154,7 +154,7 @@ class AttendanceCorrectionApprovalTest extends TestCase
         ]), $manager->id);
 
         $row = Attendance::where('user_id', $employee->id)->firstOrFail();
-        $this->assertSame(45, $row->late_minutes, '60 menit setelah buka - toleransi 15.');
+        $this->assertSame(60, $row->late_minutes, '60 menit setelah buka, dicatat apa adanya.');
         $this->assertSame(105, $row->early_leave_minutes, '120 menit sebelum tutup - toleransi 15.');
     }
 
@@ -166,7 +166,7 @@ class AttendanceCorrectionApprovalTest extends TestCase
         ScheduleDayOverride::create(['user_id' => $employee->id, 'store_id' => $this->store->id, 'date' => self::DATE, 'shift_id' => $shift->id]);
 
         $this->service->approve($this->submit($employee, ['clock_in_at' => self::DATE . ' 14:10:00', 'clock_out_at' => self::DATE . ' 22:00:00']), $manager->id);
-        $this->assertSame(0, Attendance::where('user_id', $employee->id)->value('late_minutes'), 'Shift siang mulai 14:00, bukan jam buka toko.');
+        $this->assertSame(10, Attendance::where('user_id', $employee->id)->value('late_minutes'), 'Shift siang mulai 14:00 (bukan jam buka toko), masuk 14:10 = telat 10 menit.');
 
         $driver = $this->user('kasir');
         $this->service->approve($this->submit($driver, ['entry_type' => 'field_duty', 'clock_in_at' => self::DATE . ' 13:00:00', 'clock_out_at' => self::DATE . ' 15:00:00']), $manager->id);
@@ -381,7 +381,7 @@ class AttendanceCorrectionApprovalTest extends TestCase
             ->call('create')->assertHasNoFormErrors();
 
         $row = Attendance::where('user_id', $employee->id)->firstOrFail();
-        $this->assertSame(0, $row->late_minutes, 'Jam masuk dikoreksi ke 09:05 (dalam toleransi).');
+        $this->assertSame(5, $row->late_minutes, 'Jam masuk dikoreksi ke 09:05: telat 5 menit dicatat apa adanya.');
         $this->assertSame(0, $row->early_leave_minutes);
     }
 }
