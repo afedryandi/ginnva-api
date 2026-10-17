@@ -116,6 +116,16 @@
                 <td class="text-right">+ Rp {{ number_format($payroll->total_commission, 0, ',', '.') }}</td>
             </tr>
             @endif
+            @foreach ($payroll->items()->with('category')->orderBy('id')->get() as $item)
+            <tr>
+                <td>{{ $item->displayLabel() }}</td>
+                @if ($item->category?->isEarning())
+                <td class="text-right">+ Rp {{ number_format($item->amount, 0, ',', '.') }}</td>
+                @else
+                <td class="text-right negative">- Rp {{ number_format($item->amount, 0, ',', '.') }}</td>
+                @endif
+            </tr>
+            @endforeach
         </tbody>
     </table>
 

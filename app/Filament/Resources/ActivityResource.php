@@ -81,6 +81,8 @@ class ActivityResource extends Resource
     'payable_payment' => 'Pembayaran Utang',
     'attendance_deduction_rule' => 'Aturan Potongan Absensi',
     'payroll' => 'Penggajian',
+    'payroll_item' => 'Komponen Gaji',
+    'payroll_item_category' => 'Kategori Komponen Gaji',
     'price_rule' => 'Aturan Harga (Koefisien)',
     'product_claim' => 'Klaim Produk',
     'product_inquiry' => 'Inquiry Produk',

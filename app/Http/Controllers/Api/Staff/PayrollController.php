@@ -24,6 +24,7 @@ class PayrollController extends Controller
     {
         $payrolls = Payroll::where('user_id', $request->user('api')->id)
             ->where('status', 'paid')
+            ->with('items.category')
             ->orderByDesc('period_month')
             ->get();
 
@@ -91,6 +92,14 @@ class PayrollController extends Controller
             'alpha_hours' => $p->alpha_hours !== null ? (float) $p->alpha_hours : null,
             'alpha_fine' => $p->alpha_fine !== null ? (float) $p->alpha_fine : null,
             'total_commission' => (float) $p->total_commission,
+            // Komponen gaji (Karyawan Fase 1): tunjangan, THR, BPJS, PPh 21, kasbon, dst. sesuai hitungan akuntan.
+            'total_additions' => (float) $p->total_additions,
+            'total_item_deductions' => (float) $p->total_item_deductions,
+            'items' => $p->items->sortBy('id')->values()->map(fn ($i) => [
+                'label' => $i->displayLabel(),
+                'type' => $i->category?->type,
+                'amount' => (float) $i->amount,
+            ])->all(),
             'has_unrated_commission' => (bool) $p->has_unrated_commission,
             'total_deduction' => (float) $p->total_deduction,
             'net_pay' => (float) $p->net_pay,

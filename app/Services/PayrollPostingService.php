@@ -56,6 +56,7 @@ class PayrollPostingService
 
         $commission = (float) $payroll->total_commission;
         $netPay = (float) $payroll->net_pay;
+        $items = $payroll->items()->with('category.account')->get();
 
         // Potongan yang BENAR-BENAR berlaku = gaji kotor + komisi - gaji bersih. Sama dengan
         // total_deduction kecuali kalau potongan lebih besar dari gaji: net_pay dijepit di 0
@@ -68,7 +69,9 @@ class PayrollPostingService
         }
 
 
-        if ($deduction > 0 || $commission > 0) {
+        if ($items->isNotEmpty()) {
+            $lines = $this->linesWithItems($payroll, $items, $gajiPokok, $komisiTeknisi, $potongan, $cash, $commission, $netPay);
+        } elseif ($deduction > 0 || $commission > 0) {
             $lines = [
                 ['chart_of_account_id' => $gajiPokok->id, 'debit' => (float) $payroll->prorated_base_salary],
             ];
@@ -108,5 +111,82 @@ class PayrollPostingService
         ], $lines);
 
         return $service->post($entry, $payroll->paid_by);
+    }
+
+    /**
+     * Jurnal untuk slip yang punya komponen (Karyawan Fase 1): tiap komponen tambahan didebit ke akun kategorinya, tiap potongan komponen
+     * dikredit ke akun kategorinya (BPJS -> Hutang BPJS, PPh 21 -> Hutang Pajak, kasbon -> Piutang Karyawan, dst., bisa diatur akuntan),
+     * potongan telat/Alpha tetap ke 6120, dan kas = gaji bersih. Bila potongan lebih besar dari gaji (gaji bersih dijepit 0), potongan
+     * komponen diperkecil sebanding agar jurnal tetap balance.
+     */
+    private function linesWithItems(Payroll $payroll, \Illuminate\Support\Collection $items, ?ChartOfAccount $gajiPokok, ?ChartOfAccount $komisiTeknisi, ?ChartOfAccount $potongan, ?ChartOfAccount $cash, float $commission, float $netPay): array
+    {
+        foreach ($items as $item) {
+            $account = $item->category?->account;
+
+            if (! $account || ! $account->is_active || ! $account->is_postable) {
+                throw new RuntimeException("Akun pembukuan untuk komponen \"{$item->displayLabel()}\" belum diatur atau tidak aktif — atur di menu Karyawan > Kategori Komponen Gaji.");
+            }
+        }
+
+        $earnings = $items->filter(fn ($i) => $i->category->isEarning());
+        $itemDeductions = $items->filter(fn ($i) => ! $i->category->isEarning());
+
+        $additions = round((float) $earnings->sum('amount'), 2);
+        $itemDeductionTotal = round((float) $itemDeductions->sum('amount'), 2);
+        $gross = round((float) $payroll->prorated_base_salary + $commission + $additions, 2);
+        $available = max(0.0, round($gross - $netPay, 2));            // potongan yang benar-benar berlaku
+
+        $scale = $itemDeductionTotal > $available && $itemDeductionTotal > 0 ? $available / $itemDeductionTotal : 1.0;
+        $itemCreditTotal = $scale < 1.0 ? $available : $itemDeductionTotal;
+        $attendanceCredit = max(0.0, round($available - $itemCreditTotal, 2));
+
+        if ($attendanceCredit > 0 && ! $potongan) {
+            throw new RuntimeException('Akun Beban Potongan Telat/Alpha (6120) tidak ditemukan — periksa menu Bagan Akun.');
+        }
+
+        $lines = [['chart_of_account_id' => $gajiPokok->id, 'debit' => (float) $payroll->prorated_base_salary]];
+
+        if ($commission > 0) {
+            $lines[] = ['chart_of_account_id' => $komisiTeknisi->id, 'debit' => $commission];
+        }
+
+        foreach ($earnings->groupBy(fn ($i) => $i->category->chart_of_account_id) as $accountId => $group) {
+            $lines[] = ['chart_of_account_id' => (int) $accountId, 'debit' => round((float) $group->sum('amount'), 2)];
+        }
+
+        $creditByAccount = [];
+
+        foreach ($itemDeductions as $item) {
+            $accountId = $item->category->chart_of_account_id;
+            $creditByAccount[$accountId] = ($creditByAccount[$accountId] ?? 0.0) + (float) $item->amount * $scale;
+        }
+
+        // Pembulatan: selisih sen akibat penskalaan dibebankan ke baris potongan terbesar supaya jumlahnya tepat.
+        if ($creditByAccount) {
+            $creditByAccount = array_map(fn ($v) => round($v, 2), $creditByAccount);
+            $diff = round($itemCreditTotal - array_sum($creditByAccount), 2);
+            if ($diff != 0.0) {
+                arsort($creditByAccount);
+                $firstKey = array_key_first($creditByAccount);
+                $creditByAccount[$firstKey] = round($creditByAccount[$firstKey] + $diff, 2);
+            }
+        }
+
+        foreach ($creditByAccount as $accountId => $amount) {
+            if ($amount > 0) {
+                $lines[] = ['chart_of_account_id' => (int) $accountId, 'credit' => $amount];
+            }
+        }
+
+        if ($attendanceCredit > 0) {
+            $lines[] = ['chart_of_account_id' => $potongan->id, 'credit' => $attendanceCredit];
+        }
+
+        if ($netPay > 0) {
+            $lines[] = ['chart_of_account_id' => $cash->id, 'credit' => $netPay];
+        }
+
+        return $lines;
     }
 }

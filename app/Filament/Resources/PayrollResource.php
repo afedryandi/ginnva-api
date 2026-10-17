@@ -160,8 +160,21 @@ class PayrollResource extends Resource
                         : null)
                     ->color(fn (int $state) => $state > 0 ? 'danger' : 'gray'),
 
+                Tables\Columns\TextColumn::make('total_additions')
+                    ->label('Tambahan')
+                    ->money('IDR', locale: 'id')
+                    ->color(fn (Payroll $record) => $record->total_additions > 0 ? 'success' : 'gray')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('total_item_deductions')
+                    ->label('Potongan Komponen')
+                    ->money('IDR', locale: 'id')
+                    ->color(fn (Payroll $record) => $record->total_item_deductions > 0 ? 'danger' : 'gray')
+                    ->description('BPJS, PPh 21, kasbon, dst.')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('total_deduction')
-                    ->label('Total Potongan')
+                    ->label('Potongan Absensi')
                     ->money('IDR', locale: 'id')
                     ->color(fn (Payroll $record) => $record->total_deduction > 0 ? 'danger' : 'gray'),
 
@@ -304,6 +317,71 @@ class PayrollResource extends Resource
                     }),
             ])
             ->actions([
+                Tables\Actions\Action::make('components')
+                    ->label('Komponen Gaji')
+                    ->icon('heroicon-o-adjustments-horizontal')
+                    ->color('gray')
+                    ->visible(fn (Payroll $record) => $record->status === 'draft')
+                    ->modalHeading(fn (Payroll $record) => 'Komponen Gaji - ' . $record->user?->name)
+                    ->modalDescription('Tambahan (tunjangan, bonus, THR, uang kompensasi) dan potongan (BPJS, PPh 21, kasbon) sesuai hitungan akuntan. Hanya dicatat; sistem tidak menghitung pajak dan iuran.')
+                    ->modalWidth('4xl')
+                    ->fillForm(fn (Payroll $record) => ['items' => $record->items()->orderBy('id')->get()->map(fn ($i) => [
+                        'id' => $i->id, 'payroll_item_category_id' => $i->payroll_item_category_id, 'label' => $i->label,
+                        'amount' => (float) $i->amount, 'is_recurring' => $i->is_recurring, 'notes' => $i->notes,
+                    ])->all()])
+                    ->form([
+                        Forms\Components\Repeater::make('items')
+                            ->label('Komponen')
+                            ->addActionLabel('Tambah Komponen')
+                            ->defaultItems(0)
+                            ->columns(4)
+                            ->schema([
+                                Forms\Components\Hidden::make('id'),
+                                Forms\Components\Select::make('payroll_item_category_id')
+                                    ->label('Kategori')
+                                    ->options(fn () => \App\Models\PayrollItemCategory::where('is_active', true)->orderBy('sort_order')->get()
+                                        ->mapWithKeys(fn ($c) => [$c->id => ($c->isEarning() ? '(+) ' : '(-) ') . $c->name]))
+                                    ->required()
+                                    ->live()
+                                    ->afterStateUpdated(fn ($state, Forms\Set $set) => $set('is_recurring', (bool) \App\Models\PayrollItemCategory::whereKey($state)->value('is_recurring_default')))
+                                    ->columnSpan(2),
+                                Forms\Components\TextInput::make('amount')->label('Nominal (Rp)')->numeric()->prefix('Rp')->minValue(0.01)->required()->columnSpan(2),
+                                Forms\Components\TextInput::make('label')->label('Nama di slip (opsional)')->maxLength(120)->placeholder('Kosong = nama kategori')->columnSpan(2),
+                                Forms\Components\TextInput::make('notes')->label('Catatan (opsional)')->maxLength(255)->columnSpan(1),
+                                Forms\Components\Toggle::make('is_recurring')->label('Salin ke bulan depan')->columnSpan(1),
+                            ]),
+                    ])
+                    ->action(function (Payroll $record, array $data) {
+                        try {
+                            app(\App\Services\PayrollItemService::class)->sync($record, $data['items'] ?? [], auth()->id());
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Komponen tidak tersimpan')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Komponen gaji disimpan')->success()->send();
+                    }),
+
+                Tables\Actions\Action::make('copyComponents')
+                    ->label('Salin dari Bulan Lalu')
+                    ->icon('heroicon-o-document-duplicate')
+                    ->color('gray')
+                    ->visible(fn (Payroll $record) => $record->status === 'draft')
+                    ->requiresConfirmation()
+                    ->modalDescription('Menyalin komponen yang ditandai "Salin ke bulan depan" dari slip bulan lalu karyawan ini. Komponen yang sudah ada dilewati.')
+                    ->action(function (Payroll $record) {
+                        try {
+                            $copied = app(\App\Services\PayrollItemService::class)->copyRecurring($record, auth()->id());
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Tidak bisa menyalin')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title($copied > 0 ? "{$copied} komponen disalin" : 'Tidak ada komponen untuk disalin')->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('downloadPayslip')
                     ->label('Unduh Slip Gaji')
                     ->icon('heroicon-o-document-arrow-down')

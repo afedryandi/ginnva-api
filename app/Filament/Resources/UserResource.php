@@ -172,6 +172,7 @@ class UserResource extends Resource
                 // cukup utk role lain.
                 'PayrollResource' => 'Payroll',
                 'AttendanceDeductionRuleResource' => 'Aturan Potongan Absensi',
+                'PayrollItemCategoryResource' => 'Kategori Komponen Gaji',
                 'EmployeeDataCompletenessReport' => 'Kelengkapan Data Karyawan',
             ],
             'Keuangan' => [

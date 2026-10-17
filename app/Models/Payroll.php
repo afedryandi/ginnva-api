@@ -36,6 +36,8 @@ class Payroll extends Model
         'hourly_rate',
         'alpha_hours',
         'alpha_fine',
+        'total_additions',
+        'total_item_deductions',
         'total_deduction',
         'net_pay',
         'status',
@@ -67,6 +69,8 @@ class Payroll extends Model
         'hourly_rate'                => 'decimal:2',
         'alpha_hours'                => 'decimal:2',
         'alpha_fine'                 => 'decimal:2',
+        'total_additions'            => 'decimal:2',
+        'total_item_deductions'      => 'decimal:2',
         'net_pay'                    => 'decimal:2',
         'payment_requested_at'       => 'datetime',
         'paid_at'                    => 'datetime',
@@ -81,6 +85,42 @@ class Payroll extends Model
     public function getStatusLabelAttribute(): string
     {
         return self::STATUS_LABELS[$this->status] ?? (string) $this->status;
+    }
+
+    /** Komponen gaji (tunjangan, THR, BPJS, PPh 21, kasbon, dst.) yang dicatat di slip ini (Karyawan Fase 1). */
+    public function items(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PayrollItem::class);
+    }
+
+    /**
+     * Hitung ulang jumlah tambahan, potongan komponen, dan gaji bersih dari komponen yang tercatat. Dipanggil setiap komponen
+     * berubah. total_deduction (potongan telat/Alpha dari absensi) tidak disentuh.
+     */
+    public function recalculateTotals(): void
+    {
+        [$additions, $deductions] = self::itemTotals($this->items()->with('category:id,type')->get());
+
+        $this->forceFill([
+            'total_additions' => $additions,
+            'total_item_deductions' => $deductions,
+            'net_pay' => self::netPayFor((float) $this->prorated_base_salary, (float) $this->total_commission, $additions, (float) $this->total_deduction, $deductions),
+        ])->save();
+    }
+
+    /** @return array{0: float, 1: float} [jumlah tambahan, jumlah potongan] dari kumpulan komponen */
+    public static function itemTotals(\Illuminate\Support\Collection $items): array
+    {
+        $additions = (float) $items->filter(fn ($i) => $i->category?->isEarning())->sum('amount');
+        $deductions = (float) $items->filter(fn ($i) => $i->category && ! $i->category->isEarning())->sum('amount');
+
+        return [round($additions, 2), round($deductions, 2)];
+    }
+
+    /** Gaji bersih: gaji berjalan + komisi + tambahan - potongan absensi - potongan komponen; tidak pernah negatif. */
+    public static function netPayFor(float $proratedBase, float $commission, float $additions, float $attendanceDeduction, float $itemDeductions): float
+    {
+        return max(0, round($proratedBase + $commission + $additions - $attendanceDeduction - $itemDeductions, 2));
     }
 
     public function user(): BelongsTo
@@ -305,7 +345,12 @@ class Payroll extends Model
             // sampai kejadian, itu tetap perlu ditinjau admin lewat kolom
             // total_deduction vs prorated_base_salary yang keduanya tetap
             // tersimpan apa adanya.
-            $netPay = max(0, $proratedBaseSalary - $totalDeduction + $totalCommission);
+            // Komponen gaji yang sudah dicatat di draft ini ikut dihitung; generate ulang tidak menghapusnya.
+            [$totalAdditions, $totalItemDeductions] = $existing
+                ? self::itemTotals($existing->items()->with('category:id,type')->get())
+                : [0.0, 0.0];
+
+            $netPay = self::netPayFor($proratedBaseSalary, $totalCommission, $totalAdditions, $totalDeduction, $totalItemDeductions);
 
             $attributes = [
                 'store_id'                 => $user->store_id,
@@ -329,6 +374,8 @@ class Payroll extends Model
                 'hourly_rate'              => $hoursBased ? round($hourlyRate, 2) : null,
                 'alpha_hours'              => $hoursBased ? round($alphaHours, 2) : null,
                 'alpha_fine'               => $alphaFine,
+                'total_additions'          => $totalAdditions,
+                'total_item_deductions'    => $totalItemDeductions,
                 'total_deduction'          => $totalDeduction,
                 'net_pay'                  => $netPay,
             ];
