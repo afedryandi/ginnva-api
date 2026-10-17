@@ -67,6 +67,12 @@ class WorkScheduleCalendarReport extends Page implements HasActions, HasForms
     #[Url(as: 'cabang')]
     public ?int $storeId = null;
 
+    /** Disembunyikan selama fitur Jadwal Kerja dimatikan (config/features.php); halaman tetap bisa dibuka lewat alamat langsung. */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return (bool) config('features.work_schedules', false);
+    }
+
     public static function canAccess(): bool
     {
         $user = auth()->user();

@@ -240,4 +240,31 @@ class BlockedDateTest extends TestCase
         $this->assertContains('Libur toko B', $reasons);
         $this->assertNotContains('Libur nasional', $reasons);
     }
+
+    // ------------------------------------------------------------- tutup semua toko (libur nasional / cuti bersama)
+
+    public function test_full_access_can_close_all_active_stores_for_a_range_and_existing_rows_are_skipped(): void
+    {
+        $inactive = Store::create(['city' => 'Medan', 'address' => 'Jl. C', 'name' => 'Toko Mati', 'is_active' => false]);
+        $start = today()->addDays(20);
+        BlockedDate::create(['store_id' => $this->storeA->id, 'date' => $start->toDateString(), 'reason' => 'Sudah ada']);
+
+        Livewire::test(ListBlockedDates::class)
+            ->callAction('closeAllStores', ['date' => $start->toDateString(), 'date_end' => $start->copy()->addDay()->toDateString(), 'reason' => 'Libur Nasional - Uji'])
+            ->assertHasNoActionErrors();
+
+        // 2 toko aktif x 2 hari = 4 baris; satu sudah ada sebelumnya, jadi total baris untuk toko aktif tetap 4.
+        $this->assertSame(4, BlockedDate::whereIn('store_id', [$this->storeA->id, $this->storeB->id])->count());
+        $this->assertSame('Sudah ada', BlockedDate::where('store_id', $this->storeA->id)->whereDate('date', $start)->value('reason'), 'Baris lama tidak ditimpa.');
+        $this->assertSame(0, BlockedDate::where('store_id', $inactive->id)->count(), 'Toko nonaktif tidak ikut.');
+        $this->assertTrue($this->storeB->fresh()->isClosedOn($start), 'Toko tertutup untuk absensi dan jam kerja gaji.');
+    }
+
+    public function test_a_store_level_user_does_not_get_the_close_all_stores_action(): void
+    {
+        $manager = $this->user('store_manager', $this->storeA->id);
+        $this->actingAs($manager, 'web');
+
+        Livewire::test(ListBlockedDates::class)->assertActionHidden('closeAllStores');
+    }
 }

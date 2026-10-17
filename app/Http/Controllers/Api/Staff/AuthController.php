@@ -256,6 +256,9 @@ class AuthController extends Controller
             'can_create_spk'       => $user->canCreateSpk(),
             'has_spk_access'       => $user->hasSpkAccess(),
             'has_quotation_access' => $user->hasQuotationAccess(),
+            // Layar Jadwal Kerja di aplikasi hanya untuk yang benar-benar punya jadwal, dan hanya bila fitur dinyalakan (config/features.php).
+            'has_work_schedule' => (bool) config('features.work_schedules', false)
+                && \App\Models\EmployeeScheduleAssignment::where('user_id', $user->id)->exists(),
             // Lead Masuk (Inquiry Produk & Kemitraan), Marketing/Konten Fase 1 -- cukup salah satu menunya.
             'has_lead_inbox_access' => $user->canAccessStaffArea()
                 && ($user->hasMenuAccess(\App\Filament\Resources\ProductInquiryResource::class)
