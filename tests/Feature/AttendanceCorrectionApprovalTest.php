@@ -77,7 +77,7 @@ class AttendanceCorrectionApprovalTest extends TestCase
     {
         return Attendance::create(array_merge([
             'user_id' => $employee->id, 'store_id' => $employee->store_id, 'date' => self::DATE, 'entry_type' => 'clock',
-            'clock_in_at' => self::DATE . ' 09:40:00', 'late_minutes' => 25, 'clock_out_at' => self::DATE . ' 16:00:00', 'early_leave_minutes' => 105,
+            'clock_in_at' => self::DATE . ' 09:40:00', 'late_minutes' => 40, 'clock_out_at' => self::DATE . ' 16:00:00', 'early_leave_minutes' => 105,
         ], $overrides));
     }
 
@@ -134,13 +134,13 @@ class AttendanceCorrectionApprovalTest extends TestCase
     {
         $employee = $this->user('kasir');
         $manager = $this->user('store_manager');
-        $row = $this->clockRow($employee); // masuk 09:40 (telat 25), pulang 16:00 (pulang cepat 105)
+        $row = $this->clockRow($employee); // masuk 09:40 (telat 40), pulang 16:00 (pulang cepat 105)
 
         $this->service->approve($this->submit($employee, ['attendance_id' => $row->id]), $manager->id);
 
         $fresh = $row->fresh();
         $this->assertSame('manual', $fresh->entry_type);
-        $this->assertSame(0, $fresh->late_minutes, 'Masuk 08:55 = tidak telat; telat 25 mnt dari absen lama harus hilang.');
+        $this->assertSame(0, $fresh->late_minutes, 'Masuk 08:55 = tidak telat; telat 40 mnt dari absen lama harus hilang.');
         $this->assertSame(0, $fresh->early_leave_minutes, 'Pulang 18:00 = tidak pulang cepat.');
     }
 
@@ -193,7 +193,7 @@ class AttendanceCorrectionApprovalTest extends TestCase
 
         $this->assertSame(AttendanceCorrectionRequest::STATUS_REJECTED, $request->fresh()->status);
         $this->assertSame('Tidak ada bukti', $request->fresh()->review_notes);
-        $this->assertSame(25, $row->fresh()->late_minutes);
+        $this->assertSame(40, $row->fresh()->late_minutes);
         $this->assertSame('clock', $row->fresh()->entry_type);
     }
 
@@ -363,7 +363,7 @@ class AttendanceCorrectionApprovalTest extends TestCase
 
         $fresh = $row->fresh();
         $this->assertSame('09:40', $fresh->clock_in_at->format('H:i'), 'Jam absen asli hanya bisa berubah lewat koreksi yang disetujui.');
-        $this->assertSame(25, $fresh->late_minutes);
+        $this->assertSame(40, $fresh->late_minutes, 'Dihitung ulang dari jam masuk tersimpan 09:40, buka 09:00 = 40 menit apa adanya.');
     }
 
     public function test_completing_an_existing_row_with_a_manual_entry_refreshes_lateness(): void
