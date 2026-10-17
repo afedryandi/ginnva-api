@@ -236,7 +236,7 @@ class PayrollComponentsTest extends TestCase
 
     // ------------------------------------------------------------- jurnal
 
-    private function post(Payroll $payroll): JournalEntry
+    private function postPayroll(Payroll $payroll): JournalEntry
     {
         $payroll->forceFill(['paid_by' => $this->admin->id, 'paid_at' => now()])->save();
 
@@ -255,7 +255,7 @@ class PayrollComponentsTest extends TestCase
             $this->row('kasbon', 200000),
         ]);
 
-        $entry = $this->post($payroll->fresh());
+        $entry = $this->postPayroll($payroll->fresh());
         $lines = $entry->lines;
 
         $this->assertEquals($lines->sum('debit'), $lines->sum('credit'), 'Jurnal harus balance.');
@@ -277,7 +277,7 @@ class PayrollComponentsTest extends TestCase
         $payroll = $this->payroll($user);
         app(PayrollItemService::class)->sync($payroll, [$this->row('bonus', 300000), $this->row('pph21', 100000)]);
 
-        $lines = $this->post($payroll->fresh())->lines;
+        $lines = $this->postPayroll($payroll->fresh())->lines;
 
         $this->assertEquals($lines->sum('debit'), $lines->sum('credit'));
         $this->assertEquals(100000, (float) $lines->firstWhere('chart_of_account_id', $this->accountId('6120'))->credit, 'Potongan telat tetap ke 6120.');
@@ -294,7 +294,7 @@ class PayrollComponentsTest extends TestCase
         $fresh = $payroll->fresh();
         $this->assertEquals(0, $fresh->net_pay, 'Gaji bersih tidak pernah negatif.');
 
-        $lines = $this->post($fresh)->lines;
+        $lines = $this->postPayroll($fresh)->lines;
 
         $this->assertEquals($lines->sum('debit'), $lines->sum('credit'));
         $this->assertEquals(1000000, (float) $lines->sum('debit'));
@@ -308,14 +308,14 @@ class PayrollComponentsTest extends TestCase
         $this->cat('bonus')->update(['chart_of_account_id' => null]);
 
         $this->expectExceptionMessage('belum diatur atau tidak aktif');
-        $this->post($payroll->fresh());
+        $this->postPayroll($payroll->fresh());
     }
 
     public function test_payrolls_without_components_keep_the_old_journal(): void
     {
         $payroll = $this->payroll();
 
-        $lines = $this->post($payroll)->lines;
+        $lines = $this->postPayroll($payroll)->lines;
 
         $this->assertCount(2, $lines);
         $this->assertEquals(5000000, (float) $lines->sum('debit'));
