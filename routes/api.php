@@ -410,6 +410,9 @@ Route::prefix('staff')->group(function () {
         Route::get('/schedule', [StaffScheduleController::class, 'index']);
 
         Route::get('/leave-types', [StaffAttendanceController::class, 'leaveTypes']);
+        Route::get('/policies', [\App\Http\Controllers\Api\Staff\PolicyController::class, 'index']);
+        Route::post('/policies/{id}/acknowledge', [\App\Http\Controllers\Api\Staff\PolicyController::class, 'acknowledge'])
+            ->middleware('throttle:20,1');
         Route::get('/profile', [\App\Http\Controllers\Api\Staff\ProfileController::class, 'show']);
         Route::get('/leave-requests', [StaffAttendanceController::class, 'leaveRequestsIndex']);
         Route::post('/leave-requests', [StaffAttendanceController::class, 'leaveRequestsStore'])

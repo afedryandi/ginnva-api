@@ -44,6 +44,7 @@ class ProfileController extends Controller
                     'contract_end_date' => $user->contract_end_date?->toDateString(),
                     'contract_days_left' => $user->contract_end_date ? (int) Carbon::today()->diffInDays($user->contract_end_date, false) : null,
                     'contract_extensions' => $user->contractExtensions()->count(),
+                    'probation_end_date' => $user->probation_end_date?->toDateString(),
                 ],
                 'identity' => [
                     'nik' => $this->mask($user->nik),
@@ -67,6 +68,9 @@ class ProfileController extends Controller
                     // Cuti khusus yang tidak memotong jatah tahunan, dihitung dari yang sudah disetujui tahun ini.
                     'other_used' => $this->otherLeaveUsed($user->id, $year),
                 ],
+                // Dokumen kebijakan yang wajib diterima tetapi belum (Karyawan Fase 3).
+                'pending_policies' => \App\Models\CompanyPolicy::published()->where('requires_acknowledgment', true)
+                    ->whereNotIn('id', $user->policyAcknowledgments()->select('company_policy_id'))->count(),
                 'documents' => $user->documents()->latest()->get()->map(fn (EmployeeDocument $d) => [
                     'id' => $d->id,
                     'type' => $d->type,

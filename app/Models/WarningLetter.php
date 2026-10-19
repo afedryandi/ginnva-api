@@ -56,9 +56,17 @@ class WarningLetter extends Model
         return $this->belongsTo(User::class, 'issued_by');
     }
 
+    /** Masa berlaku SP menurut PP 35/2021 Pasal 52 (6 bulan kecuali diatur lain); bisa diubah di config/hr.php. */
+    public const DEFAULT_VALIDITY_MONTHS = 6;
+
     protected static function booted(): void
     {
         static::creating(function (WarningLetter $warning) {
+            // Masa berlaku otomatis bila tidak diisi, supaya SP lama tidak dihitung selamanya (Karyawan Fase 3).
+            if (empty($warning->valid_until) && ! empty($warning->issued_date)) {
+                $warning->valid_until = \Illuminate\Support\Carbon::parse($warning->issued_date)->addMonths((int) config('hr.warning_validity_months', self::DEFAULT_VALIDITY_MONTHS))->toDateString();
+            }
+
             if (empty($warning->warning_number)) {
                 $warning->warning_number = static::generateWarningNumber();
             }

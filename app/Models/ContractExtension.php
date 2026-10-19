@@ -56,6 +56,14 @@ class ContractExtension extends Model
         return DB::transaction(function () use ($user, $newEndDate, $extendedBy, $notes) {
             $freshUser = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
 
+            // PKWT paling lama 5 tahun termasuk perpanjangan (PP 35/2021); batas bisa diubah di config/hr.php.
+            $maxYears = (int) config('hr.pkwt_max_years', 5);
+            if ($freshUser->join_date && Carbon::parse($newEndDate)->gt($freshUser->join_date->copy()->addYears($maxYears))) {
+                throw new \InvalidArgumentException(
+                    "Kontrak PKWT paling lama {$maxYears} tahun termasuk perpanjangan. Tanggal {$newEndDate} melewati {$freshUser->join_date->copy()->addYears($maxYears)->format('d M Y')}; pertimbangkan pengangkatan menjadi karyawan tetap."
+                );
+            }
+
             $currentEnd = $freshUser->contract_end_date;
             if ($currentEnd && Carbon::parse($newEndDate)->lte($currentEnd)) {
                 throw new \InvalidArgumentException(

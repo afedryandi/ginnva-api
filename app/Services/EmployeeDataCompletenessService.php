@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CompanyPolicy;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -21,23 +22,34 @@ class EmployeeDataCompletenessService
     /** @return Collection<int, array{user: User, required: list<string>, recommended: list<string>}> hanya karyawan yang punya temuan */
     public function findings(?int $storeId = null): Collection
     {
+        // Peraturan Perusahaan yang terbit dan wajib diterima: karyawan yang belum menerimanya ditandai (dasar sah potongan).
+        $requiredPolicies = CompanyPolicy::published()->where('requires_acknowledgment', true)->get(['id', 'title']);
+        $acknowledged = \App\Models\PolicyAcknowledgment::whereIn('company_policy_id', $requiredPolicies->pluck('id'))
+            ->get(['user_id', 'company_policy_id'])->groupBy('user_id');
+
         $incompleteStores = Store::where('is_active', true)->get()
             ->filter(fn (Store $store) => $this->storeHoursIncomplete($store))
             ->pluck('id')
             ->all();
 
         return User::query()
-            ->with(['employeeType', 'store'])
+            ->with(['employeeType', 'store', 'salaryGrade'])
             ->where('is_active', true)
             ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->orderBy('name')
             ->get()
-            ->map(function (User $user) use ($incompleteStores) {
+            ->map(function (User $user) use ($incompleteStores, $requiredPolicies, $acknowledged) {
+                $done = ($acknowledged[$user->id] ?? collect())->pluck('company_policy_id');
+                $pendingPolicies = $requiredPolicies->reject(fn ($p) => $done->contains($p->id));
+
                 return [
                     'user' => $user,
                     'required' => $this->requiredIssues($user, $incompleteStores),
-                    'recommended' => $this->recommendedIssues($user),
+                    'recommended' => array_merge(
+                        $this->recommendedIssues($user),
+                        $pendingPolicies->map(fn ($p) => "Belum menerima dokumen \"{$p->title}\"")->values()->all(),
+                    ),
                 ];
             })
             ->filter(fn (array $row) => $row['required'] !== [] || $row['recommended'] !== [])
@@ -73,12 +85,27 @@ class EmployeeDataCompletenessService
             }
         }
 
+        // PKWT melewati batas lama maksimal (PP 35/2021).
+        $maxYears = (int) config('hr.pkwt_max_years', 5);
+        if ($user->employeeType?->has_end_date && $user->join_date && $user->contract_end_date && $user->contract_end_date->gt($user->join_date->copy()->addYears($maxYears))) {
+            $issues[] = "Kontrak melewati batas {$maxYears} tahun PKWT sejak tanggal bergabung";
+        }
+
         return $issues;
     }
 
     public function recommendedIssues(User $user): array
     {
         $issues = [];
+
+        $warnDays = (int) config('hr.probation_warning_days', 14);
+        if ($user->probation_end_date && $user->probation_end_date->between(today(), today()->addDays($warnDays))) {
+            $issues[] = 'Masa percobaan berakhir ' . $user->probation_end_date->format('d M Y') . ' (putuskan kelanjutannya)';
+        }
+
+        if ($user->salaryGrade && $user->base_salary !== null && ! $user->salaryGrade->contains((float) $user->base_salary)) {
+            $issues[] = "Gaji pokok di luar rentang golongan \"{$user->salaryGrade->name}\"";
+        }
 
         if (blank($user->bank_account_number) || blank($user->bank_name)) {
             $issues[] = 'Rekening bank belum lengkap (untuk transfer gaji)';

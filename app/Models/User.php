@@ -58,6 +58,8 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'join_date',
         'base_salary',
         'contract_end_date',
+        'probation_end_date',
+        'salary_grade_id',
         'employee_type_id',
         // Profil HRIS (audit Majoo f54) — data personalia formal,
         // semua opsional/nullable. Lihat migrasi
@@ -92,6 +94,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'join_date' => 'date',
         'base_salary' => 'decimal:2',
         'contract_end_date' => 'date',
+        'probation_end_date' => 'date',
         'is_active' => 'boolean',
         // Data identitas terenkripsi di database (Karyawan Fase 0, UU PDP); terbaca normal lewat model.
         'nik' => 'encrypted',
@@ -244,6 +247,21 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     public function employeeType()
     {
         return $this->belongsTo(EmployeeType::class);
+    }
+
+    public function salaryGrade()
+    {
+        return $this->belongsTo(SalaryGrade::class);
+    }
+
+    public function checklistItems()
+    {
+        return $this->hasMany(EmployeeChecklistItem::class);
+    }
+
+    public function policyAcknowledgments()
+    {
+        return $this->hasMany(PolicyAcknowledgment::class);
     }
 
     public function financeDashboardWidgets()

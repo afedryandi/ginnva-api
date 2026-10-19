@@ -158,6 +158,9 @@ class UserResource extends Resource
                 'AttendanceCorrectionRequestResource' => 'Koreksi Absensi',
                 'LeaveRequestResource' => 'Izin & Cuti',
                 'LeaveTypeResource' => 'Jenis Izin & Cuti',
+                'CompanyPolicyResource' => 'Peraturan & Kebijakan',
+                'EmployeeChecklistItemResource' => 'Checklist Karyawan',
+                'ChecklistTemplateResource' => 'Template Checklist',
                 'WarningLetterResource' => 'Surat Peringatan',
                 'ContractExtensionResource' => 'Perpanjang Kontrak',
                 // Modul Jadwal Kerja (audit Majoo, 2026-09-22).
@@ -174,6 +177,7 @@ class UserResource extends Resource
                 'PayrollResource' => 'Payroll',
                 'AttendanceDeductionRuleResource' => 'Aturan Potongan Absensi',
                 'PayrollItemCategoryResource' => 'Kategori Komponen Gaji',
+                'SalaryGradeResource' => 'Struktur & Skala Upah',
                 'EmployeeDataCompletenessReport' => 'Kelengkapan Data Karyawan',
             ],
             'Keuangan' => [
@@ -483,6 +487,16 @@ class UserResource extends Resource
                         ->numeric()
                         ->prefix('Rp')
                         ->minValue(0),
+
+                    Forms\Components\Select::make('salary_grade_id')
+                        ->label('Golongan Upah')
+                        ->relationship('salaryGrade', 'name', fn ($query) => $query->where('is_active', true))
+                        ->helperText('Dari menu "Struktur & Skala Upah". Gaji pokok di luar rentang golongan hanya ditandai di Kelengkapan Data, tidak ditolak.')
+                        ->preload(),
+
+                    Forms\Components\DatePicker::make('probation_end_date')
+                        ->label('Masa Percobaan Berakhir')
+                        ->helperText('Kosongkan bila tidak ada masa percobaan. Maksimal 3 bulan untuk PKWTT; PKWT tidak boleh ada masa percobaan.'),
 
                     Forms\Components\Select::make('employee_type_id')
                         ->label('Tipe Karyawan')
