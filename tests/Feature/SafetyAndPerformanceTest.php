@@ -212,6 +212,10 @@ class SafetyAndPerformanceTest extends TestCase
         $this->assertSame($first, $second);
 
         $this->actingAs($this->staff, 'api')->postJson("/api/staff/performance-reviews/{$other->id}/acknowledge")->assertStatus(404);
+    }
+
+    public function test_safety_endpoint_requires_login(): void
+    {
         $this->getJson('/api/staff/safety')->assertStatus(401);
     }
 
