@@ -180,6 +180,12 @@ class UserResource extends Resource
                 'SalaryGradeResource' => 'Struktur & Skala Upah',
                 'EmployeeDataCompletenessReport' => 'Kelengkapan Data Karyawan',
                 'InstallerCompetencyReport' => 'Kompetensi Installer',
+                'PpeTypeResource' => 'Jenis APD',
+                'PpeIssuanceResource' => 'Pembagian APD',
+                'EmployeeTrainingResource' => 'Pelatihan Karyawan',
+                'SafetyIncidentResource' => 'Kejadian K3',
+                'PerformanceReviewResource' => 'Penilaian Kinerja',
+                'HrDashboard' => 'Dasbor HR',
             ],
             'Keuangan' => [
                 'FinanceCategoryResource' => 'Kategori Keuangan',

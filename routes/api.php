@@ -410,6 +410,9 @@ Route::prefix('staff')->group(function () {
         Route::get('/schedule', [StaffScheduleController::class, 'index']);
 
         Route::get('/leave-types', [StaffAttendanceController::class, 'leaveTypes']);
+        Route::get('/safety', [\App\Http\Controllers\Api\Staff\SafetyController::class, 'show']);
+        Route::post('/performance-reviews/{id}/acknowledge', [\App\Http\Controllers\Api\Staff\SafetyController::class, 'acknowledgeReview'])
+            ->middleware('throttle:20,1');
         Route::get('/policies', [\App\Http\Controllers\Api\Staff\PolicyController::class, 'index']);
         Route::post('/policies/{id}/acknowledge', [\App\Http\Controllers\Api\Staff\PolicyController::class, 'acknowledge'])
             ->middleware('throttle:20,1');
