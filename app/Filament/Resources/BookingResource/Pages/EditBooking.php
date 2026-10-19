@@ -321,6 +321,10 @@ class EditBooking extends EditRecord
             if ($warning = $this->record->installerShortageWarning()) {
                 \Filament\Notifications\Notification::make()->title('Installer mungkin kurang')->body($warning)->warning()->persistent()->send();
             }
+
+            if ($skillWarnings = $this->record->installerSkillWarnings()) {
+                \Filament\Notifications\Notification::make()->title('Keterampilan installer')->body(implode(' ', $skillWarnings))->warning()->persistent()->send();
+            }
         } catch (\Throwable $e) {
             report($e);
         }

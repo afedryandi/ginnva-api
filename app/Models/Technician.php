@@ -75,6 +75,18 @@ class Technician extends Model
         return $this->hasMany(TechnicianServiceRate::class);
     }
 
+    /** Matriks keterampilan per layanan (Karyawan Fase 4). */
+    public function skills(): HasMany
+    {
+        return $this->hasMany(TechnicianSkill::class);
+    }
+
+    /** Pelatihan dan sertifikasi (Karyawan Fase 4). */
+    public function trainings(): HasMany
+    {
+        return $this->hasMany(TechnicianTraining::class);
+    }
+
     /**
      * Komisi untuk 1 booking spesifik, INI satu-satunya tempat aturan
      * komisi teknisi dihitung — dipakai ulang oleh Laporan Komisi

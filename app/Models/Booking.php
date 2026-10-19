@@ -864,6 +864,17 @@ class Booking extends Model
             . ($crew['unavailable'] ? ' Tidak masuk: ' . collect($crew['unavailable'])->map(fn ($u) => "{$u['name']} ({$u['reason']})")->implode(', ') . '.' : '');
     }
 
+    /**
+     * Peringatan (bukan blokir) bila layanan booking ini belum tercakup installer bertugas yang Mandiri menurut matriks keterampilan
+     * (Karyawan Fase 4). Kosong bila matriks installer bertugas belum diisi.
+     *
+     * @return list<string>
+     */
+    public function installerSkillWarnings(): array
+    {
+        return app(\App\Services\InstallerSkillService::class)->warningsFor($this);
+    }
+
     /** Foto penerimaan kendaraan (Fase 3C): 4 sudut baku + foto kerusakan. */
     public function intakePhotos()
     {

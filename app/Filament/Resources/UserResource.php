@@ -179,6 +179,7 @@ class UserResource extends Resource
                 'PayrollItemCategoryResource' => 'Kategori Komponen Gaji',
                 'SalaryGradeResource' => 'Struktur & Skala Upah',
                 'EmployeeDataCompletenessReport' => 'Kelengkapan Data Karyawan',
+                'InstallerCompetencyReport' => 'Kompetensi Installer',
             ],
             'Keuangan' => [
                 'FinanceCategoryResource' => 'Kategori Keuangan',

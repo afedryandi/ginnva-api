@@ -85,6 +85,8 @@ class ActivityResource extends Resource
     'checklist_template' => 'Template Checklist',
     'employee_checklist_item' => 'Checklist Karyawan',
     'salary_grade' => 'Struktur & Skala Upah',
+    'technician_skill' => 'Keterampilan Teknisi',
+    'technician_training' => 'Pelatihan Teknisi',
     'payroll' => 'Penggajian',
     'payroll_item' => 'Komponen Gaji',
     'payroll_item_category' => 'Kategori Komponen Gaji',

@@ -4,6 +4,8 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TechnicianResource\Pages;
 use App\Filament\Resources\TechnicianResource\RelationManagers\ServiceRatesRelationManager;
+use App\Filament\Resources\TechnicianResource\RelationManagers\SkillsRelationManager;
+use App\Filament\Resources\TechnicianResource\RelationManagers\TrainingsRelationManager;
 use App\Models\Technician;
 use App\Models\User;
 use App\Services\PushNotificationService;
@@ -456,6 +458,8 @@ class TechnicianResource extends Resource
     {
         return [
             ServiceRatesRelationManager::class,
+            SkillsRelationManager::class,
+            TrainingsRelationManager::class,
         ];
     }
 

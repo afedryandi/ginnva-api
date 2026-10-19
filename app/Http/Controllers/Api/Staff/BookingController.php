@@ -401,6 +401,10 @@ class BookingController extends Controller
                 if ($warning = $locked->installerShortageWarning()) {
                     $warnings[] = $warning;
                 }
+
+                foreach ($locked->installerSkillWarnings() as $skillWarning) {
+                    $warnings[] = $skillWarning;
+                }
             } catch (\Throwable $e) {
                 // Peringatan hanya tambahan: kegagalan menghitungnya tidak boleh menggagalkan konfirmasi yang sudah tersimpan.
                 report($e);
