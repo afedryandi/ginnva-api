@@ -382,7 +382,7 @@ class CashControlTest extends TestCase
         $this->assertSame(1, $service->copyFromPrevious(Carbon::parse('2026-10-01'), $this->store->id, null));
         $this->assertSame(4, Budget::count());
 
-        $this->expectException(\Illuminate\Database\QueryException::class);
+        $this->expectException(RuntimeException::class);
         Budget::create(['period_month' => '2026-10-02', 'chart_of_account_id' => $this->acct('6410')->id, 'amount' => 1]); // duplikat lingkup
     }
 
