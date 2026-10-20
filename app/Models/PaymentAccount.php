@@ -16,16 +16,19 @@ class PaymentAccount extends Model
 {
     use LogsActivity;
 
-    public const KINDS = ['kas' => 'Kas (tunai di toko)', 'bank' => 'Rekening Bank'];
+    public const KINDS = ['kas' => 'Kas (tunai di toko)', 'kas_kecil' => 'Kas Kecil (dana tetap)', 'bank' => 'Rekening Bank'];
 
     protected $fillable = [
         'name', 'kind', 'chart_of_account_id', 'store_id', 'bank_name', 'account_number', 'account_holder', 'methods', 'is_default', 'is_active', 'notes',
+        'float_amount', 'voucher_limit', 'custodian_id',
     ];
 
     protected $casts = [
         'methods' => 'array',
         'is_default' => 'boolean',
         'is_active' => 'boolean',
+        'float_amount' => 'decimal:2',
+        'voucher_limit' => 'decimal:2',
         'account_number' => 'encrypted',
     ];
 
@@ -59,6 +62,12 @@ class PaymentAccount extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    /** Pemegang kas untuk rekening kas kecil. */
+    public function custodian(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'custodian_id');
     }
 
     public function acceptsMethod(?string $method): bool

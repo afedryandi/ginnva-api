@@ -7,7 +7,10 @@ use App\Models\Booking;
 use App\Models\ChartOfAccount;
 use App\Models\PaymentAccount;
 use App\Models\Store;
+use App\Models\User;
 use App\Services\FinancialStatementService;
+use App\Services\PettyCashService;
+use Filament\Notifications\Notification;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -141,6 +144,16 @@ class PaymentAccountResource extends Resource
                 Forms\Components\Toggle::make('is_active')->label('Aktif')->default(true),
             ]),
 
+            Forms\Components\Section::make('Kas kecil (dana tetap)')
+                ->columns(3)
+                ->visible(fn (Forms\Get $get) => $get('kind') === 'kas_kecil')
+                ->description('Pengeluaran kecil dari kas ini dicatat lewat Transaksi Keuangan dengan memilih rekeningnya. Sampai batas per bukti, karyawan toko yang sama atau pemegang kas tidak perlu menunggu persetujuan direksi.')
+                ->schema([
+                    Forms\Components\TextInput::make('float_amount')->label('Plafon dana')->numeric()->minValue(0)->prefix('Rp')->helperText('Saldo yang dijaga; isi ulang sebesar plafon dikurangi saldo.'),
+                    Forms\Components\TextInput::make('voucher_limit')->label('Batas per bukti')->numeric()->minValue(0)->prefix('Rp')->helperText('Pengeluaran di atas ini tetap lewat persetujuan. Kosong = semua lewat persetujuan.'),
+                    Forms\Components\Select::make('custodian_id')->label('Pemegang kas')->options(fn () => User::where('is_active', true)->orderBy('name')->pluck('name', 'id'))->searchable()->placeholder('Tidak ditentukan'),
+                ]),
+
             Forms\Components\Section::make('Data bank (opsional)')
                 ->columns(3)
                 ->visible(fn (Forms\Get $get) => $get('kind') === 'bank')
@@ -168,10 +181,32 @@ class PaymentAccountResource extends Resource
                     ->label('Saldo')
                     ->state(fn (PaymentAccount $record) => $record->chartAccount ? app(FinancialStatementService::class)->balanceAsOf($record->chartAccount, now()) : 0)
                     ->money('IDR', locale: 'id'),
+                Tables\Columns\TextColumn::make('float_amount')->label('Plafon')->money('IDR', locale: 'id')->placeholder('—')->toggleable(),
                 Tables\Columns\IconColumn::make('is_active')->label('Aktif')->boolean(),
             ])
             ->defaultSort('name')
             ->actions([
+                Tables\Actions\Action::make('replenish')
+                    ->label('Isi ulang')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('warning')
+                    ->visible(fn (PaymentAccount $record) => $record->kind === 'kas_kecil' && $record->float_amount !== null && static::canEdit($record))
+                    ->modalDescription(fn (PaymentAccount $record) => 'Saldo sekarang Rp ' . number_format(app(PettyCashService::class)->balance($record), 0, ',', '.') . ', plafon Rp ' . number_format((float) $record->float_amount, 0, ',', '.') . '.')
+                    ->form(fn (PaymentAccount $record) => [
+                        Forms\Components\Select::make('source_id')->label('Diambil dari')
+                            ->options(fn () => ChartOfAccount::where('is_cash', true)->where('is_postable', true)->where('is_active', true)->where('id', '!=', $record->chart_of_account_id)->orderBy('code')->get()->mapWithKeys(fn (ChartOfAccount $a) => [$a->id => $a->display_name]))
+                            ->required()->searchable(),
+                        Forms\Components\TextInput::make('amount')->label('Nominal')->numeric()->required()->minValue(0.01)->prefix('Rp')
+                            ->default(app(PettyCashService::class)->replenishAmount($record) ?: null),
+                    ])
+                    ->action(function (PaymentAccount $record, array $data) {
+                        try {
+                            $transfer = app(PettyCashService::class)->replenish($record, (int) $data['source_id'], (float) $data['amount'], auth()->id());
+                            Notification::make()->title('Kas kecil diisi ulang')->body("Pemindahan {$transfer->transfer_number} dibuat.")->success()->send();
+                        } catch (\RuntimeException $e) {
+                            Notification::make()->title('Tidak bisa diisi ulang')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
                 Tables\Actions\EditAction::make(),
             ]);
     }

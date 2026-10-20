@@ -94,7 +94,24 @@ class CreateFinanceTransaction extends CreateRecord
             $this->halt();
         }
 
-        if ($data['type'] === 'out' && ! ($user?->isFullAccess() ?? false)) {
+        // Kas kecil (Keuangan Fase 4): saldo tidak boleh dilampaui, dan pengeluaran sampai batas per bukti langsung dicatat tanpa persetujuan.
+        $petty = app(\App\Services\PettyCashService::class);
+        $pettyAccount = $data['type'] === 'out' ? $petty->find($data['payment_account_id'] ?? null) : null;
+
+        if ($pettyAccount) {
+            try {
+                $petty->assertSufficient($pettyAccount, (float) $data['amount']);
+            } catch (RuntimeException $e) {
+                Notification::make()->title('Saldo kas kecil tidak cukup')->body($e->getMessage())->danger()->send();
+
+                $this->discardReceipt($data);
+                $this->halt();
+            }
+        }
+
+        $spendsDirectly = $pettyAccount && $petty->allowsDirectSpending($data, $user);
+
+        if ($data['type'] === 'out' && ! ($user?->isFullAccess() ?? false) && ! $spendsDirectly) {
             try {
                 $request = app(FinanceTransactionApprovalService::class)->submit($data, $user);
             } catch (RuntimeException $e) {

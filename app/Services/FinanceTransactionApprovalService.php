@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\FinanceSetting;
 use App\Models\FinanceTransaction;
 use App\Models\FinanceTransactionApprovalRequest;
 use App\Models\User;
@@ -132,6 +133,16 @@ class FinanceTransactionApprovalService
         // Notifikasi SETELAH commit -- kegagalan kirim tidak lagi
         // me-rollback approval, dan tidak ada notifikasi untuk status
         // yang akhirnya batal.
+        // Batas persetujuan Store Manager (Keuangan Fase 4): pengeluaran sampai batas itu cukup disetujui di tahap ini dan langsung dicatat.
+        // Tanpa batas diisi (bawaan) semua nominal tetap naik ke direksi.
+        $limit = FinanceSetting::expenseManagerLimit();
+
+        if ($limit !== null && (float) ($locked->payload['amount'] ?? 0) <= $limit) {
+            $this->approveFinal($locked, $approver, true);
+
+            return;
+        }
+
         $this->notifyNextApprovers($locked);
     }
 
@@ -148,7 +159,16 @@ class FinanceTransactionApprovalService
             throw new RuntimeException('Cuma Direksi/Super Admin yang boleh menyetujui tahap ini.');
         }
 
-        return DB::transaction(function () use ($request, $approver) {
+        return $this->approveFinal($request, $approver, false);
+    }
+
+    /**
+     * Tahap final persetujuan: mencatat transaksi dan memposting jurnalnya. $byManager true bila batas persetujuan Store Manager membuat tahap
+     * manajer menjadi final (kolom persetujuan direksi dibiarkan kosong).
+     */
+    private function approveFinal(FinanceTransactionApprovalRequest $request, User $approver, bool $byManager): FinanceTransaction
+    {
+        return DB::transaction(function () use ($request, $approver, $byManager) {
             $locked = FinanceTransactionApprovalRequest::whereKey($request->id)->lockForUpdate()->first();
 
             if (! $locked || ! $locked->isPendingDireksi()) {
@@ -175,8 +195,8 @@ class FinanceTransactionApprovalService
 
             $locked->update([
                 'status' => 'approved',
-                'direksi_approved_by' => $approver->id,
-                'direksi_approved_at' => now(),
+                'direksi_approved_by' => $byManager ? null : $approver->id,
+                'direksi_approved_at' => $byManager ? null : now(),
                 'finance_transaction_id' => $transaction->id,
             ]);
 
