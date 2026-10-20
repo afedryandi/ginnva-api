@@ -152,8 +152,9 @@ class LedgerReconciliationTest extends TestCase
     public function test_a_deleted_finance_transaction_is_kept_for_the_record(): void
     {
         $category = \App\Models\FinanceCategory::create(['name' => 'Bensin', 'type' => 'out', 'chart_of_account_id' => $this->acct('6440')->id, 'is_active' => true]);
+        $store = \App\Models\Store::create(['city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true]);
         $transaction = FinanceTransaction::create([
-            'finance_category_id' => $category->id, 'type' => 'out', 'amount' => 50000, 'transaction_date' => '2026-10-05', 'description' => 'Bensin',
+            'finance_category_id' => $category->id, 'store_id' => $store->id, 'type' => 'out', 'amount' => 50000, 'transaction_date' => '2026-10-05', 'description' => 'Bensin',
         ]);
 
         $transaction->delete();
