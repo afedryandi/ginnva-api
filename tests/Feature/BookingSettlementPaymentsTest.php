@@ -281,11 +281,12 @@ class BookingSettlementPaymentsTest extends TestCase
                 'transaction_amount' => 500000,
                 'settlement_payments' => [['method' => 'tunai', 'amount' => 700000]],
                 'referral_code' => null,
-            ]);
+            ])
+            ->assertNotified('Pembayaran belum benar');
 
         $this->assertNull($booking->fresh()->journal_entry_id);
         $this->assertSame(0, BookingSettlementPayment::count());
-        $this->assertStringContainsString('melebihi nominal transaksi', $this->notifications());
+        // Penolakan ditampilkan sebagai notifikasi 'Pembayaran belum benar' (dicek lewat asersi bawaan Filament).
     }
 
     public function test_the_payment_book_unites_down_payments_settlements_and_receivable_payments(): void

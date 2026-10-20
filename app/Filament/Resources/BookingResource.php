@@ -1453,7 +1453,7 @@ class BookingResource extends Resource
                             ->visible(fn (Forms\Get $get) => collect($get('sale_lines') ?? [])->contains(fn ($r) => is_numeric($r['unit_price'] ?? null)))
                             ->content(function (Forms\Get $get) {
                                 $rows = collect($get('sale_lines') ?? [])->filter(fn ($r) => is_numeric($r['unit_price'] ?? null));
-                                $total = $rows->sum(fn ($r) => (float) ($r['quantity'] ?? 1) * (float) $r['unit_price'] - (float) ($r['discount_amount'] ?: 0));
+                                $total = $rows->sum(fn ($r) => (float) ($r['quantity'] ?? 1) * (float) $r['unit_price'] - (float) (is_numeric($r['discount_amount'] ?? null) ? $r['discount_amount'] : 0));
                                 $nominal = $get('transaction_amount');
                                 $text = 'Rp ' . number_format($total, 0, ',', '.');
 
