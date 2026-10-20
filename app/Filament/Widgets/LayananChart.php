@@ -92,8 +92,8 @@ class LayananChart extends ChartWidget
             ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->with('journalEntry:id,entry_date')
-            ->get(['transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf']);
+            ->with(['journalEntry:id,entry_date', 'saleLines'])
+            ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
 
         $kacaFilmByDate = [];
         $ppfByDate = [];
@@ -102,16 +102,14 @@ class LayananChart extends ChartWidget
             $date = $booking->journalEntry?->entry_date?->toDateString();
             if (! $date) continue;
 
-            $amount = (float) $booking->transaction_amount;
-            $bothProducts = $booking->product_ppf && $booking->product_kaca_film;
+            // Pembagian per jenis SAMA dengan Jurnal Umum (BookingRevenueSplitter): menurut rincian harga bila ada, bagi rata bila tidak.
+            $shares = \App\Services\BookingRevenueSplitter::shares($booking, (float) $booking->transaction_amount);
 
-            if ($bothProducts) {
-                $kacaFilmByDate[$date] = ($kacaFilmByDate[$date] ?? 0) + $amount / 2;
-                $ppfByDate[$date] = ($ppfByDate[$date] ?? 0) + $amount / 2;
-            } elseif ($booking->product_ppf) {
-                $ppfByDate[$date] = ($ppfByDate[$date] ?? 0) + $amount;
-            } elseif ($booking->product_kaca_film) {
-                $kacaFilmByDate[$date] = ($kacaFilmByDate[$date] ?? 0) + $amount;
+            if (isset($shares['ppf'])) {
+                $ppfByDate[$date] = ($ppfByDate[$date] ?? 0) + $shares['ppf'];
+            }
+            if (isset($shares['kaca_film'])) {
+                $kacaFilmByDate[$date] = ($kacaFilmByDate[$date] ?? 0) + $shares['kaca_film'];
             }
         }
 

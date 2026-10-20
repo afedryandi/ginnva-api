@@ -86,7 +86,7 @@ class BookingRevenueByCategoryChart extends ChartWidget
         // (volume 1 bulan kecil) karena aturan pembulatannya tidak praktis diulang di SQL.
         $totals = ['kaca_film' => 0.0, 'ppf' => 0.0, 'detailing' => 0.0, 'premium_wash' => 0.0, 'lainnya' => 0.0];
 
-        $query->get(['id', 'transaction_amount', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash'])
+        $query->with('saleLines')->get(['id', 'transaction_amount', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash'])
             ->each(function (Booking $booking) use (&$totals) {
                 foreach (\App\Services\BookingRevenueSplitter::shares($booking, (float) $booking->transaction_amount) as $key => $portion) {
                     $totals[$key] += $portion;

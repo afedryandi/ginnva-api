@@ -289,7 +289,7 @@ class LayananReport extends Page implements HasForms
             // 2026-09-11 (audit) sama pola dengan P1 SalesDashboard.
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId));
 
-        $bookings = $query->get(['id', 'store_id', 'transaction_amount', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
+        $bookings = $query->with('saleLines')->get(['id', 'store_id', 'transaction_amount', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
 
         // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): "Total
         // Pendapatan" SEBELUMNYA gross, tidak dikurangi refund — beda

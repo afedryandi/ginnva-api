@@ -1399,13 +1399,81 @@ class BookingResource extends Resource
                     ->color('warning')
                     ->visible(fn (Booking $record) => $record->status === 'completed')
                     ->form([
+                        // Rincian harga per layanan (Penjualan Fase 1, 2026-11-10): nilai SEBENARNYA tiap layanan/produk. Pendapatan
+                        // per jenis layanan di Jurnal Umum dan laporan dibagi menurut nilai ini (booking tanpa rincian tetap dibagi rata).
+                        // "Nominal Transaksi" di bawah tetap angka bersih setelah voucher/promo/nego; selisihnya dengan jumlah rincian
+                        // ditampilkan sebagai potongan.
+                        Forms\Components\Repeater::make('sale_lines')
+                            ->label('Rincian Harga per Layanan')
+                            ->schema([
+                                Forms\Components\Select::make('service_type')
+                                    ->label('Jenis layanan')
+                                    ->options(\App\Models\BookingSaleLine::SERVICE_TYPES)
+                                    ->native(false)
+                                    ->live()
+                                    ->required(),
+                                Forms\Components\Select::make('film_product_id')
+                                    ->label('Produk (opsional)')
+                                    ->options(fn () => \App\Models\FilmProduct::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                                    ->searchable()
+                                    ->native(false),
+                                Forms\Components\TextInput::make('position')->label('Bagian / keterangan')->maxLength(80),
+                                Forms\Components\TextInput::make('quantity')->label('Jumlah')->numeric()->minValue(0.01)->default(1)->live(onBlur: true)->required(),
+                                Forms\Components\TextInput::make('unit_price')->label('Harga satuan')->numeric()->minValue(0)->prefix('Rp')->live(onBlur: true)->required(),
+                                Forms\Components\TextInput::make('discount_amount')->label('Potongan baris')->numeric()->minValue(0)->default(0)->prefix('Rp')->live(onBlur: true),
+                            ])
+                            ->columns(3)
+                            ->default(function (Booking $record) {
+                                $existing = $record->saleLines->map(fn ($l) => [
+                                    'service_type' => $l->service_type,
+                                    'film_product_id' => $l->film_product_id,
+                                    'position' => $l->position,
+                                    'quantity' => (float) $l->quantity,
+                                    'unit_price' => (float) $l->unit_price,
+                                    'discount_amount' => (float) $l->discount_amount,
+                                ])->all();
+
+                                if ($existing !== [] || ! \App\Services\BookingSaleLineService::isRequiredFor($record)) {
+                                    return $existing;
+                                }
+
+                                // Wajib tapi belum ada: satu baris per jenis layanan pada booking, tinggal isi harganya.
+                                return collect(\App\Services\BookingRevenueSplitter::productKeys($record))
+                                    ->map(fn ($key) => ['service_type' => $key, 'quantity' => 1, 'discount_amount' => 0])
+                                    ->all();
+                            })
+                            ->addActionLabel('Tambah baris')
+                            ->reorderable(false)
+                            ->helperText(fn (Booking $record) => \App\Services\BookingSaleLineService::isRequiredFor($record)
+                                ? 'Wajib diisi untuk booking ini: minimal satu baris dengan harga.'
+                                : 'Disarankan: isi nilai tiap layanan supaya laporan per jenis layanan akurat. Tanpa rincian, nilai dibagi rata antar jenis.'),
+
+                        Forms\Components\Placeholder::make('sale_lines_total')
+                            ->label('Jumlah rincian')
+                            ->visible(fn (Forms\Get $get) => collect($get('sale_lines') ?? [])->contains(fn ($r) => is_numeric($r['unit_price'] ?? null)))
+                            ->content(function (Forms\Get $get) {
+                                $rows = collect($get('sale_lines') ?? [])->filter(fn ($r) => is_numeric($r['unit_price'] ?? null));
+                                $total = $rows->sum(fn ($r) => (float) ($r['quantity'] ?? 1) * (float) $r['unit_price'] - (float) ($r['discount_amount'] ?: 0));
+                                $nominal = $get('transaction_amount');
+                                $text = 'Rp ' . number_format($total, 0, ',', '.');
+
+                                if (is_numeric($nominal) && (float) $nominal > 0) {
+                                    $gap = round($total - (float) $nominal, 0);
+                                    $text .= $gap > 0
+                                        ? ' — selisih Rp ' . number_format($gap, 0, ',', '.') . ' dengan Nominal Transaksi dianggap potongan (voucher/promo/nego).'
+                                        : ($gap < 0 ? ' — LEBIH KECIL dari Nominal Transaksi; periksa harga satuan.' : ' — sama dengan Nominal Transaksi.');
+                                }
+
+                                return $text;
+                            }),
+
                         Forms\Components\TextInput::make('transaction_amount')
                             ->label('Nominal Transaksi')
                             ->numeric()
                             ->minValue(0)
                             ->live()
                             ->default(fn (Booking $record) => $record->transaction_amount)
-                            ->helperText('Dipakai untuk menghitung poin referral (1 poin / Rp10.000).'),
+                            ->helperText('Angka bersih setelah potongan. Dipakai untuk menghitung poin referral (1 poin / Rp10.000).'),
 
                         // Dipisah dari transaction_amount supaya penjualan
                         // dengan termin (belum lunas di tempat) bisa
@@ -1515,6 +1583,27 @@ class BookingResource extends Resource
                     ->action(function (Booking $record, array $data) {
                         $messages = [];
 
+                        // Rincian harga per layanan (Penjualan Fase 1): dibersihkan dan diperiksa sebelum apa pun disimpan.
+                        $saleLineService = app(\App\Services\BookingSaleLineService::class);
+                        try {
+                            $saleLines = $saleLineService->normalize($data['sale_lines'] ?? []);
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Rincian harga belum benar')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        $enteredForLines = (float) (($data['transaction_amount'] ?? '') !== '' ? $data['transaction_amount'] : 0);
+                        if ($saleLines === [] && $enteredForLines > 0 && \App\Services\BookingSaleLineService::isRequiredFor($record)) {
+                            Notification::make()
+                                ->title('Rincian harga wajib diisi')
+                                ->body('Isi minimal satu baris layanan dengan harganya sebelum menyimpan nominal transaksi.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
                         // Gap ditutup 2026-09-26 (audit Voucher Promo) --
                         // lihat VoucherService::applyToBooking(). Validasi
                         // "sudah dipakai orang lain" dicek ULANG di dalam
@@ -1584,6 +1673,7 @@ class BookingResource extends Resource
                                         'voucher_claim_id' => $voucherClaimId,
                                         'payment_method' => $data['payment_method'] ?: null,
                                         'vehicle_size' => $data['vehicle_size'] ?: null,
+                                        'sale_lines' => $saleLines,
                                     ],
                                     auth()->id()
                                 );
@@ -1617,7 +1707,7 @@ class BookingResource extends Resource
                         // tersimpan — supaya tidak ada nominal "yatim"
                         // tanpa jurnal di baliknya.
                         try {
-                            DB::transaction(function () use ($record, $data, $promoId, $promoDiscount, $voucherClaimId) {
+                            DB::transaction(function () use ($record, $data, $promoId, $promoDiscount, $voucherClaimId, $saleLines, $saleLineService) {
                                 // Lepas klaim voucher LAMA dulu kalau
                                 // dilepas/diganti (gap ditutup 2026-09-26)
                                 // -- lihat VoucherService::releaseFromBooking().
@@ -1640,6 +1730,9 @@ class BookingResource extends Resource
                                     'payment_method'       => $data['payment_method'] ?: null,
                                     'vehicle_size'         => $data['vehicle_size'] ?: null,
                                 ]);
+
+                                // Rincian harga disimpan SEBELUM jurnal pendapatan dibuat ulang, supaya pembagian per jenis memakainya.
+                                $saleLineService->replace($record, $saleLines);
 
                                 app(BookingPostingService::class)->sync($record->refresh());
                             });

@@ -87,7 +87,7 @@ class TransactionApprovalService
             // Payload di-WHITELIST per jenis (field liar tidak ikut tersimpan)
             // dan nominal divalidasi (audit Persetujuan Transaksi 2026-09-29).
             $allowed = [
-                'booking_referral' => ['transaction_amount', 'amount_received', 'referral_code', 'spend_promo_id', 'spend_promo_discount', 'voucher_claim_id', 'payment_method', 'vehicle_size'],
+                'booking_referral' => ['transaction_amount', 'amount_received', 'referral_code', 'spend_promo_id', 'spend_promo_discount', 'voucher_claim_id', 'payment_method', 'vehicle_size', 'sale_lines'],
                 'refund' => ['amount', 'reason'],
                 'booking_down_payment' => ['amount', 'notes'],
             ][$type] ?? [];
@@ -268,6 +268,12 @@ class TransactionApprovalService
                     'payment_method' => $payload['payment_method'] ?? null,
                     'vehicle_size' => $payload['vehicle_size'] ?? null,
                 ]);
+
+                // Rincian harga per layanan (Penjualan Fase 1) disimpan SEBELUM jurnal dibuat ulang, supaya pembagian pendapatan memakainya.
+                if (array_key_exists('sale_lines', $payload)) {
+                    $saleLines = app(BookingSaleLineService::class);
+                    $saleLines->replace($booking, $saleLines->normalize((array) $payload['sale_lines']));
+                }
 
                 app(BookingPostingService::class)->sync($booking->refresh());
 

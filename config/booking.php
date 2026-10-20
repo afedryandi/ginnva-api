@@ -35,4 +35,8 @@ return [
 
     // Fase 5: masa simpan foto kendaraan (bulan) sejak tanggal layanan; lihat bookings:prune-photos. Keputusan pemilik: 24 bulan.
     'photo_retention_months' => (int) env('BOOKING_PHOTO_RETENTION_MONTHS', 24),
+
+    // Penjualan Fase 1: rincian harga per layanan wajib untuk booking yang DIBUAT pada/setelah tanggal ini (Y-m-d). Kosong = tidak wajib
+    // (bawaan, supaya deploy tidak menghalangi kasir). Isi BOOKING_SALE_LINES_REQUIRED_FROM saat panel sudah dipakai untuk rincian.
+    'sale_lines_required_from' => env('BOOKING_SALE_LINES_REQUIRED_FROM') ?: null,
 ];

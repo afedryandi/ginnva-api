@@ -64,6 +64,13 @@ class BookingRevenueSplitter
      */
     public static function shares(Booking $booking, float $amount): array
     {
+        // Booking dengan rincian harga (Penjualan Fase 1): bagian per jenis mengikuti NILAI barisnya, bukan dibagi rata.
+        $weighted = self::weightedShares($booking, $amount);
+
+        if ($weighted !== null) {
+            return $weighted;
+        }
+
         $keys = self::productKeys($booking);
 
         if ($keys === []) {
@@ -82,6 +89,52 @@ class BookingRevenueSplitter
             }
 
             $portion = round($amount / $count, 2);
+            $shares[$key] = $portion;
+            $allocated += $portion;
+        }
+
+        return $shares;
+    }
+
+    /**
+     * Bagian per jenis dari rincian harga booking, diskalakan ke $amount (nominal bersih setelah voucher/promo/nego, jadi
+     * potongan tingkat transaksi dibagi proporsional). Sisa pembulatan ke jenis TERAKHIR menurut urutan PRODUCTS. Null bila
+     * booking tidak punya rincian bernilai (pakai aturan lama).
+     *
+     * @return array<string, float>|null
+     */
+    private static function weightedShares(Booking $booking, float $amount): ?array
+    {
+        $lines = $booking->relationLoaded('saleLines') ? $booking->saleLines : $booking->saleLines()->get();
+
+        $weights = [];
+        foreach ($lines as $line) {
+            if (! isset(self::PRODUCTS[$line->service_type])) {
+                continue;
+            }
+            $weights[$line->service_type] = ($weights[$line->service_type] ?? 0.0) + max(0.0, (float) $line->line_total);
+        }
+
+        $total = array_sum($weights);
+
+        if ($weights === [] || $total <= 0.0) {
+            return null;
+        }
+
+        // Urutan PRODUCTS, hanya jenis yang punya nilai.
+        $keys = array_values(array_filter(array_keys(self::PRODUCTS), fn ($key) => ($weights[$key] ?? 0.0) > 0.0));
+        $shares = [];
+        $allocated = 0.0;
+        $last = count($keys) - 1;
+
+        foreach ($keys as $index => $key) {
+            if ($index === $last) {
+                $shares[$key] = round($amount - $allocated, 2);
+
+                continue;
+            }
+
+            $portion = round($amount * $weights[$key] / $total, 2);
             $shares[$key] = $portion;
             $allocated += $portion;
         }
