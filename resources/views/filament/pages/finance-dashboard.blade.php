@@ -10,6 +10,8 @@
         $m = $s['month'];
         $rev = $delta($m['revenue'], $m['prev_revenue']);
         $pm = $s['previous_month'];
+        $revText = $rev === null ? '' : ' (' . ($rev >= 0 ? '+' : '') . $rev . '%)';
+        $pmWarn = $pm['warnings'] > 0 ? ' · ' . $pm['warnings'] . ' peringatan' : '';
 
         // Butir yang butuh tindakan: [label, jumlah, tautan].
         $actions = [
@@ -42,7 +44,7 @@
             <x-filament::section :heading="'Pendapatan ' . $m['label']">
                 <div class="text-2xl font-semibold tabular-nums">{{ $rp($m['revenue']) }}</div>
                 <div class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                    Bulan lalu {{ $rp($m['prev_revenue']) }}@if ($rev !== null) ({{ $rev >= 0 ? '+' : '' }}{{ $rev }}%)@endif
+                    Bulan lalu {{ $rp($m['prev_revenue']) }}{{ $revText }}
                 </div>
             </x-filament::section>
 
@@ -89,7 +91,7 @@
                     @elseif ($pm['blockers'] > 0)
                         <span class="rounded-md bg-danger-50 px-2 py-0.5 text-xs font-semibold text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">{{ $pm['blockers'] }} penghalang</span>
                     @else
-                        <span class="rounded-md bg-warning-50 px-2 py-0.5 text-xs font-semibold text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">Belum ditutup@if ($pm['warnings'] > 0) · {{ $pm['warnings'] }} peringatan @endif</span>
+                        <span class="rounded-md bg-warning-50 px-2 py-0.5 text-xs font-semibold text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">Belum ditutup{{ $pmWarn }}</span>
                     @endif
                 </li>
             </ul>
