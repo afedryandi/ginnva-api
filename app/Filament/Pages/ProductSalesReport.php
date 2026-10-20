@@ -291,6 +291,7 @@ class ProductSalesReport extends Page implements HasForms
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['filmProduct:id,sku,name,product_type', 'installers:id'])
+            ->withCount('filmProducts')
             ->get(['id', 'transaction_amount', 'film_product_id', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash']);
 
         // HPP + Komisi per booking (audit Majoo f14, "Laporan
@@ -407,6 +408,11 @@ class ProductSalesReport extends Page implements HasForms
             'totalRefundAmount' => $totalRefundAmount,
             'unassignedCount' => $unassignedCount,
             'unassignedPct' => $totalCount > 0 ? $unassignedCount / $totalCount * 100 : 0,
+            // Booking dengan produk TAMBAHAN (booking_film_products): seluruh nilainya tetap dihitung ke produk utama
+            // (film_product_id), karena belum ada harga per produk. Atribusi tepat menunggu rincian harga per layanan
+            // (rancangan Penjualan Fase 1). Dilaporkan terang-terangan supaya baris per produk tidak dibaca sebagai pasti.
+            'multiProductCount' => $bookings->where('film_products_count', '>', 0)->count(),
+            'multiProductRevenue' => (float) $bookings->where('film_products_count', '>', 0)->sum('transaction_amount'),
             'totalCogs' => $rows->sum('cogs'),
             'totalCommission' => $rows->sum('commission'),
             'totalGrossProfit' => $rows->sum('grossProfit'),

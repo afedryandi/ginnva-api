@@ -329,6 +329,29 @@ class ProductSalesReportTest extends TestCase
             ->assertSee('PPF Premium');
     }
 
+    public function test_multi_product_bookings_are_flagged_and_still_counted_to_the_primary_product(): void
+    {
+        $bookings = $this->october();
+        $bookings['p1a']->filmProducts()->create(['film_product_id' => $this->film->id, 'position' => 'Kaca Depan']);
+
+        $result = $this->report();
+
+        $this->assertSame(1, $result['multiProductCount']);
+        $this->assertEquals(1000000.0, $result['multiProductRevenue']);
+        $this->assertEquals(1500000.0, $result['rows']->firstWhere('name', 'PPF Premium')['revenue'], 'Seluruh nilai tetap di produk utama.');
+        $this->assertEquals(2400000.0, $result['grossRevenue'], 'Total tidak berubah.');
+
+        $this->page()->assertSee('1 transaksi (senilai Rp1.000.000) memakai lebih dari satu produk');
+    }
+
+    public function test_no_multi_product_notice_when_none_exist(): void
+    {
+        $this->october();
+
+        $this->assertSame(0, $this->report()['multiProductCount']);
+        $this->page()->assertDontSee('memakai lebih dari satu produk');
+    }
+
     public function test_exports_download_and_the_log_records_the_effective_store(): void
     {
         $this->october();

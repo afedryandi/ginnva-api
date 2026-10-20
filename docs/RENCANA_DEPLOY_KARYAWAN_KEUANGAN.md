@@ -32,7 +32,7 @@ Dibuat 2026-11-09. Melengkapi `RENCANA_DEPLOY_MARKETING_V1.md` (Marketing/Konten
 4. **HPP otomatis tetap MATI** (`FEATURE_INVENTORY_GL` tidak diisi). Jangan dinyalakan sebelum persediaan disinkronkan dan akuntan setuju (komentar di `config/features.php`).
 5. **Persetujuan pengeluaran, kas kecil, hitung kas, anggaran:** batas Store Manager kosong = semua ke direksi seperti sekarang; kas kecil, hitung kas, anggaran tidak aktif sebelum dibuat. Daftar periksa tutup bulan punya **tiga peringatan baru** (selisih hitung kas, sub-buku tidak cocok bila bulan baru lewat, akun melewati anggaran): menutup bulan pertama setelah rilis kemungkinan menampilkan peringatan sub-buku sampai saldo awal dibereskan; peringatan boleh dikonfirmasi.
 6. **Tutup Tahun Buku dan Dasbor Keuangan** adalah menu baru. Tutup Tahun hanya dijalankan manual oleh akses penuh; **jangan menutup tahun apa pun sebelum akuntan memeriksa**.
-7. **Akun COA baru** (6145 dan akun lain yang belum ada) ditambah lewat seeder yang aman diulang (`firstOrCreate`, tidak menimpa akun yang ada).
+7. **Akun COA baru** ditambah lewat seeder Bagan Akun dan `payroll:seed-item-categories`, keduanya aman diulang (tidak menimpa akun yang ada).
 
 ## 3. Migrasi yang akan jalan
 
@@ -87,16 +87,16 @@ php artisan tinker --execute="echo App\Models\User::whereNotNull('nik')->count()
 ## 5. Deploy API
 
 ```bash
-git checkout development && git pull origin development && php artisan migrate --force && php artisan db:seed --class=ChartOfAccountSeeder --force && php artisan optimize:clear && php artisan optimize && php artisan filament:optimize && php artisan queue:restart
+git checkout development && git pull origin development && php artisan migrate --force && php artisan db:seed --class=ChartOfAccountSeeder --force && php artisan payroll:seed-item-categories && php artisan optimize:clear && php artisan optimize && php artisan filament:optimize && php artisan queue:restart
 ```
 
-Seeder Bagan Akun aman diulang (hanya menambah akun yang belum ada, tidak menimpa). Lalu langsung:
+Seeder Bagan Akun aman diulang (hanya menambah akun yang belum ada, tidak menimpa). Akun payroll baru (6130, 6140, 6145 THR, 6150, 2180, 2190) dan 11 kategori komponen gaji TIDAK dibuat seeder itu, melainkan `payroll:seed-item-categories` (aman diulang). Lalu langsung:
 
 ```bash
-php artisan migrate:status | tail -n 25; php artisan schedule:list | grep -iE "cogs|lead"; php artisan tinker --execute="echo App\Models\ChartOfAccount::whereIn('code',['6145','6520','3200'])->pluck('code')->implode(',');"
+php artisan migrate:status | tail -n 25; php artisan schedule:list | grep -iE "cogs|lead"; php artisan tinker --execute="echo App\Models\ChartOfAccount::whereIn('code',['6130','6140','6145','6150','2180','2190','6520','3200'])->pluck('code')->implode(',');"
 ```
 
-Harapan: 20 migrasi `Ran`; `cogs:sync` 05:00 dan `leads:remind-stale` 08:00 terdaftar; akun `3200,6145,6520` ada.
+Harapan: 20 migrasi `Ran`; `cogs:sync` 05:00 dan `leads:remind-stale` 08:00 terdaftar; delapan akun `2180,2190,3200,6130,6140,6145,6150,6520` ada.
 
 `.env` opsional (tidak perlu diubah): `HR_WARNING_VALIDITY_MONTHS` (6), `HR_PKWT_MAX_YEARS` (5), `HR_PROBATION_WARNING_DAYS` (14), `LEAD_RESPONSE_SLA_HOURS` (24), `PROMO_MAX_CAMPAIGNS_PER_WEEK` (2). **Jangan** isi `FEATURE_INVENTORY_GL`.
 

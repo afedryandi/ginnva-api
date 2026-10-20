@@ -16,6 +16,12 @@
         </div>
     @endif
 
+    @if ($result['multiProductCount'] > 0)
+        <div class="rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+            {{ $result['multiProductCount'] }} transaksi (senilai {{ $rupiah($result['multiProductRevenue']) }}) memakai lebih dari satu produk. Seluruh nilainya dihitung ke produk utama booking karena harga per produk belum dicatat — angka per baris produk untuk transaksi itu belum pasti.
+        </div>
+    @endif
+
     @if ($result['hasMissingCost'])
         <div class="rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
             Sebagian bahan (gulungan film/bahan pendukung) yang dipakai belum diisi harga belinya — HPP & Laba Kotor pada baris bertanda * adalah MINIMUM, bisa lebih rendah dari sebenarnya.
