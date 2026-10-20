@@ -109,6 +109,26 @@ class AccountingPeriodService
             }
         }
 
+        // Selisih hitung kas bulan ini yang belum diselesaikan (Keuangan Fase 4/6).
+        $cashDiff = \App\Models\CashCount::whereBetween('count_date', [$start->toDateString(), $end->toDateString()])
+            ->whereRaw('ABS(difference) >= 0.005')->whereNull('adjusted_at')->count();
+        if ($cashDiff > 0) {
+            $items[] = ['key' => 'cash_count', 'severity' => 'warn', 'count' => $cashDiff, 'text' => "{$cashDiff} selisih hitung kas bulan ini belum diselesaikan (disesuaikan atau dijelaskan)."];
+        }
+
+        // Sub-buku (piutang, hutang, DP, aset tetap, persediaan) yang tidak cocok dengan akun kontrolnya per akhir bulan.
+        // Sub-buku dibandingkan dengan keadaan SEKARANG, jadi hanya bermakna untuk bulan yang baru lewat (<= 35 hari).
+        $subledger = $end->gte(now()->subDays(35)) ? app(LedgerReconciliationService::class)->run($end)->reject(fn ($check) => $check['ok'])->count() : 0;
+        if ($subledger > 0) {
+            $items[] = ['key' => 'subledger', 'severity' => 'warn', 'count' => $subledger, 'text' => "{$subledger} sub-buku tidak cocok dengan Buku Besar per akhir bulan — lihat Rekonsiliasi Sub-Buku."];
+        }
+
+        // Akun beban yang melewati anggaran bulan ini.
+        $overBudget = app(BudgetService::class)->compare($start)->where('status', 'lewat')->count();
+        if ($overBudget > 0) {
+            $items[] = ['key' => 'budget', 'severity' => 'warn', 'count' => $overBudget, 'text' => "{$overBudget} akun beban melewati anggaran bulan ini (seluruh perusahaan) — lihat Anggaran vs Realisasi."];
+        }
+
         return $items;
     }
 
