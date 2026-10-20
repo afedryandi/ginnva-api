@@ -133,7 +133,7 @@ class RevenueOnCompletionTest extends TestCase
         $entry = $this->entry($booking);
         $this->assertSame('2026-11-12', $entry->entry_date->toDateString());
         $this->assertStringContainsString('periode ditutup', $entry->description);
-        $this->assertStringContainsString('30 Okt 2026', $entry->description);
+        $this->assertStringContainsString('30/10/2026', $entry->description);
     }
 
     public function test_a_missing_or_future_completion_date_uses_today(): void

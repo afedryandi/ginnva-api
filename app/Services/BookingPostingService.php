@@ -305,7 +305,7 @@ class BookingPostingService
         }
 
         if (\App\Models\AccountingPeriod::isClosedFor($completed)) {
-            return [$today, 'tanggal pekerjaan ' . $completed->translatedFormat('j M Y') . ', periode ditutup'];
+            return [$today, 'tanggal pekerjaan ' . $completed->format('d/m/Y') . ', periode ditutup'];
         }
 
         return [$completed->toDateString(), null];
