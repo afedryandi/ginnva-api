@@ -90,6 +90,25 @@ class AccountingPeriodService
             $items[] = ['key' => 'bank', 'severity' => 'warn', 'count' => $unmatchedBank, 'text' => "{$unmatchedBank} mutasi rekening koran bulan ini belum dicocokkan dengan jurnal."];
         }
 
+        // HPP otomatis (Keuangan Fase 2): booking selesai bulan ini yang punya pemakaian bahan tetapi belum punya jurnal HPP.
+        if (BookingCogsPostingService::enabled()) {
+            $withCogs = JournalEntry::withoutGlobalScopes()->where('reference_type', BookingCogsPostingService::REF_TYPE)->where('status', 'posted')
+                ->whereDoesntHave('reversal')->select('reference_id');
+
+            $cogsMissing = \App\Models\Booking::query()
+                ->where('status', 'completed')
+                ->whereNotNull('journal_entry_id')
+                ->whereHas('journalEntry', fn ($q) => $q->withoutGlobalScopes()->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+                ->where(fn ($q) => $q->whereIn('id', \App\Models\ScrollCodeUsage::select('booking_id')->whereNotNull('booking_id'))
+                    ->orWhereIn('id', \App\Models\MaterialMemo::select('booking_id')->whereNotNull('booking_id')))
+                ->whereNotIn('id', $withCogs)
+                ->count();
+
+            if ($cogsMissing > 0) {
+                $items[] = ['key' => 'cogs', 'severity' => 'warn', 'count' => $cogsMissing, 'text' => "{$cogsMissing} booking selesai bulan ini punya pemakaian bahan tetapi belum punya jurnal HPP (jalankan php artisan cogs:sync)."];
+            }
+        }
+
         return $items;
     }
 

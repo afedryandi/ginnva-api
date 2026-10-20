@@ -83,6 +83,7 @@ class BookingPostingService
 
             if ($amount <= 0) {
                 $booking->update(['journal_entry_id' => null]);
+                $this->syncCogs($booking);
 
                 return null;
             }
@@ -117,8 +118,27 @@ class BookingPostingService
                 ]);
             }
 
+            $this->syncCogs($booking->fresh());
+
             return $entry;
         });
+    }
+
+    /**
+     * HPP booking ikut disinkronkan (Keuangan Fase 2) bila fitur persediaan di Buku Besar menyala. Kegagalannya tidak boleh membatalkan
+     * jurnal pendapatan yang sudah benar, jadi dilaporkan saja; perintah cogs:sync mengulang yang gagal.
+     */
+    private function syncCogs(Booking $booking): void
+    {
+        if (! BookingCogsPostingService::enabled()) {
+            return;
+        }
+
+        try {
+            app(BookingCogsPostingService::class)->sync($booking);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**

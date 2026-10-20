@@ -3,7 +3,13 @@
 namespace App\Filament\Pages;
 
 use App\Models\Store;
+use App\Services\InventorySyncService;
 use App\Services\LedgerReconciliationService;
+use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
+use RuntimeException;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -60,6 +66,42 @@ class LedgerReconciliationReport extends Page implements HasForms
                 ->options(fn () => Store::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->live(),
         ])->statePath('data');
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('syncInventory')
+                ->label('Sinkronkan Persediaan')
+                ->icon('heroicon-o-arrow-path')
+                ->color('warning')
+                ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                ->modalHeading('Sinkronkan Persediaan ke Sub-Buku')
+                ->modalDescription('Membuat SATU jurnal penyesuaian yang menyamakan akun persediaan dengan nilai stok sekarang. Dipakai untuk saldo awal persediaan atau koreksi periodik. Pilih akun lawan dengan hati-hati dan minta akuntan memeriksanya.')
+                ->form(fn () => [
+                    CheckboxList::make('keys')
+                        ->label('Akun yang disinkronkan')
+                        ->options(fn () => app(InventorySyncService::class)->plan()->mapWithKeys(fn (array $row) => [
+                            $row['key'] => $row['label'] . ' (' . ($row['adjustment'] > 0 ? '+' : '-') . 'Rp ' . number_format(abs($row['adjustment']), 0, ',', '.') . ')',
+                        ])->all())
+                        ->required()
+                        ->default(fn () => app(InventorySyncService::class)->plan()->pluck('key')->all()),
+                    \Filament\Forms\Components\Select::make('counter_account_id')
+                        ->label('Akun lawan')
+                        ->options(fn () => InventorySyncService::counterOptions())
+                        ->required()
+                        ->helperText('3200 Laba Ditahan untuk saldo awal persediaan; 5100/5200 untuk koreksi HPP; 6520 untuk kerugian persediaan.'),
+                    Textarea::make('note')->label('Catatan')->rows(2)->maxLength(300),
+                ])
+                ->action(function (array $data) {
+                    try {
+                        $entry = app(InventorySyncService::class)->post($data['keys'], (int) $data['counter_account_id'], $data['note'] ?? null, auth()->id());
+                        Notification::make()->title('Persediaan disinkronkan')->body("Jurnal {$entry->entry_number} dibuat.")->success()->send();
+                    } catch (RuntimeException $e) {
+                        Notification::make()->title('Tidak bisa disinkronkan')->body($e->getMessage())->danger()->send();
+                    }
+                }),
+        ];
     }
 
     /** @return Collection<int, array<string, mixed>> */

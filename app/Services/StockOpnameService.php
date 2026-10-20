@@ -32,6 +32,82 @@ class StockOpnameService
      * @throws RuntimeException kalau $items kosong, atau ada item_type
      *         yang tidak dikenal / item_id yang tidak ditemukan.
      */
+    private function stockValue(RawMaterial|ConsumableItem $material): float
+    {
+        if ($material instanceof RawMaterial) {
+            return $material->load('batches')->stockValue();
+        }
+
+        return (float) $material->current_stock * (float) ($material->unit_cost ?? 0);
+    }
+
+    /**
+     * Selisih nilai persediaan hasil opname dijurnal ke Beban Kerugian Persediaan (6520) bila fitur persediaan di Buku Besar menyala:
+     * kurang = Debit 6520 / Kredit persediaan, lebih = sebaliknya.
+     *
+     * @param  array<string, float>  $valueDelta kode akun persediaan => perubahan nilai
+     */
+    private function postValueDifference(StockOpname $opname, array $valueDelta, ?int $userId): void
+    {
+        if (! BookingCogsPostingService::enabled()) {
+            return;
+        }
+
+        $lines = [];
+        $net = 0.0;
+
+        foreach ($valueDelta as $code => $delta) {
+            $delta = round($delta, 2);
+
+            if (abs($delta) < 1) {
+                continue;
+            }
+
+            $inventory = \App\Models\ChartOfAccount::where('code', $code)->first();
+
+            if (! $inventory) {
+                return;
+            }
+
+            $lines[] = $delta > 0
+                ? ['chart_of_account_id' => $inventory->id, 'debit' => $delta]
+                : ['chart_of_account_id' => $inventory->id, 'credit' => abs($delta)];
+            $net += $delta;
+        }
+
+        $loss = \App\Models\ChartOfAccount::where('code', '6520')->first();
+
+        if (! $lines || ! $loss) {
+            return;
+        }
+
+        $net = round($net, 2);
+
+        if ($net > 0) {
+            $lines[] = ['chart_of_account_id' => $loss->id, 'credit' => $net];
+        } elseif ($net < 0) {
+            $lines[] = ['chart_of_account_id' => $loss->id, 'debit' => abs($net)];
+        }
+
+        if (count($lines) < 2) {
+            return;
+        }
+
+        $date = \Illuminate\Support\Carbon::parse($opname->opname_date);
+        $entryDate = $date->isFuture() || \App\Models\AccountingPeriod::isClosedFor($date) ? now()->toDateString() : $date->toDateString();
+
+        $service = app(JournalEntryService::class);
+        $entry = $service->create([
+            'entry_date' => $entryDate,
+            'store_id' => $opname->store_id,
+            'description' => "Selisih Stok Opname {$opname->opname_number}",
+            'reference_type' => 'stock_opname',
+            'reference_id' => $opname->id,
+            'created_by' => $userId,
+        ], $lines);
+        $service->post($entry, $userId);
+    }
+
     public function create(int $storeId, string $opnameDate, ?string $notes, array $items, ?int $userId): StockOpname
     {
         if (empty($items)) {
@@ -62,6 +138,8 @@ class StockOpnameService
                 'created_by' => $userId,
             ]);
 
+            $valueDelta = ['1130' => 0.0, '1131' => 0.0];
+
             foreach ($items as $row) {
                 // lockForUpdate: stok sistem yang dicatat di baris sesi harus sama dengan yang dipakai adjustStock().
                 $material = match ($row['item_type']) {
@@ -83,7 +161,9 @@ class StockOpnameService
                 // null (tidak ada movement), baris StockOpnameItem TETAP
                 // dicatat (jejak "sudah dihitung, hasilnya sama") biarpun
                 // tidak ada movement yang menyertainya.
+                $valueBefore = $this->stockValue($material);
                 $material->adjustStock($actualQuantity, $userId, "Stok Opname {$opname->opname_number}", $storeId);
+                $valueDelta[$row['item_type'] === 'raw_material' ? '1130' : '1131'] += $this->stockValue($material->refresh()) - $valueBefore;
 
                 StockOpnameItem::create([
                     'stock_opname_id' => $opname->id,
@@ -96,6 +176,8 @@ class StockOpnameService
                     'delta' => $delta,
                 ]);
             }
+
+            $this->postValueDifference($opname, $valueDelta, $userId);
 
             return $opname->fresh('items');
         });

@@ -48,7 +48,7 @@ class BookingCogsService
 
         $result = [];
         foreach ($bookingIds as $id) {
-            $result[$id] = ['cost' => 0.0, 'hasMissingCost' => false];
+            $result[$id] = ['cost' => 0.0, 'hasMissingCost' => false, 'parts' => ['film' => 0.0, 'raw' => 0.0, 'consumable' => 0.0]];
         }
 
         // --- Film (ScrollCodeUsage → ScrollCode.costPerMeter()) ---
@@ -67,6 +67,7 @@ class BookingCogsService
             }
 
             $result[$usage->booking_id]['cost'] += (float) $usage->meters * $costPerMeter;
+            $result[$usage->booking_id]['parts']['film'] += (float) $usage->meters * $costPerMeter;
         }
 
         // --- Bahan pendukung (MaterialMemo → items raw_material/consumable_item) ---
@@ -117,6 +118,7 @@ class BookingCogsService
                 }
 
                 $result[$memo->booking_id]['cost'] += $effectiveQty * (float) $unitCost;
+                $result[$memo->booking_id]['parts'][$item->item_type === 'raw_material' ? 'raw' : 'consumable'] += $effectiveQty * (float) $unitCost;
             }
         }
 

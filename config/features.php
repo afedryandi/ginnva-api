@@ -23,4 +23,14 @@ return [
     */
     'work_schedules' => (bool) env('FEATURE_WORK_SCHEDULES', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Persediaan dan HPP di Buku Besar (Keuangan Fase 2)
+    |--------------------------------------------------------------------------
+    | Mati bawaan. Bila menyala: HPP tiap booking dijurnal otomatis (Debit 5100/5200, Kredit 1130/1131/1132) dan selisih Stok Opname dijurnal
+    | ke Beban Kerugian Persediaan (6520). Nyalakan HANYA setelah saldo awal persediaan disinkronkan lewat tombol "Sinkronkan Persediaan" di
+    | Rekonsiliasi Sub-Buku, kalau tidak akun persediaan menjadi negatif. Isi FEATURE_INVENTORY_GL=true di .env lalu `php artisan config:cache`.
+    */
+    'inventory_gl' => (bool) env('FEATURE_INVENTORY_GL', false),
+
 ];

@@ -63,6 +63,10 @@ Schedule::command('contracts:deactivate-expired')->dailyAt('07:10');
 // Transaksi Keuangan 2026-09-28).
 Schedule::command('finance:remind-pending-approvals')->dailyAt('08:30');
 
+// Sinkronkan jurnal HPP booking selesai dengan pemakaian bahan terbaru (Keuangan Fase 2); tidak melakukan apa pun bila
+// FEATURE_INVENTORY_GL mati. Lihat App\Console\Commands\SyncBookingCogs.
+Schedule::command('cogs:sync')->dailyAt('05:00')->withoutOverlapping();
+
 // Ingatkan direksi soal pengajuan Referral/Refund/DP yang menunggu > 2 hari —
 // lihat App\Console\Commands\RemindPendingTransactionApprovals (audit
 // Persetujuan Transaksi 2026-09-29).

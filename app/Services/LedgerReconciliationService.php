@@ -8,6 +8,7 @@ use App\Models\ChartOfAccount;
 use App\Models\ConsumableItem;
 use App\Models\Payable;
 use App\Models\RawMaterial;
+use App\Models\ScrollCode;
 use App\Models\Receivable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -55,6 +56,9 @@ class LedgerReconciliationService
         if (! $storeId) {
             $rows->push($this->check('raw_material', 'Persediaan Bahan Baku', '1130', $asOf, null, $this->rawMaterialValue(),
                 'Pemakaian bahan untuk booking belum dijurnal sebagai HPP, jadi selisih di sini akan membesar seiring pemakaian (rencana Fase 2).'));
+            $unpriced = ScrollCode::where('remaining_length_meters', '>', 0)->whereNull('purchase_cost')->count();
+            $rows->push($this->check('film_roll', 'Persediaan Gulungan Film (PPF/Kaca Film)', '1132', $asOf, null, $this->filmRollValue(),
+                'Sisa panjang tiap gulungan dikali harga per meter (harga beli / total panjang).' . ($unpriced > 0 ? " {$unpriced} gulungan belum punya harga beli dan dinilai Rp0." : '')));
             $rows->push($this->check('consumable', 'Persediaan Barang Habis Pakai', '1131', $asOf, null, $this->consumableValue(),
                 'Pemakaian barang habis pakai belum dijurnal sebagai HPP (rencana Fase 2).'));
         }
@@ -131,6 +135,12 @@ class LedgerReconciliationService
     private function rawMaterialValue(): float
     {
         return (float) RawMaterial::query()->with('batches')->get()->sum(fn (RawMaterial $m) => $m->stockValue());
+    }
+
+    private function filmRollValue(): float
+    {
+        return (float) ScrollCode::where('remaining_length_meters', '>', 0)->get()
+            ->sum(fn (ScrollCode $roll) => (float) $roll->remaining_length_meters * ($roll->costPerMeter() ?? 0.0));
     }
 
     private function consumableValue(): float
