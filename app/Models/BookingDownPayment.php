@@ -60,6 +60,11 @@ class BookingDownPayment extends Model
         return $this->belongsTo(JournalEntry::class, 'refund_journal_entry_id');
     }
 
+    public function paymentAccount(): BelongsTo
+    {
+        return $this->belongsTo(PaymentAccount::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

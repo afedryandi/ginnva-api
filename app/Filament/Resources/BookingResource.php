@@ -1481,30 +1481,78 @@ class BookingResource extends Resource
                         // BookingPostingService. Default SAMA dengan
                         // transaction_amount (lunas penuh) kalau kasir
                         // tidak sengaja mengubahnya.
-                        Forms\Components\TextInput::make('amount_received')
-                            ->label('Total Diterima (termasuk DP)')
-                            ->numeric()
-                            ->minValue(0)
-                            ->live()
-                            ->default(fn (Booking $record) => $record->amount_received ?? $record->transaction_amount)
-                            ->helperText(fn (Forms\Get $get, Booking $record) => ((float) ($get('transaction_amount') ?? 0)) > ((float) ($get('amount_received') ?? 0))
-                                ? 'Selisihnya akan dicatat sebagai Piutang Usaha (belum lunas).'
-                                : 'Kosongkan/samakan dengan Nominal Transaksi kalau pelanggan sudah lunas penuh.'
-                                    . ($record->outstanding_down_payment > 0
-                                        ? ' DP Rp ' . number_format($record->outstanding_down_payment, 0, ',', '.') . ' otomatis dipotongkan (tidak dihitung kas masuk dua kali).'
-                                        : '')),
+                        // Pembayaran yang diterima (Penjualan Fase 2, 2026-11-11): menggantikan isian tunggal "Total Diterima" dan "Metode
+                        // Pembayaran". Satu baris per pembayaran (metode, rekening, nominal); jurnal kasnya terpisah per rekening. Sisa
+                        // yang belum terbayar (setelah DP) menjadi Piutang Usaha. Daftar kosong = belum ada uang masuk selain DP.
+                        Forms\Components\Repeater::make('settlement_payments')
+                            ->label('Pembayaran diterima')
+                            ->schema([
+                                Forms\Components\Select::make('method')
+                                    ->label('Metode')
+                                    ->options(Booking::PAYMENT_METHOD_LABELS)
+                                    ->native(false)
+                                    ->required(),
+                                Forms\Components\Select::make('payment_account_id')
+                                    ->label('Rekening (otomatis bila kosong)')
+                                    ->options(fn (Booking $record) => \App\Models\PaymentAccount::query()
+                                        ->with('chartAccount')
+                                        ->where('is_active', true)
+                                        ->where(fn ($q) => $q->whereNull('store_id')->orWhere('store_id', $record->store_id))
+                                        ->orderBy('name')->get()
+                                        ->filter(fn ($a) => $a->isUsable())
+                                        ->pluck('name', 'id'))
+                                    ->native(false),
+                                Forms\Components\TextInput::make('amount')->label('Nominal')->numeric()->minValue(1)->prefix('Rp')->live(onBlur: true)->required(),
+                            ])
+                            ->columns(3)
+                            ->default(function (Booking $record) {
+                                $existing = $record->settlementPayments->map(fn ($p) => [
+                                    'method' => $p->method,
+                                    'payment_account_id' => $p->payment_account_id,
+                                    'amount' => (float) $p->amount,
+                                ])->all();
+
+                                if ($existing !== []) {
+                                    return $existing;
+                                }
+
+                                // Belum ada daftar: booking yang sudah pernah diproses mewarisi angka lamanya; yang pertama kali diisi satu baris tunai.
+                                $paidBefore = max(0.0, (float) ($record->amount_received ?? $record->transaction_amount ?? 0) - (float) $record->downPayments()->sum('applied_amount'));
+
+                                return [[
+                                    'method' => $record->payment_method ?: 'tunai',
+                                    'payment_account_id' => null,
+                                    'amount' => $paidBefore > 0 ? $paidBefore : null,
+                                ]];
+                            })
+                            ->addActionLabel('Tambah pembayaran')
+                            ->reorderable(false)
+                            ->helperText('Boleh lebih dari satu (mis. sebagian tunai, sebagian transfer). Hapus semua baris bila belum ada pembayaran; sisanya jadi Piutang Usaha.'),
+
+                        Forms\Components\Placeholder::make('settlement_summary')
+                            ->label('Ringkasan pembayaran')
+                            ->content(function (Forms\Get $get, Booking $record) {
+                                $nominal = (float) ($get('transaction_amount') ?: 0);
+                                $paid = collect($get('settlement_payments') ?? [])->sum(fn ($r) => is_numeric($r['amount'] ?? null) ? (float) $r['amount'] : 0);
+                                $dp = \App\Services\BookingSettlementPaymentService::dpApplicable($record, $nominal);
+                                $rp = fn (float $n) => 'Rp ' . number_format($n, 0, ',', '.');
+                                $remaining = round($nominal - $paid - $dp, 2);
+
+                                $text = 'Diterima ' . $rp($paid) . ($dp > 0 ? ' + DP ' . $rp($dp) : '');
+
+                                if ($nominal <= 0) {
+                                    return $text;
+                                }
+
+                                return $remaining > 0.009
+                                    ? $text . ' — sisa ' . $rp($remaining) . ' akan dicatat sebagai Piutang Usaha.'
+                                    : ($remaining < -0.009 ? $text . ' — MELEBIHI nominal transaksi, tidak bisa disimpan.' : $text . ' — lunas.');
+                            }),
 
                         // Promo Per Total Pembelian (opsional) — potongan flat
                         // untuk booking yang nominal KOTOR-nya >= ambang.
                         // "Nominal Transaksi" di atas diisi angka NET (sudah
                         // dipotong); sistem cek net + potongan >= minimal.
-                        Forms\Components\Select::make('payment_method')
-                            ->label('Metode Pembayaran')
-                            ->options(Booking::PAYMENT_METHOD_LABELS)
-                            ->default(fn (Booking $record) => $record->payment_method)
-                            ->helperText('Dipakai untuk breakdown metode pembayaran di Dashboard Penjualan.')
-                            ->native(false),
-
                         // Nego harga kasir dengan cap % (audit Majoo f31,
                         // keputusan user 2026-09-22) — dipakai hitung
                         // harga acuan matriks (PriceCalculator::priceFor())
@@ -1594,6 +1642,19 @@ class BookingResource extends Resource
                         }
 
                         $enteredForLines = (float) (($data['transaction_amount'] ?? '') !== '' ? $data['transaction_amount'] : 0);
+
+                        // Pembayaran yang diterima (Penjualan Fase 2): diperiksa terhadap nominal sebelum apa pun disimpan.
+                        $paymentService = app(\App\Services\BookingSettlementPaymentService::class);
+                        try {
+                            $payments = $paymentService->normalize($data['settlement_payments'] ?? [], $record->store_id ? (int) $record->store_id : null);
+                            $paymentService->assertWithinNominal($record, $payments, $enteredForLines);
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Pembayaran belum benar')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+                        $amountReceived = $paymentService->amountReceived($record, $payments, $enteredForLines);
+                        $paymentMethod = \App\Services\BookingSettlementPaymentService::primaryMethod($payments);
                         if ($saleLines === [] && $enteredForLines > 0 && \App\Services\BookingSaleLineService::isRequiredFor($record)) {
                             Notification::make()
                                 ->title('Rincian harga wajib diisi')
@@ -1658,7 +1719,7 @@ class BookingResource extends Resource
                                 app(\App\Services\TransactionApprovalService::class)->submitBookingReferral(
                                     $record,
                                     $enteredAmount,
-                                    $data['amount_received'] !== '' ? (float) $data['amount_received'] : null,
+                                    $amountReceived,
                                     [
                                         'referral_code' => $data['referral_code'] ?: null,
                                         'spend_promo_id' => $promoId,
@@ -1671,9 +1732,10 @@ class BookingResource extends Resource
                                         // customer tidak "hangus" duluan kalau
                                         // ternyata permintaan ini ditolak.
                                         'voucher_claim_id' => $voucherClaimId,
-                                        'payment_method' => $data['payment_method'] ?: null,
+                                        'payment_method' => $paymentMethod,
                                         'vehicle_size' => $data['vehicle_size'] ?: null,
                                         'sale_lines' => $saleLines,
+                                        'settlement_payments' => $payments,
                                     ],
                                     auth()->id()
                                 );
@@ -1707,7 +1769,7 @@ class BookingResource extends Resource
                         // tersimpan — supaya tidak ada nominal "yatim"
                         // tanpa jurnal di baliknya.
                         try {
-                            DB::transaction(function () use ($record, $data, $promoId, $promoDiscount, $voucherClaimId, $saleLines, $saleLineService) {
+                            DB::transaction(function () use ($record, $data, $promoId, $promoDiscount, $voucherClaimId, $saleLines, $saleLineService, $payments, $paymentService, $amountReceived, $paymentMethod) {
                                 // Lepas klaim voucher LAMA dulu kalau
                                 // dilepas/diganti (gap ditutup 2026-09-26)
                                 // -- lihat VoucherService::releaseFromBooking().
@@ -1721,18 +1783,19 @@ class BookingResource extends Resource
 
                                 $record->update([
                                     'transaction_amount' => $data['transaction_amount'] !== '' ? $data['transaction_amount'] : null,
-                                    'amount_received'     => $data['amount_received'] !== '' ? $data['amount_received'] : null,
+                                    'amount_received'     => $amountReceived,
                                     'referral_code'       => $data['referral_code'] ?: null,
                                     'spend_promo_id'       => $promoId,
                                     'spend_promo_discount' => $promoId ? $promoDiscount : null,
                                     'voucher_claim_id'     => $voucherClaimId,
                                     'voucher_discount'     => $voucherClaimId ? $voucherDiscount : null,
-                                    'payment_method'       => $data['payment_method'] ?: null,
+                                    'payment_method'       => $paymentMethod,
                                     'vehicle_size'         => $data['vehicle_size'] ?: null,
                                 ]);
 
                                 // Rincian harga disimpan SEBELUM jurnal pendapatan dibuat ulang, supaya pembagian per jenis memakainya.
                                 $saleLineService->replace($record, $saleLines);
+                                $paymentService->replace($record, $payments, auth()->id());
 
                                 app(BookingPostingService::class)->sync($record->refresh());
                             });

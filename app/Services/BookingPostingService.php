@@ -98,7 +98,7 @@ class BookingPostingService
             // dan kas terhitung dobel.
             $dpApplied = min(round((float) $booking->outstanding_down_payment, 2), $received);
 
-            $entry = $this->post($booking, $amount, $received, $outstanding, $dpApplied);
+            $entry = $this->post($booking, $amount, $received, $outstanding, $dpApplied, $this->settlementCashLines($booking, round($received - $dpApplied, 2)));
             $this->allocateDownPayments($booking, $dpApplied);
             $booking->update(['journal_entry_id' => $entry->id]);
 
@@ -160,7 +160,46 @@ class BookingPostingService
         }
     }
 
-    private function post(Booking $booking, float $amount, float $received, float $outstanding, float $dpApplied = 0.0): JournalEntry
+    /**
+     * Baris kas per pembayaran dari buku pembayaran booking (Penjualan Fase 2), atau null bila booking tidak punya pembayaran tercatat
+     * atau jumlahnya tidak cocok dengan uang yang harus masuk kas (misalnya DP berubah sesudah daftar disimpan): jalur satu baris lama
+     * dipakai, total jurnal tetap benar.
+     *
+     * @return list<array{chart_of_account_id: int, debit: float}>|null
+     */
+    private function settlementCashLines(Booking $booking, float $cashReceived): ?array
+    {
+        $payments = $booking->settlementPayments()->get();
+
+        if ($payments->isEmpty() || abs((float) $payments->sum('amount') - $cashReceived) > 0.009) {
+            return null;
+        }
+
+        $resolver = app(PaymentAccountResolver::class);
+        $byAccount = [];
+
+        foreach ($payments as $payment) {
+            $account = $payment->payment_account_id
+                ? \App\Models\PaymentAccount::with('chartAccount')->find($payment->payment_account_id)?->chartAccount
+                : null;
+            $account ??= $resolver->resolve($booking->store_id ? (int) $booking->store_id : null, $payment->method);
+
+            if (! $account) {
+                throw new RuntimeException('Akun kas (kode ' . self::CASH_ACCOUNT_CODE . ') tidak ditemukan di Bagan Akun.');
+            }
+
+            $byAccount[$account->id] = round(($byAccount[$account->id] ?? 0.0) + (float) $payment->amount, 2);
+        }
+
+        $lines = [];
+        foreach ($byAccount as $accountId => $amount) {
+            $lines[] = ['chart_of_account_id' => $accountId, 'debit' => $amount];
+        }
+
+        return $lines;
+    }
+
+    private function post(Booking $booking, float $amount, float $received, float $outstanding, float $dpApplied = 0.0, ?array $cashPayments = null): JournalEntry
     {
         $lines = [];
         $cashReceived = round($received - $dpApplied, 2);
@@ -173,7 +212,12 @@ class BookingPostingService
             $lines[] = ['chart_of_account_id' => $deferred->id, 'debit' => $dpApplied];
         }
 
-        if ($cashReceived > 0) {
+        if ($cashReceived > 0 && $cashPayments !== null) {
+            // Buku pembayaran (Penjualan Fase 2): satu baris kas per rekening penerima.
+            foreach ($cashPayments as $payment) {
+                $lines[] = $payment;
+            }
+        } elseif ($cashReceived > 0) {
             // Rekening menurut metode bayar dan toko booking (Keuangan Fase 1); tanpa rekening terdaftar tetap akun 1101.
             $cash = app(PaymentAccountResolver::class)->resolve($booking->store_id ? (int) $booking->store_id : null, $booking->payment_method);
             if (! $cash) {

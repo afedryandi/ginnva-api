@@ -62,9 +62,31 @@ class BookingRevenueByPaymentMethodChart extends ChartWidget
             $query->where('store_id', $this->storeId);
         }
 
-        $totals = $query->selectRaw('payment_method, COALESCE(SUM(transaction_amount), 0) as total')
-            ->groupBy('payment_method')
-            ->pluck('total', 'payment_method');
+        // Booking dengan buku pembayaran (Penjualan Fase 2): nilai per metode mengikuti pembayaran yang tercatat, dan bagian yang tidak
+        // terwakili pembayaran (DP atau piutang, yang belum punya metode di sini) masuk "Belum Diisi". Booking lama memakai satu metode.
+        $totals = [];
+        $query->with('settlementPayments')->get(['id', 'transaction_amount', 'payment_method'])->each(function (Booking $booking) use (&$totals) {
+            $amount = (float) $booking->transaction_amount;
+
+            if ($booking->settlementPayments->isEmpty()) {
+                $key = $booking->payment_method ?: '';
+                $totals[$key] = ($totals[$key] ?? 0.0) + $amount;
+
+                return;
+            }
+
+            $paid = 0.0;
+            foreach ($booking->settlementPayments as $payment) {
+                $totals[$payment->method] = ($totals[$payment->method] ?? 0.0) + (float) $payment->amount;
+                $paid += (float) $payment->amount;
+            }
+
+            $rest = round($amount - $paid, 2);
+            if ($rest > 0.009) {
+                $totals[''] = ($totals[''] ?? 0.0) + $rest;
+            }
+        });
+        $totals = collect($totals);
 
         $labels = Booking::PAYMENT_METHOD_LABELS;
         $labels['belum_diisi'] = 'Belum Diisi';

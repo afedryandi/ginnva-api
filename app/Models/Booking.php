@@ -1027,6 +1027,12 @@ class Booking extends Model
      * Rincian harga per layanan (Penjualan Fase 1, 2026-11-10). Kosong untuk booking lama; pendapatan mereka tetap dibagi rata
      * antar jenis layanan (BookingRevenueSplitter).
      */
+    /** Pembayaran yang diterima saat penjualan diproses (Penjualan Fase 2, 2026-11-11). Kosong untuk booking lama. */
+    public function settlementPayments()
+    {
+        return $this->hasMany(BookingSettlementPayment::class)->orderBy('id');
+    }
+
     public function saleLines()
     {
         return $this->hasMany(BookingSaleLine::class)->orderBy('sort_order')->orderBy('id');

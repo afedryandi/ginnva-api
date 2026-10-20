@@ -119,13 +119,29 @@ Perkiraan kasar satu developer, belum termasuk uji manual di HP oleh Anda.
 |---|---|---|
 | **0. Kebenaran laporan** | Laporan produk memakai `booking_film_products`; kelompokkan ulang menu Laporan; sembunyikan laporan yang pasti kosong; catat tanpa mengubah jurnal lama | Laporan tidak menyesatkan, tanpa perubahan skema besar |
 | **1. Rincian penjualan** | **Dikerjakan (2026-11-10), belum diuji di server.** Tabel `booking_sale_lines`; Repeater "Rincian Harga per Layanan" di aksi Proses Referral (juga lewat jalur persetujuan); pendapatan per jenis dibagi menurut nilai baris dan diskalakan ke nominal bersih (potongan voucher/promo/nego dibagi proporsional); booking tanpa rincian tetap dibagi rata; laporan Layanan, grafik kategori, dan grafik Layanan di dashboard memakai pembagi yang sama. Kewajiban diatur `BOOKING_SALE_LINES_REQUIRED_FROM` (tanggal Y-m-d; kosong = tidak wajib; booking yang dibuat sebelum tanggal itu tidak pernah dipaksa). **Belum:** layar mobile (Fase 5), cap nego memakai total rincian, laporan Penjualan Produk per baris produk. Semula: `booking_sale_lines`, form rincian di Edit Booking, pembagian pendapatan per nilai baris (menggantikan 50/50) untuk booking baru; booking lama tetap 50/50 dan diberi penanda | Angka per jenis layanan benar |
-| **2. Buku pembayaran** | `booking_payments`, pemetaan DP lama, banyak metode bayar, hubungan ke Rekening Kas/Bank, laporan metode bayar | Pembayaran tercatat lengkap |
+| **2. Buku pembayaran** | **Dikerjakan (2026-11-11), belum diuji di server.** Tabel `booking_settlement_payments`; daftar "Pembayaran diterima" di Proses Referral menggantikan "Total Diterima" dan "Metode Pembayaran"; jurnal kas satu baris per rekening; kelebihan bayar ditolak; Buku Pembayaran menyatukan DP, pembayaran saat selesai, dan pelunasan piutang; grafik metode bayar membaca daftar baru (DP dan piutang belum punya metode, masuk "Belum Diisi"). Booking lama dan daftar kosong tetap jalur lama. Semula: `booking_payments`, pemetaan DP lama, banyak metode bayar, hubungan ke Rekening Kas/Bank, laporan metode bayar | Pembayaran tercatat lengkap |
 | **3. Tanggal pengakuan** | Pendapatan bertanggal selesai (atau pelunasan, sesuai keputusan 2), peringatan bulan tertutup, migrasi aman untuk data lama | Laporan bulanan tidak bergeser |
 | **4. Penawaran berharga** | Harga di penawaran, masa berlaku, persetujuan, konversi ke booking, alasan kalah | Alur estimasi sampai deposit lengkap |
 | **5. Mobile kasir** | Catat pembayaran, rincian harga saat konfirmasi, kirim invoice, dasbor toko | Kasir mencatat sendiri di HP |
 | **6. KPI dan dasbor** | Dasbor Penjualan baru (bagian 4.7), target bila diputuskan; penjualan eceran bila diputuskan ada | Penjualan terukur |
 
 Urutannya sengaja: Fase 0 aman dan segera berguna; Fase 1 dan 2 adalah fondasi; Fase 3 baru dilakukan setelah 1 dan 2 stabil karena menyentuh tanggal jurnal.
+
+### 5.1a Rancangan rinci Fase 2: buku pembayaran (2026-11-10; disetujui pemilik dan dikerjakan 2026-11-11, belum diuji di server)
+
+**Keadaan sekarang (diverifikasi di kode).** Uang masuk dicatat di tiga tempat berbeda: (1) DP lewat `DownPaymentService` (Dr kas / Kr 2140, tabel `booking_down_payments`, sudah punya rekening); (2) saat Proses Referral, satu angka `amount_received` dan satu `payment_method`, jurnalnya satu baris kas lewat `PaymentAccountResolver` menurut metode itu (`BookingPostingService::post`); (3) pelunasan piutang lewat `ReceivableService` (sudah punya rekening). Akibatnya pembayaran campur di hari penyelesaian (mis. Rp 5 juta tunai + Rp 10 juta transfer) tidak bisa dicatat benar, dan laporan metode bayar hanya melihat satu metode per booking.
+
+**Usulan: satu tabel baru kecil, tanpa memindahkan DP dan piutang.**
+- `booking_settlement_payments`: `booking_id`, `payment_account_id` (nullable = bawaan menurut metode), `method` (tunai/transfer/qris/edc), `amount`, `paid_at`, `received_by`. Diganti seluruhnya setiap Proses Referral disimpan (pola sama dengan rincian harga).
+- Di aksi Proses Referral, isian tunggal "Total Diterima" dan "Metode Pembayaran" diganti daftar **Pembayaran diterima** (metode, rekening, nominal). Total diterima = jumlah daftar + DP yang terpakai; `amount_received` dan `payment_method` tetap diisi otomatis (metode utama = nominal terbesar) agar laporan dan layar lama tidak patah.
+- Jurnal pendapatan memakai satu baris debit kas **per pembayaran** (rekening sendiri-sendiri), 2140 untuk DP yang terpakai, dan Piutang untuk sisanya. Total jurnal tidak berubah, hanya baris kas yang terpisah.
+- Bila daftar kosong, perilaku sekarang dipakai persis (booking lama, aplikasi lama).
+- **Buku Pembayaran** (laporan baca-saja) menyatukan tiga sumber lewat kueri gabungan, bukan menyalin data: DP, pembayaran saat penyelesaian, pelunasan piutang. Satu tempat untuk melihat siapa membayar apa, kapan, lewat apa, ke rekening mana.
+- Laporan metode bayar (grafik Dasbor Penjualan) membaca daftar ini bila ada, jatuh ke `payment_method` lama bila tidak.
+- Aturan: jumlah pembayaran + DP terpakai tidak boleh melebihi nominal transaksi (kelebihan ditolak dengan pesan jelas, bukan diam-diam dipotong seperti sekarang); koreksi tetap lewat Proses Referral (yang sudah terkunci bila piutangnya punya pelunasan).
+- Mobile (Fase 5) memakai layanan yang sama lewat API.
+
+**Risiko dan penjagaan.** Menyentuh jurnal kas, jadi: tes selisih nol (jumlah debit = kredit, total kas sama dengan sebelum untuk kasus tunggal), uji ulang semua tes jurnal booking/refund, dan booking tanpa daftar tetap lewat jalur lama. Refund tetap dari kas sesuai logika sekarang; refund per rekening asal pembayaran bisa menyusul bila diperlukan.
 
 ### 5.2 Kenapa bertahap
 Alur uang yang sedang berjalan di production (Proses Referral, refund, DP, PPN) harus tetap hidup selama pekerjaan. Semua perubahan memakai pola tambah-dulu-lalu-geser: kolom/tabel baru nullable, sumber angka lama tetap sampai yang baru terbukti, bendera fitur untuk perubahan perilaku (seperti `FEATURE_INVENTORY_GL` di Keuangan).
