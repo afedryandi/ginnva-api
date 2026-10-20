@@ -168,6 +168,8 @@ class Booking extends Model
         'cancelled_by_type',
         'cancelled_by_id',
         'cancelled_at',
+        // Tanggal pekerjaan selesai (Penjualan Fase 3): diisi otomatis saat status menjadi completed; dasar tanggal pengakuan pendapatan.
+        'completed_at',
         'pending_reminder_sent_at',
         'pending_reminder_count',
         'source',
@@ -240,6 +242,7 @@ class Booking extends Model
         // yang salah (mis. label "(saat ini)").
         'preferred_date' => 'date:Y-m-d',
         'cancelled_at' => 'datetime',
+        'completed_at' => 'datetime',
         'ready_at' => 'datetime',
         'no_show_at' => 'datetime',
         'confirmed_at' => 'datetime',
@@ -1291,6 +1294,14 @@ class Booking extends Model
         // transaction_amount-nya diedit setelah fitur ini aktif ikut dapat
         // rincian -- konsisten dengan keputusan "booking baru saja" (booking
         // lama yang TIDAK disentuh lagi tetap dpp_amount/ppn_amount null).
+        // Tanggal selesai (Penjualan Fase 3): terisi sekali saat status menjadi completed lewat jalur mana pun (aplikasi staf, panel, aksi
+        // lain); tidak ditimpa kalau sudah ada (mis. dikoreksi admin).
+        static::saving(function (Booking $booking) {
+            if ($booking->isDirty('status') && $booking->status === 'completed' && ! $booking->completed_at) {
+                $booking->completed_at = now();
+            }
+        });
+
         static::saving(function (Booking $booking) {
             if (! $booking->isDirty('transaction_amount')) {
                 return;
@@ -1347,7 +1358,7 @@ class Booking extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'preferred_date', 'duration_days', 'notes', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id', 'warranty_id', 'cancel_reason', 'cancelled_by_type', 'cancelled_at', 'no_show_at'])
+            ->logOnly(['status', 'current_stage', 'secondary_stage', 'store_id', 'preferred_date', 'duration_days', 'notes', 'referral_code', 'transaction_amount', 'partner_id', 'voucher_claim_id', 'voucher_discount', 'next_service_reminder_at', 'warranty_claim_id', 'warranty_id', 'cancel_reason', 'cancelled_by_type', 'cancelled_at', 'no_show_at', 'completed_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('booking')

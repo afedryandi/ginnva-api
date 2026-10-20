@@ -109,6 +109,21 @@ class AccountingPeriodService
             }
         }
 
+        // Booking selesai bulan ini yang belum diproses ke pendapatan (Penjualan Fase 3): sesudah bulan ditutup, pendapatannya tidak
+        // bisa lagi bertanggal bulan ini. Hanya relevan bila pendapatan diakui pada tanggal selesai.
+        if (BookingPostingService::revenueOnCompletion()) {
+            $unprocessed = \App\Models\Booking::withoutGlobalScopes()
+                ->where('status', 'completed')
+                ->whereNull('journal_entry_id')
+                ->where('transaction_amount', '>', 0)
+                ->whereBetween('completed_at', [$start->copy()->startOfDay(), $end->copy()->endOfDay()])
+                ->count();
+
+            if ($unprocessed > 0) {
+                $items[] = ['key' => 'unprocessed_sales', 'severity' => 'warn', 'count' => $unprocessed, 'text' => "{$unprocessed} booking selesai bulan ini belum diproses ke pendapatan (Proses Referral) — setelah bulan ditutup, pendapatannya akan bertanggal bulan berikutnya."];
+            }
+        }
+
         // Selisih hitung kas bulan ini yang belum diselesaikan (Keuangan Fase 4/6).
         $cashDiff = \App\Models\CashCount::whereBetween('count_date', [$start->toDateString(), $end->toDateString()])
             ->whereRaw('ABS(difference) >= 0.005')->whereNull('adjusted_at')->count();

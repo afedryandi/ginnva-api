@@ -33,4 +33,14 @@ return [
     */
     'inventory_gl' => (bool) env('FEATURE_INVENTORY_GL', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Pendapatan diakui pada tanggal pekerjaan selesai (Penjualan Fase 3)
+    |--------------------------------------------------------------------------
+    | Mati bawaan: jurnal pendapatan booking bertanggal hari kasir menyimpan (perilaku lama). Bila menyala: bertanggal Booking::completed_at
+    | selama tanggal itu tidak di masa depan dan periodenya masih terbuka (kalau tidak, hari ini, dengan catatan di deskripsi jurnal).
+    | Nyalakan setelah kolom completed_at dicek terisi benar dan akuntan setuju. Isi FEATURE_REVENUE_ON_COMPLETION=true di .env.
+    */
+    'revenue_on_completion' => (bool) env('FEATURE_REVENUE_ON_COMPLETION', false),
+
 ];

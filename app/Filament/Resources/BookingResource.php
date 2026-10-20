@@ -1934,6 +1934,45 @@ class BookingResource extends Resource
                 // 2026-09-10, analog "Daftar Invoice" Majoo). Bukan Faktur
                 // Pajak — PPN belum diputuskan. Cuma untuk booking yang
                 // sudah selesai & punya nominal transaksi.
+                // Koreksi tanggal selesai (Penjualan Fase 3, 2026-11-12): hanya akses penuh, hanya selama penjualannya BELUM diproses
+                // (jurnal pendapatan belum ada), tidak boleh ke masa depan atau ke periode yang sudah ditutup. Tercatat di log aktivitas.
+                Tables\Actions\Action::make('correct_completed_at')
+                    ->label('Koreksi Tanggal Selesai')
+                    ->icon('heroicon-o-calendar-days')
+                    ->color('gray')
+                    ->visible(fn (Booking $record) => $record->status === 'completed'
+                        && $record->journal_entry_id === null
+                        && (auth()->user()?->isFullAccess() ?? false))
+                    ->form([
+                        Forms\Components\DateTimePicker::make('completed_at')
+                            ->label('Tanggal & jam selesai')
+                            ->seconds(false)
+                            ->native(false)
+                            ->required()
+                            ->maxDate(now())
+                            ->default(fn (Booking $record) => $record->completed_at ?? $record->updated_at)
+                            ->helperText('Tanggal ini menjadi tanggal pengakuan pendapatan saat penjualan diproses. Tidak boleh di masa depan atau di periode yang sudah ditutup.'),
+                    ])
+                    ->action(function (Booking $record, array $data) {
+                        $at = \Illuminate\Support\Carbon::parse($data['completed_at']);
+
+                        if ($at->isFuture()) {
+                            Notification::make()->title('Tanggal tidak valid')->body('Tanggal selesai tidak boleh di masa depan.')->danger()->send();
+
+                            return;
+                        }
+
+                        if (\App\Models\AccountingPeriod::isClosedFor($at)) {
+                            Notification::make()->title('Periode sudah ditutup')->body('Periode ' . $at->translatedFormat('F Y') . ' sudah ditutup; pilih tanggal di periode yang masih terbuka.')->danger()->send();
+
+                            return;
+                        }
+
+                        $record->update(['completed_at' => $at]);
+
+                        Notification::make()->title('Tanggal selesai diperbarui')->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('print_invoice')
                     ->label('Cetak Invoice')
                     ->icon('heroicon-o-document-text')

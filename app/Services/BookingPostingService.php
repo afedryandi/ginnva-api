@@ -245,10 +245,12 @@ class BookingPostingService
 
         $service = app(JournalEntryService::class);
 
+        [$entryDate, $dateNote] = self::entryDateFor($booking);
+
         $entry = $service->create([
-            'entry_date' => now()->toDateString(),
+            'entry_date' => $entryDate,
             'store_id' => $booking->store_id,
-            'description' => "Pendapatan booking {$booking->booking_number} — {$booking->display_customer_name}",
+            'description' => "Pendapatan booking {$booking->booking_number} — {$booking->display_customer_name}" . ($dateNote ? " ({$dateNote})" : ''),
             'reference_type' => 'booking',
             'reference_id' => $booking->id,
             'created_by' => auth()->id(),
@@ -266,8 +268,47 @@ class BookingPostingService
         $existing = JournalEntry::find($booking->journal_entry_id);
 
         if ($existing && $existing->isPosted() && ! $existing->reversal()->exists()) {
-            app(JournalEntryService::class)->reverse($existing, auth()->id(), 'Nominal transaksi booking diubah');
+            // Dengan pengakuan pada tanggal selesai (Penjualan Fase 3), pembalik bertanggal SAMA dengan jurnal aslinya selama periodenya
+            // masih terbuka, supaya pasangan jurnal tidak terpisah antar bulan. Selain itu (bendera mati, periode tertutup): hari ini.
+            $date = null;
+            if (self::revenueOnCompletion() && $existing->entry_date->lte(today()) && ! \App\Models\AccountingPeriod::isClosedFor($existing->entry_date)) {
+                $date = $existing->entry_date->toDateString();
+            }
+
+            app(JournalEntryService::class)->reverse($existing, auth()->id(), 'Nominal transaksi booking diubah', $date);
         }
+    }
+
+    public static function revenueOnCompletion(): bool
+    {
+        return (bool) config('features.revenue_on_completion', false);
+    }
+
+    /**
+     * Tanggal dan catatan untuk jurnal pendapatan booking ini. Bendera mati, tanggal selesai kosong, atau di masa depan: hari ini. Tanggal
+     * selesai jatuh di periode yang sudah ditutup: hari ini, dengan catatan di deskripsi jurnal.
+     *
+     * @return array{0: string, 1: ?string} [tanggal Y-m-d, catatan atau null]
+     */
+    public static function entryDateFor(Booking $booking): array
+    {
+        $today = now()->toDateString();
+
+        if (! self::revenueOnCompletion() || ! $booking->completed_at) {
+            return [$today, null];
+        }
+
+        $completed = $booking->completed_at->copy()->startOfDay();
+
+        if ($completed->toDateString() >= $today) {
+            return [$today, null];
+        }
+
+        if (\App\Models\AccountingPeriod::isClosedFor($completed)) {
+            return [$today, 'tanggal pekerjaan ' . $completed->translatedFormat('j M Y') . ', periode ditutup'];
+        }
+
+        return [$completed->toDateString(), null];
     }
 
     /**
