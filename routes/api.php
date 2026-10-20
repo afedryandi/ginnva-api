@@ -410,6 +410,16 @@ Route::prefix('staff')->group(function () {
         Route::get('/schedule', [StaffScheduleController::class, 'index']);
 
         Route::get('/leave-types', [StaffAttendanceController::class, 'leaveTypes']);
+        // Keuangan di aplikasi (Keuangan Fase 5)
+        Route::get('/finance/overview', [\App\Http\Controllers\Api\Staff\FinanceController::class, 'overview']);
+        Route::get('/finance/expense-options', [\App\Http\Controllers\Api\Staff\FinanceController::class, 'expenseOptions']);
+        Route::post('/finance/expenses', [\App\Http\Controllers\Api\Staff\FinanceController::class, 'storeExpense'])->middleware('throttle:20,1');
+        Route::get('/finance/my-expenses', [\App\Http\Controllers\Api\Staff\FinanceController::class, 'myExpenses']);
+        Route::get('/finance/approvals', [\App\Http\Controllers\Api\Staff\FinanceController::class, 'approvals']);
+        Route::post('/finance/approvals/{id}/approve', [\App\Http\Controllers\Api\Staff\FinanceController::class, 'approve'])->middleware('throttle:30,1');
+        Route::post('/finance/approvals/{id}/reject', [\App\Http\Controllers\Api\Staff\FinanceController::class, 'reject'])->middleware('throttle:30,1');
+        Route::get('/finance/cash-counts', [\App\Http\Controllers\Api\Staff\FinanceController::class, 'cashCounts']);
+        Route::post('/finance/cash-counts', [\App\Http\Controllers\Api\Staff\FinanceController::class, 'storeCashCount'])->middleware('throttle:20,1');
         Route::get('/safety', [\App\Http\Controllers\Api\Staff\SafetyController::class, 'show']);
         Route::post('/performance-reviews/{id}/acknowledge', [\App\Http\Controllers\Api\Staff\SafetyController::class, 'acknowledgeReview'])
             ->middleware('throttle:20,1');
