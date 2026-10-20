@@ -56,7 +56,7 @@ class YearEndClosingTest extends TestCase
         return ChartOfAccount::where('code', $code)->firstOrFail();
     }
 
-    private function post(string $date, ?int $storeId, string $debitCode, string $creditCode, float $amount): void
+    private function journal(string $date, ?int $storeId, string $debitCode, string $creditCode, float $amount): void
     {
         $service = app(JournalEntryService::class);
         $entry = $service->create(
@@ -69,10 +69,10 @@ class YearEndClosingTest extends TestCase
     /** 2025: Toko A untung 700.000 (pendapatan 1.000.000, beban 300.000); Toko B rugi 100.000; tanpa toko: pendapatan 50.000. */
     private function seedYear(): void
     {
-        $this->post('2025-03-10', $this->storeA->id, '1101', '4400', 1000000);
-        $this->post('2025-04-10', $this->storeA->id, '6440', '1101', 300000);
-        $this->post('2025-05-10', $this->storeB->id, '6440', '1101', 100000);
-        $this->post('2025-06-10', null, '1101', '4400', 50000);
+        $this->journal('2025-03-10', $this->storeA->id, '1101', '4400', 1000000);
+        $this->journal('2025-04-10', $this->storeA->id, '6440', '1101', 300000);
+        $this->journal('2025-05-10', $this->storeB->id, '6440', '1101', 100000);
+        $this->journal('2025-06-10', null, '1101', '4400', 50000);
     }
 
     private function profit(string $from, string $to, ?int $storeId = null): float
@@ -111,7 +111,7 @@ class YearEndClosingTest extends TestCase
     public function test_balance_sheet_stays_balanced_before_and_after_closing(): void
     {
         $this->seedYear();
-        $this->post('2026-02-01', $this->storeA->id, '1101', '4400', 200000);
+        $this->journal('2026-02-01', $this->storeA->id, '1101', '4400', 200000);
         $statements = app(FinancialStatementService::class);
 
         $before = $statements->balanceSheet(Carbon::parse('2026-10-07'));
