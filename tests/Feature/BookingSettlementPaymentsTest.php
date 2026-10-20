@@ -110,6 +110,24 @@ class BookingSettlementPaymentsTest extends TestCase
             ->implode(' | ') ?: '(tidak ada notifikasi)';
     }
 
+    /**
+     * Menjalankan aksi Proses Referral seperti di panel: baris pembayaran bawaan form DIGANTI (bukan ditambah), karena baris bawaan
+     * yang nominalnya kosong akan gagal validasi. Daftar booking bawaan menyembunyikan booking selesai bertanggal lampau, jadi
+     * filter "Aktif & akan datang" dilepas.
+     */
+    private function processReferral(Booking $booking, array $data, array $payments)
+    {
+        $component = Livewire::test(ListBookings::class)->removeTableFilter('upcoming')->mountTableAction('process_referral', $booking);
+        $defaultKeys = array_keys((array) $component->get('mountedTableActionsData.0.settlement_payments'));
+
+        $keyed = [];
+        foreach (array_values($payments) as $i => $row) {
+            $keyed[$defaultKeys[$i] ?? 'baru-' . $i] = $row;
+        }
+
+        return $component->setTableActionData($data + ['settlement_payments' => $keyed])->callMountedTableAction();
+    }
+
     private function admin(): User
     {
         return tap(User::create(['name' => 'Admin', 'email' => uniqid() . '@test.local', 'password' => 'x']), fn (User $u) => $u->assignRole('super_admin'));
@@ -246,18 +264,14 @@ class BookingSettlementPaymentsTest extends TestCase
         $this->actingAs($this->admin(), 'web');
         $booking = $this->booking(0, ['transaction_amount' => null, 'amount_received' => null, 'product_premium_wash' => true]);
 
-        // Daftar bawaan menyembunyikan booking selesai bertanggal lampau (filter "Aktif & akan datang"); aksi hanya bisa dipanggil pada baris yang tampil.
-        Livewire::test(ListBookings::class)
-            ->removeTableFilter('upcoming')
-            ->callTableAction('process_referral', $booking, data: [
-                'sale_lines' => [
-                    ['service_type' => 'ppf', 'quantity' => 1, 'unit_price' => 900000, 'discount_amount' => 0],
-                    ['service_type' => 'premium_wash', 'quantity' => 1, 'unit_price' => 100000, 'discount_amount' => 0],
-                ],
-                'transaction_amount' => 1000000,
-                'settlement_payments' => [['method' => 'tunai', 'amount' => 400000], ['method' => 'transfer', 'amount' => 600000]],
-                'referral_code' => null,
-            ])
+        $this->processReferral($booking, [
+            'sale_lines' => [
+                ['service_type' => 'ppf', 'quantity' => 1, 'unit_price' => 900000, 'discount_amount' => 0],
+                ['service_type' => 'premium_wash', 'quantity' => 1, 'unit_price' => 100000, 'discount_amount' => 0],
+            ],
+            'transaction_amount' => 1000000,
+            'referral_code' => null,
+        ], [['method' => 'tunai', 'amount' => 400000], ['method' => 'transfer', 'amount' => 600000]])
             ->assertHasNoTableActionErrors();
 
         $booking = $booking->fresh();
@@ -273,15 +287,11 @@ class BookingSettlementPaymentsTest extends TestCase
         $this->actingAs($this->admin(), 'web');
         $booking = $this->booking(0, ['transaction_amount' => null, 'amount_received' => null]);
 
-        // Daftar bawaan menyembunyikan booking selesai bertanggal lampau (filter "Aktif & akan datang"); aksi hanya bisa dipanggil pada baris yang tampil.
-        Livewire::test(ListBookings::class)
-            ->removeTableFilter('upcoming')
-            ->callTableAction('process_referral', $booking, data: [
-                'sale_lines' => [],
-                'transaction_amount' => 500000,
-                'settlement_payments' => [['method' => 'tunai', 'amount' => 700000]],
-                'referral_code' => null,
-            ])
+        $this->processReferral($booking, [
+            'sale_lines' => [],
+            'transaction_amount' => 500000,
+            'referral_code' => null,
+        ], [['method' => 'tunai', 'amount' => 700000]])
             ->assertNotified('Pembayaran belum benar');
 
         $this->assertNull($booking->fresh()->journal_entry_id);
