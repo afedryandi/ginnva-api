@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\Customer\VehicleController as CustomerVehicleContro
 use App\Http\Controllers\Api\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Api\Staff\BookingController as StaffBookingController;
 use App\Http\Controllers\Api\Staff\BookingHandoverController as StaffBookingHandoverController;
+use App\Http\Controllers\Api\Staff\BookingSaleController as StaffBookingSaleController;
 use App\Http\Controllers\Api\Staff\BookingIntakeController as StaffBookingIntakeController;
 use App\Http\Controllers\Api\Staff\BookingQcController as StaffBookingQcController;
 use App\Http\Controllers\Api\Staff\LeadController as StaffLeadController;
@@ -332,6 +333,10 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:30,1');
         Route::get('/bookings/{id}/handover', [StaffBookingHandoverController::class, 'show']);
         Route::post('/bookings/{id}/handover', [StaffBookingHandoverController::class, 'store'])
+            ->middleware('throttle:20,1');
+        // Catat penjualan + pembayaran booking selesai dari HP (Penjualan Fase 5): aturan persetujuan sama dengan Proses Referral di panel.
+        Route::get('/bookings/{id}/sale', [StaffBookingSaleController::class, 'show']);
+        Route::post('/bookings/{id}/sale', [StaffBookingSaleController::class, 'store'])
             ->middleware('throttle:20,1');
         // Ganti tanggal booking + keputusan atas pengajuan jadwal ulang
         // customer (2026-10-02).
