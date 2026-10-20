@@ -246,7 +246,9 @@ class BookingSettlementPaymentsTest extends TestCase
         $this->actingAs($this->admin(), 'web');
         $booking = $this->booking(0, ['transaction_amount' => null, 'amount_received' => null, 'product_premium_wash' => true]);
 
+        // Daftar bawaan menyembunyikan booking selesai bertanggal lampau (filter "Aktif & akan datang"); aksi hanya bisa dipanggil pada baris yang tampil.
         Livewire::test(ListBookings::class)
+            ->removeTableFilter('upcoming')
             ->callTableAction('process_referral', $booking, data: [
                 'sale_lines' => [
                     ['service_type' => 'ppf', 'quantity' => 1, 'unit_price' => 900000, 'discount_amount' => 0],
@@ -271,7 +273,9 @@ class BookingSettlementPaymentsTest extends TestCase
         $this->actingAs($this->admin(), 'web');
         $booking = $this->booking(0, ['transaction_amount' => null, 'amount_received' => null]);
 
+        // Daftar bawaan menyembunyikan booking selesai bertanggal lampau (filter "Aktif & akan datang"); aksi hanya bisa dipanggil pada baris yang tampil.
         Livewire::test(ListBookings::class)
+            ->removeTableFilter('upcoming')
             ->callTableAction('process_referral', $booking, data: [
                 'sale_lines' => [],
                 'transaction_amount' => 500000,
