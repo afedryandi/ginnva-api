@@ -102,6 +102,14 @@ class BookingSettlementPaymentsTest extends TestCase
         $booking->update(['amount_received' => $service->amountReceived($booking, $clean, $nominal), 'payment_method' => BookingSettlementPaymentService::primaryMethod($clean)]);
     }
 
+    /** Judul dan isi notifikasi Filament yang terkirim pada sesi tes, untuk pesan kegagalan yang menjelaskan. */
+    private function notifications(): string
+    {
+        return collect(session('filament.notifications', []))
+            ->map(fn ($n) => trim(($n['title'] ?? '') . ' ' . ($n['body'] ?? '')))
+            ->implode(' | ') ?: '(tidak ada notifikasi)';
+    }
+
     private function admin(): User
     {
         return tap(User::create(['name' => 'Admin', 'email' => uniqid() . '@test.local', 'password' => 'x']), fn (User $u) => $u->assignRole('super_admin'));
@@ -251,7 +259,7 @@ class BookingSettlementPaymentsTest extends TestCase
             ->assertHasNoTableActionErrors();
 
         $booking = $booking->fresh();
-        $this->assertEquals(1000000.0, (float) $booking->transaction_amount);
+        $this->assertEquals(1000000.0, (float) $booking->transaction_amount, 'Notifikasi: ' . $this->notifications());
         $this->assertEquals(1000000.0, (float) $booking->amount_received);
         $this->assertSame(2, $booking->saleLines()->count());
         $this->assertSame(2, $booking->settlementPayments()->count());
@@ -273,6 +281,7 @@ class BookingSettlementPaymentsTest extends TestCase
 
         $this->assertNull($booking->fresh()->journal_entry_id);
         $this->assertSame(0, BookingSettlementPayment::count());
+        $this->assertStringContainsString('melebihi nominal transaksi', $this->notifications());
     }
 
     public function test_the_payment_book_unites_down_payments_settlements_and_receivable_payments(): void
