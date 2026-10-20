@@ -91,6 +91,7 @@ class ActivityResource extends Resource
     'employee_training' => 'Pelatihan Karyawan',
     'safety_incident' => 'Kejadian K3',
     'performance_review' => 'Penilaian Kinerja',
+    'booking_rework' => 'Pekerjaan Ulang',
     'technician_training' => 'Pelatihan Teknisi',
     'payroll' => 'Penggajian',
     'payroll_item' => 'Komponen Gaji',

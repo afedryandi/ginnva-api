@@ -165,7 +165,9 @@ class WarningLetterResource extends Resource
                         )
                         ->searchable()
                         ->required()
-                        ->live(),
+                        ->live()
+                        // Tingkat diisi otomatis dengan saran berjenjang (Karyawan Fase 3 lanjutan); tetap bisa diganti.
+                        ->afterStateUpdated(fn (Forms\Set $set, ?string $state) => $set('level', $state ? \App\Models\WarningLetter::suggestedLevelFor((int) $state) : null)),
 
                     /**
                      * Gap standar enterprise diperbaiki 2026-09-27 (audit
@@ -211,7 +213,26 @@ class WarningLetterResource extends Resource
                             'sp2' => 'SP 2',
                             'sp3' => 'SP 3',
                         ])
-                        ->required(),
+                        ->required()
+                        ->live()
+                        ->helperText(function (Forms\Get $get) {
+                            $userId = $get('user_id');
+                            if (! $userId) return null;
+
+                            $active = \App\Models\WarningLetter::activeFor((int) $userId);
+                            $suggested = \App\Models\WarningLetter::suggestedLevelFor((int) $userId);
+                            $suggestedLabel = strtoupper(str_replace('sp', 'SP ', $suggested));
+
+                            $text = $active->isEmpty()
+                                ? "Tidak ada SP yang masih berlaku; disarankan {$suggestedLabel}."
+                                : 'SP yang masih berlaku: ' . $active->map(fn ($w) => strtoupper(str_replace('sp', 'SP ', $w->level)) . ' (s/d ' . ($w->valid_until?->format('d M Y') ?? 'tanpa batas') . ')')->implode(', ') . ". Disarankan {$suggestedLabel}.";
+
+                            if ($get('level') && \App\Models\WarningLetter::levelNumber($get('level')) > \App\Models\WarningLetter::levelNumber($suggested)) {
+                                $text .= ' Anda memilih tingkat yang melompati urutan; pastikan pelanggarannya memang layak dan tercatat di Peraturan Perusahaan.';
+                            }
+
+                            return $text;
+                        }),
 
                     Forms\Components\DatePicker::make('issued_date')
                         ->label('Tanggal Diterbitkan')

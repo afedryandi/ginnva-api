@@ -86,6 +86,7 @@
                                 <th class="py-2 pe-4 text-right">Diperiksa QC</th>
                                 <th class="py-2 pe-4 text-right">Lulus QC pertama</th>
                                 <th class="py-2 pe-4 text-right">Pernah gagal QC</th>
+                                <th class="py-2 pe-4 text-right">Pekerjaan ulang dicatat</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -101,6 +102,7 @@
                                         @endif
                                     </td>
                                     <td class="py-2 pe-4 text-right">{{ $row['reworked'] }}</td>
+                                    <td class="py-2 pe-4 text-right">{{ $row['rework_recorded'] }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

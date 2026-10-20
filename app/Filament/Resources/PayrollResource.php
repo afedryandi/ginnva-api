@@ -311,7 +311,11 @@ class PayrollResource extends Resource
                         if ($missingStore->isNotEmpty()) $bodyLines[] = 'Belum terhubung toko: ' . $missingStore->implode(', ') . '.';
                         if ($inactiveCount > 0) $bodyLines[] = "{$inactiveCount} karyawan nonaktif dilewati (tidak digenerate).";
 
-                        $hasWarning = $missingSalary->isNotEmpty() || $missingStore->isNotEmpty();
+                        // Dasar hukum potongan: Peraturan Perusahaan terbit dan sudah diterima (peringatan, bukan blokir, supaya gaji tetap bisa dibayar).
+                        $policyWarning = \App\Models\CompanyPolicy::payrollDeductionWarning($users);
+                        if ($policyWarning) $bodyLines[] = $policyWarning;
+
+                        $hasWarning = $missingSalary->isNotEmpty() || $missingStore->isNotEmpty() || $policyWarning !== null;
                         $notification = Notification::make()->title('Payroll digenerate')->body(implode(' ', $bodyLines));
                         $hasWarning ? $notification->warning()->send() : $notification->success()->send();
                     }),

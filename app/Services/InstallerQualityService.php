@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Booking;
 use App\Models\BookingQcResult;
+use App\Models\BookingRework;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -18,7 +19,7 @@ use Illuminate\Support\Collection;
 class InstallerQualityService
 {
     /**
-     * @return Collection<int, array{user_id: int, name: string, store: ?string, jobs: int, checked: int, first_pass: int, reworked: int, first_pass_rate: ?float}>
+     * @return Collection<int, array{user_id: int, name: string, store: ?string, jobs: int, checked: int, first_pass: int, reworked: int, rework_recorded: int, first_pass_rate: ?float}>
      */
     public function forPeriod(Carbon $from, Carbon $to, ?int $storeId = null): Collection
     {
@@ -41,6 +42,9 @@ class InstallerQualityService
             ->get(['id', 'booking_id', 'passed'])
             ->groupBy('booking_id');
 
+        // Booking dengan catatan Pekerjaan Ulang (di luar QC gagal): keluhan pelanggan dan temuan internal ikut terhitung.
+        $reworkBookingIds = BookingRework::withoutGlobalScopes()->whereIn('booking_id', $bookings->pluck('id'))->pluck('booking_id')->flip();
+
         $rows = [];
 
         foreach ($bookings as $booking) {
@@ -54,13 +58,14 @@ class InstallerQualityService
                     'user_id' => $installer->id,
                     'name' => $installer->name,
                     'store' => $installer->store?->name,
-                    'jobs' => 0, 'checked' => 0, 'first_pass' => 0, 'reworked' => 0,
+                    'jobs' => 0, 'checked' => 0, 'first_pass' => 0, 'reworked' => 0, 'rework_recorded' => 0,
                 ];
 
                 $row['jobs']++;
                 $row['checked'] += $hasQc ? 1 : 0;
                 $row['first_pass'] += $firstPassed ? 1 : 0;
                 $row['reworked'] += $everFailed ? 1 : 0;
+                $row['rework_recorded'] += $reworkBookingIds->has($booking->id) ? 1 : 0;
                 $rows[$installer->id] = $row;
             }
         }

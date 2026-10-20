@@ -21,8 +21,36 @@ use Illuminate\Support\Carbon;
  */
 class InstallerAvailabilityService
 {
+    /**
+     * Id installer yang tidak masuk pada tanggal itu beserta alasannya (dipakai Saran Installer).
+     *
+     * @return array<int, string> user_id => alasan
+     */
+    public function unavailableReasons(int $storeId, Carbon $date): array
+    {
+        $result = [];
+
+        foreach ($this->evaluate($storeId, $date)['unavailable'] as $row) {
+            $result[$row['id']] = $row['reason'];
+        }
+
+        return $result;
+    }
+
     /** @return array{total: int, available: int, unavailable: array<int, array{name: string, reason: string}>} */
     public function forDate(int $storeId, Carbon $date): array
+    {
+        $evaluated = $this->evaluate($storeId, $date);
+
+        return [
+            'total' => $evaluated['total'],
+            'available' => $evaluated['total'] - count($evaluated['unavailable']),
+            'unavailable' => array_map(fn (array $row) => ['name' => $row['name'], 'reason' => $row['reason']], $evaluated['unavailable']),
+        ];
+    }
+
+    /** @return array{total: int, unavailable: list<array{id: int, name: string, reason: string}>} */
+    private function evaluate(int $storeId, Carbon $date): array
     {
         $installers = User::query()
             ->where('store_id', $storeId)
@@ -31,7 +59,7 @@ class InstallerAvailabilityService
             ->get(['id', 'name']);
 
         if ($installers->isEmpty()) {
-            return ['total' => 0, 'available' => 0, 'unavailable' => []];
+            return ['total' => 0, 'unavailable' => []];
         }
 
         $ids = $installers->pluck('id');
@@ -70,14 +98,10 @@ class InstallerAvailabilityService
             }
 
             if ($reason) {
-                $unavailable[] = ['name' => $installer->name, 'reason' => $reason];
+                $unavailable[] = ['id' => $installer->id, 'name' => $installer->name, 'reason' => $reason];
             }
         }
 
-        return [
-            'total' => $installers->count(),
-            'available' => $installers->count() - count($unavailable),
-            'unavailable' => $unavailable,
-        ];
+        return ['total' => $installers->count(), 'unavailable' => $unavailable];
     }
 }

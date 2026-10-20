@@ -69,6 +69,33 @@ class CompanyPolicy extends Model
             ->whereNotIn('id', $this->acknowledgments()->select('user_id'));
     }
 
+    /**
+     * Peringatan untuk payroll: potongan telat dan Alpha hanya sah bila tertulis di Peraturan Perusahaan yang sudah diterima karyawan.
+     * Mengembalikan teks peringatan, atau null bila ada Peraturan Perusahaan terbit dan semua karyawan di daftar sudah menerimanya.
+     *
+     * @param  \Illuminate\Support\Collection<int, User>  $users
+     */
+    public static function payrollDeductionWarning(\Illuminate\Support\Collection $users): ?string
+    {
+        $policies = static::published()->where('category', 'peraturan_perusahaan')->where('requires_acknowledgment', true)->get(['id']);
+
+        if ($policies->isEmpty()) {
+            return 'Belum ada Peraturan Perusahaan yang terbit di sistem. Potongan telat dan Alpha baru sah bila tertulis di Peraturan Perusahaan yang diterima karyawan; unggah dan terbitkan di menu Peraturan & Kebijakan.';
+        }
+
+        $accepted = PolicyAcknowledgment::whereIn('company_policy_id', $policies->pluck('id'))->get(['user_id', 'company_policy_id'])->groupBy('user_id');
+
+        $missing = $users->filter(function (User $user) use ($policies, $accepted) {
+            $done = ($accepted[$user->id] ?? collect())->pluck('company_policy_id');
+
+            return $policies->contains(fn ($p) => ! $done->contains($p->id));
+        });
+
+        return $missing->isEmpty()
+            ? null
+            : 'Belum menerima Peraturan Perusahaan: ' . $missing->pluck('name')->implode(', ') . '. Potongan mereka berisiko tidak sah.';
+    }
+
     public function isAcknowledgedBy(User $user): bool
     {
         return $this->acknowledgments()->where('user_id', $user->id)->exists();

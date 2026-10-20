@@ -34,6 +34,34 @@ class EditBooking extends EditRecord
                 ->color('gray')
                 ->visible(fn () => $this->record->spk !== null)
                 ->url(fn () => $this->record->spk ? SpkResource::getUrl('edit', ['record' => $this->record->spk]) : null),
+            Actions\Action::make('saranInstaller')
+                ->label('Saran Installer')
+                ->icon('heroicon-o-light-bulb')
+                ->color('gray')
+                ->visible(fn () => ! in_array($this->record->status, ['completed', 'cancelled'], true))
+                ->modalHeading('Saran installer')
+                ->modalDescription('Hanya saran berdasarkan keterampilan, kehadiran, dan beban kerja pada tanggal booking. Penugasan tetap Anda pilih sendiri di kolom Installer Bertugas.')
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Tutup')
+                ->modalContent(function () {
+                    $labels = \App\Models\TechnicianServiceRate::SERVICE_TYPE_LABELS;
+                    $rows = app(\App\Services\InstallerSkillService::class)->suggestFor($this->record);
+
+                    if ($rows->isEmpty()) {
+                        return new \Illuminate\Support\HtmlString('<p>Tidak ada installer yang masuk kerja pada tanggal ini.</p>');
+                    }
+
+                    $html = $rows->map(function (array $row) use ($labels) {
+                        $detail = ! $row['assessed']
+                            ? 'Keterampilan belum dinilai'
+                            : ($row['full'] ? 'Mandiri di semua layanan booking' : 'Mandiri: ' . (collect($row['covered'])->map(fn ($k) => $labels[$k])->implode(', ') ?: 'belum ada') . '; belum: ' . collect($row['missing'])->map(fn ($k) => $labels[$k])->implode(', '));
+                        $jobs = $row['jobs'] > 0 ? " &middot; {$row['jobs']} job lain pada tanggal itu" : '';
+
+                        return '<li style="margin-bottom:.5rem"><strong>' . e($row['user']->name) . '</strong><br><span style="font-size:.85em;opacity:.8">' . e($detail) . $jobs . '</span></li>';
+                    })->implode('');
+
+                    return new \Illuminate\Support\HtmlString('<ol style="list-style:decimal;padding-left:1.25rem">' . $html . '</ol>');
+                }),
             ...$this->rescheduleRequestActions(),
             ...$this->cancellationRequestActions(),
         ];

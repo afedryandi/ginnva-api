@@ -185,6 +185,7 @@ class UserResource extends Resource
                 'EmployeeTrainingResource' => 'Pelatihan Karyawan',
                 'SafetyIncidentResource' => 'Kejadian K3',
                 'PerformanceReviewResource' => 'Penilaian Kinerja',
+                'BookingReworkResource' => 'Pekerjaan Ulang',
                 'HrDashboard' => 'Dasbor HR',
             ],
             'Keuangan' => [

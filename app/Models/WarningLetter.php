@@ -59,6 +59,39 @@ class WarningLetter extends Model
     /** Masa berlaku SP menurut PP 35/2021 Pasal 52 (6 bulan kecuali diatur lain); bisa diubah di config/hr.php. */
     public const DEFAULT_VALIDITY_MONTHS = 6;
 
+    /** Nomor tingkat (1-3) dari kode 'sp1'..'sp3'. */
+    public static function levelNumber(?string $level): int
+    {
+        return (int) preg_replace('/\D/', '', (string) $level);
+    }
+
+    /**
+     * SP yang masih berlaku pada tanggal tertentu (diterbitkan sebelum/pada tanggal itu dan belum lewat masa berlakunya), terbaru dulu.
+     *
+     * @return \Illuminate\Support\Collection<int, WarningLetter>
+     */
+    public static function activeFor(int $userId, ?\Illuminate\Support\Carbon $on = null)
+    {
+        $day = ($on ?? today())->toDateString();
+
+        return static::withoutGlobalScopes()->where('user_id', $userId)
+            ->whereDate('issued_date', '<=', $day)
+            ->where(fn ($q) => $q->whereNull('valid_until')->orWhereDate('valid_until', '>=', $day))
+            ->orderByDesc('issued_date')->get();
+    }
+
+    /**
+     * Tingkat yang disarankan untuk pelanggaran berikutnya: satu tingkat di atas SP tertinggi yang masih berlaku, maksimal SP3; SP1 bila
+     * tidak ada yang berlaku (PP 35/2021 Pasal 52: setelah masa berlaku habis, pelanggaran baru kembali ke SP1). Hanya saran, keputusan
+     * tetap di HRD karena pelanggaran berat boleh langsung SP2/SP3.
+     */
+    public static function suggestedLevelFor(int $userId, ?\Illuminate\Support\Carbon $on = null): string
+    {
+        $highest = static::activeFor($userId, $on)->map(fn (self $w) => static::levelNumber($w->level))->max() ?? 0;
+
+        return 'sp' . min(3, $highest + 1);
+    }
+
     protected static function booted(): void
     {
         static::creating(function (WarningLetter $warning) {
