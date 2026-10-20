@@ -1733,7 +1733,7 @@ class BookingResource extends Resource
                                         // ternyata permintaan ini ditolak.
                                         'voucher_claim_id' => $voucherClaimId,
                                         'payment_method' => $paymentMethod,
-                                        'vehicle_size' => $data['vehicle_size'] ?: null,
+                                        'vehicle_size' => (array_key_exists('vehicle_size', $data) ? ($data['vehicle_size'] ?: null) : $record->vehicle_size),
                                         'sale_lines' => $saleLines,
                                         'settlement_payments' => $payments,
                                     ],
@@ -1790,7 +1790,7 @@ class BookingResource extends Resource
                                     'voucher_claim_id'     => $voucherClaimId,
                                     'voucher_discount'     => $voucherClaimId ? $voucherDiscount : null,
                                     'payment_method'       => $paymentMethod,
-                                    'vehicle_size'         => $data['vehicle_size'] ?: null,
+                                    'vehicle_size'         => (array_key_exists('vehicle_size', $data) ? ($data['vehicle_size'] ?: null) : $record->vehicle_size),
                                 ]);
 
                                 // Rincian harga disimpan SEBELUM jurnal pendapatan dibuat ulang, supaya pembagian per jenis memakainya.
