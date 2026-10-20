@@ -37,6 +37,7 @@ class BudgetService
             ->where('journal_entries.status', 'posted')
             ->whereBetween('journal_entries.entry_date', [$start->toDateString(), $end->toDateString()])
             ->whereIn('chart_of_accounts.type', ['beban_pokok', 'beban_operasional', 'beban_lain'])
+            ->whereRaw(\App\Services\YearEndClosingService::EXCLUDE_CLOSING_SQL)
             ->when($storeId, fn ($q) => $q->where('journal_entries.store_id', $storeId))
             ->groupBy('journal_entry_lines.chart_of_account_id')
             ->selectRaw('journal_entry_lines.chart_of_account_id as account_id, SUM(journal_entry_lines.debit) - SUM(journal_entry_lines.credit) as actual')

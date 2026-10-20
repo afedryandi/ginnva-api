@@ -233,7 +233,7 @@ class FinancialStatementService
         // Laba tahun-tahun sebelumnya yang belum ditutup: 1 baris ekuitas sintetis (bukan akun nyata).
         $priorProfit = 0.0;
         if ($resetProfitLoss) {
-            $priorProfit = $this->incomeStatement(Carbon::create(1970, 1, 1), $yearStart->copy()->subDay(), $storeId)['laba_bersih'];
+            $priorProfit = $this->incomeStatement(Carbon::create(1970, 1, 1), $yearStart->copy()->subDay(), $storeId, true)['laba_bersih'];
 
             if (abs($priorProfit) >= 0.005) {
                 $retained = new ChartOfAccount();
@@ -256,7 +256,7 @@ class FinancialStatementService
                     // Laba yang sudah ada SEBELUM $from adalah saldo awal; sisanya (dari $from sampai akhir tahun lalu)
                     // adalah mutasi periode. Kalau $from setelah 1 Januari, seluruh laba tahun lalu sudah saldo awal.
                     $openingProfit = $from->lte($yearStart)
-                        ? $this->incomeStatement(Carbon::create(1970, 1, 1), $from->copy()->subDay(), $storeId)['laba_bersih']
+                        ? $this->incomeStatement(Carbon::create(1970, 1, 1), $from->copy()->subDay(), $storeId, true)['laba_bersih']
                         : $priorProfit;
                     $delta = round($priorProfit - $openingProfit, 2);
                     $row['opening_balance'] = $openingProfit;
@@ -288,7 +288,7 @@ class FinancialStatementService
      *
      * @return array{sections: array<string, array{label: string, rows: Collection, total: float}>, laba_kotor: float, laba_operasional: float, laba_sebelum_pajak: float, laba_bersih: float}
      */
-    public function incomeStatement(Carbon $from, Carbon $to, ?int $storeId = null): array
+    public function incomeStatement(Carbon $from, Carbon $to, ?int $storeId = null, bool $includeClosing = false): array
     {
         $sums = JournalEntryLine::query()
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
@@ -296,6 +296,8 @@ class FinancialStatementService
             ->where('journal_entries.status', 'posted')
             ->whereBetween('journal_entries.entry_date', [$from->toDateString(), $to->toDateString()])
             ->whereIn('chart_of_accounts.type', self::INCOME_STATEMENT_TYPES)
+            // Jurnal penutup tahun buku (Fase 6) tidak ikut Laba Rugi periode; hanya hitungan kumulatif ($includeClosing) yang memakainya.
+            ->when(! $includeClosing, fn ($q) => $q->whereRaw(YearEndClosingService::EXCLUDE_CLOSING_SQL))
             ->when($storeId, fn ($q) => $this->applyStore($q, $storeId, 'journal_entries.store_id'))
             ->selectRaw('journal_entry_lines.chart_of_account_id, SUM(journal_entry_lines.debit) as debit, SUM(journal_entry_lines.credit) as credit')
             ->groupBy('journal_entry_lines.chart_of_account_id')
@@ -479,14 +481,14 @@ class FinancialStatementService
         $totalModalPosted = (float) $modal->sum('balance');
 
         $fiscalYearStart = Carbon::create($asOf->year, 1, 1);
-        $labaTahunBerjalan = $this->incomeStatement($fiscalYearStart, $asOf, $storeId)['laba_bersih'];
+        $labaTahunBerjalan = $this->incomeStatement($fiscalYearStart, $asOf, $storeId, true)['laba_bersih'];
 
         // Laba SEMUA tahun sebelum tahun berjalan yang belum dipindahkan ke Laba Ditahan (3200):
         // belum ada jurnal penutup tahunan, jadi tanpa baris ini Neraca tidak balance mulai
         // tahun buku kedua (audit Laporan Keuangan 2026-09-29). Kalau kelak ada jurnal penutup
         // (akun P&L dinolkan + 3200 dikredit), angka ini otomatis mengecil -- tidak dobel.
         $labaTahunLalu = $fiscalYearStart->copy()->subDay()->year >= 1970
-            ? $this->incomeStatement(Carbon::create(1970, 1, 1), $fiscalYearStart->copy()->subDay(), $storeId)['laba_bersih']
+            ? $this->incomeStatement(Carbon::create(1970, 1, 1), $fiscalYearStart->copy()->subDay(), $storeId, true)['laba_bersih']
             : 0.0;
 
         $totalModal = $totalModalPosted + $labaTahunLalu + $labaTahunBerjalan;
