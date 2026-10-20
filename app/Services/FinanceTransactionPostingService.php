@@ -55,7 +55,12 @@ class FinanceTransactionPostingService
             throw new RuntimeException("Kategori \"{$category->name}\" belum dihubungkan ke akun Bagan Akun — hubungkan dulu lewat menu Kategori Keuangan sebelum transaksi ini bisa dicatat.");
         }
 
-        $cashAccount = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
+        // Rekening yang dipilih pada transaksi, atau rekening bawaan toko (Keuangan Fase 1); tanpa rekening terdaftar tetap akun 1101.
+        // Pembalikan memakai baris jurnal aslinya, jadi transaksi lama yang diposting ulang tetap konsisten.
+        $resolver = app(PaymentAccountResolver::class);
+        $cashAccount = $transaction->payment_account_id
+            ? $resolver->chartAccountFor($transaction->payment_account_id)
+            : $resolver->resolve($transaction->store_id ? (int) $transaction->store_id : null, null);
         if (! $cashAccount) {
             throw new RuntimeException('Akun kas (kode ' . self::CASH_ACCOUNT_CODE . ') tidak ditemukan di Bagan Akun.');
         }

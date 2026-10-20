@@ -40,20 +40,30 @@ class DownPaymentService
      *         bukan DP lagi; setelah dibatalkan, tidak relevan menerima
      *         uang baru untuk booking yang batal.
      */
-    public function receive(Booking $booking, float $amount, ?string $notes, ?int $userId): BookingDownPayment
+    public function receive(Booking $booking, float $amount, ?string $notes, ?int $userId, ?int $paymentAccountId = null): BookingDownPayment
     {
         if ($amount <= 0) {
             throw new RuntimeException('Nominal DP harus lebih dari Rp 0.');
         }
 
-        return DB::transaction(function () use ($booking, $amount, $notes, $userId) {
+        return DB::transaction(function () use ($booking, $amount, $notes, $userId, $paymentAccountId) {
             $locked = Booking::query()->where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
             if (in_array($locked->status, ['completed', 'cancelled'], true)) {
                 throw new RuntimeException("Booking ini sudah berstatus \"{$locked->status}\" -- tidak bisa mencatat DP baru.");
             }
 
-            $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
+            // Rekening yang dipilih, atau rekening bawaan toko (Keuangan Fase 1); tanpa rekening terdaftar tetap akun 1101.
+            $resolver = app(PaymentAccountResolver::class);
+            $paymentAccount = $paymentAccountId
+                ? \App\Models\PaymentAccount::with('chartAccount')->find($paymentAccountId)
+                : $resolver->resolvePaymentAccount($locked->store_id ? (int) $locked->store_id : null, null);
+
+            if ($paymentAccountId && (! $paymentAccount || ! $paymentAccount->isUsable())) {
+                throw new RuntimeException('Rekening penerima DP tidak aktif atau akun kasnya tidak bisa dipakai.');
+            }
+
+            $cash = $paymentAccount?->chartAccount ?? $resolver->legacyCash();
             if (! $cash) {
                 throw new RuntimeException('Akun kas (kode ' . self::CASH_ACCOUNT_CODE . ') tidak ditemukan di Bagan Akun.');
             }
@@ -79,6 +89,7 @@ class DownPaymentService
 
             return BookingDownPayment::create([
                 'booking_id' => $locked->id,
+                'payment_account_id' => $paymentAccount?->id,
                 'amount' => $amount,
                 'received_at' => now()->toDateString(),
                 'notes' => $notes,
@@ -115,7 +126,8 @@ class DownPaymentService
                 throw new RuntimeException('DP ini sudah dipakai sebagai pembayaran booking yang diposting, tidak bisa dikembalikan. Koreksi lewat "Proses Referral" atau Refund.');
             }
 
-            $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
+            // Dikembalikan dari rekening tempat DP diterima (baris lama tanpa rekening = akun 1101).
+            $cash = app(PaymentAccountResolver::class)->chartAccountFor($locked->payment_account_id);
             $deferredRevenue = ChartOfAccount::where('code', self::DEFERRED_REVENUE_ACCOUNT_CODE)->first();
             if (! $cash || ! $deferredRevenue) {
                 throw new RuntimeException('Akun Kas / Pendapatan Diterima Dimuka tidak ditemukan di Bagan Akun.');
@@ -166,9 +178,9 @@ class DownPaymentService
                 throw new RuntimeException('Sisa DP hanya bisa dikembalikan setelah booking selesai. Untuk booking berjalan, batalkan booking agar DP dikembalikan penuh.');
             }
 
-            $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
+            $resolver = app(PaymentAccountResolver::class);
             $deferredRevenue = ChartOfAccount::where('code', self::DEFERRED_REVENUE_ACCOUNT_CODE)->first();
-            if (! $cash || ! $deferredRevenue) {
+            if (! $deferredRevenue || ! $resolver->legacyCash()) {
                 throw new RuntimeException('Akun Kas / Pendapatan Diterima Dimuka tidak ditemukan di Bagan Akun.');
             }
 
@@ -187,6 +199,8 @@ class DownPaymentService
                 if ($remainder < 0.01) {
                     continue;
                 }
+
+                $cash = $resolver->chartAccountFor($dp->payment_account_id);
 
                 $entry = $service->create([
                     'entry_date' => now()->toDateString(),

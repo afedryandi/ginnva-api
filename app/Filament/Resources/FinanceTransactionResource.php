@@ -210,9 +210,23 @@ class FinanceTransactionResource extends Resource
                         ->options(fn () => Store::where('is_active', true)->pluck('name', 'id'))
                         ->searchable()
                         ->required()
+                        ->live()
                         ->default(fn () => $isFullAccess ? null : auth()->user()?->store_id)
                         ->disabled(fn ($record) => ! $isFullAccess || static::financialLocked($record))
                         ->dehydrated(),
+
+                    // Rekening kas/bank (Keuangan Fase 1). Kosong = rekening bawaan toko, atau Kas di Tangan bila belum ada rekening terdaftar.
+                    Forms\Components\Select::make('payment_account_id')
+                        ->label('Rekening Kas/Bank')
+                        ->options(fn (Forms\Get $get) => \App\Models\PaymentAccount::query()
+                            ->where('is_active', true)
+                            ->where(fn ($q) => $q->whereNull('store_id')->when($get('store_id'), fn ($w, $store) => $w->orWhere('store_id', $store)))
+                            ->orderBy('name')->pluck('name', 'id'))
+                        ->searchable()
+                        ->placeholder('Rekening bawaan toko')
+                        ->disabled(fn ($record) => static::financialLocked($record))
+                        ->dehydrated()
+                        ->helperText('Dari mana uang keluar atau ke mana uang masuk. Dikelola di menu Rekening Kas & Bank.'),
 
                     Forms\Components\DatePicker::make('transaction_date')
                         ->label('Tanggal Transaksi')

@@ -26,6 +26,7 @@ class FinanceTransaction extends Model
         'transaction_number',
         'type',
         'finance_category_id',
+        'payment_account_id',
         'store_id',
         'amount',
         'transaction_date',

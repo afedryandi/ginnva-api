@@ -18,6 +18,7 @@ class BookingDownPayment extends Model
 
     protected $fillable = [
         'booking_id',
+        'payment_account_id',
         'amount',
         'received_at',
         'notes',

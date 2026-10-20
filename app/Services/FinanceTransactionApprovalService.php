@@ -50,7 +50,7 @@ class FinanceTransactionApprovalService
         // Payload di-whitelist & divalidasi (audit Persetujuan Pengeluaran
         // 2026-09-28): field liar dari form tidak ikut tersimpan, nominal
         // harus > 0, dan pengajuan hanya untuk PENGELUARAN.
-        $data = array_intersect_key($data, array_flip(['type', 'finance_category_id', 'store_id', 'amount', 'transaction_date', 'description', 'receipt']));
+        $data = array_intersect_key($data, array_flip(['type', 'finance_category_id', 'payment_account_id', 'store_id', 'amount', 'transaction_date', 'description', 'receipt']));
 
         if (! is_numeric($data['amount'] ?? null) || (float) $data['amount'] <= 0) {
             throw new RuntimeException('Nominal pengajuan harus lebih dari 0.');

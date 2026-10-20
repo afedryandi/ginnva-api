@@ -103,7 +103,8 @@ class RefundService
             $reduce = $reduceCents / 100;
             $cashPart = $cashCents / 100;
 
-            $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
+            // Rekening menurut metode bayar dan toko booking (Keuangan Fase 1); tanpa rekening terdaftar tetap akun 1101.
+            $cash = app(PaymentAccountResolver::class)->resolve($booking->store_id ? (int) $booking->store_id : null, $booking->payment_method);
             if ($cashPart > 0 && ! $cash) {
                 throw new RuntimeException('Akun kas (kode ' . self::CASH_ACCOUNT_CODE . ') tidak ditemukan di Bagan Akun.');
             }

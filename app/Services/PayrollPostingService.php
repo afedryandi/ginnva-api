@@ -49,7 +49,8 @@ class PayrollPostingService
             throw new RuntimeException('Payroll ini sudah pernah diposting ke Jurnal Umum sebelumnya.');
         }
 
-        $cash = ChartOfAccount::where('code', self::CASH_ACCOUNT_CODE)->first();
+        // Gaji dibayar dari rekening yang menerima metode transfer untuk toko karyawan; tanpa rekening terdaftar tetap akun 1101 (Keuangan Fase 1).
+        $cash = app(PaymentAccountResolver::class)->resolve($payroll->store_id ? (int) $payroll->store_id : null, 'transfer');
         $gajiPokok = ChartOfAccount::where('code', self::GAJI_POKOK_ACCOUNT_CODE)->first();
         $potongan = ChartOfAccount::where('code', self::POTONGAN_ACCOUNT_CODE)->first();
         $komisiTeknisi = ChartOfAccount::where('code', self::KOMISI_TEKNISI_ACCOUNT_CODE)->first();

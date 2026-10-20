@@ -447,7 +447,7 @@ class ReceivableResource extends Resource
                         Forms\Components\Select::make('receive_account_id')
                             ->label('Diterima ke')
                             ->options(fn () => static::cashAccountOptions())
-                            ->default(fn () => ChartOfAccount::where('code', '1101')->value('id'))
+                            ->default(fn () => app(\App\Services\PaymentAccountResolver::class)->resolve($record->store_id ? (int) $record->store_id : null, null)?->id)
                             ->required()
                             ->searchable(),
 
