@@ -75,7 +75,7 @@ class BookingSaleApiTest extends TestCase
         ], $over);
     }
 
-    private function post(Booking $booking, array $body, ?User $as = null)
+    private function sell(Booking $booking, array $body, ?User $as = null)
     {
         return $this->actingAs($as ?? $this->user('super_admin'), 'api')->postJson("/api/staff/bookings/{$booking->id}/sale", $body);
     }
@@ -121,7 +121,7 @@ class BookingSaleApiTest extends TestCase
         $this->cashAccount('1104', 'BCA Operasional', ['transfer']);
         $booking = $this->booking();
 
-        $response = $this->post($booking, $this->body())->assertSuccessful();
+        $response = $this->sell($booking, $this->body())->assertSuccessful();
 
         $response->assertJsonPath('status', 'posted');
         $booking = $booking->fresh();
@@ -140,7 +140,7 @@ class BookingSaleApiTest extends TestCase
         $product = FilmProduct::create(['sku' => 'PPF-X', 'name' => 'PPF X', 'product_type' => 'ppf', 'position' => 'front', 'base_price' => 2000000, 'is_active' => true]);
         $booking = $this->booking(['film_product_id' => $product->id]);
 
-        $this->post($booking, $this->body(), $this->user('kasir'))
+        $this->sell($booking, $this->body(), $this->user('kasir'))
             ->assertSuccessful()
             ->assertJsonPath('status', 'pending');
 
@@ -154,7 +154,7 @@ class BookingSaleApiTest extends TestCase
         $booking = $this->booking(['film_product_id' => $product->id]);
 
         // 4% di bawah harga acuan 1.000.000: masih dalam batas nego 5%.
-        $this->post($booking, $this->body([
+        $this->sell($booking, $this->body([
             'transaction_amount' => 960000,
             'sale_lines' => [['service_type' => 'ppf', 'quantity' => 1, 'unit_price' => 1000000]],
             'settlement_payments' => [['method' => 'tunai', 'amount' => 960000]],
@@ -169,7 +169,7 @@ class BookingSaleApiTest extends TestCase
     {
         $booking = $this->booking();
 
-        $this->post($booking, $this->body(['settlement_payments' => [['method' => 'tunai', 'amount' => 1200000]]]))
+        $this->sell($booking, $this->body(['settlement_payments' => [['method' => 'tunai', 'amount' => 1200000]]]))
             ->assertStatus(422)
             ->assertJsonPath('title', 'Pembayaran belum benar');
 
@@ -182,7 +182,7 @@ class BookingSaleApiTest extends TestCase
         config(['booking.sale_lines_required_from' => '2026-11-01']);
         $booking = $this->booking();
 
-        $this->post($booking, $this->body(['sale_lines' => []]))
+        $this->sell($booking, $this->body(['sale_lines' => []]))
             ->assertStatus(422)
             ->assertJsonPath('title', 'Rincian harga wajib diisi');
     }
@@ -190,20 +190,20 @@ class BookingSaleApiTest extends TestCase
     public function test_it_records_only_once_and_only_for_completed_bookings(): void
     {
         $booking = $this->booking();
-        $this->post($booking, $this->body())->assertSuccessful();
-        $this->post($booking->fresh(), $this->body())->assertStatus(422);
+        $this->sell($booking, $this->body())->assertSuccessful();
+        $this->sell($booking->fresh(), $this->body())->assertStatus(422);
 
         $pending = $this->booking(['status' => 'confirmed']);
-        $this->post($pending, $this->body())->assertStatus(422);
+        $this->sell($pending, $this->body())->assertStatus(422);
     }
 
     public function test_other_store_installer_and_partner_are_refused(): void
     {
         $booking = $this->booking();
 
-        $this->post($booking, $this->body(), $this->user('kasir', $this->otherStore))->assertStatus(403);
-        $this->post($booking, $this->body(), $this->user('installer'))->assertStatus(403);
-        $this->post($booking, $this->body(), $this->user('partner'))->assertStatus(403);
+        $this->sell($booking, $this->body(), $this->user('kasir', $this->otherStore))->assertStatus(403);
+        $this->sell($booking, $this->body(), $this->user('installer'))->assertStatus(403);
+        $this->sell($booking, $this->body(), $this->user('partner'))->assertStatus(403);
         $this->assertNull($booking->fresh()->journal_entry_id);
     }
 }
