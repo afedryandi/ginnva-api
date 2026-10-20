@@ -6,6 +6,7 @@ use App\Models\AccountingPeriod;
 use App\Models\ChartOfAccount;
 use App\Models\JournalEntry;
 use Illuminate\Support\Carbon;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -38,18 +39,28 @@ class JournalEntryService
         $this->assertPeriodOpen($header['entry_date']);
         $lines = $this->validateLines($lines);
 
-        return DB::transaction(function () use ($header, $lines) {
-            $entry = JournalEntry::create($header + [
-                'entry_number' => self::generateEntryNumber(),
-                'status' => 'draft',
-            ]);
+        // Dua proses yang membuat jurnal bersamaan bisa menghitung nomor urut yang sama; kolom entry_number unik, jadi yang kalah diulang
+        // dengan nomor baru (Keuangan Fase 0, 2026-11-04) daripada gagal dan membuat sinkron booking/pembayaran berhenti.
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                return DB::transaction(function () use ($header, $lines) {
+                    $entry = JournalEntry::create($header + [
+                        'entry_number' => self::generateEntryNumber(),
+                        'status' => 'draft',
+                    ]);
 
-            foreach ($lines as $line) {
-                $entry->lines()->create($line);
+                    foreach ($lines as $line) {
+                        $entry->lines()->create($line);
+                    }
+
+                    return $entry;
+                });
+            } catch (UniqueConstraintViolationException $e) {
+                if ($attempt >= 5 || ! str_contains($e->getMessage(), 'entry_number')) {
+                    throw $e;
+                }
             }
-
-            return $entry;
-        });
+        }
     }
 
     /** Batas nominal per baris (decimal(14,2) di database) & jumlah baris per jurnal. */

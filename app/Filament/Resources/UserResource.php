@@ -193,6 +193,7 @@ class UserResource extends Resource
                 'FinanceTransactionResource' => 'Transaksi Keuangan',
                 'FinanceReport' => 'Laporan Keuangan',
                 'TrialBalanceReport' => 'Neraca Saldo',
+                'LedgerReconciliationReport' => 'Rekonsiliasi Sub-Buku',
                 'IncomeStatementReport' => 'Laporan Laba Rugi',
                 'GeneralLedgerReport' => 'Buku Besar',
                 'BalanceSheetReport' => 'Neraca',

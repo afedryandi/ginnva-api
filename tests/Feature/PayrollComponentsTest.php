@@ -92,14 +92,15 @@ class PayrollComponentsTest extends TestCase
 
     public function test_default_categories_and_their_accounts_are_created_once_and_never_overwrite_edits(): void
     {
-        foreach (['6130', '6140', '6150', '2180', '2190'] as $code) {
+        foreach (['6130', '6140', '6145', '6150', '2180', '2190'] as $code) {
             $this->assertNotNull(ChartOfAccount::where('code', $code)->first(), "Akun {$code} harus ada.");
         }
 
         $this->assertSame($this->accountId('2180'), $this->cat('bpjs_kesehatan')->chart_of_account_id);
         $this->assertSame($this->accountId('2130'), $this->cat('pph21')->chart_of_account_id, 'PPh 21 ke Hutang Pajak yang sudah ada.');
         $this->assertSame($this->accountId('1120'), $this->cat('kasbon')->chart_of_account_id, 'Kasbon ke Piutang Karyawan yang sudah ada.');
-        $this->assertSame($this->accountId('6140'), $this->cat('thr')->chart_of_account_id);
+        $this->assertSame($this->accountId('6145'), $this->cat('thr')->chart_of_account_id);
+        $this->assertSame($this->accountId('6140'), $this->cat('bonus')->chart_of_account_id, 'Bonus ke akun Beban Bonus/Insentif bawaan seeder.');
         $this->assertTrue($this->cat('tunjangan_tetap')->isEarning());
         $this->assertFalse($this->cat('pph21')->isEarning());
 
@@ -262,8 +263,8 @@ class PayrollComponentsTest extends TestCase
         $byCode = fn (string $code, string $side) => (float) $lines->firstWhere('chart_of_account_id', $this->accountId($code))?->{$side};
 
         $this->assertEquals(5000000, $byCode('6110', 'debit'));
-        $this->assertEquals(500000, $byCode('6130', 'debit'), 'Tunjangan ke Beban Tunjangan & Bonus.');
-        $this->assertEquals(5000000, $byCode('6140', 'debit'), 'THR ke Beban THR.');
+        $this->assertEquals(500000, $byCode('6130', 'debit'), 'Tunjangan ke Beban Tunjangan & BPJS (bawaan seeder).');
+        $this->assertEquals(5000000, $byCode('6145', 'debit'), 'THR ke Beban THR.');
         $this->assertEquals(200000, $byCode('2180', 'credit'), 'Dua potongan BPJS digabung ke Hutang BPJS.');
         $this->assertEquals(125000, $byCode('2130', 'credit'), 'PPh 21 ke Hutang Pajak.');
         $this->assertEquals(200000, $byCode('1120', 'credit'), 'Cicilan kasbon mengurangi Piutang Karyawan.');

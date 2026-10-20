@@ -61,8 +61,10 @@ class PayrollItemCategory extends Model
     {
         $accounts = [
             // code => [nama, tipe, induk, klasifikasi arus kas, keterangan]
-            '6130' => ['Beban Tunjangan & Bonus', 'beban_operasional', '6100', 'operasional', 'Tunjangan, bonus, dan penyesuaian tambahan di slip gaji.'],
-            '6140' => ['Beban THR', 'beban_operasional', '6100', 'operasional', 'Tunjangan Hari Raya yang dibayarkan lewat slip gaji.'],
+            // 6130 dan 6140 sudah ada di ChartOfAccountSeeder (Beban Tunjangan & BPJS, Beban Bonus/Insentif); dibuat hanya bila belum ada.
+            '6130' => ['Beban Tunjangan & BPJS', 'beban_operasional', '6100', 'operasional', 'Tunjangan tetap/tidak tetap dan penyesuaian tambahan di slip gaji.'],
+            '6140' => ['Beban Bonus/Insentif', 'beban_operasional', '6100', 'operasional', 'Bonus dan insentif yang dibayarkan lewat slip gaji.'],
+            '6145' => ['Beban THR', 'beban_operasional', '6100', 'operasional', 'Tunjangan Hari Raya yang dibayarkan lewat slip gaji.'],
             '6150' => ['Beban Kompensasi Kontrak', 'beban_operasional', '6100', 'operasional', 'Uang kompensasi PKWT yang dibayarkan lewat slip gaji.'],
             '2180' => ['Hutang BPJS', 'kewajiban', '2100', 'operasional', 'Potongan BPJS karyawan yang belum disetor.'],
             '2190' => ['Hutang Potongan Karyawan Lainnya', 'kewajiban', '2100', 'operasional', 'Potongan gaji lain yang belum disetor/diselesaikan.'],
@@ -91,8 +93,8 @@ class PayrollItemCategory extends Model
             // code => [nama, jenis, kode akun, ikut disalin bulan depan?, urutan]
             'tunjangan_tetap' => ['Tunjangan Tetap', self::EARNING, '6130', true, 10],
             'tunjangan_tidak_tetap' => ['Tunjangan Tidak Tetap', self::EARNING, '6130', false, 20],
-            'bonus' => ['Bonus / Insentif', self::EARNING, '6130', false, 30],
-            'thr' => ['THR', self::EARNING, '6140', false, 40],
+            'bonus' => ['Bonus / Insentif', self::EARNING, '6140', false, 30],
+            'thr' => ['THR', self::EARNING, '6145', false, 40],
             'uang_kompensasi' => ['Uang Kompensasi Kontrak', self::EARNING, '6150', false, 50],
             'penyesuaian_tambah' => ['Penyesuaian (Tambah)', self::EARNING, '6130', false, 60],
             'bpjs_kesehatan' => ['BPJS Kesehatan (potongan karyawan)', self::DEDUCTION, '2180', true, 110],

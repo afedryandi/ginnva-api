@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use Spatie\Activitylog\LogOptions;
@@ -11,6 +12,8 @@ use Spatie\Activitylog\Traits\LogsActivity;
 
 class FinanceTransaction extends Model
 {
+    // Dihapus lunak (Keuangan Fase 0): dokumen dasar pembukuan wajib disimpan 10 tahun.
+    use SoftDeletes;
     use LogsActivity;
 
     // Global Scope store-id (audit framework 2026-09-14, "Isolasi data
