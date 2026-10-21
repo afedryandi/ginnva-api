@@ -392,6 +392,14 @@ Route::prefix('staff')->group(function () {
         Route::post('/notifications/link-token', [NotificationController::class, 'linkTokenStaff'])
             ->middleware('throttle:20,1');
 
+        // Kotak masuk notifikasi staf (Notifikasi Fase 2): membaca tabel notifications yang sama dengan lonceng panel.
+        Route::get('/inbox', [\App\Http\Controllers\Api\Staff\InboxController::class, 'index']);
+        Route::get('/inbox/unread-count', [\App\Http\Controllers\Api\Staff\InboxController::class, 'unreadCount']);
+        Route::post('/inbox/read-all', [\App\Http\Controllers\Api\Staff\InboxController::class, 'markAllRead'])
+            ->middleware('throttle:30,1');
+        Route::post('/inbox/{id}/read', [\App\Http\Controllers\Api\Staff\InboxController::class, 'markRead'])
+            ->middleware('throttle:60,1');
+
         // Absensi mandiri — SENGAJA tidak dibatasi hasMenuAccess() seperti
         // fitur lain, absen kewajiban dasar semua staff (lihat catatan di
         // AttendanceController). Entri manual/dinas luar untuk staff LAIN
