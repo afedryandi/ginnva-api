@@ -30,8 +30,17 @@ class PricelistDataService
         });
     }
 
+    private function fromDatabase(): bool
+    {
+        return (bool) config('features.pricelist_from_database', false);
+    }
+
     public function getBrands(): array
     {
+        if ($this->fromDatabase()) {
+            return \App\Models\VehicleGlassArea::query()->orderBy('brand')->pluck('brand')->unique(fn ($b) => mb_strtolower($b))->values()->all();
+        }
+
         $brands = [];
 
         foreach ($this->getRawCarSizeRows() as $row) {
@@ -50,6 +59,13 @@ class PricelistDataService
     public function getModels(string $brand): array
     {
         $brand = trim($brand);
+
+        if ($this->fromDatabase()) {
+            return \App\Models\VehicleGlassArea::query()
+                ->where('brand_key', \App\Models\VehicleGlassArea::keyOf($brand))
+                ->orderBy('model')->pluck('model')->values()->all();
+        }
+
         $models = [];
 
         foreach ($this->getRawCarSizeRows() as $row) {
@@ -71,6 +87,20 @@ class PricelistDataService
     {
         $brand = trim($brand);
         $tipe = trim($tipe);
+
+        if ($this->fromDatabase()) {
+            $area = \App\Models\VehicleGlassArea::query()
+                ->where('brand_key', \App\Models\VehicleGlassArea::keyOf($brand))
+                ->where('model_key', \App\Models\VehicleGlassArea::keyOf($tipe))
+                ->first();
+
+            return $area ? [
+                'sqmDepan' => (float) $area->front_sqm,
+                'sqmSamping' => (float) $area->side_sqm,
+                'sqmBelakang' => (float) $area->rear_sqm,
+                'sqmSunroof' => (float) $area->sunroof_sqm,
+            ] : null;
+        }
 
         foreach ($this->getRawCarSizeRows() as $row) {
             $rowBrand = trim((string) ($row[0] ?? ''));

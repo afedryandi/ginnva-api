@@ -96,6 +96,7 @@ class ActivityResource extends Resource
     'cash_transfer' => 'Pemindahan Kas',
     'cash_count' => 'Hitung Kas Harian',
     'year_end_closing' => 'Tutup Tahun Buku',
+    'vehicle_glass_area' => 'Luas Kaca Kendaraan',
     'budget' => 'Anggaran',
     'finance_setting' => 'Pengaturan Keuangan',
     'technician_training' => 'Pelatihan Teknisi',

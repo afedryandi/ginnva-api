@@ -43,4 +43,14 @@ return [
     */
     'revenue_on_completion' => (bool) env('FEATURE_REVENUE_ON_COMPLETION', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Daftar harga kaca film membaca luas kaca dari database (Master Data Fase 2)
+    |--------------------------------------------------------------------------
+    | Mati bawaan: daftar merek, tipe, dan luas kaca (m²) di kalkulator Price List dibaca dari Google Sheet "Data Ukuran" seperti
+    | sebelumnya. Bila menyala: dibaca dari tabel vehicle_glass_areas (menu Master Data > Luas Kaca). Nyalakan HANYA setelah impor dari
+    | Sheet dicek lengkap dan benar. Harga produk (sheet "Harga") tidak ikut berpindah. Isi FEATURE_PRICELIST_FROM_DATABASE=true di .env.
+    */
+    'pricelist_from_database' => (bool) env('FEATURE_PRICELIST_FROM_DATABASE', false),
+
 ];

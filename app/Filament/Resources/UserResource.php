@@ -255,6 +255,7 @@ class UserResource extends Resource
                 // atas (2026-09-10) — sekarang di cluster Produk.
                 'VehicleResource' => 'Kendaraan',
                 'StoreResource' => 'Toko/Dealer',
+                'VehicleGlassAreaResource' => 'Luas Kaca',
                 'ScrollCodeResource' => 'Kode Gulungan',
                 // PriceRuleResource ('Koefisien Harga') SENGAJA tidak di
                 // sini — resource-nya hidden (shouldRegisterNavigation
