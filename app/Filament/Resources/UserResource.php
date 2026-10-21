@@ -1012,6 +1012,7 @@ class UserResource extends Resource
         return [
             \App\Filament\Resources\UserResource\RelationManagers\DocumentsRelationManager::class,
             \App\Filament\Resources\UserResource\RelationManagers\CareerHistoriesRelationManager::class,
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
         ];
     }
 

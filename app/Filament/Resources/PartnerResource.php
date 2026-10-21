@@ -370,6 +370,13 @@ class PartnerResource extends Resource
         return response()->streamDownload(fn () => print($pdf->output()), $filename);
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [

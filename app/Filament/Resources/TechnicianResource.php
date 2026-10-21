@@ -460,6 +460,7 @@ class TechnicianResource extends Resource
             ServiceRatesRelationManager::class,
             SkillsRelationManager::class,
             TrainingsRelationManager::class,
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
         ];
     }
 

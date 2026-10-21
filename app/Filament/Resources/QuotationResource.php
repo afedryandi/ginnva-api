@@ -594,7 +594,9 @@ class QuotationResource extends Resource
         // `items`. RelationManager cuma muncul di halaman Edit (tidak ada
         // di Create), sedangkan Repeater tersedia di keduanya, jadi
         // Repeater yang dipertahankan.
-        return [];
+        return [
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

@@ -229,6 +229,7 @@ class StockOpnameResource extends Resource
     {
         return [
             ItemsRelationManager::class,
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
         ];
     }
 

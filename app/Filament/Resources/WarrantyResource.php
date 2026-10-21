@@ -1272,6 +1272,7 @@ class WarrantyResource extends Resource
         return [
             RelationManagers\ClaimsRelationManager::class,
             RelationManagers\MaintenanceSchedulesRelationManager::class,
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
         ];
     }
 

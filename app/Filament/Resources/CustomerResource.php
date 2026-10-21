@@ -564,6 +564,13 @@ class CustomerResource extends Resource
             ->defaultSort('created_at', 'desc');
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [

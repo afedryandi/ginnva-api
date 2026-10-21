@@ -457,6 +457,13 @@ class FilmProductResource extends Resource
         return parent::getEloquentQuery()->withCount('prices');
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [

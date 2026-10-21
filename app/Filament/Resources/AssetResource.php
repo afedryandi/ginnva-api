@@ -652,6 +652,7 @@ class AssetResource extends Resource
     {
         return [
             TransfersRelationManager::class,
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
         ];
     }
 

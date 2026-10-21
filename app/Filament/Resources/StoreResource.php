@@ -546,6 +546,13 @@ class StoreResource extends Resource
         return true;
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [

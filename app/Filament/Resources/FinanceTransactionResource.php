@@ -447,6 +447,13 @@ class FinanceTransactionResource extends Resource
             ->defaultSort('transaction_date', 'desc');
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [

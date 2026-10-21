@@ -1961,6 +1961,7 @@ class BookingResource extends Resource
             BookingResource\RelationManagers\MessagesRelationManager::class,
             BookingResource\RelationManagers\RescheduleRequestsRelationManager::class,
             BookingResource\RelationManagers\CancellationRequestsRelationManager::class,
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
         ];
     }
 
