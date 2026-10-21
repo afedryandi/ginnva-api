@@ -4,6 +4,9 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ActivityResource\Pages;
 use App\Models\User;
+use App\Support\ActivityPresenter;
+use Carbon\Carbon;
+use Filament\Facades\Filament;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -204,16 +207,17 @@ class ActivityResource extends Resource
     {
         return $table
             ->columns([
+                // Waktu selalu dalam WIB, apa pun zona aplikasinya (Histori Aktivitas Fase 0).
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Waktu')
-                    ->dateTime('d M Y H:i:s')
+                    ->label('Waktu (WIB)')
+                    ->dateTime('d M Y H:i:s', ActivityPresenter::TIMEZONE)
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('causer.name')
                     ->label('Pelaku')
                     ->placeholder('Sistem')
                     ->searchable()
-                    ->description(fn (Activity $record) => $record->causer?->email),
+                    ->description(fn (Activity $record) => ActivityPresenter::actorNote($record)),
 
                 Tables\Columns\BadgeColumn::make('log_name')
                     ->label('Modul')
@@ -236,19 +240,24 @@ class ActivityResource extends Resource
                         'created' => 'Dibuat',
                         'updated' => 'Diubah',
                         'deleted' => 'Dihapus',
-                        default   => $state ?? '—',
+                        'restored' => 'Dipulihkan',
+                        // Catatan manual (activity()->log()) tidak mengisi jenis aksi.
+                        null      => 'Dicatat',
+                        default   => $state,
                     }),
 
+                // Label objek memakai nama resource ("Toko #2") dan menjadi tautan ke rekamannya bila masih ada.
                 Tables\Columns\TextColumn::make('subject_type')
                     ->label('Objek')
-                    ->formatStateUsing(fn (?string $state, Activity $record) => $state
-                        ? class_basename($state) . ' #' . $record->subject_id
-                        : '—'),
+                    ->formatStateUsing(fn (?string $state, Activity $record) => $state ? ActivityPresenter::subjectLabel($record) : '—')
+                    ->url(fn (Activity $record) => ActivityPresenter::subjectUrl($record)),
 
                 Tables\Columns\TextColumn::make('description')
                     ->label('Deskripsi')
+                    ->state(fn (Activity $record) => ActivityPresenter::describe($record))
                     ->searchable()
-                    ->limit(60),
+                    ->limit(60)
+                    ->tooltip(fn (Activity $record) => ActivityPresenter::describe($record)),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('log_name')
@@ -275,15 +284,41 @@ class ActivityResource extends Resource
 
                 // Filter rentang tanggal (audit 2026-09-30) -- sejajar Riwayat lain,
                 // penting di sini karena 65+ modul aktif logging bisa menumpuk cepat.
+                // Tanggal dibaca sebagai tanggal WIB (batas hari 00:00 sampai 23:59 WIB), lalu diubah ke zona aplikasi.
                 Tables\Filters\Filter::make('created_at')
                     ->form([
-                        \Filament\Forms\Components\DatePicker::make('from')->label('Dari Tanggal'),
-                        \Filament\Forms\Components\DatePicker::make('until')->label('Sampai Tanggal'),
+                        \Filament\Forms\Components\DatePicker::make('from')->label('Dari Tanggal (WIB)'),
+                        \Filament\Forms\Components\DatePicker::make('until')->label('Sampai Tanggal (WIB)'),
                     ])
                     ->query(fn (Builder $query, array $data) => $query
-                        ->when($data['from'], fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-                        ->when($data['until'], fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
+                        ->when($data['from'] ?? null, fn ($q, $date) => $q->where('created_at', '>=', Carbon::parse($date, ActivityPresenter::TIMEZONE)->startOfDay()->setTimezone(config('app.timezone'))))
+                        ->when($data['until'] ?? null, fn ($q, $date) => $q->where('created_at', '<=', Carbon::parse($date, ActivityPresenter::TIMEZONE)->endOfDay()->setTimezone(config('app.timezone'))))
                     ),
+
+                // Filter objek (jenis + nomor): menjawab "apa saja yang terjadi pada Booking #12".
+                Tables\Filters\Filter::make('subject')
+                    ->label('Objek')
+                    ->columns(2)
+                    ->form([
+                        \Filament\Forms\Components\Select::make('type')
+                            ->label('Jenis Objek')
+                            ->searchable()
+                            ->options(fn () => static::subjectTypeOptions()),
+                        \Filament\Forms\Components\TextInput::make('id')->label('Nomor Objek')->numeric()->minValue(1),
+                    ])
+                    ->query(fn (Builder $query, array $data) => $query
+                        ->when($data['type'] ?? null, fn ($q, $type) => $q->where('subject_type', $type))
+                        ->when($data['id'] ?? null, fn ($q, $id) => $q->where('subject_id', $id))
+                    )
+                    ->indicateUsing(function (array $data): ?string {
+                        if (blank($data['type'] ?? null) && blank($data['id'] ?? null)) {
+                            return null;
+                        }
+
+                        $label = filled($data['type'] ?? null) ? (static::subjectTypeOptions()[$data['type']] ?? class_basename($data['type'])) : 'Objek';
+
+                        return $label . (filled($data['id'] ?? null) ? ' #' . $data['id'] : '');
+                    }),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
@@ -295,17 +330,18 @@ class ActivityResource extends Resource
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist->schema([
-            TextEntry::make('created_at')->label('Waktu')->dateTime('d M Y H:i:s'),
+            TextEntry::make('created_at')->label('Waktu (WIB)')->dateTime('d M Y H:i:s', ActivityPresenter::TIMEZONE),
             TextEntry::make('causer.name')->label('Pelaku')->placeholder('Sistem (otomatis)'),
             TextEntry::make('causer.email')->label('Email Pelaku')->placeholder('—'),
             TextEntry::make('log_name')
                 ->label('Modul')
                 ->formatStateUsing(fn (?string $state): string => $state ? (self::LOG_NAME_LABELS[$state] ?? $state) : '—'),
-            TextEntry::make('event')->label('Aksi'),
+            TextEntry::make('event')->label('Aksi')->placeholder('Dicatat'),
             TextEntry::make('subject_type')
                 ->label('Objek')
-                ->formatStateUsing(fn ($state, $record) => $state ? class_basename($state) . ' #' . $record->subject_id : '—'),
-            TextEntry::make('description')->label('Deskripsi')->columnSpanFull(),
+                ->formatStateUsing(fn ($state, $record) => $state ? ActivityPresenter::subjectLabel($record) : '—')
+                ->url(fn (Activity $record) => ActivityPresenter::subjectUrl($record)),
+            TextEntry::make('description')->label('Deskripsi')->state(fn (Activity $record) => ActivityPresenter::describe($record))->columnSpanFull(),
             TextEntry::make('properties.reason')
                 ->label('Alasan')
                 ->columnSpanFull()
@@ -315,12 +351,16 @@ class ActivityResource extends Resource
             KeyValueEntry::make('properties.old')
                 ->label('Nilai Sebelumnya')
                 ->columnSpanFull()
-                ->state(fn (Activity $record) => static::stringifyValues($record->properties['old'] ?? []))
+                ->keyLabel('Kolom')
+                ->valueLabel('Nilai')
+                ->state(fn (Activity $record) => ActivityPresenter::rows($record->properties['old'] ?? []))
                 ->visible(fn (Activity $record) => filled($record->properties['old'] ?? null)),
             KeyValueEntry::make('properties.attributes')
                 ->label('Nilai Baru')
                 ->columnSpanFull()
-                ->state(fn (Activity $record) => static::stringifyValues($record->properties['attributes'] ?? []))
+                ->keyLabel('Kolom')
+                ->valueLabel('Nilai')
+                ->state(fn (Activity $record) => ActivityPresenter::rows($record->properties['attributes'] ?? []))
                 ->visible(fn (Activity $record) => filled($record->properties['attributes'] ?? null)),
         ]);
     }
@@ -338,6 +378,26 @@ class ActivityResource extends Resource
                 is_scalar($value) => (string) $value,
                 default => (string) json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             })
+            ->all();
+    }
+
+    /**
+     * Pilihan filter Objek: jenis objek yang benar-benar ada di log, dengan nama resource ("Toko") bila ada.
+     *
+     * @return array<string, string> kelas model => label
+     */
+    public static function subjectTypeOptions(): array
+    {
+        return Activity::query()
+            ->whereNotNull('subject_type')
+            ->distinct()
+            ->pluck('subject_type')
+            ->mapWithKeys(function (string $type) {
+                $resource = class_exists($type) ? Filament::getModelResource($type) : null;
+
+                return [$type => $resource ? $resource::getModelLabel() : class_basename($type)];
+            })
+            ->sort()
             ->all();
     }
 

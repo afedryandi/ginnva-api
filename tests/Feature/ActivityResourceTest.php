@@ -122,7 +122,7 @@ class ActivityResourceTest extends TestCase
             ->assertTableColumnFormattedStateSet('event', 'Diubah', record: $booking)
             ->assertTableColumnFormattedStateSet('event', 'Dibuat', record: $system)
             ->assertTableColumnFormattedStateSet('event', 'Dihapus', record: $unknown)
-            ->assertTableColumnFormattedStateSet('subject_type', 'Store #' . $this->store->id, record: $booking)
+            ->assertTableColumnFormattedStateSet('subject_type', 'Toko #' . $this->store->id, record: $booking)
             ->assertTableColumnStateSet('causer.name', $admin->name, record: $booking)
             ->assertTableColumnStateSet('causer.name', null, record: $system);
     }
@@ -187,7 +187,7 @@ class ActivityResourceTest extends TestCase
             ->assertSee('Radius absen toko diubah')
             ->assertSee('Nilai Baru')
             ->assertSee('Toko pindah gedung')
-            ->assertSee('attendance_radius_meters')
+            ->assertSee('Radius Absen (meter)')
             ->assertSee('250')
             ->assertSee('Toko/Dealer');
     }
@@ -203,7 +203,7 @@ class ActivityResourceTest extends TestCase
         $this->as($admin);
         Livewire::test(ViewActivity::class, ['record' => $activity->getRouteKey()])
             ->assertSuccessful()
-            ->assertSee('opening_hours')
+            ->assertSee('Opening Hours')
             ->assertSee('09:00');
     }
 
