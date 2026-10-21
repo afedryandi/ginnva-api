@@ -45,7 +45,7 @@ class NotifyForgottenClockouts extends Command
 
             $names = $storeRows->map(fn (Attendance $a) => "{$a->user?->name} ({$a->date->format('d M')})")->implode(', ');
 
-            $push->sendToStoreStaff(
+            app(\App\Services\StaffNotifier::class)->toStoreStaff(
                 (int) $storeId,
                 'Ada Absensi Belum Lengkap',
                 "Lupa absen pulang: {$names}. Koreksi lewat menu Absensi kalau perlu.",

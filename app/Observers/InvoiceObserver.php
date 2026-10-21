@@ -35,7 +35,7 @@ class InvoiceObserver
             return;
         }
 
-        $this->push->sendToStoreStaff(
+        app(\App\Services\StaffNotifier::class)->toStoreStaff(
             $invoice->store_id,
             'Invoice Baru Dibuat',
             "Invoice #{$invoice->invoice_number} untuk {$invoice->customer_name} sudah dibuat.",
@@ -84,7 +84,7 @@ class InvoiceObserver
             ? "Invoice #{$invoice->invoice_number} untuk {$invoice->customer_name} sudah lunas."
             : "Invoice #{$invoice->invoice_number} untuk {$invoice->customer_name} telah di-void.";
 
-        $this->push->sendToStoreStaff(
+        app(\App\Services\StaffNotifier::class)->toStoreStaff(
             $invoice->store_id,
             $title,
             $body,

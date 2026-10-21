@@ -64,7 +64,7 @@ class EditShift extends EditRecord
         $userIds = $this->record->affectedUserIds();
         if ($userIds) {
             $fmt = fn ($t) => \Illuminate\Support\Carbon::parse($t)->format('H:i');
-            app(\App\Services\PushNotificationService::class)->sendToUsers(
+            app(\App\Services\StaffNotifier::class)->toUsers(
                 $userIds,
                 'Jam Shift Berubah',
                 "Jam shift \"{$this->record->name}\" kini {$fmt($this->record->start_time)} - {$fmt($this->record->end_time)}. Perhatikan jadwal kerja Anda."

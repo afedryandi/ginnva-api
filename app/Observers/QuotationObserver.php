@@ -89,7 +89,7 @@ class QuotationObserver
             // dibangun (app/staff/quotations/[id].tsx), lihat audit modul
             // Quotation 2026-08-27. Sebelumnya notifikasi ini sengaja
             // tanpa deep link karena layarnya belum ada sama sekali.
-            $this->push->sendToStoreStaff(
+            app(\App\Services\StaffNotifier::class)->toStoreStaff(
                 $quotation->store_id,
                 'Lead Baru',
                 "Permintaan penawaran baru dari {$quotation->customer_name}.",
@@ -98,7 +98,7 @@ class QuotationObserver
             );
         } else {
             // Lead tanpa toko (form website): sebelumnya TIDAK ada push sama sekali.
-            $this->push->sendToUsers(
+            app(\App\Services\StaffNotifier::class)->toUsers(
                 $this->push->unassignedQuotationRecipientIds(),
                 'Lead Baru',
                 "Permintaan penawaran baru dari {$quotation->customer_name}.",

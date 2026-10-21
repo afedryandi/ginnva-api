@@ -314,7 +314,7 @@ class WorkScheduleResource extends Resource
                             return;
                         }
 
-                        app(\App\Services\PushNotificationService::class)->sendToUsers(
+                        app(\App\Services\StaffNotifier::class)->toUsers(
                             $data['user_ids'],
                             'Jadwal Kerja Baru',
                             "Anda ditugaskan ke jadwal \"{$record->name}\" mulai " . Carbon::parse($data['effective_from'])->translatedFormat('d M Y') . '.'

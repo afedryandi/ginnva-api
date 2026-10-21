@@ -76,7 +76,7 @@ class SendBookingDailyReminders extends Command
             }
 
             try {
-                $push->sendToUsers(
+                app(\App\Services\StaffNotifier::class)->toUsers(
                     $managerIds,
                     'Booking Lewat Tanggal',
                     "{$group->count()} booking dikonfirmasi tapi tanggalnya sudah lewat dan belum dikerjakan. Jadwal ulang atau batalkan.",

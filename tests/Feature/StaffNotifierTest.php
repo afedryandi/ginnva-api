@@ -123,6 +123,30 @@ class StaffNotifierTest extends TestCase
         $this->assertSame(1, $this->pushed());
     }
 
+    public function test_a_new_booking_reaches_the_store_staff_inbox_and_customer_chat_messages_are_coalesced(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+        $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true]);
+        $admin = $this->user('Admin');
+        $admin->assignRole('super_admin');
+        $customer = \App\Models\Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(10000000, 99999999)]);
+
+        $booking = \App\Models\Booking::create([
+            'booking_number' => 'BKG-T-' . strtoupper(uniqid()), 'customer_id' => $customer->id, 'store_id' => $store->id,
+            'service_type' => 'PPF', 'product_ppf' => true, 'preferred_date' => now()->addDay()->toDateString(), 'status' => 'pending',
+        ]);
+
+        $this->assertTrue($admin->notifications()->get()->contains(fn ($n) => $n->data['title'] === 'Booking Baru'), 'Booking baru masuk kotak masuk staf.');
+
+        foreach (['Halo', 'Apakah bisa besok?'] as $text) {
+            \App\Models\BookingMessage::create(['booking_id' => $booking->id, 'sender_type' => 'customer', 'sender_customer_id' => $customer->id, 'type' => 'text', 'body' => $text]);
+        }
+
+        $chat = $admin->notifications()->get()->filter(fn ($n) => $n->data['title'] === 'Pesan Baru dari Customer');
+        $this->assertCount(1, $chat, 'Dua pesan di booking yang sama menjadi satu baris kotak masuk.');
+        $this->assertSame('Apakah bisa besok?', $chat->first()->data['body']);
+    }
+
     public function test_the_inbox_row_is_readable_by_the_filament_bell(): void
     {
         $user = $this->user();

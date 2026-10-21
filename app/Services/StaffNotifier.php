@@ -43,13 +43,36 @@ class StaffNotifier
     /** Staf toko (dan super admin) seperti PushNotificationService::sendToStoreStaff(), dengan kotak masuk. */
     public function toStoreStaff(int $storeId, string $title, string $body, array $data = [], ?string $resourceClass = null, ?string $coalesceKey = null, string $color = 'info'): void
     {
-        $this->toUsers($this->push->storeStaffIds($storeId, $resourceClass), $title, $body, $data, $coalesceKey, $color);
+        try {
+            $this->inbox($this->push->storeStaffIds($storeId, $resourceClass)->filter()->unique()->values(), $title, $body, $data, $coalesceKey, $color);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        // Push lewat metode aslinya, dengan argumen persis seperti panggilan langsung sebelumnya (data dan kelas resource hanya bila ada).
+        $args = [$storeId, $title, $body];
+        if ($data !== [] || $resourceClass !== null) {
+            $args[] = $data;
+        }
+        if ($resourceClass !== null) {
+            $args[] = $resourceClass;
+        }
+
+        $this->push->sendToStoreStaff(...$args);
     }
 
     /** Direksi pemantau sebuah booking, dengan kotak masuk. */
     public function toBookingWatchers(\App\Models\Booking $booking, string $title, string $body, array $data = [], ?string $coalesceKey = null, string $color = 'info'): void
     {
-        $this->toUsers($booking->watchers()->pluck('users.id'), $title, $body, $data, $coalesceKey, $color);
+        try {
+            $this->inbox($booking->watchers()->pluck('users.id')->filter()->unique()->values(), $title, $body, $data, $coalesceKey, $color);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        $data === []
+            ? $this->push->sendToBookingWatchers($booking, $title, $body)
+            : $this->push->sendToBookingWatchers($booking, $title, $body, $data);
     }
 
     /** @param  Collection<int, int|string>  $ids */

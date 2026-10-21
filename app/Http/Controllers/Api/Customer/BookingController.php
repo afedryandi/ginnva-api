@@ -314,7 +314,7 @@ class BookingController extends Controller
         $number = $booking->booking_number;
         $bookingId = $booking->id;
         try {
-            app(\App\Services\PushNotificationService::class)->sendToStoreStaff(
+            app(\App\Services\StaffNotifier::class)->toStoreStaff(
                 $storeId,
                 'Pengajuan Pembatalan Booking',
                 "Booking #{$number}: customer mengajukan pembatalan. Alasan: {$request->reason}",
@@ -414,7 +414,7 @@ class BookingController extends Controller
         });
 
         try {
-            app(\App\Services\PushNotificationService::class)->sendToStoreStaff(
+            app(\App\Services\StaffNotifier::class)->toStoreStaff(
                 $booking->store_id,
                 'Pengajuan Jadwal Ulang',
                 "Booking #{$booking->booking_number}: customer mengajukan jadwal ulang ke {$date->format('d M Y')}.",
@@ -476,7 +476,7 @@ class BookingController extends Controller
             $bookingId = $locked->id;
             DB::afterCommit(function () use ($storeId, $bookingNumber, $bookingId) {
                 try {
-                    app(\App\Services\PushNotificationService::class)->sendToStoreStaff(
+                    app(\App\Services\StaffNotifier::class)->toStoreStaff(
                         $storeId,
                         'Booking Dibatalkan Customer',
                         "Booking #{$bookingNumber} dibatalkan oleh customer.",

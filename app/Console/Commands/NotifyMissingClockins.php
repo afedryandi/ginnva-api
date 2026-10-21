@@ -80,7 +80,7 @@ class NotifyMissingClockins extends Command
             }
 
             if (! empty($lateNames)) {
-                $push->sendToStoreStaff(
+                app(\App\Services\StaffNotifier::class)->toStoreStaff(
                     $store->id,
                     'Karyawan Belum Absen Masuk',
                     'Sudah lewat jadwal shift tapi belum absen: ' . implode(', ', $lateNames) . '.',

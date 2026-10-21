@@ -72,7 +72,7 @@ class BookingObserver
         }
 
         if ($booking->store_id) {
-            $this->push->sendToStoreStaff(
+            app(\App\Services\StaffNotifier::class)->toStoreStaff(
                 $booking->store_id,
                 'Booking Baru',
                 "Booking baru #{$booking->booking_number} masuk untuk {$booking->service_type}.",
@@ -190,7 +190,7 @@ class BookingObserver
             if ($cancelInstallerIds->isNotEmpty()) {
                 $cancelBody = "Booking #{$booking->booking_number} ({$booking->preferred_date?->format('d M Y')}) dibatalkan.";
                 $cancelData = ['type' => 'booking_cancelled', 'booking_id' => $booking->id, 'route' => "/staff/bookings/{$booking->id}"];
-                DB::afterCommit(fn () => $this->push->sendToUsers($cancelInstallerIds, 'Booking Dibatalkan', $cancelBody, $cancelData));
+                DB::afterCommit(fn () => app(\App\Services\StaffNotifier::class)->toUsers($cancelInstallerIds, 'Booking Dibatalkan', $cancelBody, $cancelData));
             }
         }
 
@@ -201,7 +201,7 @@ class BookingObserver
             if ($installerIds->isNotEmpty()) {
                 $body = "Booking #{$booking->booking_number} dipindah ke {$booking->preferred_date?->format('d M Y')}.";
                 $data = ['type' => 'booking_rescheduled', 'booking_id' => $booking->id, 'route' => "/staff/bookings/{$booking->id}"];
-                DB::afterCommit(fn () => $this->push->sendToUsers($installerIds, 'Jadwal Instalasi Berubah', $body, $data));
+                DB::afterCommit(fn () => app(\App\Services\StaffNotifier::class)->toUsers($installerIds, 'Jadwal Instalasi Berubah', $body, $data));
             }
         }
 

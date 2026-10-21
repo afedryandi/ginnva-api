@@ -72,7 +72,7 @@ class BookingReminderService
 
             $installerIds = $b->installers()->pluck('users.id');
             if ($installerIds->isNotEmpty()) {
-                $this->push->sendToUsers(
+                app(\App\Services\StaffNotifier::class)->toUsers(
                     $installerIds,
                     'Jadwal Instalasi Besok',
                     "Besok ada jadwal booking #{$b->booking_number}.",

@@ -59,7 +59,7 @@ class EditWorkSchedule extends EditRecord
             ->persistent()
             ->send();
 
-        app(PushNotificationService::class)->sendToUsers(
+        app(\App\Services\StaffNotifier::class)->toUsers(
             $userIds,
             'Jadwal Kerja Berubah',
             "Pola jadwal kerja \"{$this->record->name}\" diperbarui. Perhatikan jadwal Anda."

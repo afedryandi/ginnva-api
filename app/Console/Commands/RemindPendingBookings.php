@@ -63,7 +63,7 @@ class RemindPendingBookings extends Command
                 ->values();
 
             try {
-                $push->sendToUsers($recipientIds, $title, $body, $data);
+                app(\App\Services\StaffNotifier::class)->toUsers($recipientIds, $title, $body, $data);
             } catch (\Throwable $e) {
                 // Penanda TIDAK diisi kalau gagal -- dicoba lagi jam berikutnya.
                 report($e);
@@ -96,7 +96,7 @@ class RemindPendingBookings extends Command
             $direksiIds = User::role('direksi')->where('is_active', true)->pluck('id');
 
             try {
-                $push->sendToUsers(
+                app(\App\Services\StaffNotifier::class)->toUsers(
                     $direksiIds,
                     'Booking Pending Belum Ditindak',
                     "{$total} booking sudah diingatkan berulang kali tapi belum dikonfirmasi ({$stores}).",

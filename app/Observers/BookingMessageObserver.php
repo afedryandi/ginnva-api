@@ -74,7 +74,7 @@ class BookingMessageObserver
                 ->unique()
                 ->values();
 
-            DB::afterCommit(fn () => $this->push->sendToUsers($recipientIds, $title, $body, $data));
+            DB::afterCommit(fn () => app(\App\Services\StaffNotifier::class)->toUsers($recipientIds, $title, $body, $data, 'booking-chat:' . $booking->id));
         }
     }
 

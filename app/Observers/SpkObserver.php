@@ -27,7 +27,7 @@ class SpkObserver
             return;
         }
 
-        $this->push->sendToStoreStaff(
+        app(\App\Services\StaffNotifier::class)->toStoreStaff(
             $spk->store_id,
             'SPK Baru Dibuat',
             "SPK #{$spk->spk_number} untuk {$spk->customer_name} sudah dibuat.",
@@ -52,7 +52,7 @@ class SpkObserver
             return;
         }
 
-        $this->push->sendToStoreStaff(
+        app(\App\Services\StaffNotifier::class)->toStoreStaff(
             $spk->store_id,
             'SPK Selesai',
             "SPK #{$spk->spk_number} untuk {$spk->customer_name} sudah ditandai kendaraan keluar.",

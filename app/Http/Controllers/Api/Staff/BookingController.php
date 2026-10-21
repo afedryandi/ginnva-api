@@ -911,7 +911,7 @@ class BookingController extends Controller
                 // Setelah commit (2026-10-03) -- tidak memegang lock saat HTTP push.
                 DB::afterCommit(function () use ($added, $bookingNumber, $bookingId) {
                     try {
-                        app(\App\Services\PushNotificationService::class)->sendToUsers(
+                        app(\App\Services\StaffNotifier::class)->toUsers(
                             $added,
                             'Penugasan Instalasi Baru',
                             "Anda ditugaskan di booking #{$bookingNumber}.",
@@ -929,7 +929,7 @@ class BookingController extends Controller
                 $removedNumber = $booking->booking_number;
                 DB::afterCommit(function () use ($removed, $removedNumber) {
                     try {
-                        app(\App\Services\PushNotificationService::class)->sendToUsers(
+                        app(\App\Services\StaffNotifier::class)->toUsers(
                             $removed,
                             'Penugasan Dicabut',
                             "Penugasan Anda di booking #{$removedNumber} dicabut.",

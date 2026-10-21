@@ -459,7 +459,7 @@ class WorkScheduleCalendarReport extends Page implements HasActions, HasForms
         // Push ke karyawan yang bersangkutan (gap audit 2026-09-28) --
         // setelah transaksi commit, dan tidak untuk hari yang sudah lewat.
         if ($message && ! $date->lt(today())) {
-            app(\App\Services\PushNotificationService::class)->sendToUsers([$employee->id], 'Jadwal Kerja Diubah', $message);
+            app(\App\Services\StaffNotifier::class)->toUsers([$employee->id], 'Jadwal Kerja Diubah', $message);
         }
     }
 }

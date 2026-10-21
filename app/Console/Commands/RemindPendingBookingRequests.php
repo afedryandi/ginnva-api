@@ -64,7 +64,7 @@ class RemindPendingBookingRequests extends Command
                     ->values();
 
                 try {
-                    $push->sendToUsers($recipientIds, 'Pengajuan Customer Menunggu', $body, [
+                    app(\App\Services\StaffNotifier::class)->toUsers($recipientIds, 'Pengajuan Customer Menunggu', $body, [
                         'type'  => 'booking_request_reminder',
                         'route' => '/staff/bookings',
                     ]);
@@ -90,7 +90,7 @@ class RemindPendingBookingRequests extends Command
 
         if (! empty($escalated)) {
             try {
-                $push->sendToUsers(
+                app(\App\Services\StaffNotifier::class)->toUsers(
                     User::role('direksi')->where('is_active', true)->pluck('id'),
                     'Pengajuan Customer Belum Ditindak',
                     count($escalated) . ' pengajuan jadwal ulang/pembatalan sudah diingatkan berulang kali tapi belum diputuskan.',
