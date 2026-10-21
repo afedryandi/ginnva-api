@@ -437,8 +437,39 @@ class ConsumableItemResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()
-                        ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
+                    // Diproses satu-satu: yang belum punya riwayat stok terhapus, yang punya dilewati dengan laporan jumlahnya.
+                    Tables\Actions\BulkAction::make('delete')
+                        ->label('Hapus')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                        ->requiresConfirmation()
+                        ->action(function (\Illuminate\Support\Collection $records) {
+                            $deleted = 0;
+                            $blocked = 0;
+
+                            foreach ($records as $record) {
+                                if (\App\Support\StockMasterDeletion::blocker($record, 'Barang') === null) {
+                                    $record->delete();
+                                    $deleted++;
+                                } else {
+                                    $blocked++;
+                                }
+                            }
+
+                            if ($blocked > 0) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title($deleted > 0 ? "{$deleted} dihapus, {$blocked} tidak bisa dihapus" : 'Tidak ada yang bisa dihapus')
+                                    ->body("{$blocked} sudah punya riwayat pergerakan stok sehingga dilewati. Menghapusnya akan menghapus riwayat itu dan merusak laporan persediaan dan HPP.")
+                                    ->warning()
+                                    ->send();
+
+                                return;
+                            }
+
+                            \Filament\Notifications\Notification::make()->title("{$deleted} dihapus")->success()->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
                 ]),
             ])
             ->defaultSort('name');

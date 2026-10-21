@@ -14,7 +14,16 @@ class EditRawMaterial extends EditRecord
     {
         return [
             Actions\DeleteAction::make()
-                ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
+                ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                // Riwayat stok ikut terhapus oleh cascade di database; yang sudah punya riwayat tidak boleh dihapus.
+                ->before(function (Actions\DeleteAction $action) {
+                    $blocker = \App\Support\StockMasterDeletion::blocker($this->record, 'Bahan baku');
+
+                    if ($blocker !== null) {
+                        \Filament\Notifications\Notification::make()->title('Tidak bisa menghapus bahan baku ini')->body($blocker)->danger()->send();
+                        $action->halt();
+                    }
+                }),
         ];
     }
 
