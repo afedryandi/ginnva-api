@@ -1,54 +1,26 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 /**
- * Hapus WF-H15 & WF-H30 — user 2026-09-10: produk film Ginnva yang tidak
- * ada di katalog Majoo dihapus saja (DB development, cascade tidak masalah).
- * Majoo cuma punya "Panoramic H15/H30" yang sudah dibuat sebagai
- * WF-PANORAMIC / WF-PANORAMIC-L / WF-SUNROOF (migrasi ...000007).
+ * DIJADIKAN NO-OP 2026-10-21. Migrasi ini dulu menghapus WF-H15 & WF-H30 beserta
+ * kode gulungan (scroll_codes), pemakaian, resep, harga, dan studi kasusnya.
+ * Di production (batch 109, rilis 2026-10-13) itu menghilangkan kode gulungan
+ * yang masih dipakai untuk membuat garansi. Produk, 4 kode gulungan, dan tautan
+ * item gudang dipulihkan dari cadangan 2026-10-12 pada 2026-10-21.
  *
- * FK `film_product_id` di scroll_codes / case_studies / quotation_items =
- * restrictOnDelete → dependennya dibersihkan manual dulu (FK checks
- * dimatikan sementara supaya urutan tidak masalah).
+ * Isi aslinya tidak boleh dijalankan lagi di instalasi mana pun. Nama berkas
+ * dipertahankan supaya catatan "Ran" di tabel migrations tetap valid.
  */
 return new class extends Migration
 {
     public function up(): void
     {
-        $ids = DB::table('film_products')->whereIn('sku', ['WF-H15', 'WF-H30'])->pluck('id')->all();
-
-        if (empty($ids)) {
-            return;
-        }
-
-        Schema::disableForeignKeyConstraints();
-
-        try {
-            $scrollIds = DB::table('scroll_codes')->whereIn('film_product_id', $ids)->pluck('id')->all();
-
-            if (! empty($scrollIds)) {
-                DB::table('scroll_code_usages')->whereIn('scroll_code_id', $scrollIds)->delete();
-                DB::table('inventory_items')->whereIn('scroll_code_id', $scrollIds)->update(['scroll_code_id' => null]);
-                DB::table('scroll_codes')->whereIn('id', $scrollIds)->delete();
-            }
-
-            DB::table('case_studies')->whereIn('film_product_id', $ids)->delete();
-            DB::table('quotation_items')->whereIn('film_product_id', $ids)->delete();
-            DB::table('film_product_recipe_items')->whereIn('film_product_id', $ids)->delete();
-            DB::table('film_product_prices')->whereIn('film_product_id', $ids)->delete();
-            DB::table('bookings')->whereIn('film_product_id', $ids)->update(['film_product_id' => null]);
-
-            DB::table('film_products')->whereIn('id', $ids)->delete();
-        } finally {
-            Schema::enableForeignKeyConstraints();
-        }
+        // Sengaja kosong.
     }
 
     public function down(): void
     {
-        // Tidak bisa di-rollback — data produk + turunannya sudah dihapus.
+        // Tidak ada yang perlu dibatalkan.
     }
 };
