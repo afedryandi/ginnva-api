@@ -33,7 +33,11 @@ class StaffNotifier
         }
 
         $this->inbox($ids, $title, $body, $data, $coalesceKey, $color);
-        $this->push->sendToUsers($ids, $title, $body, $data);
+
+        // Argumen push dipertahankan persis seperti panggilan langsung sebelumnya (larik id polos; data hanya bila ada).
+        $data === []
+            ? $this->push->sendToUsers($ids->all(), $title, $body)
+            : $this->push->sendToUsers($ids->all(), $title, $body, $data);
     }
 
     /** Staf toko (dan super admin) seperti PushNotificationService::sendToStoreStaff(), dengan kotak masuk. */
