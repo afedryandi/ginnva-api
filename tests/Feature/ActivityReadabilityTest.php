@@ -27,6 +27,25 @@ class ActivityReadabilityTest extends TestCase
 
     private Store $store;
 
+    private ?string $originalTimezone = null;
+
+    /** Zona aplikasi di tes: config() saja tidak mengubah zona bawaan PHP/Carbon, jadi keduanya diatur dan dipulihkan. */
+    private function useAppTimezone(string $timezone): void
+    {
+        $this->originalTimezone ??= date_default_timezone_get();
+        config(['app.timezone' => $timezone]);
+        date_default_timezone_set($timezone);
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->originalTimezone !== null) {
+            date_default_timezone_set($this->originalTimezone);
+        }
+
+        parent::tearDown();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -92,7 +111,7 @@ class ActivityReadabilityTest extends TestCase
 
     public function test_dates_are_shown_in_wib_and_date_only_values_without_a_clock(): void
     {
-        config(['app.timezone' => 'UTC']);
+        $this->useAppTimezone('UTC');
 
         $this->assertSame('02 Nov 2026 07:30', ActivityPresenter::value('clock_in_at', '2026-11-02T00:30:00.000000Z'));
         $this->assertSame('02 Nov 2026', ActivityPresenter::value('received_date', '2026-11-02T00:00:00.000000Z'), 'Tengah malam di zona aplikasi = tanggal saja.');
@@ -172,7 +191,7 @@ class ActivityReadabilityTest extends TestCase
 
     public function test_the_list_and_detail_show_wib_times(): void
     {
-        config(['app.timezone' => 'UTC']);
+        $this->useAppTimezone('UTC');
         $this->admin();
         $log = $this->log();
         DB::table('activity_log')->where('id', $log->id)->update(['created_at' => '2026-11-02 00:30:00']);
@@ -224,7 +243,7 @@ class ActivityReadabilityTest extends TestCase
 
     public function test_the_date_filter_follows_wib_day_boundaries(): void
     {
-        config(['app.timezone' => 'UTC']);
+        $this->useAppTimezone('UTC');
         $this->admin();
         $beforeMidnight = $this->log();
         $afterMidnight = $this->log();

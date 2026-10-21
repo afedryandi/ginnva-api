@@ -393,7 +393,7 @@ class ActivityResource extends Resource
             ->distinct()
             ->pluck('subject_type')
             ->mapWithKeys(function (string $type) {
-                $resource = class_exists($type) ? Filament::getModelResource($type) : null;
+                $resource = ActivityPresenter::classExists($type) ? Filament::getModelResource($type) : null;
 
                 return [$type => $resource ? $resource::getModelLabel() : class_basename($type)];
             })

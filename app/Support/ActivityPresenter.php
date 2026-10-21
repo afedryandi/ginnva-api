@@ -109,6 +109,19 @@ class ActivityPresenter
     /** @var array<string, string|null> */
     private static array $referenceCache = [];
 
+    /**
+     * class_exists yang kebal terhadap autoloader teroptimasi yang masih mencatat berkas yang sudah dihapus (mis. RollScrapPool):
+     * include berkas hilang itu melempar ErrorException, yang di sini dianggap "kelas tidak ada".
+     */
+    public static function classExists(string $class): bool
+    {
+        try {
+            return class_exists($class);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     /** Kosongkan cache nama rujukan (dipakai tes; dalam satu permintaan cache cukup untuk menghindari query berulang). */
     public static function flush(): void
     {
@@ -184,7 +197,7 @@ class ActivityPresenter
         }
 
         try {
-            $at = Carbon::parse($value)->setTimezone(config('app.timezone'));
+            $at = Carbon::parse($value, config('app.timezone'))->setTimezone(config('app.timezone'));
 
             if (strlen($value) === 10 || $at->format('H:i:s') === '00:00:00') {
                 return $at->format('d M Y');
@@ -219,7 +232,7 @@ class ActivityPresenter
     /** Muat model tanpa scope global dan termasuk yang terhapus lunak; null bila kelas atau baris tidak ada. */
     private static function find(string $class, int|string $id): ?Model
     {
-        if (! class_exists($class) || ! is_subclass_of($class, Model::class)) {
+        if (! self::classExists($class) || ! is_subclass_of($class, Model::class)) {
             return null;
         }
 
@@ -242,7 +255,7 @@ class ActivityPresenter
             return '—';
         }
 
-        $resource = class_exists($type) ? Filament::getModelResource($type) : null;
+        $resource = self::classExists($type) ? Filament::getModelResource($type) : null;
         $label = $resource ? $resource::getModelLabel() : class_basename($type);
 
         return $label . ' #' . $activity->subject_id;
@@ -253,7 +266,7 @@ class ActivityPresenter
     {
         $type = $activity->subject_type;
 
-        if (! $type || ! $activity->subject_id || ! class_exists($type)) {
+        if (! $type || ! $activity->subject_id || ! self::classExists($type)) {
             return null;
         }
 
