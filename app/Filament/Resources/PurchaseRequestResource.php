@@ -303,7 +303,7 @@ class PurchaseRequestResource extends Resource
                         $record->refresh();
 
                         if ($record->requested_by) {
-                            app(PushNotificationService::class)->sendToUsers(
+                            app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->requested_by],
                                 'Permohonan Pembelian Disetujui',
                                 "Permohonan {$record->request_number} ({$record->item_name}) disetujui."
@@ -352,7 +352,7 @@ class PurchaseRequestResource extends Resource
                         $record->refresh();
 
                         if ($record->requested_by) {
-                            app(PushNotificationService::class)->sendToUsers(
+                            app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->requested_by],
                                 'Permohonan Pembelian Ditolak',
                                 "Permohonan {$record->request_number} ({$record->item_name}) ditolak: {$data['review_note']}"
@@ -474,7 +474,7 @@ class PurchaseRequestResource extends Resource
                         $record->refresh();
 
                         if ($record->requested_by) {
-                            app(PushNotificationService::class)->sendToUsers(
+                            app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->requested_by],
                                 'Permohonan Pembelian Terpenuhi',
                                 "Permohonan {$record->request_number} ({$record->item_name}) sudah terpenuhi, barang sudah tersedia."

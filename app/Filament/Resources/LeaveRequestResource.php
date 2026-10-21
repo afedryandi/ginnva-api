@@ -336,7 +336,7 @@ class LeaveRequestResource extends Resource
                             ->where('entry_type', 'alpha')
                             ->update(['entry_type' => 'leave']);
 
-                        app(PushNotificationService::class)->sendToUsers(
+                        app(\App\Services\StaffNotifier::class)->toUsers(
                             [$record->user_id],
                             'Pengajuan Izin Disetujui',
                             "Pengajuan {$record->request_number} ({$record->start_date->format('d M')}–{$record->end_date->format('d M Y')}) disetujui."
@@ -366,7 +366,7 @@ class LeaveRequestResource extends Resource
                             return;
                         }
 
-                        app(PushNotificationService::class)->sendToUsers(
+                        app(\App\Services\StaffNotifier::class)->toUsers(
                             [$record->user_id],
                             'Pengajuan Izin Ditolak',
                             "Pengajuan {$record->request_number} ditolak: {$data['review_note']}"

@@ -65,7 +65,7 @@ class CreateContractExtension extends CreateRecord
      */
     protected function afterCreate(): void
     {
-        app(PushNotificationService::class)->sendToUsers(
+        app(\App\Services\StaffNotifier::class)->toUsers(
             [$this->record->user_id],
             'Kontrak Kerja Diperpanjang',
             'Kontrak Anda telah diperpanjang sampai ' . $this->record->new_end_date->translatedFormat('d M Y') . '.'

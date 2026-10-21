@@ -382,7 +382,7 @@ class TechnicianResource extends Resource
                         $record->update(['status' => 'active']);
 
                         if ($record->user_id) {
-                            app(PushNotificationService::class)->sendToUsers(
+                            app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->user_id],
                                 'Akun Teknisi Diaktifkan',
                                 'Akun teknisi Anda sudah diaktifkan — sekarang Anda bisa ditugaskan ke booking.'
@@ -423,7 +423,7 @@ class TechnicianResource extends Resource
                         ]);
 
                         if ($record->user_id) {
-                            app(PushNotificationService::class)->sendToUsers(
+                            app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->user_id],
                                 'Pendaftaran Teknisi Ditolak',
                                 "Pendaftaran teknisi Anda ditolak: {$data['review_note']}"

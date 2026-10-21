@@ -20,13 +20,13 @@ class NotificationCatalogTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const IGNORED_SOURCES = ['Services/PushNotificationService.php'];
+    private const IGNORED_SOURCES = ['Services/PushNotificationService.php', 'Services/StaffNotifier.php'];
 
     /** @return list<string> berkas (relatif ke app/) yang memanggil sendTo*() di kode (komentar dan definisi fungsi diabaikan) */
     private function scanCallers(): array
     {
         $found = [];
-        $pattern = '/(sendToStoreStaff|sendToUsers|sendToBookingWatchers|sendToCustomer)\(/';
+        $pattern = '/(sendToStoreStaff|sendToUsers|sendToBookingWatchers|sendToCustomer)\(|StaffNotifier::class\)->(toStoreStaff|toUsers|toBookingWatchers)\(/';
         $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(app_path(), \FilesystemIterator::SKIP_DOTS));
 
         foreach ($iterator as $file) {

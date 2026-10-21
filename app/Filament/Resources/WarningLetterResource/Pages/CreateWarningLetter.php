@@ -38,7 +38,7 @@ class CreateWarningLetter extends CreateRecord
      */
     protected function afterCreate(): void
     {
-        app(PushNotificationService::class)->sendToUsers(
+        app(\App\Services\StaffNotifier::class)->toUsers(
             [$this->record->user_id],
             'Surat Peringatan Diterbitkan',
             'Anda menerima Surat Peringatan (' . strtoupper(str_replace('sp', 'SP ', $this->record->level)) . '). Buka app untuk lihat rincian.'

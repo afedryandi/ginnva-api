@@ -495,7 +495,7 @@ class PayrollResource extends Resource
                         }
 
                         if ($record->payment_requested_by) {
-                            app(PushNotificationService::class)->sendToUsers(
+                            app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->payment_requested_by],
                                 'Pengajuan Pembayaran Gaji Ditolak',
                                 "Pengajuan gaji {$record->user?->name} periode " . $record->period_month->translatedFormat('F Y') . ' ditolak: ' . $data['note']
@@ -584,7 +584,7 @@ class PayrollResource extends Resource
             return;
         }
 
-        app(PushNotificationService::class)->sendToUsers(
+        app(\App\Services\StaffNotifier::class)->toUsers(
             [$record->user_id],
             'Gaji Sudah Dibayar',
             'Gaji periode ' . $record->period_month->translatedFormat('F Y') . ' sudah ditransfer. Buka app untuk lihat rincian.'
