@@ -6,8 +6,8 @@ use App\Models\Vehicle;
 
 /**
  * Katalog kendaraan untuk dropdown merek → model di aplikasi (Fase 1 pengerjaan ulang booking, 2026-10-15), lengkap dengan
- * size_category yang menentukan harga PPF/kaca film. Hanya kendaraan yang sudah punya model (entri merek-saja tampil di panel admin
- * sebagai placeholder).
+ * size_category yang menentukan harga PPF/kaca film. Hanya kendaraan AKTIF yang sudah punya model (entri merek-saja tampil di panel admin
+ * sebagai placeholder; kendaraan nonaktif tidak ditawarkan lagi tetapi riwayatnya utuh).
  *
  * Casing merek dinormalkan: data lama campur "Toyota" (seeder awal) dan "TOYOTA" (migrasi perbaikan data). Kolom `brand` ber-collation
  * case-insensitive, jadi DISTINCT menggabungkannya jadi satu merek, TETAPI dropdown bertingkat di web dan mobile memfilter kendaraan per
@@ -22,14 +22,14 @@ class VehicleCatalogService
      */
     public function options(): array
     {
-        $brands = Vehicle::select('brand')->distinct()->orderBy('brand')->pluck('brand');
+        $brands = Vehicle::active()->select('brand')->distinct()->orderBy('brand')->pluck('brand');
 
         $canonicalCasing = [];
         foreach ($brands as $brand) {
             $canonicalCasing[mb_strtolower($brand)] = $brand;
         }
 
-        $vehicles = Vehicle::select('id', 'brand', 'model', 'variant', 'size_category')
+        $vehicles = Vehicle::active()->select('id', 'brand', 'model', 'variant', 'size_category')
             ->whereNotNull('model')
             ->orderBy('brand')
             ->orderBy('model')

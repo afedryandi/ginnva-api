@@ -17,16 +17,15 @@ class EditVehicle extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            // Sama dengan tombol Hapus di daftar: kendaraan yang masih dipakai quotation / studi kasus ditolak database
-            // (restrict); tanpa penangkapan ini staf melihat error 500 mentah dari halaman ubah.
+            // Sama dengan tombol Hapus di daftar: hanya kendaraan yang belum dipakai di mana pun yang bisa dihapus; sisanya dinonaktifkan.
             Actions\DeleteAction::make()
                 ->action(function () {
-                    try {
-                        $this->record->delete();
-                    } catch (QueryException $e) {
+                    $blocked = VehicleResource::tryDelete($this->record);
+
+                    if ($blocked !== null) {
                         Notification::make()
                             ->title('Tidak bisa menghapus kendaraan ini')
-                            ->body('Data kendaraan ini masih dipakai oleh quotation atau studi kasus yang terdaftar.')
+                            ->body($blocked)
                             ->danger()
                             ->send();
 

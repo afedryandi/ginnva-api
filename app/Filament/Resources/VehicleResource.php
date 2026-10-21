@@ -81,6 +81,42 @@ class VehicleResource extends Resource
             && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
     }
 
+    /** Panduan memilih kelas ukuran: contoh model nyata per kelas dari data yang sudah ada. */
+    public static function sizeHelp(): string
+    {
+        $parts = [];
+        foreach (Vehicle::sizeExamples() as $size => $examples) {
+            if ($examples !== []) {
+                $parts[] = $size . ': ' . implode(', ', $examples);
+            }
+        }
+
+        return 'Menentukan harga PPF dan kaca film (harga dibaca dari matriks per ukuran). Mengubah ukuran di sini mengubah harga acuan untuk semua booking dan penawaran berikutnya di SEMUA toko.'
+            . ($parts ? ' Contoh yang sudah terdaftar: ' . implode(' | ', $parts) . '.' : '');
+    }
+
+    /**
+     * Hapus kendaraan hanya bila belum dipakai di mana pun. Mengembalikan alasan (siap tampil) bila tidak bisa dihapus, null bila berhasil.
+     */
+    public static function tryDelete(Vehicle $record): ?string
+    {
+        $usage = $record->usageSummary();
+
+        if ($usage !== []) {
+            $text = collect($usage)->map(fn (int $count, string $label) => "{$count} {$label}")->implode(', ');
+
+            return "Kendaraan ini dipakai oleh {$text}. Nonaktifkan kendaraan ini alih-alih menghapusnya, supaya riwayatnya tetap utuh.";
+        }
+
+        try {
+            $record->delete();
+        } catch (QueryException $e) {
+            return 'Data kendaraan ini masih dipakai oleh penawaran atau studi kasus. Nonaktifkan kendaraan ini alih-alih menghapusnya.';
+        }
+
+        return null;
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -132,7 +168,7 @@ class VehicleResource extends Resource
 
                     Forms\Components\Select::make('size_category')
                         ->label('Kategori Ukuran')
-                        ->helperText('Menentukan harga PPF dan kaca film: harga dibaca dari matriks harga produk per ukuran. Mengubah ukuran di sini mengubah harga acuan untuk semua booking dan penawaran berikutnya di SEMUA toko.')
+                        ->helperText(fn () => static::sizeHelp())
                         ->options([
                             'S'   => 'S — Kecil (city car, hatchback)',
                             'M'   => 'M — Sedang (sedan, MPV kecil)',
@@ -142,6 +178,40 @@ class VehicleResource extends Resource
                         ])
                         ->in(['S', 'M', 'L', 'XL', 'XXL'])
                         ->required(),
+                ]),
+
+            Forms\Components\Section::make('Detail & Status')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\Select::make('body_type')
+                        ->label('Tipe Bodi')
+                        ->options(Vehicle::BODY_TYPES)
+                        ->native(false)
+                        ->placeholder('Belum diisi')
+                        ->helperText('Membantu memeriksa kategori ukuran dan membedakan generasi.'),
+
+                    Forms\Components\Toggle::make('is_active')
+                        ->label('Aktif di katalog')
+                        ->default(true)
+                        ->helperText('Nonaktifkan kendaraan yang tidak ditawarkan lagi. Riwayat penawaran dan kendaraan pelanggan tetap utuh; kendaraan nonaktif tidak muncul di aplikasi dan formulir.'),
+
+                    Forms\Components\TextInput::make('year_from')
+                        ->label('Tahun produksi dari')
+                        ->numeric()->integer()->minValue(1980)->maxValue(2100)
+                        ->placeholder('mis. 2019'),
+
+                    Forms\Components\TextInput::make('year_to')
+                        ->label('Tahun produksi sampai')
+                        ->numeric()->integer()->minValue(1980)->maxValue(2100)
+                        ->gte('year_from')
+                        ->placeholder('kosong = masih diproduksi')
+                        ->validationMessages(['gte' => 'Tahun akhir tidak boleh lebih kecil dari tahun awal.']),
+
+                    Forms\Components\TextInput::make('notes')
+                        ->label('Catatan')
+                        ->maxLength(255)
+                        ->columnSpanFull()
+                        ->placeholder('mis. generasi, kekhususan kaca/panel'),
                 ]),
         ]);
     }
@@ -171,12 +241,29 @@ class VehicleResource extends Resource
                     ->badge()
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('body_type')
+                    ->label('Tipe Bodi')
+                    ->formatStateUsing(fn (?string $state) => $state ? (Vehicle::BODY_TYPES[$state] ?? $state) : null)
+                    ->placeholder('—')
+                    ->toggleable(),
+
+                Tables\Columns\IconColumn::make('is_active')
+                    ->label('Aktif')
+                    ->boolean()
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Dibuat')
                     ->dateTime('d M Y')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Status')
+                    ->placeholder('Semua')
+                    ->trueLabel('Aktif')
+                    ->falseLabel('Nonaktif')
+                    ->default(true),
                 Tables\Filters\SelectFilter::make('size_category')
                     ->label('Kategori Ukuran')
                     ->options([
@@ -189,19 +276,29 @@ class VehicleResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                // quotations.vehicle_id pakai onDelete('restrict') — hapus
-                // kendaraan yang masih direferensikan quotation akan
-                // ditolak database. Ditangkap di sini supaya staff dapat
-                // pesan jelas, bukan error mentah (pola sama dengan
-                // FilmProductResource).
+                Tables\Actions\Action::make('toggle_active')
+                    ->label(fn (Vehicle $record) => $record->is_active ? 'Nonaktifkan' : 'Aktifkan')
+                    ->icon(fn (Vehicle $record) => $record->is_active ? 'heroicon-o-eye-slash' : 'heroicon-o-eye')
+                    ->color('gray')
+                    ->visible(fn () => static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false))
+                    ->requiresConfirmation()
+                    ->modalDescription(fn (Vehicle $record) => $record->is_active
+                        ? 'Kendaraan tidak akan muncul lagi di aplikasi dan formulir. Riwayat penawaran dan kendaraan pelanggan tetap utuh.'
+                        : 'Kendaraan akan muncul lagi di aplikasi dan formulir.')
+                    ->action(function (Vehicle $record) {
+                        $record->update(['is_active' => ! $record->is_active]);
+
+                        Notification::make()->title($record->is_active ? 'Kendaraan diaktifkan' : 'Kendaraan dinonaktifkan')->success()->send();
+                    }),
+                // Hapus hanya untuk kendaraan yang belum dipakai di mana pun (salah ketik). Yang sudah dipakai: nonaktifkan.
                 Tables\Actions\DeleteAction::make()
                     ->action(function (Vehicle $record) {
-                        try {
-                            $record->delete();
-                        } catch (QueryException $e) {
+                        $blocked = static::tryDelete($record);
+
+                        if ($blocked !== null) {
                             Notification::make()
                                 ->title('Tidak bisa menghapus kendaraan ini')
-                                ->body('Data kendaraan ini masih dipakai oleh quotation atau studi kasus yang terdaftar.')
+                                ->body($blocked)
                                 ->danger()
                                 ->send();
 
@@ -213,17 +310,21 @@ class VehicleResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    // SEBELUMNYA DeleteBulkAction::make() bawaan — beda
-                    // dari DeleteAction satuan di atas yang sudah
-                    // menangkap QueryException dengan pesan ramah, bulk
-                    // delete TIDAK punya proteksi sama sekali. Kalau 1
-                    // saja dari baris terpilih masih direferensikan
-                    // quotation (onDelete('restrict')), staff dapat error
-                    // mentah alih-alih pesan jelas. Custom action ini
-                    // proses satu-satu supaya baris yang AMAN tetap
-                    // terhapus, baris yang masih dipakai dilewati dengan
-                    // laporan jumlahnya. Ditemukan & diperbaiki 2026-08-29,
-                    // audit modul Kendaraan.
+                    // Hapus massal diproses satu-satu: baris yang belum dipakai terhapus, yang sudah dipakai dilewati dengan laporan jumlahnya
+                    // (bukan DeleteBulkAction bawaan yang gagal seluruhnya). Audit modul Kendaraan 2026-08-29; aturan pemakaian 2026-10-21.
+                    Tables\Actions\BulkAction::make('deactivate')
+                        ->label('Nonaktifkan')
+                        ->icon('heroicon-o-eye-slash')
+                        ->color('gray')
+                        ->visible(fn () => static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false))
+                        ->requiresConfirmation()
+                        ->action(function (\Illuminate\Support\Collection $records) {
+                            $records->each(fn (Vehicle $v) => $v->update(['is_active' => false]));
+
+                            Notification::make()->title($records->count() . ' kendaraan dinonaktifkan')->success()->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     Tables\Actions\BulkAction::make('delete')
                         ->label('Hapus')
                         ->icon('heroicon-o-trash')
@@ -235,10 +336,9 @@ class VehicleResource extends Resource
                             $blocked = 0;
 
                             foreach ($records as $record) {
-                                try {
-                                    $record->delete();
+                                if (static::tryDelete($record) === null) {
                                     $deleted++;
-                                } catch (QueryException $e) {
+                                } else {
                                     $blocked++;
                                 }
                             }
@@ -248,7 +348,7 @@ class VehicleResource extends Resource
                                     ->title($deleted > 0
                                         ? "{$deleted} kendaraan dihapus, {$blocked} tidak bisa dihapus"
                                         : 'Tidak ada kendaraan yang bisa dihapus')
-                                    ->body("{$blocked} kendaraan masih dipakai oleh quotation atau studi kasus yang terdaftar, dilewati.")
+                                    ->body("{$blocked} kendaraan masih dipakai oleh penawaran, studi kasus, atau kendaraan pelanggan, dilewati. Nonaktifkan saja kendaraan yang tidak ditawarkan lagi.")
                                     ->warning()
                                     ->send();
 
