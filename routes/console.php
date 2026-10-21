@@ -127,6 +127,10 @@ Schedule::command('notifications:prune-old')->dailyAt('04:10');
 // App\Console\Commands\CheckPushReceipts. Kuitansi baru tersedia sekitar 15 menit setelah kirim.
 Schedule::command('notifications:check-receipts')->everyFifteenMinutes()->withoutOverlapping();
 
+// Kirim kampanye notifikasi terjadwal yang sudah jatuh tempo (Notifikasi Fase 5) -- lihat
+// App\Console\Commands\SendScheduledCampaigns.
+Schedule::command('notifications:send-scheduled')->everyMinute()->withoutOverlapping();
+
 // Gap ditutup 2026-09-26 (audit Absensi Karyawan, "tidak ada notifikasi
 // proaktif") -- notif staff lupa clock-out (hari sebelumnya, setelah
 // mark-absences supaya tidak tumpang tindih) & staff yang belum absen

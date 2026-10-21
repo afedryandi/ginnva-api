@@ -268,6 +268,8 @@ class UserResource extends Resource
                 'PartnerNotificationResource' => 'Riwayat Notifikasi Partner',
                 'SendNotification' => 'Kirim Notifikasi',
                 'NotificationDeliveryResource' => 'Log Pengiriman',
+                'NotificationCampaignResource' => 'Kampanye Notifikasi',
+                'NotificationTemplateResource' => 'Templat Notifikasi',
                 'NotificationCatalogPage' => 'Katalog Notifikasi',
             ],
         ];

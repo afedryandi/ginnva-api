@@ -18,6 +18,12 @@ use Illuminate\Support\Facades\Log;
 class PushNotificationService
 {
     /**
+     * Kampanye yang sedang dikirim (Notifikasi Fase 5): diisi NotificationCampaignService selama satu pengiriman supaya catatan
+     * pengiriman tiap token tertaut ke kampanyenya. Null untuk pengiriman otomatis.
+     */
+    public static ?int $deliveryCampaignId = null;
+
+    /**
      * Kirim push ke satu customer tertentu (dipakai untuk notifikasi
      * booking/progress yang sifatnya personal, bukan broadcast).
      */
@@ -279,6 +285,7 @@ class PushNotificationService
         return [
             'user_id'     => $owners->get($token)?->user_id,
             'customer_id' => $owners->get($token)?->customer_id,
+            'campaign_id' => self::$deliveryCampaignId,
             'token'       => $token,
             'title'       => mb_substr($title, 0, 255),
             'ticket_id'   => $ticketId,

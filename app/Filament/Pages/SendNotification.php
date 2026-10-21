@@ -2,10 +2,14 @@
 
 namespace App\Filament\Pages;
 
-use App\Http\Controllers\Api\NotificationController;
 use App\Models\Customer;
-use App\Models\DeviceToken;
+use App\Models\NotificationTemplate;
 use App\Models\Partner;
+use App\Services\NotificationCampaignService;
+use App\Support\QuietHours;
+use Carbon\Carbon;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -15,9 +19,10 @@ use Filament\Forms\Components\Section;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Illuminate\Http\Request;
 
 class SendNotification extends Page implements HasForms
 {
@@ -32,6 +37,9 @@ class SendNotification extends Page implements HasForms
     protected static string  $view            = 'filament.pages.send-notification';
 
     public ?array $data = [];
+
+    /** Pratinjau penerima terakhir (Notifikasi Fase 5); null sebelum tombol Pratinjau ditekan atau setelah kirim. */
+    public ?array $preview = null;
 
     /** Rute tujuan deep link yang sah (harus sama dengan pilihan di form). */
     private const DEEP_LINK_ROUTES = [
@@ -57,7 +65,15 @@ class SendNotification extends Page implements HasForms
 
     public function mount(): void
     {
-        $this->form->fill(['audience' => 'customer', 'broadcast' => true, 'category' => 'promo']);
+        $this->form->fill($this->defaults());
+    }
+
+    /** @return array<string, mixed> */
+    private function defaults(string $audience = 'customer'): array
+    {
+        return $audience === 'partner'
+            ? ['audience' => 'partner', 'broadcast_partner' => true]
+            : ['audience' => 'customer', 'broadcast' => true, 'category' => 'promo'];
     }
 
     public function form(Form $form): Form
@@ -82,12 +98,40 @@ class SendNotification extends Page implements HasForms
                         'info'  => 'Informasi penting (jadwal, perubahan layanan, pemberitahuan)',
                     ])
                     ->descriptions([
-                        'promo' => 'Hanya dikirim ke pelanggan yang sudah menyetujui menerima promo di aplikasi. Dibatasi beberapa kali per minggu dan tidak dikirim pada jam tenang (' . \App\Support\QuietHours::label() . ').',
+                        'promo' => 'Hanya dikirim ke pelanggan yang sudah menyetujui menerima promo di aplikasi. Dibatasi beberapa kali per minggu dan tidak dikirim pada jam tenang (' . QuietHours::label() . ').',
                         'info'  => 'Dikirim ke semua pelanggan. Jangan dipakai untuk promosi.',
                     ])
                     ->default('promo')
                     ->required()
                     ->visible(fn ($get) => $get('audience') === 'customer'),
+
+                // Templat (Notifikasi Fase 5): memilih templat mengisi judul, isi, jenis pesan, dan deep link; tidak ikut dikirim.
+                Select::make('template_id')
+                    ->label('Pakai Templat (opsional)')
+                    ->placeholder('— Tulis pesan baru —')
+                    ->options(fn (Get $get) => NotificationTemplate::query()
+                        ->where('audience', $get('audience') === 'partner' ? 'partner' : 'customer')
+                        ->orderBy('name')
+                        ->pluck('name', 'id'))
+                    ->live()
+                    ->dehydrated(false)
+                    ->afterStateUpdated(function ($state, Set $set) {
+                        $template = $state ? NotificationTemplate::find($state) : null;
+
+                        if (! $template) {
+                            return;
+                        }
+
+                        $set('title', $template->title);
+                        $set('body', $template->body);
+
+                        if ($template->category) {
+                            $set('category', $template->category);
+                        }
+
+                        $set('deep_link_route', $template->data['deep_link_route'] ?? null);
+                        $set('deep_link_param_id', $template->data['deep_link_param_id'] ?? null);
+                    }),
 
                 TextInput::make('title')
                     ->label('Judul Notifikasi')
@@ -193,79 +237,98 @@ class SendNotification extends Page implements HasForms
                                 '/account/my-bookings',
                             ])),
                     ]),
+
+                // Kirim terjadwal (Notifikasi Fase 5). Waktu diisi dalam WIB.
+                Toggle::make('schedule')
+                    ->label('Jadwalkan pengiriman')
+                    ->helperText('Kampanye dikirim otomatis pada waktu yang dipilih. Promosi tidak bisa dijadwalkan pada jam tenang (' . QuietHours::label() . ').')
+                    ->live()
+                    ->default(false),
+
+                DateTimePicker::make('scheduled_at')
+                    ->label('Waktu Kirim (WIB)')
+                    ->timezone('Asia/Jakarta')
+                    ->seconds(false)
+                    ->required()
+                    ->visible(fn ($get) => (bool) $get('schedule')),
             ])
             ->statePath('data');
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('saveTemplate')
+                ->label('Simpan sebagai templat')
+                ->icon('heroicon-o-bookmark')
+                ->color('gray')
+                ->modalHeading('Simpan sebagai templat')
+                ->modalDescription('Judul, isi, jenis pesan, dan deep link yang sedang diisi disimpan untuk dipakai lagi.')
+                ->form([
+                    TextInput::make('name')->label('Nama Templat')->required()->maxLength(100),
+                ])
+                ->action(function (array $data): void {
+                    $state = $this->data;
+
+                    if (blank($state['title'] ?? null) || blank($state['body'] ?? null)) {
+                        Notification::make()->title('Isi judul dan pesan dulu')->body('Templat tidak bisa disimpan tanpa judul dan isi pesan.')->danger()->send();
+
+                        return;
+                    }
+
+                    $partner = ($state['audience'] ?? 'customer') === 'partner';
+
+                    NotificationTemplate::create([
+                        'name'       => $data['name'],
+                        'audience'   => $partner ? 'partner' : 'customer',
+                        'category'   => $partner ? null : (($state['category'] ?? 'promo') === 'info' ? 'info' : 'promo'),
+                        'title'      => $state['title'],
+                        'body'       => $state['body'],
+                        'data'       => $partner || blank($state['deep_link_route'] ?? null) ? null : [
+                            'deep_link_route'    => $state['deep_link_route'],
+                            'deep_link_param_id' => $state['deep_link_param_id'] ?? null,
+                        ],
+                        'created_by' => auth()->id(),
+                    ]);
+
+                    Notification::make()->title('Templat disimpan')->body("Templat \"{$data['name']}\" bisa dipilih lewat \"Pakai Templat\".")->success()->send();
+                }),
+        ];
+    }
+
+    /** Pratinjau penerima: berapa yang akan dikirimi dan kenapa sebagian dikecualikan, tanpa mengirim apa pun. */
+    public function previewRecipients(): void
+    {
+        $this->preview = app(NotificationCampaignService::class)->preview($this->form->getState());
     }
 
     public function send(): void
     {
         $state = $this->form->getState();
+        $service = app(NotificationCampaignService::class);
+        $isPartner = ($state['audience'] ?? 'customer') === 'partner';
+        $this->preview = null;
 
-        if (($state['audience'] ?? 'customer') === 'partner') {
-            $this->sendToPartners($state);
+        if (! empty($state['schedule'])) {
+            $this->schedule($state, $isPartner);
+
             return;
         }
 
-        // Route yang butuh ID record — field deep_link_param_id cuma
-        // relevan untuk dua ini (lihat ->visible() di form() di atas).
-        $routesNeedingId = ['/account/my-warranties', '/account/my-bookings'];
+        $campaign = $service->create($state, null, auth()->id());
+        $outcome = $service->dispatch($campaign);
 
-        // Susun data deep link kalau ada route yang dipilih. Field
-        // deep_link_param_id pakai ->visible() (bukan ->disabled()), yang
-        // TIDAK mencegah nilainya ikut ter-submit walau field-nya
-        // tersembunyi — kalau staff sempat isi ID lalu ganti pikiran pilih
-        // route lain yang tidak butuh ID, nilai lama itu tetap ada di
-        // $state. Dicek ulang di sini terhadap $routesNeedingId supaya ID
-        // basi tidak ikut terkirim untuk route yang tidak membutuhkannya.
-        $deepLinkData = null;
-        if (! empty($state['deep_link_route'])) {
-            $deepLinkData = ['route' => $state['deep_link_route']];
-
-            if (
-                in_array($state['deep_link_route'], $routesNeedingId, true)
-                && ! empty($state['deep_link_param_id'])
-            ) {
-                $deepLinkData['params'] = ['id' => (string) $state['deep_link_param_id']];
-            }
-        }
-
-        // Delegate ke NotificationController supaya logika FCM v1 tidak duplikat
-        $fakeRequest = Request::create('/api/notifications/send', 'POST', [
-            'title'        => $state['title'],
-            'body'         => $state['body'],
-            'customer_ids' => empty($state['broadcast']) ? ($state['customer_ids'] ?? []) : null,
-            'data'         => $deepLinkData,
-            'category'     => ($state['category'] ?? 'promo') === 'info' ? 'info' : 'promo',
-        ]);
-
-        // $controller->send() dipanggil langsung (bukan lewat HTTP kernel),
-        // jadi ValidationException dari $request->validate() di dalamnya
-        // TIDAK otomatis ditangkap & dikonversi ke response seperti request
-        // HTTP normal — akan lolos sebagai error mentah ke Livewire kalau
-        // tidak ditangkap di sini (mis. kalau ada customer_id yang basi,
-        // sempat dihapus sebelum form ini disubmit).
-        try {
-            $controller = app(NotificationController::class);
-            $response   = $controller->send($fakeRequest);
-            $result     = $response->getData(true);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        if (! $outcome['ok']) {
             Notification::make()
                 ->title('Gagal mengirim notifikasi')
-                ->body(collect($e->errors())->flatten()->implode(' '))
+                ->body($outcome['message'])
                 ->danger()
                 ->send();
+
             return;
         }
 
-        if ($response->getStatusCode() >= 400) {
-            Notification::make()
-                ->title('Gagal mengirim notifikasi')
-                ->body($result['message'] ?? 'Terjadi kesalahan.')
-                ->danger()
-                ->send();
-            return;
-        }
-
+        $result = $outcome['result'];
         $sent   = $result['sent']   ?? 0;
         $failed = $result['failed'] ?? 0;
 
@@ -286,52 +349,38 @@ class SendNotification extends Page implements HasForms
             ->success()
             ->send();
 
-        $this->form->fill(['audience' => 'customer', 'broadcast' => true, 'category' => 'promo']);
+        $this->form->fill($this->defaults($isPartner ? 'partner' : 'customer'));
     }
 
-    /**
-     * Delegate ke NotificationController::sendPartner() supaya logika FCM
-     * v1 & penyimpanan history tidak duplikat — lihat catatan di send()
-     * di atas untuk kenapa dipanggil lewat fake Request, bukan langsung.
-     */
-    private function sendToPartners(array $state): void
+    /** Simpan sebagai kampanye terjadwal; pengiriman dilakukan oleh notifications:send-scheduled. */
+    private function schedule(array $state, bool $isPartner): void
     {
-        $fakeRequest = Request::create('/api/partner-notifications/send', 'POST', [
-            'title'       => $state['title'],
-            'body'        => $state['body'],
-            'partner_ids' => empty($state['broadcast_partner']) ? ($state['partner_ids'] ?? []) : null,
-        ]);
+        $at = Carbon::parse($state['scheduled_at'], config('app.timezone'));
 
-        try {
-            $controller = app(NotificationController::class);
-            $response    = $controller->sendPartner($fakeRequest);
-            $result      = $response->getData(true);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Notification::make()
-                ->title('Gagal mengirim notifikasi')
-                ->body(collect($e->errors())->flatten()->implode(' '))
-                ->danger()
-                ->send();
+        if ($at->lt(now()->addMinutes(2))) {
+            Notification::make()->title('Waktu kirim terlalu dekat')->body('Pilih waktu minimal 2 menit dari sekarang.')->danger()->send();
+
             return;
         }
 
-        if ($response->getStatusCode() >= 400) {
+        if (! $isPartner && ($state['category'] ?? 'promo') === 'promo' && QuietHours::active($at)) {
             Notification::make()
-                ->title('Gagal mengirim notifikasi')
-                ->body($result['message'] ?? 'Terjadi kesalahan.')
+                ->title('Waktu kirim jatuh pada jam tenang')
+                ->body('Promosi tidak dikirim pada ' . QuietHours::label() . '. Pilih waktu di luar jam tersebut.')
                 ->danger()
                 ->send();
+
             return;
         }
 
-        $sent   = $result['sent']   ?? 0;
-        $failed = $result['failed'] ?? 0;
+        app(NotificationCampaignService::class)->create($state, $at, auth()->id());
 
         Notification::make()
-            ->title("Terkirim: {$sent} perangkat" . ($failed > 0 ? ", gagal: {$failed}" : ''))
+            ->title('Kampanye dijadwalkan')
+            ->body('Dikirim otomatis pada ' . $at->copy()->setTimezone('Asia/Jakarta')->format('d M Y, H:i') . ' WIB. Pantau di Kampanye Notifikasi.')
             ->success()
             ->send();
 
-        $this->form->fill(['audience' => 'partner', 'broadcast_partner' => true]);
+        $this->form->fill($this->defaults($isPartner ? 'partner' : 'customer'));
     }
 }

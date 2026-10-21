@@ -79,10 +79,11 @@ class NotificationDeliveryTest extends TestCase
         $user = $this->user();
         $this->token($user, 'ExponentPushToken[x]');
 
-        Http::fake([self::SEND => Http::response(['data' => [['status' => 'error', 'message' => 'MessageTooBig', 'details' => ['error' => 'MessageTooBig']]]])]);
+        // Stub Http::fake pertama menang, jadi dua balasan berurutan lewat satu urutan.
+        Http::fake([self::SEND => Http::sequence()
+            ->push(['data' => [['status' => 'error', 'message' => 'MessageTooBig', 'details' => ['error' => 'MessageTooBig']]]])
+            ->push(['errors' => [['code' => 'SERVER']]], 500)]);
         app(PushNotificationService::class)->sendToUsers([$user->id], 'Halo', 'Isi');
-
-        Http::fake([self::SEND => Http::response(['errors' => [['code' => 'SERVER']]], 500)]);
         app(PushNotificationService::class)->sendToUsers([$user->id], 'Halo', 'Isi');
 
         $rows = NotificationDelivery::orderBy('id')->get();

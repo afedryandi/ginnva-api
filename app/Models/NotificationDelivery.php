@@ -23,7 +23,7 @@ class NotificationDelivery extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['user_id', 'customer_id', 'token', 'title', 'ticket_id', 'status', 'error', 'sent_at', 'checked_at'];
+    protected $fillable = ['user_id', 'customer_id', 'campaign_id', 'token', 'title', 'ticket_id', 'status', 'error', 'sent_at', 'checked_at'];
 
     protected $casts = ['sent_at' => 'datetime', 'checked_at' => 'datetime'];
 

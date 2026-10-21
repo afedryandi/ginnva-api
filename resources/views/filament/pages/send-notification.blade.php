@@ -20,7 +20,36 @@
         <div>
             {{ $this->form }}
 
-            <div class="mt-6">
+            @if ($preview)
+                <div class="mt-6 rounded-lg border border-gray-200 p-4 text-sm dark:border-white/10" data-testid="recipient-preview">
+                    <div class="font-semibold">Pratinjau penerima</div>
+                    <p class="mt-1">
+                        <span class="tabular-nums font-semibold">{{ number_format($preview['recipients'], 0, ',', '.') }}</span> penerima,
+                        <span class="tabular-nums font-semibold">{{ number_format($preview['devices'], 0, ',', '.') }}</span> perangkat akan dikirimi.
+                        @if ($preview['excluded'] !== null)
+                            <span class="text-gray-500 dark:text-gray-400">
+                                {{ number_format($preview['excluded'], 0, ',', '.') }} pelanggan dilewati karena {{ $preview['excluded_reason'] }}.
+                            </span>
+                        @endif
+                    </p>
+                    @foreach ($preview['warnings'] as $warning)
+                        <p class="mt-2 font-medium text-warning-600 dark:text-warning-400">{{ $warning }}</p>
+                    @endforeach
+                </div>
+            @endif
+
+            <div class="mt-6 flex flex-wrap gap-3">
+                <x-filament::button
+                    type="button"
+                    color="gray"
+                    wire:click="previewRecipients"
+                    wire:loading.attr="disabled"
+                    wire:target="previewRecipients"
+                    icon="heroicon-o-eye"
+                >
+                    Pratinjau Penerima
+                </x-filament::button>
+
                 <x-filament::button
                     type="button"
                     wire:click="send"
@@ -29,7 +58,7 @@
                     wire:target="send"
                     icon="heroicon-o-paper-airplane"
                 >
-                    <span wire:loading.remove wire:target="send">Kirim Notifikasi</span>
+                    <span wire:loading.remove wire:target="send">{{ ! empty($this->data['schedule']) ? 'Jadwalkan Notifikasi' : 'Kirim Notifikasi' }}</span>
                     <span wire:loading wire:target="send">Mengirim...</span>
                 </x-filament::button>
             </div>
