@@ -201,7 +201,8 @@ class BookingSaleApiTest extends TestCase
     {
         $booking = $this->booking();
 
-        $this->sell($booking, $this->body(), $this->user('kasir', $this->otherStore))->assertStatus(403);
+        // Pembatas toko global pada Booking membuat booking toko lain tidak terlihat sama sekali: 404 (tidak membocorkan keberadaannya).
+        $this->sell($booking, $this->body(), $this->user('kasir', $this->otherStore))->assertStatus(404);
         $this->sell($booking, $this->body(), $this->user('installer'))->assertStatus(403);
         $this->sell($booking, $this->body(), $this->user('partner'))->assertStatus(403);
         $this->assertNull($booking->fresh()->journal_entry_id);
