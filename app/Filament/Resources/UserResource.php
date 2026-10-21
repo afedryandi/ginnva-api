@@ -256,6 +256,7 @@ class UserResource extends Resource
                 'VehicleResource' => 'Kendaraan',
                 'StoreResource' => 'Toko/Dealer',
                 'VehicleGlassAreaResource' => 'Luas Kaca',
+                'MasterDataCenter' => 'Pusat Master Data',
                 'ScrollCodeResource' => 'Kode Gulungan',
                 // PriceRuleResource ('Koefisien Harga') SENGAJA tidak di
                 // sini — resource-nya hidden (shouldRegisterNavigation
