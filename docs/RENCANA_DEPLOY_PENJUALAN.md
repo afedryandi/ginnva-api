@@ -47,7 +47,7 @@ Tidak ada migrasi yang menghapus atau mengubah isi data uang. Kebijakan RUNBOOK 
 git branch --show-current && git status --short && git log --oneline -1 && php artisan migrate:status | grep -i pending
 ```
 
-   Harapan: cabang `development`, `status` kosong (selain berkas lama yang sudah dikenal), dan tepat **3** migrasi `Pending` (`2026_11_10`, `2026_11_11`, `2026_11_12`). Bila ada migrasi pending lain yang tidak dikenal, **berhenti dan lapor**.
+   Harapan: cabang `development`, `status` kosong (selain berkas lama yang sudah dikenal), dan **tidak ada** migrasi `Pending` (kode di server belum memuat berkas migrasi baru sebelum `git pull`; tiga migrasi baru baru terlihat sesudah pull, bagian 5). Bila ada migrasi pending yang tidak dikenal, **berhenti dan lapor**.
 2. **Pastikan cadangan hari ini ada:**
 
 ```bash
