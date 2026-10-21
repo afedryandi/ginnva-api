@@ -138,7 +138,12 @@ class ActivityReadabilityTest extends TestCase
         $custom = $this->log(['description' => 'Radius absen toko diubah']);
 
         $id = $this->store->id;
-        $this->assertSame("Toko #{$id} diubah (Status, Toko, Catatan)", ActivityPresenter::describe($updated));
+        // Kolom JSON MySQL tidak mempertahankan urutan kunci, jadi urutan label tidak diuji.
+        $sentence = ActivityPresenter::describe($updated);
+        $this->assertStringStartsWith("Toko #{$id} diubah (", $sentence);
+        foreach (['Status', 'Toko', 'Catatan'] as $label) {
+            $this->assertStringContainsString($label, $sentence);
+        }
         $this->assertSame("Toko #{$id} dibuat", ActivityPresenter::describe($created));
         $this->assertSame("Toko #{$id} dihapus", ActivityPresenter::describe($deleted));
         $this->assertSame('Radius absen toko diubah', ActivityPresenter::describe($custom), 'Deskripsi yang sudah rapi tidak diubah.');
