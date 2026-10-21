@@ -1,0 +1,107 @@
+<?php
+
+namespace App\Support;
+
+/**
+ * Katalog Notifikasi (Notifikasi Fase 0, 2026-10-21): daftar tunggal tempat-tempat di kode yang mengirim push ke pelanggan atau staf.
+ * Dihasilkan dari pemindaian kode lalu dirapikan; sumber kebenarannya TETAP kode. Tes NotificationCatalogTest memeriksa bahwa setiap berkas
+ * yang memanggil PushNotificationService::sendTo*() terdaftar di sini, jadi pengirim baru tidak bisa lolos tanpa dicatat.
+ *
+ * Kolom: audience (pelanggan, staf_toko, pengguna, pemantau), source (berkas di app/), title (judul pesan; deskripsi bila judulnya dinamis),
+ * panel_inbox (berkas itu juga membuat notifikasi di lonceng panel lewat sendToDatabase; berlaku per berkas, bukan per pesan).
+ */
+class NotificationCatalog
+{
+    /** @return list<array{audience: string, source: string, title: string, panel_inbox: bool}> */
+    public static function all(): array
+    {
+        return [
+            ['audience' => 'pelanggan', 'source' => 'Console/Commands/NotifyExpiringWarranties.php', 'title' => 'Garansi Akan Berakhir', 'panel_inbox' => true],
+            ['audience' => 'pelanggan', 'source' => 'Console/Commands/ProcessMaintenanceSchedules.php', 'title' => 'Jadwalkan Ulang Maintenance PPF', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Filament/Resources/PointTransactionResource/Pages/CreatePointTransaction.php', 'title' => 'Poin Bertambah', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Filament/Resources/WarrantyResource.php', 'title' => 'Garansi Baru di Akun Anda', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Filament/Resources/WarrantyResource.php', 'title' => 'Garansi Dibatalkan', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Filament/Resources/WarrantyResource.php', 'title' => 'Kepemilikan Garansi Dipindahkan', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Filament/Resources/WarrantyResource.php', 'title' => 'Kunjungan Maintenance Dibatalkan', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Filament/Resources/WarrantyResource.php', 'title' => 'Kunjungan Maintenance Tercatat', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Filament/Resources/WarrantyResource/RelationManagers/ClaimsRelationManager.php', 'title' => 'Klaim After-Sales Disetujui', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Filament/Resources/WarrantyResource/RelationManagers/ClaimsRelationManager.php', 'title' => 'Klaim After-Sales Ditolak', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Filament/Resources/WarrantyResource/RelationManagers/MaintenanceSchedulesRelationManager.php', 'title' => 'Booking Maintenance PPF Dibuat', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Http/Controllers/Api/Staff/BookingQcController.php', 'title' => 'Kendaraan Siap Diambil', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Models/WarrantyMaintenanceSchedule.php', 'title' => 'Kuota Maintenance Habis', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Models/WarrantyMaintenanceSchedule.php', 'title' => 'Siklus Maintenance Berakhir', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Observers/BookingMessageObserver.php', 'title' => 'Pesan atau progres booking untuk pelanggan', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Observers/BookingObserver.php', 'title' => 'Booking Dibatalkan', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Observers/BookingObserver.php', 'title' => 'Booking Dikonfirmasi', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Observers/BookingObserver.php', 'title' => 'Jadwal Booking Berubah', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Observers/BookingObserver.php', 'title' => 'Pengajuan Ditutup', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Observers/InvoiceObserver.php', 'title' => 'Invoice Baru', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Observers/RewardRedemptionObserver.php', 'title' => 'Status penukaran reward', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Observers/WarrantyObserver.php', 'title' => 'Garansi Disetujui', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Observers/WarrantyObserver.php', 'title' => 'Garansi Ditolak', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Services/BookingCancellationService.php', 'title' => 'Pengajuan Pembatalan Ditolak', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Services/BookingReminderService.php', 'title' => 'Jadwal Anda Hari Ini', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Services/BookingReminderService.php', 'title' => 'Pengingat Jadwal 2 Hari Lagi', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Services/BookingReminderService.php', 'title' => 'Pengingat Jadwal Besok', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Services/BookingRescheduleService.php', 'title' => 'Jadwal Booking Berubah', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Services/BookingRescheduleService.php', 'title' => 'Pengajuan Jadwal Ulang Ditolak', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Services/ReferralPointService.php', 'title' => 'Bonus Ajak Teman', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Services/ReferralPointService.php', 'title' => 'Poin Bertambah', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Services/RefundService.php', 'title' => 'Refund Diproses', 'panel_inbox' => false],
+            ['audience' => 'pelanggan', 'source' => 'Services/ServiceReminderService.php', 'title' => 'Pengingat servis berkala', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/NotifyExpiringContracts.php', 'title' => 'Kontrak Kerja Anda Akan Berakhir', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/NotifyStaleQuotations.php', 'title' => 'Lead Belum Di-follow-up', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindPayableDue.php', 'title' => 'Hutang Usaha Jatuh Tempo', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindPendingBookingRequests.php', 'title' => 'Pengajuan Customer Belum Ditindak', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindPendingBookingRequests.php', 'title' => 'Pengajuan Customer Menunggu', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindPendingBookings.php', 'title' => 'Booking Pending Belum Ditindak', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindPendingBookings.php', 'title' => 'Booking pending menunggu konfirmasi (pengingat)', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindPendingExpenseApprovals.php', 'title' => 'Pengajuan Pengeluaran Menunggu', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindPendingTransactionApprovals.php', 'title' => 'Pengajuan Transaksi Menunggu', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindReceivableDue.php', 'title' => 'Piutang Usaha Perlu Ditagih', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindStaleLeads.php', 'title' => 'Lead belum ditindak (per jenis lead)', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/SendBookingDailyReminders.php', 'title' => 'Booking Lewat Tanggal', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Pages/WorkScheduleCalendarReport.php', 'title' => 'Jadwal Kerja Diubah', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/ContractExtensionResource/Pages/CreateContractExtension.php', 'title' => 'Kontrak Kerja Diperpanjang', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/LeaveRequestResource.php', 'title' => 'Pengajuan Izin Disetujui', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/LeaveRequestResource.php', 'title' => 'Pengajuan Izin Ditolak', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/PayrollResource.php', 'title' => 'Gaji Sudah Dibayar', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/PayrollResource.php', 'title' => 'Pengajuan Pembayaran Gaji Ditolak', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/PurchaseRequestResource.php', 'title' => 'Permohonan Pembelian Disetujui', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/PurchaseRequestResource.php', 'title' => 'Permohonan Pembelian Ditolak', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/PurchaseRequestResource.php', 'title' => 'Permohonan Pembelian Terpenuhi', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/ShiftResource/Pages/EditShift.php', 'title' => 'Jam Shift Berubah', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/TechnicianResource.php', 'title' => 'Akun Teknisi Diaktifkan', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/TechnicianResource.php', 'title' => 'Pendaftaran Teknisi Ditolak', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/WarningLetterResource/Pages/CreateWarningLetter.php', 'title' => 'Surat Peringatan Diterbitkan', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/WorkScheduleResource.php', 'title' => 'Jadwal Kerja Baru', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/WorkScheduleResource/Pages/EditWorkSchedule.php', 'title' => 'Jadwal Kerja Berubah', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Http/Controllers/Api/Staff/BookingController.php', 'title' => 'Penugasan Dicabut', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Http/Controllers/Api/Staff/BookingController.php', 'title' => 'Penugasan Instalasi Baru', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Observers/BookingMessageObserver.php', 'title' => 'Pesan pelanggan di booking untuk staf', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Observers/BookingObserver.php', 'title' => 'Booking Dibatalkan', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Observers/BookingObserver.php', 'title' => 'Jadwal Instalasi Berubah', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Observers/QuotationObserver.php', 'title' => 'Lead Baru', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Services/AttendanceCorrectionService.php', 'title' => 'Keputusan koreksi absen untuk pemohon', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/BookingReminderService.php', 'title' => 'Jadwal Instalasi Besok', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Services/FinanceTransactionApprovalService.php', 'title' => 'Pengajuan Pengeluaran Ditolak', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/FinanceTransactionApprovalService.php', 'title' => 'Pengeluaran Disetujui', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/FinanceTransactionApprovalService.php', 'title' => 'Pengeluaran Menunggu Persetujuan', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/TransactionApprovalService.php', 'title' => 'Keputusan pengajuan transaksi untuk pemohon', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/TransactionApprovalService.php', 'title' => 'Menunggu persetujuan (per jenis pengajuan)', 'panel_inbox' => true],
+            ['audience' => 'staf_toko', 'source' => 'Console/Commands/NotifyForgottenClockouts.php', 'title' => 'Ada Absensi Belum Lengkap', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Console/Commands/NotifyMissingClockins.php', 'title' => 'Karyawan Belum Absen Masuk', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Console/Commands/NotifyStaleQuotations.php', 'title' => 'Lead Belum Di-follow-up', 'panel_inbox' => true],
+            ['audience' => 'staf_toko', 'source' => 'Http/Controllers/Api/Customer/BookingController.php', 'title' => 'Booking Dibatalkan Customer', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Http/Controllers/Api/Customer/BookingController.php', 'title' => 'Pengajuan Jadwal Ulang', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Http/Controllers/Api/Customer/BookingController.php', 'title' => 'Pengajuan Pembatalan Booking', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Observers/BookingObserver.php', 'title' => 'Booking Baru', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Observers/InvoiceObserver.php', 'title' => 'Invoice Baru Dibuat', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Observers/InvoiceObserver.php', 'title' => 'Perubahan status invoice untuk staf', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Observers/QuotationObserver.php', 'title' => 'Lead Baru', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Observers/SpkObserver.php', 'title' => 'SPK Baru Dibuat', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Observers/SpkObserver.php', 'title' => 'SPK Selesai', 'panel_inbox' => false],
+            ['audience' => 'staf_toko', 'source' => 'Observers/StoreReviewObserver.php', 'title' => 'Review Negatif Masuk', 'panel_inbox' => true],
+        ];
+    }
+}
