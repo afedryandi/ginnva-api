@@ -231,6 +231,16 @@ class SalesDashboard extends Page
         return ($user?->isFullAccess() ?? false) ? $this->storeId : $user?->store_id;
     }
 
+    /**
+     * Indikator Penjualan (Penjualan Fase 6): per jenis layanan, layanan ganda, pelanggan kembali, potongan, per toko. Lihat SalesKpiService.
+     */
+    public function getKpis(): array
+    {
+        [$start, $end] = $this->currentRange();
+
+        return app(\App\Services\SalesKpiService::class)->kpis($start, $end, $this->effectiveStoreId());
+    }
+
     public function getResult(): array
     {
         if ($this->resultCache !== null) {

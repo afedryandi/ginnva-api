@@ -255,6 +255,73 @@
             </div>
         @endif
 
+        @php
+            $kpis = $this->getKpis();
+            $pct = fn ($n) => number_format($n, 1, ',', '.') . '%';
+        @endphp
+        <div class="mt-6 border-t border-gray-200 pt-4 dark:border-white/10">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Indikator Penjualan</h3>
+            @if ($kpis['count'] === 0)
+                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Belum ada penjualan tercatat pada periode ini.</p>
+            @else
+                <div class="mt-3 grid gap-4 md:grid-cols-3">
+                    <div>
+                        <x-metric-label tooltip="Booking yang punya lebih dari satu jenis layanan (mis. PPF + Kaca Film, atau layanan + Premium Wash) dibagi seluruh transaksi periode ini.">Transaksi Multi-Layanan</x-metric-label>
+                        <div class="mt-1 text-lg font-bold tabular-nums">{{ $pct($kpis['multi_service']['pct']) }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">{{ $kpis['multi_service']['count'] }} dari {{ $kpis['count'] }} transaksi</div>
+                    </div>
+                    <div>
+                        <x-metric-label tooltip="Pelanggan periode ini yang sebelumnya pernah punya penjualan tercatat, dibagi seluruh pelanggan periode ini. Memperhitungkan semua toko.">Pelanggan Kembali</x-metric-label>
+                        <div class="mt-1 text-lg font-bold tabular-nums">{{ $pct($kpis['customers']['pct']) }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">{{ $kpis['customers']['returning'] }} dari {{ $kpis['customers']['total'] }} pelanggan</div>
+                    </div>
+                    <div>
+                        <x-metric-label tooltip="Voucher + promo total pembelian + potongan baris dan nego, dibagi nilai sebelum potongan. Potongan baris/nego hanya terhitung untuk booking yang punya rincian harga.">Potongan Diberikan</x-metric-label>
+                        <div class="mt-1 text-lg font-bold tabular-nums">{{ $rupiah($kpis['discounts']['total']) }} <span class="text-xs font-normal text-gray-500 dark:text-gray-400">({{ $pct($kpis['discounts']['pct_of_gross']) }})</span></div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">Voucher {{ $rupiah($kpis['discounts']['voucher']) }} · Promo {{ $rupiah($kpis['discounts']['promo']) }} · Potongan/nego {{ $rupiah($kpis['discounts']['other']) }}</div>
+                    </div>
+                </div>
+
+                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Penjualan per Jenis Layanan</div>
+                        <table class="mt-2 w-full text-sm tabular-nums">
+                            @foreach ($kpis['by_type'] as $row)
+                                <tr class="border-b border-gray-100 last:border-0 dark:border-white/5">
+                                    <td class="py-1 pe-3">{{ $row['label'] }}</td>
+                                    <td class="py-1 pe-3 text-right text-gray-500 dark:text-gray-400">{{ $row['count'] }} transaksi</td>
+                                    <td class="py-1 pe-3 text-right">{{ $rupiah($row['revenue']) }}</td>
+                                    <td class="py-1 text-right text-gray-500 dark:text-gray-400">{{ $pct($row['pct']) }}</td>
+                                </tr>
+                            @endforeach
+                        </table>
+                    </div>
+                    @if (count($kpis['by_store']) > 1)
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Penjualan per Toko</div>
+                            <table class="mt-2 w-full text-sm tabular-nums">
+                                @foreach ($kpis['by_store'] as $row)
+                                    <tr class="border-b border-gray-100 last:border-0 dark:border-white/5">
+                                        <td class="py-1 pe-3">{{ $row['name'] }}</td>
+                                        <td class="py-1 pe-3 text-right text-gray-500 dark:text-gray-400">{{ $row['count'] }} transaksi</td>
+                                        <td class="py-1 pe-3 text-right">{{ $rupiah($row['revenue']) }}</td>
+                                        <td class="py-1 text-right text-gray-500 dark:text-gray-400">rata-rata {{ $rupiah($row['avg']) }}</td>
+                                    </tr>
+                                @endforeach
+                            </table>
+                        </div>
+                    @endif
+                </div>
+
+                <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                    Rincian harga tercatat pada {{ $kpis['lines_coverage']['with_lines'] }} dari {{ $kpis['count'] }} transaksi ({{ $pct($kpis['lines_coverage']['pct']) }}).
+                    @if ($kpis['lines_coverage']['pct'] < 100)
+                        Transaksi tanpa rincian dibagi rata antar jenis layanan dan tidak punya data potongan baris/nego, jadi angka di atas akan makin akurat seiring rincian diisi.
+                    @endif
+                </p>
+            @endif
+        </div>
+
         <details class="mt-4 rounded-lg border border-gray-200 text-sm dark:border-white/10">
             <summary class="cursor-pointer px-3 py-2 font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5">
                 Cara baca angka
