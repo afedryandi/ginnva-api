@@ -167,17 +167,20 @@ class StoreReviewTest extends TestCase
         $managerNoMenu = $this->user('store_manager', $this->store->id, ['SomeOtherResource']);
         $managerOtherStore = $this->user('store_manager', $this->otherStore->id);
 
+        // Membuat review juga membuat Booking, yang kini masuk kotak masuk staf ("Booking Baru"); hitung hanya notifikasi review.
+        $reviewAlerts = fn (User $u) => $u->notifications()->get()->filter(fn ($n) => $n->data['title'] === 'Review Negatif Masuk')->count();
+
         $this->review('positive');
         foreach ([$admin, $managerSameStore, $managerNoMenu, $managerOtherStore] as $u) {
-            $this->assertSame(0, $u->notifications()->count(), 'Review positif tidak memicu notifikasi.');
+            $this->assertSame(0, $reviewAlerts($u), 'Review positif tidak memicu notifikasi.');
         }
 
         $this->review('negative');
 
-        $this->assertSame(1, $admin->notifications()->count());
-        $this->assertSame(1, $managerSameStore->notifications()->count());
-        $this->assertSame(0, $managerNoMenu->notifications()->count(), 'Tanpa akses menu Review Toko tidak diberi tahu.');
-        $this->assertSame(0, $managerOtherStore->notifications()->count(), 'Toko lain tidak diberi tahu.');
+        $this->assertSame(1, $reviewAlerts($admin));
+        $this->assertSame(1, $reviewAlerts($managerSameStore));
+        $this->assertSame(0, $reviewAlerts($managerNoMenu), 'Tanpa akses menu Review Toko tidak diberi tahu.');
+        $this->assertSame(0, $reviewAlerts($managerOtherStore), 'Toko lain tidak diberi tahu.');
     }
 
     // ------------------------------------------------------------- Filament
