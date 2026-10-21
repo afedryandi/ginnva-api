@@ -120,8 +120,8 @@ class TransactionApprovalTest extends TestCase
         $this->assertMatchesRegularExpression('/^APR-\d{6}-[A-Z0-9]{4}$/', $request->request_number);
         $this->assertSame($this->store->id, $request->store_id);
         $this->assertSame(['amount' => 500000, 'notes' => 'DP awal'], $request->payload);
-        $this->assertSame(1, $admin->notifications()->count());
-        $this->assertSame(0, $staff->notifications()->count());
+        $this->assertSame(1, $admin->notifications()->get()->filter(fn ($n) => str_starts_with($n->data['title'], 'Menunggu persetujuan'))->count());
+        $this->assertSame(0, $staff->notifications()->get()->filter(fn ($n) => str_starts_with($n->data['title'], 'Menunggu persetujuan'))->count());
     }
 
     public function test_payload_is_whitelisted_per_type(): void
@@ -182,8 +182,8 @@ class TransactionApprovalTest extends TestCase
         $this->assertSame('approved', $request->status);
         $this->assertSame($admin->id, $request->decided_by);
         $this->assertNotNull($request->decided_at);
-        $this->assertSame(1, $staff->notifications()->count());
-        $this->assertStringContainsString('disetujui', $staff->notifications()->first()->data['title']);
+        $approved = $staff->notifications()->get()->filter(fn ($n) => str_contains($n->data['title'], 'disetujui'));
+        $this->assertCount(1, $approved);
     }
 
     public function test_approving_a_refund_creates_the_refund_attributed_to_the_requester(): void

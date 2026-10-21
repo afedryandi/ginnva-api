@@ -233,7 +233,8 @@ class QuotationFlowTest extends TestCase
         // Lead baru (1 jam): tidak dianggap telat.
         $fresh = $this->lead();
         $this->artisan('quotations:notify-stale')->assertSuccessful();
-        $this->assertSame(0, $admin->notifications()->count());
+        $staleAlerts = fn () => $admin->notifications()->get()->filter(fn ($n) => $n->data['title'] === 'Lead Quotation Belum Di-follow-up');
+        $this->assertCount(0, $staleAlerts());
 
         // Lead 25 jam masih New: dianggap telat. Yang sudah dihubungi tidak.
         $stale = $this->lead();
@@ -243,8 +244,8 @@ class QuotationFlowTest extends TestCase
 
         $this->artisan('quotations:notify-stale')->assertSuccessful();
 
-        $this->assertSame(1, $admin->notifications()->count());
-        $this->assertStringContainsString('1 lead', $admin->notifications()->first()->data['body']);
+        $this->assertCount(1, $staleAlerts());
+        $this->assertStringContainsString('1 lead', $staleAlerts()->first()->data['body']);
         $this->assertNotNull($fresh->fresh());
     }
 

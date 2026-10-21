@@ -112,6 +112,9 @@ class BookingStageAndReminderTest extends TestCase
         ]);
         DB::table('booking_reschedule_requests')->where('id', $request->id)->update(['created_at' => now()->subHours(5)]);
 
+        // Tanpa penerima, pengirim memang tidak mengirim apa pun; pastikan ada satu super admin.
+        \App\Models\User::create(['name' => 'Admin', 'email' => uniqid() . '@test.local', 'password' => 'x', 'is_active' => true])->assignRole('super_admin');
+
         $push = $this->mock(PushNotificationService::class);
         $push->shouldReceive('sendToUsers')->once();
 
