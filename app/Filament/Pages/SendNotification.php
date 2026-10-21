@@ -82,7 +82,7 @@ class SendNotification extends Page implements HasForms
                         'info'  => 'Informasi penting (jadwal, perubahan layanan, pemberitahuan)',
                     ])
                     ->descriptions([
-                        'promo' => 'Hanya dikirim ke pelanggan yang sudah menyetujui menerima promo di aplikasi. Dibatasi beberapa kali per minggu.',
+                        'promo' => 'Hanya dikirim ke pelanggan yang sudah menyetujui menerima promo di aplikasi. Dibatasi beberapa kali per minggu dan tidak dikirim pada jam tenang (' . \App\Support\QuietHours::label() . ').',
                         'info'  => 'Dikirim ke semua pelanggan. Jangan dipakai untuk promosi.',
                     ])
                     ->default('promo')

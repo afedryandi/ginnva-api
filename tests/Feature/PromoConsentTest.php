@@ -31,6 +31,8 @@ class PromoConsentTest extends TestCase
         parent::setUp();
 
         config(['marketing.promo_max_campaigns_per_week' => 2]);
+        // Jam tenang diuji terpisah (QuietHoursTest); di sini dimatikan agar tes tidak bergantung pada jam saat dijalankan.
+        config(['marketing.promo_quiet_hours.enabled' => false]);
         Role::findOrCreate('super_admin', 'web');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Store::create(['city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true]);

@@ -430,7 +430,15 @@ class NotificationController extends Controller
      */
     private function sendPromo(Request $request)
     {
-        $max = (int) config('marketing.promo_max_campaigns_per_week', 2);
+        // Jam tenang (Notifikasi Fase 4): promosi tidak dikirim malam hari. Dicek paling awal, sebelum batas mingguan.
+        if (\App\Support\QuietHours::active()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Promosi tidak dikirim pada jam tenang (' . \App\Support\QuietHours::label() . ') agar pelanggan tidak terganggu. Kirim ulang di luar jam tersebut.',
+            ], 422);
+        }
+
+        $max =(int) config('marketing.promo_max_campaigns_per_week', 2);
         $recent = CustomerNotification::where('category', 'promo')
             ->whereNotNull('campaign_key')
             ->where('created_at', '>=', now()->subDays(7))
