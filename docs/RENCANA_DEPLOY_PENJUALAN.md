@@ -1,6 +1,6 @@
 # Rencana Deploy Production: Penjualan (Fase 0, 1, 2, 3, 5 sisi server, 6)
 
-Dibuat 2026-11-13. Melanjutkan `RENCANA_DEPLOY_KARYAWAN_KEUANGAN.md` (sudah dijalankan 2026-10-20). **Dokumen ini belum dijalankan.** Perintah untuk server cPanel Ginnva, user `ginnva`, folder production `ginnva-api` (perintah tidak diawali `cd`; terminal sudah di folder itu). Rancangan dan keputusan: `RANCANGAN_ULANG_PENJUALAN.md`.
+Dibuat 2026-11-13. Melanjutkan `RENCANA_DEPLOY_KARYAWAN_KEUANGAN.md` (sudah dijalankan 2026-10-20). **DIJALANKAN 2026-10-21 (API):** production `20f7c00` → `5ff3fa5`, tiga migrasi `Ran` (batch 113), dua rute `sale` terdaftar, kedua bendera dibiarkan kosong. Sebelum deploy: suite penuh di dev hijau (21 kelompok, sekitar 2.900 tes; satu kegagalan label log `year_end_closing` ditemukan dan diperbaiki di `5ff3fa5`); production punya 0 booking selesai, jadi Proses Referral belum pernah dipakai di sana. Layar mobile belum ikut. Perintah untuk server cPanel Ginnva, user `ginnva`, folder production `ginnva-api` (perintah tidak diawali `cd`; terminal sudah di folder itu). Rancangan dan keputusan: `RANCANGAN_ULANG_PENJUALAN.md`.
 
 ## 1. Keadaan dan cakupan
 
