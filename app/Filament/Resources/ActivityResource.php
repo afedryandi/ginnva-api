@@ -40,6 +40,11 @@ class ActivityResource extends Resource
     private const LOG_NAME_LABELS = [
     'accounting_period' => 'Periode Akuntansi',
     'auth' => 'Keamanan Akun',
+    'booking_sale_line' => 'Rincian Penjualan Booking',
+    'booking_settlement_payment' => 'Pembayaran Pelunasan Booking',
+    'invoice_item' => 'Item Invoice',
+    'notification_campaign' => 'Kampanye Notifikasi',
+    'notification_template' => 'Templat Notifikasi',
     'asset' => 'Aset Tetap',
     'attendance' => 'Absensi',
     'attendance_correction_request' => 'Koreksi Absensi',

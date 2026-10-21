@@ -85,6 +85,11 @@ class InvoiceService
 
         return DB::transaction(function () use ($invoice, $data, $items) {
             $invoice->update($data);
+
+            $before = $invoice->items()->orderBy('id')->get();
+            $beforeLines = $before->map(fn ($i) => self::describeItem($i->toArray()))->all();
+            $beforeTotal = (float) $before->sum('total');
+
             $invoice->items()->delete();
 
             foreach ($items as $item) {
@@ -92,10 +97,29 @@ class InvoiceService
                 $invoice->items()->create(array_merge($item, ['total' => $lineTotal]));
             }
 
+            // Histori Aktivitas Fase 3: item diganti lewat hapus massal, jadi dicatat satu entri per penggantian pada invoice-nya.
+            \App\Support\LineReplacementLog::record(
+                $invoice,
+                'invoice_item',
+                'Item invoice',
+                $beforeLines,
+                array_map(fn (array $item) => self::describeItem($item + ['total' => $this->lineTotal($item)]), $items),
+                $beforeTotal,
+                (float) array_sum(array_map(fn (array $item) => $this->lineTotal($item), $items))
+            );
+
             $this->recalculateTotals($invoice);
 
             return $invoice->fresh('items');
         });
+    }
+
+    /** Teks satu item untuk Histori Aktivitas: "Nama: 2 buah x Rp 500.000 - diskon 10% = Rp 900.000". */
+    private static function describeItem(array $item): string
+    {
+        return ($item['name'] ?? '-') . ': ' . \App\Support\LineReplacementLog::number($item['quantity'] ?? 0) . ' ' . ($item['unit'] ?? '') . ' x ' . \App\Support\LineReplacementLog::money($item['price'] ?? 0)
+            . ((float) ($item['discount_percent'] ?? 0) > 0 ? ' - diskon ' . \App\Support\LineReplacementLog::number($item['discount_percent']) . '%' : '')
+            . ' = ' . \App\Support\LineReplacementLog::money($item['total'] ?? 0);
     }
 
     public function markPaid(Invoice $invoice): void

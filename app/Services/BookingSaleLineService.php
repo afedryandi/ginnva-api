@@ -105,6 +105,10 @@ class BookingSaleLineService
     public function replace(Booking $booking, array $rows): void
     {
         DB::transaction(function () use ($booking, $rows) {
+            $before = BookingSaleLine::where('booking_id', $booking->id)->orderBy('sort_order')->get();
+            $beforeLines = $before->map(fn (BookingSaleLine $l) => self::describe($l->toArray() + ['line_total' => $l->line_total]))->all();
+            $beforeTotal = (float) $before->sum('line_total');
+
             BookingSaleLine::where('booking_id', $booking->id)->delete();
 
             foreach ($rows as $index => $row) {
@@ -119,6 +123,30 @@ class BookingSaleLineService
             }
 
             $booking->unsetRelation('saleLines');
+
+            // Histori Aktivitas Fase 3: satu catatan per penggantian (hapus massal tidak memicu pencatatan model).
+            \App\Support\LineReplacementLog::record(
+                $booking,
+                'booking_sale_line',
+                'Rincian penjualan',
+                $beforeLines,
+                array_map(fn (array $r) => self::describe($r), $rows),
+                $beforeTotal,
+                self::total($rows)
+            );
         });
+    }
+
+    /** Teks satu baris untuk Histori Aktivitas: "PPF - Nama produk: 1 x Rp 1.200.000 - potongan Rp 0 = Rp 1.200.000". */
+    private static function describe(array $row): string
+    {
+        $types = BookingSaleLine::SERVICE_TYPES;
+        $name = ! empty($row['film_product_id']) ? (FilmProduct::withTrashed()->find($row['film_product_id'])?->name) : null;
+        $what = trim(($types[$row['service_type'] ?? ''] ?? (string) ($row['service_type'] ?? '')) . ' - ' . ($name ?: ($row['description'] ?? '')), ' -');
+        $lineTotal = $row['line_total'] ?? ((float) $row['quantity'] * (float) $row['unit_price'] - (float) ($row['discount_amount'] ?? 0));
+
+        return $what . ': ' . \App\Support\LineReplacementLog::number($row['quantity']) . ' x ' . \App\Support\LineReplacementLog::money($row['unit_price'])
+            . ((float) ($row['discount_amount'] ?? 0) > 0 ? ' - potongan ' . \App\Support\LineReplacementLog::money($row['discount_amount']) : '')
+            . ' = ' . \App\Support\LineReplacementLog::money($lineTotal);
     }
 }

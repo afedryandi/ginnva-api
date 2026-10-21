@@ -128,6 +128,10 @@ class BookingSettlementPaymentService
     public function replace(Booking $booking, array $rows, ?int $userId = null): void
     {
         DB::transaction(function () use ($booking, $rows, $userId) {
+            $before = BookingSettlementPayment::where('booking_id', $booking->id)->orderBy('id')->get();
+            $beforeLines = $before->map(fn (BookingSettlementPayment $p) => self::describe($p->method, $p->payment_account_id, (float) $p->amount))->all();
+            $beforeTotal = (float) $before->sum('amount');
+
             BookingSettlementPayment::where('booking_id', $booking->id)->delete();
 
             foreach ($rows as $row) {
@@ -139,6 +143,25 @@ class BookingSettlementPaymentService
             }
 
             $booking->unsetRelation('settlementPayments');
+
+            // Histori Aktivitas Fase 3: satu catatan per penggantian (hapus massal tidak memicu pencatatan model).
+            \App\Support\LineReplacementLog::record(
+                $booking,
+                'booking_settlement_payment',
+                'Pembayaran pelunasan',
+                $beforeLines,
+                array_map(fn (array $r) => self::describe($r['method'], $r['payment_account_id'] ?? null, (float) $r['amount']), $rows),
+                $beforeTotal,
+                self::total($rows)
+            );
         });
+    }
+
+    /** Teks satu pembayaran untuk Histori Aktivitas: "transfer (BCA Operasional): Rp 500.000". */
+    private static function describe(string $method, ?int $accountId, float $amount): string
+    {
+        $account = $accountId ? PaymentAccount::find($accountId)?->name : null;
+
+        return $method . ($account ? " ({$account})" : '') . ': ' . \App\Support\LineReplacementLog::money($amount);
     }
 }
