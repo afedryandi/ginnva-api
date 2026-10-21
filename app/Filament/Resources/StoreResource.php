@@ -80,6 +80,30 @@ class StoreResource extends Resource
                         ->required()
                         ->maxLength(255),
 
+                    Forms\Components\TextInput::make('code')
+                        ->label('Kode Toko')
+                        ->maxLength(12)
+                        ->placeholder('mis. JKT-01')
+                        ->rules(['nullable', 'regex:/^[A-Za-z0-9-]+$/'])
+                        ->unique(ignoreRecord: true)
+                        ->dehydrateStateUsing(fn (?string $state) => filled($state) ? strtoupper(trim($state)) : null)
+                        ->helperText('Singkat dan unik, huruf/angka/tanda hubung. Membedakan toko di laporan dan dokumen. Boleh dikosongkan untuk sementara.')
+                        ->validationMessages([
+                            'unique' => 'Kode toko ini sudah dipakai toko lain.',
+                            'regex' => 'Kode toko hanya boleh huruf, angka, dan tanda hubung (tanpa spasi).',
+                        ]),
+
+                    Forms\Components\Select::make('manager_user_id')
+                        ->label('Penanggung Jawab')
+                        ->options(fn () => \App\Models\User::query()
+                            ->where('is_active', true)
+                            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
+                            ->orderBy('name')
+                            ->pluck('name', 'id'))
+                        ->searchable()
+                        ->native(false)
+                        ->placeholder('Belum ditentukan'),
+
                     Forms\Components\TextInput::make('city')
                         ->label('Kota')
                         ->required()
@@ -391,11 +415,25 @@ class StoreResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('manager:id,name'))
             ->columns([
+                Tables\Columns\TextColumn::make('code')
+                    ->label('Kode')
+                    ->badge()
+                    ->color(fn (?string $state) => $state ? 'gray' : 'warning')
+                    ->placeholder('Belum ada')
+                    ->searchable()
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama Toko')
                     ->searchable()
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('manager.name')
+                    ->label('Penanggung Jawab')
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('city')
                     ->label('Kota')
@@ -433,6 +471,9 @@ class StoreResource extends Resource
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Status Aktif'),
+                Tables\Filters\Filter::make('no_code')
+                    ->label('Belum punya kode toko')
+                    ->query(fn (Builder $query) => $query->whereNull('code')),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

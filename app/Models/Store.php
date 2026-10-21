@@ -33,6 +33,9 @@ class Store extends Model
 
     protected $fillable = [
         'name',
+        // Kode toko singkat dan unik (Master Data Fase 3); boleh kosong untuk toko lama.
+        'code',
+        'manager_user_id',
         'city',
         'address',
         'phone',
@@ -442,6 +445,21 @@ class Store extends Model
         ksort($usage);
 
         return $usage;
+    }
+
+    protected static function booted(): void
+    {
+        // Kode toko: huruf besar tanpa spasi tepi; isian kosong disimpan sebagai null (indeks unik MySQL mengizinkan banyak null).
+        static::saving(function (Store $store) {
+            $code = strtoupper(trim((string) $store->code));
+            $store->code = $code !== '' ? $code : null;
+        });
+    }
+
+    /** Penanggung jawab toko (opsional). */
+    public function manager(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manager_user_id');
     }
 
     public function blockedDates()
