@@ -63,8 +63,9 @@ class ActivityLogReportTest extends TestCase
         $this->artisan('activity:size-report')
             ->expectsOutputToContain('Jumlah catatan : 3')
             ->expectsOutputToContain('Modul terbanyak')
-            ->expectsOutputToContain('booking')
+            // Satu baris keluaran hanya memenuhi satu pernyataan, jadi tiap modul diperiksa lewat porsinya (baris berbeda).
             ->expectsOutputToContain('66,7%')
+            ->expectsOutputToContain('33,3%')
             ->expectsOutputToContain('Per bulan')
             ->assertSuccessful();
 
