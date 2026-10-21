@@ -95,6 +95,7 @@ class ActivityResource extends Resource
     'payment_account' => 'Rekening Kas & Bank',
     'cash_transfer' => 'Pemindahan Kas',
     'cash_count' => 'Hitung Kas Harian',
+    'year_end_closing' => 'Tutup Tahun Buku',
     'budget' => 'Anggaran',
     'finance_setting' => 'Pengaturan Keuangan',
     'technician_training' => 'Pelatihan Teknisi',
