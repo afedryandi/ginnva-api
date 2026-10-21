@@ -43,7 +43,7 @@ class VehicleResourceTest extends TestCase
 
     private function user(string $role, ?array $menuAccess = null, array $extra = []): User
     {
-        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $this->store->id, 'menu_access' => $menuAccess, 'is_active' => true], $extra)), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $this->store->id, 'menu_access' => $menuAccess, 'is_active' => true, 'menu_permissions' => [VehicleResource::class => ['create', 'update', 'delete']]], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
     private function as(User $user): User

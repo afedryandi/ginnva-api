@@ -12,8 +12,8 @@ use Filament\Tables\Table;
 
 /**
  * "Luas Kaca" (Master Data Fase 2, 2026-10-21): luas kaca (m²) per merek+model untuk menghitung kebutuhan bahan dan harga kaca film.
- * Sumber data di database; Google Sheet "Data Ukuran" hanya untuk impor (aksi di daftar). Ubah, tambah, hapus, dan impor hanya akses
- * penuh untuk sementara; peran pemilik data menyusul di Master Data Fase 4.
+ * Sumber data di database; Google Sheet "Data Ukuran" hanya untuk impor (aksi di daftar). Pemilik data = akses penuh (Master Data Fase 4):
+ * staf lain hanya melihat, kecuali diberi izin aksi secara eksplisit di Hak Akses Detail. Impor dari Sheet hanya akses penuh.
  */
 class VehicleGlassAreaResource extends Resource
 {
@@ -38,29 +38,30 @@ class VehicleGlassAreaResource extends Resource
         return ($user?->canAccessStaffArea() ?? false) && $user->hasMenuAccess(static::class);
     }
 
-    private static function fullAccess(): bool
+    /** Mengubah luas kaca memengaruhi harga dan bahan di semua toko: akses penuh, atau izin aksi eksplisit di Hak Akses Detail. */
+    private static function may(string $action): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, $action, false) ?? false);
     }
 
     public static function canCreate(): bool
     {
-        return static::fullAccess();
+        return static::may('create');
     }
 
     public static function canEdit($record): bool
     {
-        return static::fullAccess();
+        return static::may('update');
     }
 
     public static function canDelete($record): bool
     {
-        return static::fullAccess();
+        return static::may('delete');
     }
 
     public static function canDeleteAny(): bool
     {
-        return static::fullAccess();
+        return static::may('delete');
     }
 
     public static function form(Form $form): Form

@@ -33,9 +33,9 @@ class VehicleResource extends Resource
     protected static ?string $pluralModelLabel = 'Kendaraan';
 
     /**
-     * Data master nasional, tidak ber-scope toko — super_admin dan
-     * staff toko sama-sama lihat & bisa edit semua baris.
-     * Dipakai untuk dropdown pilihan kendaraan di form quotation.
+     * Data master nasional, tidak ber-scope toko: staf dengan akses menu boleh MELIHAT semua baris (dipakai untuk pilihan kendaraan di
+     * formulir). Mengubahnya (tambah, ubah, nonaktifkan, hapus) mengubah harga untuk SEMUA toko, jadi hanya akses penuh atau staf yang
+     * diberi izin aksinya secara eksplisit di Hak Akses Detail (Master Data Fase 4, keputusan pemilik: pemilik data = akses penuh).
      */
     public static function canViewAny(): bool
     {
@@ -60,25 +60,25 @@ class VehicleResource extends Resource
     public static function canCreate(): bool
     {
         return static::canViewAny()
-            && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'create', false) ?? false);
     }
 
     public static function canEdit($record): bool
     {
         return static::canViewAny()
-            && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'update', false) ?? false);
     }
 
     public static function canDelete($record): bool
     {
         return static::canViewAny()
-            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', false) ?? false);
     }
 
     public static function canDeleteAny(): bool
     {
         return static::canViewAny()
-            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', false) ?? false);
     }
 
     /** Panduan memilih kelas ukuran: contoh model nyata per kelas dari data yang sudah ada. */
@@ -280,7 +280,7 @@ class VehicleResource extends Resource
                     ->label(fn (Vehicle $record) => $record->is_active ? 'Nonaktifkan' : 'Aktifkan')
                     ->icon(fn (Vehicle $record) => $record->is_active ? 'heroicon-o-eye-slash' : 'heroicon-o-eye')
                     ->color('gray')
-                    ->visible(fn () => static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false))
+                    ->visible(fn () => static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', false) ?? false))
                     ->requiresConfirmation()
                     ->modalDescription(fn (Vehicle $record) => $record->is_active
                         ? 'Kendaraan tidak akan muncul lagi di aplikasi dan formulir. Riwayat penawaran dan kendaraan pelanggan tetap utuh.'
@@ -316,7 +316,7 @@ class VehicleResource extends Resource
                         ->label('Nonaktifkan')
                         ->icon('heroicon-o-eye-slash')
                         ->color('gray')
-                        ->visible(fn () => static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false))
+                        ->visible(fn () => static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', false) ?? false))
                         ->requiresConfirmation()
                         ->action(function (\Illuminate\Support\Collection $records) {
                             $records->each(fn (Vehicle $v) => $v->update(['is_active' => false]));
