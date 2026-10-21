@@ -58,6 +58,8 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
+            \App\Support\AccountSecurityLog::loginFailed('staff', (string) $request->email, $user ? 'sandi salah' : 'akun tidak ditemukan', $user);
+
             return response()->json(['success' => false, 'message' => 'Email atau password salah.'], 401);
         }
 
@@ -67,6 +69,8 @@ class AuthController extends Controller
         // Filament, diduplikasi di sini karena guard 'api' tidak lewat
         // canAccessPanel() sama sekali.
         if (! $user->is_active) {
+            \App\Support\AccountSecurityLog::loginFailed('staff', (string) $request->email, 'akun nonaktif', $user);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Akun Anda sudah dinonaktifkan. Hubungi admin jika ini keliru.',
@@ -86,6 +90,8 @@ class AuthController extends Controller
         }
 
         $token = Auth::guard('api')->login($user);
+
+        \App\Support\AccountSecurityLog::loggedIn($user, 'aplikasi');
 
         return response()->json([
             'success' => true,
@@ -113,6 +119,10 @@ class AuthController extends Controller
             DeviceToken::where('token', $request->push_token)
                 ->where('user_id', $user->id)
                 ->update(['user_id' => null]);
+        }
+
+        if ($user) {
+            \App\Support\AccountSecurityLog::loggedOut($user, 'aplikasi');
         }
 
         Auth::guard('api')->logout();
@@ -192,6 +202,8 @@ class AuthController extends Controller
 
         $user->update(['password' => Hash::make($request->password)]);
 
+        \App\Support\AccountSecurityLog::passwordChanged($user, 'direset lewat lupa kata sandi (aplikasi)');
+
         return response()->json([
             'success' => true,
             'message' => 'Password berhasil diubah. Silakan masuk dengan password baru.',
@@ -229,6 +241,8 @@ class AuthController extends Controller
         }
 
         $user->update(['password' => Hash::make($request->password)]);
+
+        \App\Support\AccountSecurityLog::passwordChanged($user, 'diganti sendiri (aplikasi)');
 
         return response()->json([
             'success' => true,

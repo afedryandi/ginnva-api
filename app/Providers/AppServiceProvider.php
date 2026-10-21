@@ -57,6 +57,39 @@ class AppServiceProvider extends ServiceProvider
         Spk::observe(SpkObserver::class);
         Invoice::observe(InvoiceObserver::class);
 
+        // Histori Aktivitas Fase 2 (2026-10-21): konteks tiap catatan (asal aksi; IP dan perangkat khusus staf) dan peristiwa
+        // keamanan akun panel admin. Jalur API mencatat sendiri di controllernya (guard JWT tidak memicu event bawaan Laravel).
+        \Spatie\Activitylog\Models\Activity::creating(fn (\Spatie\Activitylog\Models\Activity $activity) => \App\Support\ActivityContext::stamp($activity));
+
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Login::class, function (\Illuminate\Auth\Events\Login $event) {
+            if ($event->guard === 'web' && $event->user instanceof \App\Models\User) {
+                \App\Support\AccountSecurityLog::loggedIn($event->user, 'panel');
+            }
+        });
+
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Failed::class, function (\Illuminate\Auth\Events\Failed $event) {
+            if ($event->guard === 'web') {
+                \App\Support\AccountSecurityLog::loginFailed(
+                    'staff',
+                    (string) ($event->credentials['email'] ?? '—'),
+                    $event->user ? 'sandi salah' : 'akun tidak ditemukan',
+                    $event->user instanceof \App\Models\User ? $event->user : null
+                );
+            }
+        });
+
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Logout::class, function (\Illuminate\Auth\Events\Logout $event) {
+            if ($event->guard === 'web' && $event->user instanceof \App\Models\User) {
+                \App\Support\AccountSecurityLog::loggedOut($event->user, 'panel');
+            }
+        });
+
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\PasswordReset::class, function (\Illuminate\Auth\Events\PasswordReset $event) {
+            if ($event->user instanceof \App\Models\User) {
+                \App\Support\AccountSecurityLog::passwordChanged($event->user, 'direset lewat lupa kata sandi');
+            }
+        });
+
         // Pola bawaan ->tel() di Filament terbukti menolak "+62 21 (555) 1234" (ditemukan lewat tes Supplier).
         // ->tel() dipakai di ~14 form (Booking, Partner, Quotation, Toko, Teknisi, User, Garansi, Supplier,
         // dll), jadi diganti satu kali di sini supaya semuanya sama: angka, spasi, + ( ) - dan titik,

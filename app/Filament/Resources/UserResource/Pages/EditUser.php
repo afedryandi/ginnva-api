@@ -113,6 +113,15 @@ class EditUser extends EditRecord
 
     protected function afterSave(): void
     {
+        // Kata sandi tidak masuk LogsActivity (tidak boleh disimpan di log mana pun); yang dicatat hanya BAHWA sandi diubah, dan oleh siapa.
+        if ($this->record->wasChanged('password')) {
+            \App\Support\AccountSecurityLog::passwordChanged(
+                $this->record,
+                auth()->id() === $this->record->id ? 'diganti sendiri (panel)' : 'diubah oleh admin (panel)',
+                auth()->user()
+            );
+        }
+
         $before = collect($this->rolesBeforeSave)->sort()->values()->all();
         $after = $this->record->roles()->pluck('name')->sort()->values()->all();
 

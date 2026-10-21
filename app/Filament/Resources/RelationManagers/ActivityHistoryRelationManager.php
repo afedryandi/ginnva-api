@@ -59,14 +59,7 @@ class ActivityHistoryRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('event')
                     ->label('Aksi')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => match ($state) {
-                        'created' => 'Dibuat',
-                        'updated' => 'Diubah',
-                        'deleted' => 'Dihapus',
-                        'restored' => 'Dipulihkan',
-                        null => 'Dicatat',
-                        default => $state,
-                    }),
+                    ->formatStateUsing(fn (?string $state): string => ActivityPresenter::eventLabel($state)),
 
                 Tables\Columns\TextColumn::make('description')
                     ->label('Keterangan')

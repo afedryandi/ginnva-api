@@ -89,6 +89,8 @@ class AuthController extends Controller
         $isValid = OtpCode::verify($request->email, 'email', $request->code);
 
         if (! $isValid) {
+            \App\Support\AccountSecurityLog::loginFailed('customer', (string) $request->email, 'kode verifikasi salah atau kedaluwarsa');
+
             return response()->json([
                 'success' => false,
                 'message' => 'Kode verifikasi salah atau sudah kedaluwarsa.',
@@ -136,6 +138,8 @@ class AuthController extends Controller
         }
 
         $token = JWTAuth::fromUser($customer);
+
+        \App\Support\AccountSecurityLog::loggedIn($customer, 'aplikasi');
 
         return response()->json([
             'success'  => true,
@@ -246,6 +250,10 @@ class AuthController extends Controller
             DeviceToken::where('token', $request->push_token)
                 ->where('customer_id', $customer->id)
                 ->update(['customer_id' => null]);
+        }
+
+        if ($customer) {
+            \App\Support\AccountSecurityLog::loggedOut($customer, 'aplikasi');
         }
 
         JWTAuth::invalidate(JWTAuth::getToken());

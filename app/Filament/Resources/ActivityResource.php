@@ -39,6 +39,7 @@ class ActivityResource extends Resource
      */
     private const LOG_NAME_LABELS = [
     'accounting_period' => 'Periode Akuntansi',
+    'auth' => 'Keamanan Akun',
     'asset' => 'Aset Tetap',
     'attendance' => 'Absensi',
     'attendance_correction_request' => 'Koreksi Absensi',
@@ -236,15 +237,13 @@ class ActivityResource extends Resource
                 Tables\Columns\TextColumn::make('event')
                     ->label('Aksi')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => match ($state) {
-                        'created' => 'Dibuat',
-                        'updated' => 'Diubah',
-                        'deleted' => 'Dihapus',
-                        'restored' => 'Dipulihkan',
-                        // Catatan manual (activity()->log()) tidak mengisi jenis aksi.
-                        null      => 'Dicatat',
-                        default   => $state,
-                    }),
+                    // Catatan manual (activity()->log()) tidak mengisi jenis aksi: tampil "Dicatat".
+                    ->formatStateUsing(fn (?string $state): string => ActivityPresenter::eventLabel($state)),
+
+                Tables\Columns\TextColumn::make('source')
+                    ->label('Asal')
+                    ->state(fn (Activity $record) => ActivityPresenter::sourceLabel(data_get($record->properties, 'context.source')))
+                    ->toggleable(),
 
                 // Label objek memakai nama resource ("Toko #2") dan menjadi tautan ke rekamannya bila masih ada.
                 Tables\Columns\TextColumn::make('subject_type')
@@ -284,6 +283,35 @@ class ActivityResource extends Resource
 
                 // Filter rentang tanggal (audit 2026-09-30) -- sejajar Riwayat lain,
                 // penting di sini karena 65+ modul aktif logging bisa menumpuk cepat.
+                // Pelaku pelanggan (aksi lewat aplikasi pelanggan): dicari lewat nama, email, atau telepon.
+                Tables\Filters\SelectFilter::make('customer_causer_id')
+                    ->label('Pelaku (Pelanggan)')
+                    ->searchable()
+                    ->getSearchResultsUsing(fn (string $search) => \App\Models\Customer::query()
+                        ->where(fn ($q) => $q->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%")
+                            ->orWhere('phone_number', 'like', "%{$search}%"))
+                        ->orderBy('name')
+                        ->limit(50)
+                        ->get(['id', 'name', 'email'])
+                        ->mapWithKeys(fn ($c) => [$c->id => ($c->name ?: $c->email ?: 'Pelanggan') . ' (#' . $c->id . ')'])
+                        ->all())
+                    ->getOptionLabelUsing(fn ($value) => 'Pelanggan #' . $value)
+                    ->options([])
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['value'],
+                        fn (Builder $q, $value) => $q->where('causer_id', $value)->where('causer_type', \App\Models\Customer::class)
+                    )),
+
+                // Asal aksi (Fase 2): panel admin, aplikasi staf, aplikasi pelanggan, atau sistem terjadwal.
+                Tables\Filters\SelectFilter::make('source')
+                    ->label('Asal')
+                    ->options(\App\Support\ActivityContext::SOURCE_LABELS)
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['value'],
+                        fn (Builder $q, $value) => $q->where('properties->context->source', $value)
+                    )),
+
                 // Tanggal dibaca sebagai tanggal WIB (batas hari 00:00 sampai 23:59 WIB), lalu diubah ke zona aplikasi.
                 Tables\Filters\Filter::make('created_at')
                     ->form([
@@ -336,7 +364,19 @@ class ActivityResource extends Resource
             TextEntry::make('log_name')
                 ->label('Modul')
                 ->formatStateUsing(fn (?string $state): string => $state ? (self::LOG_NAME_LABELS[$state] ?? $state) : '—'),
-            TextEntry::make('event')->label('Aksi')->placeholder('Dicatat'),
+            TextEntry::make('event')->label('Aksi')->formatStateUsing(fn (?string $state) => ActivityPresenter::eventLabel($state)),
+            TextEntry::make('context_source')
+                ->label('Asal')
+                ->state(fn (Activity $record) => ActivityPresenter::sourceLabel(data_get($record->properties, 'context.source'))),
+            TextEntry::make('context_ip')
+                ->label('Alamat IP')
+                ->state(fn (Activity $record) => data_get($record->properties, 'context.ip'))
+                ->visible(fn (Activity $record) => filled(data_get($record->properties, 'context.ip'))),
+            TextEntry::make('context_device')
+                ->label('Perangkat')
+                ->state(fn (Activity $record) => data_get($record->properties, 'context.device'))
+                ->columnSpanFull()
+                ->visible(fn (Activity $record) => filled(data_get($record->properties, 'context.device'))),
             TextEntry::make('subject_type')
                 ->label('Objek')
                 ->formatStateUsing(fn ($state, $record) => $state ? ActivityPresenter::subjectLabel($record) : '—')

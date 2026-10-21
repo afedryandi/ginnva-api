@@ -104,6 +104,12 @@ class ActivityPresenter
         'sent' => 'Terkirim', 'failed' => 'Gagal', 'new' => 'Baru', 'contacted' => 'Sudah Dihubungi', 'expired' => 'Kedaluwarsa',
     ];
 
+    private const EVENT_LABELS = [
+        'created' => 'Dibuat', 'updated' => 'Diubah', 'deleted' => 'Dihapus', 'restored' => 'Dipulihkan',
+        'login' => 'Masuk', 'login_failed' => 'Gagal Masuk', 'logout' => 'Keluar',
+        'password_changed' => 'Sandi Diganti', 'password_reset' => 'Sandi Direset',
+    ];
+
     private const EVENT_VERBS = ['created' => 'dibuat', 'updated' => 'diubah', 'deleted' => 'dihapus', 'restored' => 'dipulihkan'];
 
     /** @var array<string, string|null> */
@@ -243,6 +249,17 @@ class ActivityPresenter
         }
 
         return $query->find($id);
+    }
+
+    /** Label jenis aksi; catatan manual tanpa jenis aksi disebut "Dicatat". */
+    public static function eventLabel(?string $event): string
+    {
+        return $event === null || $event === '' ? 'Dicatat' : (self::EVENT_LABELS[$event] ?? $event);
+    }
+
+    public static function sourceLabel(?string $source): string
+    {
+        return $source ? (ActivityContext::SOURCE_LABELS[$source] ?? $source) : '—';
     }
 
     // ------------------------------------------------------------- objek dan deskripsi
