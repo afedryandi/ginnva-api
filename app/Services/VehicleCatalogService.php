@@ -6,8 +6,14 @@ use App\Models\Vehicle;
 
 /**
  * Katalog kendaraan untuk dropdown merek → model di aplikasi (Fase 1 pengerjaan ulang booking, 2026-10-15), lengkap dengan
- * size_category yang menentukan harga PPF/kaca film. Hanya kendaraan yang sudah punya model. Casing merek dinormalkan
- * (data lama campur "Toyota"/"TOYOTA") — alasan lengkapnya di QuotationController::options().
+ * size_category yang menentukan harga PPF/kaca film. Hanya kendaraan yang sudah punya model (entri merek-saja tampil di panel admin
+ * sebagai placeholder).
+ *
+ * Casing merek dinormalkan: data lama campur "Toyota" (seeder awal) dan "TOYOTA" (migrasi perbaikan data). Kolom `brand` ber-collation
+ * case-insensitive, jadi DISTINCT menggabungkannya jadi satu merek, TETAPI dropdown bertingkat di web dan mobile memfilter kendaraan per
+ * merek dengan perbandingan JS yang case-sensitive. Tanpa normalisasi ini kendaraan dengan casing berbeda diam-diam tidak pernah muncul
+ * di dropdown. Normalisasi dilakukan di backend (satu sumber) supaya tidak diulang di dua frontend. Dipakai oleh GET /api/vehicles/catalog
+ * dan GET /api/quotation/options. Ditemukan dan diperbaiki 2026-08-29 (audit modul Kendaraan); dipusatkan di sini 2026-10-21.
  */
 class VehicleCatalogService
 {

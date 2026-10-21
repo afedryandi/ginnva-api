@@ -132,7 +132,7 @@ class VehicleResource extends Resource
 
                     Forms\Components\Select::make('size_category')
                         ->label('Kategori Ukuran')
-                        ->helperText('Menentukan koefisien harga (base_price × coefficient) saat kalkulasi quotation.')
+                        ->helperText('Menentukan harga PPF dan kaca film: harga dibaca dari matriks harga produk per ukuran. Mengubah ukuran di sini mengubah harga acuan untuk semua booking dan penawaran berikutnya di SEMUA toko.')
                         ->options([
                             'S'   => 'S — Kecil (city car, hatchback)',
                             'M'   => 'M — Sedang (sedan, MPV kecil)',

@@ -10,6 +10,10 @@ use App\Models\Vehicle;
  * berdasarkan Price List PPF & Kaca Film Ginnva.
  *
  * Jalankan: php artisan db:seed --class=VehicleModelSeeder
+ *
+ * Peran seeder kendaraan (jangan bingung): VehicleSeeder = contoh kecil untuk lingkungan baru/uji (dipanggil DatabaseSeeder);
+ * VehicleBrandSeeder = hanya merek tanpa model (placeholder); VehicleModelSeeder = daftar lengkap per ukuran. Aman dijalankan ulang.
+ * Catatan data: daftar ini menyebut HYUNDAI IONIQ 5 di ukuran S dan M; seeder mengambil yang lebih dulu ada dan memberi peringatan.
  */
 class VehicleModelSeeder extends Seeder
 {
@@ -134,6 +138,16 @@ class VehicleModelSeeder extends Seeder
         foreach ($data as $size => $brands) {
             foreach ($brands as $brand => $models) {
                 foreach ($models as $model) {
+                    // Satu merek+model hanya boleh punya satu ukuran (aturan yang sama dengan form Kendaraan). Bila sudah ada dengan ukuran
+                    // lain, JANGAN membuat baris kedua (harga jadi ambigu): lewati dan beri peringatan supaya pemilik data memutuskan.
+                    $existing = Vehicle::where('brand', $brand)->where('model', $model)->whereNull('variant')->first();
+
+                    if ($existing && $existing->size_category !== $size) {
+                        $this->command?->warn("Dilewati: {$brand} {$model} sudah ada dengan ukuran {$existing->size_category}, daftar ini menyebut {$size}. Putuskan ukuran yang benar di panel.");
+
+                        continue;
+                    }
+
                     Vehicle::firstOrCreate(
                         [
                             'brand'         => $brand,

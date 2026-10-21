@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Vehicle;
+use App\Services\VehicleCatalogService;
 use App\Models\FilmProduct;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
@@ -34,47 +35,13 @@ class QuotationController extends Controller
      */
     public function options()
     {
-        // Semua merek yang sudah terdaftar (termasuk yang belum punya model)
-        // untuk level pertama cascading dropdown.
-        $brands = Vehicle::select('brand')
-            ->distinct()
-            ->orderBy('brand')
-            ->pluck('brand');
-
-        // Hanya kendaraan yang sudah punya tipe/model untuk dipilih di form.
-        // Entry merek-only (model=null) hanya tampil di panel admin sebagai
-        // placeholder sampai admin melengkapi tipe spesifiknya.
-        $vehicles = Vehicle::select('id', 'brand', 'model', 'variant')
-            ->whereNotNull('model')
-            ->orderBy('brand')
-            ->orderBy('model')
-            ->orderBy('variant')
-            ->get();
-
-        // Data kendaraan punya casing brand yang TIDAK konsisten (mis.
-        // "Toyota" dari seeder awal vs "TOYOTA" dari migration perbaikan
-        // data lama untuk baris Raize) -- kolom `brand` collation MySQL
-        // default case-insensitive, jadi DISTINCT di atas otomatis
-        // menggabungkannya jadi 1 entri di $brands. TAPI cascading
-        // dropdown di web (QuoteForm.tsx) & mobile (quotation/index.tsx)
-        // filter kendaraan per merek pakai JS `v.brand === selectedBrand`
-        // yang case-SENSITIVE -- akibatnya kendaraan dengan casing brand
-        // beda (mis. Toyota Raize yang tersimpan "TOYOTA") diam-diam
-        // TIDAK PERNAH muncul di dropdown Tipe Mobil walau datanya ada.
-        // Normalisasi di sini (satu sumber kebenaran backend) supaya
-        // setiap kendaraan pakai casing brand YANG SAMA PERSIS dengan
-        // yang tampil di $brands, tanpa perlu ubah data asli di DB atau
-        // duplikasi logic normalisasi di 2 frontend berbeda. Ditemukan &
-        // diperbaiki 2026-08-29, audit modul Kendaraan.
-        $canonicalBrandCasing = [];
-        foreach ($brands as $brand) {
-            $canonicalBrandCasing[mb_strtolower($brand)] = $brand;
-        }
-        $vehicles = $vehicles->map(function (Vehicle $vehicle) use ($canonicalBrandCasing) {
-            $vehicle->brand = $canonicalBrandCasing[mb_strtolower($vehicle->brand)] ?? $vehicle->brand;
-
-            return $vehicle;
-        });
+        // Katalog merek/model dibangun di SATU tempat (VehicleCatalogService), sama dengan GET /api/vehicles/catalog; alasan
+        // normalisasi casing merek ada di sana. Bentuk respons ini tidak berubah: id, brand, model, variant.
+        $catalog = app(VehicleCatalogService::class)->options();
+        $brands = collect($catalog['brands']);
+        $vehicles = collect($catalog['vehicles'])
+            ->map(fn (array $v) => \Illuminate\Support\Arr::only($v, ['id', 'brand', 'model', 'variant']))
+            ->values();
 
         return response()->json([
             'success' => true,
