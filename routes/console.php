@@ -123,6 +123,10 @@ Schedule::command('billing:generate-recurring')->dailyAt('05:00')->withoutOverla
 // App\Console\Commands\PruneOldNotifications.
 Schedule::command('notifications:prune-old')->dailyAt('04:10');
 
+// Periksa kuitansi Expo untuk push yang tiketnya sudah diterima (Notifikasi Fase 3, 2026-10-21) -- lihat
+// App\Console\Commands\CheckPushReceipts. Kuitansi baru tersedia sekitar 15 menit setelah kirim.
+Schedule::command('notifications:check-receipts')->everyFifteenMinutes()->withoutOverlapping();
+
 // Gap ditutup 2026-09-26 (audit Absensi Karyawan, "tidak ada notifikasi
 // proaktif") -- notif staff lupa clock-out (hari sebelumnya, setelah
 // mark-absences supaya tidak tumpang tindih) & staff yang belum absen

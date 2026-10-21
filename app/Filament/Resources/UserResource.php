@@ -267,6 +267,7 @@ class UserResource extends Resource
                 'CustomerNotificationResource' => 'Riwayat Notifikasi',
                 'PartnerNotificationResource' => 'Riwayat Notifikasi Partner',
                 'SendNotification' => 'Kirim Notifikasi',
+                'NotificationDeliveryResource' => 'Log Pengiriman',
                 'NotificationCatalogPage' => 'Katalog Notifikasi',
             ],
         ];

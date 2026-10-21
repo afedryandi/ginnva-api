@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CustomerNotification;
 use App\Models\DeviceToken;
+use App\Models\NotificationDelivery;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -135,6 +136,9 @@ class PushNotificationService
         $sent = 0;
         $failed = 0;
 
+        // Pemilik tiap token, untuk catatan pengiriman (Notifikasi Fase 3).
+        $owners = $this->tokenOwners($tokens);
+
         $chunks = array_chunk($tokens, 100);
 
         foreach ($chunks as $chunkIndex => $chunk) {
@@ -169,9 +173,12 @@ class PushNotificationService
                 if ($response->successful()) {
                     $results = $response->json('data') ?? [];
 
+                    $rows = [];
+
                     foreach ($results as $i => $result) {
                         if (($result['status'] ?? '') === 'ok') {
                             $sent++;
+                            $rows[] = $this->deliveryRow($owners, $chunk[$i], $title, NotificationDelivery::ACCEPTED, $result['id'] ?? null);
                             continue;
                         }
 
@@ -179,10 +186,14 @@ class PushNotificationService
                         $details = $result['details'] ?? [];
                         if (($details['error'] ?? '') === 'DeviceNotRegistered') {
                             DeviceToken::where('token', $chunk[$i])->delete();
+                            $rows[] = $this->deliveryRow($owners, $chunk[$i], $title, NotificationDelivery::DEAD_TOKEN, null, 'DeviceNotRegistered');
                         } else {
                             Log::warning('[Expo Push] Send gagal', ['error' => $result]);
+                            $rows[] = $this->deliveryRow($owners, $chunk[$i], $title, NotificationDelivery::FAILED, null, $result['message'] ?? ($details['error'] ?? 'Ditolak Expo'));
                         }
                     }
+
+                    $this->recordDeliveries($rows);
                 } else {
                     // SEBELUMNYA 1 token "asing" (dari project/akun Expo
                     // yang beda — mis. token lama dari build dev di akun
@@ -210,6 +221,10 @@ class PushNotificationService
                         }
                     } else {
                         $failed += count($chunk);
+                        $this->recordDeliveries(array_map(
+                            fn ($token) => $this->deliveryRow($owners, $token, $title, NotificationDelivery::FAILED, null, 'HTTP ' . $response->status()),
+                            $chunk
+                        ));
                         // Token-nya disebutkan eksplisit (bukan cuma body
                         // response mentah) -- diperbaiki 2026-10-01, audit
                         // Notifikasi: sebelumnya kalau retry satu-per-satu
@@ -228,6 +243,10 @@ class PushNotificationService
                 }
             } catch (\Exception $e) {
                 $failed += count($chunk);
+                $this->recordDeliveries(array_map(
+                    fn ($token) => $this->deliveryRow($owners, $token, $title, NotificationDelivery::FAILED, null, $e->getMessage()),
+                    $chunk
+                ));
                 Log::error('[Expo Push] Exception: ' . $e->getMessage());
                 // Audit framework 2026-09-14, "Monitoring & alerting error
                 // production" -- SEBELUMNYA cuma tercatat di storage/logs
@@ -241,5 +260,46 @@ class PushNotificationService
         }
 
         return ['sent' => $sent, 'failed' => $failed];
+    }
+
+    /** @return \Illuminate\Support\Collection<string, DeviceToken> token => pemilik (user_id / customer_id) */
+    private function tokenOwners(array $tokens): \Illuminate\Support\Collection
+    {
+        try {
+            return DeviceToken::whereIn('token', $tokens)->get(['token', 'user_id', 'customer_id'])->keyBy('token');
+        } catch (\Throwable $e) {
+            report($e);
+
+            return collect();
+        }
+    }
+
+    private function deliveryRow(\Illuminate\Support\Collection $owners, string $token, string $title, string $status, ?string $ticketId = null, ?string $error = null): array
+    {
+        return [
+            'user_id'     => $owners->get($token)?->user_id,
+            'customer_id' => $owners->get($token)?->customer_id,
+            'token'       => $token,
+            'title'       => mb_substr($title, 0, 255),
+            'ticket_id'   => $ticketId,
+            'status'      => $status,
+            'error'       => $error === null ? null : mb_substr($error, 0, 255),
+            'sent_at'     => now(),
+            'checked_at'  => null,
+        ];
+    }
+
+    /** Catatan pengiriman tidak boleh menggagalkan pengiriman itu sendiri. */
+    private function recordDeliveries(array $rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        try {
+            NotificationDelivery::insert($rows);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }

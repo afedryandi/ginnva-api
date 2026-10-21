@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\DB;
  */
 class PruneOldNotifications extends Command
 {
-    protected $signature = 'notifications:prune-old {--days=180 : Hapus notifikasi lebih tua dari N hari}';
+    protected $signature = 'notifications:prune-old {--days=180 : Hapus notifikasi lebih tua dari N hari} {--delivery-days=90 : Hapus catatan pengiriman push lebih tua dari N hari}';
 
     protected $description = 'Hapus baris lama di tabel notifications (bell Filament), customer_notifications, dan partner_notifications';
 
@@ -46,7 +46,10 @@ class PruneOldNotifications extends Command
         $partnerReads = PartnerNotificationRead::whereIn('partner_notification_id', $partnerReadIds)->delete();
         $partnerNotifs = PartnerNotification::where('created_at', '<', $cutoff)->delete();
 
-        $this->info("Dihapus: {$bell} bell notifikasi, {$customerNotifs} notifikasi customer (+{$customerReads} baris read), {$partnerNotifs} notifikasi partner (+{$partnerReads} baris read).");
+        // Catatan pengiriman push (Notifikasi Fase 3): retensi lebih pendek, nilainya ada pada penelusuran masalah terkini.
+        $deliveries = DB::table('notification_deliveries')->where('sent_at', '<', now()->subDays((int) $this->option('delivery-days')))->delete();
+
+        $this->info("Dihapus: {$bell} bell notifikasi, {$customerNotifs} notifikasi customer (+{$customerReads} baris read), {$partnerNotifs} notifikasi partner (+{$partnerReads} baris read), {$deliveries} catatan pengiriman push.");
 
         return self::SUCCESS;
     }
