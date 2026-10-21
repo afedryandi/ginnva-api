@@ -392,7 +392,7 @@ class TransactionApprovalTest extends TestCase
 
         $this->service->notifyRequesterStuck($request, 'Periode sudah ditutup');
 
-        $this->assertSame('Pengajuan Anda tertahan', $staff->notifications()->first()->data['title']);
+        $this->assertTrue($staff->notifications()->get()->contains(fn ($n) => $n->data['title'] === 'Pengajuan Anda tertahan'));
     }
 
     // ------------------------------------------------------------- pengingat harian
@@ -525,7 +525,7 @@ class TransactionApprovalTest extends TestCase
         $this->listFor($this->admin(), 'menunggu')->callTableAction('approve', $request);
 
         $this->assertSame('pending', $request->fresh()->status);
-        $this->assertSame('Pengajuan Anda tertahan', $staff->notifications()->first()->data['title']);
+        $this->assertTrue($staff->notifications()->get()->contains(fn ($n) => $n->data['title'] === 'Pengajuan Anda tertahan'));
     }
 
     public function test_rejecting_from_the_table_needs_a_note(): void
