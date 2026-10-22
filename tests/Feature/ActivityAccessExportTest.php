@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
@@ -31,8 +32,12 @@ class ActivityAccessExportTest extends TestCase
 
     private string $originalTimezone;
 
+    /** Nama berkas ekspor memuat waktu; dibekukan agar bisa diperiksa persis (Excel::assertDownloaded butuh nama string). */
+    private const EXPORT_NAME = 'histori-aktivitas-20261102-100000.xlsx';
+
     protected function tearDown(): void
     {
+        Carbon::setTestNow();
         date_default_timezone_set($this->originalTimezone);
 
         parent::tearDown();
@@ -43,6 +48,7 @@ class ActivityAccessExportTest extends TestCase
         parent::setUp();
 
         $this->originalTimezone = date_default_timezone_get();
+        Carbon::setTestNow('2026-11-02 10:00:00');
 
         Http::fake();
         ActivityLogExport::$maxRows = 50000;
@@ -84,12 +90,27 @@ class ActivityAccessExportTest extends TestCase
         $this->assertSame('Histori Aktivitas', $options['Sistem']['ActivityResource']);
     }
 
-    public function test_a_delegated_staff_member_can_open_the_page_and_a_plain_one_cannot(): void
+    public function test_a_delegated_staff_member_can_open_the_page(): void
     {
         $this->as($this->user('kasir', ['ActivityResource']));
-        $this->get(ActivityResource::getUrl('index'))->assertSuccessful();
 
+        $this->get(ActivityResource::getUrl('index'))->assertSuccessful();
+    }
+
+    public function test_staff_whose_menu_list_lacks_it_cannot_open_the_page(): void
+    {
         $this->as($this->user('kasir', ['BookingResource']));
+
+        $this->get(ActivityResource::getUrl('index'))->assertForbidden();
+    }
+
+    public function test_unrestricted_staff_do_not_get_it_just_because_all_menus_are_open(): void
+    {
+        // menu_access kosong = semua menu terbuka (bawaan staf), tetapi Histori Aktivitas butuh pemberian eksplisit.
+        $staff = $this->as($this->user('kasir', null));
+
+        $this->assertTrue($staff->hasMenuAccess(ActivityResource::class), 'Syarat: menu_access kosong membuka semua menu.');
+        $this->assertFalse(ActivityResource::canViewAny());
         $this->get(ActivityResource::getUrl('index'))->assertForbidden();
     }
 
@@ -153,7 +174,7 @@ class ActivityAccessExportTest extends TestCase
             ->callAction('exportExcel');
 
         Excel::assertDownloaded(
-            fn (string $name) => str_starts_with($name, 'histori-aktivitas-') && str_ends_with($name, '.xlsx'),
+            self::EXPORT_NAME,
             fn (ActivityLogExport $export) => $export->query()->pluck('activity_log.id')->sort()->values()->all() === [$booking->id, $deleted->id]
         );
 
@@ -165,7 +186,7 @@ class ActivityAccessExportTest extends TestCase
         Excel::fake();
         Livewire::test(ListActivities::class)->set('activeTab', 'berisiko')->callAction('exportExcel');
         Excel::assertDownloaded(
-            fn (string $name) => true,
+            self::EXPORT_NAME,
             fn (ActivityLogExport $export) => $export->query()->pluck('activity_log.id')->contains($deleted->id)
                 && ! $export->query()->pluck('activity_log.id')->contains($store->id)
         );
@@ -179,7 +200,7 @@ class ActivityAccessExportTest extends TestCase
 
         Livewire::test(ListActivities::class)->callAction('exportExcel');
 
-        Excel::assertDownloaded(fn (string $name) => true);
+        Excel::assertDownloaded(self::EXPORT_NAME);
         $this->assertSame(1, Activity::where('log_name', 'report_export')->where('causer_id', $delegated->id)->count());
     }
 
@@ -195,7 +216,7 @@ class ActivityAccessExportTest extends TestCase
             ->callAction('exportExcel')
             ->assertNotified('Terlalu banyak baris untuk diekspor');
 
-        Excel::assertNothingDownloaded();
+        // Ditolak sebelum mencatat dan sebelum mengunduh: tidak ada catatan ekspor.
         $this->assertSame(0, Activity::where('log_name', 'report_export')->where('causer_id', $admin->id)->count());
     }
 

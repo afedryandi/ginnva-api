@@ -195,8 +195,14 @@ class ActivityResource extends Resource
         return $logName ? (self::LOG_NAME_LABELS[$logName] ?? $logName) : '—';
     }
 
-    // Akun full-access, atau staf yang diberi kotak Akses Menu "Histori Aktivitas" (mis. Spv Finance / Spv IT; keputusan pemilik
-    // 2026-10-21). Hak lihat sekaligus hak ekspor; tidak ada hak ubah/hapus karena log memang tidak boleh diubah.
+    /**
+     * Akun full-access, atau staf yang diberi kotak Akses Menu "Histori Aktivitas" SECARA EKSPLISIT (mis. Spv Finance / Spv IT;
+     * keputusan pemilik 2026-10-21). Hak lihat sekaligus hak ekspor; tidak ada hak ubah/hapus karena log memang tidak boleh diubah.
+     *
+     * PENTING: menu_access kosong (null) berarti "semua menu terbuka" -- kondisi bawaan staf biasa, dan itu TIDAK boleh membuka
+     * data sensitif ini (perubahan gaji, hak akses, IP staf). Karena itu hasMenuAccess() saja tidak cukup: daftar menu akun harus
+     * ada (array) dan memuat resource ini. Tertangkap oleh tes ActivityResourceTest.
+     */
     public static function canViewAny(): bool
     {
         $user = auth()->user();
@@ -205,7 +211,10 @@ class ActivityResource extends Resource
             return true;
         }
 
-        return (bool) ($user?->canAccessStaffArea() && $user->hasMenuAccess(static::class));
+        return (bool) ($user
+            && $user->canAccessStaffArea()
+            && is_array($user->menu_access)
+            && $user->hasMenuAccess(static::class));
     }
 
     public static function canCreate(): bool
