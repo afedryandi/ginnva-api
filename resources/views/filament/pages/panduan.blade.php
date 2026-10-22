@@ -4,9 +4,12 @@
         $haystacks = array_map(fn (array $guide) => \App\Filament\Pages\Panduan::searchText($guide), $guides);
         // Indeks panduan per kelompok: judul kelompok hanya tampil bila ada panduan di dalamnya yang cocok dengan pencarian.
         $groupIndexes = [];
+        $categories = [];
         foreach ($guides as $i => $g) {
             $groupIndexes[$g['category'] ?? 'lainnya'][] = $i;
+            $categories[$i] = $g['category'] ?? 'lainnya';
         }
+        $firstGroup = array_key_first($groupIndexes);
     @endphp
 
     {{-- Pencarian murni di browser (Alpine): tidak ada permintaan ke server saat mengetik. --}}
@@ -15,6 +18,19 @@
             q: '',
             items: @js($haystacks),
             groups: @js($groupIndexes),
+            cats: @js($categories),
+            // Kelompok yang dibuka: bawaan hanya kelompok pertama; saat mencari, semua kelompok yang cocok terbuka.
+            first: @js($firstGroup),
+            opened: {},
+            isOpen(key) {
+                return this.q.trim() !== '' || (this.opened[key] ?? key === this.first);
+            },
+            toggle(key) {
+                this.opened[key] = ! this.isOpen(key);
+            },
+            show(i) {
+                return this.match(i) && this.isOpen(this.cats[i]);
+            },
             groupVisible(key) {
                 return (this.groups[key] || []).some((i) => this.match(i));
             },
@@ -45,11 +61,19 @@
 
         @foreach ($guides as $index => $guide)
             @if ($index === 0 || ($guides[$index - 1]['category'] ?? null) !== ($guide['category'] ?? null))
-                <h2 data-guide-group="{{ $guide['category'] ?? 'lainnya' }}" x-show="groupVisible('{{ $guide['category'] ?? 'lainnya' }}')" style="font-size: 1rem; font-weight: 700; margin-top: 0.5rem;">
-                    {{ \App\Filament\Pages\Panduan::categoryLabel($guide) }}
+                <h2 data-guide-group="{{ $guide['category'] ?? 'lainnya' }}" x-show="groupVisible('{{ $guide['category'] ?? 'lainnya' }}')" style="margin-top: 0.5rem;">
+                    <button
+                        type="button"
+                        x-on:click="toggle('{{ $guide['category'] ?? 'lainnya' }}')"
+                        x-bind:aria-expanded="isOpen('{{ $guide['category'] ?? 'lainnya' }}') ? 'true' : 'false'"
+                        style="display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 1rem; font-weight: 700; text-align: left; cursor: pointer;"
+                    >
+                        <span>{{ \App\Filament\Pages\Panduan::categoryLabel($guide) }} ({{ count($groupIndexes[$guide['category'] ?? 'lainnya']) }})</span>
+                        <span aria-hidden="true" x-text="isOpen('{{ $guide['category'] ?? 'lainnya' }}') ? '−' : '+'"></span>
+                    </button>
                 </h2>
             @endif
-            <div x-show="match({{ $index }})" data-guide="{{ $guide['id'] }}">
+            <div x-show="show({{ $index }})" data-guide="{{ $guide['id'] }}">
                 <x-filament::section :heading="$guide['title']" :description="$guide['summary']">
                     <details x-bind:open="q.trim() !== ''" style="font-size: 0.875rem; line-height: 1.5rem;">
                         <summary style="cursor: pointer; font-weight: 600; margin-bottom: 0.5rem;">Lihat langkah-langkah</summary>
