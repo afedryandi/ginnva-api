@@ -165,11 +165,47 @@ class ActivityResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Histori Aktivitas';
 
-    // Cuma super_admin — histori aksi staff/partner adalah data sensitif,
-    // admin toko tidak perlu (dan tidak boleh) lihat aktivitas toko lain.
+    /**
+     * Modul yang SEMUA perubahannya dianggap berisiko (Histori Aktivitas Fase 5, tab "Perubahan Berisiko"): hak akses dan peran,
+     * penutupan periode dan pengaturan keuangan, harga dan tarif, rekening kas, persetujuan, ekspor data, dan perubahan uang
+     * pada booking. Penghapusan di modul mana pun dan kejadian keamanan akun yang janggal ditambahkan oleh applyRiskyScope().
+     */
+    public const RISKY_MODULES = [
+        'user', 'role', 'accounting_period', 'year_end_closing', 'finance_setting', 'chart_of_account',
+        'price_rule', 'film_product', 'film_product_price', 'film_product_group_price', 'technician_service_rate',
+        'payment_account', 'cash_transfer', 'cash_count', 'attendance_deduction_rule', 'salary_grade', 'payroll',
+        'transaction_approval_request', 'finance_transaction_approval_request', 'stock_write_off',
+        'booking_sale_line', 'booking_settlement_payment', 'report_export',
+    ];
+
+    /** Kejadian keamanan akun yang dianggap berisiko (masuk biasa dan keluar tidak). */
+    public const RISKY_AUTH_EVENTS = ['login_failed', 'password_changed', 'password_reset'];
+
+    public static function applyRiskyScope(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->whereIn('log_name', self::RISKY_MODULES)
+                ->orWhere('event', 'deleted')
+                ->orWhere(fn (Builder $auth) => $auth->where('log_name', 'auth')->whereIn('event', self::RISKY_AUTH_EVENTS));
+        });
+    }
+
+    public static function logNameLabel(?string $logName): string
+    {
+        return $logName ? (self::LOG_NAME_LABELS[$logName] ?? $logName) : '—';
+    }
+
+    // Akun full-access, atau staf yang diberi kotak Akses Menu "Histori Aktivitas" (mis. Spv Finance / Spv IT; keputusan pemilik
+    // 2026-10-21). Hak lihat sekaligus hak ekspor; tidak ada hak ubah/hapus karena log memang tidak boleh diubah.
     public static function canViewAny(): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        $user = auth()->user();
+
+        if ($user?->isFullAccess()) {
+            return true;
+        }
+
+        return (bool) ($user?->canAccessStaffArea() && $user->hasMenuAccess(static::class));
     }
 
     public static function canCreate(): bool
@@ -196,12 +232,11 @@ class ActivityResource extends Resource
      * diakses langsung — satu-satunya cara melihat detail lengkap 1 baris
      * audit trail (properties.old/attributes) sama sekali tidak bisa
      * diakses. Sama bug class yang berulang di audit-audit sebelumnya.
-     * Dibiarkan seluas canViewAny() (isFullAccess()), konsisten dengan
-     * pembatasan resource ini yang memang khusus super_admin/direksi.
+     * Dibiarkan seluas canViewAny(), konsisten dengan pembatasan resource ini.
      */
     public static function canView($record): bool
     {
-        return auth()->user()?->isFullAccess() ?? false;
+        return static::canViewAny();
     }
 
     public static function form(Form $form): Form

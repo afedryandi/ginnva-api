@@ -70,7 +70,7 @@ class ActivityResourceTest extends TestCase
 
     // ------------------------------------------------------------- akses
 
-    public function test_only_full_access_can_see_it_and_it_is_read_only(): void
+    public function test_full_access_or_a_menu_grant_can_see_it_and_it_is_always_read_only(): void
     {
         $record = new Activity();
 
@@ -87,8 +87,17 @@ class ActivityResourceTest extends TestCase
         $this->assertFalse(ActivityResource::canViewAny());
         $this->assertFalse(ActivityResource::canView($record));
 
-        $this->as($this->user('kasir', ['menu_access' => ['ActivityResource']]));
-        $this->assertFalse(ActivityResource::canViewAny(), 'Hak menu saja tidak cukup: data sensitif khusus full-access.');
+        // Keputusan pemilik 2026-10-21 (Histori Aktivitas Fase 5): kotak Akses Menu mendelegasikan hak lihat (mis. Spv Finance / Spv IT).
+        // Tetap baca-saja: tidak ada buat/ubah/hapus untuk siapa pun.
+        $delegated = $this->as($this->user('kasir', ['menu_access' => ['ActivityResource']]));
+        $this->assertTrue(ActivityResource::canViewAny(), 'Kotak Akses Menu memberi hak lihat.');
+        $this->assertTrue(ActivityResource::canView($record));
+        $this->assertFalse(ActivityResource::canCreate());
+        $this->assertFalse(ActivityResource::canEdit($record));
+        $this->assertFalse(ActivityResource::canDelete($record));
+
+        $this->as($this->user('kasir', ['menu_access' => ['BookingResource']]));
+        $this->assertFalse(ActivityResource::canViewAny(), 'Hak menu lain tidak cukup.');
     }
 
     public function test_staff_cannot_open_the_page(): void

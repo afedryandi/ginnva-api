@@ -264,6 +264,8 @@ class UserResource extends Resource
                 // 2026-09-10, diganti matriks harga (film_product_prices).
             ],
             'Sistem' => [
+                // Hak lihat + ekspor Histori Aktivitas untuk staf non-full-access (mis. Spv Finance / Spv IT), keputusan 2026-10-21.
+                'ActivityResource' => 'Histori Aktivitas',
                 'CustomerNotificationResource' => 'Riwayat Notifikasi',
                 'PartnerNotificationResource' => 'Riwayat Notifikasi Partner',
                 'SendNotification' => 'Kirim Notifikasi',
