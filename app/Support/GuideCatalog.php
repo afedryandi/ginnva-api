@@ -32,18 +32,26 @@ class GuideCatalog
         'Selesaikan Booking',
         'Ubah Jadwal',
         'Catat Penjualan',
+        'Ajukan Izin/Cuti',
+        'Cek Jarak Saya ke Toko',
+        'Detail Pengerjaan',
+        'K3 & Penilaian',
+        'Saya Sudah Membaca',
+        'Simpan Kondisi Kendaraan',
+        'Simpan Perubahan',
+        'Unduh Slip Gaji (PDF)',
     ];
 
     /** Halaman yang tidak perlu panduan sendiri (halaman Panduan itu sendiri). */
     public const NO_GUIDE_NEEDED = ['Panduan'];
 
     /**
-     * Panduan untuk akun yang tidak punya akses panel (installer): hanya yang menjelaskan pekerjaan di aplikasi staf. Akun tanpa batas
-     * `menu_access` dianggap berhak atas semua menu, jadi tanpa daftar ini installer akan melihat panduan keuangan dan HR.
+     * Panduan umum yang juga berlaku untuk akun tanpa akses panel (installer). Selain ini installer hanya mendapat panduan ber-`audience`
+     * installer (ditulis dari sudut pandang layar aplikasi). Akun tanpa batas `menu_access` dianggap berhak atas semua menu, jadi tanpa
+     * daftar ini installer akan melihat panduan keuangan dan HR; panduan Booking dan layanan juga tidak cocok karena menjelaskan aksi
+     * leader (konfirmasi, chat, QC, serah terima) yang ditolak untuk installer.
      */
-    public const APP_ONLY_GUIDE_IDS = [
-        'booking', 'layanan-ppf', 'layanan-kaca-film', 'layanan-detailing', 'layanan-premium-wash', 'spk', 'absensi', 'istilah',
-    ];
+    public const APP_ONLY_GUIDE_IDS = ['absensi', 'istilah'];
 
     /**
      * Panduan yang boleh dilihat user ini: akses penuh melihat semua, staf panel melihat panduan modul yang bisa diaksesnya, dan akun
@@ -60,6 +68,10 @@ class GuideCatalog
         $canUsePanel = $user->canAccessStaffArea();
 
         return array_values(array_filter(self::all(), function (array $guide) use ($user, $canUsePanel) {
+            if (($guide['audience'] ?? null) === 'installer') {
+                return $user->hasRole('installer') || $user->isFullAccess();
+            }
+
             if (! $canUsePanel) {
                 return in_array($guide['id'], self::APP_ONLY_GUIDE_IDS, true);
             }
@@ -930,6 +942,63 @@ class GuideCatalog
                 ],
                 'tips' => [
                     'Aturan potongan telat dan Alpha sebaiknya tertulis di Peraturan Perusahaan yang sudah diterima karyawan; Dasbor HR menandai peraturan yang belum diterima.',
+                ],
+            ],
+            [
+                'id' => 'installer-mulai',
+                'title' => 'Installer: mulai memakai aplikasi staf',
+                'audience' => 'installer',
+                'summary' => 'Apa saja yang ada di aplikasi untuk installer, apa yang menjadi tugas Anda di sana, dan apa yang dipegang leader atau Store Manager.',
+                'menus' => [],
+                'steps' => [
+                    'Masuk lewat aplikasi staf dengan email dan password dari admin. Installer tidak memakai panel web; semuanya lewat aplikasi. Lupa password? Pakai fitur lupa password di layar masuk, atau minta admin. Ganti password lewat nama Anda di bagian atas **Beranda**.',
+                    'Bilah bawah berisi **Beranda**, **Absensi**, **Booking**, **Gaji**, dan **Profil**. Menu lain ada sebagai kotak di Beranda: **Surat Perintah Kerja**, **Kotak Masuk**, **Slip Gaji**, **K3 & Penilaian**, **Peraturan & Kebijakan**, dan **Panduan**.',
+                    'Pekerjaan Anda muncul di **Booking Toko** dan **Surat Perintah Kerja**, hanya untuk booking yang DITUGASKAN kepada Anda, bukan seluruh booking toko. Saat leader menugaskan atau mencopot Anda dari sebuah booking, Anda menerima pemberitahuan "Penugasan Instalasi Baru" atau "Penugasan Dicabut"; riwayatnya ada di **Kotak Masuk**. Periksa kotak masuk di awal hari.',
+                    'Yang dipegang leader installer, Store Manager, atau atasan, bukan installer: konfirmasi dan pembatalan booking, chat dengan customer, foto penerimaan, Quality Check, serah terima, dan penugasan installer. Layar-layar itu ditolak untuk akun installer; hubungi leader bila ada kendala di lapangan.',
+                    'Yang menjadi tugas Anda di aplikasi: melihat detail pengerjaan, melengkapi SPK, absen, mengajukan izin dan koreksi, serta membaca slip gaji, perlengkapan, dan peraturan. Langkah tiap tugas ada di panduan Installer: mengerjakan satu booking dan Installer: absensi, gaji, dan K3.',
+                ],
+                'tips' => [
+                    'Booking yang belum ditugaskan ke Anda tidak muncul sama sekali; itu normal, bukan error.',
+                    'Daftar kotak di Beranda bisa berbeda antar akun menurut hak akses.',
+                ],
+            ],
+            [
+                'id' => 'installer-pekerjaan',
+                'title' => 'Installer: mengerjakan satu booking',
+                'audience' => 'installer',
+                'summary' => 'Dari melihat detail pengerjaan sampai melengkapi SPK dan menandai kendaraan keluar.',
+                'menus' => [],
+                'steps' => [
+                    "Buka **Booking Toko** lalu pilih booking Anda. Layar **Detail Pengerjaan** menampilkan Layanan, Tanggal, Lama Pengerjaan, Toko, Plat Nomor, Kendaraan, Warna, Ukuran Kendaraan, Customer, Status, dan rekan Installer, serta Catatan. Layanan berat (PPF, Kaca Film) bisa berlangsung beberapa hari; layanan ringan (Detailing, Premium Wash) berlangsung per jam, dan jamnya tertulis di Tanggal.",
+                    'Bila SPK sudah dibuat, tekan **Lihat SPK**. Bila belum, layar menyebut bahwa SPK dibuat oleh leader installer atau atasannya; installer biasa tidak membuat SPK baru. Daftar semua SPK Anda ada di **Surat Perintah Kerja**.',
+                    'Di SPK, lengkapi data kendaraan (**No. Polisi**, **No. Rangka**, merek, tahun, jenis, kilometer, BBM, battery), centang daftar **Uraian Pekerjaan**, **Extra Services**, dan **Perlengkapan Kendaraan** yang sesuai, lalu isi **Catatan** bila perlu. Tekan **Simpan Perubahan** agar tersimpan.',
+                    'Ketuk **Kondisi Kendaraan** untuk menandai kerusakan yang sudah ada sebelum pengerjaan pada diagram kendaraan (C cat luka, B baret dalam, P penyok, G kaca baret atau retak, M komponen hilang, OS over spray). Ini bukti kondisi unit saat diterima; tandai teliti, lalu tekan **Simpan Kondisi Kendaraan**.',
+                    'Saat kendaraan selesai dan keluar, tekan **Tandai Kendaraan Keluar**. Untuk produk film yang wajib dilacak gulungannya, penandaan ditolak sampai pemakaian gulungan dicatat; minta bagian inventaris atau leader mencatatnya, lalu ulangi.',
+                    'Kendala lain, mis. unit tidak sesuai data, kerusakan baru, atau jadwal mundur, sampaikan ke leader installer. Chat dengan customer dipegang leader.',
+                ],
+                'tips' => [
+                    'SPK yang sudah keluar tetap bisa dibuka, tetapi pastikan datanya benar sebelum menekan Tandai Kendaraan Keluar.',
+                    'Foto penerimaan dan serah terima dikelola leader atau Store Manager, bukan installer.',
+                ],
+            ],
+            [
+                'id' => 'installer-hr',
+                'title' => 'Installer: absensi, izin, gaji, dan K3',
+                'audience' => 'installer',
+                'summary' => 'Absen masuk dan keluar, koreksi, izin dan cuti, slip gaji dan komisi, perlengkapan, serta peraturan.',
+                'menus' => [],
+                'steps' => [
+                    'Di **Absensi**, tekan **Absen Masuk** saat tiba dan **Absen Keluar** saat pulang. Absen memakai lokasi dan hanya berhasil di dalam radius toko; aktifkan GPS. Tekan **Cek Jarak Saya ke Toko** bila absen ditolak karena jarak.',
+                    'Lupa absen? Tekan **Ajukan Koreksi Absensi**, isi Tanggal, Jam Masuk, Jam Keluar, dan Alasan. Atasan menyetujui atau menolak; hasilnya ada di Riwayat Pengajuan.',
+                    'Tidak masuk karena sakit atau keperluan lain: tekan tombol Ajukan / Lihat Izin & Cuti, lalu **Ajukan Izin/Cuti** (pilih Jenis, **Dari Tanggal**, **Sampai Tanggal**, tulis Alasan, dan lampirkan foto bila dibutuhkan). Pengajuan menunggu persetujuan admin; Anda bisa membatalkannya selama belum diproses.',
+                    '**Slip Gaji** menampilkan Gaji Pokok, Gaji Berjalan, Komisi Teknisi, dan Gaji Bersih per bulan, dan bisa diunduh lewat **Unduh Slip Gaji (PDF)**. Bila ada pekerjaan yang tarif komisinya belum diatur, aplikasi memberi tahu bahwa komisi itu belum ikut ditotal; tanyakan ke atasan.',
+                    '**K3 & Penilaian** menampilkan perlengkapan (APD) atas nama Anda beserta jatuh tempo ganti, pelatihan dan sertifikat, serta penilaian kinerja. Tekan **Saya Sudah Membaca** setelah membaca penilaian. Penilaian untuk pembinaan, bukan penentu gaji.',
+                    '**Peraturan & Kebijakan** berisi peraturan perusahaan dan SOP. Baca dokumennya dan tekan tombol penerimaan bila diminta. Aturan potongan telat dan Alpha hanya sah bila tertulis di peraturan yang sudah Anda terima.',
+                    '**Profil** menampilkan masa kerja dan kontrak, data diri, kontak darurat, dan dokumen. Bila ada data yang salah, minta HR memperbaikinya. Surat peringatan yang pernah diterbitkan ada di **Riwayat Surat Peringatan** pada layar Absensi.',
+                ],
+                'tips' => [
+                    'Koreksi absensi yang disetujui ikut memengaruhi perhitungan telat dan gaji.',
+                    'Aturan ini sama untuk semua karyawan; yang khusus installer hanyalah komisi pada Slip Gaji.',
                 ],
             ],
             [

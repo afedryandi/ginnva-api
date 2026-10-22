@@ -53,13 +53,55 @@ class StaffGuidesApiTest extends TestCase
         }
     }
 
-    public function test_an_installer_only_gets_the_app_guides_even_without_a_menu_limit(): void
+    public function test_an_installer_only_gets_the_installer_guides_even_without_a_menu_limit(): void
     {
+        $installerGuides = collect(GuideCatalog::all())->where('audience', 'installer')->pluck('id')->all();
+        $this->assertNotEmpty($installerGuides);
+
         $ids = $this->ids($this->actingAs($this->user('installer'), 'api')->getJson('/api/staff/guides'));
 
-        $this->assertEqualsCanonicalizing(GuideCatalog::APP_ONLY_GUIDE_IDS, $ids);
-        $this->assertNotContains('penggajian', $ids);
-        $this->assertNotContains('transaksi-keuangan', $ids);
+        $this->assertEqualsCanonicalizing(array_merge(GuideCatalog::APP_ONLY_GUIDE_IDS, $installerGuides), $ids);
+        foreach (['penggajian', 'transaksi-keuangan', 'booking', 'layanan-ppf'] as $hidden) {
+            $this->assertNotContains($hidden, $ids, "Installer tidak boleh melihat `{$hidden}`: menjelaskan aksi yang ditolak untuk installer.");
+        }
+    }
+
+    public function test_installer_guides_are_hidden_from_other_panel_staff(): void
+    {
+        $kasir = $this->ids($this->actingAs($this->user('kasir'), 'api')->getJson('/api/staff/guides'));
+
+        $this->assertNotContains('installer-mulai', $kasir);
+        $this->assertNotContains('installer-pekerjaan', $kasir);
+        $this->assertContains('booking', $kasir);
+    }
+
+    public function test_the_installer_guides_describe_what_the_api_really_denies_installers(): void
+    {
+        $start = collect(GuideCatalog::all())->firstWhere('id', 'installer-mulai');
+        $text = implode(' ', $start['steps']);
+
+        foreach (['konfirmasi dan pembatalan booking', 'chat dengan customer', 'Quality Check', 'serah terima'] as $leaderOnly) {
+            $this->assertStringContainsString($leaderOnly, $text);
+        }
+
+        $installer = $this->user('installer');
+        $this->assertFalse($installer->canCreateSpk(), 'Panduan menyebut installer biasa tidak membuat SPK baru.');
+
+        $customer = \App\Models\Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(1000000, 9999999)]);
+        $booking = \App\Models\Booking::create([
+            'booking_number' => 'BKG-GD-' . uniqid(),
+            'customer_id' => $customer->id,
+            'store_id' => $installer->store_id,
+            'service_type' => 'Pelindung Cat (PPF)',
+            'product_ppf' => true,
+            'preferred_date' => now()->addDays(4)->toDateString(),
+            'status' => 'confirmed',
+        ]);
+        $booking->installers()->attach($installer->id);
+
+        $this->actingAs($installer, 'api')->postJson("/api/staff/bookings/{$booking->id}/handover", [])->assertStatus(403);
+        $this->actingAs($installer, 'api')->postJson("/api/staff/bookings/{$booking->id}/intake-photos", [])->assertStatus(403);
+        $this->actingAs($installer, 'api')->postJson("/api/staff/bookings/{$booking->id}/messages", ['message' => 'tes'])->assertStatus(403);
     }
 
     public function test_full_access_gets_every_guide_and_restricted_staff_only_their_modules(): void
