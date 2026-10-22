@@ -1,6 +1,6 @@
 # Rencana Deploy Production: Notifikasi, Histori Aktivitas, Master Data, dan Panduan
 
-Dibuat 2026-10-22. Melanjutkan `RENCANA_DEPLOY_PENJUALAN.md` (dijalankan 2026-10-21: production `20f7c00` → `5ff3fa5`). **Dokumen ini belum dijalankan.** Perintah untuk server cPanel Ginnva, user `ginnva`, folder production `ginnva-api` (perintah tidak diawali `cd`; terminal Anda sudah di sana).
+Dibuat 2026-10-22. Melanjutkan `RENCANA_DEPLOY_PENJUALAN.md` (dijalankan 2026-10-21: production `20f7c00` → `5ff3fa5`). **DIJALANKAN 2026-10-22 (API):** production `5ff3fa5` → `0da10b1`, tujuh migrasi `Ran` (batch 114), jadwal `notifications:prune-old`, `check-receipts`, dan `send-scheduled` terdaftar, `guides:coverage` 152 dari 152 menu (62 panduan). Sebelum deploy: suite penuh di dev 2747 tes, 1 gagal (tes rapuh urutan notifikasi di `TransactionApprovalTest`, diperbaiki di `0da10b1` dan terbukti hijau); `activity_log` 1.283 baris; cron `schedule:run` tiap menit ada; backup 03:00 ada. Verifikasi klik (bagian 6) menyusul. Perintah untuk server cPanel Ginnva, user `ginnva`, folder production `ginnva-api` (perintah tidak diawali `cd`; terminal Anda sudah di sana).
 
 Marketing/Konten Fase 1 sampai 5 sudah ikut naik bersama Karyawan dan Keuangan (`RENCANA_DEPLOY_KARYAWAN_KEUANGAN.md`), sehingga panduan Marketing tidak lagi menjelaskan fitur yang belum ada. Meski begitu, **pastikan dulu keadaan production yang sebenarnya** (bagian 4, butir 2); seluruh daftar di bawah mengandaikan production ada di `5ff3fa5`.
 
