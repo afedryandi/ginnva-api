@@ -17,7 +17,7 @@
         </div>
         <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
             Daftar ini hanya membaca. Pelanggan selalu mendapat baris di kotak masuk aplikasinya. Untuk staf, "push saja" berarti berkas pengirimnya tidak membuat notifikasi di lonceng panel,
-            jadi pesan yang terlewat di ponsel tidak tersimpan. Aplikasi mobile staf belum punya kotak masuk.
+            jadi pesan yang terlewat di ponsel tidak tersimpan. Aplikasi staf punya Kotak Masuk, tetapi baru memuat titik yang sudah memakai pengirim staf yang baru.
         </p>
     </x-filament::section>
 

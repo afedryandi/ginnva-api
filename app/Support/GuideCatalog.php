@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Exports\ActivityLogExport;
 use App\Models\Booking;
 use App\Models\BookingMessage;
 use App\Models\BookingSaleLine;
@@ -88,6 +89,9 @@ class GuideCatalog
     public static function all(): array
     {
         $sla = (int) config('booking.confirm_sla_hours', 4);
+        $promoMax = (int) config('marketing.promo_max_campaigns_per_week', 2);
+        $quietHours = QuietHours::label();
+        $exportMax = number_format(ActivityLogExport::$maxRows, 0, ',', '.');
         $slots = implode(', ', (array) config('booking.light_slots', []));
         $services = implode(', ', BookingSaleLine::SERVICE_TYPES);
         $kacaFilmStages = implode(' → ', array_values(BookingMessage::PRODUCT_STAGES['kaca_film']));
@@ -999,6 +1003,76 @@ class GuideCatalog
                 'tips' => [
                     'Koreksi absensi yang disetujui ikut memengaruhi perhitungan telat dan gaji.',
                     'Aturan ini sama untuk semua karyawan; yang khusus installer hanyalah komisi pada Slip Gaji.',
+                ],
+            ],
+            [
+                'id' => 'kirim-notifikasi',
+                'title' => 'Kirim Notifikasi, kampanye, dan templat',
+                'summary' => 'Mengirim pesan push ke pelanggan atau partner, menjadwalkannya, menyimpan templat, dan memantau hasil tiap kampanye.',
+                'menus' => ['SendNotification', 'NotificationCampaignResource', 'NotificationTemplateResource'],
+                'steps' => [
+                    "Di **Kirim Notifikasi** pilih **Kirim Ke**: Customer (aplikasi utama) atau Partner (mitra referral). Tentukan penerima: **Kirim ke semua pengguna** atau **Pilih Pelanggan** (untuk partner: **Kirim ke semua partner** atau **Pilih Partner**).",
+                    "Pilih **Jenis Pesan** untuk customer. **Promosi** (diskon, penawaran, ajakan membeli) hanya dikirim ke pelanggan yang sudah menyetujui menerima promo di aplikasi, dibatasi {$promoMax} kampanye per 7 hari, dan tidak dikirim pada jam tenang ({$quietHours}). **Informasi penting** (jadwal, perubahan layanan) dikirim ke semua pelanggan dan jangan dipakai untuk promosi.",
+                    'Isi **Judul Notifikasi** dan **Isi Pesan**, atau mulai dari **Pakai Templat (opsional)**. Pada bagian Deep Link (hanya notifikasi Customer) pilih **Tujuan Halaman** agar ketukan notifikasi membuka halaman tertentu; **ID Record (opsional)** diisi bila tujuannya halaman detail garansi atau booking.',
+                    "Kirim sekarang, atau aktifkan **Jadwalkan pengiriman** lalu isi **Waktu Kirim (WIB)** (minimal 2 menit dari sekarang). Promosi tidak bisa dijadwalkan pada jam tenang ({$quietHours}).",
+                    'Pesan yang akan dipakai lagi disimpan dengan **Simpan sebagai templat** (isi **Nama Templat**; judul dan isi wajib ada). Di **Templat Notifikasi** templat bisa diubah namanya, disunting, atau dihapus.',
+                    '**Kampanye Notifikasi** mencatat setiap kiriman: **Status** (Terjadwal, Sedang dikirim, Terkirim, Gagal, Dibatalkan), **Penerima**, **Dilewati** (mis. belum menyetujui promo), perangkat **Terkirim** dan **Gagal / Token Mati**, serta hasil kuitansi dari Expo. Kampanye yang masih terjadwal bisa dihentikan dengan **Batalkan**; ini tidak bisa diurungkan.',
+                ],
+                'tips' => [
+                    'Notifikasi booking dan transaksi dikirim otomatis oleh sistem dan tidak terpengaruh jam tenang atau batas promosi.',
+                    'Pelanggan yang menolak promo tidak menerima Promosi, jadi jumlah Penerima bisa lebih kecil dari jumlah pelanggan.',
+                ],
+            ],
+            [
+                'id' => 'riwayat-notifikasi',
+                'title' => 'Riwayat Notifikasi, Log Pengiriman, dan Katalog Notifikasi',
+                'summary' => 'Menelusuri notifikasi yang pernah dikirim, memeriksa apakah sebuah push sampai ke perangkat, dan melihat daftar semua titik pengiriman otomatis.',
+                'menus' => ['CustomerNotificationResource', 'PartnerNotificationResource', 'NotificationDeliveryResource', 'NotificationCatalogPage'],
+                'steps' => [
+                    '**Riwayat Notifikasi** (pelanggan) dan **Riwayat Notifikasi Partner** mendaftar pesan yang dikirim admin: **Judul**, **Isi**, **Target**, **Deep Link**, **Dikirim Oleh**, dan **Dikirim**. Saring dengan **Broadcast saja** atau **Targeted saja**, serta **Dari Tanggal** dan **Sampai Tanggal**.',
+                    '**Log Pengiriman** menjawab "apakah notifikasi ini sampai ke orang itu": satu baris per perangkat dengan **Penerima**, **Judul**, **Hasil**, dan **Keterangan**. Hasilnya: Menunggu kuitansi, Terkirim, Gagal, Token mati, atau Tidak diketahui. Hasil "Menunggu kuitansi" berubah sendiri setelah kuitansi Expo diperiksa (**Kuitansi Diperiksa**). Token mati berarti aplikasi sudah dihapus atau perangkat tidak lagi terdaftar; itu bukan kesalahan pesan.',
+                    '**Katalog Notifikasi** adalah daftar baca-saja semua titik di sistem yang mengirim push, beserta penerimanya (pelanggan atau staf) dan apakah staf juga mendapat catatan di lonceng panel. Pakai untuk menjawab "notifikasi ini datang dari mana".',
+                ],
+                'tips' => [
+                    'Log Pengiriman dibersihkan otomatis setelah 90 hari.',
+                    'Pelanggan selalu mendapat baris di kotak masuk aplikasinya; staf punya Kotak Masuk sendiri di aplikasi staf.',
+                ],
+            ],
+            [
+                'id' => 'master-data',
+                'title' => 'Master Data: toko, kendaraan, dan luas kaca',
+                'summary' => 'Mengisi data dasar yang dipakai booking, harga, absensi, dan laporan, serta memeriksa kelengkapannya di Pusat Master Data.',
+                'menus' => ['MasterDataCenter', 'StoreResource', 'VehicleResource', 'VehicleGlassAreaResource'],
+                'steps' => [
+                    '**Pusat Master Data** menghitung data yang masih kurang (kendaraan, luas kaca, toko, produk) dan menautkan ke tempat memperbaikinya lewat tombol **Buka**. Butir bertanda penting perlu ditindak; butir lain hanya saran. Halaman ini hanya membaca.',
+                    'Di **Toko/Dealer** isi **Nama Toko**, **Kode Toko** (singkat dan unik, untuk laporan), **Penanggung Jawab**, **Kota**, dan **No. Telepon**. Tempel **Tempel Link Google Maps** agar **Latitude** dan **Longitude** terisi otomatis; koordinat dibutuhkan untuk absen berbasis lokasi. Isi **Google Place ID** untuk tombol ulasan di aplikasi.',
+                    'Kapasitas: **Kapasitas Instalasi / Hari (Default)** untuk PPF dan Kaca Film (nilai awal saat booking dikonfirmasi, masih bisa diubah per booking), **Kapasitas Layanan Ringan / Jam** untuk Detailing dan Premium Wash, serta **Jumlah Slot Detailing** dan **Jumlah Slot Instalasi & QC** untuk laporan utilisasi zona. Toko yang belum diisi slotnya dilewati laporan itu.',
+                    'Absensi: **Radius Absen (meter)** (kosong berarti 150 m) dan **Toleransi Pengingat Absen & Pulang Cepat (menit)** (kosong berarti 15 menit). Toleransi ini hanya untuk pengingat dan bukan dasar potongan telat; aturan potongan ada di Aturan Potongan Absensi.',
+                    '**Jam Operasional**: satu baris per kelompok hari dengan **Jam Buka**, **Jam Tutup**, dan istirahat **Mulai Istirahat (opsional)** serta **Selesai Istirahat (opsional)** bila ada; tandai hari **Libur** bila tutup. Jam istirahat dikurangi dari jam kerja efektif untuk potongan Alpha per jam.',
+                    'Toko yang sudah punya data (booking, staf, teknisi, garansi) tidak bisa dihapus: matikan **Aktif (tampil di web publik)**.',
+                    '**Kendaraan** adalah katalog yang muncul di aplikasi dan formulir: **Merek**, **Tipe / Model**, **Varian**, **Kategori Ukuran** (S, M, L, XL, XXL; menentukan harga), dan **Tipe Bodi**. Satu merek+model sebaiknya hanya punya satu ukuran; ukuran ganda membuat harga ambigu. Kendaraan yang tidak ditawarkan lagi dinonaktifkan lewat **Nonaktifkan**, bukan dihapus; riwayat penawaran dan kendaraan pelanggan tetap utuh.',
+                    '**Luas Kaca** menyimpan luas kaca (m2) per merek+model: **Depan**, **Samping**, **Belakang**, **Sunroof**, dan **Total**, untuk menghitung kebutuhan bahan dan harga kaca film. Samakan penulisan merek dan modelnya dengan menu Kendaraan agar terhubung (kolom **Di katalog**). Hanya akses penuh yang mengubah data ini dan menjalankan **Impor dari Google Sheet**; staf lain hanya melihat, kecuali diberi izin aksi.',
+                    'Saat impor, baca **Pratinjau** dulu. Bawaannya hanya menambah baris baru; aktifkan **Perbarui juga baris yang nilainya berbeda dari data di sistem** bila memang ingin menimpa data yang ada.',
+                ],
+                'tips' => [
+                    'Kapasitas yang salah memengaruhi kemungkinan tanggal booking yang bisa dipilih; ubah dengan hati-hati.',
+                ],
+            ],
+            [
+                'id' => 'histori-aktivitas',
+                'title' => 'Histori Aktivitas: jejak siapa mengubah apa',
+                'summary' => 'Menelusuri perubahan data dan kejadian keamanan akun, melihat nilai sebelum dan sesudah, dan mengekspornya.',
+                'menus' => ['ActivityResource'],
+                'steps' => [
+                    'Menu ini hanya untuk akses penuh, atau staf yang kotak **Histori Aktivitas** dicentang secara eksplisit di Akses Menu akunnya (mis. supervisor Finance atau IT). Akun dengan akses menu kosong (semua menu) TIDAK otomatis melihatnya karena isinya sensitif.',
+                    'Daftar menampilkan **Waktu (WIB)**, **Pelaku**, **Modul**, **Aksi**, **Asal** (Panel Admin, Aplikasi Staf, Aplikasi Pelanggan, API, Web, atau Sistem), **Objek**, dan **Deskripsi**. Tab **Semua**, **Perubahan Berisiko** (mis. gaji, akses, periode, harga, hapus), dan **Keamanan Akun** (masuk gagal, ganti dan reset password) menyempitkan tampilan.',
+                    'Saring dengan **Modul**, **Pelaku**, **Pelaku (Pelanggan)**, **Asal**, **Dari Tanggal (WIB)** dan **Sampai Tanggal (WIB)**, atau **Objek** (**Jenis Objek** dan **Nomor Objek**) untuk menelusuri riwayat satu data, mis. satu booking.',
+                    'Buka sebuah baris untuk melihat **Email Pelaku**, **Alamat IP**, **Perangkat**, **Alasan** (bila diisi), serta **Nilai Sebelumnya** dan **Nilai Baru** per kolom. IP dan perangkat hanya dicatat untuk staf, bukan pelanggan.',
+                    "Ekspor hasil filter lewat **Ekspor ke Excel** (maksimal {$exportMax} baris; persempit rentang bila lebih). Ekspor itu sendiri tercatat sebagai kejadian di histori.",
+                ],
+                'tips' => [
+                    'Log tidak bisa diubah atau dihapus oleh siapa pun; koreksi data dilakukan di modul aslinya dan akan muncul sebagai catatan baru.',
+                    'Perubahan oleh sistem terjadwal tercatat sebagai "Sistem (otomatis)" tanpa pelaku.',
                 ],
             ],
             [

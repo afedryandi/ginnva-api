@@ -244,6 +244,9 @@ class GuideAccuracyTest extends TestCase
         \App\Filament\Clusters\AnalisaLaporanCluster::class,
         \App\Filament\Clusters\PenjualanCluster::class,
         \App\Filament\Clusters\MarketingKontenCluster::class,
+        \App\Filament\Clusters\NotifikasiCluster::class,
+        \App\Filament\Clusters\MasterDataCluster::class,
+        \App\Filament\Clusters\SistemCluster::class,
     ];
 
     public function test_every_visible_menu_in_a_completed_cluster_has_a_guide(): void
@@ -332,6 +335,24 @@ class GuideAccuracyTest extends TestCase
         $gallery = $this->text($this->guide('galeri-izin-foto'));
         $this->assertStringContainsString('bawaannya TIDAK ada izin', $gallery);
         $this->assertStringContainsString('TIDAK mengubah angka yang tampil di website', $this->text($this->guide('klaim-bukti')));
+    }
+
+    public function test_the_notification_master_data_and_activity_guides_keep_their_rules(): void
+    {
+        $ids = collect(GuideCatalog::all())->pluck('id')->all();
+
+        foreach (['kirim-notifikasi', 'riwayat-notifikasi', 'master-data', 'histori-aktivitas'] as $id) {
+            $this->assertContains($id, $ids);
+        }
+
+        $send = $this->text($this->guide('kirim-notifikasi'));
+        $this->assertStringContainsString('hanya dikirim ke pelanggan yang sudah menyetujui', $send);
+        $this->assertStringContainsString((string) config('marketing.promo_max_campaigns_per_week'), $send, 'Batas promosi per minggu harus sama dengan konfigurasi.');
+        $this->assertStringContainsString(\App\Support\QuietHours::label(), $send, 'Jam tenang harus dibaca dari konfigurasi.');
+
+        $activity = $this->text($this->guide('histori-aktivitas'));
+        $this->assertStringContainsString('TIDAK otomatis melihatnya', $activity);
+        $this->assertStringContainsString((string) number_format(\App\Exports\ActivityLogExport::$maxRows, 0, ',', '.'), $activity, 'Batas baris ekspor harus sama dengan kode.');
     }
 
     public function test_the_finance_guides_exist_and_the_year_end_order_is_documented(): void
