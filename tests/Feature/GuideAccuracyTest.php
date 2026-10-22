@@ -237,6 +237,7 @@ class GuideAccuracyTest extends TestCase
         \App\Filament\Clusters\BookingCluster::class,
         \App\Filament\Clusters\KeuanganCluster::class,
         \App\Filament\Clusters\KaryawanCluster::class,
+        \App\Filament\Clusters\InventarisCluster::class,
     ];
 
     public function test_every_visible_menu_in_a_completed_cluster_has_a_guide(): void
@@ -276,6 +277,19 @@ class GuideAccuracyTest extends TestCase
         $text = $this->text($this->guide('penggajian'));
         $this->assertStringContainsString('TIDAK menghitung pajak', $text);
         $this->assertStringContainsString('Setujui & Tandai Dibayar', $text);
+    }
+
+    public function test_the_inventory_guides_exist_and_the_purchase_flow_is_documented(): void
+    {
+        $ids = collect(GuideCatalog::all())->pluck('id')->all();
+
+        foreach (['stok', 'aset-tetap', 'permohonan-pembelian', 'riwayat-stok-dashboard'] as $id) {
+            $this->assertContains($id, $ids);
+        }
+
+        $text = $this->text($this->guide('permohonan-pembelian'));
+        $this->assertStringContainsString('Catat Stok', $text);
+        $this->assertStringContainsString('TIDAK menambah stok', $text);
     }
 
     public function test_the_finance_guides_exist_and_the_year_end_order_is_documented(): void
