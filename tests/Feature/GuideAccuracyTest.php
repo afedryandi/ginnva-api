@@ -1,0 +1,181 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\BookingMessage;
+use App\Models\BookingSaleLine;
+use App\Models\WarrantyMaintenanceSchedule;
+use App\Support\GuideCatalog;
+use Filament\Facades\Filament;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * Panduan Fase 0 (2026-10-22): pengaman agar isi panduan tidak melenceng dari sistem. Angka dan label yang bisa berubah diambil dari
+ * kode, dan setiap istilah tebal (nama tombol/menu) harus benar-benar ada sebagai label.
+ */
+class GuideAccuracyTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+    }
+
+    private function guide(string $id): array
+    {
+        return collect(GuideCatalog::all())->firstWhere('id', $id) ?? $this->fail("Panduan {$id} tidak ada.");
+    }
+
+    private function text(array $guide): string
+    {
+        return implode("\n", array_merge([$guide['title'], $guide['summary']], $guide['steps'], $guide['tips']));
+    }
+
+    /** @return array<string, string> kelas menu => nama pendek, untuk semua resource dan halaman panel admin */
+    private function panelClasses(): array
+    {
+        $panel = Filament::getPanel('admin');
+        $map = [];
+
+        foreach (array_merge($panel->getResources(), $panel->getPages()) as $class) {
+            $map[class_basename($class)] = $class;
+        }
+
+        return $map;
+    }
+
+    // ------------------------------------------------------------- rujukan menu
+
+    public function test_every_guided_menu_exists_and_is_visible_in_the_navigation(): void
+    {
+        $classes = $this->panelClasses();
+
+        foreach (GuideCatalog::all() as $guide) {
+            foreach ($guide['menus'] as $menu) {
+                $this->assertArrayHasKey($menu, $classes, "Panduan {$guide['id']} merujuk menu {$menu} yang tidak ada di panel.");
+                $this->assertTrue(
+                    $classes[$menu]::shouldRegisterNavigation(),
+                    "Panduan {$guide['id']} merujuk menu {$menu} yang disembunyikan (mis. lewat bendera fitur): staf tidak bisa menemukannya."
+                );
+            }
+        }
+    }
+
+    public function test_the_attendance_guide_no_longer_sends_staff_to_the_hidden_work_schedule_menus(): void
+    {
+        $menus = $this->guide('absensi')['menus'];
+
+        $this->assertNotContains('ShiftResource', $menus);
+        $this->assertNotContains('WorkScheduleResource', $menus);
+    }
+
+    // ------------------------------------------------------------- istilah tebal = label nyata
+
+    public function test_every_bold_term_is_a_real_label_in_the_code(): void
+    {
+        $corpus = '';
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(base_path('app'), \FilesystemIterator::SKIP_DOTS));
+        foreach ($iterator as $file) {
+            if ($file->getExtension() === 'php' && $file->getFilename() !== 'GuideCatalog.php') {
+                $corpus .= mb_strtolower((string) file_get_contents($file->getPathname())) . "\n";
+            }
+        }
+        $views = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(resource_path('views'), \FilesystemIterator::SKIP_DOTS));
+        foreach ($views as $file) {
+            $corpus .= mb_strtolower((string) file_get_contents($file->getPathname())) . "\n";
+        }
+
+        $terms = [];
+        foreach (GuideCatalog::all() as $guide) {
+            preg_match_all('/\*\*(.+?)\*\*/', $this->text($guide), $found);
+            foreach ($found[1] as $term) {
+                // "A / B / C" ditulis sebagai satu istilah tebal: tiap bagian diperiksa sendiri.
+                foreach (explode(' / ', $term) as $part) {
+                    $terms[trim($part)] = true;
+                }
+            }
+        }
+
+        $missing = [];
+        foreach (array_keys($terms) as $term) {
+            if (! in_array($term, GuideCatalog::MOBILE_LABELS, true) && ! str_contains($corpus, mb_strtolower($term))) {
+                $missing[] = $term;
+            }
+        }
+
+        $this->assertNotEmpty($terms);
+        $this->assertSame([], $missing, 'Istilah tebal di panduan yang tidak ada sebagai label di kode: ' . implode(', ', $missing)
+            . '. Perbaiki teks panduan, atau daftarkan di GuideCatalog::MOBILE_LABELS bila label itu hanya ada di aplikasi staf (setelah diperiksa).');
+    }
+
+    public function test_every_mobile_label_is_actually_used_in_a_guide(): void
+    {
+        $all = '';
+        foreach (GuideCatalog::all() as $guide) {
+            $all .= $this->text($guide) . "\n";
+        }
+
+        foreach (GuideCatalog::MOBILE_LABELS as $label) {
+            $this->assertStringContainsString("**{$label}**", $all, "MOBILE_LABELS memuat \"{$label}\" yang tidak lagi dipakai panduan manapun (hapus).");
+        }
+    }
+
+    // ------------------------------------------------------------- isi mengikuti kode
+
+    public function test_the_booking_guide_follows_the_stage_service_slot_and_sla_definitions_in_code(): void
+    {
+        config(['booking.confirm_sla_hours' => 6, 'booking.light_slots' => ['08:00 - 10:00', '10:00 - 12:00']]);
+        $text = $this->text($this->guide('booking'));
+
+        foreach (array_merge(BookingMessage::PRODUCT_STAGES['kaca_film'], BookingMessage::PRODUCT_STAGES['ppf'], BookingMessage::SHARED_STAGES) as $label) {
+            $this->assertStringContainsString($label, $text, "Tahap \"{$label}\" tidak disebut di panduan Booking.");
+        }
+
+        foreach (BookingSaleLine::SERVICE_TYPES as $label) {
+            $this->assertStringContainsString($label, $text, "Layanan \"{$label}\" tidak disebut di panduan Booking.");
+        }
+
+        $this->assertStringContainsString('08:00 - 10:00, 10:00 - 12:00', $text, 'Slot jam diambil dari konfigurasi.');
+        $this->assertStringContainsString('dalam 6 jam', $text, 'Batas respons diambil dari konfigurasi.');
+    }
+
+    public function test_detailing_and_premium_wash_are_explained_as_having_no_work_stages(): void
+    {
+        $text = $this->text($this->guide('booking'));
+
+        $this->assertStringContainsString('Detailing dan Premium Wash tidak punya tahap pengerjaan', $text);
+        $this->assertSame(
+            ['kaca_film', 'ppf'],
+            array_keys(BookingMessage::PRODUCT_STAGES),
+            'Bila Detailing/Premium Wash mendapat tahap pengerjaan, perbarui panduan Booking dan Istilah.'
+        );
+    }
+
+    public function test_the_warranty_guide_uses_the_maintenance_grace_period_from_code(): void
+    {
+        $this->assertStringContainsString('masa toleransi ' . WarrantyMaintenanceSchedule::GRACE_DAYS . ' hari', $this->text($this->guide('garansi-maintenance')));
+    }
+
+    public function test_the_sales_guide_exists_and_covers_the_steps_of_the_process_referral_action(): void
+    {
+        $text = $this->text($this->guide('penjualan'));
+
+        foreach (['Proses Referral', 'Rincian Harga per Layanan', 'Nominal Transaksi', 'Pembayaran diterima', 'Piutang Usaha', 'Catat Uang Muka (DP)', 'Kembalikan Sisa DP', 'Proses Refund'] as $term) {
+            $this->assertStringContainsString($term, $text, "Panduan Penjualan tidak menyebut \"{$term}\".");
+        }
+    }
+
+    // ------------------------------------------------------------- laporan cakupan
+
+    public function test_the_coverage_command_reports_without_changing_anything(): void
+    {
+        $this->artisan('guides:coverage', ['--list' => true])
+            ->expectsOutputToContain('Cakupan panduan')
+            ->expectsOutputToContain('Menu yang belum punya panduan')
+            ->assertSuccessful();
+    }
+}
