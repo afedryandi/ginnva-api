@@ -1121,6 +1121,25 @@ class GuideCatalog
                 ],
             ],
             [
+                'id' => 'finance-harian',
+                'title' => 'Spv Finance: rutinitas dan batas wewenang',
+                'audience' => 'spv_finance',
+                'summary' => 'Yang Anda kerjakan harian, mingguan, dan akhir bulan di panel, dan hal-hal yang sengaja hanya boleh dilakukan direksi atau akses penuh.',
+                'menus' => [],
+                'steps' => [
+                    'Akses Anda diatur admin lewat Akses Menu akun Anda. Bagan Akun, Jurnal Umum, Rekonsiliasi Bank, dan Penggajian hanya berlaku untuk role Spv Finance; mencentang menu itu untuk role lain tidak membukanya. Anda bekerja lintas toko dan melihat jurnal seluruh perusahaan. Hak membuat, mengubah, menghapus, dan memposting TIDAK ada bawaan; tiap hak itu harus diberikan admin di Hak Akses Detail. Tanpa hak itu, Anda hanya melihat.',
+                    'Harian: periksa **Transaksi Keuangan** toko (kategori, rekening, nota), lalu **Rekonsiliasi Bank** (impor mutasi dan cocokkan dengan transaksi), dan pantau Hutang Usaha dan Piutang Usaha yang jatuh tempo. Persetujuan pengeluaran toko berjalan lewat Store Manager lalu direksi; itu bukan keputusan Anda.',
+                    '**Jurnal Umum**: jurnal manual dibuat sebagai draft dan harus seimbang. Anda tidak bisa memposting atau membalik jurnal yang Anda buat sendiri; minta orang lain yang berhak (direksi atau Spv Finance lain dengan hak ubah) memprosesnya. Direksi diberi tahu setiap kali Spv Finance memposting jurnal. Jurnal otomatis (booking, transaksi keuangan, penyusutan, DP) dibalik lewat modul asalnya, bukan dari sini.',
+                    'Akhir bulan, penggajian: pastikan **Kelengkapan Data** karyawan beres, jalankan **Generate Payroll Bulanan** untuk bulan yang sudah selesai penuh, isi **Komponen Gaji**, lalu tekan **Ajukan Pembayaran**. Anda tidak bisa menandai dibayar sendiri: direksi yang menekan **Setujui & Tandai Dibayar**, dan baru saat itu gaji diposting ke Jurnal Umum.',
+                    '**Tutup Periode** dan **Tutup Tahun Buku** hanya untuk akses penuh; menunya tidak terbuka untuk Anda. Tugas Anda menyiapkannya: tidak ada jurnal Draft yang tertinggal di bulan itu (posting atau hapus), jurnal seimbang, rekonsiliasi bank selesai, dan selisih sub-buku sudah Anda jelaskan. Setelah itu minta direksi menutup periode, bulan demi bulan dari yang paling lama.',
+                    'Untuk membaca hasilnya pakai laporan keuangan (Laba Rugi, Neraca, Arus Kas, Buku Besar); langkah rinci tiap menu ada di panduan Transaksi Keuangan, Kas dan Bank, Jurnal dan Bagan Akun, Hutang dan Piutang, Penggajian bulanan, serta Laporan Keuangan.',
+                ],
+                'tips' => [
+                    'Bila sebuah tombol tidak muncul, kemungkinan itu hak yang belum diberikan atau wewenang direksi (pemisahan tugas), bukan error.',
+                    'Koreksi untuk periode yang sudah ditutup tidak dibuat dengan mengubah jurnal lama; minta direksi membuka kembali bulannya dengan alasan tertulis.',
+                ],
+            ],
+            [
                 'id' => 'istilah',
                 'title' => 'Istilah yang sering muncul',
                 'summary' => 'Arti singkat istilah di layar dan laporan.',
