@@ -243,6 +243,7 @@ class GuideAccuracyTest extends TestCase
         \App\Filament\Clusters\PelangganCluster::class,
         \App\Filament\Clusters\AnalisaLaporanCluster::class,
         \App\Filament\Clusters\PenjualanCluster::class,
+        \App\Filament\Clusters\MarketingKontenCluster::class,
     ];
 
     public function test_every_visible_menu_in_a_completed_cluster_has_a_guide(): void
@@ -318,6 +319,19 @@ class GuideAccuracyTest extends TestCase
         }
 
         $this->assertStringContainsString('sudah tercatat sebagai pendapatan', $this->text($this->guide('laporan-penjualan')));
+    }
+
+    public function test_the_marketing_guides_exist_and_keep_the_consent_rules(): void
+    {
+        $ids = collect(GuideCatalog::all())->pluck('id')->all();
+
+        foreach (['lead-inquiry-kemitraan', 'konten-beranda', 'galeri-izin-foto', 'klaim-bukti'] as $id) {
+            $this->assertContains($id, $ids);
+        }
+
+        $gallery = $this->text($this->guide('galeri-izin-foto'));
+        $this->assertStringContainsString('bawaannya TIDAK ada izin', $gallery);
+        $this->assertStringContainsString('TIDAK mengubah angka yang tampil di website', $this->text($this->guide('klaim-bukti')));
     }
 
     public function test_the_finance_guides_exist_and_the_year_end_order_is_documented(): void

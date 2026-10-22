@@ -710,6 +710,73 @@ class GuideCatalog
                 ],
             ],
             [
+                'id' => 'lead-inquiry-kemitraan',
+                'title' => 'Inquiry produk, kemitraan, partner, dan Dasbor Lead',
+                'summary' => 'Menindaklanjuti calon pelanggan dan calon mitra dari website dan aplikasi, mencatat hasilnya, mengelola partner, dan membaca kecepatan respons.',
+                'menus' => ['ProductInquiryResource', 'PartnershipInquiryResource', 'PartnerResource', 'LeadFunnelReport'],
+                'steps' => [
+                    'Inquiry masuk dari formulir website atau aplikasi sebagai **Inquiry Produk** (lead berstatus baru). Lead dari WhatsApp, telepon, atau datang langsung dicatat staf lewat **Catat Lead Manual**; kanalnya dipilih di **Kanal Masuk**.',
+                    'Buka lead, isi **Penanggung Jawab**, hubungi calon pelanggan, lalu ubah **Status Follow-up**. Catat perkembangan di **Catatan Internal Sales**. Waktu respons pertama tercatat otomatis saat status pertama kali berubah dari baru.',
+                    'Setelah ada kepastian, isi **Hasil**: Deal bila lead sudah jadi pelanggan, booking, atau partner; Tidak Jadi bila batal. Untuk Tidak Jadi, pilih **Alasan Tidak Jadi** agar laporan bisa mengelompokkan sebabnya.',
+                    '**Kemitraan & Sales Referral** berisi pengajuan jadi mitra dari website. Penanganannya sama: **Penanggung Jawab**, **Status**, **Hasil**, dan **Alasan Tidak Jadi**. Untuk pengajuan yang disetujui, tekan **Jadikan Partner**, lalu isi **Nama Partner / Usaha**, **Email (untuk login)** (wajib bila pemohon tidak mencantumkan email), dan **Password Awal**. Password awal disampaikan ke partner secara manual; ia bisa menggantinya lewat fitur lupa password di aplikasi.',
+                    '**Partner** mendaftar semua mitra. **Kode Referral** dibuat otomatis dan dibagikan partner ke kenalannya. **Unduh QR** (atau **Unduh QR (PDF Massal)**) menghasilkan kode QR menuju halaman pendaftaran partner. Isi **Sumber Pendaftaran** agar QR memakai landing page yang tepat; bila kosong, dipakai halaman partner umum. **Saldo Poin** diperbarui dari buku poin partner.',
+                    '**Dasbor Lead** merangkum corong lead dari quotation, inquiry produk, dan kemitraan dalam rentang **Dari** dan **Sampai** (saring dengan **Jenis Lead**): berapa lead masuk, sudah direspons, median waktu respons, berapa dalam target, deal, tidak jadi, masih terbuka, dan tingkat deal. Rinciannya per jenis lead, per kanal, dan per kampanye (utm_campaign), ditambah alasan tidak jadi.',
+                ],
+                'tips' => [
+                    'Lead baru yang belum ditindak melewati target (bawaan 24 jam) memicu pengingat harian ke penanggung jawab, atau ke staf yang punya akses menu bila belum ada penanggung jawab.',
+                    'Lead lama sebelum fitur ini belum punya waktu respons, jadi tampil sebagai belum ditindak sampai statusnya diperbarui. Rapikan lead lama agar pengingat tidak ramai.',
+                    'Lead dari website dan aplikasi mengisi kanal dan kampanye otomatis; lead manual hanya punya kanal.',
+                ],
+            ],
+            [
+                'id' => 'konten-beranda',
+                'title' => 'Konten website dan aplikasi: banner, seri produk, berita, lowongan, materi',
+                'summary' => 'Mengelola konten yang tampil ke pelanggan dan publik: banner, kartu seri produk di beranda, berita, lowongan kerja, dan materi unduhan.',
+                'menus' => ['CarouselResource', 'FeaturedProductResource', 'NewsResource', 'JobOpeningResource', 'MaterialResource', 'MaterialCategoryResource'],
+                'steps' => [
+                    '**Banner / Carousel**: unggah **Gambar Banner** (maksimal 3 MB, rasio ideal 2:1, mis. 1200 x 600 px) dan wajib isi **Teks Alternatif Gambar** untuk pembaca layar. **Judul (opsional)**, **Sub-judul (opsional)**, dan **Link (opsional)** (harus diawali http:// atau https://) bersifat tambahan. **Tampil Untuk** menentukan audiens, dan **Urutan** mengatur susunan. Atur **Mulai Tayang (opsional)** dan **Berhenti Tayang (opsional)** supaya banner tayang dan berhenti sendiri; kosongkan untuk tayang langsung atau tanpa batas. Kolom **Klik** dan **Status Tayang** membantu menilai banner.',
+                    '**Seri Produk (Beranda)** mengatur kartu di beranda aplikasi: **Gambar Beranda (Thumbnail)** (maksimal 3 MB, ukuran contoh 800 x 1000 px) dan **Gambar Isi (Detail)** yang tampil utuh saat kartu diketuk (kosongkan untuk memakai gambar beranda). **Link (opsional)** dipakai tombol "Lihat Selengkapnya". Matikan **Tampilkan** untuk menyembunyikan tanpa menghapus.',
+                    '**Berita**: isi **Judul**, **Slug**, **Ringkasan Singkat**, dan **Isi Berita**, unggah **Gambar Cover** (maksimal 2 MB) dengan **Teks Alternatif Cover**. Untuk Google, isi **Judul untuk Google (opsional)** (maksimal 70 karakter) dan **Deskripsi untuk Google (opsional)** (maksimal 170 karakter); kosong berarti memakai judul dan ringkasan. Berita yang hanya tautan keluar memakai **Link Sumber**. Terbitkan lewat **Publikasikan** dan **Tanggal Publish**.',
+                    '**Lowongan Kerja**: isi **Nama Posisi**, **Departemen**, **Lokasi**, **Tipe**, **Deskripsi Pekerjaan**, dan **Kualifikasi** (satu baris satu poin). **Tanggal Terbit** dipakai Google Jobs sebagai tanggal dibuka. **Berlaku Sampai (opsional)** membuat lowongan hilang sendiri dari website dan Google setelah lewat; kosongkan bila belum ada batas. Matikan **Tampilkan di Website** untuk menyembunyikan tanpa menghapus.',
+                    '**Materi Download** menyimpan berkas untuk diunduh (PDF, ZIP, JPG, PNG, PPTX, maksimal 50 MB) lewat **Upload File**, di bawah sebuah **Kategori**. **Tampilkan ke Publik** menentukan apakah tampil di website. **Kategori Materi** mengatur nama dan **Urutan Tampil** kategori; kategori yang masih berisi materi tidak bisa dihapus, pindahkan atau hapus materinya dulu.',
+                ],
+                'tips' => [
+                    'Banner, berita, dan lowongan lama tanpa jadwal tetap tayang seperti sebelumnya.',
+                    'Teks alternatif membantu pembaca layar dan mesin pencari; jangan dikosongkan.',
+                ],
+            ],
+            [
+                'id' => 'galeri-izin-foto',
+                'title' => 'Galeri pemasangan, galeri pelanggan, dan izin foto',
+                'summary' => 'Menayangkan foto hasil kerja sebagai materi pemasaran hanya dengan izin pelanggan, dan menarik izin bila diminta.',
+                'menus' => ['CaseStudyResource', 'CustomerGalleryPhotoResource', 'MarketingConsentResource'],
+                'steps' => [
+                    'Izin foto direkam saat serah terima: pelanggan memberi izin lewat kotak opt-in, dan bawaannya TIDAK ada izin. **Izin Foto Pelanggan** menampilkan semua izin (**Booking**, **Pelanggan**, **Kendaraan**, **Diberikan**, **Status**) dan hanya untuk dibaca.',
+                    'Pelanggan meminta izin ditarik? Tekan **Tarik Izin** (isi **Catatan (opsional)**). Materi galeri dari booking itu langsung dinonaktifkan. Foto yang sudah telanjur dibagikan di luar sistem perlu ditarik manual.',
+                    'Di **Galeri Pemasangan** tekan **Nominasikan dari Booking** untuk menyiapkan materi. Hanya booking yang pelanggannya memberi izin dan sudah punya foto akhir serah terima yang bisa dipilih; pilih juga **Foto sebelum (opsional)**. Materi dibuat dalam keadaan TIDAK tayang.',
+                    'Lengkapi materi: **Judul Lengkap**, **Judul Singkat**, **Merek Mobil**, **Tipe Mobil**, **Produk Film** (kosongkan untuk Detailing dan Premium Wash), dan **Teks Alternatif Foto**. Centang **Plat nomor tertutup stiker di foto** HANYA bila plat memang tertutup; bila masih terlihat, unggah foto lain. Foto maksimal 2 MB (JPG, PNG, WebP).',
+                    'Materi dari booking hanya bisa tayang bila izin pelanggan aktif, plat tertutup stiker di foto, dan teks alternatif terisi. Setelah itu aktifkan **Tampilkan di Website**.',
+                    '**Galeri Customer** berisi foto hasil terbaik per pelanggan yang tampil di beranda aplikasi pelanggan tersebut: pilih **Customer**, unggah **Foto** (maksimal 5 MB), isi **Keterangan (opsional)**, dan atur **Urutan Tampil**. Matikan **Tampilkan di Beranda** untuk menyembunyikan tanpa menghapus.',
+                ],
+                'tips' => [
+                    'Penarikan izin tidak bisa membatalkan foto yang sudah dipakai di luar sistem; catat di mana saja foto pernah dipakai.',
+                ],
+            ],
+            [
+                'id' => 'klaim-bukti',
+                'title' => 'Klaim & Bukti: arsip angka produk',
+                'summary' => 'Mencatat angka yang dipakai dalam pemasaran (TSER, UV, VLT, garansi) beserta buktinya, supaya perusahaan terlindungi bila diragukan.',
+                'menus' => ['ProductClaimResource'],
+                'steps' => [
+                    'Staf menyusun klaim di **Klaim & Bukti**: isi **Seri / Produk** (mis. A70, H70, atau "Umum" untuk yang berlaku ke semua), **Jenis Klaim**, **Teks yang Tampil**, dan **Nilai** persis seperti yang akan dipakai (mis. "61%" atau "10 tahun").',
+                    'Lampirkan bukti lewat **Berkas Bukti (laporan uji / sertifikat)** (PDF, JPG, atau PNG, maksimal 5 MB), atau isi **Catatan Sumber** bila tidak ada berkas, serta **Tanggal Uji / Dokumen**. Angka hanya bisa disetujui bila ada berkas bukti atau catatan sumber, dan tanggalnya jelas.',
+                    'Hanya akses penuh yang menekan **Setujui**; angka itu dicatat sebagai terbukti dan boleh dipakai di materi pemasaran. **Tarik** menandai angka tidak boleh lagi dipakai. Mengubah klaim yang sudah disetujui mengembalikannya ke draft.',
+                ],
+                'tips' => [
+                    'Menu ini arsip internal: menyetujui atau menarik klaim TIDAK mengubah angka yang tampil di website, yang tetap mengikuti kodenya.',
+                ],
+            ],
+            [
                 'id' => 'absensi',
                 'title' => 'Absensi Karyawan',
                 'summary' => 'Karyawan absen lewat aplikasi staf; atasan memeriksa dan menyetujui koreksi.',
