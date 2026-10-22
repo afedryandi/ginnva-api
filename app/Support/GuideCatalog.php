@@ -629,6 +629,86 @@ class GuideCatalog
                 ],
             ],
             [
+                'id' => 'laporan-penjualan',
+                'title' => 'Laporan penjualan, refund, dan pembatalan',
+                'summary' => 'Membaca ringkasan penjualan, tren per periode, per outlet, per jasa dan produk, uang masuk, refund, dan booking yang dibatalkan.',
+                'menus' => ['SalesSummaryReport', 'SalesByPeriodReport', 'SalesByOutletReport', 'LayananReport', 'ProductSalesReport', 'PaymentBookReport', 'RefundReport', 'VoidReport'],
+                'steps' => [
+                    'Cara umum: pilih rentang lewat **Periode Cepat** atau **Dari** dan **Sampai**, lalu **Cabang** atau **Toko** bila tersedia. Staf toko hanya melihat tokonya; pilihan toko khusus akses penuh. Hampir semua laporan bisa diunduh lewat **Export ke Excel** atau **Export ke PDF**.',
+                    'Penjualan dihitung dari booking yang sudah tercatat sebagai pendapatan (jurnalnya sudah ada). Booking yang selesai tetapi belum diproses ke pendapatan tidak ikut; **Ringkasan Penjualan** menampilkan peringatan jumlah booking seperti itu dengan tautan langsung ke daftarnya.',
+                    '**Ringkasan Penjualan** menyusun pendapatan sampai penjualan bersih dan laba kotor. Pakai **Bandingkan Dengan** (periode sebelumnya yang sama panjang, atau periode yang sama tahun lalu) untuk melihat naik turunnya.',
+                    '**Penjualan Per Periode** menampilkan satu baris per periode untuk melihat tren; atur dengan **Kelompokkan Per** (Harian, Mingguan, atau Bulanan). Kolomnya: **Transaksi**, **Penjualan**, **Diterima**, **Piutang**, **Pengembalian**, **Komisi**, **HPP**, dan **Laba Kotor**.',
+                    '**Penjualan Outlet** membandingkan toko: **Penjualan (bersih)**, **Pengembalian**, **Rata-rata/Transaksi**, dan **Piutang** per outlet.',
+                    '**Laporan Jasa** merekap per jenis layanan (jumlah dan pendapatan, juga per toko), sedangkan **Penjualan Produk** merinci per SKU: **Jumlah**, **Penjualan**, **Refund**, **Komisi**, **HPP**, dan **Laba Kotor**. Booking yang belum diisi SKU-nya terkumpul di baris "Belum Diisi SKU", jadi lengkapi SKU agar angkanya akurat.',
+                    '**Buku Pembayaran** mendaftar semua uang masuk dari booking dalam satu rentang: uang muka (DP), pembayaran saat penjualan diproses, dan pelunasan piutang, lengkap dengan **Metode** dan **Rekening**. Laporan ini hanya membaca dan tidak menyalin data.',
+                    '**Laporan Refund** mendaftar refund (parsial boleh) dengan **No. Refund**, **Metode Pembayaran**, **No. Jurnal**, dan **Alasan**. Refund diproses lewat Proses Refund di Booking, bukan di sini.',
+                    '**Laporan Void** merekap booking yang dibatalkan beserta **Dibatalkan Oleh** dan **Alasan**. Data lama tanpa alasan tercatat memakai pelaku log sebagai pengganti.',
+                ],
+                'tips' => [
+                    'Selisih antara laporan sering berasal dari perbedaan dasar: laporan penjualan berbasis tanggal pendapatan, sedangkan Reservasi berbasis tanggal jadwal pemasangan.',
+                    'Biaya yang tidak pernah dicatat sistem (mis. ongkos kirim atau biaya platform) tidak muncul di Ringkasan Penjualan.',
+                ],
+            ],
+            [
+                'id' => 'laporan-operasional',
+                'title' => 'Laporan reservasi, kapasitas, durasi kerja, dan nomor seri',
+                'summary' => 'Membaca jadwal dan kapasitas toko, kecepatan konfirmasi, durasi pengerjaan, serta jejak pemakaian gulungan film.',
+                'menus' => ['ReservationReport', 'ReservationUtilizationReport', 'BayZoneUtilizationReport', 'BookingServiceLevelReport', 'JobDurationReport', 'JobDurationByServiceReport', 'SerialNumberReport'],
+                'steps' => [
+                    '**Laporan Reservasi** mendaftar jadwal pemasangan berdasarkan **Tanggal Diinginkan**, termasuk yang masih menunggu konfirmasi dan belum tentu menjadi pendapatan. Saring dengan **Status**, **Periode Cepat**, dan **Cabang**.',
+                    '**Laporan Reservasi & Utilisasi** menghitung per toko: **Kapasitas/Hari**, **Total Kapasitas**, **Terpakai**, **Kosong**, **Dibatalkan**, **Tingkat Pembatalan**, dan **Utilisasi**. Kapasitas diambil dari pengaturan toko di Toko/Dealer.',
+                    '**Laporan Utilisasi Zona/Bay** menghitung pemakaian zona kerja dari durasi NYATA booking di tahap-tahapnya (**Jam Tersedia**, **Jam Terpakai**, **Utilisasi**, **Peak Bersamaan**). Pilih satu toko dulu; toko atau zona yang belum diisi jumlah slotnya ditandai "Belum dikonfigurasi" dan dilewati. Berbeda dari Laporan Reservasi & Utilisasi, yang hanya menghitung jumlah booking per hari.',
+                    '**Laporan SLA & Tidak Datang** mengukur kecepatan konfirmasi dibanding target, konversi dari menunggu ke terkonfirmasi, tingkat tidak datang, serta pembatalan beserta alasannya. Waktu tunggu hanya dihitung untuk booking yang tercatat waktunya.',
+                    '**Proses Order** menampilkan durasi tiap pekerjaan (satu SPK) dengan **Teknisi** dan **Jenis Layanan**. **Proses Produk** merangkumnya per jenis layanan: **Jumlah Job**, **Rata-rata**, **Tercepat**, dan **Terlama**. Dipakai untuk menilai waktu standar, bukan untuk menghitung komisi.',
+                    '**Laporan Serial Number** menelusuri gulungan film PPF dan kaca film: **Kode Serial**, **Produk**, **Panjang Total**, **Sisa Panjang**, tanggal alokasi dan habis, serta riwayat **Meter Dipakai** per pemakaian. Saring dengan **Status**.',
+                ],
+                'tips' => [
+                    'Ubah kapasitas dan jumlah slot di Toko/Dealer; laporan kapasitas tidak berarti bila angkanya belum diisi.',
+                    'Durasi pekerjaan bergantung pada pencatatan tahap oleh installer; tahap yang tidak dicatat membuat durasi tidak lengkap.',
+                ],
+            ],
+            [
+                'id' => 'laporan-pelanggan-poin',
+                'title' => 'Laporan pelanggan, poin, dan promo',
+                'summary' => 'Membaca perilaku belanja pelanggan, pergerakan poin, dan performa voucher serta reward.',
+                'menus' => ['CustomerReport', 'PointReport', 'PromoLoyaltyReport'],
+                'steps' => [
+                    '**Laporan Pelanggan** membandingkan pelanggan baru dan berulang untuk periode terpilih: **Booking (Periode Ini)**, **Belanja (Periode Ini)**, **Total Belanja (Sepanjang Waktu)**, **Kunjungan Terakhir**, dan rata-rata per bulan. Hanya pelanggan yang punya akun yang dihitung.',
+                    '**Laporan Poin** merinci harian: **Poin Didapat**, **Poin Ditukar**, dan nilai Rupiahnya. Laporan ini nasional, tidak dipisah per toko.',
+                    '**Laporan Promo** memuat performa Promo Total Pembelian dan potongan yang diterapkan, voucher (**Diklaim**, **Dipakai**, **Tingkat Pakai**, **Sisa Stok**), serta reward (**Ditukar**, **Terpenuhi**, **Poin Terpakai**).',
+                ],
+                'tips' => [
+                    'Poin belum punya masa kedaluwarsa, jadi saldo yang beredar terus bertambah; pantau lewat Laporan Poin.',
+                ],
+            ],
+            [
+                'id' => 'laporan-persediaan',
+                'title' => 'Laporan persediaan dan stok kedaluwarsa',
+                'summary' => 'Melihat nilai stok per barang, rincian pergerakan dalam periode, dan bahan yang mendekati kedaluwarsa.',
+                'menus' => ['PersediaanRingkasanReport', 'PersediaanDetailReport', 'ExpiringStockReport'],
+                'steps' => [
+                    '**Lap. Ringkasan Persediaan** menilai stok saat ini per barang: **Kuantitas**, **Satuan**, **Harga Modal**, dan **Total Nilai Persediaan**. Ini posisi hari ini, bukan per tanggal tertentu.',
+                    '**Lap. Detail Persediaan** merinci pergerakan stok bahan baku dan barang habis pakai dalam rentang **Dari** dan **Sampai**: **Jenis**, **Jumlah**, **Harga Beli**, **Oleh**, dan **Catatan**.',
+                    '**Laporan Stok Kedaluwarsa** mendaftar batch bahan baku dengan **Tanggal Kedaluwarsa** di rentang yang dipilih: **Sisa Qty**, **Nilai**, dan **Status**. Berbeda dari widget Dashboard Inventaris yang hanya menunjukkan 30 hari ke depan.',
+                ],
+                'tips' => [
+                    'Laporan persediaan bersifat nasional (tidak dibatasi per toko). Untuk selisih stok, bandingkan dengan Daftar Stok dan Cek Rekonsiliasi (lihat panduan Dashboard dan riwayat stok).',
+                ],
+            ],
+            [
+                'id' => 'laporan-karyawan',
+                'title' => 'Laporan absensi dan laporan karyawan',
+                'summary' => 'Membaca kehadiran harian dan ringkasan bulanan per karyawan.',
+                'menus' => ['AttendanceReport', 'EmployeeReport'],
+                'steps' => [
+                    '**Absensi** (laporan) menampilkan kehadiran harian mentah: **Absen Masuk**, **Absen Keluar**, **Terlambat**, **Pulang Cepat**, dan **Jenis**, dengan ringkasan keterlambatan di atasnya. Saring dengan **Periode Cepat**, **Dari**, **Sampai**, dan **Toko**. Koreksi absensi yang disetujui ikut tampil.',
+                    '**Laporan Karyawan** adalah ringkasan BULANAN dari Penggajian: **Hari Kerja**, **Telat (Menit)**, **Alpha (Hari)**, **Gaji Bersih**, dan **Status**. Pilih **Bulan** dan **Cabang**. Datanya baru ada setelah payroll bulan itu digenerate.',
+                ],
+                'tips' => [
+                    'Untuk membuat atau memperbaiki data dasarnya, lihat panduan Absensi Karyawan dan Penggajian bulanan.',
+                ],
+            ],
+            [
                 'id' => 'absensi',
                 'title' => 'Absensi Karyawan',
                 'summary' => 'Karyawan absen lewat aplikasi staf; atasan memeriksa dan menyetujui koreksi.',

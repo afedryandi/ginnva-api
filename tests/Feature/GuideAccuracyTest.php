@@ -242,6 +242,7 @@ class GuideAccuracyTest extends TestCase
         \App\Filament\Clusters\PromosiCluster::class,
         \App\Filament\Clusters\PelangganCluster::class,
         \App\Filament\Clusters\AnalisaLaporanCluster::class,
+        \App\Filament\Clusters\PenjualanCluster::class,
     ];
 
     public function test_every_visible_menu_in_a_completed_cluster_has_a_guide(): void
@@ -306,6 +307,17 @@ class GuideAccuracyTest extends TestCase
 
         $this->assertStringContainsString('PERMANEN', $this->text($this->guide('pelanggan')));
         $this->assertStringContainsString('MANUAL', $this->text($this->guide('poin-promo')));
+    }
+
+    public function test_the_report_guides_exist_and_explain_the_revenue_basis(): void
+    {
+        $ids = collect(GuideCatalog::all())->pluck('id')->all();
+
+        foreach (['laporan-penjualan', 'laporan-operasional', 'laporan-pelanggan-poin', 'laporan-persediaan', 'laporan-karyawan'] as $id) {
+            $this->assertContains($id, $ids);
+        }
+
+        $this->assertStringContainsString('sudah tercatat sebagai pendapatan', $this->text($this->guide('laporan-penjualan')));
     }
 
     public function test_the_finance_guides_exist_and_the_year_end_order_is_documented(): void
