@@ -48,6 +48,38 @@ class GuideCatalog
     /** Halaman yang tidak perlu panduan sendiri (halaman Panduan itu sendiri). */
     public const NO_GUIDE_NEEDED = ['Panduan'];
 
+    /** Versi isi panduan dan tanggal terakhir isinya dicocokkan dengan kode; tiap panduan bisa menimpa lewat kunci `version` dan `reviewed_at`. */
+    public const VERSION = '1.0';
+
+    public const REVIEWED_AT = '2026-10-22';
+
+    /** Panduan yang terakhir ditinjau lebih lama dari ini diberi penanda "perlu ditinjau ulang". */
+    public const REVIEW_INTERVAL_DAYS = 180;
+
+    /** Panduan sudah lewat masa tinjau? Dasarnya tanggal tinjau terakhir panduan itu. */
+    public static function isOverdue(array $guide, ?\Carbon\CarbonInterface $now = null): bool
+    {
+        $reviewed = \Illuminate\Support\Carbon::parse($guide['reviewed_at'] ?? self::REVIEWED_AT);
+
+        return $reviewed->copy()->addDays(self::REVIEW_INTERVAL_DAYS)->lt($now ?? now());
+    }
+
+    /**
+     * Menempelkan catatan perusahaan (GuideNote) ke tiap panduan pada kunci `note` (null bila tidak ada). Satu kueri; dilewati bila
+     * tabelnya belum ada (mis. basis data yang belum dimigrasi).
+     *
+     * @param  array<int, array<string, mixed>>  $guides
+     * @return array<int, array<string, mixed>>
+     */
+    public static function withNotes(array $guides): array
+    {
+        $notes = \Illuminate\Support\Facades\Schema::hasTable('guide_notes')
+            ? \App\Models\GuideNote::query()->pluck('body', 'guide_id')->all()
+            : [];
+
+        return array_map(fn (array $guide) => $guide + ['note' => $notes[$guide['id']] ?? null], $guides);
+    }
+
     /**
      * Panduan umum yang juga berlaku untuk akun tanpa akses panel (installer). Selain ini installer hanya mendapat panduan ber-`audience`
      * installer (ditulis dari sudut pandang layar aplikasi). Akun tanpa batas `menu_access` dianggap berhak atas semua menu, jadi tanpa
@@ -70,7 +102,7 @@ class GuideCatalog
 
         $canUsePanel = $user->canAccessStaffArea();
 
-        return array_values(array_filter(self::all(), function (array $guide) use ($user, $canUsePanel) {
+        $visible = array_values(array_filter(self::all(), function (array $guide) use ($user, $canUsePanel) {
             if (isset($guide['audience'])) {
                 return $user->hasRole($guide['audience']) || $user->isFullAccess();
             }
@@ -92,6 +124,8 @@ class GuideCatalog
                 || $user->isFullAccess()
                 || collect($guide['menus'])->contains(fn (string $menu) => $user->hasMenuAccess($menu));
         }));
+
+        return self::withNotes($visible);
     }
 
     /**
@@ -112,7 +146,7 @@ class GuideCatalog
         $photoMonths = (int) config('booking.photo_retention_months', 24);
         $negotiationMax = rtrim(rtrim(number_format(Booking::NEGOTIATION_DISCOUNT_MAX_PCT, 1, ',', '.'), '0'), ',');
 
-        return [
+        $guides = [
             [
                 'id' => 'booking',
                 'title' => 'Booking: dari masuk sampai selesai',
@@ -1197,7 +1231,7 @@ class GuideCatalog
                 'title' => 'Direksi: antrian keputusan, penutupan, dan pengawasan',
                 'audience' => 'direksi',
                 'summary' => 'Semua yang bermuara ke akses penuh: persetujuan, penutupan pembukuan, pengaturan, dan cara mengawasi tanpa menyetujui diri sendiri.',
-                'menus' => [],
+                'menus' => ['GuideNoteResource'],
                 'steps' => [
                     'Direksi (CEO, CCO, CFO) setara dengan super admin: akses penuh ke semua menu dan semua toko, tanpa pembatasan Akses Menu. Tidak ada hak khusus per jabatan; keputusan keuangan dan karyawan dipegang semua akun akses penuh. Banyak tombol di sistem sengaja hanya muncul untuk Anda.',
                     'Antrian keputusan, lewat notifikasi dan menu terkait: **Persetujuan Pengeluaran** (tahap akhir setelah Store Manager; Anda bisa menolak di tahap mana pun), **Persetujuan Transaksi** (refund, referral, dan DP dari staf), **Penggajian** (**Setujui & Tandai Dibayar** atau **Tolak Pengajuan** untuk pengajuan Spv Finance), **Izin & Cuti** (**Setujui** atau **Tolak**), **Permohonan Pembelian**, teknisi baru yang menunggu review (**Aktifkan** atau tolak), dan **Klaim & Bukti**.',
@@ -1205,6 +1239,7 @@ class GuideCatalog
                     'Booking: Anda melihat semua toko dan memiliki wewenang Store Manager (membatalkan booking, menandai tidak datang, mengoreksi tahap). Anda juga bisa ditunjuk sebagai Direksi Pemantau pada sebuah booking untuk ikut memantau progresnya.',
                     'Penutupan pembukuan hanya milik akses penuh: **Tutup Periode** bulan demi bulan dari yang paling lama, lalu **Tutup Tahun Buku** sebelum menutup Desember. Membuka kembali bulan butuh **Alasan membuka kembali** dan tercatat. Periksa daftar periksa dan Rekonsiliasi Sub-Buku sebelum menutup.',
                     'Pengaturan yang hanya Anda pegang: **Pengaturan Keuangan** (batas nominal yang cukup disetujui Store Manager), akun karyawan, role, dan Akses Menu di User, Aturan Potongan Absensi, Daftar Periksa QC, serta impor Master Data. Atur hak tambahan seperti Void, Hapus, dan posting jurnal untuk staf di Hak Akses Detail, dan beri hak itu seperlunya.',
+                    '**Catatan Panduan** (menu Lainnya) untuk menambah catatan perusahaan di bawah panduan tertentu tanpa menunggu rilis, mis. aturan toko, batas, atau kebijakan. Satu catatan per panduan; tampil di halaman Panduan dan aplikasi staf, dan setiap perubahan tercatat di Histori Aktivitas. Jangan menulis kata sandi atau data pribadi di sana.',
                     'Pengawasan: **Histori Aktivitas** (tab Perubahan Berisiko dan Keamanan Akun) menunjukkan siapa mengubah apa, termasuk gaji, akses, harga, dan periode; Dasbor Lead untuk kecepatan tindak lanjut calon pelanggan; Dasbor HR untuk kontrak, data, dan K3; serta laporan penjualan dan keuangan.',
                 ],
                 'tips' => [
@@ -1252,5 +1287,7 @@ class GuideCatalog
                 ],
             ],
         ];
+
+        return array_map(fn (array $guide) => $guide + ['version' => self::VERSION, 'reviewed_at' => self::REVIEWED_AT], $guides);
     }
 }

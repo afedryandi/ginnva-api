@@ -43,7 +43,7 @@ class Panduan extends Page
     /** Teks yang dicari di browser (huruf kecil): judul, ringkasan, langkah, dan tips tanpa penanda tebal. */
     public static function searchText(array $guide): string
     {
-        return mb_strtolower(str_replace('**', '', implode(' ', array_merge([$guide['title'], $guide['summary']], $guide['steps'], $guide['tips']))));
+        return mb_strtolower(str_replace('**', '', implode(' ', array_merge([$guide['title'], $guide['summary']], $guide['steps'], $guide['tips'], [(string) ($guide['note'] ?? '')]))));
     }
 
     /** Teks panduan memakai **tebal** sederhana; diubah jadi HTML dengan escape lebih dulu supaya aman. */

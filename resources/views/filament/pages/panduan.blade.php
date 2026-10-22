@@ -54,6 +54,20 @@
                                 @endforeach
                             </ul>
                         @endif
+
+                        @if (! empty($guide['note']))
+                            <div data-guide-note style="margin-top: 1rem; padding: 0.75rem 1rem; border-left: 3px solid currentColor;">
+                                <p style="font-weight: 600; margin-bottom: 0.25rem;">Catatan perusahaan</p>
+                                <p>{!! nl2br(\App\Filament\Pages\Panduan::format($guide['note'])) !!}</p>
+                            </div>
+                        @endif
+
+                        <p data-guide-footer style="margin-top: 1rem; font-size: 0.75rem; opacity: 0.7;">
+                            Versi {{ $guide['version'] }} · ditinjau {{ \Illuminate\Support\Carbon::parse($guide['reviewed_at'])->translatedFormat('d M Y') }}
+                            @if (\App\Support\GuideCatalog::isOverdue($guide))
+                                · <strong data-guide-overdue>Perlu ditinjau ulang</strong>
+                            @endif
+                        </p>
                     </details>
                 </x-filament::section>
             </div>

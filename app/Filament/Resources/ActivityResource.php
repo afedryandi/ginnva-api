@@ -91,6 +91,7 @@ class ActivityResource extends Resource
     'attendance_deduction_rule' => 'Aturan Potongan Absensi',
     'leave_type' => 'Jenis Izin & Cuti',
     'company_policy' => 'Peraturan & Kebijakan',
+    'guide_note' => 'Catatan Panduan',
     'checklist_template' => 'Template Checklist',
     'employee_checklist_item' => 'Checklist Karyawan',
     'salary_grade' => 'Struktur & Skala Upah',

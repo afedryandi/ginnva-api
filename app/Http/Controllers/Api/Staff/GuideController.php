@@ -25,6 +25,10 @@ class GuideController extends Controller
                 'summary' => $guide['summary'],
                 'steps' => $guide['steps'],
                 'tips' => $guide['tips'],
+                'note' => $guide['note'] ?? null,
+                'version' => $guide['version'],
+                'reviewed_at' => $guide['reviewed_at'],
+                'overdue' => GuideCatalog::isOverdue($guide),
             ])
             ->values();
 
