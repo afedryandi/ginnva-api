@@ -269,7 +269,11 @@ class TransactionApprovalTest extends TestCase
         $this->assertSame('rejected', $request->status);
         $this->assertSame('Nominal tidak cocok', $request->decision_note);
         $this->assertSame($admin->id, $request->decided_by);
-        $this->assertStringContainsString('ditolak', $staff->notifications()->first()->data['title']);
+        // Pemohon juga menerima notifikasi "Booking Baru" pada detik yang sama, jadi urutan "terbaru" tidak pasti: periksa semuanya.
+        $this->assertTrue(
+            $staff->notifications()->get()->contains(fn ($notification) => str_contains($notification->data['title'] ?? '', 'ditolak')),
+            'Pemohon harus menerima notifikasi penolakan.'
+        );
     }
 
     // ------------------------------------------------------------- kegagalan eksekusi
