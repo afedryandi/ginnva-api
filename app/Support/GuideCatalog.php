@@ -1170,6 +1170,27 @@ class GuideCatalog
                 ],
             ],
             [
+                'id' => 'admin-toko-harian',
+                'title' => 'Admin/Kasir toko: rutinitas harian dan batas wewenang',
+                'audience_menus' => ['BookingResource', 'InvoiceResource'],
+                'summary' => 'Dari pesanan yang masuk sampai penjualan dicatat dan kas dihitung, serta hal-hal yang hanya boleh dilakukan Store Manager atau akses penuh.',
+                'menus' => [],
+                'steps' => [
+                    'Admin/kasir toko adalah staf toko tanpa role khusus: akun dengan menu Booking atau Invoice yang dicentang admin. Yang Anda lihat dibatasi ke toko Anda, dan di chat booking nama Anda tampil sebagai "Admin Toko" diikuti nama tokonya. Panduan ini muncul bagi akun yang menu Booking atau Invoice-nya dicentang eksplisit.',
+                    'Pesanan masuk: booking dari aplikasi muncul sebagai Pending. Pelanggan dari WhatsApp, telepon, atau yang datang langsung Anda buatkan booking-nya di panel (pilih layanan; Detailing dan Premium Wash wajib memilih jam; tanggal yang penuh atau toko libur tidak bisa dipilih). Respons booking Pending dalam batas jam yang ditetapkan sistem; Anda mendapat pengingat otomatis bila ada yang tertunda. Calon pelanggan yang meminta penawaran masuk di Quotation (Lead): hubungi, catat, dan tetapkan hasilnya.',
+                    'Hari pelaksanaan: pantau status booking toko dan jawab pesan customer di chat booking bila Anda punya akses menu Booking. Penugasan installer, Quality Check, dan serah terima dipegang Leader atau Store Manager (lihat panduan Booking).',
+                    'Setelah booking **Completed**, catat penjualannya lewat **Proses Referral**: isi rincian harga per layanan, nominal transaksi, pembayaran yang diterima, voucher, promo, dan kode referral. Karena Anda bukan akses penuh, pengajuannya MENUNGGU persetujuan akses penuh dan belum menjadi pendapatan sampai disetujui.',
+                    'Uang muka dicatat lewat **Catat Uang Muka (DP)** dan sisa yang tidak terpakai dikembalikan lewat **Kembalikan Sisa DP**. Sisa tagihan yang belum dibayar muncul di Piutang Usaha; catat pelunasannya di sana. Pelanggan yang meminta dokumen tagihan dibuatkan **Invoice**.',
+                    'Refund diajukan lewat **Proses Refund** pada booking; seperti Proses Referral, refund dari Anda menunggu persetujuan akses penuh.',
+                    'Pengeluaran kecil toko dicatat lewat Transaksi Keuangan (atau Catat Pengeluaran di aplikasi) bila menunya dicentang untuk Anda; pengajuan naik ke Store Manager lalu direksi. Di akhir hari, hitung kas laci lewat **Hitung Kas** bila Anda diberi akses.',
+                    'Yang TIDAK bisa Anda lakukan, karena sengaja dibatasi: membatalkan booking, menandai pelanggan tidak datang, dan mengoreksi tahap (Store Manager atau akses penuh), serta menghapus data. Di panel, hak Void (pembatalan) dan Hapus dapat diberikan admin sebagai hak tambahan di Hak Akses Detail. Bila tombolnya tidak muncul, minta Store Manager.',
+                ],
+                'tips' => [
+                    'Salah mengisi Proses Referral? Pengajuan yang masih menunggu belum berlaku; hubungi akses penuh sebelum disetujui.',
+                    'Panduan menu per menu ada di Booking: dari masuk sampai selesai, Penjualan, Invoice, Quotation (Lead), dan Approval.',
+                ],
+            ],
+            [
                 'id' => 'istilah',
                 'title' => 'Istilah yang sering muncul',
                 'summary' => 'Arti singkat istilah di layar dan laporan.',
