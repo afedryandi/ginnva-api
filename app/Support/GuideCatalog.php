@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Booking;
 use App\Models\BookingMessage;
 use App\Models\BookingSaleLine;
+use App\Models\User;
 use App\Models\WarrantyMaintenanceSchedule;
 
 /**
@@ -35,6 +36,39 @@ class GuideCatalog
 
     /** Halaman yang tidak perlu panduan sendiri (halaman Panduan itu sendiri). */
     public const NO_GUIDE_NEEDED = ['Panduan'];
+
+    /**
+     * Panduan untuk akun yang tidak punya akses panel (installer): hanya yang menjelaskan pekerjaan di aplikasi staf. Akun tanpa batas
+     * `menu_access` dianggap berhak atas semua menu, jadi tanpa daftar ini installer akan melihat panduan keuangan dan HR.
+     */
+    public const APP_ONLY_GUIDE_IDS = [
+        'booking', 'layanan-ppf', 'layanan-kaca-film', 'layanan-detailing', 'layanan-premium-wash', 'spk', 'absensi', 'istilah',
+    ];
+
+    /**
+     * Panduan yang boleh dilihat user ini: akses penuh melihat semua, staf panel melihat panduan modul yang bisa diaksesnya, dan akun
+     * tanpa akses panel hanya APP_ONLY_GUIDE_IDS. Dipakai halaman Panduan di panel dan API aplikasi staf supaya keduanya sama.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function forUser(?User $user): array
+    {
+        if (! $user) {
+            return [];
+        }
+
+        $canUsePanel = $user->canAccessStaffArea();
+
+        return array_values(array_filter(self::all(), function (array $guide) use ($user, $canUsePanel) {
+            if (! $canUsePanel) {
+                return in_array($guide['id'], self::APP_ONLY_GUIDE_IDS, true);
+            }
+
+            return $guide['menus'] === []
+                || $user->isFullAccess()
+                || collect($guide['menus'])->contains(fn (string $menu) => $user->hasMenuAccess($menu));
+        }));
+    }
 
     /**
      * @return array<int, array{id: string, title: string, summary: string, menus: array<int, string>, steps: array<int, string>, tips: array<int, string>}>

@@ -436,6 +436,8 @@ Route::prefix('staff')->group(function () {
         Route::get('/safety', [\App\Http\Controllers\Api\Staff\SafetyController::class, 'show']);
         Route::post('/performance-reviews/{id}/acknowledge', [\App\Http\Controllers\Api\Staff\SafetyController::class, 'acknowledgeReview'])
             ->middleware('throttle:20,1');
+        // Panduan Penggunaan di aplikasi staf (Panduan Fase 3)
+        Route::get('/guides', [\App\Http\Controllers\Api\Staff\GuideController::class, 'index']);
         Route::get('/policies', [\App\Http\Controllers\Api\Staff\PolicyController::class, 'index']);
         Route::post('/policies/{id}/acknowledge', [\App\Http\Controllers\Api\Staff\PolicyController::class, 'acknowledge'])
             ->middleware('throttle:20,1');

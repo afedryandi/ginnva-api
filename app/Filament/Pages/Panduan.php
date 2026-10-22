@@ -37,13 +37,7 @@ class Panduan extends Page
      */
     public function getGuides(): array
     {
-        $user = auth()->user();
-
-        return array_values(array_filter(GuideCatalog::all(), function (array $guide) use ($user) {
-            return $guide['menus'] === []
-                || ($user?->isFullAccess() ?? false)
-                || collect($guide['menus'])->contains(fn (string $menu) => $user?->hasMenuAccess($menu) ?? false);
-        }));
+        return GuideCatalog::forUser(auth()->user());
     }
 
     /** Teks yang dicari di browser (huruf kecil): judul, ringkasan, langkah, dan tips tanpa penanda tebal. */
