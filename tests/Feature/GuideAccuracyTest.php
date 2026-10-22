@@ -230,6 +230,47 @@ class GuideAccuracyTest extends TestCase
         $this->assertStringContainsString('setelah 12 bulan', $this->text($this->guide('layanan-kaca-film')));
     }
 
+    // ------------------------------------------------------------- cakupan per kelompok (Fase 2)
+
+    /** Kelompok menu (cluster) yang panduannya sudah lengkap: menu apa pun di dalamnya yang tampil di navigasi wajib punya panduan. */
+    private const COMPLETED_CLUSTERS = [
+        \App\Filament\Clusters\BookingCluster::class,
+    ];
+
+    public function test_every_visible_menu_in_a_completed_cluster_has_a_guide(): void
+    {
+        $covered = collect(GuideCatalog::all())->pluck('menus')->flatten()->unique()->all();
+        $missing = [];
+
+        foreach ($this->panelClasses() as $name => $class) {
+            $cluster = method_exists($class, 'getCluster') ? $class::getCluster() : null;
+
+            if ($cluster && in_array($cluster, self::COMPLETED_CLUSTERS, true) && $class::shouldRegisterNavigation() && ! in_array($name, $covered, true)) {
+                $missing[] = $name;
+            }
+        }
+
+        $this->assertSame([], $missing, 'Menu di kelompok yang sudah lengkap tanpa panduan: ' . implode(', ', $missing)
+            . '. Tambahkan panduan di GuideCatalog dan rujuk menunya di `menus`.');
+    }
+
+    public function test_the_booking_group_guides_exist(): void
+    {
+        $covered = collect(GuideCatalog::all())->pluck('menus')->flatten()->unique()->all();
+
+        foreach (['SpkResource', 'QuotationResource', 'InvoiceResource', 'TechnicianResource', 'BlockedDateResource', 'StoreReviewResource', 'QcChecklistItemResource', 'AppSettingResource'] as $menu) {
+            $this->assertContains($menu, $covered, "Menu {$menu} belum punya panduan.");
+        }
+    }
+
+    public function test_the_lead_guide_uses_the_outcome_reasons_defined_in_code(): void
+    {
+        $text = $this->text($this->guide('quotation-lead'));
+
+        $this->assertStringContainsString('Alasan Tidak Jadi', $text);
+        $this->assertCount(7, \App\Support\LeadOutcome::REASONS, 'Alasan tidak jadi berubah: perbarui daftar di panduan Quotation (Lead).');
+    }
+
     // ------------------------------------------------------------- laporan cakupan
 
     public function test_the_coverage_command_reports_without_changing_anything(): void
