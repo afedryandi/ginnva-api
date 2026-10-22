@@ -48,6 +48,7 @@ class GuideCatalog
         $ppfStages = implode(' → ', array_values(BookingMessage::PRODUCT_STAGES['ppf']));
         $sharedStages = implode(' → ', array_values(BookingMessage::SHARED_STAGES));
         $graceDays = WarrantyMaintenanceSchedule::GRACE_DAYS;
+        $photoMonths = (int) config('booking.photo_retention_months', 24);
         $negotiationMax = rtrim(rtrim(number_format(Booking::NEGOTIATION_DISCOUNT_MAX_PCT, 1, ',', '.'), '0'), ',');
 
         return [
@@ -76,6 +77,90 @@ class GuideCatalog
                     'Customer menerima pengingat otomatis H-2, H-1, dan pagi hari-H. Teks kebijakan pembatalan yang tampil di aplikasi diatur admin di Operasional, Teks Aplikasi.',
                     'Booking yang sudah dibatalkan atau selesai tidak bisa diaktifkan lagi.',
                     'Layar foto penerimaan, Quality Check, dan serah terima ada di aplikasi staf versi terbaru. Bila tidak terlihat di aplikasi Anda, perbarui aplikasi staf.',
+                ],
+            ],
+            [
+                'id' => 'layanan-ppf',
+                'title' => 'Layanan PPF: langkah di sistem',
+                'summary' => 'Yang dikerjakan staf di sistem untuk satu pekerjaan PPF, dari pesanan sampai garansi dan maintenance. Alur umum ada di panduan Booking; di sini hanya hal yang khusus PPF.',
+                'menus' => ['BookingResource', 'WarrantyResource', 'InventoryItemResource'],
+                'steps' => [
+                    'PPF adalah layanan berat: memakai kapasitas harian toko dan bisa berlangsung beberapa hari. Saat **Konfirmasi Booking**, isi lama pengerjaan (hari kerja); sistem memeriksa seluruh hari kerja dalam rentang itu, dan tanggal mulai yang hari lanjutannya penuh tidak bisa dipilih.',
+                    'Siapkan unit: tugaskan installer, ambil foto penerimaan (empat sudut), catat kerusakan cat yang sudah ada sebagai foto kerusakan lengkap dengan keterangannya, dan buat **SPK**.',
+                    'Catat gulungan film yang dipakai: di menu **Produk PPF/WF** pilih gulungannya lalu **Catat Pemakaian** untuk booking ini. Untuk produk yang diatur **Wajib Lacak Roll (Batch Number)** di **Daftar Produk**, SPK baru bisa ditandai selesai setelah pemakaian roll dicatat.',
+                    "Kirim progres lewat **chat booking** pada tahap {$ppfStages}. Pada booking PPF + Kaca Film, tahap PPF berjalan di jalur kedua. Tahap Detailing di jalur ini adalah salah satu tahap pengerjaan PPF, bukan pemesanan layanan Detailing.",
+                    'Tandai tahap **Quality Check**, lalu isi daftar periksa QC PPF. Butir bawaannya: tidak ada gelembung atau debu di bawah film, tepi dan sudut rapi dan menempel kuat, tidak ada kerutan atau potongan salah, bodi dan kaca bersih dari sisa larutan, tidak ada baret baru pada cat. Akses penuh dapat mengubah butirnya di menu **Daftar Periksa QC**.',
+                    'Serah terima: sampaikan petunjuk perawatan dan terima tanda tangan basah di kertas (wajib untuk PPF), lalu **Selesaikan Booking**.',
+                    'Buat **Garansi** (atau minta customer mendaftarkannya di aplikasi): pilih kategori PPF, isi plat nomor, tipe mobil, seri produk, **Posisi Pemasangan** (penuh atau sebagian, dengan keterangan area), dan **Kode Gulungan** (isi kode kedua bila satu gulungan tidak cukup). Isi **Kuota Maintenance** dan **Interval Maintenance** bila garansi menawarkan maintenance.',
+                    'Garansi dari customer menunggu **review**; setelah disetujui, jadwal maintenance berjalan otomatis (lihat panduan Garansi dan Maintenance PPF). Penjualannya dicatat lewat **Proses Referral** dengan baris layanan PPF.',
+                ],
+                'tips' => [
+                    'Booking PPF + Kaca Film: Quality Check baru bisa ditandai setelah KEDUA produk sampai tahap terakhirnya.',
+                    'Kode gulungan tetap muncul di pilihan garansi mobil berikutnya sampai ditandai habis lewat **Tandai Habis** di menu **Produk PPF/WF**.',
+                    "Foto penerimaan, foto akhir serah terima, dan foto progres booking yang sudah selesai atau batal dihapus otomatis setelah {$photoMonths} bulan. Simpan bukti yang perlu lebih lama di tempat lain.",
+                    'Garansi dan jadwal maintenance hanya ada untuk PPF dan Kaca Film.',
+                ],
+            ],
+            [
+                'id' => 'layanan-kaca-film',
+                'title' => 'Layanan Kaca Film: langkah di sistem',
+                'summary' => 'Yang dikerjakan staf di sistem untuk satu pekerjaan Kaca Film, dari pesanan sampai garansi. Alur umum ada di panduan Booking; di sini hanya hal yang khusus Kaca Film.',
+                'menus' => ['BookingResource', 'WarrantyResource', 'InventoryItemResource'],
+                'steps' => [
+                    'Kaca Film adalah layanan berat: memakai kapasitas harian toko. Saat **Konfirmasi Booking**, isi lama pengerjaan (hari kerja) bila perlu.',
+                    'Siapkan unit: tugaskan installer, ambil foto penerimaan (empat sudut) dan foto kerusakan yang sudah ada, lalu buat **SPK**.',
+                    'Catat gulungan film yang dipakai: di menu **Produk PPF/WF** pilih gulungannya lalu **Catat Pemakaian** untuk booking ini. Untuk produk yang diatur **Wajib Lacak Roll (Batch Number)** di **Daftar Produk**, SPK baru bisa ditandai selesai setelah pemakaian roll dicatat.',
+                    "Kirim progres lewat **chat booking** pada tahap {$kacaFilmStages}. Pada booking Kaca Film + PPF, tahap Kaca Film berjalan di jalur pertama dan PPF di jalur kedua.",
+                    'Tandai tahap **Quality Check**, lalu isi daftar periksa QC Kaca Film. Butir bawaannya: tidak ada gelembung, debu, atau goresan pada film, tepi film rapi dan merata di semua kaca, kaca bersih tanpa sisa larutan, semua kaca naik-turun normal, defogger dan sensor tidak terganggu. Akses penuh dapat mengubah butirnya di menu **Daftar Periksa QC**.',
+                    'Serah terima: sampaikan petunjuk perawatan dan terima tanda tangan basah di kertas (wajib untuk Kaca Film), lalu **Selesaikan Booking**.',
+                    'Buat **Garansi** (atau minta customer mendaftarkannya di aplikasi): pilih kategori Window Film, isi plat nomor, tipe mobil, dan seri produk. Di bagian Detail Instalasi isi **Kode Gulungan — Kaca Depan** dan, bila mobil ini juga dipasang di posisi itu, **Kode Gulungan — Kaca Samping & Belakang**. Pilihan hanya menampilkan gulungan yang terdaftar untuk posisi tersebut.',
+                    'Garansi dari customer menunggu **review**. Penjualannya dicatat lewat **Proses Referral** dengan baris layanan Kaca Film.',
+                ],
+                'tips' => [
+                    'Satu gulungan kaca film dipakai untuk banyak mobil (sekitar 30) dan tetap muncul di pilihan garansi sampai ditandai habis lewat **Tandai Habis** di menu **Produk PPF/WF**.',
+                    'Kaca Film tidak memakai kuota maintenance; kuota dan interval maintenance hanya untuk garansi PPF.',
+                    "Foto penerimaan, foto akhir serah terima, dan foto progres booking yang sudah selesai atau batal dihapus otomatis setelah {$photoMonths} bulan.",
+                ],
+            ],
+            [
+                'id' => 'layanan-detailing',
+                'title' => 'Layanan Detailing: langkah di sistem',
+                'summary' => 'Yang dikerjakan staf di sistem untuk satu pekerjaan Detailing. Detailing adalah layanan ringan dengan jalur yang lebih singkat daripada PPF dan Kaca Film.',
+                'menus' => ['BookingResource', 'BookingServiceTypeResource'],
+                'steps' => [
+                    "Detailing adalah layanan ringan: customer wajib memilih jam, kapasitas dihitung per jam (slot {$slots}; jumlah per slot diatur di form Toko), dan tidak memakai kapasitas harian layanan berat. Harga paket tetap untuk semua ukuran kendaraan.",
+                    'Konfirmasi dengan **Konfirmasi Booking**, lalu tugaskan installer.',
+                    'Saat unit datang, ambil foto penerimaan (empat sudut) dan foto kerusakan yang sudah ada, lalu buat **SPK**.',
+                    'Detailing tidak punya tahap pengerjaan. Kabari customer lewat **chat booking** bila perlu (teks atau foto); setelah selesai dikerjakan, langsung tandai tahap **Quality Check**.',
+                    'Isi daftar periksa QC Detailing. Butir bawaannya: interior bersih dan kering, eksterior bersih tanpa sisa pasta atau compound, kaca bersih tanpa noda, velg dan ban bersih, tidak ada kerusakan baru. Akses penuh dapat mengubah butirnya di menu **Daftar Periksa QC**.',
+                    'Serah terima: sampaikan petunjuk perawatan. Tanda tangan basah di kertas opsional untuk Detailing. Lalu **Selesaikan Booking**.',
+                    'Penjualannya dicatat lewat **Proses Referral** dengan baris layanan Detailing.',
+                ],
+                'tips' => [
+                    'Detailing tidak punya garansi atau jadwal maintenance di sistem; garansi hanya untuk PPF dan Kaca Film.',
+                    'Nama, deskripsi, lama pengerjaan, dan kategori kapasitas layanan diatur di menu **Layanan Booking**.',
+                    'Booking yang berisi layanan berat dan ringan sekaligus dihitung sebagai berat.',
+                    'Tahap Detailing yang muncul di booking PPF adalah tahap pengerjaan PPF, bukan layanan ini.',
+                ],
+            ],
+            [
+                'id' => 'layanan-premium-wash',
+                'title' => 'Layanan Premium Wash: langkah di sistem',
+                'summary' => 'Yang dikerjakan staf di sistem untuk satu pekerjaan Premium Wash. Seperti Detailing, ini layanan ringan dengan jalur singkat.',
+                'menus' => ['BookingResource', 'BookingServiceTypeResource'],
+                'steps' => [
+                    "Premium Wash adalah layanan ringan: customer wajib memilih jam, kapasitas dihitung per jam (slot {$slots}; jumlah per slot diatur di form Toko), dan tidak memakai kapasitas harian layanan berat. Harga paket tetap untuk semua ukuran kendaraan.",
+                    'Konfirmasi dengan **Konfirmasi Booking**, lalu tugaskan installer.',
+                    'Saat unit datang, ambil foto penerimaan (empat sudut) dan foto kerusakan yang sudah ada, lalu buat **SPK**.',
+                    'Premium Wash tidak punya tahap pengerjaan. Setelah selesai dikerjakan, langsung tandai tahap **Quality Check**.',
+                    'Isi daftar periksa QC Premium Wash. Butir bawaannya: bodi bersih tanpa sisa sabun, kaca bersih tanpa noda, velg dan ban bersih, interior disedot dan dilap, tidak ada kerusakan baru. Akses penuh dapat mengubah butirnya di menu **Daftar Periksa QC**.',
+                    'Serah terima: sampaikan petunjuk perawatan. Tanda tangan basah di kertas opsional untuk Premium Wash. Lalu **Selesaikan Booking**.',
+                    'Penjualannya dicatat lewat **Proses Referral** dengan baris layanan Premium Wash.',
+                ],
+                'tips' => [
+                    'Premium Wash tidak punya garansi atau jadwal maintenance di sistem; garansi hanya untuk PPF dan Kaca Film.',
+                    'Nama, deskripsi, lama pengerjaan, dan kategori kapasitas layanan diatur di menu **Layanan Booking**.',
+                    'Booking yang berisi layanan berat dan ringan sekaligus dihitung sebagai berat.',
                 ],
             ],
             [

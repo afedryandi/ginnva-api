@@ -169,6 +169,67 @@ class GuideAccuracyTest extends TestCase
         }
     }
 
+    // ------------------------------------------------------------- panduan per layanan (Fase 1)
+
+    public function test_each_of_the_four_services_has_its_own_guide(): void
+    {
+        $ids = collect(GuideCatalog::all())->pluck('id')->all();
+
+        foreach (['layanan-ppf', 'layanan-kaca-film', 'layanan-detailing', 'layanan-premium-wash'] as $id) {
+            $this->assertContains($id, $ids);
+            $this->assertContains('BookingResource', $this->guide($id)['menus'], "Panduan {$id} harus terlihat oleh staf yang punya akses Booking.");
+        }
+    }
+
+    public function test_heavy_service_guides_follow_the_stage_definitions_and_require_the_wet_signature(): void
+    {
+        $ppf = $this->text($this->guide('layanan-ppf'));
+        $kacaFilm = $this->text($this->guide('layanan-kaca-film'));
+
+        foreach (BookingMessage::PRODUCT_STAGES['ppf'] as $label) {
+            $this->assertStringContainsString($label, $ppf, "Tahap PPF \"{$label}\" tidak disebut di panduan PPF.");
+        }
+
+        foreach (BookingMessage::PRODUCT_STAGES['kaca_film'] as $label) {
+            $this->assertStringContainsString($label, $kacaFilm, "Tahap Kaca Film \"{$label}\" tidak disebut di panduan Kaca Film.");
+        }
+
+        foreach ([$ppf, $kacaFilm] as $text) {
+            $this->assertStringContainsString('tanda tangan basah di kertas (wajib', $text);
+            $this->assertStringContainsString('Garansi', $text);
+            $this->assertStringContainsString('Catat Pemakaian', $text, 'Gulungan film yang dipakai harus dicatat.');
+        }
+
+        // Kaca Film memakai kode gulungan per posisi kaca; kuota maintenance hanya untuk PPF.
+        $this->assertStringContainsString('Kode Gulungan — Kaca Depan', $kacaFilm);
+        $this->assertStringContainsString('Kuota Maintenance', $ppf);
+        $this->assertStringNotContainsString('Kuota Maintenance** dan', $kacaFilm);
+    }
+
+    public function test_light_service_guides_use_slots_from_config_have_no_work_stages_and_no_warranty(): void
+    {
+        config(['booking.light_slots' => ['08:00 - 10:00', '10:00 - 12:00']]);
+
+        foreach (['layanan-detailing' => 'Detailing', 'layanan-premium-wash' => 'Premium Wash'] as $id => $name) {
+            $text = $this->text($this->guide($id));
+
+            $this->assertStringContainsString('08:00 - 10:00, 10:00 - 12:00', $text);
+            $this->assertStringContainsString("{$name} tidak punya tahap pengerjaan", $text);
+            $this->assertStringContainsString('Tanda tangan basah di kertas opsional', $text);
+            $this->assertStringContainsString('hanya untuk PPF dan Kaca Film', $text, 'Garansi tidak berlaku untuk layanan ringan.');
+            $this->assertStringNotContainsString('Buat **Garansi**', $text);
+            $this->assertNotContains('WarrantyResource', $this->guide($id)['menus']);
+        }
+    }
+
+    public function test_the_photo_retention_period_in_the_service_guides_comes_from_config(): void
+    {
+        config(['booking.photo_retention_months' => 12]);
+
+        $this->assertStringContainsString('setelah 12 bulan', $this->text($this->guide('layanan-ppf')));
+        $this->assertStringContainsString('setelah 12 bulan', $this->text($this->guide('layanan-kaca-film')));
+    }
+
     // ------------------------------------------------------------- laporan cakupan
 
     public function test_the_coverage_command_reports_without_changing_anything(): void

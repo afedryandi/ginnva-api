@@ -699,7 +699,7 @@ class WarrantyResource extends Resource
                         )
                         ->searchable()
                         ->live()
-                        ->helperText('Pilih kode gulungan PPF yang digunakan. Kode tetap muncul di pilihan untuk mobil berikutnya sampai ditandai habis manual (menu Kode Gulungan → "Tandai Habis").'),
+                        ->helperText('Pilih kode gulungan PPF yang digunakan. Kode tetap muncul di pilihan untuk mobil berikutnya sampai ditandai habis manual (menu Produk PPF/WF → "Tandai Habis").'),
 
                     Forms\Components\Select::make('roll_number_2')
                         ->label('Kode Gulungan Kedua (opsional)')

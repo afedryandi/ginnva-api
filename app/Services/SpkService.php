@@ -155,7 +155,7 @@ class SpkService
         $hasRecordedUsage = ScrollCodeUsage::where('booking_id', $booking->id)->exists();
 
         if (! $hasRecordedUsage) {
-            throw new RuntimeException('Pilih dulu roll yang dipakai (Catat Pemakaian di menu Kode Gulungan/Inventaris) sebelum SPK ini bisa ditandai selesai — produk pada booking ini wajib lacak roll.');
+            throw new RuntimeException('Pilih dulu roll yang dipakai (Catat Pemakaian di menu Produk PPF/WF) sebelum SPK ini bisa ditandai selesai — produk pada booking ini wajib lacak roll.');
         }
     }
 

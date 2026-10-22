@@ -153,7 +153,7 @@ class FilmProductResource extends Resource
                     // booking itu — lihat SpkService::assertBatchTrackingSatisfied().
                     Forms\Components\Toggle::make('tracks_batch')
                         ->label('Wajib Lacak Roll (Batch Number)')
-                        ->helperText('Kalau aktif: SPK booking yang memakai produk ini tidak bisa ditandai selesai sebelum staff mencatat roll gulungan yang dipakai (menu Kode Gulungan/Inventaris → Catat Pemakaian) untuk booking tersebut.')
+                        ->helperText('Kalau aktif: SPK booking yang memakai produk ini tidak bisa ditandai selesai sebelum staff mencatat roll gulungan yang dipakai (menu Produk PPF/WF → Catat Pemakaian) untuk booking tersebut.')
                         ->default(false),
                 ]),
 
