@@ -1191,6 +1191,26 @@ class GuideCatalog
                 ],
             ],
             [
+                'id' => 'direksi-harian',
+                'title' => 'Direksi: antrian keputusan, penutupan, dan pengawasan',
+                'audience' => 'direksi',
+                'summary' => 'Semua yang bermuara ke akses penuh: persetujuan, penutupan pembukuan, pengaturan, dan cara mengawasi tanpa menyetujui diri sendiri.',
+                'menus' => [],
+                'steps' => [
+                    'Direksi (CEO, CCO, CFO) setara dengan super admin: akses penuh ke semua menu dan semua toko, tanpa pembatasan Akses Menu. Tidak ada hak khusus per jabatan; keputusan keuangan dan karyawan dipegang semua akun akses penuh. Banyak tombol di sistem sengaja hanya muncul untuk Anda.',
+                    'Antrian keputusan, lewat notifikasi dan menu terkait: **Persetujuan Pengeluaran** (tahap akhir setelah Store Manager; Anda bisa menolak di tahap mana pun), **Persetujuan Transaksi** (refund, referral, dan DP dari staf), **Penggajian** (**Setujui & Tandai Dibayar** atau **Tolak Pengajuan** untuk pengajuan Spv Finance), **Izin & Cuti** (**Setujui** atau **Tolak**), **Permohonan Pembelian**, teknisi baru yang menunggu review (**Aktifkan** atau tolak), dan **Klaim & Bukti**.',
+                    'Pemisahan tugas: Anda tidak bisa menyetujui pengajuan yang Anda ajukan sendiri (pengeluaran dan transaksi). Pengajuan penggajian datang dari Spv Finance, dan jurnal manual tidak boleh diposting oleh pembuatnya. Bila Anda perlu mengajukan sesuatu, minta akses penuh lain yang memutuskannya.',
+                    'Booking: Anda melihat semua toko dan memiliki wewenang Store Manager (membatalkan booking, menandai tidak datang, mengoreksi tahap). Anda juga bisa ditunjuk sebagai Direksi Pemantau pada sebuah booking untuk ikut memantau progresnya.',
+                    'Penutupan pembukuan hanya milik akses penuh: **Tutup Periode** bulan demi bulan dari yang paling lama, lalu **Tutup Tahun Buku** sebelum menutup Desember. Membuka kembali bulan butuh **Alasan membuka kembali** dan tercatat. Periksa daftar periksa dan Rekonsiliasi Sub-Buku sebelum menutup.',
+                    'Pengaturan yang hanya Anda pegang: **Pengaturan Keuangan** (batas nominal yang cukup disetujui Store Manager), akun karyawan, role, dan Akses Menu di User, Aturan Potongan Absensi, Daftar Periksa QC, serta impor Master Data. Atur hak tambahan seperti Void, Hapus, dan posting jurnal untuk staf di Hak Akses Detail, dan beri hak itu seperlunya.',
+                    'Pengawasan: **Histori Aktivitas** (tab Perubahan Berisiko dan Keamanan Akun) menunjukkan siapa mengubah apa, termasuk gaji, akses, harga, dan periode; Dasbor Lead untuk kecepatan tindak lanjut calon pelanggan; Dasbor HR untuk kontrak, data, dan K3; serta laporan penjualan dan keuangan.',
+                ],
+                'tips' => [
+                    'Setiap keputusan Anda tercatat dengan nama dan waktu di Histori Aktivitas.',
+                    'Pengajuan pengeluaran yang menunggu terlalu lama memicu pengingat otomatis; periksa antrian di awal hari.',
+                ],
+            ],
+            [
                 'id' => 'istilah',
                 'title' => 'Istilah yang sering muncul',
                 'summary' => 'Arti singkat istilah di layar dan laporan.',
