@@ -236,6 +236,7 @@ class GuideAccuracyTest extends TestCase
     private const COMPLETED_CLUSTERS = [
         \App\Filament\Clusters\BookingCluster::class,
         \App\Filament\Clusters\KeuanganCluster::class,
+        \App\Filament\Clusters\KaryawanCluster::class,
     ];
 
     public function test_every_visible_menu_in_a_completed_cluster_has_a_guide(): void
@@ -262,6 +263,19 @@ class GuideAccuracyTest extends TestCase
         foreach (['SpkResource', 'QuotationResource', 'InvoiceResource', 'TechnicianResource', 'BlockedDateResource', 'StoreReviewResource', 'QcChecklistItemResource', 'AppSettingResource'] as $menu) {
             $this->assertContains($menu, $covered, "Menu {$menu} belum punya panduan.");
         }
+    }
+
+    public function test_the_employee_guides_exist_and_the_payroll_rules_are_documented(): void
+    {
+        $ids = collect(GuideCatalog::all())->pluck('id')->all();
+
+        foreach (['karyawan-akun', 'cuti-kontrak', 'penggajian', 'k3-kinerja', 'hr-laporan', 'kebijakan-checklist'] as $id) {
+            $this->assertContains($id, $ids);
+        }
+
+        $text = $this->text($this->guide('penggajian'));
+        $this->assertStringContainsString('TIDAK menghitung pajak', $text);
+        $this->assertStringContainsString('Setujui & Tandai Dibayar', $text);
     }
 
     public function test_the_finance_guides_exist_and_the_year_end_order_is_documented(): void
