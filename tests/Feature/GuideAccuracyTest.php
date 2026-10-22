@@ -235,6 +235,7 @@ class GuideAccuracyTest extends TestCase
     /** Kelompok menu (cluster) yang panduannya sudah lengkap: menu apa pun di dalamnya yang tampil di navigasi wajib punya panduan. */
     private const COMPLETED_CLUSTERS = [
         \App\Filament\Clusters\BookingCluster::class,
+        \App\Filament\Clusters\KeuanganCluster::class,
     ];
 
     public function test_every_visible_menu_in_a_completed_cluster_has_a_guide(): void
@@ -261,6 +262,29 @@ class GuideAccuracyTest extends TestCase
         foreach (['SpkResource', 'QuotationResource', 'InvoiceResource', 'TechnicianResource', 'BlockedDateResource', 'StoreReviewResource', 'QcChecklistItemResource', 'AppSettingResource'] as $menu) {
             $this->assertContains($menu, $covered, "Menu {$menu} belum punya panduan.");
         }
+    }
+
+    public function test_the_finance_guides_exist_and_the_year_end_order_is_documented(): void
+    {
+        $ids = collect(GuideCatalog::all())->pluck('id')->all();
+
+        foreach (['transaksi-keuangan', 'kas-bank', 'jurnal-bagan-akun', 'hutang-piutang', 'tutup-periode', 'anggaran', 'laporan-keuangan'] as $id) {
+            $this->assertContains($id, $ids);
+        }
+
+        $text = $this->text($this->guide('tutup-periode'));
+        $this->assertStringContainsString('tutup tahun dulu, baru tutup Desember', $text, 'Urutan tutup tahun buku dan tutup Desember harus tertulis.');
+        $this->assertStringContainsString('Laba Ditahan (3200)', $text);
+    }
+
+    public function test_the_approval_guide_explains_the_store_manager_threshold(): void
+    {
+        $guide = $this->guide('approval');
+        $text = $this->text($guide);
+
+        $this->assertContains('FinanceSettingsPage', $guide['menus']);
+        $this->assertStringContainsString('Batas yang cukup disetujui Store Manager', $text);
+        $this->assertStringContainsString('Secara bawaan semua nominal wajib disetujui direksi', $text);
     }
 
     public function test_the_lead_guide_uses_the_outcome_reasons_defined_in_code(): void
