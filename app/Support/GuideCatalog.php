@@ -75,6 +75,13 @@ class GuideCatalog
                 return $user->hasRole($guide['audience']) || $user->isFullAccess();
             }
 
+            // Panduan untuk tugas tanpa role sendiri (mis. HR): hanya akun yang menunya DICENTANG eksplisit. Daftar menu kosong (null) berarti
+            // semua menu terbuka, dan itu tidak boleh membuat panduan ini muncul di semua staf.
+            if (isset($guide['audience_menus'])) {
+                return $user->isFullAccess()
+                    || (is_array($user->menu_access) && array_intersect($guide['audience_menus'], $user->menu_access) !== []);
+            }
+
             if (! $canUsePanel) {
                 return in_array($guide['id'], self::APP_ONLY_GUIDE_IDS, true);
             }
@@ -1137,6 +1144,29 @@ class GuideCatalog
                 'tips' => [
                     'Bila sebuah tombol tidak muncul, kemungkinan itu hak yang belum diberikan atau wewenang direksi (pemisahan tugas), bukan error.',
                     'Koreksi untuk periode yang sudah ditutup tidak dibuat dengan mengubah jurnal lama; minta direksi membuka kembali bulannya dengan alasan tertulis.',
+                ],
+            ],
+            [
+                'id' => 'hr-harian',
+                'title' => 'HR: rutinitas karyawan dan batas wewenang',
+                'audience_menus' => ['LeaveRequestResource', 'ContractExtensionResource', 'WarningLetterResource', 'CompanyPolicyResource'],
+                'summary' => 'Urutan kerja HR dari karyawan baru sampai kontrak, cuti, disiplin, K3, dan peraturan, serta hal-hal yang hanya boleh dilakukan akses penuh atau role lain.',
+                'menus' => [],
+                'steps' => [
+                    'Di sistem tidak ada role "HR": tugas HR dijalankan akun yang menu Karyawannya dicentang admin di Akses Menu. Panduan ini muncul bagi akun yang menu Izin & Cuti, Perpanjang Kontrak, Surat Peringatan, atau Peraturan & Kebijakan-nya dicentang secara eksplisit.',
+                    'Yang TIDAK bisa Anda lakukan, karena sengaja hanya untuk pihak lain: membuat atau mengubah akun, role, dan tipe karyawan (hanya akses penuh); memutuskan **Setujui** atau **Tolak** pengajuan izin dan cuti (hanya akses penuh); menyetujui koreksi absensi (Store Manager toko itu atau akses penuh); serta menjalankan penggajian (Spv Finance atau akses penuh). Bila tombol tidak muncul, itu pemisahan tugas, bukan error.',
+                    'Karyawan baru: minta akses penuh membuat akunnya di User (tipe karyawan, tanggal mulai, kontrak, toko). Setelah itu Anda menjalankan **Mulai Checklist Karyawan** dari template onboarding, memastikan peraturan yang wajib diterima sudah terbit, dan memeriksa **Kelengkapan Data** sampai butir yang wajib beres, karena data itu dipakai gaji dan absensi.',
+                    'Setiap hari mulai dari **Dasbor HR**: kontrak dan masa percobaan yang akan berakhir, data belum lengkap, peraturan belum diterima, APD jatuh tempo, sertifikat kedaluwarsa, kejadian K3 terbuka, dan karyawan yang belum dinilai. Kerjakan yang paling dekat jatuh tempo lebih dulu.',
+                    '**Izin & Cuti**: Anda dapat mencatatkan pengajuan atas nama karyawan dan mengubahnya selama masih menunggu, tetapi keputusan ada pada akses penuh; ingatkan mereka bila pengajuan menumpuk. Aturan tiap jenis (maksimal hari, lampiran, memotong jatah) diatur di Jenis Izin & Cuti.',
+                    '**Perpanjang Kontrak** mencatat tanggal berakhir yang baru dan tidak bisa diedit setelah tersimpan; bila salah, catat perpanjangan baru yang benar. Menghapus riwayat tidak mengembalikan tanggal akhir kontrak di akun karyawan.',
+                    '**Surat Peringatan**: Anda boleh menerbitkannya, tetapi setelah terbit hanya akses penuh (atau pemegang hak ubah yang diberikan admin) yang bisa mengoreksi tingkat, alasan, dan tanggalnya, dan hanya akses penuh yang menghapus. Periksa Riwayat SP Karyawan Ini sebelum menetapkan tingkat.',
+                    'K3 dan kinerja: catat pembagian APD dan pelatihan, laporkan **Kejadian K3** (tidak bisa dihapus; ditutup setelah penyebab dan tindak lanjut terisi), isi **Penilaian Kinerja** per periode (terkunci setelah dibaca karyawan), dan catat **Pekerjaan Ulang** untuk pembinaan. Semuanya bukan dasar gaji.',
+                    '**Peraturan & Kebijakan**: terbitkan dokumen dengan versi dan tanggal berlaku. Dokumen yang sudah punya bukti penerimaan terkunci; untuk perubahan buat versi baru lalu cabut terbit versi lama. Potongan telat dan Alpha hanya sah bila tertulis di peraturan yang sudah diterima karyawan.',
+                    'Akhir bulan: sebelum Spv Finance menjalankan Generate Payroll Bulanan, pastikan Kelengkapan Data dan Aturan Potongan Absensi sudah benar, serta koreksi absensi dan pengajuan cuti bulan itu sudah diputuskan.',
+                ],
+                'tips' => [
+                    'Akun yang menu Karyawannya kosong (semua menu) tidak otomatis melihat panduan ini; panduan hanya muncul bila menunya dicentang eksplisit.',
+                    'Panduan menu per menu ada di Karyawan: akun, role, dan akses menu; Izin, cuti, kontrak, dan surat peringatan; K3, pelatihan, penilaian kinerja, dan pekerjaan ulang; serta Peraturan perusahaan dan checklist karyawan.',
                 ],
             ],
             [
