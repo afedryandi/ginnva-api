@@ -20,7 +20,7 @@ class StaffGuidesApiTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['kasir', 'installer', 'installer_leader', 'super_admin'] as $role) {
+        foreach (['kasir', 'installer', 'installer_leader', 'store_manager', 'super_admin'] as $role) {
             Role::findOrCreate($role, 'web');
         }
     }
@@ -152,6 +152,51 @@ class StaffGuidesApiTest extends TestCase
         }
 
         $this->assertTrue($leader->canCreateSpk(), 'Panduan menyebut leader membuat SPK.');
+    }
+
+    public function test_the_store_manager_guide_is_only_for_store_managers_and_full_access(): void
+    {
+        $sm = $this->ids($this->actingAs($this->user('store_manager'), 'api')->getJson('/api/staff/guides'));
+        $this->assertContains('store-manager-harian', $sm);
+        $this->assertNotContains('leader-harian', $sm);
+
+        foreach (['installer_leader', 'kasir', 'installer'] as $role) {
+            $ids = $this->ids($this->actingAs($this->user($role), 'api')->getJson('/api/staff/guides'));
+            $this->assertNotContains('store-manager-harian', $ids, "{$role} tidak boleh melihat panduan Store Manager.");
+        }
+
+        $admin = $this->ids($this->actingAs($this->user('super_admin'), 'api')->getJson('/api/staff/guides'));
+        $this->assertContains('store-manager-harian', $admin);
+    }
+
+    public function test_the_store_manager_guide_matches_what_only_a_store_manager_can_do(): void
+    {
+        $sm = $this->user('store_manager');
+        $leader = $this->user('installer_leader');
+        $customer = \App\Models\Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(1000000, 9999999)]);
+        $booking = \App\Models\Booking::create([
+            'booking_number' => 'BKG-SM-' . uniqid(),
+            'customer_id' => $customer->id,
+            'store_id' => $sm->store_id,
+            'service_type' => 'Pelindung Cat (PPF)',
+            'product_ppf' => true,
+            'preferred_date' => now()->addDays(4)->toDateString(),
+            'status' => 'confirmed',
+        ]);
+
+        // Wewenang yang panduan sebut milik Store Manager: leader ditolak, Store Manager tidak.
+        foreach ([
+            ["/api/staff/bookings/{$booking->id}/cancel", ['reason' => 'tes']],
+            ["/api/staff/bookings/{$booking->id}/no-show", []],
+            ["/api/staff/bookings/{$booking->id}/stage-correction", ['stage' => 'qc', 'reason' => 'tes']],
+        ] as [$url, $payload]) {
+            $this->actingAs($leader, 'api')->postJson($url, $payload)->assertStatus(403);
+            $this->assertNotSame(403, $this->actingAs($sm, 'api')->postJson($url, $payload)->status(), "Store Manager seharusnya tidak ditolak di {$url}.");
+        }
+
+        // Persetujuan pengeluaran di aplikasi: Store Manager boleh, leader tidak.
+        $this->actingAs($sm, 'api')->getJson('/api/staff/finance/approvals')->assertOk();
+        $this->actingAs($leader, 'api')->getJson('/api/staff/finance/approvals')->assertStatus(403);
     }
 
     public function test_full_access_gets_every_guide_and_restricted_staff_only_their_modules(): void

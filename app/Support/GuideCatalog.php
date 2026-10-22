@@ -1100,6 +1100,27 @@ class GuideCatalog
                 ],
             ],
             [
+                'id' => 'store-manager-harian',
+                'title' => 'Store Manager: tugas harian dan wewenang',
+                'audience' => 'store_manager',
+                'summary' => 'Yang Anda putuskan setiap hari untuk satu toko: booking, absensi, pengeluaran, dan persetujuan, serta batas wewenang Anda dibanding Leader dan akses penuh.',
+                'menus' => [],
+                'steps' => [
+                    'Lingkup Anda adalah SATU toko: booking, absensi, pengeluaran, dan pengajuan yang Anda lihat hanya milik tokonya. Hal yang diputuskan Anda dan akses penuh (direksi, super admin) tersebar di aplikasi staf dan panel; panduan ini merangkum yang paling sering dan batasnya.',
+                    'Awal hari: buka **Kotak Masuk** dan **Booking Toko**. Booking baru berstatus Pending perlu direspons dalam batas jam yang ditetapkan sistem; Anda mendapat pengingat otomatis bila ada yang tertunda. Tekan **Konfirmasi Booking** (periksa kapasitas dan lama pengerjaan), atau gunakan **Ubah Jadwal** bila tanggalnya perlu digeser (alasan wajib untuk booking Confirmed). Pengajuan ganti jadwal dan pembatalan dari customer dijawab di kartu pengajuan pada booking: **Setujui** atau **Tolak** (alasan penolakan dikirim ke customer).',
+                    'Sebagian wewenang booking hanya milik Anda dan akses penuh, tidak dimiliki Leader maupun staf lain: **Batalkan Booking** (alasan wajib untuk booking Confirmed), **Tandai Tidak Datang** (hanya bila booking Confirmed, tanggalnya sudah tiba, dan pengerjaan belum dimulai; DP yang sudah diterima dikembalikan penuh), **Koreksi Tahap** (alasan wajib; tidak mengirim notifikasi ke customer), serta menyetujui pembatalan dari customer.',
+                    'Tugaskan installer di **Assignment Booking**, pastikan SPK dan foto penerimaan dibuat Leader atau Anda, dan periksa hasil kerja lewat **Quality Check**. Anda boleh memeriksa unit yang tidak Anda kerjakan sendiri.',
+                    'Absensi: koreksi absensi karyawan tokonya diputuskan di menu **Koreksi Absensi** di panel dengan **Setujui** atau **Tolak**. Anda tidak bisa menyetujui koreksi yang Anda ajukan sendiri. Izin dan cuti diputuskan akses penuh, bukan Anda.',
+                    'Keuangan di aplikasi: layar **Keuangan** menampilkan Saldo Kas, ringkasan hari ini (pengeluaran tercatat), dan piutang lewat jatuh tempo. Catat pengeluaran lewat **Catat Pengeluaran** dan hitung kas laci lewat **Hitung Kas**. Pengajuan pengeluaran dari staf tokonya muncul di **Persetujuan Pengeluaran**; tekan **Setujui** atau **Tolak Pengajuan**. Pengajuan Anda sendiri langsung naik ke direksi.',
+                    'Batas persetujuan pengeluaran: secara bawaan setelah Anda setuju, pengajuan tetap naik ke direksi. Bila akses penuh mengisi batas di **Pengaturan Keuangan**, pengeluaran sampai nominal itu langsung dicatat setelah Anda menyetujuinya. Anda tidak boleh menyetujui pengajuan yang Anda ajukan sendiri.',
+                    'Refund dan Proses Referral: Anda bisa mengajukannya, tetapi baru berlaku setelah akses penuh menyetujuinya di **Persetujuan Transaksi**. Anda hanya melihat pengajuan tokonya.',
+                ],
+                'tips' => [
+                    'Semua keputusan Anda tercatat di Histori Aktivitas dengan nama dan waktu.',
+                    'Bila sebuah tombol tidak muncul, kemungkinan itu wewenang akses penuh atau tahap berikutnya dalam alur persetujuan, bukan error.',
+                ],
+            ],
+            [
                 'id' => 'istilah',
                 'title' => 'Istilah yang sering muncul',
                 'summary' => 'Arti singkat istilah di layar dan laporan.',
