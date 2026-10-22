@@ -199,6 +199,15 @@ class StaffGuidesApiTest extends TestCase
         $this->actingAs($leader, 'api')->getJson('/api/staff/finance/approvals')->assertStatus(403);
     }
 
+    public function test_the_dashboard_guide_is_open_to_restricted_panel_staff_but_not_installers(): void
+    {
+        $kasir = $this->ids($this->actingAs($this->user('kasir', ['InvoiceResource']), 'api')->getJson('/api/staff/guides'));
+        $this->assertContains('dashboard', $kasir, 'Dashboard utama terbuka untuk semua staf panel, jadi panduannya juga.');
+
+        $installer = $this->ids($this->actingAs($this->user('installer'), 'api')->getJson('/api/staff/guides'));
+        $this->assertNotContains('dashboard', $installer);
+    }
+
     public function test_full_access_gets_every_guide_and_restricted_staff_only_their_modules(): void
     {
         $all = collect(GuideCatalog::all())->pluck('id')->all();

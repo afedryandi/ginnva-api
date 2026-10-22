@@ -86,7 +86,9 @@ class GuideCatalog
                 return in_array($guide['id'], self::APP_ONLY_GUIDE_IDS, true);
             }
 
+            // `open`: terbuka untuk semua staf panel walau menunya tidak ada di daftar Akses Menu (mis. Dashboard utama).
             return $guide['menus'] === []
+                || ($guide['open'] ?? false)
                 || $user->isFullAccess()
                 || collect($guide['menus'])->contains(fn (string $menu) => $user->hasMenuAccess($menu));
         }));
@@ -1208,6 +1210,26 @@ class GuideCatalog
                 'tips' => [
                     'Setiap keputusan Anda tercatat dengan nama dan waktu di Histori Aktivitas.',
                     'Pengajuan pengeluaran yang menunggu terlalu lama memicu pengingat otomatis; periksa antrian di awal hari.',
+                ],
+            ],
+            [
+                'id' => 'dashboard',
+                'title' => 'Dashboard: membaca angka harian dan penjualan',
+                'open' => true,
+                'summary' => 'Arti kartu dan grafik di Dashboard utama, dan cara memakai Dashboard Penjualan (harian, mingguan, bulanan).',
+                'menus' => ['DashboardHome', 'SalesDashboard'],
+                'steps' => [
+                    'Dashboard utama terbuka untuk semua staf, tetapi kartu dan grafiknya mengikuti akses menu Anda. Staf toko selalu melihat tokonya sendiri. Akses penuh dengan lebih dari satu toko dapat memilih **Semua cabang** atau satu cabang; pilihan itu ikut tersimpan di alamat halaman.',
+                    "Mulai dari **Perlu Perhatian**: tiap kartu menghitung pekerjaan yang menunggu tindakan, yaitu Garansi Hampir Kedaluwarsa (30 hari ke depan), Garansi Menunggu Review QA, Booking Pending Lewat SLA (belum dikonfirmasi lewat batas {$sla} jam), Pengajuan Jadwal Ulang Menunggu, Pengajuan Pembatalan Menunggu, Booking Lewat Tanggal (dikonfirmasi tapi belum dikerjakan), Booking Belum Lunas (Bulan Ini), dan Karyawan Belum Absen Hari Ini. Angka nol berarti beres; tindak lanjuti lewat menu yang bersangkutan.",
+                    '**Pendapatan Booking**: Pendapatan Hari Ini (dibanding kemarin), Pendapatan Bulan Ini (dibanding bulan lalu), Rata-rata Nilai Booking, Sudah Diterima (Bulan Ini), dan Piutang (Bulan Ini). Angka ini hanya menghitung booking yang SUDAH tercatat sebagai pendapatan, jadi penjualan yang masih menunggu persetujuan atau belum diproses belum masuk.',
+                    '**Booking** menampilkan Booking Hari Ini, Garansi Aktif, Menunggu Review QA, Garansi Hampir Kedaluwarsa, dan Quotation Baru (7 Hari). Grafik di bawahnya: Tren Pendapatan Harian (bulan ini dibanding bulan lalu), Pendapatan per Kategori dan per Metode Pembayaran (bulan ini), Tren Pengajuan Garansi, Garansi per Toko, Tren Quotation, Grafik Jenis Order, dan Grafik Penjualan Outlet.',
+                    '**Dashboard Penjualan** (menu terpisah; perlu dicentang di Akses Menu karena memuat omzet) bisa diatur dengan tombol **Harian**, **Mingguan**, atau **Bulanan**, ditambah panah tanggal dan **Lompat ke**. Akses penuh juga bisa memilih cabang. Badge persentase di tiap angka membandingkan dengan periode sebelumnya yang sama panjang.',
+                    'Angka utamanya: **Total Penjualan** (bersih, yaitu penjualan tercatat dikurangi pengembalian), **Penjualan Belum Dibayar (Piutang)**, **Penjualan Terbayar**, **Transaksi**, **Penjualan per Transaksi**, **Produk Terjual**, dan **Produk per Transaksi**. Di bawahnya **Indikator Penjualan** (Transaksi Multi-Layanan, Pelanggan Kembali, Potongan Diberikan), penjualan per jenis layanan dan per toko, **Akumulasi dari Awal Bulan** dan **Proyeksi Bulan Ini** (selalu bulan berjalan, tidak mengikuti periode yang dipilih), serta **Ranking Teknisi**.',
+                    'Bila muncul peringatan kuning "booking sudah selesai tapi belum diproses ke pendapatan", nominalnya belum masuk angka. Proses dulu lewat Proses Referral (lihat panduan Penjualan). Untuk rincian dan ekspor gunakan tautan Lihat & Export di Ringkasan Penjualan, yang membawa rentang tanggal yang sama.',
+                ],
+                'tips' => [
+                    'Dashboard memperbarui angka saat halaman dibuka atau filter diubah, tidak terus-menerus; muat ulang halaman untuk data terbaru.',
+                    'Selisih antara dashboard dan laporan biasanya berasal dari dasar yang berbeda; baca catatan "Cara baca angka" di Dashboard Penjualan dan panduan Laporan penjualan.',
                 ],
             ],
             [
