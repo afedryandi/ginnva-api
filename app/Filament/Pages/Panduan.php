@@ -40,6 +40,12 @@ class Panduan extends Page
         return GuideCatalog::forUser(auth()->user());
     }
 
+    /** Judul kelompok sebuah panduan. */
+    public static function categoryLabel(array $guide): string
+    {
+        return GuideCatalog::CATEGORIES[$guide['category'] ?? ''] ?? 'Lainnya';
+    }
+
     /** Teks yang dicari di browser (huruf kecil): judul, ringkasan, langkah, dan tips tanpa penanda tebal. */
     public static function searchText(array $guide): string
     {

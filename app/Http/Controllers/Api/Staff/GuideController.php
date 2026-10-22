@@ -25,6 +25,8 @@ class GuideController extends Controller
                 'summary' => $guide['summary'],
                 'steps' => $guide['steps'],
                 'tips' => $guide['tips'],
+                'category' => $guide['category'],
+                'category_label' => GuideCatalog::CATEGORIES[$guide['category']] ?? 'Lainnya',
                 'note' => $guide['note'] ?? null,
                 'version' => $guide['version'],
                 'reviewed_at' => $guide['reviewed_at'],

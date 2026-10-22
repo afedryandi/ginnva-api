@@ -48,6 +48,46 @@ class GuideCatalog
     /** Halaman yang tidak perlu panduan sendiri (halaman Panduan itu sendiri). */
     public const NO_GUIDE_NEEDED = ['Panduan'];
 
+    /**
+     * Kelompok panduan, berurutan seperti tampil di halaman Panduan dan aplikasi staf. Panduan per peran paling atas karena itulah titik
+     * mulai tiap staf; daftar yang tampil sudah disaring menurut peran dan akses, jadi staf hanya melihat kelompok yang ada isinya.
+     */
+    public const CATEGORIES = [
+        'peran' => 'Mulai dari peran Anda',
+        'layanan' => 'Per layanan',
+        'booking' => 'Booking dan penjualan',
+        'pelanggan' => 'Pelanggan, produk, dan promosi',
+        'keuangan' => 'Keuangan',
+        'karyawan' => 'Karyawan',
+        'inventaris' => 'Inventaris dan stok',
+        'marketing' => 'Marketing dan konten',
+        'laporan' => 'Dashboard dan laporan',
+        'sistem' => 'Sistem dan pengaturan',
+        'referensi' => 'Referensi',
+    ];
+
+    /** Panduan => kelompok. Panduan baru WAJIB ditambahkan di sini (dijaga tes). */
+    public const CATEGORY_BY_ID = [
+        'installer-mulai' => 'peran', 'installer-pekerjaan' => 'peran', 'installer-hr' => 'peran', 'leader-harian' => 'peran',
+        'store-manager-harian' => 'peran', 'admin-toko-harian' => 'peran', 'finance-harian' => 'peran', 'hr-harian' => 'peran',
+        'direksi-harian' => 'peran',
+        'layanan-ppf' => 'layanan', 'layanan-kaca-film' => 'layanan', 'layanan-detailing' => 'layanan', 'layanan-premium-wash' => 'layanan',
+        'booking' => 'booking', 'spk' => 'booking', 'quotation-lead' => 'booking', 'invoice' => 'booking', 'penjualan' => 'booking',
+        'teknisi' => 'booking', 'tanggal-tidak-tersedia' => 'booking', 'review-toko' => 'booking', 'pengaturan-booking' => 'booking',
+        'garansi-maintenance' => 'booking',
+        'pelanggan' => 'pelanggan', 'katalog-produk' => 'pelanggan', 'poin-promo' => 'pelanggan', 'reward-voucher' => 'pelanggan',
+        'approval' => 'keuangan', 'transaksi-keuangan' => 'keuangan', 'kas-bank' => 'keuangan', 'jurnal-bagan-akun' => 'keuangan',
+        'hutang-piutang' => 'keuangan', 'tutup-periode' => 'keuangan', 'anggaran' => 'keuangan', 'laporan-keuangan' => 'keuangan',
+        'absensi' => 'karyawan', 'karyawan-akun' => 'karyawan', 'cuti-kontrak' => 'karyawan', 'penggajian' => 'karyawan',
+        'k3-kinerja' => 'karyawan', 'hr-laporan' => 'karyawan', 'kebijakan-checklist' => 'karyawan',
+        'stok' => 'inventaris', 'aset-tetap' => 'inventaris', 'permohonan-pembelian' => 'inventaris', 'riwayat-stok-dashboard' => 'inventaris',
+        'lead-inquiry-kemitraan' => 'marketing', 'konten-beranda' => 'marketing', 'galeri-izin-foto' => 'marketing', 'klaim-bukti' => 'marketing',
+        'dashboard' => 'laporan', 'laporan-penjualan' => 'laporan', 'laporan-operasional' => 'laporan', 'laporan-pelanggan-poin' => 'laporan',
+        'laporan-persediaan' => 'laporan', 'laporan-karyawan' => 'laporan', 'analisa-laporan' => 'laporan',
+        'kirim-notifikasi' => 'sistem', 'riwayat-notifikasi' => 'sistem', 'master-data' => 'sistem', 'histori-aktivitas' => 'sistem',
+        'istilah' => 'referensi',
+    ];
+
     /** Versi isi panduan dan tanggal terakhir isinya dicocokkan dengan kode; tiap panduan bisa menimpa lewat kunci `version` dan `reviewed_at`. */
     public const VERSION = '1.0';
 
@@ -124,6 +164,10 @@ class GuideCatalog
                 || $user->isFullAccess()
                 || collect($guide['menus'])->contains(fn (string $menu) => $user->hasMenuAccess($menu));
         }));
+
+        // Urut menurut kelompok (urutan CATEGORIES); di dalam kelompok tetap urutan katalog.
+        $order = array_flip(array_keys(self::CATEGORIES));
+        usort($visible, fn (array $a, array $b) => ($order[$a['category']] ?? 999) <=> ($order[$b['category']] ?? 999));
 
         return self::withNotes($visible);
     }
@@ -1288,6 +1332,10 @@ class GuideCatalog
             ],
         ];
 
-        return array_map(fn (array $guide) => $guide + ['version' => self::VERSION, 'reviewed_at' => self::REVIEWED_AT], $guides);
+        return array_map(fn (array $guide) => $guide + [
+            'category' => self::CATEGORY_BY_ID[$guide['id']] ?? 'lainnya',
+            'version' => self::VERSION,
+            'reviewed_at' => self::REVIEWED_AT,
+        ], $guides);
     }
 }

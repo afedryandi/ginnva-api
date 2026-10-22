@@ -2,6 +2,11 @@
     @php
         $guides = $this->getGuides();
         $haystacks = array_map(fn (array $guide) => \App\Filament\Pages\Panduan::searchText($guide), $guides);
+        // Indeks panduan per kelompok: judul kelompok hanya tampil bila ada panduan di dalamnya yang cocok dengan pencarian.
+        $groupIndexes = [];
+        foreach ($guides as $i => $g) {
+            $groupIndexes[$g['category'] ?? 'lainnya'][] = $i;
+        }
     @endphp
 
     {{-- Pencarian murni di browser (Alpine): tidak ada permintaan ke server saat mengetik. --}}
@@ -9,6 +14,10 @@
         x-data="{
             q: '',
             items: @js($haystacks),
+            groups: @js($groupIndexes),
+            groupVisible(key) {
+                return (this.groups[key] || []).some((i) => this.match(i));
+            },
             match(index) {
                 const s = this.q.trim().toLowerCase();
                 return s === '' || this.items[index].includes(s);
@@ -35,6 +44,11 @@
         @endif
 
         @foreach ($guides as $index => $guide)
+            @if ($index === 0 || ($guides[$index - 1]['category'] ?? null) !== ($guide['category'] ?? null))
+                <h2 data-guide-group="{{ $guide['category'] ?? 'lainnya' }}" x-show="groupVisible('{{ $guide['category'] ?? 'lainnya' }}')" style="font-size: 1rem; font-weight: 700; margin-top: 0.5rem;">
+                    {{ \App\Filament\Pages\Panduan::categoryLabel($guide) }}
+                </h2>
+            @endif
             <div x-show="match({{ $index }})" data-guide="{{ $guide['id'] }}">
                 <x-filament::section :heading="$guide['title']" :description="$guide['summary']">
                     <details x-bind:open="q.trim() !== ''" style="font-size: 0.875rem; line-height: 1.5rem;">
