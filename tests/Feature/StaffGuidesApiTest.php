@@ -20,7 +20,7 @@ class StaffGuidesApiTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['kasir', 'installer', 'super_admin'] as $role) {
+        foreach (['kasir', 'installer', 'installer_leader', 'super_admin'] as $role) {
             Role::findOrCreate($role, 'web');
         }
     }
@@ -102,6 +102,56 @@ class StaffGuidesApiTest extends TestCase
         $this->actingAs($installer, 'api')->postJson("/api/staff/bookings/{$booking->id}/handover", [])->assertStatus(403);
         $this->actingAs($installer, 'api')->postJson("/api/staff/bookings/{$booking->id}/intake-photos", [])->assertStatus(403);
         $this->actingAs($installer, 'api')->postJson("/api/staff/bookings/{$booking->id}/messages", ['message' => 'tes'])->assertStatus(403);
+    }
+
+    public function test_the_leader_guide_is_only_for_leaders_and_full_access(): void
+    {
+        $leader = $this->ids($this->actingAs($this->user('installer_leader'), 'api')->getJson('/api/staff/guides'));
+        $this->assertContains('leader-harian', $leader);
+        $this->assertContains('booking', $leader, 'Leader adalah staf toko dan tetap melihat panduan Booking.');
+        $this->assertNotContains('installer-mulai', $leader);
+
+        foreach (['installer', 'kasir'] as $role) {
+            $ids = $this->ids($this->actingAs($this->user($role), 'api')->getJson('/api/staff/guides'));
+            $this->assertNotContains('leader-harian', $ids, "{$role} tidak boleh melihat panduan leader.");
+        }
+
+        $admin = $this->ids($this->actingAs($this->user('super_admin'), 'api')->getJson('/api/staff/guides'));
+        $this->assertContains('leader-harian', $admin);
+    }
+
+    public function test_the_leader_guide_matches_what_the_api_allows_and_denies_a_leader(): void
+    {
+        $leader = $this->user('installer_leader');
+        $customer = \App\Models\Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(1000000, 9999999)]);
+        $booking = \App\Models\Booking::create([
+            'booking_number' => 'BKG-LD-' . uniqid(),
+            'customer_id' => $customer->id,
+            'store_id' => $leader->store_id,
+            'service_type' => 'Pelindung Cat (PPF)',
+            'product_ppf' => true,
+            'preferred_date' => now()->addDays(4)->toDateString(),
+            'status' => 'confirmed',
+        ]);
+
+        // Yang panduan sebut TIDAK bisa dilakukan leader.
+        $this->actingAs($leader, 'api')->postJson("/api/staff/bookings/{$booking->id}/cancel", ['reason' => 'tes'])->assertStatus(403);
+        $this->actingAs($leader, 'api')->postJson("/api/staff/bookings/{$booking->id}/no-show", [])->assertStatus(403);
+        $this->actingAs($leader, 'api')->postJson("/api/staff/bookings/{$booking->id}/stage-correction", ['stage' => 'qc', 'reason' => 'tes'])->assertStatus(403);
+
+        // Yang panduan sebut bisa dilakukan leader: tidak ditolak karena hak akses (boleh gagal validasi).
+        foreach ([
+            ['post', "/api/staff/bookings/{$booking->id}/messages", ['type' => 'text', 'body' => 'Unit sudah diterima']],
+            ['post', "/api/staff/bookings/{$booking->id}/handover", []],
+            ['post', "/api/staff/bookings/{$booking->id}/intake-photos", []],
+            ['put', "/api/staff/bookings/{$booking->id}/installers", ['installer_user_ids' => []]],
+            ['get', "/api/staff/bookings/{$booking->id}/qc", []],
+        ] as [$method, $url, $payload]) {
+            $status = $this->actingAs($leader, 'api')->json($method, $url, $payload)->status();
+            $this->assertNotSame(403, $status, "Leader seharusnya tidak ditolak di {$method} {$url} (panduan menyebut ini tugas leader).");
+        }
+
+        $this->assertTrue($leader->canCreateSpk(), 'Panduan menyebut leader membuat SPK.');
     }
 
     public function test_full_access_gets_every_guide_and_restricted_staff_only_their_modules(): void
