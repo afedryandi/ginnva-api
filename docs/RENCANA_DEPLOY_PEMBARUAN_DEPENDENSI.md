@@ -1,6 +1,6 @@
 # Rencana Deploy Production: Pembaruan Dependensi (32 advisori composer audit)
 
-Dibuat 2026-10-23. Melanjutkan `RENCANA_DEPLOY_NOTIFIKASI_HISTORI_MASTERDATA_PANDUAN.md` (dijalankan 2026-10-22, production `0da10b1`). **DIJALANKAN 2026-10-23:** production `0da10b1` → `b49a7af`, `composer install --no-dev` memasang 1 install, 58 pembaruan, 1 penghapusan; `composer audit`: tidak ada advisori; Laravel 12.70.1, PHP 8.2.35, production, debug OFF. Backup 03:00 hari itu ada. Sebelum rilis: pemeriksaan pasca-PHP2Shell bersih (akun, berkas, log akses 17-22 Okt). Verifikasi klik (bagian 5) menyusul. Perintah untuk server cPanel Ginnva, user `ginnva`, folder production `ginnva-api` (tanpa `cd`).
+Dibuat 2026-10-23. Melanjutkan `RENCANA_DEPLOY_NOTIFIKASI_HISTORI_MASTERDATA_PANDUAN.md` (dijalankan 2026-10-22, production `0da10b1`). **DIJALANKAN 2026-10-23:** production `0da10b1` → `b49a7af`, `composer install --no-dev` memasang 1 install, 58 pembaruan, 1 penghapusan; `composer audit`: tidak ada advisori; Laravel 12.70.1, PHP 8.2.35, production, debug OFF. Backup 03:00 hari itu ada. Sebelum rilis: pemeriksaan pasca-PHP2Shell bersih (akun, berkas, log akses 17-22 Okt). **Verifikasi klik (bagian 5) selesai 2026-10-23: aman** (dilaporkan pemilik); `laravel.log` tidak bertambah sejak rilis (entri terakhir 2026-10-19). Perintah untuk server cPanel Ginnva, user `ginnva`, folder production `ginnva-api` (tanpa `cd`).
 
 ## 1. Cakupan
 
