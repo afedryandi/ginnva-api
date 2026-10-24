@@ -160,5 +160,25 @@ Dibaca 2026-10-24 dari 50 tangkapan layar (semua layar kosong; yang dinilai stru
 
 Ditolak: nomor seri, akun per barang, dimensi/berat/lama kirim, gambar wajib, kolom tambahan, revaluasi aset, penyusutan fiskal terpisah (menunggu PKP).
 
+## Temuan pass 7 (menu Daftar: Transaksi berulang, Salinan Transaksi, Daftar Lain)
+
+Dibaca 2026-10-24 dari 16 tangkapan layar (semua layar kosong). Dengan pass ini **seluruh menu Daftar sudah diaudit.**
+
+| Fitur ACCURATE | Di Ginnva sekarang | Relevansi untuk Ginnva | Catatan |
+|---|---|---|---|
+| **Transaksi berulang**: daftar perulangan (no., keterangan, tipe, periode, total, referensi) dengan status Aktif/Ditutup/Dihentikan; tipe yang bisa diulang: Faktur Pembelian, Faktur Penjualan, Bukti Jurnal, Pembayaran Lain, Penerimaan Lain. | Tidak ada pengeluaran atau jurnal berulang | **Layak.** Pengeluaran tetap bulanan (sewa toko, internet, listrik tetap, langganan, cicilan) dibuat sekali, lalu draf pengeluaran muncul otomatis tiap periode untuk disetujui. | Ini kandidat 4 (pengingat/pengeluaran berulang) dalam bentuk konkret. Sebaiknya menghasilkan **draf yang tetap lewat approval**, bukan posting otomatis, agar segregation of duties tetap terjaga. Faktur penjualan berulang tidak relevan (jasa sekali pasang). |
+| **Salinan Transaksi / Memorize** (daftar templat tersimpan untuk 16 tipe dokumen, termasuk Work Order, Bill of Material, Proyek, Work Price Analysis) | Tidak ada templat dokumen | Rendah | Untuk Ginnva, setara paket layanan dan pricelist. Templat pengeluaran (mis. "Bayar sewa") bisa mengikuti fitur berulang di atas. **Work Order, BOM, Proyek, WPA** = modul manufaktur/proyek, tidak relevan. |
+| **Kode Pajak**: nama, % nilai, kode, keterangan, **akun pajak penjualan** dan **akun pajak pembelian** terpisah (PPN keluaran vs masukan). | Tarif PPN efektif 11% (DPP 11/12) hanya rincian; akun 2100 PPN Keluaran dan 1600 PPN Masukan di template | Ikut keputusan PKP | Rancangan Keuangan sudah memuat `tax_settings`. Pola **kode pajak dengan akun penjualan dan pembelian terpisah** cocok bila Ginnva PKP. |
+| **Nomor Pajak**: rentang nomor seri faktur pajak (dari, s/d, tetap, aktif), urutan naik/turun. | Tidak ada | Ikut keputusan PKP | Hanya bila PKP. Sekarang nomor faktur pajak diterbitkan lewat DJP (e-Faktur/Coretax), jadi pola rentang lama ini mungkin sudah tidak sesuai; cek ke Spv Finance sebelum membangun apa pun. |
+| **Syarat Pembayaran**: jatuh tempo (hari), diskon jika bayar dalam N hari, tunai saat pengantaran (COD). | DP dan pelunasan per booking; tempo hanya bila korporat | Rendah | Ginnva walk-in: bayar tunai/transfer. Relevan hanya untuk pelanggan korporat dengan tempo (kandidat 10). |
+| **Jasa Pengiriman** (daftar kurir) | Tidak relevan | Tidak perlu | |
+| **Tipe Pelanggan** (nama saja, bawaan "Umum") | Segmen pelanggan: poin, referral, tier | Sudah sesuai | |
+
+### Tambahan kandidat dari pass 7
+24. **Pengeluaran berulang menghasilkan draf approval** (sewa, internet, langganan). Perluasan kandidat 4. Perlu keputusan: siapa yang menyetujui draf, dan apakah nominal tetap boleh otomatis.
+25. **Kode pajak dengan akun masukan/keluaran terpisah** dan **nomor faktur pajak**: hanya bila PKP; cek mekanisme penomoran terbaru ke Spv Finance.
+
+Menu Daftar selesai. Ringkasan: Ginnva sudah memiliki atau sengaja menolak sebagian besar isi menu Daftar Accurate; yang tersisa adalah daftar kandidat kecil di atas.
+
 ## Berikutnya
-Menu **Daftar** sisanya (Transaksi berulang, Salinan Transaksi, Daftar Lain; Pembelian, Barang dan Jasa, Persediaan, Aktiva Tetap, Transaksi berulang, Salinan Transaksi, Daftar Lain), menu **Aktifitas**, menu **Laporan**, **Aktifitas** (Jurnal Umum, Kas Bank, rekonsiliasi), **Penjualan**, **Pembelian**, **Aset Tetap**, **Persediaan**, dan **e-Faktur**. Hal yang masih dicari: daftar laporan keuangan dan pajak, dan apakah laporan bisa diekspor ke Excel.
+Menu **Aktifitas**, menu **Laporan**, dan layar e-Faktur (belum dikirim). Yang masih dicari: daftar laporan keuangan dan pajak, tombol Expor, dan penutupan periode. (Daftar yang sudah selesai: Mata Uang, Daftar Akun, Buku Besar, Kas & Bank, Pelanggan, Penjualan, RMA, Pemasok, Pembelian, Barang dan Jasa, Persediaan, Aktiva Tetap, Transaksi berulang, Salinan Transaksi, Daftar Lain.)
