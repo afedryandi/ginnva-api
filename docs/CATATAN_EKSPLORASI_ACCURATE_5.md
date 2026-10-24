@@ -82,3 +82,20 @@ Yang masih harus dilihat berikutnya:
 1. **Dialog Impor Jurnal** (klik menunya, jangan impor apa pun): jenis berkas yang didukung, kolom, dan apakah ada tombol templat contoh.
 2. Submenu **Review Akuntan** dan **NPWP**.
 3. **Daftar, Akun** (bagan akun) untuk pemetaan ke bagan akun Ginnva.
+
+## 9. Temuan: dialog impor, Review Akuntan, NPWP, dan Ekspor Impor Transaksi (tangkapan layar 2026-10-24)
+
+1. **Dialog "Impor dari Perusahaan Lain"** (diduga dari menu Impor Jurnal; perlu dikonfirmasi): pilihan **Lokal** atau **Mesin lain**, dengan isian **Lokasi Database**. Artinya impor ini mengambil jurnal dari **basis data ACCURATE lain** (berkas `.gdb`), **bukan dari Excel atau CSV**.
+2. **Review Akuntan:** Buat Salinan Akuntan, Batal Salinan Akuntan, Impor Perubahan Akuntan, Ekspor Perubahan untuk Klien. Alur klien dan akuntan **antar-ACCURATE**: klien membuat salinan, akuntan menyesuaikan, perubahan diekspor kembali. Berguna bila akuntan eksternal memakai ACCURATE; tidak terhubung ke Ginnva.
+3. **NPWP:** pilihan **NPWP 15 Digit** dan **NPWP 16 Digit**. Ada dukungan format NPWP baru, petunjuk bahwa versi ini cukup mutakhir. Dukungan Coretax secara penuh **tetap belum diketahui**.
+4. **Ekspor Impor Transaksi:** tab Ekspor Impor Data dan Histori Ekspor Impor; filter tanggal, status sumber (Masukan, Terhapus), nama pengguna, dan tipe transaksi (Bukti Jurnal Umum, Pembayaran, Penerimaan, Pindah Barang, Pajak, dan lainnya); tombol Ekstrak Data Terpilih dan Impor Data. Ini juga pertukaran **antar-data ACCURATE** (cabang atau mesin lain).
+
+**Kesimpulan sementara:** semua fasilitas impor yang terlihat bersifat **ACCURATE ke ACCURATE**. Belum ada impor Excel atau CSV yang ditemukan. Dengan begitu, mengirim jurnal Ginnva ke ACCURATE secara otomatis **tidak mungkin lewat fitur resmi**; satu-satunya jalan adalah menulis langsung ke basis data `.gdb` ACCURATE, yang **tidak didukung dan berisiko merusak data atau lisensi**, jadi tidak direkomendasikan.
+
+**Alternatif realistis (opsi A+):** Ginnva membuat **rekap bulanan** (mis. pendapatan per kategori dan toko, PPN bila PKP, kas dan bank, piutang, penyusutan) dengan nomor akun yang sudah dipetakan ke bagan akun ACCURATE, dalam Excel atau PDF. Staf finance memasukkan **satu jurnal umum ringkasan per bulan** secara manual di ACCURATE (sekitar belasan baris). Volumenya kecil, jadi masuk akal.
+
+**Yang masih perlu dicari:**
+1. Apakah ada impor **Excel atau CSV** di tempat lain: toolbar jendela Jurnal Umum, daftar Akun, Pelanggan, Barang; menu **Persiapan**; dan menu **Daftar**.
+2. Apakah laporan ACCURATE bisa **diekspor ke Excel** (untuk arah sebaliknya, ACCURATE ke Ginnva atau akuntan).
+3. **Bagan akun** (Daftar, Akun) untuk pemetaan.
+4. Status lisensi dan jawaban finance (PKP, SPT, Coretax) tetap menjadi penentu.
