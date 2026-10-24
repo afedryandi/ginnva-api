@@ -108,3 +108,25 @@ Isi menu: **Info Perusahaan**, **Preferensi**, Profil Pengguna, Ubah Kata Kunci,
 - **Persiapan Singkat** kemungkinan panduan pengaturan awal; **Rancangan Formulir** perancang tampilan formulir (faktur, kuitansi).
 
 Yang dicari berikutnya: isi **Info Perusahaan** dan **Preferensi** (semua tab, terutama yang berkaitan dengan pajak), serta menu **Daftar**, **Aktifitas**, dan **Laporan** terbuka.
+
+## 11. Temuan: Info Perusahaan dan Preferensi (tangkapan layar 2026-10-24)
+
+**Info Perusahaan**
+- Umum: hanya **Nama Perusahaan** (PT Ginnva Shield Indonesia) dan mata uang IDR yang terisi; alamat, kode pos, telepon, fax, dan negara **kosong**.
+- Periode Akuntansi: tanggal mulai 31/12/2025, tahun fiskal 2025, periode default 10/2026; pengaturan peringatan dan pencegahan periode kosong.
+- **Pajak: semua kosong** (No Seri Faktur Pajak, NPWP, No Pengukuhan PKP, kode cabang, jenis usaha, KLU SPT). **Tgl Pengukuhan PKP menampilkan 24/10/2026, yaitu tanggal hari itu, nilai bawaan kolom tanggal, bukan data.**
+- ID Cabang: satu baris bawaan, nama cabang belum diganti.
+
+**Preferensi**
+- Perusahaan: cadangan saat keluar aktif; akun Laba Ditahan 320001.
+- Fitur: metode biaya persediaan **AVERAGE**; Multi Gudang, Multi Unit, Pakai Penjual, dan Kuantitas < 0 **mati**; **Jejak Audit aktif**; nomor faktur boleh diubah.
+- Akun bawaan: nomor akun bercampur dua gaya (mis. 210102, 110302 bernama bahasa Inggris, dan 1200, 4000.01, 5000 COGS, 6203.12 bernama Indonesia). Terlihat seperti bagan akun templat/contoh, **bukan bagan akun Ginnva** (Ginnva memakai 1101, 3200, 6210, dan seterusnya).
+- Perpajakan: "Kode dalam Nomor Faktur Pajak" mati; "Angka untuk setiap faktur" aktif (dibulatkan ke bawah); akun Pajak Penghasilan kosong. Set Rancangan: "Rangkap Faktur PPN" = 1. Pengaturan ini bergaya e-Faktur lama.
+- Pengingat, Penjualan, Pembelian, Pembiayaan Pesanan, Set Huruf, Lain-lain, dan Skin: pengaturan bawaan, tidak relevan.
+
+**Kesimpulan dari layar-layar ini**
+1. **Data ACCURATE ini masih hampir kosong dan belum dikonfigurasi** (tanpa alamat, NPWP, nomor PKP, dan memakai bagan akun contoh). Hampir pasti belum dipakai untuk pembukuan Ginnva yang sebenarnya, jadi **tidak ada data lama yang harus dimigrasi**, tetapi juga belum ada alur kerja yang berjalan.
+2. **Status PKP belum bisa disimpulkan dari sini.** Kolom pajak kosong berarti belum pernah diisi, bukan berarti bukan PKP. Pertanyaan ke CFO dan Spv Finance tetap berlaku.
+3. Pengaturan pajak yang terlihat bergaya lama (nomor seri faktur, rangkap faktur PPN). Dukungan Coretax **tetap belum terbukti**; hanya ada pilihan NPWP 16 digit.
+4. Persediaan memakai rata-rata (average), cocok untuk HPP bahan, tetapi **Multi Gudang mati** dan Ginnva menyimpan stok per toko serta per gulungan; pemetaan persediaan bukan pekerjaan sepele dan sebaiknya tidak dipindahkan.
+5. Bagan akun ACCURATE harus **dibuat atau diubah menyesuaikan** Ginnva sebelum pemetaan apa pun.
