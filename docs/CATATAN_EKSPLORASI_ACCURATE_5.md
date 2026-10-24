@@ -99,3 +99,12 @@ Yang masih harus dilihat berikutnya:
 2. Apakah laporan ACCURATE bisa **diekspor ke Excel** (untuk arah sebaliknya, ACCURATE ke Ginnva atau akuntan).
 3. **Bagan akun** (Daftar, Akun) untuk pemetaan.
 4. Status lisensi dan jawaban finance (PKP, SPT, Coretax) tetap menjadi penentu.
+
+## 10. Temuan: menu Persiapan (tangkapan layar 2026-10-24)
+
+Isi menu: **Info Perusahaan**, **Preferensi**, Profil Pengguna, Ubah Kata Kunci, **Persiapan Singkat**, **Rancangan Formulir**. Tidak ada impor di menu ini.
+
+- **Info Perusahaan** dan **Preferensi** kemungkinan memuat NPWP, pengaturan pajak (PPN), mata uang, dan metode persediaan. Isinya bisa memberi petunjuk status **PKP** (mis. apakah NPWP, tanggal pengukuhan PKP, dan tarif PPN sudah diisi); tetap harus dikonfirmasi finance.
+- **Persiapan Singkat** kemungkinan panduan pengaturan awal; **Rancangan Formulir** perancang tampilan formulir (faktur, kuitansi).
+
+Yang dicari berikutnya: isi **Info Perusahaan** dan **Preferensi** (semua tab, terutama yang berkaitan dengan pajak), serta menu **Daftar**, **Aktifitas**, dan **Laporan** terbuka.
