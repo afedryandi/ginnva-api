@@ -103,5 +103,33 @@ Catatan: entri uji lain (Pelanggan Umum 1000, Bukti Jurnal 1000, Bank 1000.03) a
 11. **Terbilang** dan **no. bilyet** di bukti pengeluaran cetak; kolom **Terekonsil** di buku bank (periksa dulu).
 12. **Ekspor Excel bersih** (satu header, angka numerik) saat f11 dibuka lagi.
 
+## Temuan pass 5 (menu Daftar: Penjualan, Otorisasi Pengembalian Barang/RMA, Pemasok)
+
+Dibaca 2026-10-24 dari 36 tangkapan layar. Semua layar kosong (instalasi baru); yang dinilai adalah struktur dan alur.
+
+**Rantai penjualan Accurate:** Penawaran → Pesanan → Pengiriman → Faktur → Penerimaan (pembayaran), dengan Retur dan RMA di samping. Tiap dokumen bisa dibuat dari dokumen sebelumnya ("Pilih Penawaran/Pesanan/Pengiriman/Uang Muka/Klaim"). Ginnva memakai rantai yang lebih pendek: Quotation → Booking → Invoice → Pembayaran (DP, pelunasan, refund).
+
+| Fitur ACCURATE | Di Ginnva sekarang | Relevansi untuk Ginnva | Catatan |
+|---|---|---|---|
+| **Penawaran Penjualan**: no. penawaran, tanggal, pemesan, alamat, item (qty, harga, diskon %, pajak), status Menunggu/Mengantri/Terproses/Ditutup, diskon, biaya kirim, deskripsi; tombol **Jadikan Pesanan**; **Get from Memorize** (pakai templat tersimpan). | Quotation dengan konversi ke booking | Sudah sesuai | **Templat/Memorize** (paket yang sering dipakai) sebanding dengan paket layanan di Ginnva; sudah ada lewat pricelist. |
+| **Pesanan Penjualan**: no. PO pelanggan, tanggal kirim, FOB, termin, **Uang Muka (DP) dengan Akun DP**, "Uang Muka 0 / Terpakai 0 / Sisa 0", Salin/Simpan Transaksi. | Booking dengan DP (akun 2140), pelunasan saat selesai | Sudah sesuai | Tampilan ringkas **DP / terpakai / sisa** di dokumen adalah pola bagus; periksa Ginnva menampilkan sisa DP dengan jelas di detail booking dan invoice. |
+| **Pengiriman Pesanan** (Delivery Order) dengan nomor seri, filter "hanya yang belum ditagih" | Tidak relevan (jasa pasang, bukan kirim barang) | Tidak perlu | Setara terdekat: **Berita acara serah terima** kendaraan. Periksa apakah SPK/serah terima sudah ada dan tercetak. |
+| **Faktur Penjualan**: kolom Umur, Down Payment, Nilai Terbayar, Diskon, **PPh Ps. 23**, Retur, **Owing** (sisa); tab **Uang Muka**; termin (C.O.D.); **Transaksi berulang**; tombol **Bayar** langsung dan **Terima Bayaran/Terima Pajak** (bukti potong PPh); "Hanya yang belum lunas". | Modul Invoice (V1 dokumen), piutang, pembayaran per booking | Sebagian | Kolom **Umur** dan **Sisa (Owing)** dengan filter belum lunas = pola piutang yang berguna (periksa laporan umur piutang Ginnva). **PPh 23** hanya untuk pelanggan korporat (dipotong klien), terkait pelanggan B2B pass 4. Tombol **Bayar** langsung dari faktur: periksa alur Ginnva. |
+| **Retur Penjualan** wajib menunjuk faktur asal; diskon; tanpa persetujuan | **Refund** dengan approval full-access (lebih ketat) | Ginnva lebih kuat | |
+| **Penerimaan Penjualan** (Cust. Receipt): bank/kas, no. dan tanggal cek, kosong, **Pembayaran Pajak**, jumlah, **Alokasi otomatis** ke beberapa faktur, saldo kredit, kelebihan bayar, diskon pembayaran lebih awal, filter void dan **belum direkonsiliasi**, kolom **Terekonsil**. | Pembayaran per booking, rekonsiliasi bank (BankStatementLine) | Sebagian | **Satu pembayaran dialokasikan ke beberapa faktur** relevan untuk pelanggan korporat/armada yang bayar sekaligus. Walk-in tidak perlu. Diskon bayar cepat: tidak. |
+| **Otorisasi Pengembalian Barang (RMA)**: Daftar Klaim Pelanggan (status Terima, Batalkan, Diperbaiki, Digantikan, Dikembalikan); form RMA (no., tanggal, **perkiraan selesai**, pelanggan, barang, nomor seri, no. faktur, **deskripsi masalah**); **Aktifitas Proses Klaim** (teknisi, **aksi**: batal/perbaiki/ganti/kembalikan, barang pengganti, komponen/servis yang dipakai, gudang stok/gudang rusak). | **Garansi dan Klaim Garansi** (kode garansi, status klaim), komisi teknisi | **Sangat relevan sebagai pembanding.** Alur klaim Ginnva sebaiknya punya: tanggal perkiraan selesai, deskripsi masalah, teknisi pelaksana, aksi hasil (perbaiki/ganti/tolak/batal), dan **bahan yang terpakai** untuk penggantian (mengurangi roll). | Periksa apakah Klaim Garansi sudah mencatat teknisi, aksi, bahan terpakai ke stok, dan perkiraan selesai. Kandidat terbaik dari pass ini. |
+| **Pemasok**: alamat, **alamat pajak**, kontak ganda, termin, mata uang, saldo awal, **default keterangan**, pajak 1/2, **NPWP pemasok, No. PKP**, tipe pajak, catatan, kolom tambahan; filter **tipe barang**; Impor dari File; Ekspor e-Faktur. | Pemasok di Master Data; pembelian film dan hutang | Sebagian | **NPWP dan status PKP pemasok** menentukan PPN masukan bisa dikreditkan (terikat PKP, pass 3). **Filter tipe barang** pemasok (film PPF vs WF vs perlengkapan) berguna. Kolom tambahan generik: tidak. |
+| **Kolom Tambahan** (10 teks, 3 angka, 2 tanggal) di Pelanggan dan Pemasok | Kolom tetap | Tidak perlu | Fleksibilitas ini yang membuat sistem sulit dipelajari. |
+| **Status dokumen** Menunggu / Mengantri / Terproses / Ditutup | Status booking dan invoice | Sudah sesuai | |
+
+### Tambahan kandidat dari pass 5 (belum ada keputusan bangun)
+13. **Klaim Garansi lengkap** (perkiraan selesai, deskripsi masalah, teknisi, aksi hasil, bahan terpakai ke stok). Periksa dulu apa yang sudah ada.
+14. **Ringkasan DP: dibayar / terpakai / sisa** di detail booking dan invoice (periksa dulu).
+15. **Umur piutang dan sisa (owing)** dengan filter "belum lunas" di Invoice (periksa dulu).
+16. **Satu pembayaran dialokasikan ke banyak invoice** untuk pelanggan korporat (hanya bila ada armada, bersama kandidat 10).
+17. **NPWP/status PKP pemasok** (bersama keputusan PKP).
+
+Ditolak: pengiriman barang, nomor seri, FOB/ship via, diskon bayar cepat, kolom tambahan generik.
+
 ## Berikutnya
-Menu **Daftar** sisanya (Penjualan, Pemasok, Pembelian, Barang dan Jasa, Persediaan, Aktiva Tetap, Transaksi berulang, Salinan Transaksi, Daftar Lain), menu **Aktifitas**, menu **Laporan**, **Aktifitas** (Jurnal Umum, Kas Bank, rekonsiliasi), **Penjualan**, **Pembelian**, **Aset Tetap**, **Persediaan**, dan **e-Faktur**. Hal yang masih dicari: daftar laporan keuangan dan pajak, dan apakah laporan bisa diekspor ke Excel.
+Menu **Daftar** sisanya (Pembelian, Barang dan Jasa, Persediaan, Aktiva Tetap, Transaksi berulang, Salinan Transaksi, Daftar Lain), menu **Aktifitas**, menu **Laporan**, **Aktifitas** (Jurnal Umum, Kas Bank, rekonsiliasi), **Penjualan**, **Pembelian**, **Aset Tetap**, **Persediaan**, dan **e-Faktur**. Hal yang masih dicari: daftar laporan keuangan dan pajak, dan apakah laporan bisa diekspor ke Excel.
