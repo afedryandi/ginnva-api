@@ -30,3 +30,20 @@ Dibuat 2026-10-24. **Tujuan:** menemukan fitur, halaman, dan kebiasaan di ACCURA
 - Menu **Daftar** (master data), **Aktifitas** (transaksi), **Laporan**, dan modul **Buku Besar, Kas Bank, Persediaan, Penjualan, Pembelian, Aset Tetap, RMA, e-Faktur**.
 - Daftar laporan keuangan dan pajak yang tersedia, dan apakah laporan bisa diekspor ke Excel.
 - Alur Rekonsiliasi Bank, jurnal umum, penyusutan aset tetap, dan penutupan periode, untuk dibandingkan dengan Ginnva.
+
+## Temuan pass 2 (menu Berkas: Review Akuntan, Ekspor Impor, Cadangan, Cabang)
+
+| Fitur ACCURATE | Di Ginnva sekarang | Relevansi untuk Ginnva | Catatan |
+|---|---|---|---|
+| **Salinan Akuntan dengan "Periode Pembatas"**: akuntan mengerjakan transaksi pada atau sebelum periode pembatas, klien melanjutkan transaksi sesudahnya; perubahan akuntan dikirim kembali (XML) dan digabung. Akuntan memakai "edisi Akuntan" dengan akun bawaan "akuntan". | Satu basis data; **Tutup Periode** mengunci bulan; tidak ada peran akuntan | **Layak, tanpa menyalin data.** Karena Ginnva satu basis data, cukup **peran "Akuntan"**: lihat semua, dan membuat dan memposting **jurnal penyesuaian** hanya pada periode yang masih terbuka, sambil klien terus bekerja di periode berjalan. Pemisahan tugas dan Histori Aktivitas sudah ada. | Kandidat paling bernilai dari pass ini. Perlu keputusan pemilik: apakah akuntan eksternal akan diberi akses panel. |
+| **Riwayat Ekspor Impor** (nama, tanggal, waktu, pengguna, status, pesan) dan tombol **Munculkan Error Log** | Pola serupa ada di **Riwayat Impor Produk** (detail baris yang dilewati) | Sudah sejalan | Terapkan pola yang sama pada setiap impor baru (mis. Luas Kaca, Aset). |
+| **Preferensi Ekspor Impor**: sandi enkripsi, folder default, pemetaan pelanggan, gudang, dan departemen | Tidak ada; tidak ada pertukaran antar-basis data | Tidak perlu | Hanya relevan untuk multi-basis data. |
+| **Data Cabang Baru** (ekspor pelanggan dan pemasok ke berkas cabang) | Cabang baru cukup dibuat sebagai toko di Master Data | Tidak perlu | |
+| **Cadangan Data** manual (nama berkas `.gbk`), **Pakai Data Cadangan**, **Perbaiki Data** | Cadangan otomatis harian 03:00 ke lokal dan Drive; pemulihan lewat prosedur server (DRP) | Cadangan sudah lebih kuat; **status cadangan tidak terlihat di panel** | Kandidat kecil: kartu **"Cadangan terakhir: tanggal, jam, ukuran"** untuk akses penuh (kepercayaan pemilik). |
+| **Simpan dengan Alias** | Tidak relevan | Tidak perlu | |
+| **NPWP 15 dan 16 digit** | Kolom NPWP ada di data personalia | Kecil | Sudah tercatat di pass 1. |
+
+Catatan dari layar Ekspor Impor Transaksi: ada satu entri uji, **Bukti Jurnal Umum nomor 1000** (24/10/2026, dibuat SUPERVISOR). Itu entri uji dari instalasi baru, bukan data Ginnva.
+
+## Berikutnya
+Menu **Laporan**, **Aktifitas** (Jurnal Umum, Kas Bank, rekonsiliasi), **Penjualan**, **Pembelian**, **Aset Tetap**, **Persediaan**, dan **e-Faktur**. Hal yang masih dicari: daftar laporan keuangan dan pajak, dan apakah laporan bisa diekspor ke Excel.
