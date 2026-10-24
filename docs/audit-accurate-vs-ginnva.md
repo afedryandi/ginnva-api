@@ -260,5 +260,18 @@ Catatan: pencarian kode ini berbasis kata kunci, bukan pembacaan penuh; item "ti
 10. Margin per booking (setelah keputusan HPP); pelanggan korporat (bila ada).
 11. Pengecekan kecil: layar rekonsiliasi bank (selisih saldo, tanggal terakhir, catat biaya bank), polanya di `LedgerReconciliationReport`; tampilan "terakhir ditutup oleh siapa" di Tutup Periode.
 
+## Temuan pass 11 (Jendela, Bantuan, panel Penjelajah)
+
+Dibaca 2026-10-24 dari 12 tangkapan layar.
+
+| Fitur ACCURATE | Di Ginnva sekarang | Relevansi untuk Ginnva | Catatan |
+|---|---|---|---|
+| **Penjelajah** (panel kiri, 9 modul: Buku Besar, Kas Bank, Persediaan, Penjualan, Pembelian, Aset Tetap, Daftar, RMA, e-Faktur). Tiap modul membuka **peta alur bergambar**: ikon dokumen dengan panah urutan (mis. Penawaran → Pesanan → Pengiriman → Faktur → Penerimaan; Retur di cabang). Klik ikon membuka layar. Modul Buku Besar menampilkan siklus bulanan: Info Perusahaan → Mata Uang → Daftar Akun → Bukti Jurnal → **Proses Akhir Bulan** → Laporan Keuangan. | Sidebar Filament berkelompok (Cluster); halaman **Panduan** (cara memakai sistem) | **Ide yang patut dipinjam, bentuknya sederhana.** Peta alur ini adalah cara Accurate mengajari pemakai baru urutan kerja. Pemilik sebelumnya memutuskan Panduan tanpa gambar, tanpa tur, dan tanpa tombol kontekstual; maka jangan bangun peta bergambar. | Yang sejalan dengan keputusan itu: di halaman Panduan Keuangan, urutan kerja bulanan satu baris (catat transaksi → rekonsiliasi bank → posting penyusutan → Tutup Periode → baca laporan). Periksa apakah itu sudah ada di katalog Panduan Keuangan. |
+| **Daftar (Penjelajah): Proyek, Departemen, Penjual (salesperson), Pemasok, Pelanggan** | Teknisi (komisi), toko, kasir | **Penjual** setara staf penjualan; Ginnva sudah mencatat teknisi dan komisi. **Proyek** dan **Departemen** tidak relevan. | Tidak ada tindakan. |
+| **Jendela**: tampilkan/hilangkan tabulasi, tutup semua | Tab browser | Tidak perlu | |
+| **Bantuan**: Tentang ACCURATE, Pendaftaran. Layar versi: **ACCURATE 5.0.23, build 1956, Standard, Firebird 2.5**, hak cipta CPSSoft 1999-2026; status **"Belum Teregistrasi"**. | Aplikasi web, pembaruan berkala | Pembanding | Accurate 5 adalah aplikasi desktop lama dengan basis data Firebird 2.5 (rilis lama), satu komputer satu data, dan harus didaftarkan dan dilisensi. Ginnva berbasis web: satu data untuk semua toko tanpa instalasi per komputer. Ini mendukung tujuan pemilik agar semua staf memakai satu sistem. |
+
+Dengan pass 11, **seluruh menu Accurate yang terlihat sudah diaudit.** Sisa: detail kategori laporan selain Laporan Keuangan (tidak mengubah kesimpulan).
+
 ## Berikutnya
-Audit menu Accurate sudah **selesai** (Berkas, Persiapan, Daftar, Aktifitas, Laporan). Yang belum dilihat hanya hal kecil: Jendela, Bantuan, dan detail kategori laporan selain Laporan Keuangan. Langkah berikut yang masuk akal bukan tangkapan layar lagi, tetapi **keputusan pemilik** atas kandidat tersisa di atas, dan jawaban CFO/Spv Finance tentang status PKP, cara lapor, dan biaya impor film.
+Audit menu Accurate sudah **selesai** (Berkas, Persiapan, Daftar, Aktifitas, Laporan, Jendela, Bantuan, Penjelajah). Langkah berikut yang masuk akal bukan tangkapan layar lagi, tetapi **keputusan pemilik** atas kandidat tersisa di atas, dan jawaban CFO/Spv Finance tentang status PKP, cara lapor, dan biaya impor film.
