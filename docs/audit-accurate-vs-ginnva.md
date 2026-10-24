@@ -212,5 +212,53 @@ Dibaca 2026-10-24 dari 33 tangkapan layar. Form Permintaan, PO, Penerimaan, Fakt
 28. **Biaya pendaratan (landed cost) per roll**: alokasi ongkir/bea ke biaya per meter. Perlu jawaban Spv Finance dulu.
 29. **Penjagaan:** pastikan tidak ada fitur hapus Histori Aktivitas (bukan fitur baru, hanya pengingat).
 
+## Temuan pass 10 (menu Laporan, SPT Tahunan, SPT Masa PPN) dan koreksi kandidat lama
+
+Dibaca 2026-10-24 dari 37 tangkapan layar (semua kosong; struktur saja). Setelah itu saya **memeriksa kode Ginnva** untuk kandidat yang sebelumnya bertanda "periksa dulu". Hasilnya mengoreksi daftar kandidat (lihat bagian akhir).
+
+### Menu Laporan Accurate
+Menu: **Daftar Laporan**, Laporan Keuangan Kustomisasi, **SPT Tahunan**, **PPN/PPN BM (e-SPT, e-Faktur)**, Laporan Tersimpan, Laporan Terdesain, Berkas Laporan (.fr3).
+
+| Fitur ACCURATE | Di Ginnva sekarang | Relevansi untuk Ginnva | Catatan |
+|---|---|---|---|
+| **Daftar Laporan** 17 kategori (Keuangan, Buku Besar, Kas & Bank, Piutang, Penjualan, Hutang, Pembelian, Pembiayaan Pesanan, Aktiva Tetap, Persediaan, Gudang, Proyek, Departemen, Pemeriksaan, **Pajak (Indonesia)**, Lain-lain, Tersimpan, Terdesain). Kategori Keuangan: Neraca (standar, induk skontro, multi periode, perbandingan bulan, anggaran, ukuran umum, konsolidasi), Laba/Rugi (standar, multi periode, perbandingan, anggaran, konsolidasi), Laba Ditahan, Fokus Keuangan, Financial Ratio, Arus Kas (langsung dan tak langsung, per bulan). | Ada: Neraca, Laba Rugi, **Arus Kas**, Buku Besar, Neraca Saldo, **Anggaran vs Realisasi**, umur piutang, umur hutang, Kartu Stok, Persediaan, Rekonsiliasi Buku Besar, dan banyak laporan operasional (komisi teknisi, durasi pekerjaan, penjualan per outlet, dll.) | **Ginnva sudah memiliki hampir semua laporan inti.** Yang tidak terlihat di Ginnva: Neraca **perbandingan antar bulan/tahun**, Laba Rugi **multi periode** dalam satu layar, **Financial Ratio** (rasio keuangan), dan **Laporan Laba Ditahan**. | Kandidat kecil: **perbandingan periode** (bulan ini vs bulan lalu vs tahun lalu) pada Neraca dan Laba Rugi, dan satu layar **rasio keuangan** (margin, rasio lancar, perputaran piutang) untuk CFO. Konsolidasi dan departemen tidak relevan. |
+| **Format Laporan** (dialog 6 tab): kolom tersedia, kolom dan filter, grup, nomor (format tanggal, pemisah ribuan/desimal, negatif merah, tanda minus/kurung), header/footer, huruf/kertas/margin, **analisa (pivot table)**. Setiap laporan bisa **Modifikasi, Analisa, Print, Expor, Simpan, Email, Memorize, Desain, Ubah Tampilan, Save Layout**. | Laporan tetap; ekspor Excel pada sebagian laporan | **Sebagian.** Yang paling berguna: tombol **Expor** (Excel) dan **Email** di setiap laporan, dan **filter kolom**. Yang tidak perlu: desain laporan bebas, pivot, pengaturan huruf dan margin. | Itulah alasan Accurate terasa rumit. Ginnva sebaiknya satu laporan satu tampilan dengan filter periode/toko dan tombol Excel/PDF. Terkait Ekspor Laporan (f11, ditunda). |
+| **Laporan Keuangan Kustomisasi**: pengguna menyusun format neraca/laba rugi sendiri (baris pembuka, tipe, tingkatan, rentang akun, total), tombol **Buat otomatis** neraca dan laba rugi standar. | Format laporan tetap (`FinancialStatementService`) | Tidak perlu | Dan menjelaskan kesulitan Spv Finance di Majoo. |
+| **SPT Tahunan (badan, 1771)**: daftar SPT; formulir 12 tab: Perusahaan (nama, alamat, jenis usaha, KLU), **Pemeriksa** (KAP, konsultan pajak, diaudit atau tidak, opini), **PPh Pasal 17** (lapisan tarif), **1771-I** perhitungan penghasilan neto fiskal, **1771-II** rincian HPP dan biaya usaha, **1771-III** kredit pajak dalam negeri, **1771-IV** PPh final dan penghasilan bukan objek, **1771-V** pemegang saham dan dividen, pengurus, **1771-VI** penyertaan modal, utang dan piutang afiliasi, **1771** induk, **Koreksi Fiskal** (per akun: saldo akuntansi, koreksi fiskal, saldo fiskal; kompensasi kerugian; PPh terutang), **Aktiva Tetap** (persen penyusutan fiskal); **export e-SPT**; tahun pajak atau tahun buku. | Tidak ada (modul Pajak dirancang tetapi belum dibangun; tergantung status PKP dan keputusan) | **Di luar kebutuhan sistem Ginnva.** SPT Tahunan badan disusun akuntan atau konsultan pajak. Ginnva cukup menyediakan **bahan**: laba rugi tahunan, rincian biaya per akun, daftar aset dan penyusutan, daftar pemegang saham. | Menyusun 1771 di dalam sistem akan mengulang kerumitan Accurate. Rekomendasi: jangan bangun. Cukup ekspor **Laba Rugi per akun** dan **daftar aset** untuk konsultan pajak. |
+| **SPT Masa PPN**: periode (bulan s/d bulan, tahun), nama PKP, NPWP, alamat, "Wajib PPnBM"; tab **Pajak Keluaran**: per faktur (pelanggan, no. faktur pajak, tanggal, tipe dokumen, DPP, PPN, PPnBM) dengan **kode transaksi 01 sampai 13** (01 kepada selain pemungut, 02 instansi pemerintah, 03 pemungut selain pemerintah, 04 DPP nilai lain, 05 besaran tertentu, 07 tidak dipungut, 08 dibebaskan, 09 aset tidak terkait usaha, 10 penyerahan lainnya, 11 sampai 13 ekspor); **Export e-Faktur XML**; status "Valid". | Tidak ada; PPN hanya rincian per transaksi | **Hanya bila Ginnva PKP.** | Untuk jasa pasang film ke pelanggan umum hampir semua faktur berkode **01**. Bila PKP, kebutuhan nyata: daftar **faktur pajak keluaran per bulan** (pelanggan, NPWP/NIK, DPP, PPN) yang dapat diekspor ke format e-Faktur/Coretax. Perlu jawaban Spv Finance tentang PKP dan cara lapor (e-Faktur lama atau Coretax). |
+| **Laporan Tersimpan / Terdesain / Berkas Laporan (.fr3)**: simpan, impor, ekspor desain laporan | Tidak ada | Tidak perlu | |
+
+### Koreksi kandidat lama setelah memeriksa kode (2026-10-24)
+Kode Ginnva sudah memuat hal-hal berikut, jadi **kandidat ini dicabut atau dikecilkan**:
+
+| Kandidat | Temuan di kode | Keputusan |
+|---|---|---|
+| 9. Anggaran bulanan per akun beban | `BudgetVsActualReport` ("Anggaran vs Realisasi", Keuangan Fase 4) dan model `Budget` sudah ada | **Dicabut.** |
+| 4 dan 24. Pengeluaran/tagihan berulang | `RecurringBillGenerationService` + `billing:generate-recurring` (harian) sudah menghasilkan Hutang Usaha dari template tagihan rutin; sengaja **langsung posting tanpa approval ulang** (keputusan pemilik 2026-09-22) | **Dicabut.** Jangan usulkan draf approval; itu bertentangan dengan keputusan yang ada. |
+| 27. Daftar periksa Tutup Periode | `AccountingPeriodService` sudah memeriksa jurnal draf (memblokir), pengajuan pending, payroll dan penyusutan belum jalan, mutasi; ini **lebih ketat** dari Accurate | **Dicabut** (tinggal periksa apakah "kapan dan siapa menutup terakhir" tampil). |
+| 29. Histori Aktivitas tidak boleh dihapus | `ActivityResource::canDelete()` mengembalikan `false` | **Sudah terpenuhi**; Ginnva lebih kuat dari Accurate. |
+| 18. Stok minimum per bahan | `reorder_point` sudah ada di `RawMaterial` dan `ConsumableItem`, dengan penanda stok menipis | **Sebagian ada.** Yang belum: pemasok utama per bahan dan tombol buat permintaan beli dari peringatan. |
+| 16 dan 17. Alokasi satu pembayaran ke banyak invoice; NPWP pemasok | Tidak ditemukan | Tetap kandidat (bersyarat pada pelanggan korporat dan PKP). |
+| 19. Qty dipesan vs diterima di permintaan beli | Tidak ditemukan kolom penerimaan di `PurchaseRequest` | Tetap kandidat. |
+| 21. Tanggal efektif harga | Tidak ditemukan kolom tanggal efektif di tabel harga | Tetap kandidat. |
+| 22. Penghentian aset (disposal) | Tidak ditemukan alur disposal/penjualan aset | Tetap kandidat. |
+| 28. Landed cost | Tidak ditemukan alokasi biaya kirim ke batch roll | Tetap kandidat, menunggu jawaban Spv Finance. |
+| PPh Pasal 23 | Tidak ada di kode | Hanya bila ada pelanggan korporat yang memotong. |
+
+Catatan: pencarian kode ini berbasis kata kunci, bukan pembacaan penuh; item "tidak ditemukan" sebaiknya dikonfirmasi lagi sebelum dibangun.
+
+### Kandidat tersisa yang masih layak dipertimbangkan (belum ada keputusan bangun)
+1. Peran **Akuntan** dan **jurnal penyesuaian manual** (jurnal manual belum ada).
+2. Kartu **Cadangan terakhir** di panel.
+3. Tombol **Salin akses dari pengguna lain**.
+4. **Perbandingan periode** pada Neraca dan Laba Rugi, dan layar **rasio keuangan** untuk CFO (baru dari pass ini).
+5. **Penghentian aset** dengan laba/rugi pelepasan.
+6. **Qty dipesan vs diterima** dan **pemasok utama + tombol buat permintaan beli** pada permintaan beli.
+7. **Tanggal efektif dan riwayat** perubahan harga.
+8. **Landed cost** per roll (setelah jawaban Spv Finance).
+9. Bahan SPT untuk konsultan pajak: **ekspor Laba Rugi per akun** dan **daftar aset**; bila PKP, **daftar faktur pajak keluaran** (setelah jawaban Spv Finance dan keputusan f11).
+10. Margin per booking (setelah keputusan HPP); pelanggan korporat (bila ada).
+11. Pengecekan kecil: layar rekonsiliasi bank (selisih saldo, tanggal terakhir, catat biaya bank), polanya di `LedgerReconciliationReport`; tampilan "terakhir ditutup oleh siapa" di Tutup Periode.
+
 ## Berikutnya
-Menu **Laporan**, dan layar e-Faktur. Yang masih dicari: daftar laporan keuangan dan pajak, dan cara ekspornya. (Daftar yang sudah selesai: Mata Uang, Daftar Akun, Buku Besar, Kas & Bank, Pelanggan, Penjualan, RMA, Pemasok, Pembelian, Barang dan Jasa, Persediaan, Aktiva Tetap, Transaksi berulang, Salinan Transaksi, Daftar Lain.)
+Audit menu Accurate sudah **selesai** (Berkas, Persiapan, Daftar, Aktifitas, Laporan). Yang belum dilihat hanya hal kecil: Jendela, Bantuan, dan detail kategori laporan selain Laporan Keuangan. Langkah berikut yang masuk akal bukan tangkapan layar lagi, tetapi **keputusan pemilik** atas kandidat tersisa di atas, dan jawaban CFO/Spv Finance tentang status PKP, cara lapor, dan biaya impor film.
