@@ -180,5 +180,17 @@ Dibaca 2026-10-24 dari 16 tangkapan layar (semua layar kosong). Dengan pass ini 
 
 Menu Daftar selesai. Ringkasan: Ginnva sudah memiliki atau sengaja menolak sebagian besar isi menu Daftar Accurate; yang tersisa adalah daftar kandidat kecil di atas.
 
+## Temuan pass 8 (menu Aktifitas: Buku Besar, Kas & Bank, Penjualan, RMA)
+
+Dibaca 2026-10-24 dari 25 tangkapan layar. Hampir semuanya form transaksi yang **sama** dengan yang sudah diaudit di pass 4 sampai 5 (Bukti Jurnal, Pembayaran/Penerimaan Lain, Penawaran, Pesanan, Pengiriman, Faktur, Retur, Penerimaan Penjualan, RMA, Aktifitas Proses Klaim); tidak ada temuan baru dari form tersebut. Menu Aktifitas hanya jalan masuk "buat baru" ke dokumen yang daftarnya ada di menu Daftar. Struktur menu: Buku Besar, Kas & Bank, Penjualan, Otorisasi Pengembalian Barang, Pembelian, Barang dan Jasa, Pembiayaan Pesanan, Aktiva Tetap Baru, **Periodik**, **Lain - lain**.
+
+| Fitur ACCURATE | Di Ginnva sekarang | Relevansi untuk Ginnva | Catatan |
+|---|---|---|---|
+| **Rekonsiliasi Bank**: pilih akun bank, **saldo rekening koran** (input), **kalkulasi saldo** (hitungan sistem), **selisih saldo**, tanggal rekonsiliasi, **tanggal terakhir rekonsiliasi**; daftar transaksi dengan centang **Beres**; tombol **Cek Semua**; ringkasan **Total yang sesuai** dan **Total beredar**; akses cepat ke Other Payment dan Other Deposit untuk mencatat biaya bank atau bunga yang baru ketahuan dari rekening koran. | `BankStatementLine` (impor baris rekening koran, status cocok) dan rekonsiliasi | **Sudah ada polanya, periksa kelengkapan.** | Tiga hal yang patut dibandingkan: (1) tampilan **selisih saldo** = saldo rekening koran dikurangi saldo buku (target nol), (2) **tanggal terakhir rekonsiliasi** per rekening, (3) tombol cepat **catat biaya bank/bunga** langsung dari layar rekonsiliasi. |
+| **Menu Periodik** dan **Lain - lain** | Belum dilihat | Belum dinilai | Diperkirakan berisi penutupan periode, penyusutan massal, revaluasi kurs, jurnal akhir periode. Mohon dikirim layarnya. |
+
+### Tambahan kandidat dari pass 8
+26. **Layar rekonsiliasi bank**: selisih saldo, tanggal terakhir rekonsiliasi, dan catat biaya/bunga bank langsung dari layar itu (periksa dulu apa yang sudah ada).
+
 ## Berikutnya
-Menu **Aktifitas**, menu **Laporan**, dan layar e-Faktur (belum dikirim). Yang masih dicari: daftar laporan keuangan dan pajak, tombol Expor, dan penutupan periode. (Daftar yang sudah selesai: Mata Uang, Daftar Akun, Buku Besar, Kas & Bank, Pelanggan, Penjualan, RMA, Pemasok, Pembelian, Barang dan Jasa, Persediaan, Aktiva Tetap, Transaksi berulang, Salinan Transaksi, Daftar Lain.)
+Submenu **Periodik** dan **Lain - lain** (menu Aktifitas), menu **Laporan**, dan layar e-Faktur. Yang masih dicari: penutupan periode, daftar laporan keuangan dan pajak, dan tombol Expor. (Daftar yang sudah selesai: Mata Uang, Daftar Akun, Buku Besar, Kas & Bank, Pelanggan, Penjualan, RMA, Pemasok, Pembelian, Barang dan Jasa, Persediaan, Aktiva Tetap, Transaksi berulang, Salinan Transaksi, Daftar Lain.)
