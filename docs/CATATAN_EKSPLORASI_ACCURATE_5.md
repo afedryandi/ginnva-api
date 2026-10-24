@@ -1,6 +1,6 @@
 # Catatan Eksplorasi: ACCURATE 5 dan Keuangan Ginnva
 
-Dibuat 2026-10-24. **Status: catatan, belum ada keputusan dan belum ada pekerjaan di sistem.** Pemilik sedang mengumpulkan tangkapan layar semua halaman dan fitur ACCURATE 5 untuk dinilai.
+Dibuat 2026-10-24. **PEMBARUAN ARAH (2026-10-24, dikoreksi pemilik):** tangkapan layar ACCURATE berasal dari instalasi baru di laptop pemilik (tanpa data Ginnva yang valid), bukan dari data finance; Spv Finance baru mulai memakai ACCURATE di laptopnya karena Majoo terlalu kompleks. **Tujuan akhir: seluruh staf memakai sistem Ginnva, bukan Majoo atau ACCURATE.** Maka eksplorasi ini adalah **audit fitur** (pola sama dengan audit Majoo), bukan rencana integrasi; bagian 4 sampai 10 yang membahas integrasi, status lisensi, dan rekap manual ke ACCURATE **tidak lagi menjadi tujuan**. Hasil audit ada di `audit-accurate-vs-ginnva.md`. **Status: catatan, belum ada keputusan dan belum ada pekerjaan di sistem.** Pemilik sedang mengumpulkan tangkapan layar semua halaman dan fitur ACCURATE 5 untuk dinilai.
 
 ## 1. Mengapa dieksplorasi
 
