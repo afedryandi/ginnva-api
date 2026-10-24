@@ -57,6 +57,11 @@
             @livewire(\App\Filament\Widgets\PerluPerhatianWidget::class, ['storeId' => $storeId], key('dashboard-home-perlu-perhatian-' . $storeKey))
         @endif
 
+        {{-- Kartu cadangan database: hanya akses penuh (canView() di widget). --}}
+        @if (\App\Filament\Widgets\BackupStatusWidget::canView())
+            @livewire(\App\Filament\Widgets\BackupStatusWidget::class, [], key('dashboard-home-backup-status'))
+        @endif
+
         @if (\App\Filament\Widgets\BookingRevenueStatsWidget::canView())
             @livewire(\App\Filament\Widgets\BookingRevenueStatsWidget::class, ['storeId' => $storeId], key('dashboard-home-revenue-stats-' . $storeKey))
         @endif

@@ -461,6 +461,65 @@ class UserResource extends Resource
         ]);
     }
 
+    /**
+     * Nilai field form "Akses Menu & Hak Akses Detail" milik $source (kotak modul + kotak Lihat/Buat/Ubah/Hapus/Void),
+     * dalam bentuk field sementara yang dipakai form ini. Role dan Toko SENGAJA tidak ikut: itu identitas akun, bukan akses.
+     * Sumber dengan menu_access kosong (akses penuh) menghasilkan semua kotak mati, sama dengan arti "kosongkan = akses penuh".
+     *
+     * @return array<string, mixed>
+     */
+    public static function accessFormFieldsFor(User $source): array
+    {
+        $fields = self::splitMenuPermissionsIntoFields(self::splitMenuAccessIntoFields([
+            'menu_access' => $source->menu_access,
+            'menu_permissions' => $source->menu_permissions,
+        ]));
+
+        unset($fields['menu_access'], $fields['menu_permissions']);
+
+        return $fields;
+    }
+
+    /** Pilihan "Salin akses dari karyawan lain" (hanya akses penuh): mengisi kotak modul dan hak detail sekaligus, belum disimpan. */
+    private static function copyAccessField(): Forms\Components\Select
+    {
+        return Forms\Components\Select::make('copy_access_from')
+            ->label('Salin akses dari karyawan lain')
+            ->placeholder('Pilih karyawan…')
+            ->options(fn (?User $record) => User::query()
+                ->where('is_active', true)
+                ->when($record, fn ($query) => $query->whereKeyNot($record->getKey()))
+                ->whereDoesntHave('roles', fn ($query) => $query->where('name', 'partner'))
+                ->orderBy('name')
+                ->pluck('name', 'id'))
+            ->searchable()
+            ->live()
+            ->dehydrated(false)
+            ->columnSpanFull()
+            ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+            ->helperText('Mengisi kotak modul dan hak detail di bawah sesuai karyawan yang dipilih, lalu tinggal diubah seperlunya. Role dan Toko tidak ikut disalin. Baru berlaku setelah Anda menekan Simpan.')
+            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                $source = $state ? User::find($state) : null;
+
+                if (! $source) {
+                    return;
+                }
+
+                foreach (self::accessFormFieldsFor($source) as $key => $value) {
+                    $set($key, $value);
+                }
+                $set('copy_access_from', null);
+
+                \Filament\Notifications\Notification::make()
+                    ->title(empty($source->menu_access)
+                        ? "{$source->name} berakses penuh, jadi semua kotak dikosongkan"
+                        : "Akses {$source->name} disalin ke form")
+                    ->body('Periksa lagi, lalu tekan Simpan.')
+                    ->success()
+                    ->send();
+            });
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -766,7 +825,8 @@ class UserResource extends Resource
                 ->description('Khusus role staff/divisi (bukan Direksi). Kosongkan semua (jangan centang apa pun) supaya user otomatis dapat akses penuh ke semua menu — cara paling aman kalau belum yakin. Centang modul tertentu untuk MEMBATASI hanya ke modul itu saja, lalu atur Lihat/Buat/Ubah/Hapus/Void yang muncul di bawahnya kalau perlu MENAMBAH izin (mis. izin Hapus) — setiap kotak berdiri sendiri, TIDAK mencabut aksi lain yang tidak dicentang. Kosongkan checklist CRUD = ikut perilaku default (Lihat/Buat/Ubah tetap jalan seperti biasa, Hapus & Void TIDAK aktif sampai dicentang eksplisit).')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
                 ->columns(2)
-                ->schema(
+                ->schema(array_merge(
+                    [self::copyAccessField()],
                     self::twoColumnStacks(
                         self::menuAccessOptions(),
                         fn (array $options, string $group) => Forms\Components\Section::make($group)
@@ -780,7 +840,7 @@ class UserResource extends Resource
                             )
                             ->collapsed()
                     )
-                ),
+                )),
         ]);
     }
 
