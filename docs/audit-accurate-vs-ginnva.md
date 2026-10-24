@@ -192,5 +192,25 @@ Dibaca 2026-10-24 dari 25 tangkapan layar. Hampir semuanya form transaksi yang *
 ### Tambahan kandidat dari pass 8
 26. **Layar rekonsiliasi bank**: selisih saldo, tanggal terakhir rekonsiliasi, dan catat biaya/bunga bank langsung dari layar itu (periksa dulu apa yang sudah ada).
 
+## Temuan pass 9 (menu Aktifitas: Pembelian, Barang dan Jasa, Pembiayaan Pesanan, Aktiva Tetap, Periodik, Lain - lain)
+
+Dibaca 2026-10-24 dari 33 tangkapan layar. Form Permintaan, PO, Penerimaan, Faktur, Retur, Pembayaran Pembelian, Penyesuaian Persediaan, Harga Jual, Aktiva Tetap sama dengan pass 6 (tidak diulang). Yang baru:
+
+| Fitur ACCURATE | Di Ginnva sekarang | Relevansi untuk Ginnva | Catatan |
+|---|---|---|---|
+| **Proses Akhir Bulan** (Periodik): pilih bulan dan tahun, tampil "Proses Terakhir" (tanggal terakhir dijalankan), daftar mata uang dengan nilai tukar; satu tombol OK menjalankan penutupan dan penyesuaian akhir periode. | **Tutup Periode** (`AccountingPeriodService`) yang mengunci bulan | Sudah sesuai, periksa dua hal | (1) Tampilkan **"proses terakhir"** (kapan dan siapa menutup) di layar Tutup Periode. (2) Pastikan ada **daftar periksa sebelum tutup**: penyusutan bulan itu sudah diposting, rekonsiliasi bank selesai, tidak ada draf pengeluaran menggantung. Nilai tukar tidak relevan (hanya IDR). |
+| **Pengingat** (Ctrl+R): layar daftar (keterangan, jumlah) untuk piutang/hutang jatuh tempo, transaksi berulang, dan lain-lain, dengan tombol **Buat Transaksi** langsung dari pengingat. | Notifikasi (kotak masuk, push) | Sudah sebagian | Pola **pengingat yang langsung bisa ditindaklanjuti** (tombol buat transaksi) cocok untuk pengeluaran berulang (kandidat 24). |
+| **Hapus Jejak Audit** (menu Lain - lain): pengguna dapat menghapus riwayat audit. | **Histori Aktivitas** tidak bisa dihapus lewat panel | **Ginnva lebih kuat; jangan ditiru.** | Fitur ini justru kelemahan kontrol internal. Pastikan tetap tidak ada tombol hapus riwayat di Ginnva, termasuk untuk akses penuh. |
+| **Alat Hitung** dan **Navigasi (F4)** | Pencarian global panel | Tidak perlu | Pencarian global Filament sudah ada. |
+| **Faktur Pembelian, tab Beban**: kolom **"Alokasi ke barang"** dan **"Ke pemasok lain"**; biaya tambahan (ongkir, bea masuk, handling) dialokasikan ke harga pokok barang yang dibeli atau ditagih terpisah dari pemasok lain. | Harga beli roll per batch (`RawMaterialBatch`) | **Layak, nilai sedang** | **Biaya pendaratan (landed cost)**: ongkir dan bea impor film PPF dialokasikan ke biaya per roll, supaya biaya per meter yang dipakai di komisi dan margin benar. Hanya penting bila film diimpor dan biaya tambahan material. Tanyakan Spv Finance apakah biaya kirim/impor selama ini dicatat terpisah dari harga roll. |
+| **Grup Barang** (paket): daftar barang dan kuantitas, harga jual tetap atau **otomatis dihitung dari harga detail**, akun penjualan/retur/diskon sendiri, tab **Komisi**, opsi **cetak barang di faktur**. | Belum ada paket gabungan; "Paket Kombo" (c) masih belum jelas | **Pembanding untuk keputusan yang tertunda.** Accurate memodelkan paket sebagai grup barang dengan harga tetap atau total harga item, dan komisi menempel di grup. | **Jangan dibangun** sampai pemilik memutuskan Paket Kombo. Catatan untuk keputusan itu: opsi "cetak rincian di faktur" dan "harga otomatis = jumlah komponen". |
+| **Pembiayaan Pesanan lanjutan**: **Penyelesaian Pesanan** (selesai ke akun biaya atau **ke barang jadi** dengan alokasi nilai per barang, persen, gudang). | Tidak ada | Tidak perlu | Itu produksi barang jadi (manufaktur). Margin per booking (kandidat 23) tidak memerlukan ini. |
+| **Aktiva Tetap Baru**: sama dengan form pass 6; tombol **Dispos** dan **Revaluasi** tampil nonaktif sampai aset tersimpan. | `Asset` | Ulang kandidat 22 | Disposal tetap kandidat; revaluasi ditolak. |
+
+### Tambahan kandidat dari pass 9
+27. **Layar Tutup Periode**: tampilkan proses terakhir (kapan, siapa) dan daftar periksa sebelum tutup (penyusutan diposting, rekonsiliasi selesai, tidak ada draf menggantung). Periksa dulu apa yang sudah ada.
+28. **Biaya pendaratan (landed cost) per roll**: alokasi ongkir/bea ke biaya per meter. Perlu jawaban Spv Finance dulu.
+29. **Penjagaan:** pastikan tidak ada fitur hapus Histori Aktivitas (bukan fitur baru, hanya pengingat).
+
 ## Berikutnya
-Submenu **Periodik** dan **Lain - lain** (menu Aktifitas), menu **Laporan**, dan layar e-Faktur. Yang masih dicari: penutupan periode, daftar laporan keuangan dan pajak, dan tombol Expor. (Daftar yang sudah selesai: Mata Uang, Daftar Akun, Buku Besar, Kas & Bank, Pelanggan, Penjualan, RMA, Pemasok, Pembelian, Barang dan Jasa, Persediaan, Aktiva Tetap, Transaksi berulang, Salinan Transaksi, Daftar Lain.)
+Menu **Laporan**, dan layar e-Faktur. Yang masih dicari: daftar laporan keuangan dan pajak, dan cara ekspornya. (Daftar yang sudah selesai: Mata Uang, Daftar Akun, Buku Besar, Kas & Bank, Pelanggan, Penjualan, RMA, Pemasok, Pembelian, Barang dan Jasa, Persediaan, Aktiva Tetap, Transaksi berulang, Salinan Transaksi, Daftar Lain.)
