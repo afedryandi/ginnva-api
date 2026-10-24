@@ -273,5 +273,71 @@ Dibaca 2026-10-24 dari 12 tangkapan layar.
 
 Dengan pass 11, **seluruh menu Accurate yang terlihat sudah diaudit.** Sisa: detail kategori laporan selain Laporan Keuangan (tidak mengubah kesimpulan).
 
+## Pass 12: tombol, aksi, UI/UX, dan data (tambahan atas permintaan pemilik, 2026-10-24)
+
+Pass 1 sampai 11 lebih banyak membahas halaman, fitur, dan menu. Pass ini menilai ulang dari tangkapan layar yang sama: **tombol dan aksi**, **UI/UX**, dan **data yang diperlukan Ginnva**. Pemeriksaan "ada/tidak ada di Ginnva" berbasis pencarian kata kunci di kode, bukan pembacaan penuh; konfirmasi sebelum dibangun.
+
+### A. Tombol dan aksi
+
+| Tombol/aksi di ACCURATE | Di mana | Di Ginnva sekarang | Relevansi | Catatan |
+|---|---|---|---|---|
+| **Simpan & Baru** / **Simpan & Tutup** / **Batal** | Semua form transaksi dan master | "Simpan" dan "Simpan & buat lainnya" bawaan Filament | Sudah sesuai | Untuk input berulang (pengeluaran, jurnal) "buat lainnya" penting; pastikan aktif di form pengeluaran. |
+| **Panah ← →** (record sebelumnya/berikutnya) di form dokumen | Faktur, PO, jurnal, aset | Tidak ada | Rendah | Berguna saat memeriksa banyak dokumen berurutan; Ginnva cukup daftar + filter. |
+| **Salin Transaksi / Simpan Transaksi (Memorize)** | Hampir semua form | Tidak ada "Duplikat" | **Layak, kecil** | Tombol **Duplikat** pada Pengeluaran, Booking (mis. pelanggan datang lagi), Quotation, dan Template tagihan. Hemat ketikan. |
+| **Transaksi berulang** (tombol di form) | Faktur, jurnal, pembayaran | Ada sebagai Template Tagihan Rutin | Sudah sesuai | |
+| **Jadikan Pesanan / Pilih Penawaran / Pilih Pengiriman / Pilih Klaim** (konversi antar dokumen) | Rantai penjualan dan pembelian | Quotation → Booking sudah ada | Sudah sesuai | Pola "tarik dari dokumen sebelumnya" tidak perlu diperluas. |
+| **Bayar** langsung dari faktur; **Terima Bayaran** | Faktur penjualan/pembelian | Tambah pembayaran dari booking/invoice | Sudah sebagian | Periksa: dari detail Invoice, ada satu tombol "Catat Pembayaran"? |
+| **Alokasi otomatis** (satu pembayaran dibagi ke banyak faktur) | Penerimaan penjualan | Tidak ada | Bersyarat | Hanya untuk pelanggan korporat (kandidat 10). |
+| **Cek Semua** | Rekonsiliasi bank | Periksa di layar rekonsiliasi | Kecil | Centang semua baris yang cocok sekaligus. |
+| **Other Payment / Other Deposit** langsung dari layar rekonsiliasi | Rekonsiliasi bank | Tidak terlihat | Kecil | Catat biaya admin atau bunga bank tanpa pindah halaman (kandidat 11). |
+| **Impor dari File** | Pelanggan, Pemasok, Barang, Akun, Kategori, Aktiva | Ada untuk produk, aset, bahan habis pakai, bagan akun; **tidak ada untuk pelanggan dan pemasok** | Rendah | Pelanggan Ginnva datang dari booking, jadi impor jarang perlu. |
+| **Ekspor e-Faktur**, **Export e-SPT** | Pelanggan, Pemasok, SPT | Tidak ada | Bersyarat PKP | Lihat pass 10. |
+| **Print / Expor / Email / Memorize / Desain / Cari Kata / Ubah Tampilan / Save Layout** | Setiap laporan | Excel dan PDF di sebagian laporan | **Sebagian** | Yang layak disamakan: **semua laporan keuangan punya Excel dan PDF** (periksa laporan umur piutang, umur hutang, Kartu Stok, Neraca Saldo). Email, desain, dan simpan layout tidak perlu. |
+| **Perbarui** (refresh) | Setiap daftar | Polling dimatikan; muat ulang manual | Kecil | Tombol "Muat ulang" kecil di daftar yang sering berubah (booking, kehadiran). |
+| **Hapus** | Semua master dan dokumen | Soft delete, void, dan approval | **Ginnva lebih kuat** | Accurate menghapus tanpa jejak yang bisa dipulihkan; **Hapus Jejak Audit** tidak boleh ditiru. |
+| **Dispos** dan **Revaluasi** (nonaktif sampai aset tersimpan) | Aktiva tetap | Belum ada disposal | Kandidat 5 | Tombol nonaktif yang aktif setelah simpan adalah pola jelas. |
+| **Tutup / Ditutup** (centang di dokumen dan baris) | Penawaran, PO, permintaan | Status dokumen | Sudah sesuai | |
+
+### B. UI/UX
+
+| Pola UI/UX ACCURATE | Penilaian | Untuk Ginnva |
+|---|---|---|
+| **Filter selalu terlihat di samping daftar**, rentang tanggal otomatis bulan berjalan, filter "Non Aktif: Ya/Tidak/Semua" dengan bawaan Tidak | Baik; pengguna jarang menyetel filter manual | Periksa bawaan filter tanggal di daftar Keuangan dan Penjualan (bulan berjalan) dan bahwa data nonaktif tersembunyi secara bawaan. |
+| **Bilah status di bawah**: "Periode 10/2026 – 01 Okt s/d 31 Okt 2026" dan "Daftar Sebagai SUPERVISOR" selalu tampak | Baik; pengguna tahu periode dan siapa dirinya | **Layak, kecil:** tampilkan **status periode** (Terbuka/Ditutup) dan nama pengguna di halaman Keuangan, supaya tidak salah menginput ke bulan yang sudah ditutup. |
+| **Dropdown yang punya opsi "<Akun Baru> / <Pelanggan Baru> / <Bank Baru>"** di baris pertama | Baik; buat data master tanpa meninggalkan form | Ginnva memakai `createOptionForm` di beberapa tempat (mis. role) tapi tidak ditemukan di Booking, Pengeluaran, Invoice. Periksa apakah staf sering harus keluar form untuk menambah pelanggan, pemasok, atau akun. |
+| **Kolom wajib berlatar kuning**, kolom lain putih | Jelas, tanpa teks | Filament memakai tanda bintang; cukup. |
+| **Peringatan merah di dalam form** (mis. "Metode ini tidak dapat diganti setelah transaksi", "Set nol jika tidak ada batasan kredit") | Baik untuk keputusan yang tidak bisa dibatalkan | Ginnva memakai teks bantuan; pertahankan untuk pengaturan permanen. |
+| **Ringkasan di kaki form**: "Uang Muka 0 / Terpakai 0 / Sisa 0", "Total Owing / Payment / Overpay", "Debits :: Credits ::" | Baik; angka kunci selalu tampak saat input | Periksa form pembayaran dan jurnal Ginnva menampilkan total yang berjalan. |
+| **Kata campur Inggris-Indonesia** ("Sales Invoice", "Save & New", "Cust. Receipt", "Journal Voucher") dalam satu layar | **Buruk**, membingungkan | Ginnva harus satu bahasa (Indonesia). Periksa sisa istilah Inggris di panel. |
+| **Ikon dan tata letak seragam**: bilah tombol di atas, filter kiri, tabel kanan, selalu sama | Baik; mudah dipelajari | Ginnva sudah satu pola (Filament). |
+| **Matriks hak akses 6 kolom x 8 tab**, formulir SPT 12 tab, harga 5 tingkat, 10 kolom kustom | **Penyebab "terlalu kompleks"** | Ginnva sengaja lebih sederhana: peran + kotak modul. Pertahankan. |
+| **Keadaan kosong**: daftar hanya baris biru kosong tanpa petunjuk | Buruk | Ginnva memakai `emptyStateHeading` di 22 tempat; pastikan semua daftar utama punya petunjuk dan tombol "Buat pertama". |
+| **Panel Penjelajah**: peta alur bergambar | Baik untuk pemula, tetapi bergantung gambar | Tidak dibangun (keputusan Panduan); cukup urutan kerja satu baris di Panduan. |
+| **Aplikasi desktop, satu komputer**, tidak responsif, tanpa seluler | Batasan | Ginnva web + aplikasi staf: keunggulan. |
+
+### C. Data yang diperlukan Ginnva
+
+Kolom yang dikumpulkan Accurate, dengan penilaian apakah Ginnva perlu menyimpannya. "Ada" berarti ditemukan di kode.
+
+| Objek | Data di ACCURATE | Di Ginnva | Perlu? |
+|---|---|---|---|
+| **Pelanggan** | Nama, alamat, kota/provinsi/kode pos, telepon, email, kontak, **NPWP, NIK, alamat pajak**, tipe pelanggan, termin, batas piutang, default diskon, catatan | Nama, telepon, email, kendaraan, poin, referral | **Hanya untuk pelanggan korporat:** NPWP/NIK, alamat pajak, termin. Pelanggan pribadi tidak. |
+| **Pemasok** | Alamat, kontak ganda, termin, **NPWP (ada)**, **No. PKP**, tipe pajak, **default keterangan**, rekening | Nama, NPWP, rekening bank | **Tambah status PKP dan termin** bila pembelian berfaktur pajak dikreditkan (menunggu jawaban PKP). |
+| **Barang/bahan** | Tipe, kategori, satuan, **min. reorder (ada)**, **pemasok utama**, harga jual bertingkat, harga beli terakhir, tanggal kadaluarsa, berat/dimensi | Roll dengan lebar, batch, `reorder_point` (ada), kadaluarsa (ada) | **Tambah pemasok utama** per bahan (kandidat 6). Harga beli terakhir per batch sudah ada. |
+| **Klaim (RMA)** | No., tanggal, **perkiraan selesai**, pelanggan, barang, no. faktur, **deskripsi masalah**, **teknisi**, **aksi hasil** (perbaiki/ganti/kembalikan/batal), **barang pengganti**, **komponen terpakai**, gudang stok/scrap | `WarrantyClaim`: nomor, garansi, kategori, deskripsi, status, alasan penolakan, peninjau | **Tambah:** **teknisi pelaksana**, **perkiraan selesai**, **aksi hasil**, dan **bahan terpakai** (mengurangi roll). Ini kekurangan data klaim yang paling jelas. Kandidat 13 (saya sempat tidak memasukkannya di daftar ringkas pass 10; dikembalikan). |
+| **Pembayaran** | Penerima (payee), no. cek/bilyet, tanggal cek, memo, **terbilang**, kas/bank asal, kurs | Pengeluaran dengan akun, nominal, bukti | **Tambah:** payee, no. bilyet (bila ada pembayaran giro), terbilang di cetakan. Opsional. |
+| **Jurnal** | No. voucher, tanggal, deskripsi, per baris: akun, debit, kredit, **memo per baris** | Jurnal otomatis | Hanya bila jurnal manual dibangun (kandidat 1); memo per baris wajar. |
+| **Aset tetap** | Kode, tipe, **tgl beli dan tgl pakai**, kuantitas, umur (tahun, bulan), metode, rasio, 3 akun, **pengeluaran tambahan**, harga perolehan, akumulasi, **nilai buku**, **nilai sisa**, status Terproses/Dihentikan | Umur manfaat, nilai sisa, akun akumulasi, tanggal terima, transfer antar toko | **Tambah:** status **dihentikan** dan tanggal serta nilai pelepasan (kandidat 5). Tanggal pakai dibedakan dari tanggal beli hanya bila penyusutan dimulai terlambat. |
+| **Profil perusahaan** | Nama, alamat, **NPWP**, **tgl pengukuhan PKP**, KLU, jenis usaha, kode cabang | Tidak ditemukan satu tempat khusus (cek `FinanceSettingsPage`) | **Layak:** satu **Profil Perusahaan** (nama PT, alamat, NPWP, KLU) dipakai di kop invoice, laporan, dan ekspor pajak. Periksa dulu apakah sudah ada di pengaturan. |
+| **Periode dan saldo awal** | Tanggal mulai buku, tahun fiskal, saldo awal per akun/pelanggan/pemasok/barang | Ada | Sudah sesuai. |
+
+### D. Kandidat baru atau diperbarui dari pass 12 (belum ada keputusan bangun)
+- **Data klaim garansi:** teknisi, perkiraan selesai, aksi hasil, bahan terpakai (kandidat 13, dikembalikan).
+- **Tombol Duplikat** pada Pengeluaran, Booking, Quotation, Template tagihan.
+- **Status periode** (Terbuka/Ditutup) di halaman Keuangan.
+- **Profil Perusahaan** satu tempat (nama, alamat, NPWP, KLU) untuk kop dokumen dan ekspor.
+- **Periksa**: Excel/PDF di semua laporan keuangan, tombol Catat Pembayaran di Invoice, `createOptionForm` di form yang sering dipakai, sisa istilah Inggris, bawaan filter tanggal.
+- **Koreksi kandidat 4:** perbandingan periode, common-size, margin, dan rasio Neraca (rasio lancar, utang terhadap ekuitas) **sudah ada** di Laba Rugi dan Neraca. Yang belum: tampilan **multi bulan** (12 kolom) dan rasio berbasis piutang (perputaran, hari penagihan).
+
 ## Berikutnya
-Audit menu Accurate sudah **selesai** (Berkas, Persiapan, Daftar, Aktifitas, Laporan, Jendela, Bantuan, Penjelajah). Langkah berikut yang masuk akal bukan tangkapan layar lagi, tetapi **keputusan pemilik** atas kandidat tersisa di atas, dan jawaban CFO/Spv Finance tentang status PKP, cara lapor, dan biaya impor film.
+Audit menu Accurate sudah **selesai** (Berkas, Persiapan, Daftar, Aktifitas, Laporan, Jendela, Bantuan, Penjelajah), ditambah pass 12 untuk tombol, UI/UX, dan data. Langkah berikut yang masuk akal bukan tangkapan layar lagi, tetapi **keputusan pemilik** atas kandidat tersisa di atas, dan jawaban CFO/Spv Finance tentang status PKP, cara lapor, dan biaya impor film.
