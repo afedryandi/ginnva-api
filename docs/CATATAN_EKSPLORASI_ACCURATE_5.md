@@ -67,3 +67,18 @@ Jangan kirim data keuangan sungguhan, kata sandi, atau berkas `.gdb`. Tangkapan 
 1. Pemilik meneruskan pertanyaan bagian 6 ke finance dan mengumpulkan tangkapan layar bagian 5.
 2. Setelah keduanya ada: menilai apakah jurnal Ginnva bisa diekspor dalam format yang diterima impor Accurate, seberapa besar pekerjaan memetakan bagan akun, dan apakah alurnya layak dijalankan bulanan oleh staf keuangan.
 3. Memutuskan A, B, atau D (bagian 4). **Sampai ada jawaban PKP dan hasil tangkapan layar, tidak ada perubahan di sistem Ginnva untuk pajak atau Accurate.**
+
+## 8. Temuan: menu Berkas (tangkapan layar 2026-10-24)
+
+Isi menu: Data Baru, Membuka Data, Menutup Data, Simpan dengan Alias, Cadangan Data, Pakai Data Cadangan, Perbaiki Data, **Review Akuntan** (ada submenu), **Impor Jurnal**, **Batal Impor Jurnal**, **Expor Impor Transaksi**, Buat Data Cabang Baru, **NPWP** (ada submenu), Keluar.
+
+Artinya:
+- **Ada Impor Jurnal**, dan ada **Batal Impor Jurnal** (membatalkan impor yang salah). Ini membuat opsi B (jurnal Ginnva diimpor berkala ke Accurate) tampak layak, dengan jaring pengaman bila impor salah. Format berkas yang diterima (Excel, CSV, atau lainnya) dan kolom yang wajib **belum diketahui**.
+- **Expor Impor Transaksi** kemungkinan alat pertukaran transaksi antar-data Accurate (misalnya antar-cabang); belum diketahui formatnya dan apakah berguna untuk Ginnva.
+- **Review Akuntan** dan **NPWP** punya submenu yang belum terlihat; perlu dibuka untuk melihat isinya.
+- **Cadangan Data** dan **Pakai Data Cadangan** menunjukkan pemulihan ada, tetapi perlu rutinitas cadangan manual karena berkas data lokal.
+
+Yang masih harus dilihat berikutnya:
+1. **Dialog Impor Jurnal** (klik menunya, jangan impor apa pun): jenis berkas yang didukung, kolom, dan apakah ada tombol templat contoh.
+2. Submenu **Review Akuntan** dan **NPWP**.
+3. **Daftar, Akun** (bagan akun) untuk pemetaan ke bagan akun Ginnva.
