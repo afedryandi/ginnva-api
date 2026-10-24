@@ -2,8 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\BookingResource;
-use App\Filament\Resources\InvoiceResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\UserResource\Pages\EditUser;
 use App\Models\User;
@@ -21,6 +19,10 @@ use Tests\TestCase;
 class CopyUserAccessTest extends TestCase
 {
     use RefreshDatabase;
+
+    /** Kunci modul di menu_access dan form User memakai nama pendek, bukan nama kelas lengkap. */
+    private const BOOKING = 'BookingResource';
+    private const INVOICE = 'InvoiceResource';
 
     protected function setUp(): void
     {
@@ -46,16 +48,16 @@ class CopyUserAccessTest extends TestCase
     public function test_fields_mirror_the_source_modules_and_rights(): void
     {
         $source = $this->user('kasir', [
-            'menu_access' => [BookingResource::class],
-            'menu_permissions' => [BookingResource::class => ['delete']],
+            'menu_access' => [self::BOOKING],
+            'menu_permissions' => [self::BOOKING => ['delete']],
         ]);
 
         $fields = UserResource::accessFormFieldsFor($source);
 
-        $this->assertTrue($fields[UserResource::moduleAccessFieldKey(BookingResource::class)]);
-        $this->assertFalse($fields[UserResource::moduleAccessFieldKey(InvoiceResource::class)]);
-        $this->assertSame(['delete'], $fields[UserResource::menuPermissionFieldKey(BookingResource::class)]);
-        $this->assertSame([], $fields[UserResource::menuPermissionFieldKey(InvoiceResource::class)]);
+        $this->assertTrue($fields[UserResource::moduleAccessFieldKey(self::BOOKING)]);
+        $this->assertFalse($fields[UserResource::moduleAccessFieldKey(self::INVOICE)]);
+        $this->assertSame(['delete'], $fields[UserResource::menuPermissionFieldKey(self::BOOKING)]);
+        $this->assertSame([], $fields[UserResource::menuPermissionFieldKey(self::INVOICE)]);
         $this->assertArrayNotHasKey('menu_access', $fields);
         $this->assertArrayNotHasKey('menu_permissions', $fields);
     }
@@ -75,21 +77,21 @@ class CopyUserAccessTest extends TestCase
         $admin = $this->user('super_admin');
         $this->actingAs($admin, 'web');
         $source = $this->user('kasir', [
-            'menu_access' => [BookingResource::class],
-            'menu_permissions' => [BookingResource::class => ['delete']],
+            'menu_access' => [self::BOOKING],
+            'menu_permissions' => [self::BOOKING => ['delete']],
         ]);
         $target = $this->user('kasir');
 
         Livewire::test(EditUser::class, ['record' => $target->getKey()])
             ->set('data.copy_access_from', $source->getKey())
-            ->assertSet('data.' . UserResource::moduleAccessFieldKey(BookingResource::class), true)
-            ->assertSet('data.' . UserResource::moduleAccessFieldKey(InvoiceResource::class), false)
+            ->assertSet('data.' . UserResource::moduleAccessFieldKey(self::BOOKING), true)
+            ->assertSet('data.' . UserResource::moduleAccessFieldKey(self::INVOICE), false)
             ->assertSet('data.copy_access_from', null)
             ->call('save');
 
         $target->refresh();
-        $this->assertSame([BookingResource::class], $target->menu_access);
-        $this->assertSame(['delete'], $target->menu_permissions[BookingResource::class]);
+        $this->assertSame([self::BOOKING], $target->menu_access);
+        $this->assertSame(['delete'], $target->menu_permissions[self::BOOKING]);
         $this->assertTrue($target->hasRole('kasir'), 'Role tidak ikut disalin.');
     }
 
@@ -97,7 +99,7 @@ class CopyUserAccessTest extends TestCase
     {
         $admin = $this->user('super_admin');
         $this->actingAs($admin, 'web');
-        $source = $this->user('kasir', ['menu_access' => [BookingResource::class]]);
+        $source = $this->user('kasir', ['menu_access' => [self::BOOKING]]);
         $target = $this->user('kasir');
 
         Livewire::test(EditUser::class, ['record' => $target->getKey()])
