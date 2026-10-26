@@ -67,6 +67,12 @@ class BlockedDateTest extends TestCase
         return BlockedDate::create(['store_id' => $store->id, 'date' => $this->date($daysAhead), 'reason' => $reason]);
     }
 
+    /** Semua baris tanpa global scope toko: sebagai staf toko, query biasa hanya melihat tokonya sendiri sehingga pemeriksaan "tidak ada" jadi hampa. */
+    private function allBlocked()
+    {
+        return BlockedDate::withoutGlobalScopes();
+    }
+
     private function calendar(Store $store)
     {
         return Livewire::test(CapacityCalendar::class)->set('storeId', $store->id);
@@ -174,7 +180,7 @@ class BlockedDateTest extends TestCase
         $this->assertFalse($component->get('closeAllOpen'));
 
         $component->set('allFrom', $this->date(6))->set('allTo', $this->date(6))->set('allReason', 'Coba')->call('applyCloseAll');
-        $this->assertSame(0, BlockedDate::count());
+        $this->assertSame(0, $this->allBlocked()->count());
     }
 
     // ------------------------------------------------------------- membuka
@@ -203,10 +209,10 @@ class BlockedDateTest extends TestCase
         $component = Livewire::test(CapacityCalendar::class);
 
         $component->call('reopenById', $other->id);
-        $this->assertTrue(BlockedDate::whereKey($other->id)->exists(), 'Toko lain tidak boleh dibuka lewat id yang diketik manual.');
+        $this->assertTrue($this->allBlocked()->whereKey($other->id)->exists(), 'Toko lain tidak boleh dibuka lewat id yang diketik manual.');
 
         $component->call('reopenById', $own->id);
-        $this->assertFalse(BlockedDate::whereKey($own->id)->exists());
+        $this->assertFalse($this->allBlocked()->whereKey($own->id)->exists());
     }
 
     public function test_the_upcoming_list_shows_only_future_closures_of_the_selected_store(): void
@@ -264,8 +270,8 @@ class BlockedDateTest extends TestCase
             ->call('openDay', $this->date(8))
             ->call('closeDay');
 
-        $this->assertTrue(BlockedDate::where('store_id', $this->storeA->id)->whereDate('date', $this->date(8))->exists());
-        $this->assertFalse(BlockedDate::where('store_id', $this->storeB->id)->exists());
+        $this->assertTrue($this->allBlocked()->where('store_id', $this->storeA->id)->whereDate('date', $this->date(8))->exists());
+        $this->assertFalse($this->allBlocked()->where('store_id', $this->storeB->id)->exists());
     }
 
     public function test_booking_access_alone_does_not_allow_closing_dates_but_allows_capacity(): void
@@ -277,7 +283,7 @@ class BlockedDateTest extends TestCase
         $this->assertFalse(CapacityCalendar::canManageClosures());
 
         Livewire::test(CapacityCalendar::class)->call('openDay', $this->date(5))->call('closeDay');
-        $this->assertSame(0, BlockedDate::count());
+        $this->assertSame(0, $this->allBlocked()->count());
     }
 
     public function test_the_old_closure_permission_alone_allows_closing_but_not_capacity(): void
@@ -294,8 +300,8 @@ class BlockedDateTest extends TestCase
             ->call('saveCapacity')
             ->call('closeDay');
 
-        $this->assertSame(0, StoreCapacityOverride::count(), 'Tanpa akses Booking, kapasitas tidak boleh diubah.');
-        $this->assertSame(1, BlockedDate::count());
+        $this->assertSame(0, StoreCapacityOverride::withoutGlobalScopes()->count(), 'Tanpa akses Booking, kapasitas tidak boleh diubah.');
+        $this->assertSame(1, $this->allBlocked()->count());
     }
 
     public function test_an_explicit_delete_permission_is_not_needed_by_default_but_other_menus_cannot_access_the_page(): void
@@ -342,7 +348,9 @@ class BlockedDateTest extends TestCase
 
     public function test_the_old_menu_is_gone(): void
     {
-        $this->assertFalse(class_exists('App\\Filament\\Resources\\BlockedDateResource'));
-        $this->assertFalse(class_exists('App\\Filament\\Widgets\\BlockedDateCalendarWidget'));
+        // Diperiksa lewat berkas, bukan class_exists(): classmap Composer bisa masih menyimpan nama kelas lama sampai "composer dump-autoload".
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/BlockedDateResource.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Widgets/BlockedDateCalendarWidget.php'));
+        $this->assertDirectoryDoesNotExist(app_path('Filament/Resources/BlockedDateResource'));
     }
 }
