@@ -280,11 +280,15 @@ class BlockedDateTest extends TestCase
         $this->assertTrue(CapacityCalendar::canManageCapacity());
         $this->assertFalse(CapacityCalendar::canManageClosures());
 
-        Livewire::test(CapacityCalendar::class)
-            ->callAction('manageDay', data: ['close' => true, 'capacity' => 4], arguments: ['date' => $this->date(5)]);
+        $component = Livewire::test(CapacityCalendar::class);
 
-        $this->assertSame(0, $this->allBlocked()->count());
+        // Kapasitas boleh diatur.
+        $component->callAction('manageDay', data: ['capacity' => 4], arguments: ['date' => $this->date(5)]);
         $this->assertSame(4, StoreCapacityOverride::withoutGlobalScopes()->firstOrFail()->capacity);
+
+        // Menutup tidak bisa: kotak "Tutup tanggal ini" tidak ada di form pengguna ini, dan permintaan paksa pun tidak menutup apa-apa.
+        $component->callAction('manageDay', data: ['close' => true, 'reason' => 'Coba'], arguments: ['date' => $this->date(6)]);
+        $this->assertSame(0, $this->allBlocked()->count());
     }
 
     public function test_the_old_closure_permission_alone_allows_closing_but_not_capacity(): void
