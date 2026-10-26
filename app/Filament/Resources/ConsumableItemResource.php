@@ -155,6 +155,14 @@ class ConsumableItemResource extends Resource
                         ->minValue(0)
                         ->helperText('Opsional — barang ditandai "Stok Menipis" kalau current stock ≤ angka ini.'),
 
+                    Forms\Components\Select::make('preferred_supplier_id')
+                        ->label('Pemasok Utama')
+                        ->relationship('preferredSupplier', 'name', fn ($query) => $query->where('is_active', true)->orderBy('name'))
+                        ->searchable()
+                        ->preload()
+                        ->placeholder('Belum ditentukan')
+                        ->helperText('Opsional — tampil di peringatan stok menipis dan jadi isian awal Supplier saat permohonan pembelian ditandai terpenuhi.'),
+
                     // Label switch (Stok Awal <-> Stok Saat Ini) disamakan
                     // dengan RawMaterialResource — sebelumnya di sini
                     // selalu "Stok Saat Ini" walau lagi di form Create.
@@ -178,6 +186,7 @@ class ConsumableItemResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn ($query) => $query->with('preferredSupplier:id,name'))
             ->columns([
                 Tables\Columns\TextColumn::make('code')
                     ->label('Kode')
@@ -218,6 +227,11 @@ class ConsumableItemResource extends Resource
                     ->placeholder('—')
                     ->formatStateUsing(fn ($state, ConsumableItem $record) => $state !== null ? number_format((float) $state, 2) . ' ' . $record->unit : null)
                     ->toggleable(),
+
+                Tables\Columns\TextColumn::make('preferredSupplier.name')
+                    ->label('Pemasok Utama')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('unit_cost')
                     ->label('Harga/Satuan')

@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ConsumablesNeedingAttentionWidget extends BaseWidget
 {
+    use Concerns\OffersRestockRequest;
+
     // Audit framework 2026-09-14, "Auto-polling widget Livewire" --
     // sebelumnya ikut default Filament (poll tiap 60 detik walau
     // halaman idle), tidak perlu real-time untuk widget ini.
@@ -59,6 +61,7 @@ class ConsumablesNeedingAttentionWidget extends BaseWidget
         return $table
             ->query(
                 static::needingAttentionQuery()
+                    ->with('preferredSupplier:id,name')
                     // Paling menipis (selisih terbesar di bawah ambang) duluan.
                     ->orderByRaw('(reorder_point - current_stock) DESC')
             )
@@ -101,12 +104,19 @@ class ConsumablesNeedingAttentionWidget extends BaseWidget
                     })
                     ->color('danger'),
 
+                Tables\Columns\TextColumn::make('preferredSupplier.name')
+                    ->label('Pemasok Utama')
+                    ->placeholder('—'),
+
+                static::openRequestColumn(),
+
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Terakhir Diubah')
                     ->since()
                     ->tooltip(fn (ConsumableItem $record) => $record->updated_at?->format('d M Y H:i')),
             ])
             ->actions([
+                static::restockAction(),
                 Tables\Actions\Action::make('acknowledge')
                     ->label('Tandai Ditinjau')
                     ->icon('heroicon-o-eye')

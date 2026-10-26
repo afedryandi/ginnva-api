@@ -414,6 +414,11 @@ class PurchaseRequestResource extends Resource
                         Forms\Components\Select::make('supplier_id')
                             ->label('Supplier')
                             ->options(fn () => \App\Models\Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->default(function (PurchaseRequest $record) {
+                                $preferred = $record->resolveItem()?->preferredSupplier;
+
+                                return $preferred?->is_active ? $preferred->id : null;
+                            })
                             ->searchable()
                             ->required()
                             ->createOptionForm([

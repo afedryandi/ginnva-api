@@ -650,6 +650,7 @@ class GuideCatalog
                     'Pengambilan atau pengembalian barang untuk pekerjaan dicatat lewat **Memo Pengambilan/Pengembalian**. Pilih barang dan jumlahnya; stok ikut berubah.',
                     'Barang rusak atau hilang dicatat di **Stok Terbuang** dengan alasan. Stok berkurang dan jejaknya tercatat.',
                     'Hitung fisik berkala lewat **Stok Opname**: isi jumlah hasil hitung, sistem menyesuaikan stok dengan selisihnya.',
+                    'Pada data Bahan Baku dan Barang Habis Pakai, isi **Pemasok Utama** (opsional) dengan supplier langganan barang itu. Namanya tampil di peringatan stok menipis dan menjadi isian awal **Supplier** saat permohonan pembelian ditandai terpenuhi.',
                 ],
                 'tips' => [
                     'Data stok dibatasi per toko; staf toko hanya melihat tokonya sendiri.',
@@ -692,6 +693,7 @@ class GuideCatalog
                     'Setelah barang diterima, catat dulu masuknya lewat **Catat Stok** pada barangnya, baru tekan **Tandai Terpenuhi**. Aksi ini bisa dilakukan akses penuh atau pengaju permohonan.',
                     'Saat **Tandai Terpenuhi** isi **Total Biaya Aktual**, **Supplier** (supplier baru bisa dibuat langsung di sini), dan **Jatuh Tempo (opsional)**. Sistem otomatis menjurnal Persediaan atau Aset dengan kredit Hutang Usaha, dan tagihannya muncul di menu Hutang Usaha.',
                     'Untuk jenis Aset Baru, pilih **Akun Aset Tetap Tujuan** secara manual.',
+                    'Permohonan juga bisa dibuat dari peringatan stok menipis di Dashboard Inventaris lewat **Buat Permintaan Beli**. Satu barang hanya punya satu permintaan berjalan; bila barangnya punya **Pemasok Utama**, kolom **Supplier** saat **Tandai Terpenuhi** sudah terisi dengan pemasok itu.',
                     'Saat barang tiba, pakai **Tandai Terpenuhi** dan isi **Jumlah Diterima** (terisi sama dengan jumlah diminta; ubah bila kurang atau lebih). Daftar menampilkan kolom **Diterima** dan, bila kurang, tulisan **Kurang** berikut jumlahnya. Filter **Diterima kurang dari diminta** menampilkan permohonan yang kirimannya kurang; sisanya diajukan sebagai permohonan baru.',
                 ],
                 'tips' => [
@@ -706,7 +708,7 @@ class GuideCatalog
                 'summary' => 'Memantau stok yang perlu perhatian, melihat Awal/Masuk/Keluar/Akhir per periode, dan menelusuri atau membatalkan catatan pergerakan terakhir.',
                 'menus' => ['InventoryDashboard', 'StockCardReport', 'InventoryMovementResource', 'RawMaterialMovementResource', 'ConsumableItemMovementResource'],
                 'steps' => [
-                    '**Dashboard Inventaris** merangkum yang perlu tindakan: **Bahan Baku Perlu Perhatian** (stok di bawah titik pesan ulang, kedaluwarsa dalam 30 hari, atau lama tidak bergerak, 60 hari), **Barang Habis Pakai Perlu Perhatian**, dan **Aset Bermasalah** (rusak, diperbaiki, hilang). Tekan **Tandai Ditinjau** setelah item diperiksa; item muncul lagi bila datanya berubah.',
+                    '**Dashboard Inventaris** merangkum yang perlu tindakan: **Bahan Baku Perlu Perhatian** (stok di bawah titik pesan ulang, kedaluwarsa dalam 30 hari, atau lama tidak bergerak, 60 hari), **Barang Habis Pakai Perlu Perhatian**, dan **Aset Bermasalah** (rusak, diperbaiki, hilang). Tekan **Tandai Ditinjau** setelah item diperiksa; item muncul lagi bila datanya berubah. Pada barang yang stoknya menipis, tekan **Buat Permintaan Beli**: pilih **Toko / Workshop**, periksa **Jumlah** (terisi selisih ambang dan stok), lalu simpan. Permintaan masuk ke **Permohonan Pembelian** berstatus menunggu, kolom **Permintaan Beli** menampilkan nomornya, dan tombolnya hilang selama permintaan itu masih berjalan.',
                     '**Daftar Stok** (Kartu Stok) menampilkan Awal, Masuk, Keluar, dan Akhir per bahan baku dan barang habis pakai untuk satu rentang tanggal. Atur dengan **Periode Cepat**, **Dari**, **Sampai**, dan **Jenis**. Hasilnya bisa diunduh lewat **Export ke Excel** atau **Export ke PDF**.',
                     '**Riwayat Keluar/Masuk** (produk film), **Riwayat Bahan Baku**, dan **Riwayat Barang Habis Pakai** adalah daftar pergerakan lintas semua barang; saring dengan **Dari Tanggal** dan **Sampai Tanggal**, dan unduh lewat **Export Excel**. Daftar ini hanya untuk dibaca; catatan baru dibuat dari aksi pada barangnya atau pemindaian QR di aplikasi.',
                     'Salah catat? Akses penuh bisa menekan **Batalkan** pada baris tersebut. Stok kembali ke sebelumnya dan baris "Koreksi" ditambahkan sebagai jejak. Pembatalan hanya bisa untuk kejadian PALING TERAKHIR barang itu.',

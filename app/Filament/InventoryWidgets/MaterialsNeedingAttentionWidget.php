@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class MaterialsNeedingAttentionWidget extends BaseWidget
 {
+    use Concerns\OffersRestockRequest;
+
     // Audit framework 2026-09-14, "Auto-polling widget Livewire" --
     // sebelumnya ikut default Filament (poll tiap 60 detik walau
     // halaman idle), tidak perlu real-time untuk widget ini.
@@ -70,6 +72,7 @@ class MaterialsNeedingAttentionWidget extends BaseWidget
         return $table
             ->query(
                 static::needingAttentionQuery()
+                    ->with('preferredSupplier:id,name')
                     ->withMin(['batches as earliest_expiry' => fn ($q) => $q->where('quantity', '>', 0)->whereNotNull('expiry_date')], 'expiry_date')
                     // Paling mendesak duluan: sudah kedaluwarsa dulu, baru
                     // yang stoknya sudah 0, baru sisanya — bukan urutan PK.
@@ -98,6 +101,12 @@ class MaterialsNeedingAttentionWidget extends BaseWidget
 
                         return $deficit > 0 ? '+' . number_format($deficit, 2) . ' ' . $record->unit : '—';
                     }),
+
+                Tables\Columns\TextColumn::make('preferredSupplier.name')
+                    ->label('Pemasok Utama')
+                    ->placeholder('—'),
+
+                static::openRequestColumn(),
 
                 Tables\Columns\TextColumn::make('earliest_expiry_display')
                     ->label('Kedaluwarsa')
@@ -134,6 +143,7 @@ class MaterialsNeedingAttentionWidget extends BaseWidget
                     ->tooltip(fn (RawMaterial $record) => $record->updated_at?->format('d M Y H:i')),
             ])
             ->actions([
+                static::restockAction(),
                 Tables\Actions\Action::make('acknowledge')
                     ->label('Tandai Ditinjau')
                     ->icon('heroicon-o-eye')

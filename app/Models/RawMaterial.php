@@ -30,6 +30,7 @@ class RawMaterial extends Model
         'purchase_conversion_factor',
         'current_stock',
         'reorder_point',
+        'preferred_supplier_id',
         'unit_cost',
         'expiry_date',
         'notes',
@@ -83,6 +84,11 @@ class RawMaterial extends Model
         return (float) $this->current_stock > 0
             && $this->updated_at !== null
             && $this->updated_at->lt(now()->subDays(self::DEAD_STOCK_DAYS));
+    }
+
+    public function preferredSupplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class, 'preferred_supplier_id');
     }
 
     public function creator(): BelongsTo

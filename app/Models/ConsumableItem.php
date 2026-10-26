@@ -29,6 +29,7 @@ class ConsumableItem extends Model
         'unit',
         'current_stock',
         'reorder_point',
+        'preferred_supplier_id',
         'unit_cost',
         'notes',
         'created_by',
@@ -49,6 +50,11 @@ class ConsumableItem extends Model
         return (float) $this->current_stock > 0
             && $this->updated_at !== null
             && $this->updated_at->lt(now()->subDays(self::DEAD_STOCK_DAYS));
+    }
+
+    public function preferredSupplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class, 'preferred_supplier_id');
     }
 
     public function creator(): BelongsTo

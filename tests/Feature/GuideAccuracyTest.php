@@ -395,7 +395,8 @@ class GuideAccuracyTest extends TestCase
             'transaksi-keuangan' => ['Duplikat'],
             'hutang-piutang' => ['Duplikat'],
             'garansi-maintenance' => ['Riwayat Klaim After-Sales', 'Ditangani oleh', 'Perkiraan Selesai', 'Bahan Terpakai', 'Catat Penyelesaian', 'Hasil Penanganan'],
-            'stok' => ['Bahan Terpakai'],
+            'stok' => ['Bahan Terpakai', 'Pemasok Utama'],
+            'riwayat-stok-dashboard' => ['Buat Permintaan Beli'],
             'karyawan-akun' => ['Salin akses dari karyawan lain'],
             'invoice' => ['Profil perusahaan'],
             'tutup-periode' => ['Status buku'],
@@ -403,7 +404,7 @@ class GuideAccuracyTest extends TestCase
             'kas-bank' => ['Catat sebagai Transaksi'],
             'katalog-produk' => ['Perubahan Harga Terjadwal', 'Terapkan Sekarang'],
             'aset-tetap' => ['Lepas Aset', 'Dampak ke pembukuan'],
-            'permohonan-pembelian' => ['Jumlah Diterima'],
+            'permohonan-pembelian' => ['Jumlah Diterima', 'Buat Permintaan Beli', 'Pemasok Utama'],
         ];
 
         foreach ($expected as $id => $terms) {
