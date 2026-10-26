@@ -69,6 +69,21 @@ class Spk extends Model
         'perlengkapan' => ['STNK', 'Ban Serep', 'Dongkrak + Tuas', 'Perkakas (Kunci Pas)', 'Karpet dalam', 'Headunit/Sound System', 'Karpet Bagasi', 'Tutup Velg'],
     ];
 
+    /**
+     * Isi notifikasi "kendaraan keluar". SPK dan status booking sengaja berdiri sendiri (lihat catatan di atas), jadi bila booking masih
+     * berstatus dikonfirmasi, staf diingatkan untuk menyelesaikan dan memprosesnya (Proses Referral), karena pendapatan baru tercatat di sana.
+     */
+    public function checkoutNotice(): string
+    {
+        $text = "SPK #{$this->spk_number} untuk {$this->customer_name} sudah ditandai kendaraan keluar.";
+
+        if ($this->booking && $this->booking->status === 'confirmed') {
+            $text .= " Booking {$this->booking->booking_number} masih berstatus Dikonfirmasi: selesaikan dan proses bookingnya.";
+        }
+
+        return $text;
+    }
+
     protected $fillable = [
         'spk_number',
         'store_id',

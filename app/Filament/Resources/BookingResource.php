@@ -1277,6 +1277,12 @@ class BookingResource extends Resource
                 // Booking sudah SELESAI tapi nominal/pendapatannya belum
                 // dicatat (belum "Proses Referral") — dipakai juga sebagai
                 // target link dari banner "Belum Diproses" di Dashboard.
+                // Kendaraan sudah keluar (SPK terisi Jam Keluar) tetapi booking masih Dikonfirmasi: SPK dan status booking sengaja berdiri sendiri,
+                // jadi booking yang terlewat diselesaikan dan diproses ditemukan lewat filter ini.
+                Tables\Filters\Filter::make('spk_keluar_belum_selesai')
+                    ->label('Kendaraan keluar, booking belum selesai')
+                    ->query(fn (Builder $query) => $query->where('status', 'confirmed')->whereHas('spk', fn (Builder $q) => $q->whereNotNull('checked_out_at'))),
+
                 Tables\Filters\Filter::make('selesai_belum_diproses')
                     ->label('Selesai, belum diproses')
                     ->query(fn (Builder $query) => $query->where('status', 'completed')->whereDoesntHave('journalEntry')),

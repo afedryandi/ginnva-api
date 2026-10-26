@@ -55,7 +55,7 @@ class SpkObserver
         app(\App\Services\StaffNotifier::class)->toStoreStaff(
             $spk->store_id,
             'SPK Selesai',
-            "SPK #{$spk->spk_number} untuk {$spk->customer_name} sudah ditandai kendaraan keluar.",
+            $spk->checkoutNotice(),
             [
                 'type'   => 'spk_checked_out',
                 'spk_id' => $spk->id,
