@@ -57,6 +57,7 @@ class ClaimsRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('claim_number')
+            ->modifyQueryUsing(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->with(['handler', 'booking.materialMemo.items']))
             ->columns([
                 Tables\Columns\TextColumn::make('claim_number')
                     ->label('No. Klaim')
@@ -95,6 +96,16 @@ class ClaimsRelationManager extends RelationManager
                     ->placeholder('—')
                     ->color(fn ($record) => $record->isOverdue() ? 'danger' : null)
                     ->description(fn ($record) => $record->isOverdue() ? 'Terlambat' : null)
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('materials')
+                    ->label('Bahan Terpakai')
+                    ->state(function ($record) {
+                        $count = $record->materialMemo()?->items->count() ?? 0;
+
+                        return $count > 0 ? "{$count} item" : null;
+                    })
+                    ->placeholder('—')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('resolution')
@@ -232,12 +243,33 @@ class ClaimsRelationManager extends RelationManager
 
                 // Hasil akhir penanganan (audit ACCURATE 5, Aktifitas Proses Klaim): dicatat setelah klaim disetujui (pass).
                 // Pelanggan diberi tahu lewat push seperti pada pass/reject.
+                // Bahan yang terpakai untuk klaim ini = isi Memo Pengambilan/Pengembalian booking kunjungannya (audit ACCURATE 5,
+                // "komponen/servis yang digunakan"). Stok tetap diurus lewat memo; di sini hanya dibaca dan ditautkan.
+                Tables\Actions\Action::make('materials')
+                    ->label('Bahan Terpakai')
+                    ->icon('heroicon-o-cube')
+                    ->color('gray')
+                    ->visible(fn ($record) => $record->status === 'pass')
+                    ->modalHeading(fn ($record) => 'Bahan Terpakai: klaim ' . $record->claim_number)
+                    ->modalContent(fn ($record) => view('filament.claims.materials', [
+                        'claim' => $record,
+                        'booking' => $record->booking,
+                        'memo' => $record->materialMemo(),
+                    ]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Tutup'),
+
                 Tables\Actions\Action::make('resolve')
                     ->label('Catat Penyelesaian')
                     ->icon('heroicon-o-wrench-screwdriver')
                     ->color('info')
                     ->visible(fn ($record) => $record->status === 'pass' && $record->resolution === null)
-                    ->form([
+                    ->form(fn ($record) => [
+                        Forms\Components\Placeholder::make('materials_hint')
+                            ->label('Bahan terpakai')
+                            ->content(fn () => ($count = $record->materialMemo()?->items->count() ?? 0) > 0
+                                ? "{$count} item tercatat di memo booking kunjungan."
+                                : 'Belum ada bahan tercatat. Bila ada film atau bahan yang terpakai, isi dulu lewat tombol "Bahan Terpakai" (Memo Pengambilan).'),
                         Forms\Components\Select::make('resolution')
                             ->label('Hasil Penanganan')
                             ->options(\App\Models\WarrantyClaim::RESOLUTIONS)

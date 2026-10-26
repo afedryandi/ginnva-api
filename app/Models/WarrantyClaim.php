@@ -61,6 +61,15 @@ class WarrantyClaim extends Model
         return $this->belongsTo(User::class, 'handled_by');
     }
 
+    /**
+     * Memo Pengambilan/Pengembalian booking kunjungan klaim ini = daftar bahan yang terpakai. Stoknya sudah diurus
+     * MaterialMemoStockService saat memo diisi; klaim hanya membaca dan menautkannya (tidak ada jalur stok kedua).
+     */
+    public function materialMemo(): ?MaterialMemo
+    {
+        return $this->booking?->materialMemo;
+    }
+
     /** Klaim yang sudah disetujui, belum ada hasil akhir, dan perkiraan selesainya sudah lewat. */
     public function isOverdue(): bool
     {
