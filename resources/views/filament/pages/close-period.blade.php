@@ -8,6 +8,33 @@
         $year = (int) ($this->data['year'] ?? now()->year);
     @endphp
 
+    @php $lock = $this->getLockSummary(); @endphp
+    <x-filament::section>
+        <x-slot name="heading">Batas penguncian</x-slot>
+        <div class="space-y-1 text-sm">
+            <div>
+                <span class="text-gray-500 dark:text-gray-400">Periode tertutup terbaru:</span>
+                @if ($lock['latest_closed'])
+                    <span class="font-medium">{{ $lock['latest_closed']->period_month->translatedFormat('F Y') }}</span>,
+                    ditutup {{ $lock['latest_closed']->closed_at?->format('d M Y H:i') }} oleh {{ $lock['latest_closed']->closer?->name ?? '—' }}.
+                    Jurnal bertanggal sampai akhir bulan itu tidak bisa dibuat atau diubah.
+                @else
+                    <span class="font-medium">belum ada</span> — semua bulan masih terbuka.
+                @endif
+            </div>
+            <div>
+                <span class="text-gray-500 dark:text-gray-400">Aktivitas terakhir:</span>
+                @if ($lock['last_event'])
+                    {{ $lock['last_event']->action === 'closed' ? 'Ditutup' : 'Dibuka kembali' }}
+                    <span class="font-medium">{{ $lock['last_event']->period_month->translatedFormat('F Y') }}</span>
+                    oleh {{ $lock['last_event']->user?->name ?? '—' }} pada {{ $lock['last_event']->created_at->format('d M Y H:i') }}.
+                @else
+                    <span class="font-medium">belum ada riwayat</span>.
+                @endif
+            </div>
+        </div>
+    </x-filament::section>
+
     <x-filament::section>
         <x-slot name="heading">Status Periode {{ $year }}</x-slot>
         <x-slot name="description">

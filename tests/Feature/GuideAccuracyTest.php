@@ -398,7 +398,7 @@ class GuideAccuracyTest extends TestCase
             'riwayat-stok-dashboard' => ['Buat Permintaan Beli'],
             'karyawan-akun' => ['Salin akses dari karyawan lain'],
             'invoice' => ['Profil perusahaan'],
-            'tutup-periode' => ['Status buku'],
+            'tutup-periode' => ['Status buku', 'Batas penguncian', 'Periode tertutup terbaru', 'Aktivitas terakhir'],
             'dashboard' => ['Cadangan Database'],
             'kas-bank' => ['Catat sebagai Transaksi'],
             'katalog-produk' => ['Perubahan Harga Terjadwal', 'Terapkan Sekarang'],

@@ -541,7 +541,7 @@ class WarrantyResource extends Resource
                         ->maxValue(120)
                         ->nullable()
                         ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf' && $get('maintenance_quota') !== null)
-                        ->helperText('Jarak antar kunjungan maintenance, mis. 6 = tiap 6 bulan. Jadwal kunjungan pertama & konfirmasi otomatis ke customer baru AKTIF setelah garansi ini disetujui (review_status Approved) — kalau diisi sebelum approve, baru akan menjadwalkan begitu disetujui. Tidak bisa dibatalkan lewat form ini, cuma lihat riwayatnya di tab "Jadwal Maintenance".'),
+                        ->helperText('Jarak antar kunjungan maintenance, mis. 6 = tiap 6 bulan. Jadwal kunjungan pertama & konfirmasi otomatis ke customer baru AKTIF setelah garansi ini disetujui (Status Review: Approved) — kalau diisi sebelum disetujui, baru akan menjadwalkan begitu disetujui. Tidak bisa dibatalkan lewat form ini, cuma lihat riwayatnya di tab "Jadwal Maintenance".'),
 
                     Forms\Components\Placeholder::make('maintenance_schedule_status')
                         ->label('Jadwal Maintenance Aktif')

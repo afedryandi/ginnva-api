@@ -183,7 +183,7 @@ class ReservationReport extends Page implements HasForms
             Select::make('status')
                 ->label('Status')
                 ->options(['confirmed' => 'Terkonfirmasi', 'pending' => 'Menunggu Approval'])
-                ->placeholder('Semua Status (Confirmed + Pending)')
+                ->placeholder('Semua Status (Terkonfirmasi + Menunggu Approval)')
                 ->live(),
 
             // Filter cabang (audit 2026-09-29) -- cuma untuk full-access, sama pola dengan

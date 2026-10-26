@@ -123,6 +123,20 @@ class ClosePeriodPage extends Page implements HasActions, HasForms
         return $months;
     }
 
+    /**
+     * Ringkasan batas penguncian: periode tertutup paling baru (bulan ditutup berurutan, jadi ini batas jurnal yang terkunci) dan kejadian
+     * tutup/buka kembali paling akhir, lintas tahun.
+     *
+     * @return array{latest_closed: ?AccountingPeriod, last_event: ?\App\Models\AccountingPeriodEvent}
+     */
+    public function getLockSummary(): array
+    {
+        return [
+            'latest_closed' => AccountingPeriod::with('closer')->orderByDesc('period_month')->first(),
+            'last_event' => \App\Models\AccountingPeriodEvent::with('user')->orderByDesc('id')->first(),
+        ];
+    }
+
     /** Riwayat tutup/buka kembali terbaru (tabel accounting_period_events, tidak ikut terhapus saat reopen). */
     public function getEvents(): \Illuminate\Support\Collection
     {
