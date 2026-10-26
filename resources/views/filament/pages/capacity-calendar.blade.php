@@ -1,410 +1,202 @@
 <x-filament-panels::page>
     @php
+        $cc = \App\Filament\Pages\CapacityCalendar::class;
         $storeOptions = $this->getStoreOptions();
         $isFullAccess = auth()->user()?->isFullAccess() ?? false;
         $days = $this->getCalendarDays();
-        $dayLabels = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-        $monthLabel = \Illuminate\Support\Carbon::parse($month . '-01')->translatedFormat('F Y');
-        $canCapacity = \App\Filament\Pages\CapacityCalendar::canManageCapacity();
-        $canClose = \App\Filament\Pages\CapacityCalendar::canManageClosures('create');
-        $canReopen = \App\Filament\Pages\CapacityCalendar::canManageClosures('delete');
-        $canEditReason = \App\Filament\Pages\CapacityCalendar::canManageClosures('update');
         $closures = $this->getUpcomingClosures();
-        $editing = $editingDate ? collect($days)->firstWhere('date', $editingDate) : null;
-        $btn = 'rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5';
-        $input = 'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-800 dark:text-white';
+        $dayLabels = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+        $canReopen = $cc::canManageClosures('delete');
+        $canOpenDay = $cc::canManageCapacity() || $cc::canManageClosures('create') || $cc::canManageClosures('update') || $canReopen;
     @endphp
 
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-            <button
-                type="button"
-                wire:click="prevMonth"
-                class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
-            >
-                <x-heroicon-o-chevron-left class="h-4 w-4" />
-            </button>
-            <span class="min-w-[9rem] text-center text-sm font-semibold">{{ $monthLabel }}</span>
-            <button
-                type="button"
-                wire:click="nextMonth"
-                class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
-            >
-                <x-heroicon-o-chevron-right class="h-4 w-4" />
-            </button>
-            <button type="button" wire:click="goToday" class="{{ $btn }}">Hari Ini</button>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-            @if ($canCapacity)
-                <button type="button" wire:click="openRangeEditor" class="{{ $btn }}">Atur Rentang Tanggal</button>
-                <button
-                    type="button"
-                    wire:click="clearAllOverrides"
-                    wire:confirm="Hapus SEMUA override kapasitas toko ini (hari ini & seterusnya)? Semua tanggal kembali pakai kapasitas default toko."
-                    class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-danger-50 hover:text-danger-600 dark:border-white/10 dark:text-gray-300 dark:hover:bg-danger-500/10 dark:hover:text-danger-400"
-                >
-                    Hapus Semua Override
-                </button>
-            @endif
-            @if ($canClose)
-                <button type="button" wire:click="openClosureRange" class="{{ $btn }}">Tutup Rentang Tanggal</button>
-                @if ($isFullAccess)
-                    <button type="button" wire:click="openCloseAll" class="{{ $btn }}">Tutup Semua Toko</button>
-                @endif
-            @endif
-
-            @if ($isFullAccess && count($storeOptions) > 1)
-                <label class="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm dark:border-white/10">
-                    <x-heroicon-o-building-storefront class="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                    <select wire:model.live="storeId" class="border-0 bg-transparent p-0 pr-7 text-sm font-medium focus:ring-0 dark:[color-scheme:dark]">
-                        @foreach ($storeOptions as $id => $name)
-                            <option value="{{ $id }}">{{ $name }}</option>
-                        @endforeach
-                    </select>
-                </label>
-            @endif
-        </div>
-    </div>
-
-    <x-filament::section>
-        {{-- Legenda pakai swatch warna sungguhan supaya langsung terbaca sekilas. --}}
-        <div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400">
-            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-primary-500"></span> Hari ini</span>
-            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full border-2 border-primary-500"></span> Sudah di-override</span>
-            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-danger-500"></span> Kapasitas penuh</span>
-            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-gray-400"></span> Ditutup (tanggal tutup)</span>
-            <span class="text-gray-400 dark:text-gray-500">Angka = kapasitas harian layanan berat (PPF/kaca film). Detailing &amp; Premium Wash dihitung per jam, diatur di data Toko. Libur rutin mingguan diatur di Toko &gt; Jam Operasional.</span>
-            <span class="ml-auto text-gray-400 dark:text-gray-500">Klik tanggal (hari ini/ke depan) untuk atur kapasitas atau menutup/membukanya.</span>
-        </div>
-
-        <div class="grid grid-cols-7 gap-1.5 text-center text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-            @foreach ($dayLabels as $i => $label)
-                <div @class(['pb-2', 'text-danger-400 dark:text-danger-400/70' => $i >= 5])>{{ $label }}</div>
-            @endforeach
-        </div>
-
-        <div class="grid grid-cols-7 gap-1.5">
-            @foreach ($days as $i => $day)
-                @php
-                    $dayNum = \Illuminate\Support\Carbon::parse($day['date'])->day;
-                    $isFull = ! $day['closed'] && $day['used'] >= $day['capacity'];
-                    $isWeekend = ($i % 7) >= 5;
-                    $clickable = $day['inMonth'] && ! $day['isPast'] && ! $day['weeklyClosed'];
-                    $fillPct = (! $day['closed'] && $day['capacity'] > 0) ? min(100, round($day['used'] / $day['capacity'] * 100)) : 0;
-                @endphp
-                <button
-                    type="button"
-                    @if ($clickable) wire:click="openDay('{{ $day['date'] }}')" @else disabled @endif
-                    @if ($day['blocked'] && $day['blockedReason']) title="{{ $day['blockedReason'] }}" @endif
-                    @class([
-                        'relative flex min-h-[80px] flex-col items-start gap-1.5 rounded-xl border p-2.5 text-left transition',
-                        'border-gray-200 dark:border-white/10' => ! $isFull && ! $day['isToday'] && ! $day['blocked'],
-                        'bg-gray-50/60 dark:bg-white/[0.02]' => $isWeekend && ! $isFull && ! $day['isToday'] && $day['inMonth'] && ! $day['blocked'],
-                        'border-primary-300 bg-primary-50/70 dark:border-primary-500/40 dark:bg-primary-500/10' => $day['isToday'] && ! $isFull && ! $day['blocked'],
-                        'border-danger-300 bg-danger-50/70 dark:border-danger-500/40 dark:bg-danger-500/10' => $isFull,
-                        'border-gray-300 bg-gray-100 dark:border-white/20 dark:bg-white/10' => $day['blocked'],
-                        'opacity-40' => ! $day['inMonth'] || $day['isPast'],
-                        'cursor-pointer hover:border-primary-300 hover:shadow-sm dark:hover:border-primary-500/50' => $clickable,
-                        'cursor-default' => ! $clickable,
-                    ])
-                >
-                    <div class="flex w-full items-center justify-between">
-                        <span @class([
-                            'flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold',
-                            'bg-primary-600 text-white' => $day['isToday'],
-                            'text-gray-700 dark:text-gray-200' => ! $day['isToday'],
-                        ])>
-                            {{ $dayNum }}
-                        </span>
-
-                        @if ($day['hasOverride'])
-                            <span title="Sudah di-override manual" class="h-2 w-2 flex-shrink-0 rounded-full border-2 border-primary-500 dark:border-primary-400"></span>
-                        @endif
-                    </div>
-
-                    @if ($day['blocked'])
-                        <span class="text-[11px] font-semibold text-gray-600 dark:text-gray-300">Ditutup</span>
-                        @if ($day['blockedReason'])
-                            <span class="w-full truncate text-[10px] text-gray-500 dark:text-gray-400">{{ $day['blockedReason'] }}</span>
-                        @endif
-                    @elseif ($day['weeklyClosed'])
-                        <span class="text-[11px] font-medium text-gray-400 dark:text-gray-500">Libur</span>
-                    @else
-                        <div class="mt-auto w-full">
-                            <span @class([
-                                'text-sm font-bold tabular-nums',
-                                'text-danger-600 dark:text-danger-400' => $isFull,
-                                'text-gray-700 dark:text-gray-200' => ! $isFull,
-                            ])>
-                                {{ $day['used'] }}<span class="text-gray-400 dark:text-gray-500">/{{ $day['capacity'] }}</span>
-                            </span>
-                            <div class="mt-1 h-1 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
-                                <div
-                                    class="h-full rounded-full {{ $isFull ? 'bg-danger-500' : 'bg-primary-400' }}"
-                                    style="width: {{ $fillPct }}%"
-                                ></div>
-                            </div>
-                        </div>
-                    @endif
-                </button>
-            @endforeach
-        </div>
-    </x-filament::section>
-
-    {{-- Daftar tanggal tutup yang akan datang untuk toko ini (pengganti tabel menu Tanggal Tidak Tersedia). --}}
-    <x-filament::section>
-        <x-slot name="heading">Tanggal ditutup yang akan datang</x-slot>
-        <x-slot name="description">Pelanggan tidak bisa memilih tanggal ini di aplikasi, dan tanggal ini tidak dihitung Alpha maupun jam kerjanya di gaji. Booking yang sudah ada tidak dibatalkan.</x-slot>
-
-        @if ($closures->isEmpty())
-            <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada tanggal yang ditutup.</p>
-        @else
-            <div class="divide-y divide-gray-100 text-sm dark:divide-white/10">
-                @foreach ($closures as $closure)
-                    <div class="flex items-center justify-between gap-3 py-2">
-                        <div>
-                            <span class="font-medium">{{ $closure->date->translatedFormat('l, d M Y') }}</span>
-                            <span class="ms-2 text-gray-500 dark:text-gray-400">{{ $closure->reason ?: '—' }}</span>
-                        </div>
-                        @if ($canReopen)
-                            <button
-                                type="button"
-                                wire:click="reopenById({{ $closure->id }})"
-                                wire:confirm="Buka kembali tanggal ini untuk booking?"
-                                class="{{ $btn }}"
-                            >
-                                Buka Kembali
-                            </button>
-                        @endif
-                    </div>
-                @endforeach
-            </div>
-        @endif
-    </x-filament::section>
-
-    {{--
-        Panel di bawah memakai div manual dengan CSS polos (bukan <x-filament::modal> dan bukan class Tailwind eksotis): prop `visible` modal
-        Filament tidak reaktif antar render Livewire dan backdropnya pernah menutupi seluruh halaman, sedangkan class Tailwind tidak ikut
-        ter-compile ke CSS panel. Dengan @if, panel dijamin tidak ada di DOM saat tertutup.
-    --}}
+    {{-- Gaya khusus kotak kalender: CSS polos berprefiks .cc- (panel memakai CSS Filament yang sudah dikompilasi, class Tailwind proyek tidak tersedia). --}}
     <style>
-        .capacity-modal-backdrop {
-            position: fixed;
-            inset: 0;
-            z-index: 50;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: rgba(0, 0, 0, 0.4);
-            padding: 1rem;
+        .cc {
+            --cc-ink: #111827; --cc-text: #1f2937; --cc-muted: #6b7280; --cc-line: #e5e7eb;
+            --cc-surface: #ffffff; --cc-soft: #f9fafb; --cc-hover: #f3f4f6;
+            --cc-danger: #dc2626; --cc-danger-soft: #fef2f2; --cc-danger-line: #fecaca;
+            --cc-warn: #d97706; --cc-closed: #e5e7eb; --cc-bar: #9ca3af; --cc-bar-bg: #e5e7eb;
+            --cc-today-bg: #111827; --cc-today-fg: #ffffff;
         }
-        .capacity-modal-card {
-            width: 100%;
-            max-width: 24rem;
-            max-height: 90vh;
-            overflow-y: auto;
-            border-radius: 0.75rem;
-            background-color: #ffffff;
-            padding: 1.25rem;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        .dark .cc {
+            --cc-ink: #f9fafb; --cc-text: #e5e7eb; --cc-muted: #9ca3af; --cc-line: rgba(255, 255, 255, .12);
+            --cc-surface: transparent; --cc-soft: rgba(255, 255, 255, .04); --cc-hover: rgba(255, 255, 255, .08);
+            --cc-danger: #f87171; --cc-danger-soft: rgba(248, 113, 113, .12); --cc-danger-line: rgba(248, 113, 113, .35);
+            --cc-warn: #fbbf24; --cc-closed: rgba(255, 255, 255, .1); --cc-bar: #9ca3af; --cc-bar-bg: rgba(255, 255, 255, .14);
+            --cc-today-bg: #f9fafb; --cc-today-fg: #111827;
         }
-        :root.dark .capacity-modal-card {
-            background-color: #111827;
+        .cc-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+        .cc-nav { display: flex; align-items: center; gap: 8px; }
+        .cc-month { min-width: 11rem; text-align: center; font-size: 1.125rem; font-weight: 600; color: var(--cc-ink); }
+        .cc-store { min-width: 14rem; }
+        .cc-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 6px; font-size: 12px; color: var(--cc-muted); }
+        .cc-legend span { display: inline-flex; align-items: center; gap: 6px; }
+        .cc-sw { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--cc-line); border-radius: 4px; }
+        .cc-sw.is-today { background: var(--cc-today-bg); border-color: var(--cc-today-bg); border-radius: 50%; }
+        .cc-sw.is-full { background: var(--cc-danger-soft); border-color: var(--cc-danger-line); }
+        .cc-sw.is-closed { border-style: dashed; background: repeating-linear-gradient(135deg, var(--cc-closed), var(--cc-closed) 3px, transparent 3px, transparent 6px); }
+        .cc-sw.is-override { background: var(--cc-warn); border-color: var(--cc-warn); border-radius: 50%; }
+        .cc-sw.is-weekly { background: var(--cc-soft); }
+        .cc-hint { margin: 0 0 16px; font-size: 12px; color: var(--cc-muted); }
+        .cc-weekdays, .cc-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+        .cc-weekdays { padding-bottom: 8px; text-align: center; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--cc-muted); }
+        .cc-day {
+            appearance: none; display: flex; flex-direction: column; gap: 6px; min-height: 84px; padding: 8px 10px;
+            border: 1px solid var(--cc-line); border-radius: 10px; background: var(--cc-surface); color: var(--cc-text);
+            font: inherit; text-align: left; transition: border-color .15s, background-color .15s;
+        }
+        .cc-day:not([disabled]) { cursor: pointer; }
+        .cc-day:not([disabled]):hover { border-color: var(--cc-muted); background: var(--cc-hover); }
+        .cc-day:focus-visible { outline: 2px solid var(--cc-ink); outline-offset: 2px; }
+        .cc-day[disabled] { cursor: default; }
+        .cc-day.is-out { opacity: .35; }
+        .cc-day.is-past { opacity: .5; }
+        .cc-day.is-weekend, .cc-day.is-weekly { background: var(--cc-soft); }
+        .cc-day.is-today { border-color: var(--cc-ink); box-shadow: inset 0 0 0 1px var(--cc-ink); }
+        .cc-day.is-full { background: var(--cc-danger-soft); border-color: var(--cc-danger-line); }
+        .cc-day.is-closed { border-style: dashed; background: repeating-linear-gradient(135deg, var(--cc-closed), var(--cc-closed) 6px, transparent 6px, transparent 12px); }
+        .cc-top { display: flex; align-items: center; justify-content: space-between; }
+        .cc-num { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+        .is-today .cc-num { background: var(--cc-today-bg); color: var(--cc-today-fg); }
+        .cc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cc-warn); }
+        .cc-count { margin-top: auto; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .cc-count small { font-size: 12px; font-weight: 500; color: var(--cc-muted); }
+        .is-full .cc-count { color: var(--cc-danger); }
+        .cc-bar { height: 4px; overflow: hidden; border-radius: 999px; background: var(--cc-bar-bg); }
+        .cc-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--cc-bar); }
+        .cc-bar > i.is-high { background: var(--cc-warn); }
+        .is-full .cc-bar > i { background: var(--cc-danger); }
+        .cc-tag { margin-top: auto; font-size: 12px; font-weight: 600; color: var(--cc-text); }
+        .cc-tag.is-muted { font-weight: 500; color: var(--cc-muted); }
+        .cc-reason { overflow: hidden; font-size: 11px; color: var(--cc-muted); text-overflow: ellipsis; white-space: nowrap; }
+        .cc-list { display: flex; flex-direction: column; }
+        .cc-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--cc-line); }
+        .cc-row:first-child { padding-top: 0; border-top: 0; }
+        .cc-row-date { font-weight: 600; color: var(--cc-ink); }
+        .cc-row-reason { font-size: 13px; color: var(--cc-muted); }
+        .cc-empty { font-size: 14px; color: var(--cc-muted); }
+        @media (max-width: 640px) {
+            .cc-weekdays, .cc-grid { gap: 4px; }
+            .cc-day { min-height: 62px; padding: 6px; }
+            .cc-reason { display: none; }
+            .cc-count { font-size: 13px; }
+            .cc-month { min-width: 8rem; font-size: 1rem; }
+            .cc-store { min-width: 0; width: 100%; }
         }
     </style>
 
-    @if ($editingDate && $editing)
-        <div class="capacity-modal-backdrop" x-data x-on:keydown.escape.window="$wire.closeEdit()">
-            <div class="capacity-modal-card">
-                <h3 class="text-sm font-bold text-gray-900 dark:text-white">
-                    {{ \Illuminate\Support\Carbon::parse($editingDate)->translatedFormat('d F Y (l)') }}
-                </h3>
+    <div class="cc" style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="cc-toolbar">
+            <div class="cc-nav">
+                <x-filament::icon-button icon="heroicon-m-chevron-left" color="gray" label="Bulan sebelumnya" wire:click="prevMonth" />
+                <h2 class="cc-month">{{ $cc::idDate($month . '-01', 'F Y') }}</h2>
+                <x-filament::icon-button icon="heroicon-m-chevron-right" color="gray" label="Bulan berikutnya" wire:click="nextMonth" />
+                <x-filament::button color="gray" outlined size="sm" wire:click="goToday">Hari Ini</x-filament::button>
+            </div>
 
-                @if ($editingBlocked)
-                    {{-- Tanggal sedang ditutup: kapasitas tidak berlaku, yang bisa dilakukan hanya ubah alasan atau buka kembali. --}}
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Tanggal ini ditutup. Pelanggan tidak bisa memilihnya, dan kapasitas tidak berlaku selama tanggal ditutup.
-                    </p>
+            @if ($isFullAccess && count($storeOptions) > 1)
+                <x-filament::input.wrapper class="cc-store">
+                    <x-filament::input.select wire:model.live="storeId" aria-label="Toko">
+                        @foreach ($storeOptions as $id => $name)
+                            <option value="{{ $id }}">{{ $name }}</option>
+                        @endforeach
+                    </x-filament::input.select>
+                </x-filament::input.wrapper>
+            @endif
+        </div>
 
-                    <label class="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">Alasan</label>
-                    <input type="text" maxlength="255" wire:model="editingReason" @disabled(! $canEditReason) class="{{ $input }}" />
+        <x-filament::section>
+            <div class="cc-legend">
+                <span><i class="cc-sw is-today"></i> Hari ini</span>
+                <span><i class="cc-sw is-full"></i> Kapasitas penuh</span>
+                <span><i class="cc-sw is-closed"></i> Ditutup (tanggal tutup)</span>
+                <span><i class="cc-sw is-weekly"></i> Libur rutin mingguan</span>
+                <span><i class="cc-sw is-override"></i> Kapasitas diatur manual</span>
+            </div>
+            <p class="cc-hint">
+                Angka = booking yang menempati / kapasitas harian layanan berat (PPF, Kaca Film). Detailing dan Premium Wash dihitung per jam dan diatur di data Toko.
+                Libur rutin mingguan diatur di Toko &gt; Jam Operasional.
+                @if ($canOpenDay) Klik tanggal (hari ini atau ke depan) untuk mengatur kapasitas atau menutup/membukanya. @endif
+            </p>
 
-                    <div class="mt-5 flex items-center justify-between gap-2">
-                        @if ($canReopen)
-                            <button
-                                type="button"
-                                wire:click="reopenDay"
-                                wire:confirm="Buka kembali tanggal ini untuk booking?"
-                                class="text-xs font-medium text-gray-500 hover:text-danger-600 dark:text-gray-400 dark:hover:text-danger-400"
-                            >
-                                Buka Kembali
-                            </button>
+            <div class="cc-weekdays">
+                @foreach ($dayLabels as $label)
+                    <div>{{ $label }}</div>
+                @endforeach
+            </div>
+
+            <div class="cc-grid">
+                @foreach ($days as $i => $day)
+                    @php
+                        $num = (int) substr($day['date'], 8, 2);
+                        $isFull = ! $day['closed'] && $day['used'] >= $day['capacity'];
+                        $clickable = $canOpenDay && $day['inMonth'] && ! $day['isPast'] && ! $day['weeklyClosed'];
+                        $fill = (! $day['closed'] && $day['capacity'] > 0) ? min(100, (int) round($day['used'] / $day['capacity'] * 100)) : 0;
+                    @endphp
+                    <button
+                        type="button"
+                        @if ($clickable) wire:click="mountAction('manageDay', { date: '{{ $day['date'] }}' })" @else disabled @endif
+                        @if ($day['blocked'] && $day['blockedReason']) title="{{ $day['blockedReason'] }}" @endif
+                        @class([
+                            'cc-day',
+                            'is-out' => ! $day['inMonth'],
+                            'is-past' => $day['isPast'] && $day['inMonth'],
+                            'is-weekend' => ($i % 7) >= 5 && ! $day['closed'],
+                            'is-today' => $day['isToday'],
+                            'is-full' => $isFull,
+                            'is-closed' => $day['blocked'],
+                            'is-weekly' => $day['weeklyClosed'],
+                        ])
+                    >
+                        <span class="cc-top">
+                            <span class="cc-num">{{ $num }}</span>
+                            @if ($day['hasOverride'] && ! $day['closed'])
+                                <span class="cc-dot" title="Kapasitas diatur manual"></span>
+                            @endif
+                        </span>
+
+                        @if ($day['blocked'])
+                            <span class="cc-tag">Ditutup</span>
+                            @if ($day['blockedReason'])
+                                <span class="cc-reason">{{ $day['blockedReason'] }}</span>
+                            @endif
+                        @elseif ($day['weeklyClosed'])
+                            <span class="cc-tag is-muted">Libur</span>
                         @else
-                            <span></span>
+                            <span class="cc-count">{{ $day['used'] }}<small>/{{ $day['capacity'] }}</small></span>
+                            <span class="cc-bar"><i @class(['is-high' => ! $isFull && $fill >= 67]) style="width: {{ $fill }}%"></i></span>
                         @endif
-                        <div class="flex gap-2">
-                            <button type="button" wire:click="closeEdit" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 dark:border-white/10 dark:text-gray-300">Tutup Panel</button>
-                            @if ($canEditReason)
-                                <button type="button" wire:click="saveBlockedReason" class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-500">Simpan Alasan</button>
+                    </button>
+                @endforeach
+            </div>
+        </x-filament::section>
+
+        <x-filament::section>
+            <x-slot name="heading">Tanggal ditutup yang akan datang</x-slot>
+            <x-slot name="description">
+                Pelanggan tidak bisa memilih tanggal ini di aplikasi, dan tanggal ini tidak dihitung Alpha maupun jam kerjanya di gaji. Booking yang sudah ada tidak dibatalkan.
+            </x-slot>
+
+            @if ($closures->isEmpty())
+                <p class="cc-empty">Tidak ada tanggal yang ditutup.</p>
+            @else
+                <div class="cc-list">
+                    @foreach ($closures as $closure)
+                        <div class="cc-row">
+                            <div>
+                                <div class="cc-row-date">{{ $cc::idDate($closure->date, 'l, d F Y') }}</div>
+                                <div class="cc-row-reason">{{ $closure->reason ?: 'Tanpa alasan' }}</div>
+                            </div>
+                            @if ($canReopen)
+                                <x-filament::button color="gray" outlined size="sm" wire:click="mountAction('reopenClosure', { id: {{ $closure->id }} })">
+                                    Buka Kembali
+                                </x-filament::button>
                             @endif
                         </div>
-                    </div>
-                @else
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        {{ $editing['used'] }} booking confirmed sudah menempati tanggal ini.
-                    </p>
-
-                    @if ($canCapacity)
-                        @if ($editingOverrideInfo)
-                            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-                                Diubah oleh {{ $editingOverrideInfo['name'] }} pada {{ $editingOverrideInfo['at'] }}.
-                            </p>
-                        @else
-                            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">Belum pernah di-override — masih pakai default toko.</p>
-                        @endif
-
-                        <label class="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">Kapasitas</label>
-                        <input type="number" min="1" wire:model="editingCapacity" class="{{ $input }}" />
-
-                        <div class="mt-4 flex items-center justify-between gap-2">
-                            <button
-                                type="button"
-                                wire:click="clearOverride"
-                                class="text-xs font-medium text-gray-500 hover:text-danger-600 dark:text-gray-400 dark:hover:text-danger-400"
-                            >
-                                Hapus override (pakai default)
-                            </button>
-                            <button type="button" wire:click="saveCapacity" class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-500">Simpan Kapasitas</button>
-                        </div>
-                    @endif
-
-                    @if ($canClose)
-                        <div class="mt-5 border-t border-gray-200 pt-4 dark:border-white/10">
-                            <div class="text-xs font-semibold text-gray-700 dark:text-gray-200">Tutup tanggal ini</div>
-                            <p class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                                Menutup penuh (libur, renovasi, acara). Booking yang sudah ada tidak dibatalkan.
-                            </p>
-                            <input
-                                type="text"
-                                maxlength="255"
-                                wire:model="editingReason"
-                                placeholder="Alasan (opsional), mis. Libur nasional"
-                                class="{{ $input }}"
-                            />
-                            <div class="mt-3 flex justify-end">
-                                <button type="button" wire:click="closeDay" class="rounded-lg border border-danger-300 px-3 py-1.5 text-xs font-semibold text-danger-600 hover:bg-danger-50 dark:border-danger-500/40 dark:text-danger-400 dark:hover:bg-danger-500/10">Tutup Tanggal</button>
-                            </div>
-                        </div>
-                    @endif
-
-                    <div class="mt-4 flex justify-end">
-                        <button type="button" wire:click="closeEdit" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 dark:border-white/10 dark:text-gray-300">Batal</button>
-                    </div>
-                @endif
-            </div>
-        </div>
-    @endif
-
-    {{-- Panel "Atur Rentang Tanggal" (kapasitas untuk banyak tanggal sekaligus). --}}
-    @if ($rangeEditorOpen)
-        <div class="capacity-modal-backdrop" x-data x-on:keydown.escape.window="$wire.closeRangeEditor()">
-            <div class="capacity-modal-card">
-                <h3 class="text-sm font-bold text-gray-900 dark:text-white">Atur Kapasitas Rentang Tanggal</h3>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Terapkan 1 angka kapasitas ke semua tanggal dalam rentang ini sekaligus (mis. "minggu depan kapasitas turun jadi 2 karena kurang installer"). Tanggal lampau dalam rentang dilewati otomatis.
-                </p>
-
-                <div class="mt-4 grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300">Dari Tanggal</label>
-                        <input type="date" wire:model="rangeFrom" class="{{ $input }} dark:[color-scheme:dark]" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300">Sampai Tanggal</label>
-                        <input type="date" wire:model="rangeTo" class="{{ $input }} dark:[color-scheme:dark]" />
-                    </div>
+                    @endforeach
                 </div>
-
-                <label class="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">Kapasitas</label>
-                <input type="number" min="1" wire:model="rangeCapacity" class="{{ $input }}" />
-
-                <div class="mt-5 flex items-center justify-end gap-2">
-                    <button type="button" wire:click="closeRangeEditor" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 dark:border-white/10 dark:text-gray-300">Batal</button>
-                    <button type="button" wire:click="applyRangeCapacity" class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-500">Terapkan</button>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    {{-- Panel "Tutup Rentang Tanggal": satu toko, beberapa hari sekaligus. --}}
-    @if ($closureRangeOpen)
-        <div class="capacity-modal-backdrop" x-data x-on:keydown.escape.window="$wire.closeClosureRange()">
-            <div class="capacity-modal-card">
-                <h3 class="text-sm font-bold text-gray-900 dark:text-white">Tutup Rentang Tanggal</h3>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Menutup semua tanggal dalam rentang untuk toko ini. Tanggal yang sudah ditutup dilewati, tanggal lampau tidak bisa ditutup. Untuk libur rutin tiap minggu (mis. selalu libur hari Minggu), atur di Toko &gt; Jam Operasional.
-                </p>
-
-                <div class="mt-4 grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300">Dari Tanggal</label>
-                        <input type="date" wire:model.live="closureFrom" min="{{ now()->toDateString() }}" class="{{ $input }} dark:[color-scheme:dark]" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300">Sampai Tanggal</label>
-                        <input type="date" wire:model.live="closureTo" min="{{ $closureFrom ?: now()->toDateString() }}" class="{{ $input }} dark:[color-scheme:dark]" />
-                    </div>
-                </div>
-
-                <label class="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">Alasan (opsional)</label>
-                <input type="text" maxlength="255" wire:model="closureReason" placeholder="Contoh: Libur nasional, Workshop penuh, Maintenance" class="{{ $input }}" />
-
-                @php $overlap = $this->closureOverlapLines(); @endphp
-                @if ($overlap)
-                    <div class="mt-3 text-xs text-warning-600 dark:text-warning-400">
-                        @foreach ($overlap as $line)
-                            <div>⚠ {{ $line }}</div>
-                        @endforeach
-                    </div>
-                @endif
-
-                <div class="mt-5 flex items-center justify-end gap-2">
-                    <button type="button" wire:click="closeClosureRange" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 dark:border-white/10 dark:text-gray-300">Batal</button>
-                    <button type="button" wire:click="applyClosureRange" class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-500">Tutup Tanggal</button>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    {{-- Panel "Tutup Semua Toko": libur nasional / cuti bersama untuk seluruh toko aktif. Hanya akses penuh. --}}
-    @if ($closeAllOpen)
-        <div class="capacity-modal-backdrop" x-data x-on:keydown.escape.window="$wire.closeCloseAll()">
-            <div class="capacity-modal-card">
-                <h3 class="text-sm font-bold text-gray-900 dark:text-white">Tutup Semua Toko</h3>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Menutup semua toko aktif pada tanggal ini, misalnya libur nasional atau cuti bersama. Tanggal ini tidak bisa dibooking, tidak dihitung Alpha, dan tidak dihitung jam kerjanya di gaji. Booking yang sudah ada tidak dibatalkan.
-                </p>
-
-                <div class="mt-4 grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300">Dari Tanggal</label>
-                        <input type="date" wire:model="allFrom" min="{{ now()->toDateString() }}" class="{{ $input }} dark:[color-scheme:dark]" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300">Sampai Tanggal</label>
-                        <input type="date" wire:model="allTo" class="{{ $input }} dark:[color-scheme:dark]" />
-                    </div>
-                </div>
-
-                <label class="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">Alasan</label>
-                <input type="text" maxlength="255" wire:model="allReason" placeholder="Mis. Libur Nasional - Hari Kemerdekaan" class="{{ $input }}" />
-
-                <div class="mt-5 flex items-center justify-end gap-2">
-                    <button type="button" wire:click="closeCloseAll" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 dark:border-white/10 dark:text-gray-300">Batal</button>
-                    <button type="button" wire:click="applyCloseAll" class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-500">Tutup Semua Toko</button>
-                </div>
-            </div>
-        </div>
-    @endif
+            @endif
+        </x-filament::section>
+    </div>
 </x-filament-panels::page>

@@ -6,35 +6,35 @@ use App\Models\BlockedDate;
 use App\Models\Booking;
 use App\Models\Store;
 use App\Models\StoreCapacityOverride;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\HtmlString;
 use Livewire\Attributes\Url;
 
 /**
- * "Kalender Kapasitas & Libur" (sebelumnya "Kalender Kapasitas" + menu terpisah "Tanggal Tidak Tersedia", digabung 2026-10-26):
- * satu kalender untuk dua keputusan per tanggal: berapa pekerjaan berat yang boleh masuk (StoreCapacityOverride) dan apakah tanggal
- * itu ditutup penuh (BlockedDate). Dua tabel tetap terpisah; endpoint publik blocked-dates dan aturan penolakan booking tidak berubah.
- * Izin menutup/membuka tanggal memakai kunci hak akses lama 'BlockedDateResource' (lihat canManageClosures()), supaya akses yang sudah
- * diberikan tetap berlaku. Libur nasional/cuti bersama ditentukan manual oleh staf (keputusan pemilik 2026-10-28): tanggal tutup inilah
- * yang dipakai booking, absensi (tanpa Alpha), dan hitungan jam kerja gaji.
+ * "Kalender Kapasitas & Libur": satu kalender untuk dua keputusan per tanggal, berapa pekerjaan berat yang boleh masuk
+ * (StoreCapacityOverride) dan apakah tanggal itu ditutup penuh (BlockedDate). Dulu dua menu: "Kalender Kapasitas" dan "Tanggal Tidak Tersedia"
+ * (digabung 2026-10-26, tampilannya dirombak 2026-10-26). Dua tabel tetap terpisah; endpoint publik blocked-dates dan aturan penolakan booking
+ * tidak berubah.
  *
- * Riwayat: "Kalender Kapasitas" — redesain kapasitas instalasi per tanggal
- * (diminta user langsung, audit Booking Instalasi 2026-09-25). SEBELUMNYA
- * kapasitas per tanggal TIDAK PERNAH tersimpan — staff mengetik ulang
- * dari nol tiap approve booking (Repeater 'capacities' di form Booking),
- * sehingga staff berbeda bisa mengisi angka berbeda untuk tanggal yang
- * sama tanpa sistem menegur. Halaman ini jadi SATU tempat mengatur
- * override kapasitas per tanggal (StoreCapacityOverride) — form
- * approve booking sekarang MURNI baca (lihat BookingResource::form(),
- * placeholder 'date_range_preview'), tidak ada input kapasitas lagi di
- * sana maupun di endpoint mobile confirm().
+ * Semua dialog memakai Aksi Filament (modal, form, validasi, dan mode gelap bawaan), bukan modal buatan sendiri. Kotak kalendernya satu-satunya
+ * tampilan khusus; gayanya CSS polos berprefiks .cc- karena panel memakai CSS Filament yang sudah dikompilasi, bukan Tailwind proyek ini.
  *
- * SENGAJA custom Page + Blade sendiri (bukan Resource/Table) — kalender
- * bulan bukan pola tabel/CRUD baris standar, dan pola "plain Livewire
- * property + wire:click ke method PHP biasa" ini SUDAH TERBUKTI jalan di
- * SalesDashboard.php (bukan menebak API Filament\Actions yang belum
- * pernah diverifikasi di codebase ini).
+ * Izin: kapasitas mengikuti akses menu Booking Instalasi; menutup/membuka tanggal memakai kunci hak akses lama 'BlockedDateResource' (lihat
+ * canManageClosures()) supaya akses yang sudah diberikan tetap berlaku. Libur nasional/cuti bersama ditentukan manual oleh staf (keputusan pemilik
+ * 2026-10-28): tanggal tutup inilah yang dipakai booking, absensi (tanpa Alpha), dan hitungan jam kerja gaji.
+ *
+ * Toko yang berlaku selalu lewat effectiveStoreId(): staf non-akses-penuh dipaksa ke tokonya sendiri walau $storeId dimanipulasi lewat request
+ * Livewire (celah keamanan yang pernah ditemukan 2026-09-25).
  */
 class CapacityCalendar extends Page
 {
@@ -42,8 +42,6 @@ class CapacityCalendar extends Page
 
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
-    // Grup sidebar (audit navigasi 2026-09-29) -- band 100-199 "Operasional". Catatan lama
-    // ("setelah Booking Instalasi") sudah tidak relevan sejak dikelompokkan per grup.
     protected static ?string $navigationGroup = 'Operasional';
 
     protected static ?int $navigationSort = 100;
@@ -60,58 +58,16 @@ class CapacityCalendar extends Page
     #[Url(as: 'bulan')]
     public string $month = '';
 
-    public ?string $editingDate = null;
-
-    public ?int $editingCapacity = null;
-
-    /**
-     * GAP DIPERBAIKI 2026-09-25 (audit Kalender Kapasitas) -- "siapa &
-     * kapan" untuk override tanggal yang sedang dibuka di panel edit.
-     * Datanya (updated_by/updated_at) sudah lama ada di
-     * StoreCapacityOverride, cuma belum pernah ditampilkan langsung di
-     * UI (staff harus gali activity_log manual). null = tanggal ini
-     * belum pernah di-override (masih pakai default toko).
-     */
-    public ?array $editingOverrideInfo = null;
-
-    // Gap "bulk edit rentang tanggal" (audit Kalender Kapasitas
-    // 2026-09-25) -- panel terpisah dari klik-per-tanggal, buat skenario
-    // umum "minggu depan kapasitas turun jadi 2 karena kurang installer"
-    // tanpa klik satu-satu.
-    public bool $rangeEditorOpen = false;
-
-    public ?string $rangeFrom = null;
-
-    public ?string $rangeTo = null;
-
-    public ?int $rangeCapacity = null;
-
-    // Alasan tanggal ditutup pada panel hari (isi saat menutup, atau alasan yang tersimpan saat tanggal sudah ditutup).
-    public ?string $editingReason = null;
-
-    public bool $editingBlocked = false;
-
-    public bool $closureRangeOpen = false;
-
-    public ?string $closureFrom = null;
-
-    public ?string $closureTo = null;
-
-    public ?string $closureReason = null;
-
-    public bool $closeAllOpen = false;
-
-    public ?string $allFrom = null;
-
-    public ?string $allTo = null;
-
-    public ?string $allReason = null;
-
     /** Kunci hak akses lama menu "Tanggal Tidak Tersedia"; dipertahankan supaya izin menutup/membuka tanggal yang sudah diberikan tetap berlaku. */
     public const CLOSURE_PERMISSION_KEY = 'BlockedDateResource';
 
     /** Batas satu kali tutup rentang, jaring pengaman bila staf salah memilih rentang tahunan. */
     public const MAX_CLOSURE_DAYS = 120;
+
+    /** Batas satu kali atur kapasitas rentang. */
+    public const MAX_CAPACITY_DAYS = 90;
+
+    // ------------------------------------------------------------------ akses
 
     /** Mengatur kapasitas harian: sama dengan akses menu Booking Instalasi (kalender ini sub-tool alur approve booking). */
     public static function canManageCapacity(): bool
@@ -139,6 +95,8 @@ class CapacityCalendar extends Page
             || (($user?->canAccessStaffArea() ?? false) && $user->hasMenuAccess(self::CLOSURE_PERMISSION_KEY));
     }
 
+    // ------------------------------------------------------------------ toko dan bulan
+
     public function mount(): void
     {
         if ($this->month === '' || $this->month === null) {
@@ -146,11 +104,9 @@ class CapacityCalendar extends Page
         }
 
         $user = auth()->user();
-        $isFullAccess = $user?->isFullAccess() ?? false;
 
-        if (! $isFullAccess) {
-            // Staff toko selalu terkunci ke tokonya sendiri — tidak peduli
-            // isi query string ?toko= yang mungkin diutak-atik manual.
+        if (! ($user?->isFullAccess() ?? false)) {
+            // Staf toko selalu terkunci ke tokonya sendiri, apa pun isi query string ?toko=.
             $this->storeId = $user?->store_id;
         } elseif (! $this->storeId) {
             $this->storeId = Store::where('is_active', true)->orderBy('name')->value('id');
@@ -162,26 +118,7 @@ class CapacityCalendar extends Page
         return Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all();
     }
 
-    /**
-     * Toko yang BENAR-BENAR berlaku setelah aturan akses — SATU-SATUNYA
-     * cara yang boleh dipakai membaca toko di method lain di class ini
-     * (openDay/saveCapacity/clearOverride/getCalendarDays), TIDAK PERNAH
-     * langsung baca $this->storeId mentah.
-     *
-     * BUG KEAMANAN DIPERBAIKI 2026-09-25 (ditemukan audit lanjutan
-     * setelah redesain kapasitas): mount() SEBELUMNYA cuma mengunci
-     * $this->storeId ke toko staff SEKALI di awal (page load pertama).
-     * $storeId adalah public Livewire property biasa (#[Url]) — request
-     * Livewire BERIKUTNYA (mis. payload wire:model/snapshot dimanipulasi
-     * lewat DevTools) bisa menimpa nilainya lagi, dan updatedStoreId()
-     * SEBELUMNYA tidak mengunci ulang, cuma reset editingDate. Staff
-     * toko non-full-access jadi BISA mengubah kapasitas toko LAIN kalau
-     * memanipulasi request secara manual. Pola perbaikan SAMA PERSIS
-     * dengan SalesDashboard::effectiveStoreId() (sudah terbukti aman di
-     * situ): full-access boleh pilih bebas (null = belum pilih toko),
-     * non-full-access SELALU dipaksa ke store_id akunnya sendiri apa pun
-     * isi $this->storeId saat method ini dipanggil.
-     */
+    /** Toko yang benar-benar berlaku setelah aturan akses; satu-satunya cara membaca toko di method lain di class ini. */
     public function effectiveStoreId(): ?int
     {
         $user = auth()->user();
@@ -191,205 +128,311 @@ class CapacityCalendar extends Page
 
     public function updatedStoreId(): void
     {
-        // Non-full-access TIDAK BOLEH mengubah toko lewat cara apa pun —
-        // timpa balik ke toko sendiri setiap kali property ini berubah,
-        // bukan cuma mengandalkan mount(). Lihat catatan effectiveStoreId().
         $user = auth()->user();
+
         if (! ($user?->isFullAccess() ?? false)) {
             $this->storeId = $user?->store_id;
         }
-
-        $this->editingDate = null;
     }
 
     public function prevMonth(): void
     {
         $this->month = Carbon::parse($this->month . '-01')->subMonthNoOverflow()->format('Y-m');
-        $this->editingDate = null;
     }
 
     public function nextMonth(): void
     {
         $this->month = Carbon::parse($this->month . '-01')->addMonthNoOverflow()->format('Y-m');
-        $this->editingDate = null;
     }
 
     public function goToday(): void
     {
         $this->month = now()->format('Y-m');
-        $this->editingDate = null;
+    }
+
+    public function getSubheading(): ?string
+    {
+        return 'Atur kapasitas harian layanan berat dan tutup tanggal libur, renovasi, atau acara. Klik tanggal untuk mengaturnya.';
+    }
+
+    /** Tanggal berbahasa Indonesia terlepas dari locale aplikasi. */
+    public static function idDate(Carbon|string $date, string $format): string
+    {
+        return Carbon::parse($date)->locale('id')->translatedFormat($format);
+    }
+
+    // ------------------------------------------------------------------ aksi di kepala halaman
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('closeRange')
+                ->label('Tutup Rentang Tanggal')
+                ->icon('heroicon-o-no-symbol')
+                ->color('gray')
+                ->visible(fn () => self::canManageClosures('create') && $this->effectiveStoreId() !== null)
+                ->modalHeading('Tutup Rentang Tanggal')
+                ->modalDescription('Menutup semua tanggal dalam rentang untuk toko ini (libur, renovasi, acara). Tanggal yang sudah ditutup dilewati. Untuk libur rutin tiap minggu, atur di Toko > Jam Operasional.')
+                ->modalWidth('lg')
+                ->modalSubmitActionLabel('Tutup Tanggal')
+                ->form([
+                    Grid::make(2)->schema([
+                        DatePicker::make('from')->label('Dari Tanggal')->native(false)->default(today())->minDate(today())->required()->live(),
+                        DatePicker::make('to')->label('Sampai Tanggal')->native(false)->default(today())->minDate(today())->afterOrEqual('from')->required()->live(),
+                    ]),
+                    TextInput::make('reason')->label('Alasan (opsional)')->placeholder('Contoh: Libur nasional, Workshop penuh, Maintenance')->maxLength(255),
+                    Placeholder::make('overlap')
+                        ->label('Booking yang sudah ada')
+                        ->visible(fn (Get $get) => $this->overlapLines($get('from'), $get('to')) !== [])
+                        ->content(fn (Get $get) => new HtmlString(
+                            '<div style="color:#b45309">' . implode('<br>', array_map(fn (string $l) => '⚠ ' . e($l), $this->overlapLines($get('from'), $get('to')))) . '</div>'
+                        )),
+                ])
+                ->action(fn (array $data) => $this->closeRange($data['from'], $data['to'], $data['reason'] ?? null)),
+
+            Action::make('capacityRange')
+                ->label('Atur Kapasitas Rentang')
+                ->icon('heroicon-o-adjustments-horizontal')
+                ->color('gray')
+                ->visible(fn () => self::canManageCapacity() && $this->effectiveStoreId() !== null)
+                ->modalHeading('Atur Kapasitas Rentang Tanggal')
+                ->modalDescription('Terapkan satu angka kapasitas ke semua tanggal dalam rentang, mis. minggu depan turun jadi 2 karena kurang installer. Tanggal yang sudah lewat dilewati; paling banyak ' . self::MAX_CAPACITY_DAYS . ' hari sekali terap.')
+                ->modalWidth('lg')
+                ->modalSubmitActionLabel('Terapkan')
+                ->form([
+                    Grid::make(2)->schema([
+                        DatePicker::make('from')->label('Dari Tanggal')->native(false)->default(today())->required(),
+                        DatePicker::make('to')->label('Sampai Tanggal')->native(false)->default(today()->addDays(6))->afterOrEqual('from')->required(),
+                    ]),
+                    TextInput::make('capacity')->label('Kapasitas per hari')->numeric()->integer()->minValue(1)->required()
+                        ->helperText('Jumlah pekerjaan berat (PPF, Kaca Film) yang boleh masuk per hari.'),
+                ])
+                ->action(fn (array $data) => $this->applyCapacityRange($data['from'], $data['to'], (int) $data['capacity'])),
+
+            ActionGroup::make([
+                Action::make('closeAll')
+                    ->label('Tutup Semua Toko')
+                    ->icon('heroicon-o-building-storefront')
+                    ->visible(fn () => (auth()->user()?->isFullAccess() ?? false) && self::canManageClosures('create'))
+                    ->modalHeading('Tutup Semua Toko')
+                    ->modalDescription('Menutup semua toko aktif pada tanggal ini, misalnya libur nasional atau cuti bersama. Tanggal ini tidak bisa dibooking, tidak dihitung Alpha, dan tidak dihitung jam kerjanya di gaji. Booking yang sudah ada tidak dibatalkan.')
+                    ->modalWidth('lg')
+                    ->modalSubmitActionLabel('Tutup Semua Toko')
+                    ->form([
+                        Grid::make(2)->schema([
+                            DatePicker::make('from')->label('Dari Tanggal')->native(false)->default(today())->minDate(today())->required(),
+                            DatePicker::make('to')->label('Sampai Tanggal')->native(false)->default(today())->minDate(today())->afterOrEqual('from')->required(),
+                        ]),
+                        TextInput::make('reason')->label('Alasan')->placeholder('Mis. Libur Nasional - Hari Kemerdekaan')->required()->maxLength(255),
+                    ])
+                    ->action(fn (array $data) => $this->closeAllStores($data['from'], $data['to'], $data['reason'])),
+
+                Action::make('clearOverrides')
+                    ->label('Hapus Semua Override')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('danger')
+                    ->visible(fn () => self::canManageCapacity() && $this->effectiveStoreId() !== null)
+                    ->requiresConfirmation()
+                    ->modalHeading('Hapus semua override kapasitas?')
+                    ->modalDescription('Semua tanggal hari ini dan seterusnya untuk toko ini kembali memakai kapasitas bawaan toko. Override tanggal yang sudah lewat tetap tersimpan sebagai riwayat.')
+                    ->modalSubmitActionLabel('Hapus Override')
+                    ->action(fn () => $this->clearAllOverrides()),
+            ])
+                ->label('Lainnya')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->button()
+                ->color('gray'),
+        ];
+    }
+
+    // ------------------------------------------------------------------ dialog satu tanggal
+
+    /** Dibuka dari kotak kalender lewat mountAction('manageDay', { date }). */
+    public function manageDayAction(): Action
+    {
+        return Action::make('manageDay')
+            ->modalWidth('md')
+            ->modalHeading(fn (array $arguments) => self::idDate($arguments['date'] ?? now(), 'l, d F Y'))
+            ->modalSubmitActionLabel('Simpan')
+            ->fillForm(fn (array $arguments) => $this->dayDefaults((string) ($arguments['date'] ?? '')))
+            ->form(fn (array $arguments) => $this->dayFormSchema((string) ($arguments['date'] ?? '')))
+            ->action(fn (array $data, array $arguments) => $this->saveDay((string) ($arguments['date'] ?? ''), $data));
+    }
+
+    /** Dibuka dari daftar tanggal ditutup lewat mountAction('reopenClosure', { id }). */
+    public function reopenClosureAction(): Action
+    {
+        return Action::make('reopenClosure')
+            ->requiresConfirmation()
+            ->modalHeading('Buka kembali tanggal ini?')
+            ->modalDescription('Tanggal ini bisa dipilih pelanggan lagi untuk booking.')
+            ->modalSubmitActionLabel('Buka Kembali')
+            ->color('danger')
+            ->action(fn (array $arguments) => $this->reopenById((int) ($arguments['id'] ?? 0)));
     }
 
     /**
-     * Buka panel edit untuk 1 tanggal — cuma tanggal hari ini/ke depan
-     * yang boleh diedit (tanggal lampau sudah tidak relevan untuk
-     * penjadwalan, sekadar riwayat).
+     * Keadaan satu tanggal untuk toko yang berlaku, atau null bila tanggal/toko tidak sah.
+     *
+     * @return null|array{date: Carbon, past: bool, weekly: bool, blocked: ?BlockedDate, override: ?StoreCapacityOverride, used: int, capacity: int}
      */
-    public function openDay(string $date): void
+    private function dayState(string $date): ?array
     {
-        if (Carbon::parse($date)->lt(now()->startOfDay())) {
+        $storeId = $this->effectiveStoreId();
+
+        if (! $storeId || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return null;
+        }
+
+        $store = Store::find($storeId);
+
+        if (! $store) {
+            return null;
+        }
+
+        $day = Carbon::parse($date)->startOfDay();
+        $blocked = BlockedDate::where('store_id', $storeId)->whereDate('date', $day)->first();
+
+        return [
+            'date' => $day,
+            'past' => $day->lt(today()),
+            'weekly' => $blocked === null && $store->isClosedOn($day),
+            'blocked' => $blocked,
+            'override' => StoreCapacityOverride::where('store_id', $storeId)->whereDate('date', $day)->with('updatedBy:id,name')->first(),
+            'used' => (int) (Booking::confirmedOverlapCountsForRange($storeId, $day, $day)[$day->toDateString()] ?? 0),
+            'capacity' => Booking::capacityForDate($storeId, $day),
+        ];
+    }
+
+    private function dayDefaults(string $date): array
+    {
+        $state = $this->dayState($date);
+
+        return [
+            'capacity' => $state['capacity'] ?? null,
+            'reason' => $state['blocked']?->reason,
+            'reset_capacity' => false,
+            'close' => false,
+            'reopen' => false,
+        ];
+    }
+
+    /** @return list<\Filament\Forms\Components\Component> */
+    private function dayFormSchema(string $date): array
+    {
+        $state = $this->dayState($date);
+
+        if (! $state || $state['past'] || $state['weekly']) {
+            return [Placeholder::make('invalid')->label('')->content('Tanggal ini tidak bisa diatur: sudah lewat atau libur rutin mingguan toko.')];
+        }
+
+        if ($state['blocked']) {
+            return [
+                Placeholder::make('info')->label('')->content('Tanggal ini ditutup. Pelanggan tidak bisa memilihnya dan kapasitas tidak berlaku. Booking yang sudah ada tidak dibatalkan.'),
+                TextInput::make('reason')->label('Alasan')->maxLength(255)->disabled(! self::canManageClosures('update'))->dehydrated(),
+                Toggle::make('reopen')->label('Buka kembali tanggal ini')->helperText('Tanggal bisa dipilih pelanggan lagi.')->visible(self::canManageClosures('delete')),
+            ];
+        }
+
+        $override = $state['override'];
+        $info = "{$state['used']} booking confirmed menempati tanggal ini. Kapasitas saat ini {$state['capacity']}"
+            . ($override
+                ? ', diatur manual oleh ' . ($override->updatedBy?->name ?? '—') . ' pada ' . $override->updated_at->format('d M Y H:i') . '.'
+                : ', bawaan toko.');
+
+        return [
+            Placeholder::make('info')->label('')->content($info),
+
+            TextInput::make('capacity')
+                ->label('Kapasitas')
+                ->numeric()->integer()->minValue(1)
+                ->required(fn (Get $get) => ! $get('close') && ! $get('reset_capacity'))
+                ->disabled(fn (Get $get) => (bool) $get('close') || (bool) $get('reset_capacity'))
+                ->visible(self::canManageCapacity())
+                ->helperText('Jumlah pekerjaan berat (PPF, Kaca Film) yang boleh masuk pada tanggal ini.'),
+
+            Toggle::make('reset_capacity')
+                ->label('Pakai kapasitas bawaan toko')
+                ->helperText('Menghapus pengaturan manual tanggal ini.')
+                ->live()
+                ->visible(self::canManageCapacity() && $override !== null),
+
+            Toggle::make('close')
+                ->label('Tutup tanggal ini')
+                ->helperText('Untuk libur, renovasi, atau acara. Booking yang sudah ada tidak dibatalkan.')
+                ->live()
+                ->visible(self::canManageClosures('create')),
+
+            TextInput::make('reason')
+                ->label('Alasan (opsional)')
+                ->placeholder('Contoh: Libur nasional')
+                ->maxLength(255)
+                ->visible(fn (Get $get) => (bool) $get('close')),
+        ];
+    }
+
+    private function saveDay(string $date, array $data): void
+    {
+        $state = $this->dayState($date);
+
+        if (! $state || $state['past'] || $state['weekly']) {
+            $this->flash('Tanggal ini tidak bisa diatur', 'Sudah lewat atau libur rutin mingguan toko.', 'danger');
+
             return;
         }
 
         $storeId = $this->effectiveStoreId();
+        $day = $state['date'];
 
-        $this->closureRangeOpen = false;
-        $this->closeAllOpen = false;
-        $this->rangeEditorOpen = false;
+        if ($state['blocked']) {
+            if (! empty($data['reopen']) && self::canManageClosures('delete')) {
+                BlockedDate::where('store_id', $storeId)->whereDate('date', $day)->get()->each->delete();
+                $this->flash('Tanggal dibuka kembali');
 
-        $blocked = $storeId ? BlockedDate::where('store_id', $storeId)->whereDate('date', $date)->first() : null;
+                return;
+            }
 
-        if ($storeId && $blocked === null && Store::find($storeId)?->isClosedOn(Carbon::parse($date))) {
+            if (self::canManageClosures('update')) {
+                BlockedDate::where('store_id', $storeId)->whereDate('date', $day)->get()
+                    ->each(fn (BlockedDate $row) => $row->update(['reason' => $this->cleanReason($data['reason'] ?? null)]));
+                $this->flash('Alasan diperbarui');
+            }
+
             return;
         }
 
-        $this->editingBlocked = $blocked !== null;
-        $this->editingReason = $blocked?->reason;
+        if (! empty($data['close']) && self::canManageClosures('create')) {
+            $row = BlockedDate::firstOrCreate(['store_id' => $storeId, 'date' => $day->toDateString()], ['reason' => $this->cleanReason($data['reason'] ?? null)]);
+            $this->flash($row->wasRecentlyCreated ? 'Tanggal ditutup' : 'Tanggal ini sudah ditutup sebelumnya', null, $row->wasRecentlyCreated ? 'success' : 'warning');
 
-        $this->editingDate = $date;
-        $this->editingCapacity = $storeId ? Booking::capacityForDate($storeId, Carbon::parse($date)) : null;
-
-        $override = $storeId
-            ? StoreCapacityOverride::where('store_id', $storeId)->where('date', $date)->with('updatedBy:id,name')->first()
-            : null;
-
-        $this->editingOverrideInfo = $override
-            ? ['name' => $override->updatedBy?->name ?? '—', 'at' => $override->updated_at->format('d M Y H:i')]
-            : null;
-    }
-
-    public function closeEdit(): void
-    {
-        $this->editingDate = null;
-        $this->editingOverrideInfo = null;
-        $this->editingBlocked = false;
-        $this->editingReason = null;
-    }
-
-    public function saveCapacity(): void
-    {
-        $storeId = $this->effectiveStoreId();
-
-        if (! self::canManageCapacity() || ! $storeId || ! $this->editingDate || ! $this->editingCapacity || $this->editingCapacity < 1) {
             return;
         }
 
-        // Tanggal yang ditutup penuh tidak punya kapasitas yang berarti; buka dulu tanggalnya.
-        if ($this->editingBlocked) {
-            return;
-        }
-
-        StoreCapacityOverride::updateOrCreate(
-            ['store_id' => $storeId, 'date' => $this->editingDate],
-            ['capacity' => $this->editingCapacity, 'updated_by' => auth()->id()],
-        );
-
-        $this->editingDate = null;
-        $this->editingOverrideInfo = null;
-    }
-
-    /** Hapus override — tanggal itu kembali pakai default toko. */
-    public function clearOverride(): void
-    {
-        $storeId = $this->effectiveStoreId();
-
-        if (! self::canManageCapacity() || ! $storeId || ! $this->editingDate) {
-            return;
-        }
-
-        StoreCapacityOverride::where('store_id', $storeId)
-            ->where('date', $this->editingDate)
-            ->delete();
-
-        $this->editingDate = null;
-        $this->editingOverrideInfo = null;
-    }
-
-    public function openRangeEditor(): void
-    {
         if (! self::canManageCapacity()) {
             return;
         }
 
-        $this->closureRangeOpen = false;
-        $this->closeAllOpen = false;
-        $this->rangeEditorOpen = true;
-        $this->rangeFrom = now()->toDateString();
-        $this->rangeTo = now()->addDays(6)->toDateString();
-        $this->rangeCapacity = null;
-        $this->editingDate = null;
-    }
+        if (! empty($data['reset_capacity'])) {
+            StoreCapacityOverride::where('store_id', $storeId)->whereDate('date', $day)->get()->each->delete();
+            $this->flash('Kapasitas kembali ke bawaan toko');
 
-    public function closeRangeEditor(): void
-    {
-        $this->rangeEditorOpen = false;
-    }
-
-    /**
-     * Terapkan 1 angka kapasitas ke SEMUA tanggal dalam rentang
-     * [rangeFrom, rangeTo] sekaligus — gap "bulk edit" (audit Kalender
-     * Kapasitas 2026-09-25). Tanggal lampau dalam rentang dilewati
-     * (bukan gagal total) supaya staff bisa asal pilih "minggu ini" tanpa
-     * perlu hitung manual mulai dari hari ini.
-     */
-    public function applyRangeCapacity(): void
-    {
-        $storeId = $this->effectiveStoreId();
-
-        if (! self::canManageCapacity() || ! $storeId || ! $this->rangeFrom || ! $this->rangeTo || ! $this->rangeCapacity || $this->rangeCapacity < 1) {
             return;
         }
 
-        $from = Carbon::parse($this->rangeFrom);
-        $to = Carbon::parse($this->rangeTo);
+        $capacity = (int) ($data['capacity'] ?? 0);
 
-        if ($to->lt($from)) {
+        if ($capacity < 1) {
             return;
         }
 
-        // Dibatasi 90 hari sekali terap -- jaring pengaman kalau staff
-        // salah pilih rentang tahunan, bukan batasan bisnis genuine.
-        $to = $from->copy()->addDays(89)->lt($to) ? $from->copy()->addDays(89) : $to;
-
-        $today = now()->startOfDay();
-        $userId = auth()->id();
-
-        $cursor = $from->copy();
-        while ($cursor->lte($to)) {
-            if ($cursor->gte($today)) {
-                StoreCapacityOverride::updateOrCreate(
-                    ['store_id' => $storeId, 'date' => $cursor->toDateString()],
-                    ['capacity' => $this->rangeCapacity, 'updated_by' => $userId],
-                );
-            }
-
-            $cursor->addDay();
-        }
-
-        $this->rangeEditorOpen = false;
+        StoreCapacityOverride::updateOrCreate(
+            ['store_id' => $storeId, 'date' => $day->toDateString()],
+            ['capacity' => $capacity, 'updated_by' => auth()->id()],
+        );
+        $this->flash('Kapasitas disimpan');
     }
 
-    /**
-     * Hapus SEMUA override toko yang sedang dipilih (kembali ke default
-     * install_capacity_per_day untuk semua tanggal) — gap "bulk-clear"
-     * (audit Kalender Kapasitas 2026-09-25). Cuma menghapus tanggal
-     * hari-ini-ke-depan -- override tanggal lampau dibiarkan (murni
-     * riwayat, tidak memengaruhi penjadwalan apa pun lagi).
-     */
-    public function clearAllOverrides(): void
-    {
-        $storeId = $this->effectiveStoreId();
-
-        if (! self::canManageCapacity() || ! $storeId) {
-            return;
-        }
-
-        StoreCapacityOverride::where('store_id', $storeId)
-            ->where('date', '>=', now()->toDateString())
-            ->delete();
-
-        $this->editingDate = null;
-    }
+    // ------------------------------------------------------------------ logika massal
 
     private function flash(string $title, ?string $body = null, string $level = 'success'): void
     {
@@ -403,90 +446,7 @@ class CapacityCalendar extends Page
         return $reason === '' ? null : mb_substr($reason, 0, 255);
     }
 
-    /** Tutup tanggal yang sedang dibuka di panel hari. Booking yang sudah ada tidak dibatalkan. */
-    public function closeDay(): void
-    {
-        $storeId = $this->effectiveStoreId();
-
-        if (! self::canManageClosures('create') || ! $storeId || ! $this->editingDate || Carbon::parse($this->editingDate)->lt(today())) {
-            return;
-        }
-
-        $row = BlockedDate::firstOrCreate(
-            ['store_id' => $storeId, 'date' => Carbon::parse($this->editingDate)->toDateString()],
-            ['reason' => $this->cleanReason($this->editingReason)],
-        );
-
-        $this->flash($row->wasRecentlyCreated ? 'Tanggal ditutup' : 'Tanggal ini sudah ditutup sebelumnya', null, $row->wasRecentlyCreated ? 'success' : 'warning');
-        $this->closeEdit();
-    }
-
-    /** Buka kembali tanggal yang sedang dibuka di panel hari. */
-    public function reopenDay(): void
-    {
-        $storeId = $this->effectiveStoreId();
-
-        if (! self::canManageClosures('delete') || ! $storeId || ! $this->editingDate) {
-            return;
-        }
-
-        BlockedDate::where('store_id', $storeId)->whereDate('date', $this->editingDate)->get()->each->delete();
-
-        $this->flash('Tanggal dibuka kembali');
-        $this->closeEdit();
-    }
-
-    public function saveBlockedReason(): void
-    {
-        $storeId = $this->effectiveStoreId();
-
-        if (! self::canManageClosures('update') || ! $storeId || ! $this->editingDate || ! $this->editingBlocked) {
-            return;
-        }
-
-        BlockedDate::where('store_id', $storeId)->whereDate('date', $this->editingDate)->get()
-            ->each(fn (BlockedDate $row) => $row->update(['reason' => $this->cleanReason($this->editingReason)]));
-
-        $this->flash('Alasan diperbarui');
-        $this->closeEdit();
-    }
-
-    /** Buka kembali tanggal dari daftar tanggal tutup di bawah kalender. */
-    public function reopenById(int $id): void
-    {
-        $storeId = $this->effectiveStoreId();
-
-        if (! self::canManageClosures('delete') || ! $storeId) {
-            return;
-        }
-
-        // Dibatasi ke toko yang berlaku: staf toko tidak bisa membuka tanggal toko lain walau id-nya diketik manual.
-        BlockedDate::where('store_id', $storeId)->whereKey($id)->get()->each->delete();
-
-        $this->flash('Tanggal dibuka kembali');
-    }
-
-    public function openClosureRange(): void
-    {
-        if (! self::canManageClosures('create')) {
-            return;
-        }
-
-        $this->closureRangeOpen = true;
-        $this->closureFrom = now()->toDateString();
-        $this->closureTo = now()->toDateString();
-        $this->closureReason = null;
-        $this->editingDate = null;
-        $this->rangeEditorOpen = false;
-        $this->closeAllOpen = false;
-    }
-
-    public function closeClosureRange(): void
-    {
-        $this->closureRangeOpen = false;
-    }
-
-    /** Tanggal dalam rentang [from, to] yang valid ditutup: hari ini dan seterusnya, paling banyak MAX_CLOSURE_DAYS hari. */
+    /** Tanggal dalam rentang yang valid ditutup: hari ini dan seterusnya, paling banyak MAX_CLOSURE_DAYS hari. */
     private function closureDates(?string $from, ?string $to): array
     {
         if (! $from || ! $to) {
@@ -495,11 +455,6 @@ class CapacityCalendar extends Page
 
         $start = Carbon::parse($from)->startOfDay();
         $end = Carbon::parse($to)->startOfDay();
-
-        if ($end->lt($start)) {
-            return [];
-        }
-
         $dates = [];
 
         for ($day = $start->copy(); $day->lte($end) && count($dates) < self::MAX_CLOSURE_DAYS; $day->addDay()) {
@@ -513,13 +468,14 @@ class CapacityCalendar extends Page
 
     /**
      * Peringatan (bukan penolakan) untuk rentang yang akan ditutup: booking confirmed yang sudah menempati tanggal itu tidak ikut dibatalkan.
+     * Hanya untuk rentang sampai 31 hari supaya pratinjaunya tetap ringan.
      *
      * @return list<string>
      */
-    public function closureOverlapLines(): array
+    public function overlapLines(?string $from, ?string $to): array
     {
         $storeId = $this->effectiveStoreId();
-        $dates = $this->closureRangeOpen ? $this->closureDates($this->closureFrom, $this->closureTo) : [];
+        $dates = $this->closureDates($from, $to);
 
         if (! $storeId || $dates === [] || count($dates) > 31) {
             return [];
@@ -531,28 +487,22 @@ class CapacityCalendar extends Page
             $count = Booking::confirmedOverlapCount($storeId, Carbon::parse($date), null, true); // termasuk layanan ringan
 
             if ($count > 0) {
-                $lines[] = Carbon::parse($date)->format('d M Y') . ": {$count} booking confirmed (tidak ikut dibatalkan, hanya info)";
+                $lines[] = self::idDate($date, 'd M Y') . ": {$count} booking confirmed (tidak ikut dibatalkan, hanya info)";
             }
         }
 
         return $lines;
     }
 
-    public function applyClosureRange(): void
+    public function closeRange(string $from, string $to, ?string $reason): void
     {
         $storeId = $this->effectiveStoreId();
 
-        if (! self::canManageClosures('create') || ! $storeId || ! $this->closureFrom || ! $this->closureTo) {
+        if (! self::canManageClosures('create') || ! $storeId) {
             return;
         }
 
-        if (Carbon::parse($this->closureTo)->lt(Carbon::parse($this->closureFrom))) {
-            $this->flash('Tanggal selesai tidak boleh sebelum tanggal mulai', null, 'danger');
-
-            return;
-        }
-
-        $dates = $this->closureDates($this->closureFrom, $this->closureTo);
+        $dates = $this->closureDates($from, $to);
 
         if ($dates === []) {
             $this->flash('Tidak ada tanggal yang bisa ditutup', 'Tanggal yang sudah lewat tidak bisa ditutup.', 'danger');
@@ -560,67 +510,29 @@ class CapacityCalendar extends Page
             return;
         }
 
-        $reason = $this->cleanReason($this->closureReason);
         $created = 0;
 
         foreach ($dates as $date) {
-            $row = BlockedDate::firstOrCreate(['store_id' => $storeId, 'date' => $date], ['reason' => $reason]);
+            $row = BlockedDate::firstOrCreate(['store_id' => $storeId, 'date' => $date], ['reason' => $this->cleanReason($reason)]);
             $created += $row->wasRecentlyCreated ? 1 : 0;
         }
 
         $skipped = count($dates) - $created;
         $this->flash("{$created} tanggal ditutup", $skipped > 0 ? "{$skipped} sudah tertutup sebelumnya dan dilewati." : null);
-        $this->closureRangeOpen = false;
     }
 
-    public function openCloseAll(): void
+    /** Menutup SEMUA toko aktif sekaligus (libur nasional, cuti bersama). Tanggal yang sudah tertutup dilewati dan alasannya tidak ditimpa. Hanya akses penuh. */
+    public function closeAllStores(string $from, string $to, ?string $reason): void
     {
         if (! (auth()->user()?->isFullAccess() ?? false) || ! self::canManageClosures('create')) {
             return;
         }
 
-        $this->closeAllOpen = true;
-        $this->allFrom = now()->toDateString();
-        $this->allTo = now()->toDateString();
-        $this->allReason = null;
-        $this->editingDate = null;
-        $this->rangeEditorOpen = false;
-        $this->closureRangeOpen = false;
-    }
+        $reason = $this->cleanReason($reason);
+        $dates = $this->closureDates($from, $to);
 
-    public function closeCloseAll(): void
-    {
-        $this->closeAllOpen = false;
-    }
-
-    /**
-     * Menutup SEMUA toko aktif sekaligus (libur nasional, cuti bersama) supaya staf tidak mengulang per toko. Tanggal yang sudah tertutup
-     * dilewati dan alasannya tidak ditimpa. Hanya akses penuh.
-     */
-    public function applyCloseAll(): void
-    {
-        if (! (auth()->user()?->isFullAccess() ?? false) || ! self::canManageClosures('create') || ! $this->allFrom || ! $this->allTo) {
-            return;
-        }
-
-        $reason = $this->cleanReason($this->allReason);
-
-        if ($reason === null) {
-            $this->flash('Alasan wajib diisi', 'Mis. Libur Nasional - Hari Kemerdekaan.', 'danger');
-
-            return;
-        }
-
-        if (Carbon::parse($this->allTo)->lt(Carbon::parse($this->allFrom))) {
-            $this->flash('Tanggal selesai tidak boleh sebelum tanggal mulai', null, 'danger');
-
-            return;
-        }
-
-        $dates = $this->closureDates($this->allFrom, $this->allTo);
-
-        if ($dates === []) {
-            $this->flash('Tidak ada tanggal yang bisa ditutup', 'Tanggal yang sudah lewat tidak bisa ditutup.', 'danger');
+        if ($reason === null || $dates === []) {
+            $this->flash('Tanggal tidak ditutup', 'Isi alasan, dan pilih tanggal hari ini atau ke depan.', 'danger');
 
             return;
         }
@@ -636,8 +548,69 @@ class CapacityCalendar extends Page
         }
 
         $this->flash("{$created} tanggal ditutup", $skipped > 0 ? "{$skipped} sudah tertutup sebelumnya dan dilewati." : null);
-        $this->closeAllOpen = false;
     }
+
+    /** Buka kembali tanggal dari daftar di bawah kalender; dibatasi ke toko yang berlaku. */
+    public function reopenById(int $id): void
+    {
+        $storeId = $this->effectiveStoreId();
+
+        if (! self::canManageClosures('delete') || ! $storeId) {
+            return;
+        }
+
+        BlockedDate::where('store_id', $storeId)->whereKey($id)->get()->each->delete();
+
+        $this->flash('Tanggal dibuka kembali');
+    }
+
+    /** Terapkan satu angka kapasitas ke semua tanggal hari ini dan seterusnya dalam rentang (tanggal lampau dilewati, paling banyak MAX_CAPACITY_DAYS hari). */
+    public function applyCapacityRange(string $from, string $to, int $capacity): void
+    {
+        $storeId = $this->effectiveStoreId();
+
+        if (! self::canManageCapacity() || ! $storeId || $capacity < 1) {
+            return;
+        }
+
+        $start = Carbon::parse($from);
+        $end = Carbon::parse($to);
+
+        if ($end->lt($start)) {
+            return;
+        }
+
+        $end = $start->copy()->addDays(self::MAX_CAPACITY_DAYS - 1)->lt($end) ? $start->copy()->addDays(self::MAX_CAPACITY_DAYS - 1) : $end;
+        $applied = 0;
+
+        for ($cursor = $start->copy(); $cursor->lte($end); $cursor->addDay()) {
+            if ($cursor->gte(today())) {
+                StoreCapacityOverride::updateOrCreate(
+                    ['store_id' => $storeId, 'date' => $cursor->toDateString()],
+                    ['capacity' => $capacity, 'updated_by' => auth()->id()],
+                );
+                $applied++;
+            }
+        }
+
+        $this->flash("Kapasitas {$capacity} diterapkan ke {$applied} tanggal");
+    }
+
+    /** Hapus semua override hari ini dan seterusnya; override tanggal lampau dibiarkan sebagai riwayat. */
+    public function clearAllOverrides(): void
+    {
+        $storeId = $this->effectiveStoreId();
+
+        if (! self::canManageCapacity() || ! $storeId) {
+            return;
+        }
+
+        StoreCapacityOverride::where('store_id', $storeId)->where('date', '>=', now()->toDateString())->delete();
+
+        $this->flash('Semua override kapasitas dihapus');
+    }
+
+    // ------------------------------------------------------------------ data tampilan
 
     /** Tanggal tutup yang akan datang untuk toko yang dipilih, paling dekat dulu. */
     public function getUpcomingClosures(): \Illuminate\Support\Collection
@@ -652,11 +625,9 @@ class CapacityCalendar extends Page
     }
 
     /**
-     * @return list<array{date: string, inMonth: bool, closed: bool, blocked: bool, blockedReason: ?string, weeklyClosed: bool, capacity: int, used: int, hasOverride: bool, isPast: bool, isToday: bool}>
+     * Grid kalender penuh, termasuk hari bulan sebelum/sesudahnya supaya tiap baris 7 kolom; hari di luar bulan aktif ditandai inMonth=false.
      *
-     * Grid kalender PENUH termasuk hari bulan sebelum/sesudahnya (biar
-     * baris pertama/terakhir tetap 7 kolom) — hari di luar bulan aktif
-     * ditandai inMonth=false, ditampilkan pudar & tidak bisa diklik.
+     * @return list<array{date: string, inMonth: bool, closed: bool, blocked: bool, blockedReason: ?string, weeklyClosed: bool, capacity: int, used: int, hasOverride: bool, isPast: bool, isToday: bool}>
      */
     public function getCalendarDays(): array
     {
@@ -670,9 +641,7 @@ class CapacityCalendar extends Page
         $monthStart = Carbon::parse($this->month . '-01');
         $monthEnd = $monthStart->copy()->endOfMonth();
 
-        // Mundur ke Senin terdekat sebelum tanggal 1 (Carbon dayOfWeekIso:
-        // 1=Senin..7=Minggu), maju ke Minggu terdekat setelah akhir bulan
-        // — supaya grid selalu kelipatan 7 hari penuh.
+        // Mundur ke Senin sebelum tanggal 1 dan maju ke Minggu setelah akhir bulan (dayOfWeekIso: 1=Senin..7=Minggu).
         $gridStart = $monthStart->copy()->subDays($monthStart->dayOfWeekIso - 1);
         $gridEnd = $monthEnd->copy()->addDays(7 - $monthEnd->dayOfWeekIso);
 
@@ -686,38 +655,31 @@ class CapacityCalendar extends Page
             ->get()
             ->keyBy(fn (BlockedDate $b) => $b->date->toDateString());
 
-        // GAP DIPERBAIKI 2026-09-25 (audit Kalender Kapasitas) -- SEBELUMNYA
-        // confirmedOverlapCount() dipanggil 1x PER HARI di dalam loop di
-        // bawah (35-42 query terpisah tiap buka halaman). Sekarang 1
-        // query batch untuk seluruh grid, dibaca dari array hasil per
-        // tanggal. Lihat Booking::confirmedOverlapCountsForRange().
+        // Satu kueri batch untuk seluruh grid, bukan satu per hari (lihat Booking::confirmedOverlapCountsForRange()).
         $usedByDate = Booking::confirmedOverlapCountsForRange($storeId, $gridStart, $gridEnd);
 
         $today = now()->startOfDay();
         $days = [];
-        $cursor = $gridStart->copy();
 
-        while ($cursor->lte($gridEnd)) {
+        for ($cursor = $gridStart->copy(); $cursor->lte($gridEnd); $cursor->addDay()) {
             $dateStr = $cursor->toDateString();
             $closed = (bool) $store?->isClosedOn($cursor);
             $blockedRow = $blockedRows->get($dateStr);
 
             $days[] = [
-                'date'        => $dateStr,
-                'inMonth'     => $cursor->month === $monthStart->month,
-                'closed'      => $closed,
+                'date'          => $dateStr,
+                'inMonth'       => $cursor->month === $monthStart->month,
+                'closed'        => $closed,
                 // Ditutup lewat tanggal tutup (bisa dibuka kembali di sini) atau libur rutin mingguan dari jam operasional toko (diatur di Toko).
                 'blocked'       => $blockedRow !== null,
                 'blockedReason' => $blockedRow?->reason,
                 'weeklyClosed'  => $closed && $blockedRow === null,
-                'capacity'    => $overrides->has($dateStr) ? $overrides[$dateStr]->capacity : (int) ($store?->install_capacity_per_day ?: 3),
-                'used'        => $closed ? 0 : ($usedByDate[$dateStr] ?? 0),
-                'hasOverride' => $overrides->has($dateStr),
-                'isPast'      => $cursor->lt($today),
-                'isToday'     => $cursor->isSameDay($today),
+                'capacity'      => $overrides->has($dateStr) ? $overrides[$dateStr]->capacity : (int) ($store?->install_capacity_per_day ?: 3),
+                'used'          => $closed ? 0 : ($usedByDate[$dateStr] ?? 0),
+                'hasOverride'   => $overrides->has($dateStr),
+                'isPast'        => $cursor->lt($today),
+                'isToday'       => $cursor->isSameDay($today),
             ];
-
-            $cursor->addDay();
         }
 
         return $days;

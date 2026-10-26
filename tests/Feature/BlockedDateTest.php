@@ -4,12 +4,11 @@ namespace Tests\Feature;
 
 use App\Filament\Pages\CapacityCalendar;
 use App\Models\BlockedDate;
-use App\Models\StoreCapacityOverride;
 use App\Models\Store;
+use App\Models\StoreCapacityOverride;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
@@ -19,7 +18,8 @@ use Tests\TestCase;
 /**
  * Menutup dan membuka tanggal (dulu menu "Tanggal Tidak Tersedia", sejak 2026-10-26 bagian dari Kalender Kapasitas & Libur): tutup satu
  * tanggal, tutup rentang, tutup semua toko, buka kembali, izin lewat kunci hak akses lama 'BlockedDateResource', isolasi toko, jejak
- * aktivitas, dan efeknya ke endpoint publik. Menu lama sudah dihapus.
+ * aktivitas, dan efeknya ke endpoint publik. Menu lama sudah dihapus. Semua dialog adalah Aksi Filament (manageDay, closeRange, closeAll,
+ * reopenClosure).
  */
 class BlockedDateTest extends TestCase
 {
@@ -42,7 +42,7 @@ class BlockedDateTest extends TestCase
         $this->actingAs($this->user('super_admin', null), 'web');
     }
 
-    private function user(string $role, ?int $storeId, ?array $menuAccess = null, ?array $menuPermissions = null): User
+    private function user(string $role, ?int $storeId, ?array $menuAccess = null): User
     {
         $user = User::create([
             'name' => ucfirst($role) . ' ' . uniqid(),
@@ -50,7 +50,6 @@ class BlockedDateTest extends TestCase
             'password' => 'x',
             'store_id' => $storeId,
             'menu_access' => $menuAccess,
-            'menu_permissions' => $menuPermissions,
         ]);
         $user->assignRole($role);
 
@@ -78,15 +77,16 @@ class BlockedDateTest extends TestCase
         return Livewire::test(CapacityCalendar::class)->set('storeId', $store->id);
     }
 
+    private function manageDay(Store $store, string $date, array $data)
+    {
+        return $this->calendar($store)->callAction('manageDay', data: $data, arguments: ['date' => $date]);
+    }
+
     // ------------------------------------------------------------- menutup
 
-    public function test_closing_a_day_from_the_day_panel_creates_one_row_with_the_reason(): void
+    public function test_closing_a_day_from_the_day_dialog_creates_one_row_with_the_reason(): void
     {
-        $this->calendar($this->storeA)
-            ->call('openDay', $this->date(3))
-            ->set('editingReason', 'Libur nasional')
-            ->call('closeDay')
-            ->assertSet('editingDate', null);
+        $this->manageDay($this->storeA, $this->date(3), ['close' => true, 'reason' => 'Libur nasional'])->assertHasNoActionErrors();
 
         $row = BlockedDate::where('store_id', $this->storeA->id)->whereDate('date', $this->date(3))->first();
         $this->assertNotNull($row);
@@ -94,50 +94,45 @@ class BlockedDateTest extends TestCase
         $this->assertSame(0, BlockedDate::where('store_id', $this->storeB->id)->count());
     }
 
-    public function test_a_past_day_cannot_be_opened_or_closed(): void
+    public function test_a_past_day_cannot_be_closed(): void
     {
-        $component = $this->calendar($this->storeA)->call('openDay', now()->subDay()->toDateString());
-        $this->assertNull($component->get('editingDate'));
+        $this->manageDay($this->storeA, now()->subDay()->toDateString(), ['close' => true]);
 
-        $component->set('editingDate', now()->subDay()->toDateString())->call('closeDay');
         $this->assertSame(0, BlockedDate::count());
     }
 
-    public function test_a_range_is_closed_one_row_per_day_skipping_existing_and_past_dates(): void
+    public function test_a_range_is_closed_one_row_per_day_skipping_existing_dates(): void
     {
         $this->blocked($this->storeA, 2, 'Sudah ada');
 
         $this->calendar($this->storeA)
-            ->call('openClosureRange')
-            ->set('closureFrom', now()->subDays(2)->toDateString())
-            ->set('closureTo', $this->date(3))
-            ->set('closureReason', 'Renovasi')
-            ->call('applyClosureRange')
-            ->assertSet('closureRangeOpen', false);
+            ->callAction('closeRange', data: ['from' => $this->date(0), 'to' => $this->date(3), 'reason' => 'Renovasi'])
+            ->assertHasNoActionErrors();
 
         $dates = BlockedDate::where('store_id', $this->storeA->id)->orderBy('date')->get()->map(fn ($b) => $b->date->toDateString())->all();
 
-        // Hari ini sampai +3 = 4 tanggal; tanggal lampau dilewati; +2 sudah ada dan tidak ditimpa.
         $this->assertSame([$this->date(0), $this->date(1), $this->date(2), $this->date(3)], $dates);
-        $this->assertSame('Sudah ada', BlockedDate::whereDate('date', $this->date(2))->value('reason'));
+        $this->assertSame('Sudah ada', BlockedDate::whereDate('date', $this->date(2))->value('reason'), 'Baris lama tidak ditimpa.');
         $this->assertSame('Renovasi', BlockedDate::whereDate('date', $this->date(1))->value('reason'));
     }
 
-    public function test_a_reversed_range_creates_nothing(): void
+    public function test_a_range_cannot_start_in_the_past_or_end_before_it_starts(): void
     {
         $this->calendar($this->storeA)
-            ->call('openClosureRange')
-            ->set('closureFrom', $this->date(5))
-            ->set('closureTo', $this->date(2))
-            ->call('applyClosureRange');
+            ->callAction('closeRange', data: ['from' => now()->subDays(2)->toDateString(), 'to' => $this->date(3)])
+            ->assertHasActionErrors(['from']);
+
+        $this->calendar($this->storeA)
+            ->callAction('closeRange', data: ['from' => $this->date(5), 'to' => $this->date(2)])
+            ->assertHasActionErrors(['to']);
 
         $this->assertSame(0, BlockedDate::count());
     }
 
     public function test_the_same_date_can_be_closed_for_different_stores(): void
     {
-        $this->calendar($this->storeA)->call('openDay', $this->date(4))->call('closeDay');
-        $this->calendar($this->storeB)->call('openDay', $this->date(4))->call('closeDay');
+        $this->manageDay($this->storeA, $this->date(4), ['close' => true]);
+        $this->manageDay($this->storeB, $this->date(4), ['close' => true]);
 
         $this->assertSame(2, BlockedDate::count());
     }
@@ -149,11 +144,8 @@ class BlockedDateTest extends TestCase
         BlockedDate::create(['store_id' => $this->storeA->id, 'date' => $start->toDateString(), 'reason' => 'Sudah ada']);
 
         $this->calendar($this->storeA)
-            ->call('openCloseAll')
-            ->set('allFrom', $start->toDateString())
-            ->set('allTo', $start->copy()->addDay()->toDateString())
-            ->set('allReason', 'Libur Nasional')
-            ->call('applyCloseAll');
+            ->callAction('closeAll', data: ['from' => $start->toDateString(), 'to' => $start->copy()->addDay()->toDateString(), 'reason' => 'Libur Nasional'])
+            ->assertHasNoActionErrors();
 
         $this->assertSame(4, BlockedDate::whereIn('store_id', [$this->storeA->id, $this->storeB->id])->count());
         $this->assertSame('Sudah ada', BlockedDate::where('store_id', $this->storeA->id)->whereDate('date', $start)->value('reason'), 'Baris lama tidak ditimpa.');
@@ -163,11 +155,11 @@ class BlockedDateTest extends TestCase
     public function test_closing_all_stores_requires_a_reason(): void
     {
         $this->calendar($this->storeA)
-            ->call('openCloseAll')
-            ->set('allFrom', $this->date(6))
-            ->set('allTo', $this->date(6))
-            ->set('allReason', '  ')
-            ->call('applyCloseAll');
+            ->callAction('closeAll', data: ['from' => $this->date(6), 'to' => $this->date(6), 'reason' => ''])
+            ->assertHasActionErrors(['reason']);
+
+        // Alasan yang hanya spasi lolos form tetapi ditolak oleh logika penutupan.
+        $this->calendar($this->storeA)->instance()->closeAllStores($this->date(6), $this->date(6), '   ');
 
         $this->assertSame(0, BlockedDate::count());
     }
@@ -176,27 +168,25 @@ class BlockedDateTest extends TestCase
     {
         $this->actingAs($this->user('store_manager', $this->storeA->id), 'web');
 
-        $component = Livewire::test(CapacityCalendar::class)->call('openCloseAll');
-        $this->assertFalse($component->get('closeAllOpen'));
+        Livewire::test(CapacityCalendar::class)->instance()->closeAllStores($this->date(6), $this->date(6), 'Coba');
 
-        $component->set('allFrom', $this->date(6))->set('allTo', $this->date(6))->set('allReason', 'Coba')->call('applyCloseAll');
         $this->assertSame(0, $this->allBlocked()->count());
     }
 
     // ------------------------------------------------------------- membuka
 
-    public function test_reopening_from_the_day_panel_removes_the_row_and_reason_can_be_edited(): void
+    public function test_the_dialog_of_a_closed_day_shows_its_reason_and_can_edit_or_reopen_it(): void
     {
         $this->blocked($this->storeA, 4, 'Salah ketik');
 
-        $component = $this->calendar($this->storeA)->call('openDay', $this->date(4));
-        $this->assertTrue($component->get('editingBlocked'));
-        $this->assertSame('Salah ketik', $component->get('editingReason'));
+        $this->calendar($this->storeA)
+            ->mountAction('manageDay', ['date' => $this->date(4)])
+            ->assertActionDataSet(['reason' => 'Salah ketik']);
 
-        $component->set('editingReason', 'Perbaikan atap')->call('saveBlockedReason');
+        $this->manageDay($this->storeA, $this->date(4), ['reason' => 'Perbaikan atap']);
         $this->assertSame('Perbaikan atap', BlockedDate::whereDate('date', $this->date(4))->value('reason'));
 
-        $this->calendar($this->storeA)->call('openDay', $this->date(4))->call('reopenDay');
+        $this->manageDay($this->storeA, $this->date(4), ['reopen' => true]);
         $this->assertSame(0, BlockedDate::count());
     }
 
@@ -208,10 +198,10 @@ class BlockedDateTest extends TestCase
         $this->actingAs($this->user('store_manager', $this->storeA->id), 'web');
         $component = Livewire::test(CapacityCalendar::class);
 
-        $component->call('reopenById', $other->id);
+        $component->callAction('reopenClosure', arguments: ['id' => $other->id]);
         $this->assertTrue($this->allBlocked()->whereKey($other->id)->exists(), 'Toko lain tidak boleh dibuka lewat id yang diketik manual.');
 
-        $component->call('reopenById', $own->id);
+        $component->callAction('reopenClosure', arguments: ['id' => $own->id]);
         $this->assertFalse($this->allBlocked()->whereKey($own->id)->exists());
     }
 
@@ -249,14 +239,23 @@ class BlockedDateTest extends TestCase
         $this->assertFalse($weekly['blocked']);
     }
 
-    public function test_a_weekly_day_off_cannot_be_opened_in_the_panel(): void
+    public function test_a_weekly_day_off_cannot_be_closed_or_given_a_capacity(): void
     {
         $this->storeA->update(['opening_hours' => [['days' => ['sun'], 'closed' => true]]]);
         $sunday = now()->addDay()->next('Sunday')->toDateString();
 
-        $component = $this->calendar($this->storeA)->call('openDay', $sunday);
+        $this->manageDay($this->storeA, $sunday, ['close' => true, 'capacity' => 5]);
 
-        $this->assertNull($component->get('editingDate'));
+        $this->assertSame(0, BlockedDate::count());
+        $this->assertSame(0, StoreCapacityOverride::count());
+    }
+
+    public function test_dates_are_written_in_indonesian_whatever_the_app_locale(): void
+    {
+        $this->assertSame('Oktober 2026', CapacityCalendar::idDate('2026-10-05', 'F Y'));
+        $this->assertSame('Senin, 26 Oktober 2026', CapacityCalendar::idDate('2026-10-26', 'l, d F Y'));
+
+        $this->calendar($this->storeA)->assertSee(CapacityCalendar::idDate(now(), 'F Y'));
     }
 
     // ------------------------------------------------------------- izin dan isolasi toko
@@ -267,8 +266,7 @@ class BlockedDateTest extends TestCase
 
         Livewire::test(CapacityCalendar::class)
             ->set('storeId', $this->storeB->id)
-            ->call('openDay', $this->date(8))
-            ->call('closeDay');
+            ->callAction('manageDay', data: ['close' => true], arguments: ['date' => $this->date(8)]);
 
         $this->assertTrue($this->allBlocked()->where('store_id', $this->storeA->id)->whereDate('date', $this->date(8))->exists());
         $this->assertFalse($this->allBlocked()->where('store_id', $this->storeB->id)->exists());
@@ -282,8 +280,11 @@ class BlockedDateTest extends TestCase
         $this->assertTrue(CapacityCalendar::canManageCapacity());
         $this->assertFalse(CapacityCalendar::canManageClosures());
 
-        Livewire::test(CapacityCalendar::class)->call('openDay', $this->date(5))->call('closeDay');
+        Livewire::test(CapacityCalendar::class)
+            ->callAction('manageDay', data: ['close' => true, 'capacity' => 4], arguments: ['date' => $this->date(5)]);
+
         $this->assertSame(0, $this->allBlocked()->count());
+        $this->assertSame(4, StoreCapacityOverride::withoutGlobalScopes()->firstOrFail()->capacity);
     }
 
     public function test_the_old_closure_permission_alone_allows_closing_but_not_capacity(): void
@@ -295,16 +296,13 @@ class BlockedDateTest extends TestCase
         $this->assertTrue(CapacityCalendar::canManageClosures());
 
         Livewire::test(CapacityCalendar::class)
-            ->call('openDay', $this->date(5))
-            ->set('editingCapacity', 9)
-            ->call('saveCapacity')
-            ->call('closeDay');
+            ->callAction('manageDay', data: ['close' => true, 'capacity' => 9, 'reason' => 'Acara'], arguments: ['date' => $this->date(5)]);
 
         $this->assertSame(0, StoreCapacityOverride::withoutGlobalScopes()->count(), 'Tanpa akses Booking, kapasitas tidak boleh diubah.');
         $this->assertSame(1, $this->allBlocked()->count());
     }
 
-    public function test_an_explicit_delete_permission_is_not_needed_by_default_but_other_menus_cannot_access_the_page(): void
+    public function test_other_menu_access_cannot_open_the_page(): void
     {
         $this->actingAs($this->user('store_manager', $this->storeA->id, ['SomeOtherResource']), 'web');
 
@@ -316,7 +314,7 @@ class BlockedDateTest extends TestCase
     {
         $this->blocked($this->storeA, 4);
 
-        $this->calendar($this->storeA)->call('openDay', $this->date(4))->set('editingCapacity', 7)->call('saveCapacity');
+        $this->manageDay($this->storeA, $this->date(4), ['capacity' => 7]);
 
         $this->assertSame(0, StoreCapacityOverride::count());
     }
@@ -325,8 +323,8 @@ class BlockedDateTest extends TestCase
 
     public function test_closing_and_reopening_are_recorded_in_the_activity_log(): void
     {
-        $this->calendar($this->storeA)->call('openDay', $this->date(4))->call('closeDay');
-        $this->calendar($this->storeA)->call('openDay', $this->date(4))->call('reopenDay');
+        $this->manageDay($this->storeA, $this->date(4), ['close' => true]);
+        $this->manageDay($this->storeA, $this->date(4), ['reopen' => true]);
 
         $descriptions = Activity::where('log_name', 'blocked_date')->orderBy('id')->pluck('description')->all();
 
@@ -337,11 +335,11 @@ class BlockedDateTest extends TestCase
 
     public function test_public_api_reports_closed_dates_and_reopens_after_the_page_reopens_them(): void
     {
-        $this->calendar($this->storeA)->call('openDay', $this->date(4))->call('closeDay');
+        $this->manageDay($this->storeA, $this->date(4), ['close' => true]);
 
         $this->assertContains($this->date(4), $this->getJson("/api/stores/{$this->storeA->id}/blocked-dates")->json('data'));
 
-        $this->calendar($this->storeA)->call('openDay', $this->date(4))->call('reopenDay');
+        $this->manageDay($this->storeA, $this->date(4), ['reopen' => true]);
 
         $this->assertNotContains($this->date(4), $this->getJson("/api/stores/{$this->storeA->id}/blocked-dates")->json('data'));
     }

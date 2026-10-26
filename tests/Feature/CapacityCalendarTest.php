@@ -121,37 +121,35 @@ class CapacityCalendarTest extends TestCase
         $date = $this->date(3);
 
         $component = $this->page(['storeId' => $this->storeA->id])
-            ->call('openDay', $date)
-            ->assertSet('editingDate', $date)
-            ->assertSet('editingCapacity', 3)
-            ->set('editingCapacity', 5)
-            ->call('saveCapacity')
-            ->assertSet('editingDate', null);
+            ->mountAction('manageDay', ['date' => $date])
+            ->assertActionDataSet(['capacity' => 3]);
+
+        $component->callAction('manageDay', data: ['capacity' => 5], arguments: ['date' => $date]);
 
         $override = StoreCapacityOverride::where('store_id', $this->storeA->id)->whereDate('date', $date)->firstOrFail();
         $this->assertSame(5, $override->capacity);
         $this->assertSame($this->admin->id, $override->updated_by);
         $this->assertSame(5, Booking::capacityForDate($this->storeA->id, Carbon::parse($date)));
 
-        $component->call('openDay', $date)->call('clearOverride');
+        $component->callAction('manageDay', data: ['reset_capacity' => true], arguments: ['date' => $date]);
 
         $this->assertSame(0, StoreCapacityOverride::where('store_id', $this->storeA->id)->count());
         $this->assertSame(3, Booking::capacityForDate($this->storeA->id, Carbon::parse($date)));
     }
 
-    public function test_past_dates_cannot_be_opened_for_editing(): void
+    public function test_past_dates_cannot_be_changed(): void
     {
         $this->page(['storeId' => $this->storeA->id])
-            ->call('openDay', now()->subDays(2)->toDateString())
-            ->assertSet('editingDate', null);
+            ->callAction('manageDay', data: ['capacity' => 5], arguments: ['date' => now()->subDays(2)->toDateString()]);
+
+        $this->assertSame(0, StoreCapacityOverride::count());
     }
 
-    public function test_capacity_below_one_is_ignored(): void
+    public function test_capacity_below_one_is_rejected(): void
     {
         $this->page(['storeId' => $this->storeA->id])
-            ->call('openDay', $this->date(3))
-            ->set('editingCapacity', 0)
-            ->call('saveCapacity');
+            ->callAction('manageDay', data: ['capacity' => 0], arguments: ['date' => $this->date(3)])
+            ->assertHasActionErrors(['capacity']);
 
         $this->assertSame(0, StoreCapacityOverride::count());
     }
@@ -159,12 +157,8 @@ class CapacityCalendarTest extends TestCase
     public function test_range_editor_applies_to_every_future_date_and_skips_past(): void
     {
         $this->page(['storeId' => $this->storeA->id])
-            ->call('openRangeEditor')
-            ->set('rangeFrom', now()->subDays(2)->toDateString())
-            ->set('rangeTo', $this->date(4))
-            ->set('rangeCapacity', 2)
-            ->call('applyRangeCapacity')
-            ->assertSet('rangeEditorOpen', false);
+            ->callAction('capacityRange', data: ['from' => now()->subDays(2)->toDateString(), 'to' => $this->date(4), 'capacity' => 2])
+            ->assertHasNoActionErrors();
 
         // Hari ini sampai +4 = 5 tanggal; 2 hari lampau dilewati.
         $this->assertSame(5, StoreCapacityOverride::where('store_id', $this->storeA->id)->count());
@@ -172,22 +166,17 @@ class CapacityCalendarTest extends TestCase
         $this->assertSame(2, Booking::capacityForDate($this->storeA->id, now()->addDays(2)));
     }
 
-    public function test_range_editor_is_capped_at_90_days_and_ignores_reversed_range(): void
+    public function test_range_editor_is_capped_at_90_days_and_rejects_a_reversed_range(): void
     {
         $this->page(['storeId' => $this->storeA->id])
-            ->set('rangeFrom', $this->date(1))
-            ->set('rangeTo', $this->date(300))
-            ->set('rangeCapacity', 2)
-            ->call('applyRangeCapacity');
+            ->callAction('capacityRange', data: ['from' => $this->date(1), 'to' => $this->date(300), 'capacity' => 2]);
         $this->assertSame(90, StoreCapacityOverride::where('store_id', $this->storeA->id)->count());
 
         StoreCapacityOverride::query()->delete();
 
         $this->page(['storeId' => $this->storeA->id])
-            ->set('rangeFrom', $this->date(10))
-            ->set('rangeTo', $this->date(5))
-            ->set('rangeCapacity', 2)
-            ->call('applyRangeCapacity');
+            ->callAction('capacityRange', data: ['from' => $this->date(10), 'to' => $this->date(5), 'capacity' => 2])
+            ->assertHasActionErrors(['to']);
         $this->assertSame(0, StoreCapacityOverride::count());
     }
 
@@ -197,7 +186,7 @@ class CapacityCalendarTest extends TestCase
         StoreCapacityOverride::create(['store_id' => $this->storeA->id, 'date' => $this->date(2), 'capacity' => 1, 'updated_by' => $this->admin->id]);
         StoreCapacityOverride::create(['store_id' => $this->storeB->id, 'date' => $this->date(2), 'capacity' => 1, 'updated_by' => $this->admin->id]);
 
-        $this->page(['storeId' => $this->storeA->id])->call('clearAllOverrides');
+        $this->page(['storeId' => $this->storeA->id])->callAction('clearOverrides');
 
         $this->assertSame(1, StoreCapacityOverride::where('store_id', $this->storeA->id)->count(), 'Override lampau tetap sebagai riwayat.');
         $this->assertSame(1, StoreCapacityOverride::where('store_id', $this->storeB->id)->count(), 'Toko lain tidak tersentuh.');
@@ -210,12 +199,10 @@ class CapacityCalendarTest extends TestCase
 
         $this->page()
             ->set('storeId', $this->storeB->id) // manipulasi manual
-            ->call('openDay', $date)
-            ->set('editingCapacity', 9)
-            ->call('saveCapacity');
+            ->callAction('manageDay', data: ['capacity' => 9], arguments: ['date' => $date]);
 
-        $this->assertSame(0, StoreCapacityOverride::where('store_id', $this->storeB->id)->count());
-        $this->assertSame(9, StoreCapacityOverride::where('store_id', $this->storeA->id)->firstOrFail()->capacity);
+        $this->assertSame(0, StoreCapacityOverride::withoutGlobalScopes()->where('store_id', $this->storeB->id)->count());
+        $this->assertSame(9, StoreCapacityOverride::withoutGlobalScopes()->where('store_id', $this->storeA->id)->firstOrFail()->capacity);
     }
 
     public function test_override_makes_a_date_full_for_booking_capacity_checks(): void
@@ -231,9 +218,7 @@ class CapacityCalendarTest extends TestCase
         $this->assertSame([], Booking::fullDatesInRange($this->storeA->id, Carbon::parse($date), 1));
 
         $this->page(['storeId' => $this->storeA->id])
-            ->call('openDay', $date)
-            ->set('editingCapacity', 1)
-            ->call('saveCapacity');
+            ->callAction('manageDay', data: ['capacity' => 1], arguments: ['date' => $date]);
 
         $this->assertSame([$date], Booking::fullDatesInRange($this->storeA->id, Carbon::parse($date), 1));
     }
