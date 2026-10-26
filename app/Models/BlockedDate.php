@@ -11,7 +11,7 @@ class BlockedDate extends Model
 {
     // Global Scope store-id (audit framework 2026-09-14, "Isolasi data
     // multi-tenant") — lihat App\Models\Scopes\StoreScope. Pola manual
-    // yang sudah ada di BlockedDateResource::getEloquentQuery() SENGAJA
+    // yang dulu ada di BlockedDateResource::getEloquentQuery() (menu itu kini digabung ke Kalender Kapasitas & Libur) SENGAJA
     // DIBIARKAN sebagai defense-in-depth.
     use HasStoreScope;
 

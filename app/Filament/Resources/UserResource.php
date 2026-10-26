@@ -94,7 +94,9 @@ class UserResource extends Resource
             'Booking' => [
                 'QuotationResource' => 'Quotation (Lead)',
                 'BookingResource' => 'Booking Instalasi',
-                'BlockedDateResource' => 'Tanggal Tidak Tersedia',
+                // Menu Tanggal Tidak Tersedia digabung ke Kalender Kapasitas & Libur (2026-10-26). Kunci lama DIPERTAHANKAN: izin menutup/membuka
+                // tanggal yang sudah diberikan tetap berlaku dan tidak hilang saat form pengguna disimpan.
+                'BlockedDateResource' => 'Tutup/Buka Tanggal (Kalender Kapasitas & Libur)',
                 'BookingServiceTypeResource' => 'Layanan Booking',
                 'QcChecklistItemResource' => 'Daftar Periksa QC',
                 'AppSettingResource' => 'Teks Aplikasi',

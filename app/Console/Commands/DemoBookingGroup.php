@@ -15,7 +15,7 @@ use Illuminate\Support\Str;
 
 /**
  * Demo/testing manual untuk seluruh grup menu "Booking" (Booking
- * Instalasi, Teknisi, Tanggal Tidak Tersedia, Garansi, Review Toko) —
+ * Instalasi, Teknisi, Tanggal Tutup, Garansi, Review Toko) —
  * Quotation (Lead) sudah punya command sendiri, lihat `quotations:demo`.
  *
  * Dirancang SENGAJA tidak memicu efek samping nyata (email/push
@@ -45,7 +45,7 @@ class DemoBookingGroup extends Command
         {--store_id= : Batasi ke 1 toko saja (default: tersebar ke semua toko aktif)}
         {--cleanup : Hapus semua data demo grup Booking ini, bukan generate}';
 
-    protected $description = 'Bikin data dummy Booking, Teknisi, Tanggal Tidak Tersedia, Garansi & Review Toko untuk demo/testing UI';
+    protected $description = 'Bikin data dummy Booking, Teknisi, Tanggal Tutup, Garansi & Review Toko untuk demo/testing UI';
 
     private const BOOKING_PREFIX = 'DEMO-BKG-';
     private const WARRANTY_PREFIX = 'DEMO-GNV-';

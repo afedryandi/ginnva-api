@@ -270,7 +270,7 @@ class GuideAccuracyTest extends TestCase
     {
         $covered = collect(GuideCatalog::all())->pluck('menus')->flatten()->unique()->all();
 
-        foreach (['SpkResource', 'QuotationResource', 'InvoiceResource', 'TechnicianResource', 'BlockedDateResource', 'StoreReviewResource', 'QcChecklistItemResource', 'AppSettingResource'] as $menu) {
+        foreach (['SpkResource', 'QuotationResource', 'InvoiceResource', 'TechnicianResource', 'CapacityCalendar', 'StoreReviewResource', 'QcChecklistItemResource', 'AppSettingResource'] as $menu) {
             $this->assertContains($menu, $covered, "Menu {$menu} belum punya panduan.");
         }
     }
