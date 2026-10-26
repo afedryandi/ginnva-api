@@ -1,6 +1,6 @@
 @php($periods = \App\Support\PeriodStatus::summary())
 @include('filament.partials.plain-ui')
-<div class="pu" style="margin-bottom: 16px;">
+<div class="pu" style="margin: 16px 0;">
     <div class="pu-bar pu-row">
         <span class="pu-strong">Status buku</span>
         @foreach ($periods as $period)
