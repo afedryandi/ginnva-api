@@ -386,6 +386,31 @@ class GuideAccuracyTest extends TestCase
         $this->assertCount(7, \App\Support\LeadOutcome::REASONS, 'Alasan tidak jadi berubah: perbarui daftar di panduan Quotation (Lead).');
     }
 
+    // ------------------------------------------------------------- fitur dari audit ACCURATE 5 (2026-10-26)
+
+    public function test_the_features_added_after_the_accurate_audit_are_documented(): void
+    {
+        $expected = [
+            'booking' => ['Duplikat (pelanggan datang lagi)'],
+            'transaksi-keuangan' => ['Duplikat'],
+            'hutang-piutang' => ['Duplikat'],
+            'garansi-maintenance' => ['Riwayat Klaim After-Sales', 'Ditangani oleh', 'Perkiraan Selesai', 'Bahan Terpakai', 'Catat Penyelesaian', 'Hasil Penanganan'],
+            'stok' => ['Bahan Terpakai'],
+            'karyawan-akun' => ['Salin akses dari karyawan lain'],
+            'invoice' => ['Profil perusahaan'],
+            'tutup-periode' => ['Status buku'],
+            'dashboard' => ['Cadangan Database'],
+        ];
+
+        foreach ($expected as $id => $terms) {
+            $text = $this->text($this->guide($id));
+
+            foreach ($terms as $term) {
+                $this->assertStringContainsString("**{$term}**", $text, "Panduan {$id} perlu menyebut **{$term}**.");
+            }
+        }
+    }
+
     // ------------------------------------------------------------- laporan cakupan
 
     public function test_the_coverage_command_reports_without_changing_anything(): void

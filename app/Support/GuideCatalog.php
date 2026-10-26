@@ -216,6 +216,7 @@ class GuideCatalog
                     'Customer menerima pengingat otomatis H-2, H-1, dan pagi hari-H. Teks kebijakan pembatalan yang tampil di aplikasi diatur admin di Operasional, Teks Aplikasi.',
                     'Booking yang sudah dibatalkan atau selesai tidak bisa diaktifkan lagi.',
                     'Layar foto penerimaan, Quality Check, dan serah terima ada di aplikasi staf versi terbaru. Bila tidak terlihat di aplikasi Anda, perbarui aplikasi staf.',
+                    'Pelanggan yang datang lagi: di daftar Booking pakai **Duplikat (pelanggan datang lagi)**. Form Buat Booking terisi data pelanggan, kendaraan, toko, dan layanan; tanggal, jam, harga, pembayaran, DP, dan teknisi diisi baru. Belum ada yang tersimpan sampai Anda menekan Buat.',
                 ],
             ],
             [
@@ -376,6 +377,7 @@ class GuideCatalog
                     'Invoice hanya bisa diubah selama berstatus draft atau belum dibayar. Yang sudah Lunas atau Void tidak bisa diedit; koreksi lewat Void lalu buat invoice baru.',
                     'Invoice adalah dokumen tagihan: tidak membuat jurnal dan tidak menghitung pajak atau PPN. Penjualan booking dicatat lewat **Proses Referral** (lihat panduan Penjualan).',
                     'Nomor invoice dibuat otomatis per toko dan hari.',
+                    'Kaki invoice menampilkan nama perusahaan, NPWP, dan alamat dari **Profil perusahaan** di Pengaturan Keuangan (diisi akses penuh; NPWP 15 atau 16 angka). Bila kosong, hanya nama bawaan yang tampil. Invoice tetap bukan Faktur Pajak.',
                 ],
             ],
             [
@@ -452,12 +454,18 @@ class GuideCatalog
                     'Sekitar 7 hari sebelum jadwal, customer menerima notifikasi **Konfirmasi Kedatangan**. Customer bisa konfirmasi, memilih tanggal lain, atau menolak.',
                     'Staf atau sales boleh menghubungi customer lebih dulu (mis. lewat WhatsApp) lalu memakai aksi **Buatkan Booking** di tab Jadwal Maintenance garansi tersebut.',
                     'Customer yang datang tanpa jadwal dicatat lewat **Catat Kunjungan Maintenance**. Setiap kunjungan mengurangi kuota.',
+                    'Klaim after-sales dicatat di tab **Riwayat Klaim After-Sales** pada garansi yang sudah disetujui QA: pilih **Kategori After-Sales** dan tulis keluhan. Akses penuh memutuskan **Pass** atau **Reject** (Reject wajib memakai alasan); customer mendapat notifikasi.',
+                    'Untuk klaim yang berjalan, isi **Ditangani oleh** (installer) dan **Perkiraan Selesai** lewat Ubah. Perkiraan yang sudah lewat ditandai **Terlambat** di daftar.',
+                    'Klaim yang disetujui punya tombol **Bahan Terpakai**: isinya Memo Pengambilan/Pengembalian booking kunjungan klaim itu (barang, diambil, dikembalikan, terpakai). Bila memo belum ada, tautan di dalamnya membuka form memo yang sudah terisi booking, toko, dan kendaraan. Stok berubah lewat memo, bukan dari klaim.',
+                    'Setelah ditangani, pakai **Catat Penyelesaian**: pilih **Hasil Penanganan** (Diperbaiki, Diganti atau dipasang ulang, Dana dikembalikan, atau Dibatalkan pelanggan) dan isi catatan. Customer menerima notifikasi bahwa klaimnya sudah ditangani.',
                 ],
                 'tips' => [
                     "Ada masa toleransi {$graceDays} hari setelah tanggal jadwal. Setelah itu jadwal tidak hangus; customer diminta memilih tanggal baru dan kuota tidak terpakai.",
                     'Jadwal hanya hangus kalau customer menekan "Tidak bisa datang".',
                     'Kunjungan yang salah catat hanya bisa dibatalkan akses penuh; kuota dikembalikan.',
                     'Tab Jadwal Maintenance menunjukkan status tiap kunjungan: Menunggu Jadwal, Menunggu Konfirmasi, Dikonfirmasi, Hangus, Selesai.',
+                    'Klaim lama atau yang dibuat manual tanpa booking kunjungan tidak punya tautan memo; tombol Bahan Terpakai hanya menjelaskan hal itu.',
+                    'Catat Penyelesaian mengirim notifikasi ke customer dan tidak bisa diulang untuk klaim yang sama, jadi pastikan hasilnya benar.',
                 ],
             ],
             [
@@ -506,6 +514,7 @@ class GuideCatalog
                     'Kolom **No. Jurnal** menunjukkan jurnal dari transaksi itu; **Belum terposting ke jurnal** menandai transaksi yang belum punya jurnal.',
                     'Akses penuh yang mengubah transaksi yang sudah punya jurnal wajib mengisi **Alasan Perubahan**; menghapusnya wajib mengisi **Alasan Penghapusan**. Keduanya tercatat.',
                     'Kategori diatur di **Kategori Keuangan**: tiap kategori bertipe masuk atau keluar dan terhubung ke satu akun di Bagan Akun. Kategori yang belum terhubung ditandai **Belum terhubung akun**. Kategori yang sudah dipakai tidak bisa dihapus; nonaktifkan saja.',
+                    'Transaksi serupa dibuat cepat lewat **Duplikat** di baris daftar: form Buat terisi kategori, rekening, toko, nominal, dan keterangan; tanggal diisi hari ini, sedangkan nomor, bukti, dan jurnal tidak ikut. Periksa isinya, lalu tekan Buat.',
                 ],
                 'tips' => [
                     'Setiap transaksi wajib terikat ke satu toko; Store Manager hanya melihat dan mencatat transaksi tokonya sendiri.',
@@ -513,6 +522,7 @@ class GuideCatalog
                     'Data identik (nominal, kategori, toko, tanggal, keterangan) dari akun yang sama dalam 10 menit terakhir ditolak, untuk mencegah klik ganda. Cek daftar bila sudah merasa mengirim.',
                     'Pengeluaran dari rekening Kas Kecil ditolak bila nominalnya melebihi saldo kas kecil itu.',
                     'Pencatatan nilai penjualan booking tidak dilakukan di sini; gunakan Proses Referral (lihat panduan Penjualan).',
+                    'Duplikat tidak melewati aturan lain: pengeluaran dari staf tetap masuk antrean persetujuan, dan data identik dalam 10 menit tetap ditolak.',
                 ],
             ],
             [
@@ -570,6 +580,7 @@ class GuideCatalog
                     'Template Tagihan Rutin memposting jurnal otomatis tiap bulan, jadi hanya akses penuh yang membuat atau mengubahnya.',
                     'Template yang belum pernah menghasilkan tagihan cukup dinonaktifkan bila hanya ingin dijeda.',
                     'Piutang Usaha menampilkan sisa tagihan customer yang belum dibayar (lihat panduan Penjualan).',
+                    'Untuk template serupa, pakai **Duplikat** di daftar Template Tagihan Rutin: nama diberi "(salinan)"; supplier, toko, akun, nominal, dan tanggal tiap bulan ikut, sedangkan jadwal mulai dan batas diisi baru.',
                 ],
             ],
             [
@@ -589,6 +600,7 @@ class GuideCatalog
                 'tips' => [
                     'Laporan Laba Rugi periode tidak ikut menghitung jurnal penutup tahun, jadi laba tahun itu tetap terlihat.',
                     'Peringatan di daftar periksa boleh diabaikan dengan sadar; butir yang memblokir tidak bisa.',
+                    'Di atas setiap halaman Keuangan ada bilah **Status buku**: bulan ini dan bulan lalu, Terbuka atau Ditutup, beserta siapa yang menutup. Jurnal bertanggal di bulan yang Ditutup tidak bisa dibuat.',
                 ],
             ],
             [
@@ -642,6 +654,7 @@ class GuideCatalog
                     'Data stok dibatasi per toko; staf toko hanya melihat tokonya sendiri.',
                     'Riwayat pergerakan stok adalah jejak audit; jangan mengedit catatan lama, gunakan aksi koreksi yang tersedia.',
                     'Jangan menghapus memo utuh; hapus baris barang yang salah, atau hubungi admin.',
+                    'Memo juga dipakai untuk bahan klaim garansi: dari klaim yang disetujui, tombol **Bahan Terpakai** membuka memo booking kunjungannya, atau membuka form memo baru yang sudah terisi bila belum ada.',
                 ],
             ],
             [
@@ -944,6 +957,7 @@ class GuideCatalog
                     'Karyawan pindah toko: ubah **Toko** dan isi **Alasan Perpindahan Toko (opsional)**; perpindahan tercatat di riwayat karir.',
                     'Karyawan resign atau cuti panjang: pakai **Nonaktifkan** (mematikan **Akun Aktif**) untuk mencabut akses login panel dan aplikasi tanpa menghapus riwayat. Akun yang punya riwayat HR (absensi, cuti, gaji, surat peringatan, kontrak) tidak bisa dihapus permanen, dan penghapusan massal melewatinya.',
                     '**Tipe Karyawan** adalah daftar status kepegawaian yang Anda definisikan sendiri (mis. Tetap, Kontrak, Freelance, Magang). **Memiliki Tanggal Berakhir** menentukan apakah Tanggal Berakhir Kontrak wajib diisi untuk tipe itu. Tipe yang masih dipakai karyawan tidak bisa dihapus; nonaktifkan saja.',
+                    'Karyawan yang aksesnya sama dengan rekan lain: di bagian akses (hanya terlihat oleh akses penuh), pilih **Salin akses dari karyawan lain**. Kotak modul dan hak detail terisi sesuai karyawan itu; Role dan Toko tidak ikut. Periksa, lalu tekan Simpan, karena belum tersimpan sebelum itu. Bila yang dipilih berakses penuh, semua kotak dikosongkan (artinya akses penuh).',
                 ],
                 'tips' => [
                     'Kolom Status Kontrak di daftar User membantu melihat kontrak yang akan berakhir; ringkasannya juga muncul di Dasbor HR.',
@@ -1309,6 +1323,7 @@ class GuideCatalog
                 'tips' => [
                     'Dashboard memperbarui angka saat halaman dibuka atau filter diubah, tidak terus-menerus; muat ulang halaman untuk data terbaru.',
                     'Selisih antara dashboard dan laporan biasanya berasal dari dasar yang berbeda; baca catatan "Cara baca angka" di Dashboard Penjualan dan panduan Laporan penjualan.',
+                    'Akses penuh juga melihat kartu **Cadangan Database**: waktu dan ukuran cadangan terakhir di server, peringatan bila sudah lebih dari 30 jam, dan apakah salinan di luar server (off-site) sudah diatur. Cadangan berjalan harian jam 03:00.',
                 ],
             ],
             [
