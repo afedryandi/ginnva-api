@@ -146,12 +146,14 @@
         @endif
     </table>
 
+    @php($company = \App\Models\FinanceSetting::companyProfile())
     <div class="signature-box">
-        <div>Ginnva Shield Indonesia</div>
+        <div>{{ $company['name'] }}</div>
         <div class="signature-line">Hormat Kami</div>
     </div>
 
     <div class="footer">
+        <strong>{{ $company['name'] }}</strong>@if ($company['npwp']) &middot; NPWP {{ $company['npwp'] }}@endif @if ($company['address'])<br>{{ $company['address'] }}@endif<br>
         Dokumen ini digenerate otomatis oleh sistem Ginnva pada {{ now()->translatedFormat('d F Y H:i') }}.
         Ini adalah invoice/bukti transaksi internal — <strong>bukan Faktur Pajak</strong>.
     </div>

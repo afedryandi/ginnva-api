@@ -39,6 +39,17 @@ class ClaimsRelationManager extends RelationManager
             Forms\Components\Textarea::make('description')
                 ->label('Keluhan / Permintaan Customer')
                 ->columnSpanFull(),
+
+            // Penanganan (audit ACCURATE 5, form RMA): siapa yang menangani dan kapan perkiraan selesainya.
+            Forms\Components\Select::make('handled_by')
+                ->label('Ditangani oleh')
+                ->options(fn () => \App\Models\User::query()->where('is_active', true)->role('installer')->orderBy('name')->pluck('name', 'id'))
+                ->searchable()
+                ->placeholder('Belum ditentukan'),
+
+            Forms\Components\DatePicker::make('estimated_completion_date')
+                ->label('Perkiraan Selesai')
+                ->native(false),
         ]);
     }
 
@@ -72,6 +83,27 @@ class ClaimsRelationManager extends RelationManager
                         'success' => 'pass',
                         'danger' => 'reject',
                     ]),
+
+                Tables\Columns\TextColumn::make('handler.name')
+                    ->label('Ditangani')
+                    ->placeholder('—')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('estimated_completion_date')
+                    ->label('Perkiraan Selesai')
+                    ->date('d M Y')
+                    ->placeholder('—')
+                    ->color(fn ($record) => $record->isOverdue() ? 'danger' : null)
+                    ->description(fn ($record) => $record->isOverdue() ? 'Terlambat' : null)
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('resolution')
+                    ->label('Hasil')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => $state ? (\App\Models\WarrantyClaim::RESOLUTIONS[$state] ?? $state) : null)
+                    ->color('info')
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Diajukan')
@@ -195,6 +227,46 @@ class ClaimsRelationManager extends RelationManager
                         Notification::make()
                             ->title('Klaim ditolak')
                             ->warning()
+                            ->send();
+                    }),
+
+                // Hasil akhir penanganan (audit ACCURATE 5, Aktifitas Proses Klaim): dicatat setelah klaim disetujui (pass).
+                // Pelanggan diberi tahu lewat push seperti pada pass/reject.
+                Tables\Actions\Action::make('resolve')
+                    ->label('Catat Penyelesaian')
+                    ->icon('heroicon-o-wrench-screwdriver')
+                    ->color('info')
+                    ->visible(fn ($record) => $record->status === 'pass' && $record->resolution === null)
+                    ->form([
+                        Forms\Components\Select::make('resolution')
+                            ->label('Hasil Penanganan')
+                            ->options(\App\Models\WarrantyClaim::RESOLUTIONS)
+                            ->required(),
+                        Forms\Components\Textarea::make('resolution_notes')
+                            ->label('Catatan')
+                            ->rows(3)
+                            ->maxLength(1000),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $record->update([
+                            'resolution' => $data['resolution'],
+                            'resolution_notes' => $data['resolution_notes'] ?? null,
+                            'resolved_at' => now(),
+                            'handled_by' => $record->handled_by ?? auth()->id(),
+                        ]);
+
+                        $customerId = $this->getOwnerRecord()->customer_id;
+                        if ($customerId) {
+                            app(PushNotificationService::class)->sendToCustomer(
+                                $customerId,
+                                'Klaim After-Sales Selesai Ditangani',
+                                "Klaim #{$record->claim_number} Anda sudah ditangani: " . \App\Models\WarrantyClaim::RESOLUTIONS[$data['resolution']] . '.'
+                            );
+                        }
+
+                        Notification::make()
+                            ->title('Penyelesaian klaim dicatat')
+                            ->success()
                             ->send();
                     }),
 

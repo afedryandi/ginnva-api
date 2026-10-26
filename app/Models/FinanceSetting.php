@@ -17,6 +17,18 @@ class FinanceSetting extends Model
     /** Batas nominal pengeluaran yang cukup disetujui Store Manager (tahap manajer menjadi final). Kosong = semua nominal ke direksi. */
     public const EXPENSE_MANAGER_LIMIT = 'expense_manager_limit';
 
+    /** Profil perusahaan: dipakai di kop dan kaki invoice. Kosong = hanya nama bawaan yang tampil. */
+    public const COMPANY_NAME = 'company_name';
+
+    public const COMPANY_ADDRESS = 'company_address';
+
+    public const COMPANY_NPWP = 'company_npwp';
+
+    public const COMPANY_KLU = 'company_klu';
+
+    /** Nama yang dipakai sebelum profil diisi (sebelumnya tertulis langsung di tampilan invoice). */
+    public const DEFAULT_COMPANY_NAME = 'Ginnva Shield Indonesia';
+
     protected $fillable = ['key', 'value'];
 
     public function getActivitylogOptions(): LogOptions
@@ -47,5 +59,28 @@ class FinanceSetting extends Model
         $value = static::get(self::EXPENSE_MANAGER_LIMIT);
 
         return $value === null ? null : (float) $value;
+    }
+
+    /**
+     * Profil perusahaan untuk dokumen cetak.
+     *
+     * @return array{name: string, address: ?string, npwp: ?string, klu: ?string}
+     */
+    public static function companyProfile(): array
+    {
+        return [
+            'name' => (string) static::get(self::COMPANY_NAME, self::DEFAULT_COMPANY_NAME),
+            'address' => static::get(self::COMPANY_ADDRESS),
+            'npwp' => static::get(self::COMPANY_NPWP),
+            'klu' => static::get(self::COMPANY_KLU),
+        ];
+    }
+
+    /** NPWP sah: 15 atau 16 angka, titik dan strip diabaikan. */
+    public static function isValidNpwp(?string $value): bool
+    {
+        $digits = preg_replace('/\D/', '', (string) $value);
+
+        return in_array(strlen($digits), [15, 16], true);
     }
 }

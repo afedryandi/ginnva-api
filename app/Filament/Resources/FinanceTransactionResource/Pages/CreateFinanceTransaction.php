@@ -17,6 +17,8 @@ use RuntimeException;
 
 class CreateFinanceTransaction extends CreateRecord
 {
+    use \App\Filament\Concerns\PrefillsFromDuplicate;
+
     protected static string $resource = FinanceTransactionResource::class;
 
     /** Jendela deteksi double-submit (menit). */

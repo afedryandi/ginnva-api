@@ -38,6 +38,8 @@ use RuntimeException;
  */
 class RecurringBillTemplateResource extends Resource
 {
+    use \App\Filament\Resources\Support\DuplicatesRecords;
+
     protected static ?string $model = RecurringBillTemplate::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-path-rounded-square';
@@ -356,6 +358,8 @@ class RecurringBillTemplateResource extends Resource
             ->actions([
                 Tables\Actions\EditAction::make()->visible(fn () => static::canEdit(null)),
 
+                static::duplicateTableAction(),
+
                 Tables\Actions\ActionGroup::make([
                     // "Jalankan Sekarang": generate jadwal berikutnya tanpa menunggu cron.
                     Tables\Actions\Action::make('run_now')
@@ -418,6 +422,21 @@ class RecurringBillTemplateResource extends Resource
             'index' => Pages\ListRecurringBillTemplates::route('/'),
             'create' => Pages\CreateRecurringBillTemplate::route('/create'),
             'edit' => Pages\EditRecurringBillTemplate::route('/{record}/edit'),
+        ];
+    }
+
+    /** Salinan template: nama (diberi "(salinan)"), supplier, toko, akun, nominal, tanggal tiap bulan, dan catatan. Jadwal dan batas tidak ikut. */
+    public static function duplicateData(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return [
+            'name' => \Illuminate\Support\Str::limit($record->name, 240, '') . ' (salinan)',
+            'supplier_id' => $record->supplier_id,
+            'supplier_name' => $record->supplier_name,
+            'store_id' => $record->store_id,
+            'chart_of_account_id' => $record->chart_of_account_id,
+            'amount' => $record->amount,
+            'day_of_month' => $record->day_of_month,
+            'notes' => $record->notes,
         ];
     }
 }

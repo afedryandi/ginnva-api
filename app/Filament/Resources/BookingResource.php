@@ -34,6 +34,8 @@ use RuntimeException;
 
 class BookingResource extends Resource
 {
+    use \App\Filament\Resources\Support\DuplicatesRecords;
+
     protected static ?string $model = Booking::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
@@ -1280,6 +1282,8 @@ class BookingResource extends Resource
                     ->query(fn (Builder $query) => $query->where('status', 'completed')->whereDoesntHave('journalEntry')),
             ])
             ->actions([
+                static::duplicateTableAction()->label('Duplikat (pelanggan datang lagi)'),
+
                 // "Catat Uang Muka (DP)" -- keputusan atasan 2026-09-19
                 // (Topik 2, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx"): DP
                 // BUKAN syarat wajib, diterima fleksibel kapan saja SELAMA
@@ -2026,5 +2030,18 @@ class BookingResource extends Resource
             'view'   => Pages\ViewBooking::route('/{record}'),
             'edit'   => Pages\EditBooking::route('/{record}/edit'),
         ];
+    }
+
+    /**
+     * Booking baru untuk pelanggan yang datang lagi: pelanggan, kendaraan, toko, dan layanan disalin. Tanggal, jam, status, harga,
+     * pembayaran, DP, rincian penjualan, voucher/referral, dan teknisi SENGAJA tidak ikut; semuanya diisi baru.
+     */
+    public static function duplicateData(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return collect([
+            'customer_id', 'customer_name', 'phone_number',
+            'vehicle_plate', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_color', 'vehicle_year', 'vehicle_size',
+            'store_id', 'service_type', 'product_detailing', 'product_premium_wash',
+        ])->mapWithKeys(fn (string $field) => [$field => $record->{$field}])->all();
     }
 }

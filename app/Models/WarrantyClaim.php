@@ -17,10 +17,18 @@ class WarrantyClaim extends Model
     // di record itu sendiri, yang bisa tertimpa kalau direview ulang.
     // Sama pola dengan Warranty (yang sudah pakai LogsActivity). Lihat
     // audit modul Garansi 2026-08-27.
+    /** Hasil akhir penanganan klaim yang sudah disetujui (pass). */
+    public const RESOLUTIONS = [
+        'repaired' => 'Diperbaiki',
+        'replaced' => 'Diganti / dipasang ulang',
+        'refunded' => 'Dana dikembalikan',
+        'cancelled' => 'Dibatalkan pelanggan',
+    ];
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'category', 'rejection_reason', 'reviewed_by'])
+            ->logOnly(['status', 'category', 'rejection_reason', 'reviewed_by', 'handled_by', 'estimated_completion_date', 'resolution', 'resolution_notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }
@@ -34,11 +42,33 @@ class WarrantyClaim extends Model
         'rejection_reason',
         'reviewed_by',
         'reviewed_at',
+        'handled_by',
+        'estimated_completion_date',
+        'resolution',
+        'resolution_notes',
+        'resolved_at',
     ];
 
     protected $casts = [
         'reviewed_at' => 'datetime',
+        'estimated_completion_date' => 'date',
+        'resolved_at' => 'datetime',
     ];
+
+    /** Staf atau teknisi yang menangani klaim ini. */
+    public function handler()
+    {
+        return $this->belongsTo(User::class, 'handled_by');
+    }
+
+    /** Klaim yang sudah disetujui, belum ada hasil akhir, dan perkiraan selesainya sudah lewat. */
+    public function isOverdue(): bool
+    {
+        return $this->status === 'pass'
+            && $this->resolution === null
+            && $this->estimated_completion_date !== null
+            && $this->estimated_completion_date->isBefore(today());
+    }
 
     public function warranty()
     {

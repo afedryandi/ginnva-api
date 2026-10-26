@@ -192,6 +192,14 @@ class AdminPanelProvider extends PanelProvider
                     ? view('filament.admin-tour')->render()
                     : ''
             )
+            // Status buku (bulan ini dan bulan lalu: Terbuka/Ditutup) di atas semua halaman Keuangan. Livewire::originalPath() (bukan request()->path())
+            // supaya bilah tidak hilang saat halaman dirender ulang lewat permintaan Livewire.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::PAGE_START,
+                fn (): string => auth()->check() && \App\Support\PeriodStatus::appliesToPath('admin', \App\Filament\Clusters\KeuanganCluster::getSlug(), \Livewire\Livewire::originalPath())
+                    ? view('filament.period-status')->render()
+                    : ''
+            )
             // Pintasan "Panduan" di menu avatar (pojok kanan atas): tempat yang biasa dicari staf untuk bantuan.
             ->userMenuItems([
                 \Filament\Navigation\MenuItem::make()

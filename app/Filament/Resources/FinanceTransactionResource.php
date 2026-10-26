@@ -32,6 +32,8 @@ use RuntimeException;
  */
 class FinanceTransactionResource extends Resource
 {
+    use \App\Filament\Resources\Support\DuplicatesRecords;
+
     protected static ?string $model = FinanceTransaction::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-banknotes';
@@ -375,6 +377,8 @@ class FinanceTransactionResource extends Resource
             ->actions([
                 Tables\Actions\EditAction::make(),
 
+                static::duplicateTableAction(),
+
                 // Jurnal Umum yang sudah posted TIDAK IKUT terhapus
                 // (integritas riwayat pembukuan) — dibalik dulu lewat
                 // FinanceTransactionPostingService::reverseExisting()
@@ -460,6 +464,20 @@ class FinanceTransactionResource extends Resource
             'index' => Pages\ListFinanceTransactions::route('/'),
             'create' => Pages\CreateFinanceTransaction::route('/create'),
             'edit' => Pages\EditFinanceTransaction::route('/{record}/edit'),
+        ];
+    }
+
+    /** Salinan transaksi: kategori, rekening, toko, nominal, dan keterangan. Tanggal hari ini; nomor, bukti, dan jurnal tidak ikut. */
+    public static function duplicateData(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return [
+            'type' => $record->type,
+            'finance_category_id' => $record->finance_category_id,
+            'payment_account_id' => $record->payment_account_id,
+            'store_id' => $record->store_id,
+            'amount' => $record->amount,
+            'transaction_date' => now()->toDateString(),
+            'description' => $record->description,
         ];
     }
 }

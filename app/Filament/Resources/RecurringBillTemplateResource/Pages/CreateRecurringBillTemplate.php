@@ -7,6 +7,8 @@ use Filament\Resources\Pages\CreateRecord;
 
 class CreateRecurringBillTemplate extends CreateRecord
 {
+    use \App\Filament\Concerns\PrefillsFromDuplicate;
+
     protected static string $resource = RecurringBillTemplateResource::class;
 
     protected function mutateFormDataBeforeCreate(array $data): array

@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 
 class CreateBooking extends CreateRecord
 {
+    use \App\Filament\Concerns\PrefillsFromDuplicate;
+
     protected static string $resource = BookingResource::class;
 
     protected function getRedirectUrl(): string
