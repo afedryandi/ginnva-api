@@ -35,7 +35,41 @@ class BudgetVsActualReport extends Page implements HasForms
 
     protected static string $view = 'filament.pages.budget-vs-actual-report';
 
+    use \App\Filament\Pages\Concerns\ExportsReportTable;
+
     public ?array $data = [];
+
+    protected function getHeaderActions(): array
+    {
+        return $this->exportActions();
+    }
+
+    protected function reportExportData(): array
+    {
+        $rows = $this->getRows();
+        $month = ! empty($this->data['month']) ? Carbon::parse($this->data['month']) : now();
+        $storeName = ! empty($this->data['store_id']) ? Store::whereKey($this->data['store_id'])->value('name') : null;
+        $labels = ['lewat' => 'Melebihi anggaran', 'hampir' => 'Hampir habis', 'aman' => 'Aman', 'tanpa_anggaran' => 'Tanpa anggaran'];
+
+        return [
+            'key' => 'anggaran-vs-realisasi',
+            'title' => 'Anggaran vs Realisasi',
+            'subtitle' => 'Bulan ' . $month->translatedFormat('F Y') . ' · ' . ($storeName ? "Toko {$storeName}" : 'Seluruh perusahaan'),
+            'headings' => ['Kode', 'Akun', 'Anggaran', 'Realisasi', 'Sisa', 'Terpakai', 'Status'],
+            'rows' => $rows->map(fn (array $row) => [
+                $row['account']->code,
+                $row['account']->name,
+                $row['budget'] > 0 ? (float) $row['budget'] : null,
+                (float) $row['actual'],
+                $row['budget'] > 0 ? (float) $row['remaining'] : null,
+                $row['percent'] !== null ? number_format($row['percent'], 0) . '%' : null,
+                $labels[$row['status']] ?? $row['status'],
+            ])->all(),
+            'totals' => ['', 'Total', (float) $rows->sum('budget'), (float) $rows->sum('actual'), null, null, ''],
+            'right' => [2, 3, 4, 5],
+            'note' => 'Realisasi dari jurnal yang sudah diposting. Hanya peringatan; transaksi tidak diblokir.',
+        ];
+    }
 
     public static function canAccess(): bool
     {

@@ -68,7 +68,38 @@ class LedgerReconciliationReport extends Page implements HasForms
         ])->statePath('data');
     }
 
+    use \App\Filament\Pages\Concerns\ExportsReportTable;
+
     protected function getHeaderActions(): array
+    {
+        return array_merge($this->exportActions(), $this->syncActions());
+    }
+
+    protected function reportExportData(): array
+    {
+        $checks = $this->getChecks();
+        $storeName = ! empty($this->data['store_id']) ? Store::whereKey($this->data['store_id'])->value('name') : null;
+        $notes = $checks->reject(fn (array $c) => $c['ok'] || empty($c['note']))->map(fn (array $c) => "{$c['label']}: {$c['note']}")->implode(' ');
+
+        return [
+            'key' => 'rekonsiliasi-sub-buku',
+            'title' => 'Rekonsiliasi Sub-Buku',
+            'subtitle' => 'Per ' . now()->translatedFormat('d F Y') . ' · ' . ($storeName ? "Toko {$storeName}" : 'Seluruh perusahaan'),
+            'headings' => ['Pemeriksaan', 'Akun', 'Buku Besar', 'Sub-buku', 'Selisih', 'Status'],
+            'rows' => $checks->map(fn (array $c) => [
+                $c['label'],
+                $c['account'],
+                (float) $c['ledger'],
+                (float) $c['subledger'],
+                (float) $c['difference'],
+                $c['ok'] ? 'Cocok' : 'Berselisih',
+            ])->all(),
+            'right' => [2, 3, 4],
+            'note' => trim('Saldo akun di Buku Besar dibandingkan dengan total sub-buku keadaan sekarang. Selisih belum tentu galat. ' . $notes),
+        ];
+    }
+
+    private function syncActions(): array
     {
         return [
             Action::make('syncInventory')

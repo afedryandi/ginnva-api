@@ -637,6 +637,7 @@ class GuideCatalog
                     'Memilih toko tidak mencakup jurnal pusat (tanpa toko, mis. gaji pusat atau penyusutan). Pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan pilihan toko untuk semuanya.',
                     'Laporan keuangan menghitung hanya jurnal yang sudah diposting.',
                     'Menu ini terbuka untuk akses penuh; staf lain bisa diberi izin lihat lewat Hak Akses Detail, dan staf yang punya toko dikunci ke tokonya.',
+                    'Saldo Kas & Bank, Anggaran vs Realisasi, dan Rekonsiliasi Sub-Buku juga punya tombol **Export ke Excel** dan **Export ke PDF** di kanan atas, mengikuti pilihan bulan dan toko yang sedang tampil. Angka di Excel berupa angka biasa sehingga bisa dijumlahkan.',
                 ],
             ],
             [
