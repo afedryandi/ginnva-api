@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Booking;
 use App\Models\Spk;
 use App\Models\ScrollCodeUsage;
 use Illuminate\Database\QueryException;
@@ -51,6 +52,8 @@ class SpkService
             throw new RuntimeException('Booking ini sudah punya SPK.');
         }
 
+        $checklistItems = $this->withBookingWorkItems($data, $checklistItems);
+
         try {
             return DB::transaction(function () use ($data, $checklistItems, $createdBy, $damageMarks) {
                 $spkNumber = Spk::generateNumberForStore($data['store_id']);
@@ -80,6 +83,61 @@ class SpkService
 
             throw $e;
         }
+    }
+
+    /**
+     * Butir "Uraian Pekerjaan" yang sesuai layanan yang dipesan customer di booking (penanda produk booking). Dipakai supaya staf tidak memilih
+     * ulang apa yang sudah dipilih customer saat booking.
+     *
+     * @return list<string>
+     */
+    public static function workItemLabels(Booking $booking): array
+    {
+        return array_values(array_filter([
+            $booking->product_detailing ? 'Full Detailing Car Care' : null,
+            $booking->product_premium_wash ? 'Premium Wash' : null,
+            $booking->product_ppf ? 'PPF' : null,
+            $booking->product_kaca_film ? 'Kaca Film' : null,
+        ]));
+    }
+
+    /**
+     * Mencentang butir Uraian Pekerjaan menurut booking, tetapi HANYA bila pemanggil belum mencentang satu pun (form mobile dan Filament mulai
+     * dari semua butir kosong). Bila staf sudah memilih sendiri, pilihannya dihormati apa adanya. Butir yang belum ada di daftar ditambahkan.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<int, array{category:string, label:string, is_checked:bool}>  $items
+     * @return array<int, array{category:string, label:string, is_checked:bool}>
+     */
+    private function withBookingWorkItems(array $data, array $items): array
+    {
+        if (empty($data['booking_id'])) {
+            return $items;
+        }
+
+        $anyChecked = collect($items)->contains(fn ($item) => ($item['category'] ?? null) === 'pekerjaan' && ! empty($item['is_checked']));
+
+        $booking = $anyChecked ? null : Booking::find($data['booking_id']);
+        $labels = $booking ? self::workItemLabels($booking) : [];
+
+        if ($labels === []) {
+            return $items;
+        }
+
+        $seen = [];
+
+        foreach ($items as $index => $item) {
+            if (($item['category'] ?? null) === 'pekerjaan' && in_array($item['label'] ?? null, $labels, true)) {
+                $items[$index]['is_checked'] = true;
+                $seen[] = $item['label'];
+            }
+        }
+
+        foreach (array_diff($labels, $seen) as $label) {
+            $items[] = ['category' => 'pekerjaan', 'label' => $label, 'is_checked' => true];
+        }
+
+        return $items;
     }
 
     /**
@@ -163,7 +221,7 @@ class SpkService
      * Bikin 1 SPK dari sebuah Booking yang sudah 'confirmed', dengan
      * checklist bawaan (Spk::DEFAULT_CHECKLIST) sekaligus otomatis
      * dicentang sesuai flag produk booking-nya (product_ppf,
-     * product_kaca_film) supaya staff tidak perlu ketik ulang data
+     * product_kaca_film, product_detailing, product_premium_wash) supaya staff tidak perlu ketik ulang data
      * yang sudah ada.
      *
      * @throws RuntimeException kalau booking belum confirmed, atau
@@ -187,10 +245,7 @@ class SpkService
                 $checklist[] = [
                     'category' => $category,
                     'label' => $label,
-                    'is_checked' => $category === 'pekerjaan' && (
-                        ($label === 'PPF' && $booking->product_ppf)
-                        || ($label === 'Kaca Film' && $booking->product_kaca_film)
-                    ),
+                    'is_checked' => $category === 'pekerjaan' && in_array($label, self::workItemLabels($booking), true),
                 ];
             }
         }

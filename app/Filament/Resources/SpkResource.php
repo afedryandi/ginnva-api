@@ -182,11 +182,17 @@ class SpkResource extends Resource
                             ->get()
                             ->mapWithKeys(fn (Booking $b) => [$b->id => "{$b->booking_number} — {$b->customer_name}"]))
                         ->getOptionLabelUsing(fn ($value) => Booking::find($value)?->booking_number)
-                        ->afterStateUpdated(function (Forms\Set $set, $state) {
+                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
                             $booking = Booking::find($state);
                             if ($booking) {
                                 $set('customer_name', $booking->customer_name ?? $booking->customer?->name);
                                 $set('phone_number', $booking->phone_number ?? $booking->customer?->phone_number);
+
+                                // Layanan yang dipilih customer di booking langsung tercentang di Uraian Pekerjaan (tetap bisa diubah staf).
+                                $labels = \App\Services\SpkService::workItemLabels($booking);
+                                $set('checklist_pekerjaan', collect($get('checklist_pekerjaan') ?? [])
+                                    ->map(fn ($row) => ['label' => $row['label'] ?? '', 'is_checked' => in_array($row['label'] ?? '', $labels, true)])
+                                    ->all());
                             }
                         })
                         ->live()

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\QcChecklistItemResource;
+use App\Filament\Resources\QcChecklistItemResource\Pages\CreateQcChecklistItem;
 use App\Filament\Resources\QcChecklistItemResource\Pages\ListQcChecklistItems;
 use App\Models\Booking;
 use App\Models\Customer;
@@ -212,12 +213,30 @@ class QualityCheckTest extends TestCase
         $admin->update(['menu_access' => null]);
         $this->actingAs($admin, 'web');
 
-        Livewire::test(ListQcChecklistItems::class)->assertSuccessful()->assertSee('Tepi film rapi');
+        Livewire::test(ListQcChecklistItems::class)->assertSuccessful()->assertSee('Tepi film rapi')->assertActionExists('create');
         $this->assertTrue(QcChecklistItemResource::canCreate());
 
         $staff = $this->user('store_manager');
         $this->actingAs($staff, 'web');
         $this->assertFalse(QcChecklistItemResource::canCreate());
         $this->assertFalse(QcChecklistItemResource::canEdit(QcChecklistItem::first()));
+    }
+
+    public function test_admin_can_add_a_checklist_item_from_the_panel(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $admin = $this->user('super_admin');
+        $admin->update(['menu_access' => null]);
+        $this->actingAs($admin, 'web');
+        $serviceKey = QcChecklistItem::first()->service_key;
+
+        Livewire::test(CreateQcChecklistItem::class)
+            ->fillForm(['service_key' => $serviceKey, 'label' => 'Tidak ada gelembung udara', 'is_required' => true, 'sort_order' => 150, 'is_active' => true])
+            ->call('create')
+            ->assertHasNoFormErrors()
+            ->assertRedirect(QcChecklistItemResource::getUrl('index'));
+
+        $this->assertDatabaseHas('qc_checklist_items', ['service_key' => $serviceKey, 'label' => 'Tidak ada gelembung udara', 'sort_order' => 150]);
     }
 }
