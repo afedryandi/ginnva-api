@@ -215,9 +215,10 @@ class BlockedDateTest extends TestCase
         $this->blocked($this->storeA, 4, 'Mendatang');
         $this->blocked($this->storeB, 4, 'Toko lain');
 
-        $component = $this->calendar($this->storeA)->assertSee('Mendatang')->assertDontSee('Toko lain')->assertDontSee('Penutupan lampau');
+        // Kotak kalender bulan ini boleh menampilkan penutupan yang sudah lewat; yang diperiksa di sini adalah daftar "akan datang".
+        $component = $this->calendar($this->storeA)->assertSee('Mendatang')->assertDontSee('Toko lain');
 
-        $this->assertCount(1, $component->instance()->getUpcomingClosures());
+        $this->assertSame(['Mendatang'], $component->instance()->getUpcomingClosures()->pluck('reason')->all());
     }
 
     // ------------------------------------------------------------- tampilan kalender
