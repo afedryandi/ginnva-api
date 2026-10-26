@@ -670,10 +670,14 @@ class GuideCatalog
                     'Pindah tangan atau pindah toko dicatat lewat **Serah Terima**: isi **Diserahkan Ke**, **Pindah Ke Toko** (hanya akses penuh), **Kondisi Fisik Saat Ini**, dan **Alasan / Keterangan Serah Terima**. Riwayat serah terima tersimpan sebagai jejak.',
                     'Isi **Jadwal Maintenance Berikutnya** bila aset butuh servis atau kalibrasi berkala; admin diberi tahu otomatis saat jatuh tempo.',
                     'Untuk nilai buku, isi **Tanggal Beli**, **Harga Beli**, **Umur Ekonomis (tahun)**, dan **Nilai Residu** (boleh 0); sistem menghitung **Nilai Buku Saat Ini** dengan garis lurus. Isi **Akun Aset (Bagan Akun)** bersama **Akun Akumulasi Penyusutan** supaya aset ikut disusutkan otomatis tiap bulan. Kosongkan semuanya bila aset tidak perlu dilacak nilainya.',
+                    '**Lepas Aset** (hanya akses penuh) dipakai untuk aset yang dijual atau hilang atau dibuang. Pilih **Jenis Pelepasan** dan **Tanggal Pelepasan**; bila dijual, isi **Hasil Penjualan** dan **Diterima di Rekening**. Bagian **Dampak ke pembukuan** menunjukkan harga perolehan, akumulasi penyusutan, nilai buku, dan laba atau rugi sebelum Anda menyimpan.',
+                    'Sistem membuat satu jurnal pelepasan, mengisi status aset (Dijual atau Hilang), dan menghentikan penyusutan aset itu. Hasil penjualan di atas nilai buku menjadi laba, di bawahnya menjadi rugi.',
                 ],
                 'tips' => [
                     'Data aset dibatasi per toko; staf toko hanya melihat aset tokonya.',
                     'Aset baru yang dibeli lewat Permohonan Pembelian belum otomatis menjadi baris Aset; tambahkan sendiri di sini.',
+                    'Satu aset hanya bisa dilepas satu kali, dan tidak bisa dibatalkan dari tombolnya; salah catat dikoreksi lewat jurnal. Mengubah Status di form aset tidak membuat jurnal.',
+                    'Nilai buku dihitung dari penyusutan yang sudah diposting. Bila ada peringatan bahwa penyusutan bulan lalu belum diposting, jalankan penyusutan dulu agar laba atau rugi tepat.',
                 ],
             ],
             [
@@ -687,10 +691,12 @@ class GuideCatalog
                     'Setelah barang diterima, catat dulu masuknya lewat **Catat Stok** pada barangnya, baru tekan **Tandai Terpenuhi**. Aksi ini bisa dilakukan akses penuh atau pengaju permohonan.',
                     'Saat **Tandai Terpenuhi** isi **Total Biaya Aktual**, **Supplier** (supplier baru bisa dibuat langsung di sini), dan **Jatuh Tempo (opsional)**. Sistem otomatis menjurnal Persediaan atau Aset dengan kredit Hutang Usaha, dan tagihannya muncul di menu Hutang Usaha.',
                     'Untuk jenis Aset Baru, pilih **Akun Aset Tetap Tujuan** secara manual.',
+                    'Saat barang tiba, pakai **Tandai Terpenuhi** dan isi **Jumlah Diterima** (terisi sama dengan jumlah diminta; ubah bila kurang atau lebih). Daftar menampilkan kolom **Diterima** dan, bila kurang, tulisan **Kurang** berikut jumlahnya. Filter **Diterima kurang dari diminta** menampilkan permohonan yang kirimannya kurang; sisanya diajukan sebagai permohonan baru.',
                 ],
                 'tips' => [
                     'Menandai terpenuhi TIDAK menambah stok; stok hanya bertambah lewat Catat Stok.',
                     'Staf toko hanya melihat permohonan tokonya sendiri.',
+                    'Jumlah Diterima hanya untuk pemantauan. Jurnal dan tagihan memakai Total Biaya Aktual yang Anda isi, jadi isi biaya sesuai nota barang yang benar-benar diterima.',
                 ],
             ],
             [
@@ -714,7 +720,7 @@ class GuideCatalog
                 'id' => 'katalog-produk',
                 'title' => 'Katalog produk, harga, dan resep bahan',
                 'summary' => 'Mengatur produk film yang dijual: harga per ukuran kendaraan, harga khusus per grup pelanggan, impor harga massal, dan resep bahan standar.',
-                'menus' => ['FilmProductResource', 'MasterResepResource', 'ProductImportLogResource'],
+                'menus' => ['FilmProductResource', 'MasterResepResource', 'ProductImportLogResource', 'ScheduledPriceChangeResource'],
                 'steps' => [
                     'Di **Daftar Produk** isi **SKU**, **Nama Produk**, **Tipe Produk**, dan **Posisi Kaca**. Harga bisa flat lewat **Harga Jual (Dasar / Flat)** (satu harga untuk semua ukuran, mis. Panoramic) atau berbeda per ukuran lewat bagian **Harga Jual per Ukuran Kendaraan** (pilih **Ukuran Kendaraan** lalu **Harga Jual**). Bila kedua-duanya diisi, harga per ukuran yang dipakai.',
                     'Harga khusus untuk grup pelanggan tertentu (mis. Member atau Korporat) diisi di bagian **Harga Khusus per Grup Pelanggan**: pilih **Grup Pelanggan**, lalu harganya. Pelanggan harus sudah dimasukkan ke grupnya (lihat panduan Pelanggan).',
@@ -723,10 +729,14 @@ class GuideCatalog
                     'Harga massal: unduh dengan **Download Template Import**, isi Excel, lalu **Import Excel**. Kolom kosong tidak mengubah data yang ada, dan SKU yang tidak ditemukan dilewati (impor tidak membuat produk baru). Hasil tiap impor tercatat di **Riwayat Impor Produk**; tekan **Lihat Detail** untuk membaca baris yang dilewati atau error.',
                     '**Master Resep** mencatat bahan standar untuk satu kali pemasangan tiap produk (pilih produk, lalu isi **Bahan** dan **Jumlah** di bagian **Bahan Standar per 1x Pemasangan**). Resep hanya berisi kuantitas, bukan harga atau HPP, dan dipakai sebagai acuan perkiraan bahan serta perencanaan stok. Produk dibuat di Daftar Produk; Master Resep hanya mengisi resepnya.',
                     'Daftar Produk bisa diekspor lewat **Export ke Excel** atau **Export ke PDF**.',
+                    '**Perubahan Harga Terjadwal** (hanya akses penuh) menaikkan atau menurunkan harga banyak produk sekaligus pada tanggal tertentu. Isi **Nama**, **Berlaku Mulai**, **Persen** (positif naik, negatif turun), dan **Pembulatan**; pilih **Produk** tertentu atau kosongkan untuk semua produk film aktif. Bagian **Pratinjau** menunjukkan contoh harga lama dan baru sebelum disimpan.',
+                    'Pada tanggal berlaku, harga berubah otomatis pada dini hari: harga dasar, harga per ukuran kendaraan, dan harga khusus per grup bila **Ikut ubah harga khusus per grup pelanggan** dinyalakan. **Terapkan Sekarang** menerapkannya langsung bila tanggalnya sudah tiba; **Batalkan** membatalkan yang masih terjadwal.',
                 ],
                 'tips' => [
                     'Ubah harga lewat Daftar Produk atau impor; booking yang sudah dibuat tidak ikut berubah harganya.',
                     'Riwayat Impor Produk hanya untuk dibaca dan tidak bisa diubah.',
+                    'Booking, SPK, dan invoice yang sudah dibuat menyimpan harganya sendiri dan tidak ikut berubah. Harga lama dan baru tiap produk tercatat di riwayat aktivitas.',
+                    'Perubahan yang sudah berlaku tidak bisa dibatalkan. Untuk mengembalikan, buat perubahan baru dengan persen kebalikannya; hasilnya bisa berselisih sedikit karena pembulatan.',
                 ],
             ],
             [

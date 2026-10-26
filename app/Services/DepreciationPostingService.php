@@ -41,7 +41,9 @@ class DepreciationPostingService
             return ['posted' => 0, 'skipped' => 0, 'messages' => ['Akun ' . self::BEBAN_PENYUSUTAN_ACCOUNT_CODE . ' (Beban Penyusutan Aset Tetap) tidak ditemukan di Bagan Akun.']];
         }
 
+        // Aset yang sudah dilepas (Lepas Aset: dijual atau hilang/dibuang) tidak disusutkan lagi.
         $assets = Asset::where('status', '!=', 'dijual')
+            ->whereNull('disposed_at')
             ->whereNotNull('purchase_cost')
             ->whereNotNull('purchase_date')
             ->whereNotNull('useful_life_years')

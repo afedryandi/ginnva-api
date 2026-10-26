@@ -151,7 +151,8 @@ class AssetResource extends Resource
                         ])
                         ->in(['aktif', 'diperbaiki', 'rusak', 'dijual', 'hilang'])
                         ->required()
-                        ->default('aktif'),
+                        ->default('aktif')
+                        ->helperText('Untuk aset yang dijual atau hilang/dibuang, pakai tombol "Lepas Aset" di daftar (akses penuh) supaya jurnal pembukuannya tercatat. Mengubah status di sini tidak membuat jurnal.'),
 
                     Forms\Components\Select::make('assigned_to')
                         ->label('Dipegang Oleh')
@@ -292,6 +293,15 @@ class AssetResource extends Resource
                         'hilang'     => 'Hilang',
                         default      => $state,
                     }),
+
+                Tables\Columns\TextColumn::make('disposed_at')
+                    ->label('Tgl Pelepasan')
+                    ->date('d M Y')
+                    ->placeholder('—')
+                    ->description(fn (Asset $record) => $record->disposed_at && $record->disposal_proceeds !== null && (float) $record->disposal_proceeds > 0
+                        ? 'Hasil Rp ' . number_format((float) $record->disposal_proceeds, 0, ',', '.')
+                        : null)
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('assignee.name')
                     ->label('Dipegang Oleh')
@@ -462,6 +472,78 @@ class AssetResource extends Resource
                         });
 
                         Notification::make()->title('Serah terima dicatat')->success()->send();
+                    }),
+
+                // Pelepasan aset (audit ACCURATE 5, tombol "Dispos"): aset dijual atau hilang/dibuang keluar dari pembukuan dengan
+                // satu jurnal (harga perolehan, akumulasi penyusutan, hasil, laba/rugi). Hanya akses penuh; satu aset sekali saja.
+                Tables\Actions\Action::make('dispose')
+                    ->label('Lepas Aset')
+                    ->icon('heroicon-o-archive-box-x-mark')
+                    ->color('danger')
+                    ->visible(fn (Asset $record) => (auth()->user()?->isFullAccess() ?? false) && $record->disposed_at === null)
+                    ->modalHeading(fn (Asset $record) => "Lepas aset: {$record->name}")
+                    ->modalDescription('Aset dikeluarkan dari pembukuan dan tidak disusutkan lagi. Langkah ini tidak bisa dibatalkan dari sini; salah catat dikoreksi lewat jurnal.')
+                    ->form(fn (Asset $record) => [
+                        Forms\Components\Select::make('type')
+                            ->label('Jenis Pelepasan')
+                            ->options(\App\Services\AssetDisposalService::TYPES)
+                            ->default('dijual')
+                            ->required()
+                            ->live(),
+                        Forms\Components\DatePicker::make('date')
+                            ->label('Tanggal Pelepasan')
+                            ->native(false)
+                            ->default(today())
+                            ->maxDate(today())
+                            ->required()
+                            ->live(),
+                        Forms\Components\TextInput::make('proceeds')
+                            ->label('Hasil Penjualan')
+                            ->numeric()->minValue(0)->prefix('Rp')->default(0)
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'dijual')
+                            ->live(onBlur: true),
+                        Forms\Components\Select::make('payment_account_id')
+                            ->label('Diterima di Rekening')
+                            ->options(fn () => \App\Models\PaymentAccount::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'dijual' && (float) ($get('proceeds') ?? 0) > 0)
+                            ->required(fn (Forms\Get $get) => $get('type') === 'dijual' && (float) ($get('proceeds') ?? 0) > 0),
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Catatan')
+                            ->rows(2)
+                            ->maxLength(500),
+                        Forms\Components\Placeholder::make('preview')
+                            ->label('Dampak ke pembukuan')
+                            ->content(function (Forms\Get $get) use ($record) {
+                                $date = filled($get('date')) ? \Illuminate\Support\Carbon::parse($get('date')) : today();
+                                $proceeds = $get('type') === 'dijual' ? (float) ($get('proceeds') ?? 0) : 0.0;
+                                $p = app(\App\Services\AssetDisposalService::class)->preview($record, $date, $proceeds);
+                                $rp = fn (float $n) => 'Rp ' . number_format($n, 0, ',', '.');
+
+                                if (! $p['journalable']) {
+                                    return implode(' ', $p['warnings']);
+                                }
+
+                                $result = $p['gain_loss'] > 0 ? 'Laba pelepasan ' . $rp($p['gain_loss']) : ($p['gain_loss'] < 0 ? 'Rugi pelepasan ' . $rp(abs($p['gain_loss'])) : 'Tanpa laba/rugi');
+
+                                return "Harga perolehan {$rp($p['cost'])}; akumulasi penyusutan {$rp($p['accumulated'])}; nilai buku {$rp($p['book_value'])}. {$result}."
+                                    . ($p['warnings'] ? ' ' . implode(' ', $p['warnings']) : '');
+                            }),
+                    ])
+                    ->action(function (Asset $record, array $data) {
+                        try {
+                            $result = app(\App\Services\AssetDisposalService::class)->dispose($record, $data, auth()->id());
+                        } catch (\RuntimeException $e) {
+                            Notification::make()->title('Aset tidak bisa dilepas')->body($e->getMessage())->danger()->persistent()->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Aset dilepas')
+                            ->body($result['journaled'] ? 'Jurnal pelepasan sudah dicatat.' : 'Status dicatat tanpa jurnal (aset belum punya harga perolehan atau akun).')
+                            ->success()
+                            ->send();
                     }),
             ])
             ->bulkActions([

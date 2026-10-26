@@ -33,6 +33,11 @@ class Asset extends Model
         'next_maintenance_date',
         'notes',
         'created_by',
+        'disposed_at',
+        'disposal_type',
+        'disposal_proceeds',
+        'disposal_journal_entry_id',
+        'disposal_notes',
     ];
 
     protected $casts = [
@@ -40,6 +45,8 @@ class Asset extends Model
         'purchase_date' => 'date',
         'purchase_cost' => 'decimal:2',
         'salvage_value' => 'decimal:2',
+        'disposed_at' => 'date',
+        'disposal_proceeds' => 'decimal:2',
         'next_maintenance_date' => 'date',
         'reviewed_at'   => 'datetime',
     ];
@@ -160,7 +167,7 @@ class Asset extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'category', 'received_date', 'status', 'assigned_to', 'store_id', 'purchase_date', 'purchase_cost', 'notes'])
+            ->logOnly(['name', 'category', 'received_date', 'status', 'assigned_to', 'store_id', 'purchase_date', 'purchase_cost', 'notes', 'disposed_at', 'disposal_type', 'disposal_proceeds'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('asset')

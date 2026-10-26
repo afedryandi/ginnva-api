@@ -208,6 +208,17 @@ class PurchaseRequestResource extends Resource
                     ->label('Jumlah')
                     ->formatStateUsing(fn (PurchaseRequest $record) => rtrim(rtrim(number_format((float) $record->quantity, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : '')),
 
+                Tables\Columns\TextColumn::make('quantity_received')
+                    ->label('Diterima')
+                    ->formatStateUsing(fn (PurchaseRequest $record) => $record->quantity_received === null
+                        ? null
+                        : rtrim(rtrim(number_format((float) $record->quantity_received, 2, ',', '.'), '0'), ',') . ' ' . $record->unit)
+                    ->placeholder('—')
+                    ->color(fn (PurchaseRequest $record) => $record->shortfall() !== null ? 'warning' : null)
+                    ->description(fn (PurchaseRequest $record) => $record->shortfall() !== null
+                        ? 'Kurang ' . rtrim(rtrim(number_format($record->shortfall(), 2, ',', '.'), '0'), ',') . ' ' . $record->unit
+                        : null),
+
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
                     ->sortable()
@@ -254,6 +265,10 @@ class PurchaseRequestResource extends Resource
                         'rejected'  => 'Ditolak',
                         'fulfilled' => 'Terpenuhi',
                     ]),
+
+                Tables\Filters\Filter::make('short_received')
+                    ->label('Diterima kurang dari diminta')
+                    ->query(fn (Builder $query) => $query->whereNotNull('quantity_received')->whereColumn('quantity_received', '<', 'quantity')),
 
                 Tables\Filters\SelectFilter::make('item_type')
                     ->label('Jenis Barang')
@@ -373,6 +388,16 @@ class PurchaseRequestResource extends Resource
                     ->visible(fn (PurchaseRequest $record) => $record->status === 'approved'
                         && (auth()->user()?->isFullAccess() || auth()->id() === $record->requested_by))
                     ->form([
+                        // Jumlah yang benar-benar sampai (audit ACCURATE 5): terlihat di daftar sebagai Diterima dan Kurang.
+                        Forms\Components\TextInput::make('quantity_received')
+                            ->label('Jumlah Diterima')
+                            ->numeric()
+                            ->required()
+                            ->minValue(0.01)
+                            ->default(fn (PurchaseRequest $record) => (float) $record->quantity)
+                            ->suffix(fn (PurchaseRequest $record) => $record->unit)
+                            ->helperText('Isi sesuai barang yang benar-benar sampai. Bila kurang dari yang diminta, ajukan permohonan baru untuk sisanya.'),
+
                         // actual_cost BARU diisi di sini (bukan saat
                         // permohonan diajukan) — harga aktual baru pasti
                         // setelah barang benar-benar dibeli, dipakai
@@ -431,6 +456,7 @@ class PurchaseRequestResource extends Resource
                                 $locked->update([
                                     'status'       => 'fulfilled',
                                     'fulfilled_at' => now(),
+                                    'quantity_received' => $data['quantity_received'],
                                     'actual_cost'  => $data['actual_cost'],
                                 ]);
 

@@ -30,6 +30,7 @@ class PurchaseRequest extends Model
         'item_name',
         'unit',
         'quantity',
+        'quantity_received',
         'actual_cost',
         'reason',
         'status',
@@ -43,10 +44,26 @@ class PurchaseRequest extends Model
 
     protected $casts = [
         'quantity'     => 'decimal:2',
+        'quantity_received' => 'decimal:2',
         'actual_cost'  => 'decimal:2',
         'reviewed_at'  => 'datetime',
         'fulfilled_at' => 'datetime',
     ];
+
+    /**
+     * Kekurangan penerimaan: jumlah diminta dikurangi jumlah diterima, hanya bila sudah dicatat dan memang kurang.
+     * Null untuk permohonan yang belum terpenuhi, yang lama (jumlah diterima tidak tercatat), atau yang diterima penuh/lebih.
+     */
+    public function shortfall(): ?float
+    {
+        if ($this->quantity_received === null) {
+            return null;
+        }
+
+        $short = round((float) $this->quantity - (float) $this->quantity_received, 2);
+
+        return $short > 0 ? $short : null;
+    }
 
     public function store(): BelongsTo
     {
@@ -107,7 +124,7 @@ class PurchaseRequest extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'quantity', 'review_note', 'reviewed_by', 'fulfilled_at'])
+            ->logOnly(['status', 'quantity', 'quantity_received', 'review_note', 'reviewed_by', 'fulfilled_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('purchase_request')

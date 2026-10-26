@@ -102,6 +102,10 @@ Schedule::command('warranty:notify-expiring')->dailyAt('08:00');
 // App\Console\Commands\PostAssetDepreciation.
 Schedule::command('assets:post-depreciation')->monthlyOn(1, '02:00');
 
+// Perubahan harga produk film yang tanggal efektifnya sudah tiba (audit ACCURATE 5, penyesuaian harga jual terjadwal).
+// Lihat App\Console\Commands\ApplyScheduledPriceChanges.
+Schedule::command('prices:apply-scheduled')->dailyAt('00:10')->withoutOverlapping();
+
 // Backup database harian (audit framework 2026-09-14, "Jadwal backup
 // database otomatis") -- otomasi SOP manual RUNBOOK.md §5, dini hari
 // supaya tidak bentrok jam sibuk. Lihat App\Console\Commands\BackupDatabase.
