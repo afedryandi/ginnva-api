@@ -17,6 +17,7 @@ use Filament\Pages\Page;
 class EmployeeDataCompletenessReport extends Page implements HasForms
 {
     use InteractsWithForms;
+    use \App\Filament\Pages\Concerns\ExportsReportTable;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
 
@@ -56,6 +57,31 @@ class EmployeeDataCompletenessReport extends Page implements HasForms
                 ->options(fn () => Store::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->live(),
         ])->statePath('data');
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return $this->exportActions();
+    }
+
+    protected function reportExportData(): array
+    {
+        $storeId = $this->data['store_id'] ?? null;
+        $storeName = $storeId ? Store::whereKey($storeId)->value('name') : null;
+
+        return [
+            'key' => 'kelengkapan-data-karyawan',
+            'title' => 'Kelengkapan Data Karyawan',
+            'subtitle' => 'Per ' . now()->translatedFormat('d F Y') . ' · ' . ($storeName ? "Toko {$storeName}" : 'Semua toko'),
+            'headings' => ['Karyawan', 'Toko', 'Wajib dilengkapi', 'Disarankan'],
+            'rows' => $this->getFindings()->map(fn (array $f) => [
+                $f['user']->name,
+                $f['user']->store?->name ?? '—',
+                implode('; ', $f['required']) ?: '—',
+                implode('; ', $f['recommended']) ?: '—',
+            ])->all(),
+            'note' => 'Hanya karyawan aktif yang punya temuan. "Wajib" mempengaruhi gaji dan absensi; "Disarankan" adalah data kepegawaian formal.',
+        ];
     }
 
     public function getFindings(): \Illuminate\Support\Collection

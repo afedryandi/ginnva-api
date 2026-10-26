@@ -24,6 +24,7 @@ use Illuminate\Support\Collection;
 class PaymentBookReport extends Page implements HasForms
 {
     use InteractsWithForms;
+    use \App\Filament\Pages\Concerns\ExportsReportTable;
 
     protected static ?string $navigationIcon = 'heroicon-o-banknotes';
 
@@ -72,6 +73,39 @@ class PaymentBookReport extends Page implements HasForms
                 ->visible($isFullAccess)
                 ->live(),
         ])->columns($isFullAccess ? 3 : 2)->statePath('data');
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return $this->exportActions();
+    }
+
+    protected function reportExportData(): array
+    {
+        $result = $this->getResult();
+        $storeName = ($this->data['store_id'] ?? null) && (auth()->user()?->isFullAccess() ?? false)
+            ? Store::whereKey($this->data['store_id'])->value('name')
+            : null;
+
+        return [
+            'key' => 'buku-pembayaran',
+            'title' => 'Buku Pembayaran',
+            'subtitle' => $result['from']->translatedFormat('d F Y') . ' - ' . $result['to']->translatedFormat('d F Y') . ' · ' . ($storeName ? "Toko {$storeName}" : 'Semua cabang'),
+            'headings' => ['Tanggal', 'Jenis', 'Referensi', 'Pelanggan', 'Metode', 'Akun', 'Jumlah', 'Catatan'],
+            'rows' => $result['rows']->map(fn (array $r) => [
+                $r['date']?->format('d/m/Y') ?? '—',
+                $r['kind'],
+                $r['reference'],
+                $r['customer'],
+                $r['method'],
+                $r['account'],
+                $r['amount'],
+                $r['note'],
+            ])->all(),
+            'totals' => ['', 'Total', '', '', '', '', $result['total'], ''],
+            'right' => [6],
+            'note' => 'Uang muka yang sudah dikembalikan ditampilkan tetapi tidak dihitung dalam total.',
+        ];
     }
 
     /** Staf toko dikunci ke tokonya; staf tanpa toko tidak melihat apa pun (-1). */
