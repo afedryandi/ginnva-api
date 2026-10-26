@@ -28,35 +28,37 @@
         $rp = fn ($n) => 'Rp ' . number_format((float) $n, 0, ',', '.');
     @endphp
 
+    @include('filament.partials.plain-ui')
+
     <x-filament::section>
         <x-slot name="heading">Perputaran Piutang dan Hari Penagihan</x-slot>
         <x-slot name="description">
-            {{ $turnover['from']->format('d M Y') }} – {{ $turnover['to']->format('d M Y') }} ({{ $turnover['days'] }} hari), toko: {{ $this->storeLabel() }}.
+            {{ $turnover['from']->copy()->locale('id')->translatedFormat('d M Y') }} – {{ $turnover['to']->copy()->locale('id')->translatedFormat('d M Y') }} ({{ $turnover['days'] }} hari), toko: {{ $this->storeLabel() }}.
             Hari Penagihan = rata-rata piutang dibagi piutang yang terbit dalam periode, dikali jumlah hari; makin kecil makin cepat tertagih.
             Piutang terbit dihitung dari tanggal piutang dibuat di sistem.
         </x-slot>
 
-        <div class="grid grid-cols-2 gap-4 text-sm lg:grid-cols-5">
-            <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
-                <div class="text-xs text-gray-500 dark:text-gray-400">Piutang Terbit</div>
-                <div class="text-lg font-semibold tabular-nums">{{ $rp($turnover['credit_sales']) }}</div>
+        <div class="pu pu-cards">
+            <div class="pu-card">
+                <div class="pu-card-label">Piutang Terbit</div>
+                <div class="pu-card-value">{{ $rp($turnover['credit_sales']) }}</div>
             </div>
-            <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
-                <div class="text-xs text-gray-500 dark:text-gray-400">Dibayar</div>
-                <div class="text-lg font-semibold tabular-nums">{{ $rp($turnover['collected']) }}</div>
+            <div class="pu-card">
+                <div class="pu-card-label">Dibayar</div>
+                <div class="pu-card-value">{{ $rp($turnover['collected']) }}</div>
             </div>
-            <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
-                <div class="text-xs text-gray-500 dark:text-gray-400">Rata-rata Piutang</div>
-                <div class="text-lg font-semibold tabular-nums">{{ $rp($turnover['average']) }}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">awal {{ $rp($turnover['opening']) }}, akhir {{ $rp($turnover['closing']) }}</div>
+            <div class="pu-card">
+                <div class="pu-card-label">Rata-rata Piutang</div>
+                <div class="pu-card-value">{{ $rp($turnover['average']) }}</div>
+                <div class="pu-card-note">awal {{ $rp($turnover['opening']) }}, akhir {{ $rp($turnover['closing']) }}</div>
             </div>
-            <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
-                <div class="text-xs text-gray-500 dark:text-gray-400">Perputaran Piutang</div>
-                <div class="text-lg font-semibold tabular-nums">{{ $turnover['turnover'] !== null ? number_format($turnover['turnover'], 2, ',', '.') . ' kali' : '—' }}</div>
+            <div class="pu-card">
+                <div class="pu-card-label">Perputaran Piutang</div>
+                <div class="pu-card-value">{{ $turnover['turnover'] !== null ? number_format($turnover['turnover'], 2, ',', '.') . ' kali' : '—' }}</div>
             </div>
-            <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
-                <div class="text-xs text-gray-500 dark:text-gray-400">Hari Penagihan</div>
-                <div class="text-lg font-semibold tabular-nums">{{ $turnover['collection_days'] !== null ? number_format($turnover['collection_days'], 1, ',', '.') . ' hari' : '—' }}</div>
+            <div class="pu-card">
+                <div class="pu-card-label">Hari Penagihan</div>
+                <div class="pu-card-value">{{ $turnover['collection_days'] !== null ? number_format($turnover['collection_days'], 1, ',', '.') . ' hari' : '—' }}</div>
             </div>
         </div>
     </x-filament::section>

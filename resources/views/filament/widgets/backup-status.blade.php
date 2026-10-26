@@ -5,44 +5,45 @@
         </x-slot>
 
         @php($status = $this->getStatus())
+        @include('filament.partials.plain-ui')
 
-        <div class="flex flex-wrap items-start gap-x-4 gap-y-2">
+        <div class="pu" style="display: flex; align-items: flex-start; gap: 12px;">
             <x-filament::icon
                 :icon="$status['state'] === 'ok' ? 'heroicon-o-shield-check' : 'heroicon-o-exclamation-triangle'"
+                style="width: 28px; height: 28px; flex-shrink: 0;"
                 @class([
-                    'h-6 w-6 shrink-0',
-                    'text-success-500' => $status['state'] === 'ok',
-                    'text-warning-500' => $status['state'] === 'stale',
-                    'text-danger-500' => $status['state'] === 'missing',
+                    'pu-ok' => $status['state'] === 'ok',
+                    'pu-warn' => $status['state'] === 'stale',
+                    'pu-danger' => $status['state'] === 'missing',
                 ])
             />
 
-            <div class="min-w-0 text-sm">
+            <div class="pu-stack" style="gap: 4px; min-width: 0;">
                 @if ($status['found'])
-                    <p class="font-semibold text-gray-950 dark:text-white">
-                        Cadangan terakhir: {{ $status['at']->translatedFormat('j F Y, H:i') }}
-                        <span class="font-normal text-gray-500 dark:text-gray-400">({{ $status['size_mb'] }} MB, {{ $status['age_hours'] }} jam lalu)</span>
-                    </p>
+                    <div class="pu-strong">
+                        Cadangan terakhir: {{ $status['at']->copy()->locale('id')->translatedFormat('j F Y, H:i') }}
+                        <span class="pu-muted" style="font-weight: 400;">({{ $status['size_mb'] }} MB, {{ $status['age_hours'] }} jam lalu)</span>
+                    </div>
                     @if ($status['stale'])
-                        <p class="text-warning-600 dark:text-warning-400">
+                        <div class="pu-warn">
                             Sudah lebih dari {{ \App\Support\BackupStatus::STALE_AFTER_HOURS }} jam. Jadwal harian jam 03:00 mungkin tidak berjalan, minta tim IT memeriksa.
-                        </p>
+                        </div>
                     @else
-                        <p class="text-gray-500 dark:text-gray-400">Jadwal harian jam 03:00 berjalan. Tersimpan {{ $status['count'] }} berkas terakhir di server.</p>
+                        <div class="pu-muted">Jadwal harian jam 03:00 berjalan. Tersimpan {{ $status['count'] }} berkas terakhir di server.</div>
                     @endif
                 @else
-                    <p class="font-semibold text-danger-600 dark:text-danger-400">Belum ada berkas cadangan di server ini.</p>
-                    <p class="text-gray-500 dark:text-gray-400">Minta tim IT memeriksa jadwal cadangan harian.</p>
+                    <div class="pu-strong pu-danger">Belum ada berkas cadangan di server ini.</div>
+                    <div class="pu-muted">Minta tim IT memeriksa jadwal cadangan harian.</div>
                 @endif
 
-                <p class="mt-1 text-gray-500 dark:text-gray-400">
+                <div class="pu-muted">
                     Salinan di luar server (off-site):
                     @if ($status['offsite_configured'])
                         sudah diatur.
                     @else
-                        <span class="font-medium text-warning-600 dark:text-warning-400">belum diatur</span>, cadangan hanya tersimpan di server yang sama.
+                        <span class="pu-warn" style="font-weight: 600;">belum diatur</span>, cadangan hanya tersimpan di server yang sama.
                     @endif
-                </p>
+                </div>
             </div>
         </div>
     </x-filament::section>

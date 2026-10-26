@@ -29,7 +29,7 @@ class PeriodStatus
             $period = $closed->get($month->toDateString());
 
             return [
-                'label' => $month->translatedFormat('F Y'),
+                'label' => $month->copy()->locale('id')->translatedFormat('F Y'),
                 'closed' => $period !== null,
                 'closed_by' => $period?->closer?->name,
                 'closed_at' => $period?->closed_at,
