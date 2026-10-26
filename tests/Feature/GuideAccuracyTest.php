@@ -400,6 +400,7 @@ class GuideAccuracyTest extends TestCase
             'invoice' => ['Profil perusahaan'],
             'tutup-periode' => ['Status buku'],
             'dashboard' => ['Cadangan Database'],
+            'kas-bank' => ['Catat sebagai Transaksi'],
             'katalog-produk' => ['Perubahan Harga Terjadwal', 'Terapkan Sekarang'],
             'aset-tetap' => ['Lepas Aset', 'Dampak ke pembukuan'],
             'permohonan-pembelian' => ['Jumlah Diterima'],

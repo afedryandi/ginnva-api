@@ -312,6 +312,56 @@ class BankStatementLineResource extends Resource
                         }
                     }),
 
+                // Mutasi yang belum ada jurnalnya (biaya admin, bunga, setoran): satu langkah membuat Transaksi Keuangan, memposting
+                // jurnalnya, dan langsung mencocokkannya (audit ACCURATE 5). Hanya akses penuh; lihat BankLineBookingService.
+                Tables\Actions\Action::make('book')
+                    ->label('Catat sebagai Transaksi')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('primary')
+                    ->visible(fn (BankStatementLine $record) => $record->status === 'unmatched' && (auth()->user()?->isFullAccess() ?? false))
+                    ->modalDescription(fn (BankStatementLine $record) => ((float) $record->amount >= 0 ? 'Uang masuk' : 'Uang keluar')
+                        . ' Rp ' . number_format(abs((float) $record->amount), 0, ',', '.') . ' pada ' . $record->statement_date->translatedFormat('j F Y')
+                        . ' akan dicatat sebagai ' . ((float) $record->amount >= 0 ? 'Pemasukan' : 'Pengeluaran') . ' dan langsung dicocokkan.')
+                    ->form(fn (BankStatementLine $record) => [
+                        Forms\Components\Select::make('finance_category_id')
+                            ->label('Kategori')
+                            ->options(fn () => \App\Models\FinanceCategory::query()
+                                ->where('is_active', true)->where('is_group', false)
+                                ->where('type', (float) $record->amount >= 0 ? 'in' : 'out')
+                                ->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->required()
+                            ->helperText('Contoh: Biaya Administrasi Bank untuk potongan, Pendapatan Bunga Bank untuk bunga.'),
+                        Forms\Components\Select::make('store_id')
+                            ->label('Toko')
+                            ->options(fn () => \App\Models\Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->required()
+                            ->helperText('Setiap transaksi keuangan terikat ke satu toko.'),
+                        Forms\Components\Textarea::make('description')
+                            ->label('Keterangan')
+                            ->default($record->description)
+                            ->rows(2)
+                            ->maxLength(500),
+                    ])
+                    ->action(function (BankStatementLine $record, array $data) {
+                        try {
+                            $transaction = app(\App\Services\BankLineBookingService::class)->book(
+                                $record,
+                                (int) $data['finance_category_id'],
+                                (int) $data['store_id'],
+                                $data['description'] ?? null,
+                                (int) auth()->id()
+                            );
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Gagal mencatat')->body($e->getMessage())->danger()->persistent()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title("Dicatat sebagai {$transaction->transaction_number} dan dicocokkan")->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('unmatch')
                     ->label('Batalkan Kecocokan')
                     ->icon('heroicon-o-link-slash')
@@ -334,7 +384,7 @@ class BankStatementLineResource extends Resource
                     ->color('gray')
                     ->visible(fn (BankStatementLine $record) => $record->status === 'unmatched')
                     ->requiresConfirmation()
-                    ->modalDescription('Dipakai untuk mutasi yang memang TIDAK PERLU dicocokkan ke jurnal (mis. biaya admin bank yang belum dicatat, atau saldo pembuka) — tidak menghapus barisnya, cuma menandai supaya tidak terus muncul di daftar "Belum Cocok".')
+                    ->modalDescription('Dipakai untuk mutasi yang memang TIDAK PERLU dicocokkan ke jurnal (mis. saldo pembuka atau mutasi ganda). Biaya admin atau bunga bank sebaiknya dicatat lewat Catat sebagai Transaksi, bukan diabaikan — tidak menghapus barisnya, cuma menandai supaya tidak terus muncul di daftar "Belum Cocok".')
                     ->action(fn (BankStatementLine $record) => app(BankReconciliationService::class)->ignore($record)),
 
                 // Baris yang masih 'matched' tidak boleh dihapus langsung -- batalkan kecocokannya
