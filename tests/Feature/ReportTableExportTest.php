@@ -51,7 +51,7 @@ class ReportTableExportTest extends TestCase
         return ChartOfAccount::where('code', $code)->firstOrFail();
     }
 
-    private function post(string $debitCode, string $creditCode, float $amount, string $date = '2026-10-10'): void
+    private function postJournal(string $debitCode, string $creditCode, float $amount, string $date = '2026-10-10'): void
     {
         $service = app(JournalEntryService::class);
         $entry = $service->create(['entry_date' => $date, 'store_id' => null, 'description' => 'Tes ekspor', 'created_by' => null], [
@@ -71,8 +71,8 @@ class ReportTableExportTest extends TestCase
 
     public function test_cash_balance_export_lists_each_account_and_the_total(): void
     {
-        $this->post('1102', '4100', 100000);
-        $this->post('1102', '4100', 50000);
+        $this->postJournal('1102', '4100', 100000);
+        $this->postJournal('1102', '4100', 50000);
 
         $data = $this->exportData(Livewire::test(CashBalanceReport::class));
 
@@ -89,7 +89,7 @@ class ReportTableExportTest extends TestCase
     public function test_budget_export_carries_budget_actual_remaining_and_status(): void
     {
         Budget::create(['period_month' => '2026-10-01', 'store_id' => null, 'chart_of_account_id' => $this->account('6410')->id, 'amount' => 1000000]);
-        $this->post('6410', '1102', 600000);
+        $this->postJournal('6410', '1102', 600000);
 
         $data = $this->exportData(Livewire::test(BudgetVsActualReport::class));
 
@@ -104,7 +104,7 @@ class ReportTableExportTest extends TestCase
     public function test_an_account_over_budget_is_exported_as_exceeded(): void
     {
         Budget::create(['period_month' => '2026-10-01', 'store_id' => null, 'chart_of_account_id' => $this->account('6410')->id, 'amount' => 500000]);
-        $this->post('6410', '1102', 700000);
+        $this->postJournal('6410', '1102', 700000);
 
         $row = collect($this->exportData(Livewire::test(BudgetVsActualReport::class))['rows'])->firstWhere(0, '6410');
 
