@@ -38,6 +38,8 @@ class ScheduledPriceChangeTest extends TestCase
         }
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Carbon::setTestNow('2026-11-20 09:00:00');
+        // Migrasi sudah mengisi produk film bawaan (Detailing, Premium Wash, harga Majoo); dinonaktifkan agar hanya data tes yang dihitung.
+        FilmProduct::query()->update(['is_active' => false]);
     }
 
     protected function tearDown(): void
