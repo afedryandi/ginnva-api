@@ -162,8 +162,9 @@ class AccuratePolishTest extends TestCase
             ->assertFormSet([
                 'finance_category_id' => $category->id,
                 'description' => 'ATK bulanan',
-                'transaction_date' => '2026-10-15',
-            ]);
+            ])
+            // Kolom tanggal Filament menyimpan jam juga ("2026-10-15 09:00:00"); yang dipastikan: hari ini, bukan tanggal transaksi lama.
+            ->assertFormSet(fn (array $state) => str_starts_with((string) $state['transaction_date'], '2026-10-15'));
     }
 
     public function test_without_the_duplicate_parameter_the_form_stays_empty(): void
