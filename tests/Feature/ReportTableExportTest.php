@@ -98,7 +98,8 @@ class ReportTableExportTest extends TestCase
         $this->assertSame([1000000.0, 600000.0, 400000.0, '60%', 'Aman'], [$row[2], $row[3], $row[4], $row[5], $row[6]]);
         $this->assertSame(1000000.0, $data['totals'][2]);
         $this->assertSame(600000.0, $data['totals'][3]);
-        $this->assertStringContainsString('Oktober 2026', $data['subtitle']);
+        $this->assertStringContainsString('2026', $data['subtitle']);
+        $this->assertStringContainsString('Seluruh perusahaan', $data['subtitle']);
     }
 
     public function test_an_account_over_budget_is_exported_as_exceeded(): void
