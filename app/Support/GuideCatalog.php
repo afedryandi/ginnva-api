@@ -575,6 +575,7 @@ class GuideCatalog
                     '**Supplier** adalah master yang dipakai tagihan: isi nama, NPWP (15 atau 16 digit tanpa titik atau strip, opsional), kontak, dan rekening pembayaran. Supplier yang sudah punya tagihan tidak bisa dihapus; nonaktifkan, dan supplier nonaktif tidak muncul di pilihan tagihan baru.',
                     '**Template Tagihan Rutin** membuat tagihan berulang otomatis tiap bulan (mis. sewa): isi **Nama Template**, **Supplier / Penerima**, **Akun Beban (Debit)** (kreditnya selalu akun 2110 Hutang Usaha), **Nominal per Periode**, **Tanggal Generate Tiap Bulan** (bila bulan itu tidak punya tanggalnya, jatuh ke tanggal terakhir bulan itu), dan **Mulai Generate Dari**. Opsional: **Berakhir Pada**, **Maksimal Jumlah Tagihan**, dan **Jeda Sampai**. **Jalankan Sekarang** membuat tagihan seketika; **Lewati Bulan Berikutnya** melewatkan satu bulan; nonaktifkan untuk menghentikannya tanpa menghapus riwayat.',
                     '**Umur Hutang** dan **Umur Piutang** mengelompokkan sisa tagihan aktif menurut keterlambatan dari jatuh tempo, per supplier atau per customer. Staf toko otomatis dibatasi ke tokonya; akses penuh bisa memilih toko atau "Pusat / Tanpa Toko". Bisa diekspor ke Excel atau PDF.',
+                    'Di atas tabel Umur Piutang ada bagian **Perputaran Piutang dan Hari Penagihan**. Pilih **Periode Perputaran Piutang** (30 sampai 365 hari terakhir): sistem menampilkan **Piutang Terbit**, **Dibayar**, **Rata-rata Piutang**, **Perputaran Piutang**, dan **Hari Penagihan**. Makin kecil Hari Penagihan, makin cepat piutang tertagih.',
                 ],
                 'tips' => [
                     'Template Tagihan Rutin memposting jurnal otomatis tiap bulan, jadi hanya akses penuh yang membuat atau mengubahnya.',
@@ -622,12 +623,13 @@ class GuideCatalog
                 'id' => 'laporan-keuangan',
                 'title' => 'Laporan keuangan: cara membaca dan mengekspor',
                 'summary' => 'Neraca, Neraca Saldo, Buku Besar, Laba Rugi, Arus Kas, ringkasan bulanan, dan dasbor, semuanya dari jurnal yang sudah diposting.',
-                'menus' => ['BalanceSheetReport', 'TrialBalanceReport', 'GeneralLedgerReport', 'IncomeStatementReport', 'CashFlowReport', 'FinanceReport', 'FinanceDashboard'],
+                'menus' => ['BalanceSheetReport', 'TrialBalanceReport', 'GeneralLedgerReport', 'IncomeStatementReport', 'MonthlyIncomeStatementReport', 'CashFlowReport', 'FinanceReport', 'FinanceDashboard'],
                 'steps' => [
                     '**Neraca**: Aset sama dengan Kewajiban ditambah Modal pada **Per Tanggal** yang dipilih; **Bandingkan Dengan** menampilkan periode pembanding.',
                     '**Neraca Saldo**: saldo tiap akun pada tanggal yang dipilih. Isi **Dari Tanggal (opsional)** untuk melihat Saldo Awal, Mutasi, dan Saldo Akhir. Akun Laba Rugi dihitung sejak 1 Januari tahun laporan.',
                     '**Buku Besar**: rincian tiap baris jurnal pada satu akun dalam rentang tanggal, dengan saldo berjalan. Dipakai untuk mengecek kenapa saldo sebuah akun sebesar itu. **Akun Sebelumnya** dan **Akun Berikutnya** pindah antar akun.',
                     '**Laporan Laba Rugi**: untuk satu rentang periode (bukan kumulatif), dengan **Bandingkan Dengan** untuk periode lain.',
+                    '**Laba Rugi Bulanan**: satu tahun penuh dengan satu kolom per bulan dan kolom **Total**, per akun dan per kelompok sampai Laba Bersih. Pilih **Tahun** dan **Toko**; angka tiap bulan sama dengan Laporan Laba Rugi untuk bulan itu. Bisa diekspor; di PDF tabelnya dicetak mendatar dengan huruf kecil.',
                     '**Laporan Arus Kas**: metode langsung, dikelompokkan Operasional, Investasi, dan Pendanaan menurut Kategori Arus Kas tiap akun. **Tampilkan rincian per jurnal** menampilkan jurnal satu per satu.',
                     '**Laporan Keuangan**: ringkasan bulanan pemasukan dan pengeluaran dari Transaksi Keuangan dengan rincian per kategori. **Kelola Widget** memilih akun yang dipin sebagai kartu saldo.',
                     '**Dasbor Keuangan**: kas, laba bulan ini, piutang dan hutang, dan hal yang perlu ditindak dalam satu layar. **Saldo Kas & Bank** dan **Anggaran vs Realisasi** punya panduan sendiri.',

@@ -88,7 +88,7 @@ trait ExportsReportTable
             if (is_int($cell) || is_float($cell)) {
                 return $money
                     ? ($cell < 0 ? '-' : '') . 'Rp' . number_format(abs($cell), 0, ',', '.')
-                    : number_format($cell, is_int($cell) ? 0 : 1, ',', '.');
+                    : number_format($cell, is_int($cell) || floor($cell) == $cell ? 0 : 1, ',', '.');
             }
 
             return (string) $cell;

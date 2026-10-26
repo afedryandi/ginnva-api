@@ -13,6 +13,8 @@
         td.value, th.value { text-align: right; }
         tfoot td { font-weight: bold; border-top: 2px solid #9ca3af; border-bottom: none; }
         .note { margin-top: 10px; font-size: 9px; color: #6b7280; }
+        .compact th, .compact td { padding: 3px 2px; font-size: 7px; }
+        .compact th { font-size: 6.5px; }
     </style>
 </head>
 <body>
@@ -25,6 +27,7 @@
         <div class="period">{{ $data['subtitle'] }}</div>
     @endif
 
+    <div @class(['compact' => $data['compact'] ?? false])>
     @foreach ($data['pdf_sections'] as $section)
         @php($right = $section['right'])
         @if (! empty($section['title']))
@@ -60,6 +63,7 @@
             @endif
         </table>
     @endforeach
+    </div>
 
     @if (! empty($data['note']))
         <div class="note">{{ $data['note'] }}</div>

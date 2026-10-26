@@ -393,7 +393,6 @@ class GuideAccuracyTest extends TestCase
         $expected = [
             'booking' => ['Duplikat (pelanggan datang lagi)'],
             'transaksi-keuangan' => ['Duplikat'],
-            'hutang-piutang' => ['Duplikat'],
             'garansi-maintenance' => ['Riwayat Klaim After-Sales', 'Ditangani oleh', 'Perkiraan Selesai', 'Bahan Terpakai', 'Catat Penyelesaian', 'Hasil Penanganan'],
             'stok' => ['Bahan Terpakai', 'Pemasok Utama'],
             'riwayat-stok-dashboard' => ['Buat Permintaan Beli'],
@@ -404,6 +403,8 @@ class GuideAccuracyTest extends TestCase
             'kas-bank' => ['Catat sebagai Transaksi'],
             'katalog-produk' => ['Perubahan Harga Terjadwal', 'Terapkan Sekarang'],
             'aset-tetap' => ['Lepas Aset', 'Dampak ke pembukuan'],
+            'laporan-keuangan' => ['Laba Rugi Bulanan'],
+            'hutang-piutang' => ['Duplikat', 'Perputaran Piutang dan Hari Penagihan', 'Periode Perputaran Piutang', 'Hari Penagihan'],
             'permohonan-pembelian' => ['Jumlah Diterima', 'Buat Permintaan Beli', 'Pemasok Utama'],
         ];
 

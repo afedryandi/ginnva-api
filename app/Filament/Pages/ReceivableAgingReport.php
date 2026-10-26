@@ -6,6 +6,7 @@ use App\Exports\ReceivableAgingExport;
 use App\Filament\Resources\ReceivableResource;
 use App\Models\Store;
 use App\Services\FinancialStatementService;
+use App\Services\ReceivableTurnoverService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -59,6 +60,7 @@ class ReceivableAgingReport extends Page implements HasForms
     {
         $this->form->fill([
             'store_id' => $this->isRestricted() ? auth()->user()?->store_id : null,
+            'ratio_days' => 90,
         ]);
     }
 
@@ -73,6 +75,13 @@ class ReceivableAgingReport extends Page implements HasForms
                     ->searchable()
                     ->live()
                     ->disabled(fn () => $this->isRestricted() && auth()->user()?->store_id !== null),
+
+                Select::make('ratio_days')
+                    ->label('Periode Perputaran Piutang')
+                    ->options([30 => '30 hari terakhir', 90 => '90 hari terakhir', 180 => '180 hari terakhir', 365 => '365 hari terakhir'])
+                    ->default(90)
+                    ->selectablePlaceholder(false)
+                    ->live(),
             ])
             ->statePath('data')
             ->columns(3);
@@ -189,6 +198,15 @@ class ReceivableAgingReport extends Page implements HasForms
             'overdue_count' => $rows->filter(fn ($r) => ((float) $r->b1 + (float) $r->b2 + (float) $r->b3 + (float) $r->b4) > 0.005)->count(),
             'over_90_pct' => $totals['total'] > 0.005 ? round($totals['b4'] / $totals['total'] * 100, 1) : 0.0,
         ];
+    }
+
+    /** Perputaran piutang dan hari penagihan untuk N hari terakhir sampai hari ini, mengikuti pilihan toko. */
+    public function getTurnover(): array
+    {
+        $days = (int) ($this->data['ratio_days'] ?? 90);
+        $days = in_array($days, [30, 90, 180, 365], true) ? $days : 90;
+
+        return app(ReceivableTurnoverService::class)->summarize(today()->subDays($days - 1), today(), $this->storeId());
     }
 
     /** Link drill-down ke daftar Piutang Usaha 1 customer -- filter akun kalau tertaut master, cari nama kalau belum. */
