@@ -13,7 +13,8 @@ use App\Models\Vehicle;
  *
  * Peran seeder kendaraan (jangan bingung): VehicleSeeder = contoh kecil untuk lingkungan baru/uji (dipanggil DatabaseSeeder);
  * VehicleBrandSeeder = hanya merek tanpa model (placeholder); VehicleModelSeeder = daftar lengkap per ukuran. Aman dijalankan ulang.
- * Catatan data: daftar ini menyebut HYUNDAI IONIQ 5 di ukuran S dan M; seeder mengambil yang lebih dulu ada dan memberi peringatan.
+ * Catatan data: HYUNDAI IONIQ 5 sebelumnya tercantum di ukuran S dan M; pemilik memutuskan ukuran M (2026-10-26), jadi hanya ada di M. Seeder
+ * tidak mengubah kendaraan yang sudah ada: database lama yang sudah memuat IONIQ 5 di S harus diubah lewat Master Data > Kendaraan.
  */
 class VehicleModelSeeder extends Seeder
 {
@@ -26,7 +27,7 @@ class VehicleModelSeeder extends Seeder
                 'BYD'        => ['DOLPHIN', 'ATTO 1'],
                 'FIAT'       => ['ABARTHA 2011'],
                 'HONDA'      => ['BRIO', 'CITY', 'WRV'],
-                'HYUNDAI'    => ['CRETA', 'IONIQ 5'],
+                'HYUNDAI'    => ['CRETA'],
                 'MAZDA'      => ['MX5'],
                 'MERCY'      => ['E300 2 DOTS'],
                 'MINI'       => ['COOPER', 'COOPER GP', 'COOPER GP S CABRIO'],

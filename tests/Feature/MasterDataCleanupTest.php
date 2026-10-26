@@ -105,5 +105,6 @@ class MasterDataCleanupTest extends TestCase
             ->select('brand', 'model')->groupBy('brand', 'model')->havingRaw('COUNT(*) > 1')->get();
         $this->assertCount(0, $duplicates, 'Tidak ada merek+model ganda dengan ukuran berbeda.');
         $this->assertSame(1, Vehicle::where('brand', 'HYUNDAI')->where('model', 'IONIQ 5')->count());
+        $this->assertSame('M', Vehicle::where('brand', 'HYUNDAI')->where('model', 'IONIQ 5')->value('size_category'), 'Keputusan pemilik: IONIQ 5 ukuran M.');
     }
 }
