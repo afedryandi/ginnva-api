@@ -20,6 +20,7 @@ use Livewire\Attributes\Url;
 class BookingServiceLevelReport extends Page implements HasForms
 {
     use InteractsWithForms;
+    use \App\Filament\Pages\Concerns\ExportsReportTable;
 
     protected static ?string $navigationIcon = 'heroicon-o-clock';
 
@@ -114,6 +115,57 @@ class BookingServiceLevelReport extends Page implements HasForms
                 ->visible($isFullAccess)
                 ->live(),
         ])->columns($isFullAccess ? 3 : 2)->statePath('data');
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return $this->exportActions();
+    }
+
+    protected function reportExportData(): array
+    {
+        $r = $this->getResult();
+        $from = Carbon::parse($this->data['from'] ?? $this->from);
+        $to = Carbon::parse($this->data['to'] ?? $this->to);
+        $storeName = (auth()->user()?->isFullAccess() ?? false) && ! empty($this->data['store_id'])
+            ? Store::whereKey($this->data['store_id'])->value('name')
+            : null;
+        $who = ['customer' => 'Pelanggan', 'staff' => 'Staf', 'system' => 'Sistem'];
+
+        return [
+            'key' => 'sla-dan-tidak-datang',
+            'title' => 'Laporan SLA & Tidak Datang',
+            'subtitle' => $from->translatedFormat('d F Y') . ' - ' . $to->translatedFormat('d F Y') . ' · ' . ($storeName ? "Cabang {$storeName}" : 'Semua cabang'),
+            'money' => false,
+            'sections' => [
+                [
+                    'title' => 'Ringkasan',
+                    'headings' => ['Ukuran', 'Nilai', 'Keterangan'],
+                    'rows' => [
+                        ['Booking diajukan', $r['created'], "{$r['pending']} masih menunggu konfirmasi"],
+                        ['Konversi ke terkonfirmasi', $this->reportPercent($r['conversion_percent']), "{$r['reached_confirmed']} dari {$r['created']} booking"],
+                        ["Konfirmasi dalam target ({$r['target_hours']} jam)", $this->reportPercent($r['within_target_percent']), "{$r['within_target']} dari {$r['confirmed_measured']} yang tercatat waktunya"],
+                        ['Lama tunggu konfirmasi (median)', $this->reportHours($r['median_wait_hours']), 'rata-rata ' . $this->reportHours($r['avg_wait_hours'])],
+                        ['Tingkat tidak datang', $this->reportPercent($r['no_show_percent']), "{$r['no_show']} tidak datang, {$r['completed']} selesai"],
+                        ['Dibatalkan (selain tidak datang)', $r['cancelled'], $this->reportPercent($r['cancelled_percent']) . ' dari booking diajukan'],
+                    ],
+                    'right' => [1],
+                ],
+                [
+                    'title' => 'Dibatalkan oleh',
+                    'headings' => ['Pihak', 'Jumlah'],
+                    'rows' => collect($r['cancelled_by'])->map(fn ($total, $key) => [$who[$key] ?? ucfirst((string) $key), $total])->values()->all(),
+                    'right' => [1],
+                ],
+                [
+                    'title' => 'Alasan pembatalan terbanyak',
+                    'headings' => ['Alasan', 'Jumlah'],
+                    'rows' => collect($r['cancel_reasons'])->map(fn (array $row) => [$row['reason'], $row['total']])->all(),
+                    'right' => [1],
+                ],
+            ],
+            'note' => 'Periode menurut waktu booking diajukan. Waktu tunggu konfirmasi hanya dihitung untuk booking yang dikonfirmasi sejak fitur ini aktif. Tidak datang = booking terkonfirmasi yang ditandai pelanggan tidak datang.',
+        ];
     }
 
     public function getResult(): array

@@ -20,6 +20,7 @@ use Livewire\Attributes\Url;
 class LeadFunnelReport extends Page implements HasForms
 {
     use InteractsWithForms;
+    use \App\Filament\Pages\Concerns\ExportsReportTable;
 
     protected static ?string $navigationIcon = 'heroicon-o-funnel';
 
@@ -109,6 +110,62 @@ class LeadFunnelReport extends Page implements HasForms
                 ->placeholder('Semua jenis')
                 ->live(),
         ])->columns(3)->statePath('data');
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return $this->exportActions();
+    }
+
+    protected function reportExportData(): array
+    {
+        $r = $this->getResult();
+        $t = $r['totals'];
+        $from = Carbon::parse($this->data['from'] ?? $this->from);
+        $to = Carbon::parse($this->data['to'] ?? $this->to);
+        $type = $this->data['type'] ?? $this->type;
+
+        $headings = ['Masuk', 'Direspons', 'Median Respons', 'Dalam Target', 'Deal', 'Tidak Jadi', 'Terbuka', 'Tingkat Deal'];
+        $grouped = fn (string $title, string $first, array $rows) => [
+            'title' => $title,
+            'headings' => array_merge([$first], $headings),
+            'rows' => array_map(fn (array $row) => [
+                $row['label'], $row['total'], $row['responded'], $this->reportHours($row['median_response_hours']),
+                $this->reportPercent($row['within_sla_percent']), $row['won'], $row['lost'], $row['open'], $this->reportPercent($row['win_rate_percent']),
+            ], $rows),
+            'right' => range(1, 8),
+        ];
+
+        return [
+            'key' => 'dasbor-lead',
+            'title' => 'Dasbor Lead',
+            'subtitle' => $from->translatedFormat('d F Y') . ' - ' . $to->translatedFormat('d F Y') . ' · ' . (LeadFunnelService::TYPES[$type] ?? 'Semua jenis lead'),
+            'money' => false,
+            'sections' => [
+                [
+                    'title' => 'Ringkasan',
+                    'headings' => ['Ukuran', 'Nilai', 'Keterangan'],
+                    'rows' => [
+                        ['Lead masuk', $t['total'], "{$t['open']} masih terbuka"],
+                        ['Sudah direspons', $this->reportPercent($t['responded_percent']), "{$t['responded']} dari {$t['total']}"],
+                        ["Respons dalam target ({$r['sla_hours']} jam)", $this->reportPercent($t['within_sla_percent']), 'median ' . $this->reportHours($t['median_response_hours'])],
+                        ['Belum ditindak & telat', $t['overdue_unanswered'], "lebih dari {$r['sla_hours']} jam berstatus Baru"],
+                        ['Tingkat deal', $this->reportPercent($t['win_rate_percent']), "{$t['won']} deal, {$t['lost']} tidak jadi"],
+                    ],
+                    'right' => [1],
+                ],
+                $grouped('Menurut Jenis Lead', 'Jenis', $r['by_type']),
+                $grouped('Menurut Kanal', 'Kanal', $r['by_channel']),
+                $grouped('Menurut Kampanye (utm_campaign)', 'Kampanye', $r['by_campaign']),
+                [
+                    'title' => 'Alasan Tidak Jadi Terbanyak',
+                    'headings' => ['Alasan', 'Jumlah'],
+                    'rows' => array_map(fn (array $row) => [$row['reason'], $row['total']], $r['lost_reasons']),
+                    'right' => [1],
+                ],
+            ],
+            'note' => 'Periode menurut waktu lead masuk. Waktu respons = dari lead masuk sampai pertama kali ditindak. Lead tanpa UTM tidak muncul di tabel kampanye.',
+        ];
     }
 
     public function getResult(): array

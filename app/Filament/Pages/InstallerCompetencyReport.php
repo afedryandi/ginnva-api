@@ -25,6 +25,7 @@ use Illuminate\Support\Collection;
 class InstallerCompetencyReport extends Page implements HasForms
 {
     use InteractsWithForms;
+    use \App\Filament\Pages\Concerns\ExportsReportTable;
 
     protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
 
@@ -82,6 +83,58 @@ class InstallerCompetencyReport extends Page implements HasForms
         }
 
         return ! empty($this->data['store_id']) ? (int) $this->data['store_id'] : null;
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return $this->exportActions();
+    }
+
+    protected function reportExportData(): array
+    {
+        $technicians = $this->getTechnicians();
+        $services = $this->serviceLabels();
+        $from = ! empty($this->data['from']) ? Carbon::parse($this->data['from']) : now()->subDays(89);
+        $to = ! empty($this->data['to']) ? Carbon::parse($this->data['to']) : now();
+        $storeName = $this->storeId() ? Store::whereKey($this->storeId())->value('name') : null;
+
+        return [
+            'key' => 'kompetensi-installer',
+            'title' => 'Kompetensi & Mutu Installer',
+            'subtitle' => 'Mutu ' . $from->translatedFormat('d F Y') . ' - ' . $to->translatedFormat('d F Y') . ' · ' . ($storeName ? "Toko {$storeName}" : 'Semua toko'),
+            'money' => false,
+            'sections' => [
+                [
+                    'title' => 'Matriks keterampilan',
+                    'headings' => array_merge(['Teknisi', 'Toko'], array_values($services)),
+                    'rows' => $technicians->map(fn (Technician $t) => array_merge(
+                        [$t->name, $t->store?->name ?? '—'],
+                        array_map(fn (string $key) => $this->levelLabel($t->skills->firstWhere('service_type', $key)), array_keys($services)),
+                    ))->all(),
+                ],
+                [
+                    'title' => 'Sertifikat kedaluwarsa atau hampir kedaluwarsa',
+                    'headings' => ['Teknisi', 'Pelatihan', 'Status', 'Berlaku sampai'],
+                    'rows' => $this->getExpiringTrainings($technicians)->map(fn (array $row) => [
+                        $row['technician']->name,
+                        $row['training']->title,
+                        $row['training']->isExpired() ? 'Kedaluwarsa' : 'Hampir kedaluwarsa',
+                        $row['training']->valid_until?->format('d/m/Y'),
+                    ])->all(),
+                ],
+                [
+                    'title' => 'Mutu pekerjaan',
+                    'headings' => ['Installer', 'Toko', 'Pekerjaan selesai', 'Diperiksa QC', 'Lulus QC pertama', '% Lulus', 'Pernah gagal QC', 'Pekerjaan ulang dicatat'],
+                    'rows' => $this->getQuality()->map(fn (array $row) => [
+                        $row['name'], $row['store'] ?? '—', $row['jobs'], $row['checked'], $row['first_pass'],
+                        $row['first_pass_rate'] !== null ? number_format($row['first_pass_rate'], 0) . '%' : null,
+                        $row['reworked'], $row['rework_recorded'],
+                    ])->all(),
+                    'right' => [2, 3, 4, 5, 6, 7],
+                ],
+            ],
+            'note' => 'Mutu untuk pembinaan, bukan dasar potongan. Pada booking tim, semua installer bertugas dihitung sama. Persentase baru berarti bila jumlah pekerjaan yang diperiksa cukup banyak.',
+        ];
     }
 
     /** @return array<string, string> kunci layanan => label */
