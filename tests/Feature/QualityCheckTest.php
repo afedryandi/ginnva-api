@@ -232,11 +232,36 @@ class QualityCheckTest extends TestCase
         $serviceKey = QcChecklistItem::first()->service_key;
 
         Livewire::test(CreateQcChecklistItem::class)
-            ->fillForm(['service_key' => $serviceKey, 'label' => 'Tidak ada gelembung udara', 'is_required' => true, 'sort_order' => 150, 'is_active' => true])
+            ->fillForm(['service_key' => $serviceKey, 'label' => 'Tidak ada gelembung udara', 'is_required' => true, 'is_active' => true])
             ->call('create')
             ->assertHasNoFormErrors()
             ->assertRedirect(QcChecklistItemResource::getUrl('index'));
 
-        $this->assertDatabaseHas('qc_checklist_items', ['service_key' => $serviceKey, 'label' => 'Tidak ada gelembung udara', 'sort_order' => 150]);
+        $created = QcChecklistItem::where('label', 'Tidak ada gelembung udara')->firstOrFail();
+        $this->assertSame((int) QcChecklistItem::where('service_key', $serviceKey)->where('id', '!=', $created->id)->max('sort_order') + 1, $created->sort_order, 'Butir baru di urutan paling akhir layanannya.');
+    }
+
+    public function test_items_can_be_reordered_by_dragging_and_only_within_the_order_given(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $admin = $this->user('super_admin');
+        $admin->update(['menu_access' => null]);
+        $this->actingAs($admin, 'web');
+
+        $serviceKey = QcChecklistItem::first()->service_key;
+        $ids = QcChecklistItem::where('service_key', $serviceKey)->orderBy('sort_order')->pluck('id')->all();
+        $reversed = array_reverse($ids);
+
+        Livewire::test(ListQcChecklistItems::class)->call('reorderTable', $reversed);
+
+        $this->assertSame($reversed, QcChecklistItem::where('service_key', $serviceKey)->orderBy('sort_order')->pluck('id')->all());
+    }
+
+    public function test_default_checklist_numbers_start_at_one_for_each_service(): void
+    {
+        foreach (QcChecklistItem::pluck('service_key')->unique() as $key) {
+            $this->assertSame(1, (int) QcChecklistItem::where('service_key', $key)->min('sort_order'), "Urutan {$key} dimulai dari 1.");
+        }
     }
 }

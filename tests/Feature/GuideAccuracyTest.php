@@ -404,6 +404,7 @@ class GuideAccuracyTest extends TestCase
             'katalog-produk' => ['Perubahan Harga Terjadwal', 'Terapkan Sekarang'],
             'aset-tetap' => ['Lepas Aset', 'Dampak ke pembukuan'],
             'laporan-keuangan' => ['Laba Rugi Bulanan'],
+            'pengaturan-booking' => ['Urutkan Ulang', 'Selesai Mengurutkan'],
             'hutang-piutang' => ['Duplikat', 'Perputaran Piutang dan Hari Penagihan', 'Periode Perputaran Piutang', 'Hari Penagihan'],
             'permohonan-pembelian' => ['Jumlah Diterima', 'Buat Permintaan Beli', 'Pemasok Utama'],
         ];

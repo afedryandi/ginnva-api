@@ -437,7 +437,7 @@ class GuideCatalog
                 'summary' => 'Dua pengaturan yang memengaruhi alur booking dan hanya diubah akses penuh.',
                 'menus' => ['QcChecklistItemResource', 'AppSettingResource'],
                 'steps' => [
-                    '**Daftar Periksa QC**: pilih **Layanan**, lalu tulis **Butir yang Diperiksa** sebagai pernyataan yang harus benar (mis. "Tepi film rapi dan menempel kuat"). Atur **Urutan**.',
+                    '**Daftar Periksa QC**: pilih **Layanan**, lalu tulis **Butir yang Diperiksa** sebagai pernyataan yang harus benar (mis. "Tepi film rapi dan menempel kuat"). Butir baru masuk di urutan paling akhir untuk layanannya. Untuk mengubah urutan, tekan **Urutkan Ulang** di atas daftar, seret barisnya ke posisi yang diinginkan, lalu tekan **Selesai Mengurutkan**.',
                     'Centang **Wajib Lulus** untuk butir yang menentukan: bila butir wajib tidak lulus, Quality Check dinyatakan tidak lulus. Matikan **Dipakai** untuk berhenti memeriksa sebuah butir tanpa menghapus riwayatnya.',
                     '**Teks Aplikasi**: ubah **Isi Teks** (saat ini kebijakan pembatalan booking) yang tampil ke pelanggan. Perubahan langsung berlaku tanpa rilis aplikasi. Kunci teksnya tetap; tidak ada tambah atau hapus.',
                 ],

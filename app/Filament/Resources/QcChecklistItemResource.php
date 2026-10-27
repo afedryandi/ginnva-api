@@ -92,13 +92,6 @@ class QcChecklistItemResource extends Resource
                 ->default(true)
                 ->helperText('Bila butir wajib tidak lulus, Quality Check tidak lulus.'),
 
-            Forms\Components\TextInput::make('sort_order')
-                ->label('Urutan')
-                ->numeric()
-                ->required()
-                ->default(100)
-                ->minValue(0),
-
             Forms\Components\Toggle::make('is_active')
                 ->label('Dipakai')
                 ->default(true)
@@ -110,7 +103,15 @@ class QcChecklistItemResource extends Resource
     {
         return $table
             ->defaultSort('sort_order')
-            ->defaultGroup('service_key')
+            // Urutan diatur dengan menyeret baris (tombol "Urutkan Ulang"), bukan mengetik angka. Hanya akses penuh, sama seperti ubah dan hapus.
+            ->reorderable('sort_order', static::fullAccess())
+            ->reorderRecordsTriggerAction(fn (\Filament\Tables\Actions\Action $action, bool $isReordering) => $action
+                ->label($isReordering ? 'Selesai Mengurutkan' : 'Urutkan Ulang'))
+            ->defaultGroup(
+                Tables\Grouping\Group::make('service_key')
+                    ->label('Layanan')
+                    ->getTitleFromRecordUsing(fn (QcChecklistItem $record) => BookingServiceType::labelFor($record->service_key))
+            )
             ->columns([
                 Tables\Columns\TextColumn::make('service_key')
                     ->label('Layanan')
@@ -119,7 +120,6 @@ class QcChecklistItemResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('label')->label('Butir')->wrap(),
                 Tables\Columns\IconColumn::make('is_required')->label('Wajib')->boolean(),
-                Tables\Columns\TextColumn::make('sort_order')->label('Urutan')->sortable(),
                 Tables\Columns\IconColumn::make('is_active')->label('Dipakai')->boolean(),
             ])
             ->filters([
