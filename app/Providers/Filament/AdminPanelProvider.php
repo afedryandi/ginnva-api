@@ -232,7 +232,14 @@ class AdminPanelProvider extends PanelProvider
             // merah di mode terang (lihat brandLogo di atas).
             ->renderHook(
                 \Filament\View\PanelsRenderHook::HEAD_END,
-                fn () => '<style>.fi-page-sub-navigation-sidebar { row-gap: 0.5rem !important; }</style>',
+                // Menu samping kluster (mis. Karyawan, Keuangan) punya scroll sendiri (2026-10-27): menempel di bawah topbar saat halaman digulir
+                // dan bisa digulir sendiri bila daftarnya lebih panjang dari layar. Hanya di layar md ke atas (di ponsel menunya berupa dropdown).
+                fn () => '<style>'
+                    . '.fi-page-sub-navigation-sidebar { row-gap: 0.5rem !important; }'
+                    . '@media (min-width: 768px) {'
+                    . '.fi-page-sub-navigation-sidebar { position: sticky; top: 5rem; align-self: flex-start; max-height: calc(100vh - 6.5rem); overflow-y: auto; overscroll-behavior: contain; padding-right: 0.25rem; scrollbar-width: thin; }'
+                    . '}'
+                    . '</style>',
             )
             ->middleware([
                 EncryptCookies::class,
