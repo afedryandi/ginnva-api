@@ -71,6 +71,7 @@ class DemoLengkapiTest extends TestCase
 
     public function test_it_can_run_twice_without_duplicating_and_does_not_touch_the_activity_log(): void
     {
+        Activity::query()->delete(); // pembuatan Toko di setUp sudah tercatat; yang diuji hanya perintahnya
         $this->artisan('demo:lengkapi')->assertSuccessful();
         $this->artisan('demo:lengkapi')->assertSuccessful();
 
