@@ -12,6 +12,6 @@
             </div>
         </div>
     @empty
-        <p class="text-gray-500 dark:text-gray-400">Belum ada riwayat impor.</p>
+        <p class="text-gray-500 dark:text-gray-400">Belum ada riwayat import.</p>
     @endforelse
 </div>

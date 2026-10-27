@@ -69,7 +69,7 @@ class PromoLoyaltyReportTest extends TestCase
     {
         return [
             'Laporan Promo' => [PromoLoyaltyReport::class, 'Laporan Promo', 'laporan-promo'],
-            'Laporan Kupon' => [CouponReport::class, 'Laporan Voucher', 'laporan-kupon'],
+            'Laporan Kupon' => [CouponReport::class, 'Laporan Voucher', 'laporan-voucher'],
         ];
     }
 

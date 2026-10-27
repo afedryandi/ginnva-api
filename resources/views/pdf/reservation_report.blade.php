@@ -37,7 +37,7 @@
                 <th>Pelanggan</th>
                 <th>Toko</th>
                 <th>Layanan</th>
-                <th>Teknisi</th>
+                <th>Installer</th>
                 <th class="value">Total Tagihan</th>
                 <th>Status</th>
             </tr>

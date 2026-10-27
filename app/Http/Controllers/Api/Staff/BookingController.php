@@ -886,7 +886,7 @@ class BookingController extends Controller
             ->count();
 
         if ($validCount !== count($installerIds)) {
-            abort(422, 'Semua installer harus berasal dari toko ini dan berstatus aktif di roster Teknisi.');
+            abort(422, 'Semua installer harus berasal dari toko ini dan berstatus aktif di roster Installer.');
         }
 
         // Dibungkus transaction + row-lock — SEBELUMNYA dua request paralel

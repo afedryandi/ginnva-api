@@ -149,7 +149,7 @@ class RewardVoucherTest extends TestCase
         $this->assertSame(4, $reward->fresh()->stock);
 
         $redemption = RewardRedemption::firstOrFail();
-        $this->assertSame('fulfilled', $redemption->status, 'Voucher terbit langsung, tidak menunggu staf.');
+        $this->assertSame('fulfilled', $redemption->status, 'Voucher terbit langsung, tidak menunggu staff.');
 
         $mine = $this->actingAs($customer, 'customer')->getJson('/api/customer/vouchers')->assertSuccessful()->json('data');
         $this->assertCount(1, $mine);
@@ -187,7 +187,7 @@ class RewardVoucherTest extends TestCase
         $partner->forceFill(['points_balance' => 1000])->save();
         $reward = $this->voucherReward();
 
-        $this->expectExceptionMessage('Voucher diskon hanya bisa ditukar oleh customer.');
+        $this->expectExceptionMessage('Voucher diskon hanya bisa ditukar oleh pelanggan.');
         try {
             app(RewardRedemptionService::class)->redeem($partner, $reward);
         } finally {

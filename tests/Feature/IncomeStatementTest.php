@@ -176,7 +176,7 @@ class IncomeStatementTest extends TestCase
 
     private function find(array $rows, string $label): array
     {
-        return collect($rows)->first(fn ($r) => ($r[0] ?? null) === $label) ?? $this->fail("Baris '{$label}' tidak ditemukan di ekspor.");
+        return collect($rows)->first(fn ($r) => ($r[0] ?? null) === $label) ?? $this->fail("Baris '{$label}' tidak ditemukan di export.");
     }
 
     public function test_excel_export_has_the_waterfall_with_percent_of_revenue(): void

@@ -25,7 +25,7 @@
     <x-filament::section>
         <x-slot name="heading">Daftar Booking Dibatalkan</x-slot>
         <x-slot name="description">
-            Diambil dari histori aktivitas (log perubahan status), bukan kolom terpisah — "Dibatalkan Oleh" bisa "Sistem" kalau dibatalkan lewat proses otomatis.
+            Diambil dari riwayat aktivitas (log perubahan status), bukan kolom terpisah — "Dibatalkan Oleh" bisa "Sistem" kalau dibatalkan lewat proses otomatis.
             Kolom "Otorisasi" dan "Nama Meja" ala Majoo tidak ditampilkan — Ginnva tidak punya alur otorisasi void/meja restoran.
         </x-slot>
 

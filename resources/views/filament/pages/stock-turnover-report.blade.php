@@ -10,7 +10,7 @@
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
-        Rasio Perputaran = Qty Keluar ÷ Rata-rata Stok (stok awal &amp; akhir rentang, direkonstruksi dari histori pergerakan
+        Rasio Perputaran = Qty Keluar ÷ Rata-rata Stok (stok awal &amp; akhir rentang, direkonstruksi dari riwayat pergerakan
         — sistem tidak menyimpan snapshot stok harian). Rasio tinggi = bahan cepat berputar, bukan otomatis "bagus"/"buruk".
         "Estimasi Habis" diproyeksikan dari <strong>stok HARI INI</strong> (bukan stok di akhir rentang filter) dibagi
         kecepatan konsumsi rata-rata harian pada rentang ini — perkiraan kasar, asumsi kecepatan konsumsi tetap.

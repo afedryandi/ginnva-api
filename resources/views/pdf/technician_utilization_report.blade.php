@@ -15,7 +15,7 @@
     </style>
 </head>
 <body>
-    <h1>Laporan Utilisasi Teknisi</h1>
+    <h1>Laporan Utilisasi Installer</h1>
     <div class="period">Periode: {{ $result['from']->format('d M Y') }} - {{ $result['to']->format('d M Y') }}</div>
     <div class="note">
         Jam Hadir: sungguhan dari absensi (clock-in/clock-out). Jam Job: estimasi dari hari kerja yang direncanakan
@@ -27,8 +27,8 @@
     <table>
         <thead>
             <tr>
-                <th>Teknisi</th>
-                <th>Cabang</th>
+                <th>Installer</th>
+                <th>Toko</th>
                 <th class="value">Jam Hadir</th>
                 <th class="value">Jam Job (Estimasi)</th>
                 <th class="value">Jam Idle</th>
@@ -49,7 +49,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6">Belum ada teknisi aktif untuk cabang ini.</td>
+                    <td colspan="6">Belum ada installer aktif untuk toko ini.</td>
                 </tr>
             @endforelse
         </tbody>

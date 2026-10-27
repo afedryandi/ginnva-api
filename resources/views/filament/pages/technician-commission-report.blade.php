@@ -19,25 +19,25 @@
         </x-filament::section>
 
         <x-filament::section>
-            <div class="text-xs text-gray-500 dark:text-gray-400">Teknisi Punya Pekerjaan Tapi Komisi Belum Diatur</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Installer Punya Pekerjaan Tapi Komisi Belum Diatur</div>
             <div class="mt-1 text-2xl font-bold tabular-nums {{ $result['unratedCount'] > 0 ? 'text-warning-600 dark:text-warning-400' : '' }}">{{ $result['unratedCount'] }}</div>
         </x-filament::section>
     </div>
 
     <x-filament::section>
-        <x-slot name="heading">Komisi per Teknisi</x-slot>
+        <x-slot name="heading">Komisi per Installer</x-slot>
         <x-slot name="description">
-            Teknisi tanpa tarif per-layanan pakai nominal FLAT per pekerjaan. Teknisi yang sudah punya tarif per-layanan (menu Teknisi →
+            Installer tanpa tarif per-layanan pakai nominal FLAT per pekerjaan. Installer yang sudah punya tarif per-layanan (menu Installer →
             "Tarif per Layanan") dihitung per booking — booking dgn beberapa jenis layanan sekaligus (mis. PPF + Detailing) menjumlahkan
-            tarif kedua jenis itu. Kalau 1 booking dikerjakan >1 teknisi, masing-masing dihitung PENUH (tidak dibagi) — termasuk kolom
-            "Penjualan", jadi totalnya lintas teknisi bisa melebihi total Penjualan sungguhan kalau ada booking tim (disengaja).
+            tarif kedua jenis itu. Kalau 1 booking dikerjakan >1 installer, masing-masing dihitung PENUH (tidak dibagi) — termasuk kolom
+            "Penjualan", jadi totalnya lintas installer bisa melebihi total Penjualan sungguhan kalau ada booking tim (disengaja).
         </x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                        <th class="py-2 pr-3">Teknisi</th>
+                        <th class="py-2 pr-3">Installer</th>
                         <th class="py-2 pr-3">Toko</th>
                         <th class="py-2 pr-3 text-right">Jumlah Pekerjaan</th>
                         <th class="py-2 pr-3 text-right">Penjualan</th>
@@ -65,7 +65,7 @@
                             @endif
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada data teknisi bertaut akun installer.</td></tr>
+                        <tr><td colspan="6" class="py-4 text-center text-gray-500 dark:text-gray-400">Belum ada data installer bertaut akun installer.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -73,8 +73,8 @@
 
         @if ($result['unratedCount'] > 0)
             <p class="mt-3 text-xs text-warning-600 dark:text-warning-400">
-                Ada {{ $result['unratedCount'] }} teknisi yang punya pekerjaan di periode ini tapi belum diatur nominal komisinya —
-                atur di menu Teknisi supaya total komisi di atas akurat.
+                Ada {{ $result['unratedCount'] }} installer yang punya pekerjaan di periode ini tapi belum diatur nominal komisinya —
+                atur di menu Installer supaya total komisi di atas akurat.
             </p>
         @endif
     </x-filament::section>

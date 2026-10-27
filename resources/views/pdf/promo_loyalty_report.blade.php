@@ -96,10 +96,10 @@
         @endforelse
     </table>
 
-    <h2>Poin Loyalti (company-wide, tidak per cabang)</h2>
+    <h2>Poin Loyalti (company-wide, tidak per toko)</h2>
     <table>
-        <tr><td>Poin Customer Diterbitkan</td><td class="value">+{{ number_format($result['points']['issued_customer'], 0, ',', '.') }}</td></tr>
-        <tr><td>Poin Customer Dipakai</td><td class="value">-{{ number_format($result['points']['spent_customer'], 0, ',', '.') }}</td></tr>
+        <tr><td>Poin Pelanggan Diterbitkan</td><td class="value">+{{ number_format($result['points']['issued_customer'], 0, ',', '.') }}</td></tr>
+        <tr><td>Poin Pelanggan Dipakai</td><td class="value">-{{ number_format($result['points']['spent_customer'], 0, ',', '.') }}</td></tr>
         <tr><td>Poin Partner Diterbitkan</td><td class="value">+{{ number_format($result['points']['issued_partner'], 0, ',', '.') }}</td></tr>
         <tr><td>Poin Partner Dipakai</td><td class="value">-{{ number_format($result['points']['spent_partner'], 0, ',', '.') }}</td></tr>
         <tr><td>Total Klaim Reward</td><td class="value">{{ number_format($result['totalRedemptions'], 0, ',', '.') }}</td></tr>

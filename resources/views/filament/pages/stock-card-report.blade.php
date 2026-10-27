@@ -11,9 +11,9 @@
 
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
-        Awal &amp; Akhir direkonstruksi dari stok saat ini + histori pergerakan (sistem tidak menyimpan snapshot stok harian).
+        Awal &amp; Akhir direkonstruksi dari stok saat ini + riwayat pergerakan (sistem tidak menyimpan snapshot stok harian).
         "Masuk" = pencatatan masuk + penyesuaian positif; "Keluar" = pemakaian + |penyesuaian negatif| + stok terbuang.
-        Rumus: Awal + Masuk − Keluar = Akhir. Stok masih nasional (belum per cabang).
+        Rumus: Awal + Masuk − Keluar = Akhir. Stok masih nasional (belum per toko).
     </div>
 
     <x-filament::section>

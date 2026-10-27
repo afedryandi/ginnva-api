@@ -41,6 +41,7 @@ class SalesDashboardTest extends TestCase
         parent::setUp();
 
         Http::fake();
+        app()->setLocale('id'); // bulan tampil Indonesia seperti di production, apa pun APP_LOCALE di .env
         Role::findOrCreate('kasir', 'web');
         $this->seed(ChartOfAccountSeeder::class);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -302,7 +303,7 @@ class SalesDashboardTest extends TestCase
         $page->call('goNext');
 
         $this->assertSame('2026-10-08', $page->get('referenceDate'), 'Acuan dijepit ke hari ini.');
-        $this->assertSame('01 Oct 2026 - 31 Oct 2026', $page->instance()->getRangeLabel());
+        $this->assertSame('01 Okt 2026 - 31 Okt 2026', $page->instance()->getRangeLabel());
         $this->assertFalse($page->instance()->canGoNext());
     }
 
@@ -380,7 +381,7 @@ class SalesDashboardTest extends TestCase
             ->assertSee('Rp1.600.000')
             ->assertSee('setelah pengembalian Rp200.000')
             ->assertSee('kotor Rp1.800.000')
-            ->assertSee('01 Oct 2026 - 31 Oct 2026');
+            ->assertSee('01 Okt 2026 - 31 Okt 2026');
     }
 
     public function test_the_pending_banner_the_empty_state_and_the_growth_banner(): void

@@ -65,7 +65,7 @@ class TechnicianCommissionReportTest extends TestCase
     public static function pages(): array
     {
         return [
-            'komisi teknisi' => [TechnicianCommissionReport::class, 'Laporan Komisi Installer', 'laporan-komisi-teknisi'],
+            'komisi teknisi' => [TechnicianCommissionReport::class, 'Laporan Komisi Installer', 'laporan-komisi-installer'],
             'komisi tetap' => [FixedCommissionReport::class, 'Komisi Tetap', 'komisi-tetap'],
         ];
     }
@@ -167,7 +167,7 @@ class TechnicianCommissionReportTest extends TestCase
         $sari = $this->rows($this->report())['Sari'];
 
         $this->assertSame(2, $sari['jobCount'], 'Booking tim (kaca film) + PPF/Detailing.');
-        $this->assertEqualsWithDelta(2500000.0, $sari['salesTotal'], 0.001, 'Penjualan booking tim dihitung penuh untuk tiap teknisi.');
+        $this->assertEqualsWithDelta(2500000.0, $sari['salesTotal'], 0.001, 'Penjualan booking tim dihitung penuh untuk tiap installer.');
         $this->assertTrue($sari['usesServiceRates']);
         $this->assertNull($sari['rate']);
         $this->assertEqualsWithDelta(200000.0, $sari['totalCommission'], 0.001, '150.000 + 50.000; kaca film tidak punya tarif jadi belum disumkan.');

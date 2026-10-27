@@ -13,7 +13,7 @@
             <x-filament::section>
                 <div class="flex flex-col items-center gap-2 py-10 text-center">
                     <x-heroicon-o-calendar class="h-10 w-10 text-gray-300 dark:text-gray-600" />
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-300">Belum ada karyawan aktif untuk cabang ini, atau pilih cabang dulu.</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-300">Belum ada karyawan aktif untuk toko ini, atau pilih toko dulu.</p>
                 </div>
             </x-filament::section>
         @else

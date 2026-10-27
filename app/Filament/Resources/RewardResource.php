@@ -153,7 +153,7 @@ class RewardResource extends Resource
                         // ekspektasi customer yang sudah lihat harga lama
                         // di katalog.
                         ->helperText(fn (?Reward $record) => ($record && $record->redemptions()->exists())
-                            ? '⚠️ Reward ini sudah pernah ditukar customer. Riwayat lama tidak berubah, tapi pelanggan yang sudah lihat harga lama di katalog bisa bingung kalau harga berubah.'
+                            ? '⚠️ Reward ini sudah pernah ditukar pelanggan. Riwayat lama tidak berubah, tapi pelanggan yang sudah lihat harga lama di katalog bisa bingung kalau harga berubah.'
                             : null),
 
                     Forms\Components\TextInput::make('stock')

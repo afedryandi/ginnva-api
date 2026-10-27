@@ -246,7 +246,7 @@ class BookingApiFlowTest extends TestCase
 
         $first = $active->json('data.0');
         foreach (['journal_entry_id', 'partner_id', 'amount_received', 'dpp_amount', 'ppn_amount', 'h1_reminder_sent_at'] as $hidden) {
-            $this->assertArrayNotHasKey($hidden, $first, "Kolom internal {$hidden} bocor ke API customer.");
+            $this->assertArrayNotHasKey($hidden, $first, "Kolom internal {$hidden} bocor ke API pelanggan.");
         }
         $this->assertArrayNotHasKey('late_deduction_amount', $first['store'] ?? []);
     }

@@ -12,7 +12,7 @@
         <x-filament::section>
             <p class="text-xs text-gray-500 dark:text-gray-400">
                 Durasi diambil dari waktu kendaraan masuk-keluar bengkel (SPK) — data AKTUAL, bukan estimasi.
-                1 baris = 1 job (1 SPK). Untuk rekap akumulasi per teknisi (mis. persiapan komisi bertingkat),
+                1 baris = 1 job (1 SPK). Untuk rekap akumulasi per installer (mis. persiapan komisi bertingkat),
                 lihat menu "Durasi Servis Installer" di cluster Karyawan.
             </p>
         </x-filament::section>
@@ -39,10 +39,10 @@
                             <tr class="border-b border-gray-200 text-left text-xs uppercase text-gray-500 dark:border-gray-700 dark:text-gray-400">
                                 <th class="py-2 pr-4">Tanggal</th>
                                 <th class="py-2 pr-4">No. SPK</th>
-                                <th class="py-2 pr-4">Cabang</th>
-                                <th class="py-2 pr-4">Customer</th>
+                                <th class="py-2 pr-4">Toko</th>
+                                <th class="py-2 pr-4">Pelanggan</th>
                                 <th class="py-2 pr-4">Jenis Layanan</th>
-                                <th class="py-2 pr-4">Teknisi</th>
+                                <th class="py-2 pr-4">Installer</th>
                                 <th class="py-2 pr-4 text-right">Durasi</th>
                             </tr>
                         </thead>

@@ -239,7 +239,7 @@ class SupplierTest extends TestCase
 
         $this->actingAs($this->user('kasir'), 'web');
         $this->assertTrue(SupplierResource::canViewAny());
-        $this->assertFalse(SupplierResource::canCreate(), 'Mengelola supplier tidak otomatis untuk staf.');
+        $this->assertFalse(SupplierResource::canCreate(), 'Mengelola supplier tidak otomatis untuk staff.');
         $this->assertFalse(SupplierResource::canEdit($supplier));
 
         $this->actingAs($this->user('kasir', ['menu_permissions' => [SupplierResource::class => ['update']]]), 'web');

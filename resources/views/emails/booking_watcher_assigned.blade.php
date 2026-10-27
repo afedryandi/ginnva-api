@@ -30,7 +30,7 @@
 <table width="100%" cellpadding="0" cellspacing="0" border="0"
        style="margin-bottom:24px;border:1px solid #e6e6e6;border-radius:12px;overflow:hidden;">
     <tr>
-        <td style="padding:12px 16px;color:#999999;font-size:13px;width:40%;">Nama Customer</td>
+        <td style="padding:12px 16px;color:#999999;font-size:13px;width:40%;">Nama Pelanggan</td>
         <td style="padding:12px 16px;color:#333333;font-size:13px;font-weight:600;">{{ $customerName }}</td>
     </tr>
     <tr>

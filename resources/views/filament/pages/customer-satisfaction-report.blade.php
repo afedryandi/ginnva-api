@@ -89,9 +89,9 @@
     </x-filament::section>
 
     <x-filament::section>
-        <x-slot name="heading">Ulasan Pelanggan</x-slot>
+        <x-slot name="heading">Review Pelanggan</x-slot>
         @if ($result['displayReviewsTruncated'])
-            <x-slot name="description">Menampilkan 100 ulasan terbaru dari {{ $result['total'] }} total pada rentang ini. Export Excel/PDF tetap berisi semuanya.</x-slot>
+            <x-slot name="description">Menampilkan 100 review terbaru dari {{ $result['total'] }} total pada rentang ini. Export Excel/PDF tetap berisi semuanya.</x-slot>
         @endif
 
         @php
@@ -133,7 +133,7 @@
                     <p class="text-sm text-gray-700 dark:text-gray-300">{{ $review->comment ?: '(Tanpa komentar)' }}</p>
                 </div>
             @empty
-                <p class="text-sm text-gray-500 dark:text-gray-400">Belum ada ulasan pada rentang ini.</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Belum ada review pada rentang ini.</p>
             @endforelse
         </div>
     </x-filament::section>

@@ -199,7 +199,7 @@ class InvoiceTest extends TestCase
         $ids = collect($this->actingAs($customer, 'customer')->getJson('/api/customer/invoices')->assertSuccessful()->json('data'))->pluck('id');
 
         $this->assertTrue($ids->contains($mine->id));
-        $this->assertFalse($ids->contains($draft->id), 'Draft tidak boleh terlihat customer.');
+        $this->assertFalse($ids->contains($draft->id), 'Draft tidak boleh terlihat pelanggan.');
         $this->assertFalse($ids->contains($others->id));
 
         $this->actingAs($customer, 'customer')->getJson("/api/customer/invoices/{$mine->id}")

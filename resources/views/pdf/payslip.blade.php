@@ -112,7 +112,7 @@
             @endif
             @if ($payroll->total_commission > 0)
             <tr>
-                <td>Komisi Teknisi{{ $payroll->has_unrated_commission ? ' (sebagian job tarifnya belum diatur, belum termasuk)' : '' }}</td>
+                <td>Komisi Installer{{ $payroll->has_unrated_commission ? ' (sebagian job tarifnya belum diatur, belum termasuk)' : '' }}</td>
                 <td class="text-right">+ Rp {{ number_format($payroll->total_commission, 0, ',', '.') }}</td>
             </tr>
             @endif

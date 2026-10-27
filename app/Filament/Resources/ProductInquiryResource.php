@@ -171,7 +171,7 @@ class ProductInquiryResource extends Resource
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan Internal Sales')
-                        ->placeholder('Catatan follow-up, hasil komunikasi, dll — tidak terlihat oleh customer.')
+                        ->placeholder('Catatan follow-up, hasil komunikasi, dll — tidak terlihat oleh pelanggan.')
                         ->columnSpanFull(),
                 ]),
 

@@ -44,6 +44,7 @@ class SalesByPeriodTest extends TestCase
         parent::setUp();
 
         Http::fake();
+        app()->setLocale('id'); // bulan tampil Indonesia seperti di production, apa pun APP_LOCALE di .env
         Role::findOrCreate('kasir', 'web');
         $this->seed(ChartOfAccountSeeder::class);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -105,7 +106,7 @@ class SalesByPeriodTest extends TestCase
     public function test_period_keys_labels_and_bucket_ends(): void
     {
         [$key, $label, $end] = SalesByPeriodReport::periodKeyFor(Carbon::parse('2026-10-08'), 'bulanan');
-        $this->assertSame(['2026-10', 'October 2026', '2026-10-31'], [$key, $label, $end->toDateString()]);
+        $this->assertSame(['2026-10', 'Oktober 2026', '2026-10-31'], [$key, $label, $end->toDateString()]);
 
         [$key, $label, $end] = SalesByPeriodReport::periodKeyFor(Carbon::parse('2026-09-30'), 'mingguan');
         $this->assertSame(['2026-09-28', '28 Sep - 04 Oct 2026', '2026-10-04'], [$key, $label, $end->toDateString()], 'Minggu melintasi pergantian bulan.');
@@ -389,7 +390,7 @@ class SalesByPeriodTest extends TestCase
         $data = $method->invoke($chart->instance());
         $datasets = collect($data['datasets'])->keyBy('label');
 
-        $this->assertSame(['October 2026'], $data['labels']);
+        $this->assertSame(['Oktober 2026'], $data['labels']);
         $this->assertEquals([1500000.0], $datasets['Penjualan (Rp)']['data']);
         $this->assertSame([2], $datasets['Transaksi']['data']);
         $this->assertSame([4], $datasets['Produk']['data']);

@@ -135,7 +135,7 @@ class FilmProductResource extends Resource
 
                     Forms\Components\TextInput::make('base_price')
                         ->label('Harga Jual (Dasar / Flat)')
-                        ->helperText('INTERNAL — tidak ditampilkan ke customer. Dipakai kalau harga SAMA untuk semua ukuran mobil (mis. Panoramic). Kalau harga beda per ukuran, isi di bagian "Harga per Ukuran" di bawah — itu yang menang.')
+                        ->helperText('INTERNAL — tidak ditampilkan ke pelanggan. Dipakai kalau harga SAMA untuk semua ukuran mobil (mis. Panoramic). Kalau harga beda per ukuran, isi di bagian "Harga per Ukuran" di bawah — itu yang menang.')
                         ->numeric()
                         ->prefix('Rp')
                         ->minValue(0)

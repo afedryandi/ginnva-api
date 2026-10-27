@@ -43,7 +43,7 @@
 
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
         <x-filament::section>
-            <div class="text-xs text-gray-500 dark:text-gray-400">Poin Customer Diterbitkan</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Poin Pelanggan Diterbitkan</div>
             <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">+{{ number_format($points['issued_customer'], 0, ',', '.') }}</div>
             <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Dipakai: -{{ number_format($points['spent_customer'], 0, ',', '.') }}</div>
         </x-filament::section>
@@ -57,7 +57,7 @@
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Total Klaim Reward</div>
             <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['totalRedemptions'], 0, ',', '.') }}</div>
-            <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Customer &amp; Partner, periode terpilih</div>
+            <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Pelanggan &amp; Partner, periode terpilih</div>
         </x-filament::section>
     </div>
 

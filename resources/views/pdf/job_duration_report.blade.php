@@ -30,10 +30,10 @@
             <tr>
                 <th>Tanggal</th>
                 <th>No. SPK</th>
-                <th>Cabang</th>
-                <th>Customer</th>
+                <th>Toko</th>
+                <th>Pelanggan</th>
                 <th>Jenis Layanan</th>
-                <th>Teknisi</th>
+                <th>Installer</th>
                 <th class="value">Durasi</th>
             </tr>
         </thead>

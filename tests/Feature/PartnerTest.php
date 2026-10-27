@@ -401,7 +401,7 @@ class PartnerTest extends TestCase
 
         $this->actingAs($withMenu, 'web');
         $this->assertTrue(PartnerResource::canViewAny());
-        $this->assertTrue((bool) PartnerResource::canEdit($partner), 'Mengubah data partner = tugas rutin staf.');
+        $this->assertTrue((bool) PartnerResource::canEdit($partner), 'Mengubah data partner = tugas rutin staff.');
         $this->assertFalse((bool) PartnerResource::canCreate(), 'Membuat akun login baru hanya full-access / izin eksplisit.');
         $this->assertFalse((bool) PartnerResource::canDelete($partner));
 

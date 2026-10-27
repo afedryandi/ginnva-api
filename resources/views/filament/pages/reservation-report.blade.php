@@ -89,7 +89,7 @@
                         <th class="py-2 pr-3">Pelanggan</th>
                         <th class="py-2 pr-3">Toko</th>
                         <th class="py-2 pr-3">Layanan</th>
-                        <th class="py-2 pr-3">Teknisi</th>
+                        <th class="py-2 pr-3">Installer</th>
                         <th class="py-2 pr-3 text-right">Total Tagihan</th>
                         <th class="py-2 pl-3">Status</th>
                     </tr>

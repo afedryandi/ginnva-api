@@ -204,9 +204,9 @@
     <div class="footer-note">
         <strong>Perhatian:</strong>
         <ol>
-            <li>Perintah kerja ini adalah pekerjaan yang telah disepakati antara <strong>Customer</strong> dan <strong>Ginnva</strong>.</li>
-            <li>Perintah Kerja sebagai <i>check list</i> kondisi kendaraan, diketahui dan disetujui oleh Customer.</li>
-            <li>Perintah kerja sebagai tanda terima saat customer menerima kendaraan yang telah dikerjakan. Apabila hilang, tunjukkan STNK Asli.</li>
+            <li>Perintah kerja ini adalah pekerjaan yang telah disepakati antara <strong>Pelanggan</strong> dan <strong>Ginnva</strong>.</li>
+            <li>Perintah Kerja sebagai <i>check list</i> kondisi kendaraan, diketahui dan disetujui oleh Pelanggan.</li>
+            <li>Perintah kerja sebagai tanda terima saat pelanggan menerima kendaraan yang telah dikerjakan. Apabila hilang, tunjukkan STNK Asli.</li>
             <li>Ginnva Indonesia tidak bertanggung jawab atas kehilangan barang berharga yang ditinggalkan di dalam kendaraan.</li>
         </ol>
     </div>

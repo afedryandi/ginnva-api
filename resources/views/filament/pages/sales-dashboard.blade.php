@@ -153,7 +153,7 @@
                     wire:model.live="storeId"
                     class="border-0 bg-transparent p-0 pr-7 text-sm font-medium outline-none focus:outline-none focus:ring-0 dark:[color-scheme:dark]" style="border: 0; background-color: transparent; box-shadow: none; outline: none; padding: 0 1.75rem 0 0; font: inherit; font-size: 0.875rem; font-weight: 500; color: inherit;"
                 >
-                    <option value="">Semua cabang</option>
+                    <option value="">Semua toko</option>
                     @foreach ($storeOptions as $id => $name)
                         <option value="{{ $id }}">{{ $name }}</option>
                     @endforeach
@@ -355,7 +355,7 @@
         @php $ranking = $this->getTechnicianRanking(); @endphp
         @if (! empty($ranking))
             <div class="mt-6 border-t border-gray-200 pt-4 dark:border-white/10">
-                <x-metric-label tooltip="Top 5 teknisi periode ini berdasar nilai transaksi booking yang ditugaskan ke mereka (Booking::installers) — bukan nominal komisi. Booking tim dihitung penuh ke masing-masing teknisi, sama pola dengan Laporan Komisi Teknisi.">Ranking Teknisi</x-metric-label>
+                <x-metric-label tooltip="Top 5 installer periode ini berdasar nilai transaksi booking yang ditugaskan ke mereka (Booking::installers) — bukan nominal komisi. Booking tim dihitung penuh ke masing-masing installer, sama pola dengan Laporan Komisi Installer.">Ranking Installer</x-metric-label>
                 <div class="mt-2 divide-y divide-gray-100 dark:divide-white/5">
                     @foreach ($ranking as $i => $row)
                         <div class="flex items-center justify-between gap-3 py-2 text-sm">
@@ -377,7 +377,7 @@
 
     <p class="text-xs text-gray-500 dark:text-gray-400">
         Grafik di bawah selalu menampilkan bulan kalender berjalan (perbandingan dengan bulan lalu) —
-        tidak mengikuti filter periode/tanggal di atas, tapi TETAP ikut filter cabang.
+        tidak mengikuti filter periode/tanggal di atas, tapi TETAP ikut filter toko.
     </p>
 
     {{--

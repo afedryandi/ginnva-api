@@ -254,7 +254,7 @@ class EditBooking extends EditRecord
             if ($dateChanged && $fresh->status === 'confirmed' && blank($rescheduleReason)) {
                 Notification::make()
                     ->title('Alasan pindah jadwal wajib diisi')
-                    ->body('Booking yang sudah dikonfirmasi: isi "Alasan Pindah Jadwal", akan dikirim ke customer.')
+                    ->body('Booking yang sudah dikonfirmasi: isi "Alasan Pindah Jadwal", akan dikirim ke pelanggan.')
                     ->danger()
                     ->persistent()
                     ->send();

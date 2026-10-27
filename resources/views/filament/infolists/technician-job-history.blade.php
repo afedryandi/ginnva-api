@@ -38,7 +38,7 @@
     </div>
 
     @if ($bookings->isEmpty())
-        <p class="text-xs text-gray-400 dark:text-gray-500">Belum ada riwayat booking untuk teknisi ini.</p>
+        <p class="text-xs text-gray-400 dark:text-gray-500">Belum ada riwayat booking untuk installer ini.</p>
     @else
         <div class="divide-y divide-gray-100 dark:divide-white/5">
             @foreach ($bookings as $booking)

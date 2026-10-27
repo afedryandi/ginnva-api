@@ -96,7 +96,7 @@ class AccountSecurityLogTest extends TestCase
         $this->assertNull($wrong->causer_id);
         $this->assertSame($user->id, $wrong->subject_id, 'Tampil di tab Riwayat akun yang dituju.');
         $this->assertSame('sandi salah', $wrong->properties['reason']);
-        $this->assertSame('127.0.0.1', $wrong->properties['context']['ip'], 'IP dicatat untuk percobaan gagal ke akun staf.');
+        $this->assertSame('127.0.0.1', $wrong->properties['context']['ip'], 'IP dicatat untuk percobaan gagal ke akun staff.');
 
         $this->assertNull($unknown->subject_id);
         $this->assertSame('akun tidak ditemukan', $unknown->properties['reason']);

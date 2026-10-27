@@ -164,7 +164,7 @@
         </div>
 
         <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">
-            * = ada teknisi yang komisinya belum diatur (menu Teknisi) pada periode itu — nominal Komisi belum mencerminkan semua pekerjaan.
+            * = ada installer yang komisinya belum diatur (menu Installer) pada periode itu — nominal Komisi belum mencerminkan semua pekerjaan.
         </p>
     </x-filament::section>
     </div>

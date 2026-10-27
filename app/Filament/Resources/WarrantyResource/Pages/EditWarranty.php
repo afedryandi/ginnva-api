@@ -170,7 +170,7 @@ class EditWarranty extends EditRecord
                         ->required(),
                 ])
                 ->requiresConfirmation()
-                ->modalDescription('Kunjungan yang dibatalkan mengembalikan kuota customer. Riwayatnya tetap tersimpan (ditandai batal), bukan dihapus.')
+                ->modalDescription('Kunjungan yang dibatalkan mengembalikan kuota pelanggan. Riwayatnya tetap tersimpan (ditandai batal), bukan dihapus.')
                 ->action(function (array $data) {
                     WarrantyResource::performCancelMaintenanceVisit($this->record, $data);
                     $this->record->refresh();

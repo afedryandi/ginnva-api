@@ -213,7 +213,7 @@ class CustomerReportTest extends TestCase
 
         $this->assertSame(['Andi', 'Siti'], $result['topCustomers']->pluck('name')->all());
         $this->assertSame([1, 1000000.0, 2, 1500000.0], [(int) $top['Siti']->bookings_in_period, (float) $top['Siti']->spend_in_period, (int) $top['Siti']->bookings_all_time, (float) $top['Siti']->spend_all_time], 'Booking Siti di toko B tidak ikut untuk staff toko A.');
-        $this->assertSame(2, $result['repeatCount'], 'Repeat = headcount lintas-cabang, tidak ikut terpotong toko staf.');
+        $this->assertSame(2, $result['repeatCount'], 'Repeat = headcount lintas-cabang, tidak ikut terpotong toko staff.');
         $this->assertSame(1, $result['newCustomers']);
     }
 

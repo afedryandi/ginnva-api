@@ -568,7 +568,7 @@ class BookingResource extends Resource
 
                     Forms\Components\Textarea::make('reschedule_reason')
 ->label(fn (?Booking $record) => $record?->status === 'confirmed' ? 'Alasan Pindah Jadwal' : 'Alasan Pindah Jadwal (opsional)')
-                        ->helperText('Wajib kalau tanggal booking yang sudah dikonfirmasi diubah; opsional untuk booking yang masih menunggu. Dikirim ke customer.')
+                        ->helperText('Wajib kalau tanggal booking yang sudah dikonfirmasi diubah; opsional untuk booking yang masih menunggu. Dikirim ke pelanggan.')
                         ->maxLength(500)
                         ->visible(fn (?Booking $record) => in_array($record?->status, ['pending', 'confirmed'], true))
                         ->columnSpanFull(),

@@ -1245,7 +1245,7 @@ class WarrantyResource extends Resource
                             ->required(),
                     ])
                     ->requiresConfirmation()
-                    ->modalDescription('Kunjungan yang dibatalkan mengembalikan kuota customer. Riwayatnya tetap tersimpan (ditandai batal), bukan dihapus.')
+                    ->modalDescription('Kunjungan yang dibatalkan mengembalikan kuota pelanggan. Riwayatnya tetap tersimpan (ditandai batal), bukan dihapus.')
                     ->action(fn (Warranty $record, array $data) => static::performCancelMaintenanceVisit($record, $data)),
 
                 Tables\Actions\ViewAction::make(),

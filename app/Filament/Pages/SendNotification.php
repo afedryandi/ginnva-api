@@ -194,7 +194,7 @@ class SendNotification extends Page implements HasForms
                     ->requiredIf('broadcast_partner', false),
 
                 Section::make('Deep Link (Opsional)')
-                    ->description('Jika diisi, tap notifikasi akan membuka halaman tertentu di aplikasi. Khusus notifikasi Customer.')
+                    ->description('Jika diisi, tap notifikasi akan membuka halaman tertentu di aplikasi. Khusus notifikasi Pelanggan.')
                     ->collapsed()
                     ->visible(fn ($get) => $get('audience') === 'customer')
                     ->schema([

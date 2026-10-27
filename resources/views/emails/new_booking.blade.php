@@ -11,7 +11,7 @@
 </h1>
 
 <p style="margin:0 0 24px;color:#666666;font-size:14px;line-height:1.6;">
-    Segera cek detail booking berikut dan hubungi customer untuk konfirmasi jadwal.
+    Segera cek detail booking berikut dan hubungi pelanggan untuk konfirmasi jadwal.
 </p>
 
 {{-- Nomor referensi --}}
@@ -38,7 +38,7 @@
         </td>
     </tr>
     <tr>
-        <td style="padding:12px 16px;color:#999999;font-size:13px;border-top:1px solid #e6e6e6;width:40%;">Nama Customer</td>
+        <td style="padding:12px 16px;color:#999999;font-size:13px;border-top:1px solid #e6e6e6;width:40%;">Nama Pelanggan</td>
         <td style="padding:12px 16px;color:#333333;font-size:13px;font-weight:600;border-top:1px solid #e6e6e6;">{{ $customerName }}</td>
     </tr>
     <tr>

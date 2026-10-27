@@ -23,7 +23,7 @@
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <x-filament::section>
-            <div class="text-xs text-gray-500 dark:text-gray-400">Tingkat Pembatalan (Seluruh Cabang)</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Tingkat Pembatalan (Seluruh Toko)</div>
             <div class="mt-1 text-2xl font-bold tabular-nums {{ $result['cancellationRatePct'] >= 15 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ number_format($result['cancellationRatePct'], 1) }}%</div>
             <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">dari seluruh reservasi (semua status) yang jadwalnya jatuh pada rentang ini</div>
         </x-filament::section>

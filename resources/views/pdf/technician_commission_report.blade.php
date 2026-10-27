@@ -23,14 +23,14 @@
     <div class="summary">
         Total Komisi Periode Ini: {{ $rupiah($result['totalCommission']) }}
         @if ($result['unratedCount'] > 0)
-            — {{ $result['unratedCount'] }} teknisi punya pekerjaan tapi komisi belum diatur
+            — {{ $result['unratedCount'] }} installer punya pekerjaan tapi komisi belum diatur
         @endif
     </div>
 
     <table>
         <thead>
             <tr>
-                <th>Teknisi</th>
+                <th>Installer</th>
                 <th>Toko</th>
                 <th>Jumlah Pekerjaan</th>
                 <th>Penjualan</th>

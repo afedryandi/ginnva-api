@@ -37,7 +37,7 @@ class RewardRedemptionService
 
             if ($lockedReward->isVoucher()) {
                 if ($redeemer instanceof Partner) {
-                    throw new RuntimeException('Voucher diskon hanya bisa ditukar oleh customer.');
+                    throw new RuntimeException('Voucher diskon hanya bisa ditukar oleh pelanggan.');
                 }
 
                 if ((float) $lockedReward->voucher_discount <= 0) {

@@ -136,7 +136,7 @@ class StaffNotifierTest extends TestCase
             'service_type' => 'PPF', 'product_ppf' => true, 'preferred_date' => now()->addDay()->toDateString(), 'status' => 'pending',
         ]);
 
-        $this->assertTrue($admin->notifications()->get()->contains(fn ($n) => $n->data['title'] === 'Booking Baru'), 'Booking baru masuk kotak masuk staf.');
+        $this->assertTrue($admin->notifications()->get()->contains(fn ($n) => $n->data['title'] === 'Booking Baru'), 'Booking baru masuk kotak masuk staff.');
 
         foreach (['Halo', 'Apakah bisa besok?'] as $text) {
             \App\Models\BookingMessage::create(['booking_id' => $booking->id, 'sender_type' => 'customer', 'sender_customer_id' => $customer->id, 'type' => 'text', 'body' => $text]);

@@ -57,7 +57,7 @@ class MaintenanceBookingService
         $store = Store::find($warranty->store_id);
 
         if ($store && ! $store->is_active) {
-            return $this->fail('Toko ini sudah tidak aktif. Hubungi tim kami langsung untuk menyesuaikan jadwal maintenance Anda.');
+            return $this->fail('Toko ini sudah nonaktif. Hubungi tim kami langsung untuk menyesuaikan jadwal maintenance Anda.');
         }
 
         if ($store?->isClosedOn($bookingDay)) {

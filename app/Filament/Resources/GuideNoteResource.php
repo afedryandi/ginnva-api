@@ -79,7 +79,7 @@ class GuideNoteResource extends Resource
                 ->required()
                 ->rows(6)
                 ->maxLength(2000)
-                ->helperText('Isi dengan aturan toko, batas, atau kebijakan perusahaan yang melengkapi panduan. Jangan menulis langkah di sistem (itu ada di panduan) dan jangan memuat data pribadi atau kata sandi. Tanda **tebal** didukung.'),
+                ->helperText('Isi dengan aturan toko, batas, atau kebijakan perusahaan yang melengkapi panduan. Jangan menulis langkah di sistem (itu ada di panduan) dan jangan memuat data pribadi atau password. Tanda **tebal** didukung.'),
         ])->columns(1);
     }
 

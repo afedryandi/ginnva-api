@@ -14,7 +14,7 @@
     </style>
 </head>
 <body>
-    <h1>Akumulasi Durasi Servis Teknisi</h1>
+    <h1>Akumulasi Durasi Servis Installer</h1>
     <div class="period">Periode: {{ $result['from']->format('d M Y') }} - {{ $result['to']->format('d M Y') }}</div>
     <div class="note">
         Durasi diambil dari waktu kendaraan masuk-keluar bengkel (SPK) — data AKTUAL, bukan estimasi. Kalau 1 job
@@ -25,8 +25,8 @@
     <table>
         <thead>
             <tr>
-                <th>Teknisi</th>
-                <th>Cabang</th>
+                <th>Installer</th>
+                <th>Toko</th>
                 <th class="value">Jumlah Job</th>
                 <th class="value">Total Durasi (Jam)</th>
                 <th class="value">Rata-rata per Job (Menit)</th>
@@ -43,7 +43,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="5">Belum ada teknisi aktif untuk cabang ini.</td>
+                    <td colspan="5">Belum ada installer aktif untuk toko ini.</td>
                 </tr>
             @endforelse
         </tbody>

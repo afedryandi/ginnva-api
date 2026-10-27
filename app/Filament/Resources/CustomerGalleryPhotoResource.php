@@ -96,7 +96,7 @@ class CustomerGalleryPhotoResource extends Resource
                         ->image()
                         ->directory('customer-gallery')
                         ->maxSize(5120)
-                        ->helperText('Maks. 5 MB. Format: JPG, PNG, WebP. Pilih foto hasil instalasi terbaik — ini yang tampil di beranda mobile app customer.')
+                        ->helperText('Maks. 5 MB. Format: JPG, PNG, WebP. Pilih foto hasil instalasi terbaik — ini yang tampil di beranda mobile app pelanggan.')
                         ->required()
                         ->columnSpanFull(),
 

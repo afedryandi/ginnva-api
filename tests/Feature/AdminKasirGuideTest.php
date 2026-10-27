@@ -80,6 +80,6 @@ class AdminKasirGuideTest extends TestCase
             $this->actingAs($kasir, 'api')->postJson($url, $payload)->assertStatus(403);
         }
 
-        $this->assertNotSame(403, $this->actingAs($kasir, 'api')->postJson("/api/staff/bookings/{$booking->id}/messages", ['type' => 'text', 'body' => 'Halo'])->status(), 'Panduan menyebut admin toko bisa chat dengan customer.');
+        $this->assertNotSame(403, $this->actingAs($kasir, 'api')->postJson("/api/staff/bookings/{$booking->id}/messages", ['type' => 'text', 'body' => 'Halo'])->status(), 'Panduan menyebut admin toko bisa chat dengan pelanggan.');
     }
 }

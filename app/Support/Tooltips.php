@@ -14,7 +14,7 @@ class Tooltips
         return match ($state) {
             'pending'   => 'Booking masuk, belum dikonfirmasi toko. Slot toko belum terkunci. Batas respons (SLA) 4 jam.',
             'confirmed' => 'Sudah dikonfirmasi toko. Slot kapasitas terkunci pada tanggal pengerjaan.',
-            'completed' => 'Pengerjaan selesai dan sudah diserahterimakan ke customer.',
+            'completed' => 'Pengerjaan selesai dan sudah diserahterimakan ke pelanggan.',
             'cancelled' => 'Dibatalkan. Status ini final dan tidak bisa diaktifkan lagi.',
             default     => null,
         };
@@ -88,7 +88,7 @@ class Tooltips
     {
         return match ($state) {
             'pending'   => 'Menunggu diproses staff (reward barang atau layanan).',
-            'fulfilled' => 'Sudah diproses. Untuk reward voucher: voucher sudah terbit di akun customer.',
+            'fulfilled' => 'Sudah diproses. Untuk reward voucher: voucher sudah terbit di akun pelanggan.',
             'cancelled' => 'Dibatalkan: poin pelanggan dikembalikan.',
             default     => null,
         };
@@ -98,7 +98,7 @@ class Tooltips
     {
         return match ($state) {
             'new'       => 'Permintaan penawaran baru masuk, belum dihubungi.',
-            'contacted' => 'Sudah dihubungi (follow up) oleh staf.',
+            'contacted' => 'Sudah dihubungi (follow up) oleh staff.',
             'closed'    => 'Selesai: penawaran ditutup.',
             'cancelled' => 'Permintaan penawaran dibatalkan.',
             default     => null,

@@ -9,15 +9,15 @@
         <div class="grid gap-4 text-sm md:grid-cols-4">
             <div><div class="text-xs text-gray-500 dark:text-gray-400">Titik pengiriman</div><div class="text-2xl font-bold tabular-nums">{{ $summary['total'] }}</div></div>
             <div><div class="text-xs text-gray-500 dark:text-gray-400">Untuk pelanggan</div><div class="text-2xl font-bold tabular-nums">{{ $summary['customer'] }}</div></div>
-            <div><div class="text-xs text-gray-500 dark:text-gray-400">Untuk staf</div><div class="text-2xl font-bold tabular-nums">{{ $summary['staff'] }}</div></div>
+            <div><div class="text-xs text-gray-500 dark:text-gray-400">Untuk staff</div><div class="text-2xl font-bold tabular-nums">{{ $summary['staff'] }}</div></div>
             <div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">Staf: push saja (tanpa lonceng panel)</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">Staff: push saja (tanpa lonceng panel)</div>
                 <div class="text-2xl font-bold tabular-nums text-warning-600 dark:text-warning-400">{{ $summary['staff_push_only'] }}</div>
             </div>
         </div>
         <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-            Daftar ini hanya membaca. Pelanggan selalu mendapat baris di kotak masuk aplikasinya. Untuk staf, "push saja" berarti berkas pengirimnya tidak membuat notifikasi di lonceng panel,
-            jadi pesan yang terlewat di ponsel tidak tersimpan. Aplikasi staf punya Kotak Masuk, tetapi baru memuat titik yang sudah memakai pengirim staf yang baru.
+            Daftar ini hanya membaca. Pelanggan selalu mendapat baris di kotak masuk aplikasinya. Untuk staff, "push saja" berarti berkas pengirimnya tidak membuat notifikasi di lonceng panel,
+            jadi pesan yang terlewat di ponsel tidak tersimpan. Aplikasi staff punya Kotak Masuk, tetapi baru memuat titik yang sudah memakai pengirim staff yang baru.
         </p>
     </x-filament::section>
 

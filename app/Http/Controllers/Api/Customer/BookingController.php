@@ -479,7 +479,7 @@ class BookingController extends Controller
                     app(\App\Services\StaffNotifier::class)->toStoreStaff(
                         $storeId,
                         'Booking Dibatalkan Pelanggan',
-                        "Booking #{$bookingNumber} dibatalkan oleh customer.",
+                        "Booking #{$bookingNumber} dibatalkan oleh pelanggan.",
                         ['type' => 'booking_cancelled_by_customer', 'booking_id' => $bookingId, 'route' => "/staff/bookings/{$bookingId}"],
                         \App\Filament\Resources\BookingResource::class,
                     );

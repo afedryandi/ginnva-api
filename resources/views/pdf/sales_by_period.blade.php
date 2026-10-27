@@ -70,7 +70,7 @@
         </tbody>
     </table>
 
-    <p class="footnote">* = ada teknisi yang komisinya belum diatur (menu Teknisi) pada periode itu — nominal Komisi belum mencerminkan semua pekerjaan.</p>
+    <p class="footnote">* = ada installer yang komisinya belum diatur (menu Installer) pada periode itu — nominal Komisi belum mencerminkan semua pekerjaan.</p>
     <p class="footnote">† = ada bahan (gulungan film/bahan pendukung) yang belum diisi harga belinya — HPP baris itu minimum, Laba Kotor sungguhan bisa lebih rendah.</p>
 </body>
 </html>

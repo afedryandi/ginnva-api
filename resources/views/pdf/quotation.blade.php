@@ -86,7 +86,7 @@
             <ul>
                 <li>Harga di atas merupakan estimasi awal berdasarkan data tipe ukuran kendaraan standar.</li>
                 <li>Quotation resmi ini berlaku selama 14 hari sejak tanggal diterbitkan.</li>
-                <li>Pemasangan dilakukan oleh teknisi bersertifikat resmi Ginnva Indonesia.</li>
+                <li>Pemasangan dilakukan oleh installer bersertifikat resmi Ginnva Indonesia.</li>
             </ul>
         </div>
         <div class="qr-section">

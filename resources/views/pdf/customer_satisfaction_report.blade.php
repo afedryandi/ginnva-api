@@ -53,7 +53,7 @@
         @endforelse
     </table>
 
-    <h2>Ulasan Pelanggan</h2>
+    <h2>Review Pelanggan</h2>
     <table>
         <tr><th>Tanggal</th><th>Toko</th><th>Pelanggan</th><th>Sentiment</th><th>Tag</th><th>Komentar</th></tr>
         @forelse ($result['reviews'] as $review)
@@ -66,7 +66,7 @@
                 <td>{{ $review->comment ?: '-' }}</td>
             </tr>
         @empty
-            <tr><td colspan="6">Belum ada ulasan pada rentang ini.</td></tr>
+            <tr><td colspan="6">Belum ada review pada rentang ini.</td></tr>
         @endforelse
     </table>
 </body>

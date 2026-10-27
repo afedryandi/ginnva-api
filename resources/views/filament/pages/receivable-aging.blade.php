@@ -10,11 +10,11 @@
 
     <div class="mb-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-3">
         <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
-            <div class="text-xs text-gray-500 dark:text-gray-400">Jumlah Customer</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Jumlah Pelanggan</div>
             <div class="text-lg font-semibold tabular-nums">{{ $aging['customer_count'] }}</div>
         </div>
         <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
-            <div class="text-xs text-gray-500 dark:text-gray-400">Customer Terlambat</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Pelanggan Terlambat</div>
             <div class="text-lg font-semibold tabular-nums">{{ $aging['overdue_count'] }}</div>
         </div>
         <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
@@ -64,16 +64,16 @@
     </x-filament::section>
 
     <x-filament::section>
-        <x-slot name="heading">Sisa piutang per customer menurut umur jatuh tempo</x-slot>
+        <x-slot name="heading">Sisa piutang per pelanggan menurut umur jatuh tempo</x-slot>
         <x-slot name="description">
-            Toko: {{ $this->storeLabel() }}. Hanya piutang Belum Diterima / Diterima Sebagian. "Belum jatuh tempo" mencakup piutang tanpa tanggal jatuh tempo. Dihitung per hari ini. Klik nama customer untuk melihat piutangnya di Piutang Usaha.
+            Toko: {{ $this->storeLabel() }}. Hanya piutang Belum Diterima / Diterima Sebagian. "Belum jatuh tempo" mencakup piutang tanpa tanggal jatuh tempo. Dihitung per hari ini. Klik nama pelanggan untuk melihat piutangnya di Piutang Usaha.
         </x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="text-left text-gray-500 dark:text-gray-400">
-                        <th class="py-2 pe-4">Customer</th>
+                        <th class="py-2 pe-4">Pelanggan</th>
                         <th class="py-2 px-3 text-right">Belum jatuh tempo</th>
                         <th class="py-2 px-3 text-right">1–30 hari</th>
                         <th class="py-2 px-3 text-right">31–60 hari</th>

@@ -31,6 +31,7 @@ class ProductImportLogResourceTest extends TestCase
         parent::setUp();
 
         Http::fake();
+        app()->setLocale('id'); // bulan tampil Indonesia seperti di production, apa pun APP_LOCALE di .env
         Role::findOrCreate('kasir', 'web');
         Role::findOrCreate('direksi', 'web');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -103,7 +104,7 @@ class ProductImportLogResourceTest extends TestCase
         Livewire::test(ListProductImportLogs::class)
             ->assertSuccessful()
             ->assertCanSeeTableRecords([$new, $orphan, $old], inOrder: true)
-            ->assertTableColumnFormattedStateSet('created_at', '07 Oct 2026, 15:30', $new)
+            ->assertTableColumnFormattedStateSet('created_at', '07 Okt 2026, 15:30', $new)
             ->assertTableColumnStateSet('user.name', 'Admin Import', $new)
             ->assertTableColumnStateSet('total_rows', 10, $new)
             ->assertTableColumnStateSet('updated_count', 8, $new)
@@ -142,7 +143,7 @@ class ProductImportLogResourceTest extends TestCase
         $page->assertSuccessful()
             ->assertSee('harga.xlsx')
             ->assertSee('Admin Import')
-            ->assertSee('07 Oct 2026, 15:30')
+            ->assertSee('07 Okt 2026, 15:30')
             ->assertSee('Detail Baris Dilewati/Error')
             ->assertSee('Baris 3: SKU "XYZ-1" tidak ditemukan di katalog')
             ->assertSee('Baris 5: harga "abc" bukan angka')

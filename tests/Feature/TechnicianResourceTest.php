@@ -151,7 +151,7 @@ class TechnicianResourceTest extends TestCase
 
         $tech = Technician::where('name', 'Calon Installer')->firstOrFail();
         $this->assertSame($this->store->id, $tech->store_id);
-        $this->assertSame('pending_review', $tech->status, 'Staff toko tidak boleh langsung mengaktifkan teknisi.');
+        $this->assertSame('pending_review', $tech->status, 'Staff toko tidak boleh langsung mengaktifkan installer.');
     }
 
     public function test_store_manager_sees_only_own_store_technicians(): void

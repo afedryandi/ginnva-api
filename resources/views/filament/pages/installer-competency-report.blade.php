@@ -13,13 +13,13 @@
     <div class="space-y-6">
         <x-filament::section heading="Matriks keterampilan" description="Pemula = didampingi, Mandiri = boleh mengerjakan sendiri, Mahir = bisa melatih. Diisi di menu Installer > Keterampilan per Layanan.">
             @if ($technicians->isEmpty())
-                <div class="text-sm text-gray-500 dark:text-gray-400">Belum ada teknisi di roster.</div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">Belum ada installer di roster.</div>
             @else
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500 dark:border-white/10 dark:text-gray-400">
-                                <th class="py-2 pe-4">Teknisi</th>
+                                <th class="py-2 pe-4">Installer</th>
                                 @foreach ($services as $label)
                                     <th class="py-2 pe-4">{{ $label }}</th>
                                 @endforeach

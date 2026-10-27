@@ -24,7 +24,7 @@
     <table>
         <thead>
             <tr>
-                <th>Customer</th>
+                <th>Pelanggan</th>
                 <th class="value">Belum Jatuh Tempo</th>
                 <th class="value">1-30 Hari</th>
                 <th class="value">31-60 Hari</th>

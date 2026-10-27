@@ -78,7 +78,7 @@ class ReportTableExportTest extends TestCase
 
         $this->assertSame('saldo-kas-bank', $data['key']);
         $bank = collect($data['rows'])->firstWhere(0, '1102');
-        $this->assertNotNull($bank, 'Akun 1102 ada di ekspor.');
+        $this->assertNotNull($bank, 'Akun 1102 ada di export.');
         $this->assertSame(150000.0, $bank[4]);
         $this->assertSame(150000.0, $data['totals'][4]);
         $this->assertSame(['Kode', 'Akun', 'Rekening', 'Toko', 'Saldo'], $data['headings']);

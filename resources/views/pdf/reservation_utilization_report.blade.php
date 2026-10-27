@@ -23,7 +23,7 @@
     @if ($result['truncated'])
         <p class="note">Rentang melebihi 62 hari, laporan dipotong sampai {{ $result['to']->format('d M Y') }}.</p>
     @endif
-    <p>Tingkat Pembatalan (Seluruh Cabang): <strong>{{ number_format($result['cancellationRatePct'], 1, ',', '.') }}%</strong></p>
+    <p>Tingkat Pembatalan (Seluruh Toko): <strong>{{ number_format($result['cancellationRatePct'], 1, ',', '.') }}%</strong></p>
 
     <table>
         <thead>
