@@ -99,7 +99,7 @@ class NotificationCatalogTest extends TestCase
         $summary = $component->instance()->getSummary();
         $this->assertSame(count(NotificationCatalog::all()), $summary['total']);
         $this->assertSame($summary['customer'] + $summary['staff'], $summary['total']);
-        $this->assertSame(0, $summary['staff_push_only'], 'Temuan N1 selesai: semua pengirim staf sudah lewat StaffNotifier (kotak masuk + push).');
+        $this->assertSame(0, $summary['staff_push_only'], 'Temuan N1 selesai: semua pengirim staff sudah lewat StaffNotifier (kotak masuk + push).');
 
         $component->set('search', 'Gaji Sudah Dibayar')->assertSee('Gaji Sudah Dibayar')->assertDontSee('Booking Dikonfirmasi');
         $component->set('search', 'tidak-ada-yang-cocok-xyz')->assertSee('Tidak ada yang cocok');

@@ -172,7 +172,7 @@ class VehicleGlassAreaTest extends TestCase
         $this->actingAs($this->admin(), 'web');
         VehicleGlassArea::create(['brand' => 'Honda', 'model' => 'Brio', 'front_sqm' => 1]);
 
-        Livewire::test(ListVehicleGlassAreas::class)->assertSuccessful()->assertSee('Honda')->assertSee('Impor dari Google Sheet');
+        Livewire::test(ListVehicleGlassAreas::class)->assertSuccessful()->assertSee('Honda')->assertSee('Import dari Google Sheet');
         Livewire::test(CreateVehicleGlassArea::class)->assertSuccessful();
 
         Livewire::test(CreateVehicleGlassArea::class)
@@ -192,7 +192,7 @@ class VehicleGlassAreaTest extends TestCase
 
         Livewire::test(ListVehicleGlassAreas::class)
             ->callAction('import_from_sheet', data: ['overwrite' => false])
-            ->assertNotified('Impor selesai');
+            ->assertNotified('Import selesai');
         $this->assertSame(3, VehicleGlassArea::count());
 
         $kasir = tap(User::create(['name' => 'Kasir', 'email' => uniqid() . '@test.local', 'password' => 'x']), fn (User $u) => $u->assignRole('kasir'));
@@ -209,7 +209,7 @@ class VehicleGlassAreaTest extends TestCase
 
         Livewire::test(ListVehicleGlassAreas::class)
             ->callAction('import_from_sheet', data: ['overwrite' => false])
-            ->assertNotified('Impor gagal');
+            ->assertNotified('Import gagal');
         $this->assertSame(0, VehicleGlassArea::count());
     }
 }

@@ -155,7 +155,7 @@ class GeneralLedgerReport extends Page implements HasForms
                     ->label('Cari di Mutasi')
                     ->placeholder('no. jurnal, keterangan, sumber, pembuat')
                     ->live(debounce: 400)
-                    ->helperText('Hanya memfilter tampilan; saldo dan ekspor tetap seluruh mutasi.'),
+                    ->helperText('Hanya memfilter tampilan; saldo dan export tetap seluruh mutasi.'),
             ])
             ->statePath('data')
             ->columns(3);
@@ -189,7 +189,7 @@ class GeneralLedgerReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'general_ledger', 'format' => $format, 'account_id' => $this->data['chart_of_account_id'] ?? null, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->storeId()])
-                ->log('Ekspor Buku Besar (' . $format . ')');
+                ->log('Export Buku Besar (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

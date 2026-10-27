@@ -80,7 +80,7 @@ class StaffGuidesApiTest extends TestCase
         $start = collect(GuideCatalog::all())->firstWhere('id', 'installer-mulai');
         $text = implode(' ', $start['steps']);
 
-        foreach (['konfirmasi dan pembatalan booking', 'chat dengan customer', 'Quality Check', 'serah terima'] as $leaderOnly) {
+        foreach (['konfirmasi dan pembatalan booking', 'chat dengan pelanggan', 'Quality Check', 'serah terima'] as $leaderOnly) {
             $this->assertStringContainsString($leaderOnly, $text);
         }
 
@@ -108,7 +108,7 @@ class StaffGuidesApiTest extends TestCase
     {
         $leader = $this->ids($this->actingAs($this->user('installer_leader'), 'api')->getJson('/api/staff/guides'));
         $this->assertContains('leader-harian', $leader);
-        $this->assertContains('booking', $leader, 'Leader adalah staf toko dan tetap melihat panduan Booking.');
+        $this->assertContains('booking', $leader, 'Leader adalah staff toko dan tetap melihat panduan Booking.');
         $this->assertNotContains('installer-mulai', $leader);
 
         foreach (['installer', 'kasir'] as $role) {
@@ -202,7 +202,7 @@ class StaffGuidesApiTest extends TestCase
     public function test_the_dashboard_guide_is_open_to_restricted_panel_staff_but_not_installers(): void
     {
         $kasir = $this->ids($this->actingAs($this->user('kasir', ['InvoiceResource']), 'api')->getJson('/api/staff/guides'));
-        $this->assertContains('dashboard', $kasir, 'Dashboard utama terbuka untuk semua staf panel, jadi panduannya juga.');
+        $this->assertContains('dashboard', $kasir, 'Dashboard utama terbuka untuk semua staff panel, jadi panduannya juga.');
 
         $installer = $this->ids($this->actingAs($this->user('installer'), 'api')->getJson('/api/staff/guides'));
         $this->assertNotContains('dashboard', $installer);

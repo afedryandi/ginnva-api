@@ -122,11 +122,11 @@ class VehicleGlassAreaResource extends Resource
                 Tables\Columns\TextColumn::make('source')
                     ->label('Sumber')
                     ->badge()
-                    ->formatStateUsing(fn (string $state) => $state === 'import' ? 'Impor' : 'Manual')
+                    ->formatStateUsing(fn (string $state) => $state === 'import' ? 'Import' : 'Manual')
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('source')->label('Sumber')->options(['import' => 'Impor', 'manual' => 'Manual']),
+                Tables\Filters\SelectFilter::make('source')->label('Sumber')->options(['import' => 'Import', 'manual' => 'Manual']),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

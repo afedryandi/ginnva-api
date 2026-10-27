@@ -158,7 +158,7 @@ class AttendanceReportTest extends TestCase
 
         $staff = $this->user('kasir', $this->storeA);
         $own = $this->report(['store_id' => $this->storeB->id], $staff);
-        $this->assertEqualsCanonicalizing(['Andi', 'Budi'], $own['rows']->map(fn ($a) => $a->user->name)->unique()->values()->all(), 'Staf tidak bisa melihat toko lain.');
+        $this->assertEqualsCanonicalizing(['Andi', 'Budi'], $own['rows']->map(fn ($a) => $a->user->name)->unique()->values()->all(), 'Staff tidak bisa melihat toko lain.');
         $this->assertCount(5, $own['rows']);
     }
 

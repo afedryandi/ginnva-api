@@ -117,7 +117,7 @@ class CustomerGroupResource extends Resource
             Forms\Components\Toggle::make('is_active')
                 ->label('Aktif')
                 ->default(true)
-                ->helperText('Nonaktifkan supaya tidak muncul lagi sebagai pilihan baru, tanpa mengubah customer yang sudah memakainya.'),
+                ->helperText('Nonaktifkan supaya tidak muncul lagi sebagai pilihan baru, tanpa mengubah pelanggan yang sudah memakainya.'),
         ]);
     }
 

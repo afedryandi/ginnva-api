@@ -75,7 +75,7 @@ class MessagesRelationManager extends RelationManager
                     ])
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'admin'    => '🏪 Toko',
-                        'customer' => '👤 Customer',
+                        'customer' => '👤 Pelanggan',
                         'system'   => '⚙️ Sistem',
                         default    => $state,
                     }),

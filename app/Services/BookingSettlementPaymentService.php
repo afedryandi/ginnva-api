@@ -52,7 +52,7 @@ class BookingSettlementPaymentService
                 $account = PaymentAccount::with('chartAccount')->find($accountId);
 
                 if (! $account || ! $account->isUsable()) {
-                    throw new RuntimeException("Pembayaran {$n}: rekening tidak aktif atau akun kasnya tidak bisa dipakai.");
+                    throw new RuntimeException("Pembayaran {$n}: rekening nonaktif atau akun kasnya tidak bisa dipakai.");
                 }
 
                 if ($storeId && $account->store_id && (int) $account->store_id !== $storeId) {

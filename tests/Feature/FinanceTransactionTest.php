@@ -158,7 +158,7 @@ class FinanceTransactionTest extends TestCase
         $this->assertSame($this->store->id, (int) $request->payload['store_id'], 'Toko dipaksa ke toko pemohon.');
 
         Livewire::test(CreateFinanceTransaction::class)
-            ->fillForm($this->form(['type' => 'in', 'finance_category_id' => $this->income->id, 'description' => 'Pemasukan staf']))
+            ->fillForm($this->form(['type' => 'in', 'finance_category_id' => $this->income->id, 'description' => 'Pemasukan staff']))
             ->call('create')->assertHasNoFormErrors();
         $this->assertSame(1, FinanceTransaction::count());
         $this->assertSame('in', FinanceTransaction::firstOrFail()->type);

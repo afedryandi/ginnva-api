@@ -68,14 +68,14 @@ class ContentClaimsTest extends TestCase
         News::create([
             'title' => 'Tips Merawat Kaca Film', 'slug' => 'tips-merawat-kaca-film', 'excerpt' => 'Ringkas', 'content' => '<p>Isi</p>',
             'meta_title' => 'Merawat Kaca Film | Ginnva', 'meta_description' => 'Cara merawat kaca film agar awet.', 'category' => 'Tips Perawatan',
-            'cover_alt' => 'Teknisi membersihkan kaca film', 'is_published' => true, 'published_at' => now()->subDay(),
+            'cover_alt' => 'Installer membersihkan kaca film', 'is_published' => true, 'published_at' => now()->subDay(),
         ]);
 
         $this->getJson('/api/news/tips-merawat-kaca-film')->assertOk()
             ->assertJsonPath('data.meta_title', 'Merawat Kaca Film | Ginnva')
             ->assertJsonPath('data.meta_description', 'Cara merawat kaca film agar awet.')
             ->assertJsonPath('data.category', 'Tips Perawatan')
-            ->assertJsonPath('data.cover_alt', 'Teknisi membersihkan kaca film');
+            ->assertJsonPath('data.cover_alt', 'Installer membersihkan kaca film');
     }
 
     // ------------------------------------------------------------- klaim produk

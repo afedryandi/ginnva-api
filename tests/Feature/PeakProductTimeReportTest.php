@@ -188,7 +188,7 @@ class PeakProductTimeReportTest extends TestCase
 
         $staff = $this->user('kasir', $this->storeA);
         $own = $this->report(['store_id' => $this->storeB->id], $staff);
-        $this->assertSame(['PPF-01|Senin', 'KF-01|Selasa', 'none|Rabu'], $this->labels($own), 'Staf tidak bisa melihat toko lain.');
+        $this->assertSame(['PPF-01|Senin', 'KF-01|Selasa', 'none|Rabu'], $this->labels($own), 'Staff tidak bisa melihat toko lain.');
         $this->assertSame(4, $own['totalCount']);
     }
 

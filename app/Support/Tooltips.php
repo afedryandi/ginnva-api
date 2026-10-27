@@ -23,9 +23,9 @@ class Tooltips
     public static function bookingSource(?string $state): ?string
     {
         return match ($state) {
-            'app'      => 'Customer memesan sendiri lewat aplikasi.',
-            'whatsapp' => 'Dibuatkan staf setelah customer menghubungi lewat WhatsApp.',
-            'walk_in'  => 'Customer datang langsung ke toko.',
+            'app'      => 'Pelanggan memesan sendiri lewat aplikasi.',
+            'whatsapp' => 'Dibuatkan staff setelah pelanggan menghubungi lewat WhatsApp.',
+            'walk_in'  => 'Pelanggan datang langsung ke toko.',
             default    => null,
         };
     }
@@ -34,7 +34,7 @@ class Tooltips
     {
         return match ($state) {
             'pending_review' => 'Menunggu pemeriksaan tim (QA) sebelum garansi berlaku.',
-            'approved'       => 'Disetujui QA: garansi berlaku dan customer mendapat poin registrasi garansi.',
+            'approved'       => 'Disetujui QA: garansi berlaku dan pelanggan mendapat poin registrasi garansi.',
             'rejected'       => 'Ditolak QA: garansi tidak berlaku.',
             default          => null,
         };
@@ -87,9 +87,9 @@ class Tooltips
     public static function rewardRedemptionStatus(?string $state): ?string
     {
         return match ($state) {
-            'pending'   => 'Menunggu diproses staf (reward barang atau layanan).',
+            'pending'   => 'Menunggu diproses staff (reward barang atau layanan).',
             'fulfilled' => 'Sudah diproses. Untuk reward voucher: voucher sudah terbit di akun customer.',
-            'cancelled' => 'Dibatalkan: poin customer dikembalikan.',
+            'cancelled' => 'Dibatalkan: poin pelanggan dikembalikan.',
             default     => null,
         };
     }

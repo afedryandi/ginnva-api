@@ -90,7 +90,7 @@ class RewardRedemption extends Model
 
         return match (true) {
             $redeemer instanceof Partner  => $redeemer->business_name . ' (Partner)',
-            $redeemer instanceof Customer => ($redeemer->name ?? 'Pelanggan Terhapus') . ' (Customer)',
+            $redeemer instanceof Customer => ($redeemer->name ?? 'Pelanggan Terhapus') . ' (Pelanggan)',
             default                       => '—',
         };
     }

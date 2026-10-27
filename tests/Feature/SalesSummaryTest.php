@@ -195,7 +195,7 @@ class SalesSummaryTest extends TestCase
         $this->actingAs($staff, 'web');
         $result = $this->page(['store_id' => $this->storeB->id])->instance()->getResult();
 
-        $this->assertEquals(1500000.0, $result['grossSales'], 'Staf tidak bisa melihat toko lain.');
+        $this->assertEquals(1500000.0, $result['grossSales'], 'Staff tidak bisa melihat toko lain.');
         $this->assertSame($this->storeA->id, $result['storeId']);
     }
 
@@ -407,7 +407,7 @@ class SalesSummaryTest extends TestCase
         Excel::assertDownloaded('ringkasan-penjualan-20261008-100000.xlsx');
         $logs = Activity::where('log_name', 'report_export')->where('causer_id', $staff->id)->get();
         $this->assertCount(2, $logs);
-        $this->assertSame([$this->storeA->id, $this->storeA->id], $logs->map(fn ($l) => $l->properties['store_id'])->all(), 'Log mencatat toko yang berlaku (toko staf), bukan isi filter.');
+        $this->assertSame([$this->storeA->id, $this->storeA->id], $logs->map(fn ($l) => $l->properties['store_id'])->all(), 'Log mencatat toko yang berlaku (toko staff), bukan isi filter.');
         $this->assertSame(['pdf', 'xlsx'], $logs->map(fn ($l) => $l->properties['format'])->sort()->values()->all());
     }
 

@@ -163,7 +163,7 @@ class ReservationUtilizationReportTest extends TestCase
         $this->assertSame(1, $a['cancelledCount']);
         $this->assertSame(5, $a['totalBookingsCount'], 'X, Y, Z, batal, pending; yang jadwalnya tanggal 20 tidak ikut.');
         $this->assertEqualsWithDelta(20.0, $a['cancellationRatePct'], 0.0001);
-        $this->assertEqualsWithDelta(20.0, $result['cancellationRatePct'], 0.0001, 'KPI seluruh cabang = total batal / total booking.');
+        $this->assertEqualsWithDelta(20.0, $result['cancellationRatePct'], 0.0001, 'KPI seluruh toko = total batal / total booking.');
     }
 
     public function test_utilisation_is_capped_at_one_hundred_percent_and_empty_slots_never_go_negative(): void
@@ -290,7 +290,7 @@ class ReservationUtilizationReportTest extends TestCase
         $page->assertSuccessful()
             ->assertSee('Toko A')
             ->assertSee('Toko B')
-            ->assertSee('Tingkat Pembatalan (Seluruh Cabang)')
+            ->assertSee('Tingkat Pembatalan (Seluruh Toko)')
             ->assertSee('20.0%', false)
             ->assertSee('50.0%', false)
             ->assertSee('BUKAN kapasitas persis', false);

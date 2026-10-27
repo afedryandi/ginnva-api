@@ -173,8 +173,8 @@ class PeakSalesTimeReport extends Page implements HasForms
             // Filter toko (audit 2026-09-30) -- full-access sebelumnya SELALU company-wide
             // tanpa cara mempersempit ke 1 toko, beda dari laporan Penjualan/Persediaan lain.
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
@@ -213,7 +213,7 @@ class PeakSalesTimeReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'peak_sales_time', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor Waktu Teramai Penjualan (' . $format . ')');
+                ->log('Export Waktu Teramai Penjualan (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

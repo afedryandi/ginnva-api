@@ -40,11 +40,11 @@ class TechnicianServiceDurationReport extends Page implements HasForms
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- band 500-599 "Kinerja Teknisi".
-    protected static ?string $navigationGroup = 'Kinerja Teknisi';
+    protected static ?string $navigationGroup = 'Kinerja Installer';
 
-    protected static ?string $navigationLabel = 'Durasi Servis Teknisi';
+    protected static ?string $navigationLabel = 'Durasi Servis Installer';
 
-    protected static ?string $title = 'Akumulasi Durasi Servis Teknisi';
+    protected static ?string $title = 'Akumulasi Durasi Servis Installer';
 
     protected static ?int $navigationSort = 501;
 
@@ -116,8 +116,8 @@ class TechnicianServiceDurationReport extends Page implements HasForms
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),

@@ -69,7 +69,7 @@ class EmployeeReportTest extends TestCase
     /** September: Andi (A, paid), Budi (B, menunggu persetujuan), Citra (A, draft). Oktober: Andi lagi (bukan bulan default). */
     private function september(): void
     {
-        $this->payroll('Andi Teknisi', $this->storeA, '2026-09-01', 5000000, 30, 1, 'paid');
+        $this->payroll('Andi Installer', $this->storeA, '2026-09-01', 5000000, 30, 1, 'paid');
         $this->payroll('Budi Kasir', $this->storeB, '2026-09-01', 3000000, 0, 0, 'pending_approval', 24);
         $this->payroll('Citra Admin', $this->storeA, '2026-09-01', 4000000, 120, 2, 'draft');
         $this->payroll('Andi Oktober', $this->storeA, '2026-10-01', 9000000, 999, 9, 'draft');
@@ -98,7 +98,7 @@ class EmployeeReportTest extends TestCase
         $result = $this->report();
 
         $this->assertSame('2026-09-01', $result['month']->toDateString());
-        $this->assertSame(['Andi Teknisi', 'Citra Admin', 'Budi Kasir'], $result['payrolls']->map(fn ($p) => $p->user->name)->all());
+        $this->assertSame(['Andi Installer', 'Citra Admin', 'Budi Kasir'], $result['payrolls']->map(fn ($p) => $p->user->name)->all());
         $this->assertEqualsWithDelta(12000000.0, (float) $result['totalNetPay'], 0.001);
         $this->assertSame(3, (int) $result['totalAlphaDays']);
         $this->assertSame(150, (int) $result['totalLateMinutes']);
@@ -154,13 +154,13 @@ class EmployeeReportTest extends TestCase
         $page->assertSuccessful()
             ->assertSee('Total Gaji Bersih')
             ->assertSee('Rp12.000.000', false)
-            ->assertSee('Andi Teknisi')
+            ->assertSee('Andi Installer')
             ->assertSee('Toko B')
             ->assertSee('Sudah Dibayar')
             ->assertSee('Menunggu Persetujuan Direksi')
             ->assertSee('Draft');
 
-        $this->assertStringContainsString('Andi', urldecode($page->instance()->payrollUrl('Andi Teknisi')));
+        $this->assertStringContainsString('Andi', urldecode($page->instance()->payrollUrl('Andi Installer')));
 
         $this->page(['month' => '2026-07-01'])->assertSee('Belum ada payroll digenerate untuk bulan ini.');
     }
@@ -181,7 +181,7 @@ class EmployeeReportTest extends TestCase
 
         $this->assertSame(['Karyawan', 'Toko', 'Hari Kerja', 'Telat (Menit)', 'Alpha (Hari)', 'Gaji Bersih', 'Status'], $export->headings());
         $this->assertCount(3, $rows);
-        $this->assertSame(['Andi Teknisi', 'Toko A', 26, 30, 1, 5000000.0, 'Sudah Dibayar'], $rows[0]);
+        $this->assertSame(['Andi Installer', 'Toko A', 26, 30, 1, 5000000.0, 'Sudah Dibayar'], $rows[0]);
         $this->assertSame(['Citra Admin', 'Toko A', 26, 120, 2, 4000000.0, 'Draft'], $rows[1]);
         $this->assertSame(['Budi Kasir', 'Toko B', 24, 0, 0, 3000000.0, 'Menunggu Persetujuan Direksi'], $rows[2]);
     }

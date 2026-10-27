@@ -275,7 +275,7 @@ class StoreResource extends Resource
 
                     Forms\Components\TextInput::make('maps_url')
                         ->label('Tempel Link Google Maps')
-                        ->helperText('Cari toko di Google Maps → Bagikan → salin link (boleh link pendek maps.app.goo.gl) → tempel di sini. Latitude/Longitude di bawah terisi otomatis, dan link ini yang dibuka saat customer tap "Buka Peta" di mobile app.')
+                        ->helperText('Cari toko di Google Maps → Bagikan → salin link (boleh link pendek maps.app.goo.gl) → tempel di sini. Latitude/Longitude di bawah terisi otomatis, dan link ini yang dibuka saat pelanggan tap "Buka Peta" di mobile app.')
                         ->url()
                         ->maxLength(255)
                         ->columnSpanFull()
@@ -349,7 +349,7 @@ class StoreResource extends Resource
 
                     Forms\Components\TextInput::make('google_place_id')
                         ->label('Google Place ID')
-                        ->helperText('Dipakai untuk tombol "Beri Ulasan" di mobile app. Cari toko di Google Maps → Bagikan → Sematkan peta HTML → salin ID setelah "!1s0x". Atau pakai tool "Place ID Finder" di developers.google.com/maps/documentation/places/web-service/place-id.')
+                        ->helperText('Dipakai untuk tombol "Beri Review" di mobile app. Cari toko di Google Maps → Bagikan → Sematkan peta HTML → salin ID setelah "!1s0x". Atau pakai tool "Place ID Finder" di developers.google.com/maps/documentation/places/web-service/place-id.')
                         ->columnSpanFull()
                         ->maxLength(255),
 
@@ -459,8 +459,8 @@ class StoreResource extends Resource
                 // sudah menampilkannya (lihat Store::getPositiveRatePercentAttribute()).
                 Tables\Columns\TextColumn::make('positive_rate_percent')
                     ->label('Skor Review')
-                    ->placeholder('Belum ada ulasan')
-                    ->formatStateUsing(fn (?int $state, $record) => $state === null ? null : "{$state}% positif ({$record->reviews_count} ulasan)")
+                    ->placeholder('Belum ada review')
+                    ->formatStateUsing(fn (?int $state, $record) => $state === null ? null : "{$state}% positif ({$record->reviews_count} review)")
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('created_at')
@@ -485,7 +485,7 @@ class StoreResource extends Resource
                 // sekali. Sekarang cuma super_admin/direksi.
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => auth()->user()?->isFullAccess())
-                    ->modalDescription('Toko yang masih punya data (booking, staf, teknisi, garansi, dst) tidak bisa dihapus -- nonaktifkan saja lewat toggle "Aktif".')
+                    ->modalDescription('Toko yang masih punya data (booking, staff, installer, garansi, dst) tidak bisa dihapus -- nonaktifkan saja lewat toggle "Aktif".')
                     ->action(function (Store $record) {
                         if (static::deleteGuarded($record)) {
                             Notification::make()->title('Toko dihapus')->success()->send();
@@ -508,7 +508,7 @@ class StoreResource extends Resource
                                 ->title($blocked > 0
                                     ? ($deleted > 0 ? "{$deleted} toko dihapus, {$blocked} tidak bisa dihapus" : 'Tidak ada toko yang bisa dihapus')
                                     : "{$deleted} toko dihapus")
-                                ->body($blocked > 0 ? "{$blocked} toko masih punya data (booking, staf, teknisi, dst), dilewati. Nonaktifkan saja lewat toggle \"Aktif\"." : null)
+                                ->body($blocked > 0 ? "{$blocked} toko masih punya data (booking, staff, installer, dst), dilewati. Nonaktifkan saja lewat toggle \"Aktif\"." : null)
                                 ->{$blocked > 0 ? 'warning' : 'success'}()
                                 ->send();
                         })

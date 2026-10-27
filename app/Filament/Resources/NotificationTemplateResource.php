@@ -22,11 +22,11 @@ class NotificationTemplateResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\NotifikasiCluster::class;
 
-    protected static ?string $navigationLabel = 'Templat Notifikasi';
+    protected static ?string $navigationLabel = 'Template Notifikasi';
 
-    protected static ?string $modelLabel = 'Templat';
+    protected static ?string $modelLabel = 'Template';
 
-    protected static ?string $pluralModelLabel = 'Templat Notifikasi';
+    protected static ?string $pluralModelLabel = 'Template Notifikasi';
 
     protected static ?int $navigationSort = 9;
 
@@ -47,7 +47,7 @@ class NotificationTemplateResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\TextInput::make('name')->label('Nama Templat')->required()->maxLength(100),
+            Forms\Components\TextInput::make('name')->label('Nama Template')->required()->maxLength(100),
             Forms\Components\Select::make('audience')->label('Untuk')->options(['customer' => 'Pelanggan', 'partner' => 'Partner'])->required(),
             Forms\Components\Select::make('category')->label('Jenis Pesan (pelanggan)')->options(['promo' => 'Promosi', 'info' => 'Informasi penting'])->placeholder('—'),
             Forms\Components\TextInput::make('title')->label('Judul Notifikasi')->required()->maxLength(200),

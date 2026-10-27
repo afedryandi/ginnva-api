@@ -122,7 +122,7 @@ class SupplierResource extends Resource
             ]),
             Forms\Components\Section::make('Lainnya')->schema([
                 Forms\Components\Toggle::make('is_active')->label('Aktif')->default(true)
-                    ->helperText('Supplier nonaktif tidak muncul di pilihan tagihan baru, histori tetap utuh.'),
+                    ->helperText('Supplier nonaktif tidak muncul di pilihan tagihan baru, riwayat tetap utuh.'),
                 Forms\Components\Textarea::make('notes')->label('Catatan')->rows(2),
             ]),
         ]);

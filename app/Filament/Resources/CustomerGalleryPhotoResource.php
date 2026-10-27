@@ -32,11 +32,11 @@ class CustomerGalleryPhotoResource extends Resource
 
     protected static ?int $navigationSort = 4;
 
-    protected static ?string $navigationLabel = 'Galeri Customer';
+    protected static ?string $navigationLabel = 'Galeri Pelanggan';
 
-    protected static ?string $modelLabel = 'Foto Galeri Customer';
+    protected static ?string $modelLabel = 'Foto Galeri Pelanggan';
 
-    protected static ?string $pluralModelLabel = 'Galeri Customer';
+    protected static ?string $pluralModelLabel = 'Galeri Pelanggan';
 
     public static function canViewAny(): bool
     {
@@ -83,7 +83,7 @@ class CustomerGalleryPhotoResource extends Resource
                 ->columns(2)
                 ->schema([
                     Forms\Components\Select::make('customer_id')
-                        ->label('Customer')
+                        ->label('Pelanggan')
                         ->relationship('customer', 'name')
                         ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->name} — {$record->phone_number}")
                         ->searchable(['name', 'phone_number', 'email'])
@@ -143,7 +143,7 @@ class CustomerGalleryPhotoResource extends Resource
                     ->size(60),
 
                 Tables\Columns\TextColumn::make('customer.name')
-                    ->label('Customer')
+                    ->label('Pelanggan')
                     ->searchable()
                     ->sortable()
                     ->description(fn (CustomerGalleryPhoto $record) => $record->customer?->phone_number),

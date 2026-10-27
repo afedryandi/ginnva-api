@@ -33,7 +33,7 @@ class MaintenanceBookingService
         }
 
         if (! $warranty->customer_id) {
-            return $this->fail('Garansi ini belum terhubung ke akun customer, booking tidak bisa dibuat.');
+            return $this->fail('Garansi ini belum terhubung ke akun pelanggan, booking tidak bisa dibuat.');
         }
 
         if (! $warranty->store_id) {

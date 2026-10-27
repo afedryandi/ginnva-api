@@ -124,7 +124,7 @@ class ServiceLevelAndPrivacyTest extends TestCase
         $this->assertEquals($first, $booking->fresh()->confirmed_at, 'Tidak ditimpa pada perubahan lain.');
         Carbon::setTestNow();
 
-        $this->assertNotNull($this->booking(['status' => 'confirmed'])->confirmed_at, 'Booking yang langsung dibuat confirmed (staf) juga terisi.');
+        $this->assertNotNull($this->booking(['status' => 'confirmed'])->confirmed_at, 'Booking yang langsung dibuat confirmed (staff) juga terisi.');
     }
 
     // ------------------------------------------------------------- laporan SLA

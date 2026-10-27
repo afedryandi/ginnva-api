@@ -69,7 +69,7 @@ class PromoLoyaltyReportTest extends TestCase
     {
         return [
             'Laporan Promo' => [PromoLoyaltyReport::class, 'Laporan Promo', 'laporan-promo'],
-            'Laporan Kupon' => [CouponReport::class, 'Laporan Kupon', 'laporan-kupon'],
+            'Laporan Kupon' => [CouponReport::class, 'Laporan Voucher', 'laporan-kupon'],
         ];
     }
 
@@ -274,7 +274,7 @@ class PromoLoyaltyReportTest extends TestCase
 
         $staff = $this->user('kasir', $this->storeA);
         $own = $this->report(['store_id' => $this->storeB->id], $staff);
-        $this->assertSame(2, $own['promoTransactionCount'], 'Staf tidak bisa melihat toko lain.');
+        $this->assertSame(2, $own['promoTransactionCount'], 'Staff tidak bisa melihat toko lain.');
         $this->assertEqualsWithDelta(130000.0, $own['promoValue'], 0.001);
         $this->assertSame(1, $own['spendPromoTransactionCount']);
         $this->assertSame($this->storeA->id, $own['storeId']);
@@ -393,7 +393,7 @@ class PromoLoyaltyReportTest extends TestCase
         $this->assertSame(['Total Transaksi dengan Promo', 3], $rows[4]);
         $this->assertSame(['Nilai Promo', -180000.0], $rows[5]);
         $this->assertSame(['Total Penjualan dengan Promo', 3500000.0], $rows[6]);
-        $this->assertSame(['Poin Customer Diterbitkan', 150], $rows[9]);
+        $this->assertSame(['Poin Pelanggan Diterbitkan', 150], $rows[9]);
         $this->assertSame(['2026-10-05', 'Diskon 50rb', $this->bookingB->booking_number, 'Toko B', -50000.0], $rows[17]);
         $this->assertSame(-80000.0, $rows[18][4], 'Snapshot booking, bukan katalog.');
         $this->assertSame(['Total Transaksi', 2], $rows[22]);
@@ -438,8 +438,8 @@ class PromoLoyaltyReportTest extends TestCase
         $this->assertSame($promo['points'], $coupon['points']);
 
         $this->actingAs($this->user('super_admin'), 'web');
-        Livewire::test(CouponReport::class)->assertSee('Laporan Kupon');
-        $this->assertSame('Laporan Kupon', CouponReport::getNavigationLabel());
+        Livewire::test(CouponReport::class)->assertSee('Laporan Voucher');
+        $this->assertSame('Laporan Voucher', CouponReport::getNavigationLabel());
         $this->assertSame('Laporan Promo', PromoLoyaltyReport::getNavigationLabel());
         $this->assertNotSame(PromoLoyaltyReport::getNavigationSort(), CouponReport::getNavigationSort());
     }

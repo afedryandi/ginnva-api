@@ -40,7 +40,7 @@ class ChecklistTemplate extends Model
                 'Peraturan Perusahaan diterima karyawan (tercatat di aplikasi)',
                 'Seragam dan alat pelindung diri diserahkan',
                 'Pengenalan produk, SOP pemasangan, dan keselamatan kerja',
-                'Akun aplikasi staf dibuat dan hak aksesnya diatur',
+                'Akun aplikasi staff dibuat dan hak aksesnya diatur',
                 'Aset kerja diserahkan (kunci, perangkat, alat)',
             ],
             'offboarding' => [

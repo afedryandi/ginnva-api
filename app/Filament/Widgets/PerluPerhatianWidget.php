@@ -148,7 +148,7 @@ class PerluPerhatianWidget extends Widget
             if ($rescheduleCount > 0) {
                 $items[] = [
                     'label' => 'Pengajuan Jadwal Ulang Menunggu',
-                    'description' => 'Customer minta ganti tanggal, belum diputuskan',
+                    'description' => 'Pelanggan minta ganti tanggal, belum diputuskan',
                     'count' => $rescheduleCount,
                     'color' => 'warning',
                     'icon' => 'heroicon-o-inbox-arrow-down',
@@ -161,7 +161,7 @@ class PerluPerhatianWidget extends Widget
             if ($cancelRequestCount > 0) {
                 $items[] = [
                     'label' => 'Pengajuan Pembatalan Menunggu',
-                    'description' => 'Customer minta batal, belum diputuskan',
+                    'description' => 'Pelanggan minta batal, belum diputuskan',
                     'count' => $cancelRequestCount,
                     'color' => 'danger',
                     'icon' => 'heroicon-o-x-circle',

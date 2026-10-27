@@ -292,7 +292,7 @@ class BayZoneUtilizationReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'bay_zone_utilization', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->storeId])
-                ->log('Ekspor Laporan Utilisasi Zona/Bay (' . $format . ')');
+                ->log('Export Laporan Utilisasi Zona/Bay (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

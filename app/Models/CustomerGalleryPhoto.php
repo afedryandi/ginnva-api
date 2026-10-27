@@ -42,10 +42,10 @@ class CustomerGalleryPhoto extends Model
             ->dontSubmitEmptyLogs()
             ->useLogName('customer_gallery_photo')
             ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
-                'created' => "Foto galeri customer #{$this->customer_id} ditambahkan",
-                'updated' => "Foto galeri customer #{$this->customer_id} diubah",
-                'deleted' => "Foto galeri customer #{$this->customer_id} dihapus",
-                default   => "Foto galeri customer #{$this->customer_id} — {$eventName}",
+                'created' => "Foto galeri pelanggan #{$this->customer_id} ditambahkan",
+                'updated' => "Foto galeri pelanggan #{$this->customer_id} diubah",
+                'deleted' => "Foto galeri pelanggan #{$this->customer_id} dihapus",
+                default   => "Foto galeri pelanggan #{$this->customer_id} — {$eventName}",
             });
     }
 }

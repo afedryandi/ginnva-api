@@ -44,11 +44,11 @@ class PointTransactionResource extends Resource
 
     protected static ?int $navigationSort = 102;
 
-    protected static ?string $navigationLabel = 'Riwayat Poin Customer';
+    protected static ?string $navigationLabel = 'Riwayat Poin Pelanggan';
 
     protected static ?string $modelLabel = 'Transaksi Poin';
 
-    protected static ?string $pluralModelLabel = 'Riwayat Poin Customer';
+    protected static ?string $pluralModelLabel = 'Riwayat Poin Pelanggan';
 
     public static function canViewAny(): bool
     {
@@ -103,7 +103,7 @@ class PointTransactionResource extends Resource
     {
         return $form->schema([
             Forms\Components\Select::make('customer_id')
-                ->label('Customer')
+                ->label('Pelanggan')
                 ->relationship('customer', 'name')
                 ->getOptionLabelFromRecordUsing(fn ($record) => trim(($record->name ?? 'Tanpa Nama') . ' — ' . ($record->phone_number ?? $record->email ?? '')))
                 ->searchable(['name', 'phone_number', 'email'])
@@ -158,7 +158,7 @@ class PointTransactionResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('customer.name')
-                    ->label('Customer')
+                    ->label('Pelanggan')
                     ->placeholder('—')
                     ->formatStateUsing(fn (?string $state, PointTransaction $record) => $state ?? ($record->customer?->deleted_at ? '(Akun Dihapus)' : '—'))
                     ->searchable()

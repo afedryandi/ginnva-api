@@ -537,7 +537,7 @@ class ScrollCodeResource extends Resource
                 // SUDAH di 1 toko, tapi mau dipindah ke toko lain (mis.
                 // toko A over-purchase, kirim sebagian ke toko B).
                 Tables\Actions\Action::make('transfer')
-                    ->label('Mutasi ke Cabang Lain')
+                    ->label('Mutasi ke Toko Lain')
                     ->icon('heroicon-o-arrow-path-rounded-square')
                     ->color('warning')
                     ->visible(fn (ScrollCode $record) => (auth()->user()?->isFullAccess() ?? false)

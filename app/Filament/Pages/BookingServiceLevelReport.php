@@ -109,8 +109,8 @@ class BookingServiceLevelReport extends Page implements HasForms
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
@@ -130,12 +130,12 @@ class BookingServiceLevelReport extends Page implements HasForms
         $storeName = (auth()->user()?->isFullAccess() ?? false) && ! empty($this->data['store_id'])
             ? Store::whereKey($this->data['store_id'])->value('name')
             : null;
-        $who = ['customer' => 'Pelanggan', 'staff' => 'Staf', 'system' => 'Sistem'];
+        $who = ['customer' => 'Pelanggan', 'staff' => 'Staff', 'system' => 'Sistem'];
 
         return [
             'key' => 'sla-dan-tidak-datang',
             'title' => 'Laporan SLA & Tidak Datang',
-            'subtitle' => $from->translatedFormat('d F Y') . ' - ' . $to->translatedFormat('d F Y') . ' · ' . ($storeName ? "Cabang {$storeName}" : 'Semua cabang'),
+            'subtitle' => $from->translatedFormat('d F Y') . ' - ' . $to->translatedFormat('d F Y') . ' · ' . ($storeName ? "Toko {$storeName}" : 'Semua toko'),
             'money' => false,
             'sections' => [
                 [

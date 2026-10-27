@@ -182,12 +182,12 @@ class BookingResource extends Resource
                         ->hiddenOn('create'),
                 ]),
 
-            Forms\Components\Section::make('Data Customer')
+            Forms\Components\Section::make('Data Pelanggan')
                 ->columns(1)
                 ->schema([
                     // Booking dari app — pilih dari akun terdaftar
                     Forms\Components\Select::make('customer_id')
-                        ->label('Akun Customer (App)')
+                        ->label('Akun Pelanggan (App)')
                         ->options(fn () => Customer::orderBy('name')
                             ->get()
                             ->mapWithKeys(fn ($c) => [
@@ -201,7 +201,7 @@ class BookingResource extends Resource
 
                     // Booking manual (WA/walk-in) — input nama & nomor langsung
                     Forms\Components\TextInput::make('customer_name')
-                        ->label('Nama Customer')
+                        ->label('Nama Pelanggan')
                         ->required(fn (Forms\Get $get) => in_array($get('source'), ['whatsapp', 'walk_in']))
                         ->visible(fn (Forms\Get $get) => in_array($get('source'), ['whatsapp', 'walk_in']))
                         ->maxLength(255),
@@ -320,7 +320,7 @@ class BookingResource extends Resource
 
                             return $activeJobs > 0 ? "{$label} — {$activeJobs} job aktif" : $label;
                         })
-                        ->helperText('Bisa pilih lebih dari 1 installer. "X job aktif" = jumlah booking confirmed yang sedang dipegang installer itu saat ini. Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app. Installer dari toko lain, atau berstatus "Menunggu Review"/"Nonaktif" di roster Teknisi, tidak muncul di sini.')
+                        ->helperText('Bisa pilih lebih dari 1 installer. "X job aktif" = jumlah booking confirmed yang sedang dipegang installer itu saat ini. Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app. Installer dari toko lain, atau berstatus "Menunggu Review"/"Nonaktif" di roster Installer, tidak muncul di sini.')
                         ->multiple()
                         ->searchable()
                         ->preload()
@@ -820,11 +820,11 @@ class BookingResource extends Resource
                     TextEntry::make('watchers.name')->label('Direksi Pemantau')->badge()->placeholder('—'),
                 ]),
 
-            InfolistSection::make('Data Customer')
+            InfolistSection::make('Data Pelanggan')
                 ->columns(2)
                 ->schema([
                     TextEntry::make('display_name')
-                        ->label('Nama Customer')
+                        ->label('Nama Pelanggan')
                         ->state(fn (Booking $record) => $record->display_customer_name),
                     TextEntry::make('phone_number')
                         ->label('No. Telepon')
@@ -1056,7 +1056,7 @@ class BookingResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('display_name')
-                    ->label('Customer')
+                    ->label('Pelanggan')
                     ->getStateUsing(fn (Booking $record): string => $record->display_customer_name)
                     ->searchable(query: fn (Builder $query, string $search) => $query
                         ->where('customer_name', 'like', "%{$search}%")
@@ -1169,7 +1169,7 @@ class BookingResource extends Resource
                             $parts[] = 'Lewat tanggal, belum dikerjakan';
                         }
                         if ($record->pendingCancellationRequest) {
-                            $parts[] = 'Pembatalan diajukan customer';
+                            $parts[] = 'Pembatalan diajukan pelanggan';
                         }
 
                         return $parts ? implode(' · ', $parts) : null;
@@ -1245,7 +1245,7 @@ class BookingResource extends Resource
                 Tables\Filters\SelectFilter::make('cancelled_by_type')
                     ->label('Dibatalkan oleh')
                     ->options([
-                        'customer' => 'Customer',
+                        'customer' => 'Pelanggan',
                         'staff'    => 'Staff',
                         'system'   => 'Sistem',
                     ]),
@@ -1887,7 +1887,7 @@ class BookingResource extends Resource
                     ->modalDescription('Booking ini akan ditandai Dibatalkan. Tindakan ini tidak membatalkan otomatis assignment installer/direksi yang sudah tersimpan.')
                     ->form([
                         Forms\Components\Textarea::make('reason')
-                            ->label(fn (Booking $record) => ($record->status === 'confirmed' ? 'Alasan' : 'Alasan (opsional)') . ' — dikirim ke customer')
+                            ->label(fn (Booking $record) => ($record->status === 'confirmed' ? 'Alasan' : 'Alasan (opsional)') . ' — dikirim ke pelanggan')
                             // Booking confirmed sudah memakai slot & kemungkinan DP
                             // -- alasan wajib (keputusan 2026-10-02).
                             ->required(fn (Booking $record) => $record->status === 'confirmed')

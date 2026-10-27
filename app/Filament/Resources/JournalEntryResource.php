@@ -489,7 +489,7 @@ class JournalEntryResource extends Resource
             ->headerActions([
                 // Ekspor Excel (1 baris per baris jurnal) -- gap audit 2026-09-29.
                 Tables\Actions\Action::make('exportJournals')
-                    ->label('Ekspor Excel')
+                    ->label('Export Excel')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
                     ->form([

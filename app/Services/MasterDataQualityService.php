@@ -45,7 +45,7 @@ class MasterDataQualityService
         $modelsTotal = (clone $activeWithModel)->get(['brand', 'model'])->map(fn (Vehicle $v) => VehicleGlassArea::keyOf((string) $v->brand) . '|' . VehicleGlassArea::keyOf((string) $v->model))->unique()->count();
 
         $add('vehicle_no_area', 'Kendaraan', 'Merek+model aktif tanpa luas kaca', $withoutArea, $modelsTotal, 'info',
-            'Luas kaca dipakai untuk kebutuhan bahan kaca film. Impor dari Google Sheet atau isi manual di menu Luas Kaca.');
+            'Luas kaca dipakai untuk kebutuhan bahan kaca film. Import dari Google Sheet atau isi manual di menu Luas Kaca.');
 
         $conflicting = DB::table('vehicles')->where('is_active', true)->whereNotNull('model')->whereNull('variant')
             ->select('brand', 'model')->groupBy('brand', 'model')->havingRaw('COUNT(DISTINCT size_category) > 1')->get()->count();

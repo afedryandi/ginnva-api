@@ -60,7 +60,7 @@ class ListActivities extends ListRecords
         return [
             // Isi ekspor sama dengan layar (filter, pencarian, dan tab aktif). Ekspor itu sendiri dicatat sebagai report_export.
             Action::make('exportExcel')
-                ->label('Ekspor ke Excel')
+                ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
                 ->visible(fn () => ActivityResource::canViewAny())
@@ -82,7 +82,7 @@ class ListActivities extends ListRecords
                         activity('report_export')
                             ->causedBy(auth()->user())
                             ->withProperties(['report' => 'activity_log', 'format' => 'xlsx', 'rows' => $rows])
-                            ->log('Ekspor Histori Aktivitas (xlsx)');
+                            ->log('Export Riwayat Aktivitas (xlsx)');
                     } catch (\Throwable $e) {
                         report($e);
                     }

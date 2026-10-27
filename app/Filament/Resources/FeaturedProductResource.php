@@ -94,7 +94,7 @@ class FeaturedProductResource extends Resource
                         ->image()
                         ->directory('featured-products')
                         ->maxSize(5120)
-                        ->helperText('Maks. 5 MB. Gambar yang ditampilkan UTUH saat customer tap kartunya — boleh beda dari gambar beranda (mis. lebih detail/resolusi tinggi). Kosongkan untuk pakai gambar beranda yang sama.')
+                        ->helperText('Maks. 5 MB. Gambar yang ditampilkan UTUH saat pelanggan tap kartunya — boleh beda dari gambar beranda (mis. lebih detail/resolusi tinggi). Kosongkan untuk pakai gambar beranda yang sama.')
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('title')

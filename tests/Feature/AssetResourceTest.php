@@ -228,7 +228,7 @@ class AssetResourceTest extends TestCase
             ->assertHasNoFormErrors();
 
         $created = Asset::where('name', 'Kipas Toko')->firstOrFail();
-        $this->assertSame($this->storeA->id, $created->store_id, 'Staf tidak bisa mendaftarkan aset ke toko lain.');
+        $this->assertSame($this->storeA->id, $created->store_id, 'Staff tidak bisa mendaftarkan aset ke toko lain.');
 
         Livewire::test(ListAssets::class)->assertCanSeeTableRecords([$created]);
     }
@@ -326,11 +326,11 @@ class AssetResourceTest extends TestCase
         Livewire::test(ListAssets::class)
             ->callTableAction('transfer', $asset, data: ['to_store_id' => $this->storeB->id, 'condition_at_transfer' => 'baik', 'reason' => 'coba pindah toko'])
             ->assertHasNoTableActionErrors();
-        $this->assertSame($this->storeA->id, $asset->fresh()->store_id, 'Staf tidak bisa memindahkan toko lewat serah terima.');
+        $this->assertSame($this->storeA->id, $asset->fresh()->store_id, 'Staff tidak bisa memindahkan toko lewat serah terima.');
 
         $this->as($this->user('super_admin'));
         Livewire::test(ListAssets::class)
-            ->callTableAction('transfer', $asset->fresh(), data: ['to_store_id' => $this->storeB->id, 'condition_at_transfer' => 'perlu_perhatian', 'reason' => 'pindah cabang'])
+            ->callTableAction('transfer', $asset->fresh(), data: ['to_store_id' => $this->storeB->id, 'condition_at_transfer' => 'perlu_perhatian', 'reason' => 'pindah toko'])
             ->assertHasNoTableActionErrors();
         $this->assertSame($this->storeB->id, $asset->fresh()->store_id);
         $last = AssetTransfer::where('asset_id', $asset->id)->latest('id')->first();
@@ -353,21 +353,21 @@ class AssetResourceTest extends TestCase
 
     public function test_export_rows_are_scoped_to_the_user_and_download_actions_work(): void
     {
-        $mine = $this->asset('Ekspor Toko A', $this->storeA, ['purchase_cost' => 1000000, 'purchase_date' => '2026-10-09', 'useful_life_years' => 4]);   // dibeli besok: nilai buku = harga beli
-        $theirs = $this->asset('Ekspor Toko B', $this->storeB);
-        $hq = $this->asset('Ekspor Pusat', null);
+        $mine = $this->asset('Export Toko A', $this->storeA, ['purchase_cost' => 1000000, 'purchase_date' => '2026-10-09', 'useful_life_years' => 4]);   // dibeli besok: nilai buku = harga beli
+        $theirs = $this->asset('Export Toko B', $this->storeB);
+        $hq = $this->asset('Export Pusat', null);
 
         $this->as($this->user('kasir', null, $this->storeA));
         $names = (new AssetExport())->collection()->pluck(1)->all();
-        $this->assertContains('Ekspor Toko A', $names);
-        $this->assertNotContains('Ekspor Toko B', $names);
-        $this->assertNotContains('Ekspor Pusat', $names);
+        $this->assertContains('Export Toko A', $names);
+        $this->assertNotContains('Export Toko B', $names);
+        $this->assertNotContains('Export Pusat', $names);
 
         $this->as($this->user('super_admin'));
         $export = new AssetExport();
         $rows = $export->collection()->keyBy(0);
         $this->assertSame(['Kode', 'Nama Aset', 'Kategori', 'Status', 'Dipegang Oleh', 'Lokasi', 'Tanggal Beli', 'Harga Beli', 'Nilai Buku Saat Ini'], $export->headings());
-        $this->assertEquals([$mine->asset_tag, 'Ekspor Toko A', 'Mesin', 'Aktif Dipakai', '-', 'Toko A', '2026-10-09', 1000000.0, 1000000.0], $rows[$mine->asset_tag]);
+        $this->assertEquals([$mine->asset_tag, 'Export Toko A', 'Mesin', 'Aktif Dipakai', '-', 'Toko A', '2026-10-09', 1000000.0, 1000000.0], $rows[$mine->asset_tag]);
         $this->assertSame('Kantor Pusat', $rows[$hq->asset_tag][5]);
 
         Excel::fake();

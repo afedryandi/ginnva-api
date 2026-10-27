@@ -15,7 +15,7 @@ class ReceivableAgingExport implements FromArray, WithHeadings, WithStyles
 
     public function headings(): array
     {
-        return ['Toko', 'Customer', 'Belum Jatuh Tempo', '1-30 Hari', '31-60 Hari', '61-90 Hari', '> 90 Hari', 'Total'];
+        return ['Toko', 'Pelanggan', 'Belum Jatuh Tempo', '1-30 Hari', '31-60 Hari', '61-90 Hari', '> 90 Hari', 'Total'];
     }
 
     public function array(): array

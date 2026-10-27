@@ -27,7 +27,7 @@ class ReservationReportExport implements FromArray, WithHeadings, WithStyles
             'Pelanggan',
             'Toko',
             'Layanan',
-            'Teknisi',
+            'Installer',
             'Total Tagihan',
             'Status',
         ];

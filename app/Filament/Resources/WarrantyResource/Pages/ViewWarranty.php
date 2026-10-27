@@ -86,7 +86,7 @@ class ViewWarranty extends ViewRecord
                         ->maxLength(255),
 
                     Forms\Components\Select::make('new_customer_id')
-                        ->label('Akun Customer Baru (opsional)')
+                        ->label('Akun Pelanggan Baru (opsional)')
                         ->placeholder('Pilih kalau pemilik baru sudah punya akun app')
                         ->options(fn () => \App\Models\Customer::orderBy('name')
                             ->get()

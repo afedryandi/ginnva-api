@@ -68,7 +68,7 @@ class AttendanceApiTest extends TestCase
     private function makeStaff(?Store $store, array $extra = []): User
     {
         $user = User::create(array_merge([
-            'name' => 'Staf ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x',
+            'name' => 'Staff ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x',
             'store_id' => $store?->id, 'join_date' => '2025-01-01',
         ], $extra));
         $user->assignRole('kasir');

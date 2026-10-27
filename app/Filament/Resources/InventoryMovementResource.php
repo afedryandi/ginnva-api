@@ -187,7 +187,7 @@ class InventoryMovementResource extends Resource
                             activity('report_export')
                                 ->causedBy(auth()->user())
                                 ->withProperties(['report' => 'inventory_movement', 'format' => 'xlsx'])
-                                ->log('Ekspor Riwayat Keluar/Masuk (xlsx)');
+                                ->log('Export Riwayat Keluar/Masuk (xlsx)');
                         } catch (\Throwable $e) {
                             report($e);
                         }

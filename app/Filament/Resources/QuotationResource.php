@@ -327,7 +327,7 @@ class QuotationResource extends Resource
                         ->placeholder('Belum direspons'),
                     TextEntry::make('source')
                         ->label('Sumber')
-                        ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Customer' : 'Input Staff'),
+                        ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Pelanggan' : 'Input Staff'),
                     TextEntry::make('channel')
                         ->label('Kanal')
                         ->state(fn (Quotation $record) => \App\Support\LeadAttribution::CHANNELS[$record->channel] ?? 'Tidak tercatat'),
@@ -429,7 +429,7 @@ class QuotationResource extends Resource
                     ->label('Sumber')
                     ->badge()
                     ->color(fn (string $state) => $state === 'customer' ? 'gray' : 'info')
-                    ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Customer' : 'Input Staff')
+                    ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Pelanggan' : 'Input Staff')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('created_at')

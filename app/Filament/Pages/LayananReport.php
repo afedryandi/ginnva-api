@@ -222,7 +222,7 @@ class LayananReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => Str::slug(static::$navigationLabel ?? 'laporan-jasa'), 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor ' . (static::$navigationLabel ?? 'Laporan Jasa') . ' (' . $format . ')');
+                ->log('Export ' . (static::$navigationLabel ?? 'Laporan Jasa') . ' (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

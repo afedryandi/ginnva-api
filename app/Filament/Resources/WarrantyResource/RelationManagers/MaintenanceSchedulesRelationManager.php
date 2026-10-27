@@ -105,13 +105,13 @@ class MaintenanceSchedulesRelationManager extends RelationManager
             ->actions([
                 Tables\Actions\Action::make('book_for_customer')
                     ->label('Buatkan Booking')
-                    ->tooltip('Buatkan booking maintenance untuk customer yang sudah dihubungi dan setuju datang.')
+                    ->tooltip('Buatkan booking maintenance untuk pelanggan yang sudah dihubungi dan setuju datang.')
                     ->icon('heroicon-o-calendar-days')
                     ->color('primary')
                     ->visible(fn (WarrantyMaintenanceSchedule $record) => in_array($record->status, ['pending', 'confirmation_sent'], true)
                         && $record->warranty?->status !== 'revoked')
                     ->modalHeading('Buatkan Booking Maintenance')
-                    ->modalDescription('Gunakan setelah customer dihubungi dan setuju datang. Booking dibuat berstatus Menunggu untuk customer ini.')
+                    ->modalDescription('Gunakan setelah pelanggan dihubungi dan setuju datang. Booking dibuat berstatus Menunggu untuk pelanggan ini.')
                     ->form([
                         Forms\Components\DatePicker::make('preferred_date')
                             ->label('Tanggal Kedatangan')

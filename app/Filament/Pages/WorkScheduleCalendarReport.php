@@ -116,7 +116,7 @@ class WorkScheduleCalendarReport extends Page implements HasActions, HasForms
                 ->live(),
 
             Select::make('store_id')
-                ->label('Cabang')
+                ->label('Toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->required($isFullAccess)

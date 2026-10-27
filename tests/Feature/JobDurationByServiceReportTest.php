@@ -135,7 +135,7 @@ class JobDurationByServiceReportTest extends TestCase
         $this->assertSame(['Kaca Film'], $onlyB->keys()->all());
 
         $staff = $this->user('kasir', $this->storeA);
-        $this->assertSame(1, $this->rows(['store_id' => $this->storeB->id], $staff)['Kaca Film']['jobCount'], 'Staf tidak bisa melihat toko lain.');
+        $this->assertSame(1, $this->rows(['store_id' => $this->storeB->id], $staff)['Kaca Film']['jobCount'], 'Staff tidak bisa melihat toko lain.');
     }
 
     public function test_an_account_without_a_store_sees_nothing(): void

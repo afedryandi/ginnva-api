@@ -55,9 +55,9 @@ class TechnicianCommissionReport extends Page implements HasForms
     // gabungan) -- satu grup dengan EmployeeReport (absensi & gaji).
     protected static ?string $navigationGroup = 'Laporan Karyawan';
 
-    protected static ?string $navigationLabel = 'Laporan Komisi Teknisi';
+    protected static ?string $navigationLabel = 'Laporan Komisi Installer';
 
-    protected static ?string $title = 'Laporan Komisi Teknisi';
+    protected static ?string $title = 'Laporan Komisi Installer';
 
     // 401 -- band grup 'Laporan Karyawan' (lihat catatan sistem band di
     // ProductSalesReport.php, diperbaiki 2026-09-09).
@@ -191,8 +191,8 @@ class TechnicianCommissionReport extends Page implements HasForms
 
             // Filter cabang (audit 2026-09-29) -- halaman ini sudah dibatasi isFullAccess() saja.
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->live(),
         ])->columns(4)->statePath('data');
@@ -211,7 +211,7 @@ class TechnicianCommissionReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => Str::slug(static::$navigationLabel ?? 'komisi-teknisi'), 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
-                ->log('Ekspor ' . (static::$navigationLabel ?? 'Laporan Komisi Teknisi') . ' (' . $format . ')');
+                ->log('Export ' . (static::$navigationLabel ?? 'Laporan Komisi Installer') . ' (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }
@@ -236,7 +236,7 @@ class TechnicianCommissionReport extends Page implements HasForms
                     $this->logExport('xlsx');
 
                     return Excel::download(
-                        new TechnicianCommissionReportExport($this->getResult(), static::$navigationLabel ?? 'Komisi Teknisi'),
+                        new TechnicianCommissionReportExport($this->getResult(), static::$navigationLabel ?? 'Komisi Installer'),
                         $slug . '-' . now()->format('Ymd-His') . '.xlsx'
                     );
                 }),
@@ -251,7 +251,7 @@ class TechnicianCommissionReport extends Page implements HasForms
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.technician_commission_report', [
                         'result' => $result,
-                        'title' => static::$navigationLabel ?? 'Komisi Teknisi',
+                        'title' => static::$navigationLabel ?? 'Komisi Installer',
                     ])->setPaper('a4', 'landscape');
                     $filename = $slug . '-' . now()->format('Ymd-His') . '.pdf';
 

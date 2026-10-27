@@ -175,7 +175,7 @@ class PurchaseRequestResourceTest extends TestCase
             ->assertHasNoFormErrors();
 
         $request = PurchaseRequest::withoutGlobalScopes()->firstOrFail();
-        $this->assertSame($this->storeA->id, $request->store_id, 'Staf tidak bisa mengajukan atas nama toko lain.');
+        $this->assertSame($this->storeA->id, $request->store_id, 'Staff tidak bisa mengajukan atas nama toko lain.');
         $this->assertSame('pending', $request->status);
         $this->assertSame($staff->id, $request->requested_by);
         $this->assertSame('Slip Solution', $request->item_name);

@@ -85,7 +85,7 @@ class InventoryGlTest extends TestCase
 
         $memo = MaterialMemo::create([
             'memo_number' => 'MEMO-' . uniqid(), 'store_id' => $this->store->id, 'booking_id' => $booking->id,
-            'created_by' => User::create(['name' => 'Staf', 'email' => uniqid() . '@test.local', 'password' => 'x'])->id,
+            'created_by' => User::create(['name' => 'Staff', 'email' => uniqid() . '@test.local', 'password' => 'x'])->id,
         ]);
         $memo->items()->create(['item_type' => 'raw_material', 'item_id' => $glue->id, 'item_name' => 'Lem', 'unit' => 'liter', 'qty_taken' => 2]);
         $memo->items()->create(['item_type' => 'consumable_item', 'item_id' => $gloves->id, 'item_name' => 'Sarung tangan', 'unit' => 'pcs', 'qty_taken' => 4]);

@@ -309,7 +309,7 @@ class NotificationCampaignTest extends TestCase
         Livewire::test(SendNotification::class)
             ->fillForm($this->infoState(['title' => 'Libur Lebaran', 'body' => 'Toko tutup 3 hari', 'deep_link_route' => '/news']))
             ->callAction('saveTemplate', ['name' => 'Libur'])
-            ->assertNotified('Templat disimpan');
+            ->assertNotified('Template disimpan');
 
         $template = NotificationTemplate::firstOrFail();
         $this->assertSame(['Libur', 'customer', 'info', 'Libur Lebaran', $admin->id], [$template->name, $template->audience, $template->category, $template->title, $template->created_by]);

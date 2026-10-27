@@ -138,7 +138,7 @@ class CustomerResource extends Resource
             // di bawah membersihkan yang satu lagi kalau somehow dua-duanya
             // kekirim (mis. race condition/bypass UI).
             Forms\Components\Select::make('referred_by_customer_id')
-                ->label('Direferensikan Customer (Ajak Teman)')
+                ->label('Direferensikan Pelanggan (Ajak Teman)')
                 ->relationship(
                     name: 'referredBy',
                     titleAttribute: 'name',
@@ -171,7 +171,7 @@ class CustomerResource extends Resource
                 ->live()
                 ->disabled(fn (Forms\Get $get) => filled($get('referred_by_customer_id')))
                 ->dehydrated(true)
-                ->helperText('Penanda saja — poin tetap baru diberikan lewat "Proses Referral" di Booking setelah customer ini booking & selesai. Kode referral partner di form itu akan otomatis ter-prefill dari sini. Kosongkan dulu "Direferensikan Customer" di atas kalau mau isi ini.'),
+                ->helperText('Penanda saja — poin tetap baru diberikan lewat "Proses Referral" di Booking setelah pelanggan ini booking & selesai. Kode referral partner di form itu akan otomatis ter-prefill dari sini. Kosongkan dulu "Direferensikan Pelanggan" di atas kalau mau isi ini.'),
         ];
     }
 
@@ -327,7 +327,7 @@ class CustomerResource extends Resource
                         ->content(fn (?Customer $record) => $record?->referral_code ?? '—'),
 
                     Forms\Components\Placeholder::make('referredBy.name')
-                        ->label('Diajak Customer')
+                        ->label('Diajak Pelanggan')
                         ->content(fn (?Customer $record) => $record?->referredBy?->name
                             ? "{$record->referredBy->name} (kode: {$record->referredBy->referral_code})"
                             : '—'),
@@ -339,7 +339,7 @@ class CustomerResource extends Resource
                             : '—'),
 
                     Forms\Components\Placeholder::make('referrals_list')
-                        ->label('Customer yang Direferensikan (Ajak Teman)')
+                        ->label('Pelanggan yang Direferensikan (Ajak Teman)')
                         ->columnSpanFull()
                         ->content(function (?Customer $record) {
                             if (! $record) return '—';
@@ -422,7 +422,7 @@ class CustomerResource extends Resource
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('referredBy.name')
-                    ->label('Diajak Customer')
+                    ->label('Diajak Pelanggan')
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
@@ -475,7 +475,7 @@ class CustomerResource extends Resource
                             activity('report_export')
                                 ->causedBy(auth()->user())
                                 ->withProperties(['report' => 'customer', 'format' => 'xlsx'])
-                                ->log('Ekspor Daftar Pelanggan (xlsx)');
+                                ->log('Export Daftar Pelanggan (xlsx)');
                         } catch (\Throwable $e) {
                             report($e);
                         }

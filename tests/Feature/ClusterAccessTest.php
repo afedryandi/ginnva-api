@@ -43,7 +43,7 @@ class ClusterAccessTest extends TestCase
     {
         $this->actingAs($this->user('store_manager'), 'web');
 
-        $this->assertFalse(SistemCluster::canAccess(), 'Histori Aktivitas khusus full-access, jadi Sistem kosong untuk store_manager.');
+        $this->assertFalse(SistemCluster::canAccess(), 'Riwayat Aktivitas khusus full-access, jadi Sistem kosong untuk store_manager.');
         $this->assertTrue(BookingCluster::canAccess());
     }
 

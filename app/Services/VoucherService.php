@@ -65,7 +65,7 @@ class VoucherService
         }
 
         if ($claim->reward_id && $claim->customer_id && $booking->customer_id && (int) $claim->customer_id !== (int) $booking->customer_id) {
-            throw new RuntimeException("Voucher {$claim->code} milik customer lain dan tidak bisa dipakai di booking ini.");
+            throw new RuntimeException("Voucher {$claim->code} milik pelanggan lain dan tidak bisa dipakai di booking ini.");
         }
 
         $claim->loadMissing('voucher:id,discount_amount');

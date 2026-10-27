@@ -92,7 +92,7 @@ class StoreResourceTest extends TestCase
         $this->as($this->user('kasir'));
         $this->assertTrue(StoreResource::canViewAny());
         $this->assertFalse(StoreResource::canCreate());
-        $this->assertFalse(StoreResource::canEdit($this->storeA), 'Staf toko tidak boleh mengubah master toko, termasuk tokonya sendiri.');
+        $this->assertFalse(StoreResource::canEdit($this->storeA), 'Staff toko tidak boleh mengubah master toko, termasuk tokonya sendiri.');
         $this->assertFalse(StoreResource::canDelete($this->storeA));
 
         $this->as($this->user('kasir', null, null, ['menu_permissions' => ['StoreResource' => ['create', 'update', 'delete']]]));
@@ -142,7 +142,7 @@ class StoreResourceTest extends TestCase
         Livewire::test(ListStores::class)
             ->assertCanSeeTableRecords([$jkt, $off])
             ->assertTableColumnStateSet('opening_hours_summary', 'Senin–Jumat 08.30–17.00, Minggu Libur', record: $withAppends)
-            ->assertTableColumnFormattedStateSet('positive_rate_percent', '75% positif (4 ulasan)', record: $withAppends);
+            ->assertTableColumnFormattedStateSet('positive_rate_percent', '75% positif (4 review)', record: $withAppends);
 
         Livewire::test(ListStores::class)->searchTable('Medan')->assertCanSeeTableRecords([$off])->assertCanNotSeeTableRecords([$jkt]);
         Livewire::test(ListStores::class)->searchTable('Ginnva')->assertCanSeeTableRecords([$jkt])->assertCanNotSeeTableRecords([$off]);
@@ -309,7 +309,7 @@ class StoreResourceTest extends TestCase
 
         $usage = $this->storeA->usageSummary();
         $this->assertSame(1, $usage['Booking']);
-        $this->assertArrayHasKey('Akun staf', $usage);
+        $this->assertArrayHasKey('Akun staff', $usage);
 
         Livewire::test(ListStores::class)
             ->callTableAction('delete', $this->storeA)

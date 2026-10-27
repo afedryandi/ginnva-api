@@ -60,7 +60,7 @@ class DownPaymentService
                 : $resolver->resolvePaymentAccount($locked->store_id ? (int) $locked->store_id : null, null);
 
             if ($paymentAccountId && (! $paymentAccount || ! $paymentAccount->isUsable())) {
-                throw new RuntimeException('Rekening penerima DP tidak aktif atau akun kasnya tidak bisa dipakai.');
+                throw new RuntimeException('Rekening penerima DP nonaktif atau akun kasnya tidak bisa dipakai.');
             }
 
             $cash = $paymentAccount?->chartAccount ?? $resolver->legacyCash();

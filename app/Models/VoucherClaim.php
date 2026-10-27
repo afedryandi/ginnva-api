@@ -99,7 +99,7 @@ class VoucherClaim extends Model
             ->dontSubmitEmptyLogs()
             ->useLogName('voucher_claim')
             ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
-                'created' => "Voucher {$this->code} diterbitkan ke customer",
+                'created' => "Voucher {$this->code} diterbitkan ke pelanggan",
                 'updated' => "Voucher {$this->code} diubah",
                 'deleted' => "Voucher {$this->code} dihapus",
                 default   => "Voucher {$this->code} — {$eventName}",

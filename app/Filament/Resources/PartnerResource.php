@@ -184,7 +184,7 @@ class PartnerResource extends Resource
                             'partner' => 'Landing Page Umum (/partner)',
                         ])
                         ->placeholder('Dibuat manual admin')
-                        ->helperText('Menentukan link mana yang dipakai saat "Unduh QR". Kosongkan kalau partner ini tidak daftar lewat salah satu landing page (mis. influencer/komunitas yang direkrut langsung) — QR yang di-generate tetap akan pakai link /partner (landing page umum) sebagai default, bukan dikosongkan.'),
+                        ->helperText('Menentukan link mana yang dipakai saat "Download QR". Kosongkan kalau partner ini tidak daftar lewat salah satu landing page (mis. influencer/komunitas yang direkrut langsung) — QR yang di-generate tetap akan pakai link /partner (landing page umum) sebagai default, bukan dikosongkan.'),
                 ]),
         ]);
     }
@@ -303,7 +303,7 @@ class PartnerResource extends Resource
                 Tables\Actions\EditAction::make(),
 
                 Tables\Actions\Action::make('download_qr')
-                    ->label('Unduh QR')
+                    ->label('Download QR')
                     ->icon('heroicon-o-qr-code')
                     ->color('gray')
                     ->action(fn (Partner $record) => static::downloadQrPdf(new Collection([$record]))),
@@ -311,7 +311,7 @@ class PartnerResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\BulkAction::make('download_qr_bulk')
-                        ->label('Unduh QR (PDF Massal)')
+                        ->label('Download QR (PDF Massal)')
                         ->icon('heroicon-o-qr-code')
                         ->action(fn (Collection $records) => static::downloadQrPdf($records))
                         ->deselectRecordsAfterCompletion(),

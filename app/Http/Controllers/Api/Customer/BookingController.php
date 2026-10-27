@@ -317,7 +317,7 @@ class BookingController extends Controller
             app(\App\Services\StaffNotifier::class)->toStoreStaff(
                 $storeId,
                 'Pengajuan Pembatalan Booking',
-                "Booking #{$number}: customer mengajukan pembatalan. Alasan: {$request->reason}",
+                "Booking #{$number}: pelanggan mengajukan pembatalan. Alasan: {$request->reason}",
                 ['type' => 'booking_cancellation_request', 'booking_id' => $bookingId, 'route' => "/staff/bookings/{$bookingId}"],
                 \App\Filament\Resources\BookingResource::class,
             );
@@ -417,7 +417,7 @@ class BookingController extends Controller
             app(\App\Services\StaffNotifier::class)->toStoreStaff(
                 $booking->store_id,
                 'Pengajuan Jadwal Ulang',
-                "Booking #{$booking->booking_number}: customer mengajukan jadwal ulang ke {$date->format('d M Y')}.",
+                "Booking #{$booking->booking_number}: pelanggan mengajukan jadwal ulang ke {$date->format('d M Y')}.",
                 ['type' => 'booking_reschedule_request', 'booking_id' => $booking->id, 'route' => "/staff/bookings/{$booking->id}"],
                 \App\Filament\Resources\BookingResource::class,
             );
@@ -478,7 +478,7 @@ class BookingController extends Controller
                 try {
                     app(\App\Services\StaffNotifier::class)->toStoreStaff(
                         $storeId,
-                        'Booking Dibatalkan Customer',
+                        'Booking Dibatalkan Pelanggan',
                         "Booking #{$bookingNumber} dibatalkan oleh customer.",
                         ['type' => 'booking_cancelled_by_customer', 'booking_id' => $bookingId, 'route' => "/staff/bookings/{$bookingId}"],
                         \App\Filament\Resources\BookingResource::class,

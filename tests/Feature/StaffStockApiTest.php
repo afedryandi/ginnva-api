@@ -513,7 +513,7 @@ class StaffStockApiTest extends TestCase
             ->assertSuccessful()
             ->assertJsonPath('message', 'Aset berhasil diperbarui.');
         $fresh = $asset->fresh();
-        $this->assertSame(['diperbaiki', $this->storeA->id, 'Catatan lama'], [$fresh->status, $fresh->store_id, $fresh->notes], 'Staf tidak bisa memindah toko; catatan tidak tersentuh bila tidak dikirim.');
+        $this->assertSame(['diperbaiki', $this->storeA->id, 'Catatan lama'], [$fresh->status, $fresh->store_id, $fresh->notes], 'Staff tidak bisa memindah toko; catatan tidak tersentuh bila tidak dikirim.');
 
         $this->api($staff)->postJson("/api/staff/assets/{$asset->asset_tag}/update", ['status' => 'aktif', 'notes' => 'Sudah beres'])->assertSuccessful();
         $this->assertSame('Sudah beres', $asset->fresh()->notes);

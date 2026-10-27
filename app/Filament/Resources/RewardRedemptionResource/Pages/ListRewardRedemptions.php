@@ -21,7 +21,7 @@ class ListRewardRedemptions extends ListRecords
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'reward_redemption', 'format' => $format])
-                ->log('Ekspor Klaim Reward (' . $format . ')');
+                ->log('Export Klaim Reward (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

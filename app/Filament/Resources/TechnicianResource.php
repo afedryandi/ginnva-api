@@ -30,13 +30,13 @@ class TechnicianResource extends Resource
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- band 400-499 "Teknisi".
-    protected static ?string $navigationGroup = 'Teknisi';
+    protected static ?string $navigationGroup = 'Installer';
 
-    protected static ?string $navigationLabel = 'Teknisi';
+    protected static ?string $navigationLabel = 'Installer';
 
-    protected static ?string $modelLabel = 'Teknisi';
+    protected static ?string $modelLabel = 'Installer';
 
-    protected static ?string $pluralModelLabel = 'Teknisi';
+    protected static ?string $pluralModelLabel = 'Installer';
 
     protected static ?int $navigationSort = 400;
 
@@ -126,7 +126,7 @@ class TechnicianResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Data Teknisi')
+            Forms\Components\Section::make('Data Installer')
                 ->columns(2)
                 ->schema([
                     Forms\Components\Select::make('store_id')
@@ -140,7 +140,7 @@ class TechnicianResource extends Resource
                         ->dehydrated(),
 
                     Forms\Components\TextInput::make('name')
-                        ->label('Nama Teknisi')
+                        ->label('Nama Installer')
                         ->required()
                         ->maxLength(255),
 
@@ -160,7 +160,7 @@ class TechnicianResource extends Resource
                         // duplikat). Lihat audit modul Teknisi 2026-08-27.
                         ->unique(ignoreRecord: true)
                         ->validationMessages([
-                            'unique' => 'Akun installer ini sudah tertaut ke baris Teknisi lain.',
+                            'unique' => 'Akun installer ini sudah tertaut ke baris Installer lain.',
                         ]),
 
                     Forms\Components\TextInput::make('phone')
@@ -183,7 +183,7 @@ class TechnicianResource extends Resource
                         ->numeric()
                         ->minValue(0)
                         ->prefix('Rp')
-                        ->helperText('Nominal tetap yang didapat teknisi ini per booking yang dia kerjakan (bukan persentase). Kalau 1 booking dikerjakan >1 teknisi, masing-masing dapat nominal penuh ini, bukan dibagi. Kosongkan kalau belum ada aturan komisi untuk teknisi ini. DIABAIKAN begitu teknisi ini punya minimal 1 baris di tab "Tarif per Layanan" (setelah disimpan) -- lihat tab itu untuk tarif berbeda per jenis layanan.')
+                        ->helperText('Nominal tetap yang didapat installer ini per booking yang dia kerjakan (bukan persentase). Kalau 1 booking dikerjakan >1 installer, masing-masing dapat nominal penuh ini, bukan dibagi. Kosongkan kalau belum ada aturan komisi untuk installer ini. DIABAIKAN begitu installer ini punya minimal 1 baris di tab "Tarif per Layanan" (setelah disimpan) -- lihat tab itu untuk tarif berbeda per jenis layanan.')
                         ->disabled(fn () => ! auth()->user()?->isFullAccess())
                         ->dehydrated(),
 
@@ -215,7 +215,7 @@ class TechnicianResource extends Resource
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist->schema([
-            TextEntry::make('name')->label('Nama Teknisi'),
+            TextEntry::make('name')->label('Nama Installer'),
             TextEntry::make('store.name')->label('Toko'),
             TextEntry::make('user.name')->label('Akun Installer')->placeholder('Belum terhubung'),
             TextEntry::make('role_orphan_warning')
@@ -384,12 +384,12 @@ class TechnicianResource extends Resource
                         if ($record->user_id) {
                             app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->user_id],
-                                'Akun Teknisi Diaktifkan',
-                                'Akun teknisi Anda sudah diaktifkan — sekarang Anda bisa ditugaskan ke booking.'
+                                'Akun Installer Diaktifkan',
+                                'Akun installer Anda sudah diaktifkan — sekarang Anda bisa ditugaskan ke booking.'
                             );
                         }
 
-                        Notification::make()->title('Teknisi diaktifkan.')->success()->send();
+                        Notification::make()->title('Installer diaktifkan.')->success()->send();
                     }),
 
                 // BUG DIPERBAIKI 2026-09-25 (audit Teknisi): SEBELUMNYA
@@ -425,12 +425,12 @@ class TechnicianResource extends Resource
                         if ($record->user_id) {
                             app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->user_id],
-                                'Pendaftaran Teknisi Ditolak',
-                                "Pendaftaran teknisi Anda ditolak: {$data['review_note']}"
+                                'Pendaftaran Installer Ditolak',
+                                "Pendaftaran installer Anda ditolak: {$data['review_note']}"
                             );
                         }
 
-                        Notification::make()->title('Teknisi ditolak.')->warning()->send();
+                        Notification::make()->title('Installer ditolak.')->warning()->send();
                     }),
 
                 Tables\Actions\ViewAction::make(),

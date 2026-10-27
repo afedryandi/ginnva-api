@@ -179,7 +179,7 @@ class StockTurnoverReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'stock_turnover', 'format' => $format, 'from' => $this->from, 'to' => $this->to])
-                ->log('Ekspor Perputaran Stok (' . $format . ')');
+                ->log('Export Perputaran Stok (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

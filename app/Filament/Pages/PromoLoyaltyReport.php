@@ -193,8 +193,8 @@ class PromoLoyaltyReport extends Page implements HasForms
             // TETAP company-wide (lihat catatan getResult()), filter ini cuma mempengaruhi bagian
             // transaksi yang tertaut ke toko.
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
@@ -231,7 +231,7 @@ class PromoLoyaltyReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => Str::slug(static::$navigationLabel ?? 'laporan-promo'), 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor ' . (static::$navigationLabel ?? 'Laporan Promo') . ' (' . $format . ')');
+                ->log('Export ' . (static::$navigationLabel ?? 'Laporan Promo') . ' (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

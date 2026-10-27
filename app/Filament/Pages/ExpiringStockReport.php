@@ -145,7 +145,7 @@ class ExpiringStockReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'expiring_stock', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null])
-                ->log('Ekspor Laporan Stok Kedaluwarsa (' . $format . ')');
+                ->log('Export Laporan Stok Kedaluwarsa (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

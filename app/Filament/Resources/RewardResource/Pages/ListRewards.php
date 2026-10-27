@@ -21,7 +21,7 @@ class ListRewards extends ListRecords
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'reward', 'format' => $format])
-                ->log('Ekspor Katalog Reward (' . $format . ')');
+                ->log('Export Katalog Reward (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

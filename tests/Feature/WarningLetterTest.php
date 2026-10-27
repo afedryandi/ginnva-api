@@ -199,7 +199,7 @@ class WarningLetterTest extends TestCase
 
         foreach (['kasir', 'store_manager'] as $role) {
             $this->actingAs($this->user($role), 'web');
-            $this->assertTrue(WarningLetterResource::canCreate(), 'Menerbitkan SP baru terbuka untuk staf dengan akses menu.');
+            $this->assertTrue(WarningLetterResource::canCreate(), 'Menerbitkan SP baru terbuka untuk staff dengan akses menu.');
             $this->assertFalse((bool) WarningLetterResource::canEdit($letter), 'Koreksi SP yang sudah terbit tidak.');
             Livewire::test(EditWarningLetter::class, ['record' => $letter->getKey()])->assertForbidden();
         }

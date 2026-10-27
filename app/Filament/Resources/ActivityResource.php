@@ -44,7 +44,7 @@ class ActivityResource extends Resource
     'booking_settlement_payment' => 'Pembayaran Pelunasan Booking',
     'invoice_item' => 'Item Invoice',
     'notification_campaign' => 'Kampanye Notifikasi',
-    'notification_template' => 'Templat Notifikasi',
+    'notification_template' => 'Template Notifikasi',
     'asset' => 'Aset Tetap',
     'attendance' => 'Absensi',
     'attendance_correction_request' => 'Koreksi Absensi',
@@ -59,7 +59,7 @@ class ActivityResource extends Resource
     'consumable_item' => 'Barang Habis Pakai',
     'contract_extension' => 'Perpanjangan Kontrak',
     'customer' => 'Pelanggan',
-    'customer_gallery_photo' => 'Galeri Customer',
+    'customer_gallery_photo' => 'Galeri Pelanggan',
     'customer_group' => 'Grup Pelanggan',
     'employee_document' => 'Dokumen Karyawan',
     'employee_schedule_assignment' => 'Penugasan Jadwal Kerja',
@@ -95,7 +95,7 @@ class ActivityResource extends Resource
     'checklist_template' => 'Template Checklist',
     'employee_checklist_item' => 'Checklist Karyawan',
     'salary_grade' => 'Struktur & Skala Upah',
-    'technician_skill' => 'Keterampilan Teknisi',
+    'technician_skill' => 'Keterampilan Installer',
     'ppe_type' => 'Jenis APD',
     'ppe_issuance' => 'Pembagian APD',
     'employee_training' => 'Pelatihan Karyawan',
@@ -109,7 +109,7 @@ class ActivityResource extends Resource
     'vehicle_glass_area' => 'Luas Kaca Kendaraan',
     'budget' => 'Anggaran',
     'finance_setting' => 'Pengaturan Keuangan',
-    'technician_training' => 'Pelatihan Teknisi',
+    'technician_training' => 'Pelatihan Installer',
     'payroll' => 'Penggajian',
     'payroll_item' => 'Komponen Gaji',
     'payroll_item_category' => 'Kategori Komponen Gaji',
@@ -122,7 +122,7 @@ class ActivityResource extends Resource
     'receivable' => 'Piutang',
     'receivable_payment' => 'Pembayaran Piutang',
     'recurring_bill_template' => 'Template Tagihan Berulang',
-    'report_export' => 'Ekspor Laporan',
+    'report_export' => 'Export Laporan',
     'reward' => 'Reward',
     'reward_redemption' => 'Klaim Reward',
     'role' => 'Role / Divisi',
@@ -136,13 +136,13 @@ class ActivityResource extends Resource
     'store' => 'Toko/Dealer',
     'store_capacity_override' => 'Override Kapasitas Toko',
     'supplier' => 'Supplier',
-    'technician' => 'Teknisi',
-    'technician_service_rate' => 'Tarif Layanan Teknisi',
+    'technician' => 'Installer',
+    'technician_service_rate' => 'Tarif Layanan Installer',
     'transaction_approval_request' => 'Approval Referral/Refund',
     'user' => 'User Admin',
     'vehicle' => 'Kendaraan',
     'booking_service_type' => 'Layanan Booking',
-    'qc_checklist_item' => 'Daftar Periksa QC',
+    'qc_checklist_item' => 'Checklist QC',
     'app_setting' => 'Teks Aplikasi',
     'voucher' => 'Kampanye Voucher',
     'voucher_claim' => 'Voucher',
@@ -160,11 +160,11 @@ class ActivityResource extends Resource
 
     protected static ?int $navigationSort = 20;
 
-    protected static ?string $navigationLabel = 'Histori Aktivitas';
+    protected static ?string $navigationLabel = 'Riwayat Aktivitas';
 
     protected static ?string $modelLabel = 'Aktivitas';
 
-    protected static ?string $pluralModelLabel = 'Histori Aktivitas';
+    protected static ?string $pluralModelLabel = 'Riwayat Aktivitas';
 
     /**
      * Modul yang SEMUA perubahannya dianggap berisiko (Histori Aktivitas Fase 5, tab "Perubahan Berisiko"): hak akses dan peran,

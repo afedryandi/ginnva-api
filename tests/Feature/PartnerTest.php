@@ -181,7 +181,7 @@ class PartnerTest extends TestCase
 
         $this->assertCount(1, $data);
         $this->assertSame($booking->id, $data[0]['id']);
-        $this->assertSame('Budi Pelanggan', $data[0]['customer_name'], 'Nama customer tampil walau booking dibuat lewat aplikasi (kolom customer_name kosong).');
+        $this->assertSame('Budi Pelanggan', $data[0]['customer_name'], 'Nama pelanggan tampil walau booking dibuat lewat aplikasi (kolom customer_name kosong).');
         $this->assertSame(50, $data[0]['points_earned']);
         $this->assertEquals(5000000, $data[0]['transaction_amount']);
     }

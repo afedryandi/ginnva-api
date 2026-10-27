@@ -54,7 +54,7 @@ class ReportTableExportTest extends TestCase
     private function postJournal(string $debitCode, string $creditCode, float $amount, string $date = '2026-10-10'): void
     {
         $service = app(JournalEntryService::class);
-        $entry = $service->create(['entry_date' => $date, 'store_id' => null, 'description' => 'Tes ekspor', 'created_by' => null], [
+        $entry = $service->create(['entry_date' => $date, 'store_id' => null, 'description' => 'Tes export', 'created_by' => null], [
             ['chart_of_account_id' => $this->account($debitCode)->id, 'debit' => $amount],
             ['chart_of_account_id' => $this->account($creditCode)->id, 'credit' => $amount],
         ]);

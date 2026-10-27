@@ -146,7 +146,7 @@ class PersediaanDetailReportTest extends TestCase
         $staff = $this->user('kasir', $store, ['menu_access' => ['PersediaanDetailReport']]);
         $this->actingAs($staff, 'web');
         $this->assertTrue(PersediaanDetailReport::canAccess());
-        $this->assertCount(4, $this->report([], $staff)['materialMovements'], 'Stok nasional: staf toko melihat pergerakan yang sama.');
+        $this->assertCount(4, $this->report([], $staff)['materialMovements'], 'Stok nasional: staff toko melihat pergerakan yang sama.');
 
         $this->actingAs($this->user('kasir', $store, ['menu_access' => ['BookingResource']]), 'web');
         $this->assertFalse(PersediaanDetailReport::canAccess());

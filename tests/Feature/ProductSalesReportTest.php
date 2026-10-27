@@ -211,10 +211,10 @@ class ProductSalesReportTest extends TestCase
     public function test_commission_is_shown_and_gross_profit_reconciles_with_it(): void
     {
         $bookings = $this->october();
-        $withRate = $this->user('kasir', $this->storeA, ['name' => 'Teknisi Bertarif']);
-        $noRate = $this->user('kasir', $this->storeB, ['name' => 'Teknisi Tanpa Tarif']);
-        Technician::create(['store_id' => $this->storeA->id, 'user_id' => $withRate->id, 'name' => 'Teknisi Bertarif', 'status' => 'active', 'commission_amount' => 50000]);
-        Technician::create(['store_id' => $this->storeB->id, 'user_id' => $noRate->id, 'name' => 'Teknisi Tanpa Tarif', 'status' => 'active']);
+        $withRate = $this->user('kasir', $this->storeA, ['name' => 'Installer Bertarif']);
+        $noRate = $this->user('kasir', $this->storeB, ['name' => 'Installer Tanpa Tarif']);
+        Technician::create(['store_id' => $this->storeA->id, 'user_id' => $withRate->id, 'name' => 'Installer Bertarif', 'status' => 'active', 'commission_amount' => 50000]);
+        Technician::create(['store_id' => $this->storeB->id, 'user_id' => $noRate->id, 'name' => 'Installer Tanpa Tarif', 'status' => 'active']);
         $bookings['p1a']->installers()->attach($withRate->id);
         $bookings['p1b']->installers()->attach($withRate->id);
         $bookings['film']->installers()->attach($noRate->id);
@@ -225,7 +225,7 @@ class ProductSalesReportTest extends TestCase
 
         $this->assertEquals(100000.0, $rows['PPF Premium']['commission']);
         $this->assertFalse($rows['PPF Premium']['hasUnratedJob']);
-        $this->assertTrue($rows['Kaca Tint']['hasUnratedJob'], 'Teknisi tanpa tarif ditandai.');
+        $this->assertTrue($rows['Kaca Tint']['hasUnratedJob'], 'Installer tanpa tarif ditandai.');
         $this->assertEquals(0.0, $rows['Kaca Tint']['commission']);
         $this->assertEquals(1500000.0 - 100000.0 - 100000.0 - 0.0, $rows['PPF Premium']['grossProfit'], 'Penjualan − Komisi − Refund − HPP.');
         $this->assertEquals(100000.0, $result['totalCommission']);
@@ -242,7 +242,7 @@ class ProductSalesReportTest extends TestCase
 
         $staff = $this->user('kasir', $this->storeA);
         $result = $this->report(['store_id' => $this->storeB->id], $staff);
-        $this->assertEquals(1800000.0, $result['grossRevenue'], 'Staf tidak bisa melihat toko lain.');
+        $this->assertEquals(1800000.0, $result['grossRevenue'], 'Staff tidak bisa melihat toko lain.');
         $this->assertSame($this->storeA->id, $result['storeId']);
     }
 
@@ -299,7 +299,7 @@ class ProductSalesReportTest extends TestCase
     {
         $bookings = $this->october();
         $noRate = $this->user('kasir', $this->storeB);
-        Technician::create(['store_id' => $this->storeB->id, 'user_id' => $noRate->id, 'name' => 'Teknisi Tanpa Tarif', 'status' => 'active']);
+        Technician::create(['store_id' => $this->storeB->id, 'user_id' => $noRate->id, 'name' => 'Installer Tanpa Tarif', 'status' => 'active']);
         $bookings['film']->installers()->attach($noRate->id);
 
         $export = new ProductSalesReportExport($this->report());

@@ -178,7 +178,7 @@ class MaterialMemoResourceTest extends TestCase
             ->assertHasNoFormErrors();
 
         $memo = MaterialMemo::withoutGlobalScopes()->where('vehicle_info', 'Avanza B 1 XYZ')->firstOrFail();
-        $this->assertSame($this->storeA->id, $memo->store_id, 'Staf tidak bisa membuat memo untuk toko lain.');
+        $this->assertSame($this->storeA->id, $memo->store_id, 'Staff tidak bisa membuat memo untuk toko lain.');
         $this->assertSame($staff->id, $memo->created_by);
         $this->assertSame('MEMO-20261008-0001', $memo->memo_number);
     }

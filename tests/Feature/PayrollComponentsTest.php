@@ -308,7 +308,7 @@ class PayrollComponentsTest extends TestCase
         app(PayrollItemService::class)->sync($payroll, [$this->row('bonus', 100000)]);
         $this->cat('bonus')->update(['chart_of_account_id' => null]);
 
-        $this->expectExceptionMessage('belum diatur atau tidak aktif');
+        $this->expectExceptionMessage('belum diatur atau nonaktif');
         $this->postPayroll($payroll->fresh());
     }
 

@@ -24,11 +24,11 @@ class ProductImportLogResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\ProdukCluster::class;
 
-    protected static ?string $navigationLabel = 'Riwayat Impor Produk';
+    protected static ?string $navigationLabel = 'Riwayat Import Produk';
 
-    protected static ?string $modelLabel = 'Riwayat Impor';
+    protected static ?string $modelLabel = 'Riwayat Import';
 
-    protected static ?string $pluralModelLabel = 'Riwayat Impor';
+    protected static ?string $pluralModelLabel = 'Riwayat Import';
 
     // 3: urutan 2 sudah dipakai Master Resep di cluster yang sama (urutan menu jadi tidak pasti).
     protected static ?int $navigationSort = 3;

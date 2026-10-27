@@ -89,7 +89,7 @@ class CustomerNotificationResource extends Resource
                             return '(Akun Dihapus)';
                         }
 
-                        return $record->customer?->name ?? "Customer #{$record->customer_id}";
+                        return $record->customer?->name ?? "Pelanggan #{$record->customer_id}";
                     })
                     ->badge()
                     ->color(fn (CustomerNotification $record) => $record->customer_id === null ? 'info' : 'gray')

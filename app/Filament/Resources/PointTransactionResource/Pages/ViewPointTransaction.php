@@ -28,7 +28,7 @@ class ViewPointTransaction extends ViewRecord
                 ->columns(2)
                 ->schema([
                     Forms\Components\Placeholder::make('customer.name')
-                        ->label('Customer')
+                        ->label('Pelanggan')
                         ->content(fn (?PointTransaction $record) => $record?->customer?->name ?? '—'),
 
                     Forms\Components\Placeholder::make('type')

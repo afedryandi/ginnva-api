@@ -72,7 +72,7 @@ class KaryawanStatsWidget extends BaseWidget
                 $totalUserQuery->where('store_id', $this->storeId);
             }
             $stats[] = Stat::make('Total User Admin', $totalUserQuery->count())
-                ->description('Semua akun staff/admin & teknisi Ginnva (tidak termasuk partner)')
+                ->description('Semua akun staff/admin & installer Ginnva (tidak termasuk partner)')
                 ->descriptionIcon('heroicon-m-users')
                 ->color('gray')
                 ->url(UserResource::getUrl('index'));

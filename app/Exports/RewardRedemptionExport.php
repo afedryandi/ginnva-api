@@ -24,7 +24,7 @@ class RewardRedemptionExport implements FromCollection, WithHeadings, WithStyles
 
     private const TYPE_LABEL = [
         'partner' => 'Partner',
-        'customer' => 'Customer',
+        'customer' => 'Pelanggan',
     ];
 
     public function headings(): array

@@ -114,7 +114,7 @@ class StoreReviewResource extends Resource
                         ->content(fn (?StoreReview $record) => $record?->store?->name ?? '—'),
 
                     Forms\Components\Placeholder::make('customer.name')
-                        ->label('Customer')
+                        ->label('Pelanggan')
                         ->content(fn (?StoreReview $record) => $record?->customer?->name ?? '—'),
 
                     Forms\Components\Placeholder::make('booking.booking_number')
@@ -176,7 +176,7 @@ class StoreReviewResource extends Resource
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('customer.name')
-                    ->label('Customer')
+                    ->label('Pelanggan')
                     ->placeholder('—'),
 
                 Tables\Columns\TextColumn::make('booking.booking_number')
@@ -263,7 +263,7 @@ class StoreReviewResource extends Resource
                     ->form([
                         Forms\Components\Textarea::make('follow_up_note')
                             ->label('Catatan Tindak Lanjut')
-                            ->placeholder('Contoh: Sudah dihubungi via WhatsApp, customer diberi kompensasi jasa ulang.')
+                            ->placeholder('Contoh: Sudah dihubungi via WhatsApp, pelanggan diberi kompensasi jasa ulang.')
                             ->required()
                             ->maxLength(1000),
                     ])

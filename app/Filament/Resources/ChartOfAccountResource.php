@@ -375,7 +375,7 @@ class ChartOfAccountResource extends Resource
             ])
             ->headerActions([
                 Tables\Actions\Action::make('exportAccounts')
-                    ->label('Ekspor Excel')
+                    ->label('Export Excel')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
                     ->action(fn () => \Maatwebsite\Excel\Facades\Excel::download(
@@ -384,11 +384,11 @@ class ChartOfAccountResource extends Resource
                     )),
 
                 Tables\Actions\Action::make('importAccounts')
-                    ->label('Impor Akun')
+                    ->label('Import Akun')
                     ->icon('heroicon-o-arrow-up-tray')
                     ->color('gray')
                     ->visible(fn () => static::canCreate())
-                    ->modalDescription('Hanya MEMBUAT akun baru: kode yang sudah ada dilewati (tidak ditimpa). Kalau ada satu baris error, tidak ada akun yang dibuat. Pakai file hasil "Ekspor Excel" sebagai template (kolom saldo diabaikan).')
+                    ->modalDescription('Hanya MEMBUAT akun baru: kode yang sudah ada dilewati (tidak ditimpa). Kalau ada satu baris error, tidak ada akun yang dibuat. Pakai file hasil "Export Excel" sebagai template (kolom saldo diabaikan).')
                     ->form([
                         Forms\Components\FileUpload::make('file')
                             ->label('File Excel/CSV')
@@ -425,7 +425,7 @@ class ChartOfAccountResource extends Resource
 
                         if ($result['errors']) {
                             Notification::make()
-                                ->title('Impor dibatalkan (' . count($result['errors']) . ' error)')
+                                ->title('Import dibatalkan (' . count($result['errors']) . ' error)')
                                 ->body(implode("\n", array_slice($result['errors'], 0, 10)) . (count($result['errors']) > 10 ? "\n... dan " . (count($result['errors']) - 10) . ' lainnya' : ''))
                                 ->danger()
                                 ->persistent()

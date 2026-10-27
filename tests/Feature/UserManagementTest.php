@@ -403,13 +403,13 @@ class UserManagementTest extends TestCase
         $user = $this->user('store_manager', ['store_id' => $this->store->id]);
 
         Livewire::test(EditUser::class, ['record' => $user->getKey()])
-            ->fillForm(['store_id' => $this->otherStore->id, 'transfer_reason' => 'Mutasi ke cabang Bandung'])
+            ->fillForm(['store_id' => $this->otherStore->id, 'transfer_reason' => 'Mutasi ke toko Bandung'])
             ->call('save')->assertHasNoFormErrors();
 
         $history = EmployeeCareerHistory::where('user_id', $user->id)->firstOrFail();
         $this->assertSame($this->store->id, $history->previous_store_id);
         $this->assertSame($this->otherStore->id, $history->new_store_id);
-        $this->assertSame('Mutasi ke cabang Bandung', $history->reason);
+        $this->assertSame('Mutasi ke toko Bandung', $history->reason);
         $this->assertSame($admin->id, $history->changed_by);
     }
 

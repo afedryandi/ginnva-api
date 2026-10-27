@@ -150,9 +150,9 @@ class RewardRedemptionResourceTest extends TestCase
         $this->as($this->user('kasir'));
         Livewire::test(ListRewardRedemptions::class)
             ->assertCanSeeTableRecords([$byCustomer, $byPartner, $ofDeleted, $done])
-            ->assertTableColumnStateSet('redeemer_name', 'Budi Santoso (Customer)', record: $byCustomer)
+            ->assertTableColumnStateSet('redeemer_name', 'Budi Santoso (Pelanggan)', record: $byCustomer)
             ->assertTableColumnStateSet('redeemer_name', 'Mitra Bengkel (Partner)', record: $byPartner)
-            ->assertTableColumnStateSet('redeemer_name', 'Pelanggan Terhapus (Customer)', record: $ofDeleted)
+            ->assertTableColumnStateSet('redeemer_name', 'Pelanggan Terhapus (Pelanggan)', record: $ofDeleted)
             ->assertTableColumnFormattedStateSet('status', 'Menunggu Diproses', record: $byCustomer)
             ->assertTableColumnFormattedStateSet('status', 'Sudah Dikirim', record: $done)
             ->assertTableColumnStateSet('reward.name', 'Jaket', record: $byPartner);
@@ -381,7 +381,7 @@ class RewardRedemptionResourceTest extends TestCase
 
         $export = new RewardRedemptionExport();
         $this->assertSame(['Ditukar Oleh', 'Tipe', 'Reward', 'Poin', 'Status', 'Catatan Admin', 'Tanggal'], $export->headings());
-        $this->assertSame(['Budi Santoso (Customer)', 'Customer', 'Tumbler', 100, 'Menunggu Diproses', 'Catatan', '2026-10-08 10:00'], $export->collection()->first());
+        $this->assertSame(['Budi Santoso (Pelanggan)', 'Pelanggan', 'Tumbler', 100, 'Menunggu Diproses', 'Catatan', '2026-10-08 10:00'], $export->collection()->first());
 
         $admin = $this->as($this->user('super_admin'));
         Excel::fake();

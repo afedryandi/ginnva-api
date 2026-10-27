@@ -563,10 +563,10 @@ class TransactionApprovalTest extends TestCase
     {
         $staff = $this->staff();
         $admin = $this->admin();
-        $request = $this->service->submitRefund($this->postedBooking(), 5000, 'Customer batal', $staff->id);
+        $request = $this->service->submitRefund($this->postedBooking(), 5000, 'Pelanggan batal', $staff->id);
         $this->service->reject($request, $admin->id, 'Dokumen kurang');
 
-        $this->listFor($admin)->mountTableAction('view', $request->fresh())->assertSee('Customer batal')->assertSee('Dokumen kurang')->assertSee($request->request_number);
+        $this->listFor($admin)->mountTableAction('view', $request->fresh())->assertSee('Pelanggan batal')->assertSee('Dokumen kurang')->assertSee($request->request_number);
     }
 
     public function test_the_summary_line_and_amount_by_type(): void

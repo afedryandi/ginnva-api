@@ -89,11 +89,11 @@ class BookingStatusMachineTest extends TestCase
     {
         $booking = $this->makeBooking('confirmed');
 
-        $booking->cancelWith('staff', null, '  Customer minta batal  ');
+        $booking->cancelWith('staff', null, '  Pelanggan minta batal  ');
         $booking = $booking->fresh();
 
         $this->assertSame('cancelled', $booking->status);
-        $this->assertSame('Customer minta batal', $booking->cancel_reason);
+        $this->assertSame('Pelanggan minta batal', $booking->cancel_reason);
         $this->assertSame('staff', $booking->cancelled_by_type);
         $this->assertNotNull($booking->cancelled_at);
     }

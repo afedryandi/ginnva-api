@@ -27,11 +27,11 @@ class QcChecklistItemResource extends Resource
     // Grup sidebar "Operasional" (band 100-199), setelah "Layanan Booking".
     protected static ?string $navigationGroup = 'Operasional';
 
-    protected static ?string $navigationLabel = 'Daftar Periksa QC';
+    protected static ?string $navigationLabel = 'Checklist QC';
 
     protected static ?string $modelLabel = 'Butir Periksa QC';
 
-    protected static ?string $pluralModelLabel = 'Daftar Periksa QC';
+    protected static ?string $pluralModelLabel = 'Checklist QC';
 
     protected static ?int $navigationSort = 103;
 

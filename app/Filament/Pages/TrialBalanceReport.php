@@ -104,7 +104,7 @@ class TrialBalanceReport extends Page implements HasForms
                     ->label('Cari Akun')
                     ->placeholder('kode atau nama akun')
                     ->live(debounce: 400)
-                    ->helperText('Hanya memfilter tampilan; total dan ekspor tetap seluruh akun.'),
+                    ->helperText('Hanya memfilter tampilan; total dan export tetap seluruh akun.'),
 
                 Toggle::make('hide_zero')
                     ->label('Sembunyikan akun bersaldo nol')
@@ -149,7 +149,7 @@ class TrialBalanceReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'trial_balance', 'format' => $format, 'as_of' => $this->data['as_of'] ?? null, 'from' => $this->data['from'] ?? null, 'store_id' => $this->storeId()])
-                ->log('Ekspor Neraca Saldo (' . $format . ')');
+                ->log('Export Neraca Saldo (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

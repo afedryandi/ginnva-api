@@ -159,7 +159,7 @@ class ConsumableItemMovementResource extends Resource
                             activity('report_export')
                                 ->causedBy(auth()->user())
                                 ->withProperties(['report' => 'consumable_item_movement', 'format' => 'xlsx'])
-                                ->log('Ekspor Riwayat Barang Habis Pakai (xlsx)');
+                                ->log('Export Riwayat Barang Habis Pakai (xlsx)');
                         } catch (\Throwable $e) {
                             report($e);
                         }

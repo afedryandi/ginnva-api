@@ -45,7 +45,7 @@ class ActivityLogExport implements FromQuery, WithHeadings, WithMapping, WithSty
         $properties = $activity->properties;
         $actorType = match (true) {
             $activity->causer_type === null => 'Sistem',
-            $activity->causer_type === \App\Models\User::class => 'Staf',
+            $activity->causer_type === \App\Models\User::class => 'Staff',
             default => ActivityPresenter::actorNote($activity) ?? 'Lainnya',
         };
 

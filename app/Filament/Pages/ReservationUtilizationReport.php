@@ -210,7 +210,7 @@ class ReservationUtilizationReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'reservation_utilization', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null])
-                ->log('Ekspor Laporan Reservasi & Utilisasi (' . $format . ')');
+                ->log('Export Laporan Reservasi & Utilisasi (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

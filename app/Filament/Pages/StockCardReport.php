@@ -149,7 +149,7 @@ class StockCardReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'stock_card', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'jenis' => $this->data['jenis'] ?? null])
-                ->log('Ekspor Daftar Stok (' . $format . ')');
+                ->log('Export Daftar Stok (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

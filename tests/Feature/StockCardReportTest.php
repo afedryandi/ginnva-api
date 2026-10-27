@@ -275,7 +275,7 @@ class StockCardReportTest extends TestCase
         $staff = $this->user('kasir', $store, ['menu_access' => ['StockCardReport']]);
         $this->actingAs($staff, 'web');
         $this->assertTrue(StockCardReport::canAccess());
-        $this->assertCount(3, $this->report(self::RANGE, $staff)['rows'], 'Stok nasional: staf toko melihat baris yang sama.');
+        $this->assertCount(3, $this->report(self::RANGE, $staff)['rows'], 'Stok nasional: staff toko melihat baris yang sama.');
 
         $this->actingAs($this->user('kasir', $store, ['menu_access' => ['BookingResource']]), 'web');
         $this->assertFalse(StockCardReport::canAccess());

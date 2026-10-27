@@ -54,7 +54,7 @@ class RefundServiceTest extends TestCase
     {
         $booking = $this->makePostedBooking(1_000_000);
 
-        $refund = app(RefundService::class)->process($booking, 300_000, 'Customer batal sebagian', null);
+        $refund = app(RefundService::class)->process($booking, 300_000, 'Pelanggan batal sebagian', null);
 
         $this->assertEquals(300_000, (float) $refund->amount);
         $this->assertNotNull($refund->journal_entry_id);

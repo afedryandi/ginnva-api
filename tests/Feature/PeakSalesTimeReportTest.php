@@ -190,7 +190,7 @@ class PeakSalesTimeReportTest extends TestCase
 
         $staff = $this->user('kasir', $this->storeA);
         $own = $this->report(['store_id' => $this->storeB->id], $staff);
-        $this->assertSame(3, $own['totalCount'], 'Staf tidak bisa melihat toko lain.');
+        $this->assertSame(3, $own['totalCount'], 'Staff tidak bisa melihat toko lain.');
         $this->assertEqualsWithDelta(1700000.0, $own['totalRevenue'], 0.001);
         $this->assertSame(3, $this->row($own, 'Senin')['products']);
     }

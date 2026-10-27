@@ -168,7 +168,7 @@ class RawMaterialMovementResource extends Resource
                             activity('report_export')
                                 ->causedBy(auth()->user())
                                 ->withProperties(['report' => 'raw_material_movement', 'format' => 'xlsx'])
-                                ->log('Ekspor Riwayat Bahan Baku (xlsx)');
+                                ->log('Export Riwayat Bahan Baku (xlsx)');
                         } catch (\Throwable $e) {
                             report($e);
                         }

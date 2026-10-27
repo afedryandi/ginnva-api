@@ -138,14 +138,14 @@ class JobDurationReportTest extends TestCase
 
     public function test_technicians_come_from_the_booking_installers(): void
     {
-        $rina = $this->user('kasir', $this->storeA, ['name' => 'Rina Teknisi']);
-        $andi = $this->user('kasir', $this->storeA, ['name' => 'Andi Teknisi']);
+        $rina = $this->user('kasir', $this->storeA, ['name' => 'Rina Installer']);
+        $andi = $this->user('kasir', $this->storeA, ['name' => 'Andi Installer']);
         $with = $this->job('2026-10-02 09:00:00', '2026-10-02 10:00:00', ['product_ppf' => true], null, 'Budi', [$rina, $andi]);
         $without = $this->job('2026-10-03 09:00:00', '2026-10-03 10:00:00');
 
         $byId = $this->jobs()->keyBy('spk_id');
 
-        $this->assertEqualsCanonicalizing(['Rina Teknisi', 'Andi Teknisi'], $byId[$with->id]['technicians']);
+        $this->assertEqualsCanonicalizing(['Rina Installer', 'Andi Installer'], $byId[$with->id]['technicians']);
         $this->assertSame([], $byId[$without->id]['technicians']);
     }
 
@@ -160,7 +160,7 @@ class JobDurationReportTest extends TestCase
         $this->assertSame([$b->id], $this->jobs(['store_id' => $this->storeB->id])->pluck('spk_id')->all());
 
         $staff = $this->user('kasir', $this->storeA);
-        $this->assertSame([$a->id], $this->jobs(['store_id' => $this->storeB->id], $staff)->pluck('spk_id')->all(), 'Staf tidak bisa melihat toko lain.');
+        $this->assertSame([$a->id], $this->jobs(['store_id' => $this->storeB->id], $staff)->pluck('spk_id')->all(), 'Staff tidak bisa melihat toko lain.');
     }
 
     public function test_an_account_without_a_store_sees_nothing(): void
@@ -194,7 +194,7 @@ class JobDurationReportTest extends TestCase
         $this->assertSame('2026-10-20', $reversed->get('to'));
 
         $this->actingAs($this->user('kasir', $this->storeA), 'web');
-        $this->assertSame($this->storeA->id, Livewire::withQueryParams(['cabang' => (string) $this->storeB->id])->test(JobDurationReport::class)->get('storeId'), 'URL tidak bisa memindahkan staf ke toko lain.');
+        $this->assertSame($this->storeA->id, Livewire::withQueryParams(['cabang' => (string) $this->storeB->id])->test(JobDurationReport::class)->get('storeId'), 'URL tidak bisa memindahkan staff ke toko lain.');
 
         $page = $this->page();
         $page->set('data.from', '2026-10-20')->set('data.to', '2026-10-10');
@@ -247,7 +247,7 @@ class JobDurationReportTest extends TestCase
 
     public function test_excel_rows_are_aligned_with_headings(): void
     {
-        $rina = $this->user('kasir', $this->storeA, ['name' => 'Rina Teknisi']);
+        $rina = $this->user('kasir', $this->storeA, ['name' => 'Rina Installer']);
         $spk = $this->job('2026-10-02 09:00:00', '2026-10-02 10:30:00', ['product_ppf' => true, 'product_premium_wash' => true], null, 'Budi', [$rina]);
         $plain = $this->job('2026-10-01 09:00:00', '2026-10-01 09:45:00', ['product_kaca_film' => true]);
 
@@ -255,8 +255,8 @@ class JobDurationReportTest extends TestCase
         $export = new JobDurationExport(['from' => Carbon::parse('2026-10-01'), 'to' => Carbon::parse('2026-10-31'), 'jobs' => $page->getJobs()]);
         $rows = $export->array();
 
-        $this->assertSame(['Tanggal', 'No. SPK', 'Cabang', 'Customer', 'Jenis Layanan', 'Teknisi', 'Durasi (menit)'], $export->headings());
-        $this->assertSame(['2026-10-02 09:00', $spk->spk_number, 'Toko A', 'Budi', 'PPF, Premium Wash', 'Rina Teknisi', 90], $rows[0]);
+        $this->assertSame(['Tanggal', 'No. SPK', 'Toko', 'Pelanggan', 'Jenis Layanan', 'Installer', 'Durasi (menit)'], $export->headings());
+        $this->assertSame(['2026-10-02 09:00', $spk->spk_number, 'Toko A', 'Budi', 'PPF, Premium Wash', 'Rina Installer', 90], $rows[0]);
         $this->assertSame(['2026-10-01 09:00', $plain->spk_number, 'Toko A', 'Budi', 'Kaca Film', '-', 45], $rows[1]);
     }
 

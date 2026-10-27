@@ -39,7 +39,7 @@ class QualityCheckTest extends TestCase
         $this->customer = Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(1000000, 9999999)]);
     }
 
-    private function user(string $role, string $name = 'Staf'): User
+    private function user(string $role, string $name = 'Staff'): User
     {
         Role::findOrCreate($role, 'web');
         $user = User::create(['name' => $name, 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $this->store->id, 'join_date' => '2025-01-01', 'is_active' => true]);

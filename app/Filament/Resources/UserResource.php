@@ -98,9 +98,9 @@ class UserResource extends Resource
                 // tanggal yang sudah diberikan tetap berlaku dan tidak hilang saat form pengguna disimpan.
                 'BlockedDateResource' => 'Tutup/Buka Tanggal (Kalender Kapasitas & Libur)',
                 'BookingServiceTypeResource' => 'Layanan Booking',
-                'QcChecklistItemResource' => 'Daftar Periksa QC',
+                'QcChecklistItemResource' => 'Checklist QC',
                 'AppSettingResource' => 'Teks Aplikasi',
-                'TechnicianResource' => 'Teknisi',
+                'TechnicianResource' => 'Installer',
                 'WarrantyResource' => 'Garansi',
                 'StoreReviewResource' => 'Review Toko',
                 // Invoice/SPK SEBELUMNYA sudah pakai hasMenuAccess() di
@@ -125,7 +125,7 @@ class UserResource extends Resource
                 'SalesDashboard' => 'Dashboard Penjualan',
                 'FilmProductResource' => 'Daftar Produk',
                 'MasterResepResource' => 'Master Resep',
-                'ProductImportLogResource' => 'Riwayat Impor Produk',
+                'ProductImportLogResource' => 'Riwayat Import Produk',
                 // Sama kelupaan dgn Invoice/SPK di grup 'Booking' —
                 // SalesResource ('Detail Penjualan') sudah pakai
                 // hasMenuAccess() di kode tapi belum pernah masuk daftar
@@ -235,14 +235,14 @@ class UserResource extends Resource
                 'RewardRedemptionResource' => 'Klaim Reward',
             ],
             'Marketing/Konten' => [
-                'PointTransactionResource' => 'Riwayat Poin Customer',
+                'PointTransactionResource' => 'Riwayat Poin Pelanggan',
                 'PartnershipInquiryResource' => 'Pengajuan Kemitraan',
                 'ProductInquiryResource' => 'Inquiry Produk',
                 'LeadFunnelReport' => 'Dasbor Lead',
                 'ProductClaimResource' => 'Klaim & Bukti Produk',
                 'CaseStudyResource' => 'Galeri Pemasangan',
                 'MarketingConsentResource' => 'Izin Foto Pelanggan',
-                'CustomerGalleryPhotoResource' => 'Galeri Customer',
+                'CustomerGalleryPhotoResource' => 'Galeri Pelanggan',
                 'NewsResource' => 'News / Berita',
                 'CarouselResource' => 'Banner / Carousel',
                 'FeaturedProductResource' => 'Seri Produk (Beranda)',
@@ -267,13 +267,13 @@ class UserResource extends Resource
             ],
             'Sistem' => [
                 // Hak lihat + ekspor Histori Aktivitas untuk staf non-full-access (mis. Spv Finance / Spv IT), keputusan 2026-10-21.
-                'ActivityResource' => 'Histori Aktivitas',
+                'ActivityResource' => 'Riwayat Aktivitas',
                 'CustomerNotificationResource' => 'Riwayat Notifikasi',
                 'PartnerNotificationResource' => 'Riwayat Notifikasi Partner',
                 'SendNotification' => 'Kirim Notifikasi',
                 'NotificationDeliveryResource' => 'Log Pengiriman',
                 'NotificationCampaignResource' => 'Kampanye Notifikasi',
-                'NotificationTemplateResource' => 'Templat Notifikasi',
+                'NotificationTemplateResource' => 'Template Notifikasi',
                 'NotificationCatalogPage' => 'Katalog Notifikasi',
             ],
         ];
@@ -542,7 +542,7 @@ class UserResource extends Resource
 
                     Forms\Components\TextInput::make('employee_number')
                         ->label('No. Karyawan')
-                        ->helperText('Nomor induk karyawan Ginnva. Semua akun di sini adalah karyawan (partner & customer tidak termasuk).')
+                        ->helperText('Nomor induk karyawan Ginnva. Semua akun di sini adalah karyawan (partner & pelanggan tidak termasuk).')
                         ->unique(ignoreRecord: true)
                         ->maxLength(50),
 

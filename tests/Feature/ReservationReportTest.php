@@ -185,7 +185,7 @@ class ReservationReportTest extends TestCase
 
         $staff = $this->user('kasir', $this->storeA);
         $result = $this->report(['store_id' => $this->storeB->id], $staff);
-        $this->assertSame([$b['confirmed']->id, $b['olderCreated']->id], $result['bookings']->pluck('id')->all(), 'Staf tidak bisa melihat toko lain.');
+        $this->assertSame([$b['confirmed']->id, $b['olderCreated']->id], $result['bookings']->pluck('id')->all(), 'Staff tidak bisa melihat toko lain.');
         $this->assertSame($this->storeA->id, $result['storeId']);
     }
 
@@ -239,20 +239,20 @@ class ReservationReportTest extends TestCase
     public function test_excel_rows_use_display_names_full_service_labels_installers_and_numeric_amounts(): void
     {
         $b = $this->october();
-        $tech = $this->user('kasir', $this->storeA, ['name' => 'Rina Teknisi']);
-        $other = $this->user('kasir', $this->storeA, ['name' => 'Andi Teknisi']);
+        $tech = $this->user('kasir', $this->storeA, ['name' => 'Rina Installer']);
+        $other = $this->user('kasir', $this->storeA, ['name' => 'Andi Installer']);
         $b['confirmed']->installers()->attach([$tech->id, $other->id]);
 
         $export = new ReservationReportExport($this->report());
         $rows = $export->array();
 
-        $this->assertSame(['No. Booking', 'Tanggal Buat', 'Tanggal Diinginkan', 'Durasi (hari)', 'Pelanggan', 'Toko', 'Layanan', 'Teknisi', 'Total Tagihan', 'Status'], $export->headings());
+        $this->assertSame(['No. Booking', 'Tanggal Buat', 'Tanggal Diinginkan', 'Durasi (hari)', 'Pelanggan', 'Toko', 'Layanan', 'Installer', 'Total Tagihan', 'Status'], $export->headings());
         $this->assertCount(3, $rows);
         foreach ($rows as $row) {
             $this->assertCount(count($export->headings()), $row);
         }
         $this->assertSame([$b['confirmed']->booking_number, '2026-10-02', '2026-10-10', 2, 'Budi Aplikasi', 'Toko A', 'PPF + Detailing'], array_slice($rows[0], 0, 7));
-        $this->assertSame(['Rina Teknisi, Andi Teknisi', 1000000.0, 'Terkonfirmasi'], array_slice($rows[0], 7, 3));
+        $this->assertSame(['Rina Installer, Andi Installer', 1000000.0, 'Terkonfirmasi'], array_slice($rows[0], 7, 3));
         $this->assertSame(['Kaca Film', '-', 'Menunggu Approval'], [$rows[1][6], $rows[1][7], $rows[1][9]]);
     }
 

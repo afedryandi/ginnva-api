@@ -229,7 +229,7 @@ class ClosePeriodPage extends Page implements HasActions, HasForms
                             return $options;
                         })
                         ->required(),
-                    Checkbox::make('acknowledge')->label('Saya sudah memeriksa daftar periksa tiap bulan (peringatan boleh diabaikan)')->accepted(),
+                    Checkbox::make('acknowledge')->label('Saya sudah memeriksa checklist tiap bulan (peringatan boleh diabaikan)')->accepted(),
                     Textarea::make('notes')->label('Catatan (opsional, dipakai untuk semua bulan)')->rows(2)->maxLength(500),
                 ])
                 ->action(function (array $data) {

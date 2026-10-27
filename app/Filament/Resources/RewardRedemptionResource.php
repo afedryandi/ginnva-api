@@ -184,7 +184,7 @@ class RewardRedemptionResource extends Resource
                     ->label('Tipe')
                     ->options([
                         'partner'  => 'Partner',
-                        'customer' => 'Customer',
+                        'customer' => 'Pelanggan',
                     ]),
             ])
             ->actions([

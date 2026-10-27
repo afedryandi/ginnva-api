@@ -140,7 +140,7 @@ class SendNotificationPageTest extends TestCase
             ->call('send')
             ->assertNotified('Terkirim: 2 perangkat');
 
-        $this->assertSame(['ExponentPushToken[cust-1]', 'ExponentPushToken[cust-2]'], $this->sentTokens(), 'Token staf dan partner tidak ikut.');
+        $this->assertSame(['ExponentPushToken[cust-1]', 'ExponentPushToken[cust-2]'], $this->sentTokens(), 'Token staff dan partner tidak ikut.');
         $row = CustomerNotification::firstOrFail();
         $this->assertNull($row->customer_id, 'Broadcast = satu baris untuk semua.');
         $this->assertSame(['Promo Spesial', 'Diskon 20% PPF bulan ini', $admin->id], [$row->title, $row->body, $row->sent_by]);

@@ -425,8 +425,8 @@ class WarrantyResource extends Resource
                         ->disabled(fn (?Warranty $record) => $record?->review_status === 'approved'),
 
                     Forms\Components\Select::make('customer_id')
-                        ->label('Akun Customer (opsional)')
-                        ->placeholder('Pilih akun customer jika sudah terdaftar di app')
+                        ->label('Akun Pelanggan (opsional)')
+                        ->placeholder('Pilih akun pelanggan jika sudah terdaftar di app')
                         ->options(fn () => Customer::orderBy('name')
                             ->get()
                             ->mapWithKeys(fn (Customer $c) => [
@@ -436,7 +436,7 @@ class WarrantyResource extends Resource
                         ->searchable()
                         ->nullable()
                         ->columnSpanFull()
-                        ->helperText('Garansi akan langsung muncul di "Garansi Saya" pada mobile app customer tersebut.')
+                        ->helperText('Garansi akan langsung muncul di "Garansi Saya" pada mobile app pelanggan tersebut.')
                         // Dikunci begitu approved (2026-09-25, dibarengi
                         // fitur transfer kepemilikan) -- KALAU field ini
                         // tetap bebas diedit, staff bisa ganti pemilik
@@ -525,7 +525,7 @@ class WarrantyResource extends Resource
                         ->nullable()
                         ->live()
                         ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf')
-                        ->helperText('Berapa kali customer boleh datang maintenance setelah instalasi. Kosongkan kalau garansi ini tidak menawarkan maintenance.'),
+                        ->helperText('Berapa kali pelanggan boleh datang maintenance setelah instalasi. Kosongkan kalau garansi ini tidak menawarkan maintenance.'),
 
                     // Bagian C, "Klaim Garansi & Maintenance PPF" (2026-10-01)
                     // -- interval antar kunjungan. Mengisi field ini (dari
@@ -541,7 +541,7 @@ class WarrantyResource extends Resource
                         ->maxValue(120)
                         ->nullable()
                         ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf' && $get('maintenance_quota') !== null)
-                        ->helperText('Jarak antar kunjungan maintenance, mis. 6 = tiap 6 bulan. Jadwal kunjungan pertama & konfirmasi otomatis ke customer baru AKTIF setelah garansi ini disetujui (Status Review: Approved) — kalau diisi sebelum disetujui, baru akan menjadwalkan begitu disetujui. Tidak bisa dibatalkan lewat form ini, cuma lihat riwayatnya di tab "Jadwal Maintenance".'),
+                        ->helperText('Jarak antar kunjungan maintenance, mis. 6 = tiap 6 bulan. Jadwal kunjungan pertama & konfirmasi otomatis ke pelanggan baru AKTIF setelah garansi ini disetujui (Status Review: Approved) — kalau diisi sebelum disetujui, baru akan menjadwalkan begitu disetujui. Tidak bisa dibatalkan lewat form ini, cuma lihat riwayatnya di tab "Jadwal Maintenance".'),
 
                     Forms\Components\Placeholder::make('maintenance_schedule_status')
                         ->label('Jadwal Maintenance Aktif')
@@ -553,7 +553,7 @@ class WarrantyResource extends Resource
                             }
 
                             $statusLabel = match ($schedule->status) {
-                                'confirmation_sent' => 'Menunggu konfirmasi customer',
+                                'confirmation_sent' => 'Menunggu konfirmasi pelanggan',
                                 default => 'Menunggu jadwal (belum masuk window pengingat)',
                             };
 
@@ -1155,7 +1155,7 @@ class WarrantyResource extends Resource
                             ->maxLength(255),
 
                         Forms\Components\Select::make('new_customer_id')
-                            ->label('Akun Customer Baru (opsional)')
+                            ->label('Akun Pelanggan Baru (opsional)')
                             ->placeholder('Pilih kalau pemilik baru sudah punya akun app')
                             ->options(fn () => Customer::orderBy('name')
                                 ->get()
@@ -1181,7 +1181,7 @@ class WarrantyResource extends Resource
                 // (lockForUpdate()), ini cuma UI convenience.
                 Tables\Actions\Action::make('record_maintenance_visit')
                     ->label('Catat Kunjungan Maintenance')
-                    ->tooltip('Catat customer yang datang maintenance tanpa jadwal. Mengurangi kuota maintenance garansi ini.')
+                    ->tooltip('Catat pelanggan yang datang maintenance tanpa jadwal. Mengurangi kuota maintenance garansi ini.')
                     ->icon('heroicon-o-wrench-screwdriver')
                     ->color('success')
                     ->visible(fn (Warranty $record) => $record->review_status === 'approved'

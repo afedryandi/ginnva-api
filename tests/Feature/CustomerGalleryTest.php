@@ -172,7 +172,7 @@ class CustomerGalleryTest extends TestCase
 
         $this->assertStringContainsString('milik-saya.jpg', $json);
         $this->assertStringNotContainsString('milik-orang.jpg', $json);
-        $this->assertStringNotContainsString('customer-gallery/', $json, 'Foto showcase customer lain tidak bocor.');
+        $this->assertStringNotContainsString('customer-gallery/', $json, 'Foto showcase pelanggan lain tidak bocor.');
     }
 
     public function test_bookings_are_listed_newest_date_first(): void
@@ -275,7 +275,7 @@ class CustomerGalleryTest extends TestCase
         $customer = $this->customer();
 
         Livewire::test(CreateCustomerGalleryPhoto::class)
-            ->fillForm(['caption' => 'Tanpa customer & foto'])
+            ->fillForm(['caption' => 'Tanpa pelanggan & foto'])
             ->call('create')
             ->assertHasFormErrors(['customer_id' => 'required', 'image' => 'required']);
 

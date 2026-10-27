@@ -24,10 +24,10 @@ class JobDurationExport implements FromArray, WithHeadings, WithStyles
         return [
             'Tanggal',
             'No. SPK',
-            'Cabang',
-            'Customer',
+            'Toko',
+            'Pelanggan',
             'Jenis Layanan',
-            'Teknisi',
+            'Installer',
             'Durasi (menit)',
         ];
     }

@@ -47,7 +47,7 @@ class GuideNotesTest extends TestCase
         $this->assertTrue(GuideNoteResource::canCreate());
 
         $this->actingAs($this->user('kasir', ['GuideNoteResource']), 'web');
-        $this->assertFalse(GuideNoteResource::canViewAny(), 'Mencentang menu tidak boleh membuka Catatan Panduan untuk staf biasa.');
+        $this->assertFalse(GuideNoteResource::canViewAny(), 'Mencentang menu tidak boleh membuka Catatan Panduan untuk staff biasa.');
         $this->assertFalse(GuideNoteResource::canCreate());
         $this->assertFalse(GuideNoteResource::canEdit(new GuideNote()));
         $this->assertFalse(GuideNoteResource::canDelete(new GuideNote()));

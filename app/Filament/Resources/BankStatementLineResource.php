@@ -172,7 +172,7 @@ class BankStatementLineResource extends Resource
 
                 // Bukti rekonsiliasi (audit 2026-09-29): dokumen yang bisa dilampirkan saat tutup buku.
                 Tables\Actions\Action::make('exportReconciliation')
-                    ->label('Ekspor Bukti Rekonsiliasi')
+                    ->label('Export Bukti Rekonsiliasi')
                     ->icon('heroicon-o-document-check')
                     ->color('gray')
                     ->form([
@@ -190,7 +190,7 @@ class BankStatementLineResource extends Resource
                     }),
 
                 Tables\Actions\Action::make('exportReconciliationPdf')
-                    ->label('Ekspor Bukti Rekonsiliasi (PDF)')
+                    ->label('Export Bukti Rekonsiliasi (PDF)')
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('gray')
                     ->form([
@@ -211,10 +211,10 @@ class BankStatementLineResource extends Resource
                 // Riwayat impor (audit 2026-09-29): sebelumnya file yang diimpor langsung dihapus tanpa
                 // arsip -- sekarang bisa ditelusuri "file apa yang diimpor tanggal X" untuk audit.
                 Tables\Actions\Action::make('importHistory')
-                    ->label('Riwayat Impor')
+                    ->label('Riwayat Import')
                     ->icon('heroicon-o-clock')
                     ->color('gray')
-                    ->modalHeading('Riwayat Impor Mutasi Bank')
+                    ->modalHeading('Riwayat Import Mutasi Bank')
                     ->modalContent(fn () => view('filament.pages.bank-import-history', [
                         'batches' => \App\Models\BankStatementImportBatch::with(['account', 'creator'])->latest()->limit(30)->get(),
                     ]))

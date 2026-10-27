@@ -193,8 +193,8 @@ class VoidReport extends Page implements HasForms
             // Filter cabang (audit 2026-09-29) -- cuma untuk full-access, sama pola dengan
             // laporan Penjualan lain.
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
@@ -236,7 +236,7 @@ class VoidReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'void', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor Laporan Void (' . $format . ')');
+                ->log('Export Laporan Void (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

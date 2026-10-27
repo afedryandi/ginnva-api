@@ -138,7 +138,7 @@ class TechnicianServiceDurationTest extends TestCase
     {
         [$active, $activeUser] = $this->technician('Dewi');
         [$inactive, $inactiveUser] = $this->technician('Eko', null, true, 'inactive');
-        $plain = $this->user('kasir', null, ['name' => 'Bukan Teknisi']);
+        $plain = $this->user('kasir', null, ['name' => 'Bukan Installer']);
         $this->spk([$activeUser, $inactiveUser, $plain], '2026-09-07 09:00:00', '2026-09-07 10:00:00');
 
         $rows = $this->summarize();
@@ -210,7 +210,7 @@ class TechnicianServiceDurationTest extends TestCase
         $manager = $this->page($this->user('store_manager'));
         $this->assertSame(['Andi'], $manager->instance()->getRows()->pluck('name')->all());
         $manager->set('storeId', $this->otherStore->id);
-        $this->assertSame(['Andi'], $manager->instance()->getRows()->pluck('name')->all(), 'Filter cabang tidak berlaku untuk non full-access.');
+        $this->assertSame(['Andi'], $manager->instance()->getRows()->pluck('name')->all(), 'Filter toko tidak berlaku untuk non full-access.');
 
         $admin = $this->page($this->user('super_admin'));
         $this->assertEqualsCanonicalizing(['Andi', 'Budi'], $admin->instance()->getRows()->pluck('name')->all());
@@ -220,7 +220,7 @@ class TechnicianServiceDurationTest extends TestCase
 
     public function test_the_page_renders_totals_and_the_empty_state(): void
     {
-        $this->page($this->user('super_admin'))->assertSee('Belum ada teknisi aktif untuk cabang ini.');
+        $this->page($this->user('super_admin'))->assertSee('Belum ada installer aktif untuk toko ini.');
 
         [, $user] = $this->technician('Andi');
         $this->spk([$user], '2026-09-07 09:00:00', '2026-09-07 12:00:00');
@@ -239,7 +239,7 @@ class TechnicianServiceDurationTest extends TestCase
 
         $export = new TechnicianServiceDurationExport(['from' => Carbon::parse('2026-09-07'), 'to' => Carbon::parse('2026-09-13'), 'rows' => $rows]);
 
-        $this->assertSame(['Teknisi', 'Cabang', 'Jumlah Job', 'Total Durasi (Jam)', 'Rata-rata per Job (Menit)'], $export->headings());
+        $this->assertSame(['Installer', 'Toko', 'Jumlah Job', 'Total Durasi (Jam)', 'Rata-rata per Job (Menit)'], $export->headings());
         $data = collect($export->array())->keyBy(0);
         $this->assertEquals(['Andi', 'Toko A', 1, 3.0, 180], $data['Andi']);
         $this->assertSame('-', $data['Tanpa Akun'][4], 'Tanpa job: rata-rata ditampilkan "-", bukan 0.');

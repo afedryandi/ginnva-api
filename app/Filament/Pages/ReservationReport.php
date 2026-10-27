@@ -189,8 +189,8 @@ class ReservationReport extends Page implements HasForms
             // Filter cabang (audit 2026-09-29) -- cuma untuk full-access, sama pola dengan
             // laporan Penjualan lain.
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
@@ -228,7 +228,7 @@ class ReservationReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'reservation', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'status' => $this->data['status'] ?? null, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor Laporan Reservasi (' . $format . ')');
+                ->log('Export Laporan Reservasi (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

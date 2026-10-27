@@ -74,7 +74,7 @@ class VoidReportTest extends TestCase
     }
 
     /** Batalkan lewat jalur resmi pada waktu tertentu; $by dipakai sebagai pelaku yang login (sumber causer log). */
-    private function cancel(Booking $booking, string $when, string $byType = 'staff', ?User $by = null, ?string $reason = 'Customer berubah pikiran'): Booking
+    private function cancel(Booking $booking, string $when, string $byType = 'staff', ?User $by = null, ?string $reason = 'Pelanggan berubah pikiran'): Booking
     {
         $by ??= $this->admin();
         $this->actingAs($by, 'web');
@@ -164,7 +164,7 @@ class VoidReportTest extends TestCase
         $this->assertSame([$b->id], $this->report(['store_id' => $this->storeB->id])['events']->pluck('subject.id')->all());
 
         $staff = $this->user('kasir', $this->storeA);
-        $this->assertSame([$a->id], $this->report(['store_id' => $this->storeB->id], $staff)['events']->pluck('subject.id')->all(), 'Staf tidak bisa melihat toko lain.');
+        $this->assertSame([$a->id], $this->report(['store_id' => $this->storeB->id], $staff)['events']->pluck('subject.id')->all(), 'Staff tidak bisa melihat toko lain.');
     }
 
     public function test_an_account_without_a_store_sees_nothing(): void
@@ -192,7 +192,7 @@ class VoidReportTest extends TestCase
 
         $labels = $this->report()['events']->mapWithKeys(fn ($e) => [$e->subject->id => $e->subject->cancelledByLabel($e->causer?->name)]);
 
-        $this->assertSame('Customer', $labels[$byCustomer->id]);
+        $this->assertSame('Pelanggan', $labels[$byCustomer->id]);
         $this->assertSame('Rina Kasir', $labels[$byStaff->id]);
         $this->assertSame('Sistem (otomatis)', $labels[$bySystem->id]);
         $this->assertSame($admin->name, $labels[$legacy->id], 'Data lama: pelaku dari log aktivitas.');

@@ -24,10 +24,10 @@ class NotificationTemplate extends Model
             ->dontSubmitEmptyLogs()
             ->useLogName('notification_template')
             ->setDescriptionForEvent(fn (string $event) => match ($event) {
-                'created' => "Templat notifikasi \"{$this->name}\" dibuat",
-                'updated' => "Templat notifikasi \"{$this->name}\" diubah",
-                'deleted' => "Templat notifikasi \"{$this->name}\" dihapus",
-                default => "Templat notifikasi \"{$this->name}\" - {$event}",
+                'created' => "Template notifikasi \"{$this->name}\" dibuat",
+                'updated' => "Template notifikasi \"{$this->name}\" diubah",
+                'deleted' => "Template notifikasi \"{$this->name}\" dihapus",
+                default => "Template notifikasi \"{$this->name}\" - {$event}",
             });
     }
 }

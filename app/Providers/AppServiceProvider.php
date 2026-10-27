@@ -86,7 +86,7 @@ class AppServiceProvider extends ServiceProvider
 
         \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\PasswordReset::class, function (\Illuminate\Auth\Events\PasswordReset $event) {
             if ($event->user instanceof \App\Models\User) {
-                \App\Support\AccountSecurityLog::passwordChanged($event->user, 'direset lewat lupa kata sandi');
+                \App\Support\AccountSecurityLog::passwordChanged($event->user, 'direset lewat lupa password');
             }
         });
 

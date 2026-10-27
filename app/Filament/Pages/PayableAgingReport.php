@@ -106,7 +106,7 @@ class PayableAgingReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'payable_aging', 'format' => $format, 'store_id' => $this->storeId()])
-                ->log('Ekspor Umur Hutang (' . $format . ')');
+                ->log('Export Umur Hutang (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

@@ -786,7 +786,7 @@ class BookingController extends Controller
         }
 
         if (! $booking->customer_id && ! $booking->phone_number) {
-            abort(422, 'Booking ini tidak punya kontak customer untuk dikirimi pengingat.');
+            abort(422, 'Booking ini tidak punya kontak pelanggan untuk dikirimi pengingat.');
         }
 
         $results = $reminders->sendFor($booking, force: true);
@@ -798,7 +798,7 @@ class BookingController extends Controller
             'data'    => ['channels_sent' => $sentChannels],
             'message' => $sentChannels
                 ? 'Pengingat maintenance terkirim lewat: ' . implode(', ', $sentChannels) . '.'
-                : 'Pengingat gagal terkirim di semua kanal — periksa kontak customer & konfigurasi WhatsApp.',
+                : 'Pengingat gagal terkirim di semua kanal — periksa kontak pelanggan & konfigurasi WhatsApp.',
         ]);
     }
 

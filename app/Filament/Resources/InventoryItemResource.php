@@ -546,7 +546,7 @@ class InventoryItemResource extends Resource
                 Tables\Actions\EditAction::make(),
 
                 Tables\Actions\Action::make('download_qr')
-                    ->label('Unduh QR')
+                    ->label('Download QR')
                     ->icon('heroicon-o-qr-code')
                     ->color('gray')
                     ->action(fn (InventoryItem $record) => static::downloadQrPdf(new Collection([$record]))),
@@ -572,7 +572,7 @@ class InventoryItemResource extends Resource
 
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan (opsional)')
-                            ->placeholder('Mis. dipakai untuk mobil apa, no. polisi, nama customer'),
+                            ->placeholder('Mis. dipakai untuk mobil apa, no. polisi, nama pelanggan'),
 
                         // Traceability roll -> booking (diminta user
                         // 2026-09-15) -- opsional, cuma booking
@@ -694,7 +694,7 @@ class InventoryItemResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\BulkAction::make('download_qr_bulk')
-                        ->label('Unduh QR (PDF Massal)')
+                        ->label('Download QR (PDF Massal)')
                         ->icon('heroicon-o-qr-code')
                         ->action(fn (Collection $records) => static::downloadQrPdf($records))
                         ->deselectRecordsAfterCompletion(),

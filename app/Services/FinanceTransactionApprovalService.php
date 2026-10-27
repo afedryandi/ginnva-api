@@ -351,7 +351,7 @@ class FinanceTransactionApprovalService
         $category = \App\Models\FinanceCategory::find($data['finance_category_id'] ?? null);
 
         if (! $category || ! $category->is_active || $category->is_group) {
-            throw new RuntimeException('Kategori pada pengajuan ini sudah tidak aktif atau tidak valid lagi. Tolak pengajuan dan minta pengaju membuat ulang.');
+            throw new RuntimeException('Kategori pada pengajuan ini sudah nonaktif atau tidak valid lagi. Tolak pengajuan dan minta pengaju membuat ulang.');
         }
 
         if (! $category->chart_of_account_id) {

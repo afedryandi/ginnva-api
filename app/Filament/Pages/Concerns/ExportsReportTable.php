@@ -111,7 +111,7 @@ trait ExportsReportTable
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => $data['key'], 'format' => $format])
-                ->log('Ekspor ' . $data['title'] . ' (' . $format . ')');
+                ->log('Export ' . $data['title'] . ' (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

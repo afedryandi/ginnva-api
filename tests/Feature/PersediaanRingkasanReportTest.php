@@ -134,7 +134,7 @@ class PersediaanRingkasanReportTest extends TestCase
         $staff = $this->user('kasir', $storeA, ['menu_access' => ['PersediaanRingkasanReport']]);
         $this->actingAs($staff, 'web');
         $this->assertTrue(PersediaanRingkasanReport::canAccess());
-        $this->assertEqualsWithDelta(5541252.625, $this->report($staff)['totalValue'], 0.001, 'Stok nasional: staf toko melihat total yang sama.');
+        $this->assertEqualsWithDelta(5541252.625, $this->report($staff)['totalValue'], 0.001, 'Stok nasional: staff toko melihat total yang sama.');
 
         $this->actingAs($this->user('kasir', $storeA, ['menu_access' => ['BookingResource']]), 'web');
         $this->assertFalse(PersediaanRingkasanReport::canAccess());

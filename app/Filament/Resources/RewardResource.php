@@ -96,7 +96,7 @@ class RewardResource extends Resource
                     Forms\Components\Select::make('type')
                         ->label('Jenis Reward')
                         ->options([
-                            Reward::TYPE_ITEM    => 'Barang / Layanan (diproses staf)',
+                            Reward::TYPE_ITEM    => 'Barang / Layanan (diproses staff)',
                             Reward::TYPE_VOUCHER => 'Voucher Diskon (langsung masuk "Voucher Saya")',
                         ])
                         ->in([Reward::TYPE_ITEM, Reward::TYPE_VOUCHER])
@@ -113,7 +113,7 @@ class RewardResource extends Resource
                         ->maxValue(1000000000)
                         ->required(fn (Forms\Get $get) => $get('type') === Reward::TYPE_VOUCHER)
                         ->visible(fn (Forms\Get $get) => $get('type') === Reward::TYPE_VOUCHER)
-                        ->helperText('Potongan harga yang didapat customer saat voucher dipakai di booking.'),
+                        ->helperText('Potongan harga yang didapat pelanggan saat voucher dipakai di booking.'),
 
                     Forms\Components\TextInput::make('voucher_valid_days')
                         ->label('Masa Berlaku Voucher (hari)')
@@ -123,7 +123,7 @@ class RewardResource extends Resource
                         ->maxValue(3650)
                         ->required(fn (Forms\Get $get) => $get('type') === Reward::TYPE_VOUCHER)
                         ->visible(fn (Forms\Get $get) => $get('type') === Reward::TYPE_VOUCHER)
-                        ->helperText('Dihitung sejak customer menukar poin. Voucher yang lewat masa berlaku tidak bisa dipakai.'),
+                        ->helperText('Dihitung sejak pelanggan menukar poin. Voucher yang lewat masa berlaku tidak bisa dipakai.'),
 
                     Forms\Components\Textarea::make('description')
                         ->label('Deskripsi')
@@ -153,7 +153,7 @@ class RewardResource extends Resource
                         // ekspektasi customer yang sudah lihat harga lama
                         // di katalog.
                         ->helperText(fn (?Reward $record) => ($record && $record->redemptions()->exists())
-                            ? '⚠️ Reward ini sudah pernah ditukar customer. Riwayat lama tidak berubah, tapi customer yang sudah lihat harga lama di katalog bisa bingung kalau harga berubah.'
+                            ? '⚠️ Reward ini sudah pernah ditukar customer. Riwayat lama tidak berubah, tapi pelanggan yang sudah lihat harga lama di katalog bisa bingung kalau harga berubah.'
                             : null),
 
                     Forms\Components\TextInput::make('stock')

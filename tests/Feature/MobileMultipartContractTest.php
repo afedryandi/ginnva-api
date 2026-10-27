@@ -35,7 +35,7 @@ class MobileMultipartContractTest extends TestCase
 
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true]);
         $this->staff = User::create([
-            'name' => 'Staf', 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store->id, 'join_date' => '2025-01-01',
+            'name' => 'Staff', 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store->id, 'join_date' => '2025-01-01',
         ]);
         $this->staff->assignRole('kasir');
     }

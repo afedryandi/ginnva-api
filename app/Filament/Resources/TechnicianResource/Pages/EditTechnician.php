@@ -24,7 +24,7 @@ class EditTechnician extends EditRecord
                 ->requiresConfirmation()
                 ->action(function () {
                     $this->record->update(['status' => 'active']);
-                    Notification::make()->title('Teknisi diaktifkan')->success()->send();
+                    Notification::make()->title('Installer diaktifkan')->success()->send();
                     $this->refreshFormData(['status']);
                 }),
 
@@ -37,7 +37,7 @@ class EditTechnician extends EditRecord
                 ->requiresConfirmation()
                 ->action(function () {
                     $this->record->update(['status' => 'inactive']);
-                    Notification::make()->title('Teknisi dinonaktifkan')->warning()->send();
+                    Notification::make()->title('Installer dinonaktifkan')->warning()->send();
                     $this->refreshFormData(['status']);
                 }),
 

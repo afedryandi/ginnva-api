@@ -1155,7 +1155,7 @@ class Booking extends Model
 
         // Fase 3A: bila diwajibkan (config booking.qc_required), pemeriksaan QC terbaru harus LULUS.
         if (config('booking.qc_required') && ! $this->qcResults()->first()?->passed) {
-            return 'Booking belum bisa diselesaikan: Quality Check (daftar periksa) belum lulus.';
+            return 'Booking belum bisa diselesaikan: Quality Check (checklist) belum lulus.';
         }
 
         // Fase 3B: bila diwajibkan (config booking.handover_required), serah terima harus sudah dicatat.
@@ -1227,7 +1227,7 @@ class Booking extends Model
     public function cancelledByLabel(?string $fallback = null): string
     {
         return match ($this->cancelled_by_type) {
-            'customer' => 'Customer',
+            'customer' => 'Pelanggan',
             'staff'    => User::whereKey($this->cancelled_by_id)->value('name') ?? 'Staff',
             'system'   => 'Sistem (otomatis)',
             default    => $fallback ?? 'Sistem (otomatis)',

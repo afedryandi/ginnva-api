@@ -52,7 +52,7 @@ class SendNotification extends Page implements HasForms
     {
         return $customer->name
             ? "{$customer->name} ({$customer->email})"
-            : ($customer->email ?? "Customer #{$customer->id}");
+            : ($customer->email ?? "Pelanggan #{$customer->id}");
     }
 
     public static function canAccess(): bool
@@ -83,7 +83,7 @@ class SendNotification extends Page implements HasForms
                 Radio::make('audience')
                     ->label('Kirim Ke')
                     ->options([
-                        'customer' => 'Customer (app utama)',
+                        'customer' => 'Pelanggan (app utama)',
                         'partner'  => 'Partner (mitra referral)',
                     ])
                     ->default('customer')
@@ -107,7 +107,7 @@ class SendNotification extends Page implements HasForms
 
                 // Templat (Notifikasi Fase 5): memilih templat mengisi judul, isi, jenis pesan, dan deep link; tidak ikut dikirim.
                 Select::make('template_id')
-                    ->label('Pakai Templat (opsional)')
+                    ->label('Pakai Template (opsional)')
                     ->placeholder('— Tulis pesan baru —')
                     ->options(fn (Get $get) => NotificationTemplate::query()
                         ->where('audience', $get('audience') === 'partner' ? 'partner' : 'customer')
@@ -259,19 +259,19 @@ class SendNotification extends Page implements HasForms
     {
         return [
             Action::make('saveTemplate')
-                ->label('Simpan sebagai templat')
+                ->label('Simpan sebagai template')
                 ->icon('heroicon-o-bookmark')
                 ->color('gray')
-                ->modalHeading('Simpan sebagai templat')
+                ->modalHeading('Simpan sebagai template')
                 ->modalDescription('Judul, isi, jenis pesan, dan deep link yang sedang diisi disimpan untuk dipakai lagi.')
                 ->form([
-                    TextInput::make('name')->label('Nama Templat')->required()->maxLength(100),
+                    TextInput::make('name')->label('Nama Template')->required()->maxLength(100),
                 ])
                 ->action(function (array $data): void {
                     $state = $this->data;
 
                     if (blank($state['title'] ?? null) || blank($state['body'] ?? null)) {
-                        Notification::make()->title('Isi judul dan pesan dulu')->body('Templat tidak bisa disimpan tanpa judul dan isi pesan.')->danger()->send();
+                        Notification::make()->title('Isi judul dan pesan dulu')->body('Template tidak bisa disimpan tanpa judul dan isi pesan.')->danger()->send();
 
                         return;
                     }
@@ -291,7 +291,7 @@ class SendNotification extends Page implements HasForms
                         'created_by' => auth()->id(),
                     ]);
 
-                    Notification::make()->title('Templat disimpan')->body("Templat \"{$data['name']}\" bisa dipilih lewat \"Pakai Templat\".")->success()->send();
+                    Notification::make()->title('Template disimpan')->body("Template \"{$data['name']}\" bisa dipilih lewat \"Pakai Templat\".")->success()->send();
                 }),
         ];
     }

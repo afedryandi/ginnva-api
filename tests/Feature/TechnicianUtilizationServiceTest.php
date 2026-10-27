@@ -53,8 +53,8 @@ class TechnicianUtilizationServiceTest extends TestCase
     public function test_utilization_computed_from_attendance_and_completed_bookings(): void
     {
         $store = $this->makeStore();
-        $user = User::create(['name' => 'Teknisi A', 'email' => 'teknisi-a@test.local', 'password' => 'x', 'store_id' => $store->id]);
-        $technician = Technician::create(['store_id' => $store->id, 'user_id' => $user->id, 'name' => 'Teknisi A', 'status' => 'active']);
+        $user = User::create(['name' => 'Installer A', 'email' => 'teknisi-a@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $technician = Technician::create(['store_id' => $store->id, 'user_id' => $user->id, 'name' => 'Installer A', 'status' => 'active']);
 
         $today = Carbon::today();
 
@@ -90,7 +90,7 @@ class TechnicianUtilizationServiceTest extends TestCase
     public function test_technician_without_user_account_has_null_present_hours(): void
     {
         $store = $this->makeStore();
-        $technician = Technician::create(['store_id' => $store->id, 'name' => 'Teknisi Baru', 'status' => 'active']);
+        $technician = Technician::create(['store_id' => $store->id, 'name' => 'Installer Baru', 'status' => 'active']);
 
         $rows = app(TechnicianUtilizationService::class)->summarize(
             Carbon::today()->startOfMonth(),
@@ -108,8 +108,8 @@ class TechnicianUtilizationServiceTest extends TestCase
     public function test_cancelled_bookings_are_excluded_from_job_hours(): void
     {
         $store = $this->makeStore();
-        $user = User::create(['name' => 'Teknisi B', 'email' => 'teknisi-b@test.local', 'password' => 'x', 'store_id' => $store->id]);
-        $technician = Technician::create(['store_id' => $store->id, 'user_id' => $user->id, 'name' => 'Teknisi B', 'status' => 'active']);
+        $user = User::create(['name' => 'Installer B', 'email' => 'teknisi-b@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $technician = Technician::create(['store_id' => $store->id, 'user_id' => $user->id, 'name' => 'Installer B', 'status' => 'active']);
 
         $today = Carbon::today();
 

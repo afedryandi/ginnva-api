@@ -82,7 +82,7 @@ class StoreReviewTest extends TestCase
             'store_id'    => ($store ?? $this->store)->id,
             'sentiment'   => $sentiment,
             'tags'        => [],
-            'comment'     => 'Ulasan ' . $sentiment,
+            'comment'     => 'Review ' . $sentiment,
         ], $overrides));
     }
 
@@ -267,7 +267,7 @@ class StoreReviewTest extends TestCase
         $this->actingAs($this->user('store_manager', $this->store->id), 'web');
         $mine = Livewire::test(CustomerSatisfactionReport::class)->assertSuccessful()->instance()->getResult();
 
-        $this->assertSame(3, $mine['total'], 'Staf toko hanya melihat ulasan tokonya sendiri.');
+        $this->assertSame(3, $mine['total'], 'Staff toko hanya melihat review tokonya sendiri.');
         $this->assertSame(0, $mine['neutral']);
     }
 }

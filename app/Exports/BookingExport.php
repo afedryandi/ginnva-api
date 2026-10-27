@@ -37,7 +37,7 @@ class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoS
     public function headings(): array
     {
         return [
-            'No. Booking', 'Nama Customer', 'Email Customer', 'No. WhatsApp',
+            'No. Booking', 'Nama Pelanggan', 'Email Pelanggan', 'No. WhatsApp',
             'Toko', 'Jenis Layanan', 'Tanggal Diinginkan', 'Jam Diinginkan',
             'Status', 'Catatan', 'Diajukan Pada',
             'Alasan Pembatalan', 'Dibatalkan Oleh', 'Waktu Pembatalan',
@@ -69,7 +69,7 @@ class BookingExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoS
             $booking->notes,
             $booking->created_at?->format('d/m/Y H:i'),
             $booking->cancel_reason,
-            ['customer' => 'Customer', 'staff' => 'Staff', 'system' => 'Sistem'][$booking->cancelled_by_type] ?? null,
+            ['customer' => 'Pelanggan', 'staff' => 'Staff', 'system' => 'Sistem'][$booking->cancelled_by_type] ?? null,
             $booking->cancelled_at?->format('d/m/Y H:i'),
             $booking->current_stage ? (BookingMessage::allStages()[$booking->current_stage] ?? $booking->current_stage) : null,
             $booking->secondary_stage ? (BookingMessage::allStages()[$booking->secondary_stage] ?? $booking->secondary_stage) : null,

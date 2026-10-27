@@ -94,7 +94,7 @@ class PersediaanRingkasanReport extends Page
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'persediaan_ringkasan', 'format' => $format])
-                ->log('Ekspor Ringkasan Persediaan (' . $format . ')');
+                ->log('Export Ringkasan Persediaan (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

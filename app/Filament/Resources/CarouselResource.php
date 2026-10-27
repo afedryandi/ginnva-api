@@ -117,7 +117,7 @@ class CarouselResource extends Resource
                     Forms\Components\Select::make('audience')
                         ->label('Tampil Untuk')
                         ->options([
-                            'customer' => 'Customer (app utama)',
+                            'customer' => 'Pelanggan (app utama)',
                             'partner'  => 'Partner (mitra referral)',
                             'both'     => 'Keduanya',
                         ])
@@ -164,7 +164,7 @@ class CarouselResource extends Resource
                 Tables\Columns\BadgeColumn::make('audience')
                     ->label('Untuk')
                     ->formatStateUsing(fn (string $state) => match ($state) {
-                        'customer' => 'Customer',
+                        'customer' => 'Pelanggan',
                         'partner'  => 'Partner',
                         'both'     => 'Keduanya',
                         default    => $state,

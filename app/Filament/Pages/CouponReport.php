@@ -14,9 +14,9 @@ class CouponReport extends PromoLoyaltyReport
 {
     protected static ?string $navigationIcon = 'heroicon-o-ticket';
 
-    protected static ?string $navigationLabel = 'Laporan Kupon';
+    protected static ?string $navigationLabel = 'Laporan Voucher';
 
-    protected static ?string $title = 'Laporan Kupon';
+    protected static ?string $title = 'Laporan Voucher';
 
     // 202 -- band grup 'Laporan Promo & Loyalti' (lihat catatan sistem
     // band di ProductSalesReport.php).

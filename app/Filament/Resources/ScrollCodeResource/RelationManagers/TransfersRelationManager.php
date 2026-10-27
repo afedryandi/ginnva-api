@@ -52,6 +52,6 @@ class TransfersRelationManager extends RelationManager
             ])
             ->defaultSort('created_at', 'desc')
             ->emptyStateHeading('Belum ada riwayat mutasi')
-            ->emptyStateDescription('Riwayat otomatis muncul di sini setiap kali "Mutasi ke Cabang Lain" dicatat.');
+            ->emptyStateDescription('Riwayat otomatis muncul di sini setiap kali "Mutasi ke Toko Lain" dicatat.');
     }
 }

@@ -91,7 +91,7 @@ class CarouselTest extends TestCase
     {
         $partnerOnly = $this->banner(['title' => 'Partner', 'audience' => 'partner', 'sort_order' => 1]);
         $both = $this->banner(['title' => 'Keduanya', 'audience' => 'both', 'sort_order' => 2]);
-        $this->banner(['title' => 'Customer', 'audience' => 'customer']);
+        $this->banner(['title' => 'Pelanggan', 'audience' => 'customer']);
         $this->banner(['title' => 'Partner Mati', 'audience' => 'partner', 'is_active' => false]);
 
         $this->getJson('/api/partner/promos')->assertStatus(401);

@@ -118,8 +118,8 @@ class EmployeeReport extends Page implements HasForms
             // Filter cabang (audit 2026-09-29, sejajar laporan Penjualan lain) -- halaman ini
             // sudah dibatasi isFullAccess() saja, jadi filter ini murni untuk mempersempit.
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->live(),
         ])->columns(2)->statePath('data');
@@ -138,7 +138,7 @@ class EmployeeReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'employee', 'format' => $format, 'month' => $this->data['month'] ?? null, 'store_id' => $this->data['store_id'] ?? null])
-                ->log('Ekspor Laporan Karyawan (' . $format . ')');
+                ->log('Export Laporan Karyawan (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

@@ -67,8 +67,8 @@ class PaymentBookReport extends Page implements HasForms
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
@@ -90,7 +90,7 @@ class PaymentBookReport extends Page implements HasForms
         return [
             'key' => 'buku-pembayaran',
             'title' => 'Buku Pembayaran',
-            'subtitle' => $result['from']->translatedFormat('d F Y') . ' - ' . $result['to']->translatedFormat('d F Y') . ' · ' . ($storeName ? "Toko {$storeName}" : 'Semua cabang'),
+            'subtitle' => $result['from']->translatedFormat('d F Y') . ' - ' . $result['to']->translatedFormat('d F Y') . ' · ' . ($storeName ? "Toko {$storeName}" : 'Semua toko'),
             'headings' => ['Tanggal', 'Jenis', 'Referensi', 'Pelanggan', 'Metode', 'Akun', 'Jumlah', 'Catatan'],
             'rows' => $result['rows']->map(fn (array $r) => [
                 $r['date']?->format('d/m/Y') ?? '—',

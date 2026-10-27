@@ -166,7 +166,7 @@ class IncomeStatementReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'income_statement', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->storeId()])
-                ->log('Ekspor Laporan Laba Rugi (' . $format . ')');
+                ->log('Export Laporan Laba Rugi (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

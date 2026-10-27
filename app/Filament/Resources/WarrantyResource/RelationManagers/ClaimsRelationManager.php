@@ -37,7 +37,7 @@ class ClaimsRelationManager extends RelationManager
                 ->required(),
 
             Forms\Components\Textarea::make('description')
-                ->label('Keluhan / Permintaan Customer')
+                ->label('Keluhan / Permintaan Pelanggan')
                 ->columnSpanFull(),
 
             // Penanganan (audit ACCURATE 5, form RMA): siapa yang menangani dan kapan perkiraan selesainya.

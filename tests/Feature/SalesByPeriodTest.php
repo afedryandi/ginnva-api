@@ -193,10 +193,10 @@ class SalesByPeriodTest extends TestCase
 
     public function test_commission_gross_profit_and_the_unrated_flag(): void
     {
-        $withRate = $this->user('kasir', $this->storeA, ['name' => 'Teknisi Bertarif']);
-        $noRate = $this->user('kasir', $this->storeA, ['name' => 'Teknisi Tanpa Tarif']);
-        Technician::create(['store_id' => $this->storeA->id, 'user_id' => $withRate->id, 'name' => 'Teknisi Bertarif', 'status' => 'active', 'commission_amount' => 50000]);
-        Technician::create(['store_id' => $this->storeA->id, 'user_id' => $noRate->id, 'name' => 'Teknisi Tanpa Tarif', 'status' => 'active']);
+        $withRate = $this->user('kasir', $this->storeA, ['name' => 'Installer Bertarif']);
+        $noRate = $this->user('kasir', $this->storeA, ['name' => 'Installer Tanpa Tarif']);
+        Technician::create(['store_id' => $this->storeA->id, 'user_id' => $withRate->id, 'name' => 'Installer Bertarif', 'status' => 'active', 'commission_amount' => 50000]);
+        Technician::create(['store_id' => $this->storeA->id, 'user_id' => $noRate->id, 'name' => 'Installer Tanpa Tarif', 'status' => 'active']);
         $one = $this->sale(1000000, '2026-10-03');
         $two = $this->sale(500000, '2026-10-04');
         $one->installers()->attach($withRate->id);
@@ -208,7 +208,7 @@ class SalesByPeriodTest extends TestCase
         $result = $this->report(['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'bulanan']);
         $row = $result['rows']['2026-10'];
 
-        $this->assertEquals(100000.0, $row['commission'], 'Teknisi bertarif: 2 booking × 50.000; teknisi tanpa tarif tidak disumkan.');
+        $this->assertEquals(100000.0, $row['commission'], 'Installer bertarif: 2 booking × 50.000; installer tanpa tarif tidak disumkan.');
         $this->assertTrue($row['hasUnratedJob']);
         $this->assertEquals(20000.0, $row['refund']);
         $this->assertEquals(1700000.0 - 100000.0 - 20000.0 - 0.0, $row['grossProfit']);
@@ -239,7 +239,7 @@ class SalesByPeriodTest extends TestCase
 
         $staff = $this->user('kasir', $this->storeA);
         $result = $this->report($range + ['store_id' => $this->storeB->id], $staff);
-        $this->assertEquals(100000.0, $result['totalRevenue'], 'Staf tidak bisa melihat toko lain.');
+        $this->assertEquals(100000.0, $result['totalRevenue'], 'Staff tidak bisa melihat toko lain.');
         $this->assertSame($this->storeA->id, $result['storeId']);
     }
 
@@ -329,7 +329,7 @@ class SalesByPeriodTest extends TestCase
         $this->assertSame(50000.0, $rows[0][7], 'Komisi lengkap tetap angka.');
         $this->assertSame(0.0, $rows[0][8]);
         $this->assertSame([1000000.0, 2.0], [$rows[0][10], $rows[0][11]]);
-        $this->assertSame('0 *', $rows[1][7], 'Teknisi tanpa tarif: ditandai bintang.');
+        $this->assertSame('0 *', $rows[1][7], 'Installer tanpa tarif: ditandai bintang.');
         $this->assertSame([0, 0.0, 0], [$rows[2][1], $rows[2][2], $rows[2][10]], 'Periode kosong: nol, bukan error.');
     }
 

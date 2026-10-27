@@ -246,7 +246,7 @@ class RewardVoucherTest extends TestCase
         $owner = $this->customer();
         $claim = app(RewardRedemptionService::class)->redeem($owner, $this->voucherReward())->voucherClaim;
 
-        $this->expectExceptionMessageMatches('/milik customer lain/');
+        $this->expectExceptionMessageMatches('/milik pelanggan lain/');
         DB::transaction(fn () => app(VoucherService::class)->applyToBooking($claim->id, $this->booking($this->customer())));
     }
 

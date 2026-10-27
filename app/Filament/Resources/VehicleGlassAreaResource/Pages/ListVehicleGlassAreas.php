@@ -19,12 +19,12 @@ class ListVehicleGlassAreas extends ListRecords
     {
         return [
             Actions\Action::make('import_from_sheet')
-                ->label('Impor dari Google Sheet')
+                ->label('Import dari Google Sheet')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
                 ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
-                ->modalHeading('Impor luas kaca dari Google Sheet "Data Ukuran"')
-                ->modalSubmitActionLabel('Impor')
+                ->modalHeading('Import luas kaca dari Google Sheet "Data Ukuran"')
+                ->modalSubmitActionLabel('Import')
                 ->form([
                     Placeholder::make('preview')
                         ->label('Pratinjau')
@@ -65,13 +65,13 @@ class ListVehicleGlassAreas extends ListRecords
                         $result = $service->import($analysis['entries'], (bool) ($data['overwrite'] ?? false));
                     } catch (\Throwable $e) {
                         report($e);
-                        Notification::make()->title('Impor gagal')->body($e->getMessage())->danger()->send();
+                        Notification::make()->title('Import gagal')->body($e->getMessage())->danger()->send();
 
                         return;
                     }
 
                     Notification::make()
-                        ->title('Impor selesai')
+                        ->title('Import selesai')
                         ->body("{$result['created']} ditambahkan, {$result['updated']} diperbarui, {$result['skipped']} dilewati.")
                         ->success()
                         ->send();

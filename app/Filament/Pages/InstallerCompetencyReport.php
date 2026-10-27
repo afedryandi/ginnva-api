@@ -106,7 +106,7 @@ class InstallerCompetencyReport extends Page implements HasForms
             'sections' => [
                 [
                     'title' => 'Matriks keterampilan',
-                    'headings' => array_merge(['Teknisi', 'Toko'], array_values($services)),
+                    'headings' => array_merge(['Installer', 'Toko'], array_values($services)),
                     'rows' => $technicians->map(fn (Technician $t) => array_merge(
                         [$t->name, $t->store?->name ?? '—'],
                         array_map(fn (string $key) => $this->levelLabel($t->skills->firstWhere('service_type', $key)), array_keys($services)),
@@ -114,7 +114,7 @@ class InstallerCompetencyReport extends Page implements HasForms
                 ],
                 [
                     'title' => 'Sertifikat kedaluwarsa atau hampir kedaluwarsa',
-                    'headings' => ['Teknisi', 'Pelatihan', 'Status', 'Berlaku sampai'],
+                    'headings' => ['Installer', 'Pelatihan', 'Status', 'Berlaku sampai'],
                     'rows' => $this->getExpiringTrainings($technicians)->map(fn (array $row) => [
                         $row['technician']->name,
                         $row['training']->title,

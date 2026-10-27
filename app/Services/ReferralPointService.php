@@ -167,7 +167,7 @@ class ReferralPointService
         }
 
         if (empty($booking->transaction_amount) || $booking->transaction_amount <= 0) {
-            throw new RuntimeException('Customer ini diajak lewat kode referral teman, tapi Nominal Transaksi kosong/nol — poin bonus tidak bisa dihitung.');
+            throw new RuntimeException('Pelanggan ini diajak lewat kode referral teman, tapi Nominal Transaksi kosong/nol — poin bonus tidak bisa dihitung.');
         }
 
         $referrer = $customer->referredBy;

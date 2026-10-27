@@ -60,7 +60,7 @@ class SectionedReportExportTest extends TestCase
         $this->assertSame(['Ringkasan', 'Dibatalkan oleh', 'Alasan pembatalan terbanyak'], $this->sectionTitles($data));
         $this->assertCount(6, $data['sections'][0]['rows']);
         $this->assertSame(0, $data['sections'][0]['rows'][0][1]);
-        $this->assertStringContainsString('Semua cabang', $data['subtitle']);
+        $this->assertStringContainsString('Semua toko', $data['subtitle']);
     }
 
     public function test_lead_funnel_export_has_every_section_with_matching_columns(): void
@@ -79,13 +79,13 @@ class SectionedReportExportTest extends TestCase
     public function test_competency_export_lists_each_technician_with_a_level_per_service(): void
     {
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true]);
-        Technician::create(['store_id' => $store->id, 'name' => 'Andi Teknisi', 'level' => 'intermediate', 'status' => 'active']);
+        Technician::create(['store_id' => $store->id, 'name' => 'Andi Installer', 'level' => 'intermediate', 'status' => 'active']);
 
         $data = $this->exportData(Livewire::test(InstallerCompetencyReport::class));
 
         $this->assertSame('kompetensi-installer', $data['key']);
         $matrix = $data['sections'][0];
-        $row = collect($matrix['rows'])->firstWhere(0, 'Andi Teknisi');
+        $row = collect($matrix['rows'])->firstWhere(0, 'Andi Installer');
         $this->assertNotNull($row);
         $this->assertSame('Toko A', $row[1]);
         $this->assertCount(count($matrix['headings']), $row);

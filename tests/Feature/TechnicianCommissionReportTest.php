@@ -65,7 +65,7 @@ class TechnicianCommissionReportTest extends TestCase
     public static function pages(): array
     {
         return [
-            'komisi teknisi' => [TechnicianCommissionReport::class, 'Laporan Komisi Teknisi', 'laporan-komisi-teknisi'],
+            'komisi teknisi' => [TechnicianCommissionReport::class, 'Laporan Komisi Installer', 'laporan-komisi-teknisi'],
             'komisi tetap' => [FixedCommissionReport::class, 'Komisi Tetap', 'komisi-tetap'],
         ];
     }
@@ -244,7 +244,7 @@ class TechnicianCommissionReportTest extends TestCase
         $this->assertFalse(TechnicianCommissionReport::shouldRegisterNavigation());
         $this->assertTrue(FixedCommissionReport::shouldRegisterNavigation());
         $this->assertSame('Komisi Tetap', FixedCommissionReport::getNavigationLabel());
-        $this->assertSame('Laporan Komisi Teknisi', TechnicianCommissionReport::getNavigationLabel());
+        $this->assertSame('Laporan Komisi Installer', TechnicianCommissionReport::getNavigationLabel());
     }
 
     public function test_the_query_string_is_sanitised_and_dates_are_corrected(): void
@@ -284,7 +284,7 @@ class TechnicianCommissionReportTest extends TestCase
             ->assertSee('Per Layanan')
             ->assertSee('Belum diatur')
             ->assertSee('Rp1.500.000', false)
-            ->assertSee('Ada 2 teknisi yang punya pekerjaan di periode ini');
+            ->assertSee('Ada 2 installer yang punya pekerjaan di periode ini');
 
         $this->assertStringContainsString((string) $this->rudi->id, $page->instance()->technicianUrl($this->rudi->id));
         $this->assertSame($title, $class::getNavigationLabel());
@@ -292,17 +292,17 @@ class TechnicianCommissionReportTest extends TestCase
 
     public function test_page_shows_the_empty_state(): void
     {
-        $this->page(TechnicianCommissionReport::class)->assertSee('Belum ada data teknisi bertaut akun installer.');
+        $this->page(TechnicianCommissionReport::class)->assertSee('Belum ada data installer bertaut akun installer.');
     }
 
     public function test_excel_rows_are_aligned_with_headings(): void
     {
         $this->october();
 
-        $export = new TechnicianCommissionReportExport($this->report(), 'Laporan Komisi Teknisi');
+        $export = new TechnicianCommissionReportExport($this->report(), 'Laporan Komisi Installer');
         $rows = collect($export->array())->keyBy(0);
 
-        $this->assertSame(['Teknisi', 'Toko', 'Jumlah Pekerjaan', 'Penjualan', 'Skema Tarif', 'Total Komisi'], $export->headings());
+        $this->assertSame(['Installer', 'Toko', 'Jumlah Pekerjaan', 'Penjualan', 'Skema Tarif', 'Total Komisi'], $export->headings());
         $this->assertCount(4, $rows);
         $this->assertSame(['Rudi', 'Toko A', 2, 1500000.0, 'Flat Rp100.000/job', 200000.0], $rows['Rudi']);
         $this->assertSame(['Sari', 'Toko B', 2, 2500000.0, 'Per Layanan *', 200000.0], $rows['Sari']);

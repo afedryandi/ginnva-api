@@ -213,7 +213,7 @@ class PayrollTest extends TestCase
     public function test_technician_commission_is_added_for_jobs_booked_in_the_period_only(): void
     {
         $installer = $this->user('kasir');
-        Technician::create(['store_id' => $this->store->id, 'user_id' => $installer->id, 'name' => 'Teknisi', 'level' => 'intermediate', 'status' => 'active', 'commission_amount' => 150000]);
+        Technician::create(['store_id' => $this->store->id, 'user_id' => $installer->id, 'name' => 'Installer', 'level' => 'intermediate', 'status' => 'active', 'commission_amount' => 150000]);
         $this->postedBookingFor($installer, '2026-09-10');
         $this->postedBookingFor($installer, '2026-09-20');
         $this->postedBookingFor($installer, '2026-08-25');
@@ -229,7 +229,7 @@ class PayrollTest extends TestCase
     public function test_jobs_with_an_unset_commission_rate_are_flagged_not_counted_as_zero(): void
     {
         $installer = $this->user('kasir');
-        Technician::create(['store_id' => $this->store->id, 'user_id' => $installer->id, 'name' => 'Teknisi', 'level' => 'intermediate', 'status' => 'active']);
+        Technician::create(['store_id' => $this->store->id, 'user_id' => $installer->id, 'name' => 'Installer', 'level' => 'intermediate', 'status' => 'active']);
         $this->postedBookingFor($installer, '2026-09-10');
 
         $payroll = Payroll::generateForMonth($installer, $this->month);
@@ -244,7 +244,7 @@ class PayrollTest extends TestCase
         $employee = $this->user('kasir');
         $this->attend($employee, '2026-09-02', 'alpha');
         $installer = $this->user('kasir');
-        Technician::create(['store_id' => $this->store->id, 'user_id' => $installer->id, 'name' => 'Teknisi', 'level' => 'intermediate', 'status' => 'active', 'commission_amount' => 150000]);
+        Technician::create(['store_id' => $this->store->id, 'user_id' => $installer->id, 'name' => 'Installer', 'level' => 'intermediate', 'status' => 'active', 'commission_amount' => 150000]);
         $this->postedBookingFor($installer, '2026-09-10');
 
         $this->actingAs($spv, 'web');

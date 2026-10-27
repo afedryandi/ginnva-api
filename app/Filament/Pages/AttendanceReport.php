@@ -212,7 +212,7 @@ class AttendanceReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'attendance', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor Laporan Absensi (' . $format . ')');
+                ->log('Export Laporan Absensi (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

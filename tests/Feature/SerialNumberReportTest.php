@@ -46,7 +46,7 @@ class SerialNumberReportTest extends TestCase
         $this->storeA = Store::create(['city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true]);
         $this->storeB = Store::create(['city' => 'Bandung', 'address' => 'Jl. B', 'name' => 'Toko B', 'is_active' => true]);
         $this->product = FilmProduct::create(['sku' => 'PPF-01', 'name' => 'Film Premium', 'product_type' => 'window_film', 'position' => 'front', 'base_price' => 100000, 'is_active' => true]);
-        $this->rina = $this->user('kasir', $this->storeA, ['name' => 'Teknisi Rina']);
+        $this->rina = $this->user('kasir', $this->storeA, ['name' => 'Installer Rina']);
     }
 
     protected function tearDown(): void
@@ -154,9 +154,9 @@ class SerialNumberReportTest extends TestCase
 
         $staff = $this->user('kasir', $this->storeA);
         $own = $this->report(['store_id' => $this->storeB->id], $staff);
-        $this->assertEqualsCanonicalizing([$r['a1']->id, $r['a2']->id, $r['a0']->id], $own['codes']->pluck('id')->all(), 'Staf tidak bisa melihat toko lain.');
+        $this->assertEqualsCanonicalizing([$r['a1']->id, $r['a2']->id, $r['a0']->id], $own['codes']->pluck('id')->all(), 'Staff tidak bisa melihat toko lain.');
         $this->assertEqualsWithDelta(22.5, $own['totalMetersUsed'], 0.001);
-        $this->assertCount(0, $this->report(['status' => 'unallocated'], $staff)['codes'], 'Roll belum dialokasikan tidak bertoko: tidak tampil untuk staf toko.');
+        $this->assertCount(0, $this->report(['status' => 'unallocated'], $staff)['codes'], 'Roll belum dialokasikan tidak bertoko: tidak tampil untuk staff toko.');
     }
 
     public function test_an_account_without_a_store_sees_nothing(): void
@@ -223,7 +223,7 @@ class SerialNumberReportTest extends TestCase
             ->assertSee('Toko B')
             ->assertSee('Dialokasikan')
             ->assertSee('Habis Dipakai')
-            ->assertSee('Teknisi Rina')
+            ->assertSee('Installer Rina')
             ->assertSee('Mobil Avanza')
             ->assertSee('02 Oct 2026 10:00')
             ->assertDontSee('ROLL-OLD')
@@ -252,8 +252,8 @@ class SerialNumberReportTest extends TestCase
         $this->assertSame([], $rows[6]);
         $this->assertSame(['RIWAYAT PEMAKAIAN'], $rows[7]);
         $this->assertSame(['Tanggal', 'Kode Serial', 'Toko', 'Meter Dipakai', 'Oleh', 'Catatan'], $rows[8]);
-        $this->assertSame(['2026-10-06 09:00', 'ROLL-B1', 'Toko B', 5.0, 'Teknisi Rina', '-'], $rows[9]);
-        $this->assertSame(['2026-10-02 10:00', 'ROLL-A1', 'Toko A', 2.5, 'Teknisi Rina', 'Mobil Avanza'], $rows[11]);
+        $this->assertSame(['2026-10-06 09:00', 'ROLL-B1', 'Toko B', 5.0, 'Installer Rina', '-'], $rows[9]);
+        $this->assertSame(['2026-10-02 10:00', 'ROLL-A1', 'Toko A', 2.5, 'Installer Rina', 'Mobil Avanza'], $rows[11]);
         $this->assertSame(['D' => '#,##0.00', 'E' => '#,##0.00'], $export->columnFormats());
     }
 

@@ -326,15 +326,15 @@ class ConsumableItemResourceTest extends TestCase
 
     public function test_export_rows_and_download_actions(): void
     {
-        $this->item('Ekspor A', 20, ['code' => 'EXP-A', 'category' => 'Lakban', 'reorder_point' => 5, 'unit_cost' => 7.5]);
-        $this->item('Ekspor B', 3, ['code' => 'EXP-B', 'category' => null]);
+        $this->item('Export A', 20, ['code' => 'EXP-A', 'category' => 'Lakban', 'reorder_point' => 5, 'unit_cost' => 7.5]);
+        $this->item('Export B', 3, ['code' => 'EXP-B', 'category' => null]);
 
         $export = new ConsumableItemExport();
         $rows = $export->collection()->keyBy(0);
 
         $this->assertSame(['Kode', 'Nama Barang', 'Kategori', 'Stok', 'Satuan', 'Ambang Menipis', 'Harga/Satuan'], $export->headings());
-        $this->assertEquals(['EXP-A', 'Ekspor A', 'Lakban', 20.0, 'pcs', 5.0, 7.5], $rows['EXP-A']);
-        $this->assertEquals(['EXP-B', 'Ekspor B', '-', 3.0, 'pcs', '-', '-'], $rows['EXP-B']);
+        $this->assertEquals(['EXP-A', 'Export A', 'Lakban', 20.0, 'pcs', 5.0, 7.5], $rows['EXP-A']);
+        $this->assertEquals(['EXP-B', 'Export B', '-', 3.0, 'pcs', '-', '-'], $rows['EXP-B']);
 
         $this->as($this->user('kasir'));
         Excel::fake();

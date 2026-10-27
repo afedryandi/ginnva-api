@@ -119,7 +119,7 @@ class CashControlTest extends TestCase
     public function test_without_a_limit_every_amount_still_goes_to_direksi(): void
     {
         $service = app(FinanceTransactionApprovalService::class);
-        $request = $service->submit($this->payload(['amount' => 50000]), $this->user('Staf'));
+        $request = $service->submit($this->payload(['amount' => 50000]), $this->user('Staff'));
 
         $service->approveByManager($request, $this->user('Manajer', 'store_manager'));
 
@@ -131,7 +131,7 @@ class CashControlTest extends TestCase
     {
         FinanceSetting::set(FinanceSetting::EXPENSE_MANAGER_LIMIT, 300000);
         $service = app(FinanceTransactionApprovalService::class);
-        $staff = $this->user('Staf');
+        $staff = $this->user('Staff');
         $manager = $this->user('Manajer', 'store_manager');
 
         $small = $service->submit($this->payload(['amount' => 250000]), $staff);
@@ -186,11 +186,11 @@ class CashControlTest extends TestCase
         $this->assertSame(600000.0, $service->balance($petty));
         $this->assertSame(400000.0, $service->replenishAmount($petty));
 
-        $staff = $this->user('Staf');
-        $other = $this->user('Staf B', null, $this->otherStore);
+        $staff = $this->user('Staff');
+        $other = $this->user('Staff B', null, $this->otherStore);
         $base = ['type' => 'out', 'payment_account_id' => $petty->id, 'amount' => 150000];
 
-        $this->assertTrue($service->allowsDirectSpending($base, $staff), 'Staf toko yang sama, di bawah batas.');
+        $this->assertTrue($service->allowsDirectSpending($base, $staff), 'Staff toko yang sama, di bawah batas.');
         $this->assertFalse($service->allowsDirectSpending($base, $other), 'Toko lain.');
         $this->assertFalse($service->allowsDirectSpending(array_merge($base, ['amount' => 250000]), $staff), 'Di atas batas per bukti.');
         $this->assertFalse($service->allowsDirectSpending(['payment_account_id' => null] + $base, $staff), 'Bukan kas kecil.');

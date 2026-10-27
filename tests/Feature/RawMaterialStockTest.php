@@ -98,7 +98,7 @@ class RawMaterialStockTest extends TestCase
     {
         $material = $this->makeMaterial(stock: 10);
 
-        $movement = $material->recordMovement('out', 3, null, 'Tanpa penanda cabang');
+        $movement = $material->recordMovement('out', 3, null, 'Tanpa penanda toko');
 
         $this->assertNull($movement->store_id);
     }

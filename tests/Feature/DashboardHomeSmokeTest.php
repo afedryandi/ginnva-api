@@ -96,7 +96,7 @@ class DashboardHomeSmokeTest extends TestCase
         $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Raize', 'size_category' => 'M']);
         Quotation::create([
             'quotation_number' => 'INQ-TEST-' . uniqid(), 'vehicle_id' => $vehicle->id,
-            'customer_name' => 'Calon Customer', 'customer_phone' => '081234567890',
+            'customer_name' => 'Calon Pelanggan', 'customer_phone' => '081234567890',
             'status' => 'new', 'source' => 'customer', 'store_id' => $this->storeA->id,
         ]);
     }

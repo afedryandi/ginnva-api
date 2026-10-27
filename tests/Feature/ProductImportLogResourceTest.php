@@ -67,7 +67,7 @@ class ProductImportLogResourceTest extends TestCase
         $this->assertTrue(ProductImportLogResource::canViewAny());
 
         $this->actingAs($this->user('kasir'), 'web');
-        $this->assertFalse(ProductImportLogResource::canViewAny(), 'Staf biasa tidak boleh, walau menu_access kosong (semua menu).');
+        $this->assertFalse(ProductImportLogResource::canViewAny(), 'Staff biasa tidak boleh, walau menu_access kosong (semua menu).');
         $this->assertFalse(ProductImportLogResource::canView(new ProductImportLog()));
 
         $this->actingAs($this->user('kasir', ['ProductImportLogResource']), 'web');
@@ -94,7 +94,7 @@ class ProductImportLogResourceTest extends TestCase
 
     public function test_list_is_newest_first_with_columns_and_search(): void
     {
-        $admin = $this->user('super_admin', null, ['name' => 'Admin Impor']);
+        $admin = $this->user('super_admin', null, ['name' => 'Admin Import']);
         $this->actingAs($admin, 'web');
         $old = $this->log('harga-lama.xlsx', '2026-10-01 09:00:00', $admin, 20, 20, 0);
         $new = $this->log('harga-baru.xlsx', '2026-10-07 15:30:00', $admin, 10, 8, 2);
@@ -104,7 +104,7 @@ class ProductImportLogResourceTest extends TestCase
             ->assertSuccessful()
             ->assertCanSeeTableRecords([$new, $orphan, $old], inOrder: true)
             ->assertTableColumnFormattedStateSet('created_at', '07 Oct 2026, 15:30', $new)
-            ->assertTableColumnStateSet('user.name', 'Admin Impor', $new)
+            ->assertTableColumnStateSet('user.name', 'Admin Import', $new)
             ->assertTableColumnStateSet('total_rows', 10, $new)
             ->assertTableColumnStateSet('updated_count', 8, $new)
             ->assertTableColumnStateSet('skipped_count', 2, $new)
@@ -129,7 +129,7 @@ class ProductImportLogResourceTest extends TestCase
 
     public function test_detail_shows_the_counts_and_one_line_per_error(): void
     {
-        $admin = $this->user('super_admin', null, ['name' => 'Admin Impor']);
+        $admin = $this->user('super_admin', null, ['name' => 'Admin Import']);
         $this->actingAs($admin, 'web');
         $log = $this->log('harga.xlsx', '2026-10-07 15:30:00', $admin, 10, 7, 3, [
             'Baris 3: SKU "XYZ-1" tidak ditemukan di katalog',
@@ -141,7 +141,7 @@ class ProductImportLogResourceTest extends TestCase
 
         $page->assertSuccessful()
             ->assertSee('harga.xlsx')
-            ->assertSee('Admin Impor')
+            ->assertSee('Admin Import')
             ->assertSee('07 Oct 2026, 15:30')
             ->assertSee('Detail Baris Dilewati/Error')
             ->assertSee('Baris 3: SKU "XYZ-1" tidak ditemukan di katalog')

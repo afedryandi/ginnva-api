@@ -59,9 +59,9 @@ class AgingReportTest extends TestCase
 
     public function test_payable_aging_export_totals_match_summary(): void
     {
-        $supplier = Supplier::create(['name' => 'PT Uji Ekspor', 'is_active' => true]);
+        $supplier = Supplier::create(['name' => 'PT Uji Export', 'is_active' => true]);
         $expense = ChartOfAccount::where('type', 'beban_operasional')->where('is_postable', true)->firstOrFail();
-        app(PayableService::class)->createWithJournal(['supplier_name' => 'PT Uji Ekspor', 'supplier_id' => $supplier->id, 'amount' => 400_000], $expense->id);
+        app(PayableService::class)->createWithJournal(['supplier_name' => 'PT Uji Export', 'supplier_id' => $supplier->id, 'amount' => 400_000], $expense->id);
 
         $page = new PayableAgingReport();
         $aging = $page->getAging();

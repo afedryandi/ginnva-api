@@ -80,7 +80,7 @@ class RefundReportTest extends TestCase
     }
 
     /** Proses refund resmi, lalu geser waktu diprosesnya ke $when. */
-    private function refund(Booking $booking, float $amount, string $when = '2026-10-05 09:00:00', ?User $by = null, ?string $reason = 'Customer batal'): Refund
+    private function refund(Booking $booking, float $amount, string $when = '2026-10-05 09:00:00', ?User $by = null, ?string $reason = 'Pelanggan batal'): Refund
     {
         $refund = app(RefundService::class)->process($booking, $amount, $reason, $by?->id);
         DB::table('refunds')->where('id', $refund->id)->update(['created_at' => $when]);
@@ -170,7 +170,7 @@ class RefundReportTest extends TestCase
         $this->assertSame([$b->id], $this->report(['store_id' => $this->storeB->id])['refunds']->pluck('id')->all());
 
         $staff = $this->user('kasir', $this->storeA);
-        $this->assertSame([$a->id], $this->report(['store_id' => $this->storeB->id], $staff)['refunds']->pluck('id')->all(), 'Staf tidak bisa melihat toko lain.');
+        $this->assertSame([$a->id], $this->report(['store_id' => $this->storeB->id], $staff)['refunds']->pluck('id')->all(), 'Staff tidak bisa melihat toko lain.');
     }
 
     public function test_an_account_without_a_store_sees_nothing(): void
@@ -239,7 +239,7 @@ class RefundReportTest extends TestCase
     public function test_excel_columns_line_up_and_the_method_matches_the_page(): void
     {
         $processor = $this->user('kasir', $this->storeA, ['name' => 'Rina Kasir']);
-        $this->refund($this->sale(1000000), 100000, '2026-10-03 09:30:00', $processor, 'Customer batal');
+        $this->refund($this->sale(1000000), 100000, '2026-10-03 09:30:00', $processor, 'Pelanggan batal');
         $this->refund($this->sale(1000000, null, ['amount_received' => 600000]), 300000, '2026-10-04 09:00:00', null, null);
 
         $result = $this->report();
@@ -257,7 +257,7 @@ class RefundReportTest extends TestCase
         $this->assertSame('Kurangi Piutang', $byAmount[300000.0][5], 'Dulu selalu "Tunai" di Excel.');
         $this->assertSame(['Budi', 'Toko A', 'Tunai', 'Rina Kasir'], [$byAmount[100000.0][3], $byAmount[100000.0][4], $byAmount[100000.0][5], $byAmount[100000.0][6]]);
         $this->assertStringStartsWith('JE-', $byAmount[100000.0][7]);
-        $this->assertSame('Customer batal', $byAmount[100000.0][8]);
+        $this->assertSame('Pelanggan batal', $byAmount[100000.0][8]);
         $this->assertSame('-', $byAmount[300000.0][6], 'Tanpa pemroses.');
         $this->assertSame('-', $byAmount[300000.0][8], 'Tanpa alasan.');
         $this->assertSame('2026-10-03 09:30', $byAmount[100000.0][1]);

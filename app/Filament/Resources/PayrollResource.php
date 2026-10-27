@@ -387,7 +387,7 @@ class PayrollResource extends Resource
                     }),
 
                 Tables\Actions\Action::make('downloadPayslip')
-                    ->label('Unduh Slip Gaji')
+                    ->label('Download Slip Gaji')
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('gray')
                     ->action(fn (Payroll $record) => static::downloadPayslipPdf($record)),

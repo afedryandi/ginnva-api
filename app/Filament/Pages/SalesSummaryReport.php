@@ -232,8 +232,8 @@ class SalesSummaryReport extends Page implements HasForms
             // disabled) — getResult() juga tidak pernah percaya nilainya
             // untuk staff, lihat catatan di sana.
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
@@ -279,7 +279,7 @@ class SalesSummaryReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'sales_summary', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor Ringkasan Penjualan (' . $format . ')');
+                ->log('Export Ringkasan Penjualan (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

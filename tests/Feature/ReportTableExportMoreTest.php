@@ -52,7 +52,7 @@ class ReportTableExportMoreTest extends TestCase
         $this->assertCount(8, $data['headings']);
         $this->assertSame([], $data['rows']);
         $this->assertSame(0.0, $data['totals'][6]);
-        $this->assertStringContainsString('Semua cabang', $data['subtitle']);
+        $this->assertStringContainsString('Semua toko', $data['subtitle']);
     }
 
     public function test_completeness_export_lists_employees_with_findings(): void

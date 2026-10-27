@@ -31,7 +31,7 @@ class JobDurationServiceTest extends TestCase
     {
         $store = $this->makeStore();
         $customer = Customer::create(['name' => 'Budi', 'phone_number' => '081200000001']);
-        $installer = User::create(['name' => 'Teknisi A', 'email' => 'tech-a@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $installer = User::create(['name' => 'Installer A', 'email' => 'tech-a@test.local', 'password' => 'x', 'store_id' => $store->id]);
 
         $booking = Booking::create([
             'booking_number' => 'BKG-TEST-' . uniqid(),
@@ -58,7 +58,7 @@ class JobDurationServiceTest extends TestCase
         $this->assertCount(1, $jobs);
         $this->assertEquals(180, $jobs->first()['minutes']);
         $this->assertEquals(['PPF'], $jobs->first()['services']);
-        $this->assertEquals(['Teknisi A'], $jobs->first()['technicians']);
+        $this->assertEquals(['Installer A'], $jobs->first()['technicians']);
     }
 
     public function test_job_outside_date_range_excluded(): void

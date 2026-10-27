@@ -174,7 +174,7 @@ class PersediaanDetailReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'persediaan_detail', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null])
-                ->log('Ekspor Detail Persediaan (' . $format . ')');
+                ->log('Export Detail Persediaan (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

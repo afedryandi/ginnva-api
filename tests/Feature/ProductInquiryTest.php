@@ -170,7 +170,7 @@ class ProductInquiryTest extends TestCase
 
         $fresh = $inquiry->fresh();
         $this->assertSame('closed', $fresh->status);
-        $this->assertSame('Budi', $fresh->customer_name, 'Data dari customer dikunci (disabled).');
+        $this->assertSame('Budi', $fresh->customer_name, 'Data dari pelanggan dikunci (disabled).');
         $this->assertSame('Apakah Color Change sudah tersedia?', $fresh->message);
     }
 

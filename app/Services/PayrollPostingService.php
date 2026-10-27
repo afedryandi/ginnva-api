@@ -66,7 +66,7 @@ class PayrollPostingService
         $deduction = max(0.0, round((float) $payroll->prorated_base_salary + $commission - $netPay, 2));
 
         if (! $cash || ! $gajiPokok || ($deduction > 0 && ! $potongan) || ($commission > 0 && ! $komisiTeknisi)) {
-            throw new RuntimeException('Akun Bagan Akun yang dibutuhkan (Kas/Beban Gaji Pokok/Beban Potongan/Upah Langsung Teknisi) tidak ditemukan — periksa menu Bagan Akun.');
+            throw new RuntimeException('Akun Bagan Akun yang dibutuhkan (Kas/Beban Gaji Pokok/Beban Potongan/Upah Langsung Installer) tidak ditemukan — periksa menu Bagan Akun.');
         }
 
 
@@ -126,7 +126,7 @@ class PayrollPostingService
             $account = $item->category?->account;
 
             if (! $account || ! $account->is_active || ! $account->is_postable) {
-                throw new RuntimeException("Akun pembukuan untuk komponen \"{$item->displayLabel()}\" belum diatur atau tidak aktif — atur di menu Karyawan > Kategori Komponen Gaji.");
+                throw new RuntimeException("Akun pembukuan untuk komponen \"{$item->displayLabel()}\" belum diatur atau nonaktif — atur di menu Karyawan > Kategori Komponen Gaji.");
             }
         }
 

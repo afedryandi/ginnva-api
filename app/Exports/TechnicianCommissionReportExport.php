@@ -16,12 +16,12 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  */
 class TechnicianCommissionReportExport implements FromArray, WithHeadings, WithStyles, WithColumnFormatting
 {
-    public function __construct(private array $result, private string $title = 'Komisi Teknisi') {}
+    public function __construct(private array $result, private string $title = 'Komisi Installer') {}
 
     public function headings(): array
     {
         return [
-            'Teknisi',
+            'Installer',
             'Toko',
             'Jumlah Pekerjaan',
             'Penjualan',

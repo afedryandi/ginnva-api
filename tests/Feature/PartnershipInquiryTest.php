@@ -43,7 +43,7 @@ class PartnershipInquiryTest extends TestCase
     {
         return PartnershipInquiry::create(array_merge([
             'category' => 'franchise', 'applicant_name' => 'Rina', 'phone_number' => '081234567890',
-            'email' => 'rina@example.com', 'city' => 'Bandung', 'message' => 'Tertarik buka cabang', 'status' => 'new',
+            'email' => 'rina@example.com', 'city' => 'Bandung', 'message' => 'Tertarik buka toko', 'status' => 'new',
         ], $overrides));
     }
 
@@ -81,7 +81,7 @@ class PartnershipInquiryTest extends TestCase
     {
         $this->postJson('/api/partnership/submit', [
             'applicant_name' => 'Rina', 'phone_number' => '081234567890', 'email' => 'rina@example.com',
-            'city' => 'Bandung', 'message' => 'Tertarik buka cabang',
+            'city' => 'Bandung', 'message' => 'Tertarik buka toko',
         ])->assertStatus(201)->assertJsonPath('success', true);
 
         $inquiry = PartnershipInquiry::firstOrFail();

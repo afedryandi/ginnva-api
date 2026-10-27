@@ -397,12 +397,12 @@ class Store extends Model
 
     private const USAGE_LABELS = [
         'bookings' => 'Booking',
-        'users' => 'Akun staf',
-        'technicians' => 'Teknisi',
+        'users' => 'Akun staff',
+        'technicians' => 'Installer',
         'warranties' => 'Garansi',
         'quotations' => 'Quotation',
         'attendances' => 'Absensi',
-        'store_reviews' => 'Ulasan',
+        'store_reviews' => 'Review',
         'assets' => 'Aset',
         'material_memos' => 'Memo Barang',
         'purchase_requests' => 'Permohonan Pembelian',

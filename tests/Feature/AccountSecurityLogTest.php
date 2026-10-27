@@ -74,7 +74,7 @@ class AccountSecurityLogTest extends TestCase
         $this->assertSame('login', $log->event);
         $this->assertSame([User::class, $user->id], [$log->causer_type, $log->causer_id]);
         $this->assertSame([User::class, $user->id], [$log->subject_type, $log->subject_id]);
-        $this->assertSame('Staf "Rina Kasir" masuk lewat aplikasi', $log->description);
+        $this->assertSame('Staff "Rina Kasir" masuk lewat aplikasi', $log->description);
         $this->assertSame('mobile_staf', $log->properties['context']['source']);
         $this->assertSame('127.0.0.1', $log->properties['context']['ip']);
         $this->assertStringContainsString('GinnvaStaff/1.2', $log->properties['context']['device']);
@@ -128,7 +128,7 @@ class AccountSecurityLogTest extends TestCase
 
         $events = $this->authLogs()->pluck('event')->all();
         $this->assertSame(['login', 'password_changed', 'password_reset', 'logout'], $events);
-        $this->assertSame('Kata sandi staf "Rina Kasir" diganti sendiri (aplikasi)', $this->authLogs()[1]->description);
+        $this->assertSame('Password staff "Rina Kasir" diganti sendiri (aplikasi)', $this->authLogs()[1]->description);
 
         $json = $this->authLogs()->map(fn ($l) => json_encode($l->properties) . $l->description)->implode('|');
         foreach (['PasswordBaru456', 'PasswordLagi789', self::PASSWORD, $token] as $secret) {
@@ -179,7 +179,7 @@ class AccountSecurityLogTest extends TestCase
 
         $logs = $this->authLogs();
         $this->assertSame(['login', 'login_failed', 'login_failed', 'logout'], $logs->pluck('event')->all());
-        $this->assertSame('Staf "Rina Kasir" masuk di panel admin', $logs[0]->description);
+        $this->assertSame('Staff "Rina Kasir" masuk di panel admin', $logs[0]->description);
         $this->assertSame('akun tidak ditemukan', $logs[1]->properties['reason']);
         $this->assertSame('sandi salah', $logs[2]->properties['reason']);
         $this->assertSame($user->id, $logs[2]->subject_id);
@@ -197,7 +197,7 @@ class AccountSecurityLogTest extends TestCase
         $this->assertSame('password_changed', $log->event);
         $this->assertSame($admin->id, $log->causer_id);
         $this->assertSame($target->id, $log->subject_id);
-        $this->assertSame('Kata sandi staf "Rina Kasir" diubah oleh admin (panel)', $log->description);
+        $this->assertSame('Password staff "Rina Kasir" diubah oleh admin (panel)', $log->description);
     }
 
     // ------------------------------------------------------------- konteks umum
@@ -252,11 +252,11 @@ class AccountSecurityLogTest extends TestCase
             ->assertCanSeeTableRecords([$record])
             ->assertTableColumnFormattedStateSet('log_name', 'Keamanan Akun', record: $record)
             ->assertTableColumnFormattedStateSet('event', 'Masuk', record: $record)
-            ->assertTableColumnStateSet('source', 'Aplikasi Staf', record: $record);
+            ->assertTableColumnStateSet('source', 'Aplikasi Staff', record: $record);
 
         Livewire::test(ViewActivity::class, ['record' => $log->getRouteKey()])
             ->assertSuccessful()
-            ->assertSee('Aplikasi Staf')
+            ->assertSee('Aplikasi Staff')
             ->assertSee('127.0.0.1')
             ->assertSee('GinnvaStaff/1.2');
     }

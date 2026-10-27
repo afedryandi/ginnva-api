@@ -55,8 +55,8 @@ class TechnicianServiceDurationServiceTest extends TestCase
     public function test_duration_accumulated_from_spk_checkin_checkout(): void
     {
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
-        $user = User::create(['name' => 'Teknisi A', 'email' => 'teknisi-a@test.local', 'password' => 'x', 'store_id' => $store->id]);
-        $technician = Technician::create(['store_id' => $store->id, 'user_id' => $user->id, 'name' => 'Teknisi A', 'status' => 'active']);
+        $user = User::create(['name' => 'Installer A', 'email' => 'teknisi-a@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $technician = Technician::create(['store_id' => $store->id, 'user_id' => $user->id, 'name' => 'Installer A', 'status' => 'active']);
 
         $today = Carbon::today();
         $booking = $this->makeBookingWithSpk($store, [
@@ -81,10 +81,10 @@ class TechnicianServiceDurationServiceTest extends TestCase
     public function test_team_job_credits_full_duration_to_each_installer(): void
     {
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
-        $userA = User::create(['name' => 'Teknisi A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
-        $userB = User::create(['name' => 'Teknisi B', 'email' => 'b@test.local', 'password' => 'x', 'store_id' => $store->id]);
-        $techA = Technician::create(['store_id' => $store->id, 'user_id' => $userA->id, 'name' => 'Teknisi A', 'status' => 'active']);
-        $techB = Technician::create(['store_id' => $store->id, 'user_id' => $userB->id, 'name' => 'Teknisi B', 'status' => 'active']);
+        $userA = User::create(['name' => 'Installer A', 'email' => 'a@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $userB = User::create(['name' => 'Installer B', 'email' => 'b@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $techA = Technician::create(['store_id' => $store->id, 'user_id' => $userA->id, 'name' => 'Installer A', 'status' => 'active']);
+        $techB = Technician::create(['store_id' => $store->id, 'user_id' => $userB->id, 'name' => 'Installer B', 'status' => 'active']);
 
         $today = Carbon::today();
         $booking = $this->makeBookingWithSpk($store, [
@@ -109,8 +109,8 @@ class TechnicianServiceDurationServiceTest extends TestCase
     public function test_spk_without_checkout_is_excluded(): void
     {
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
-        $user = User::create(['name' => 'Teknisi A', 'email' => 'teknisi-a@test.local', 'password' => 'x', 'store_id' => $store->id]);
-        $technician = Technician::create(['store_id' => $store->id, 'user_id' => $user->id, 'name' => 'Teknisi A', 'status' => 'active']);
+        $user = User::create(['name' => 'Installer A', 'email' => 'teknisi-a@test.local', 'password' => 'x', 'store_id' => $store->id]);
+        $technician = Technician::create(['store_id' => $store->id, 'user_id' => $user->id, 'name' => 'Installer A', 'status' => 'active']);
 
         $customer = Customer::create(['name' => 'Budi', 'phone_number' => '081200000099']);
         $booking = Booking::create([

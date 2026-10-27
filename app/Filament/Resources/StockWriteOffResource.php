@@ -223,7 +223,7 @@ class StockWriteOffResource extends Resource
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'stock_write_off', 'format' => $format])
-                ->log('Ekspor Stok Terbuang (' . $format . ')');
+                ->log('Export Stok Terbuang (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

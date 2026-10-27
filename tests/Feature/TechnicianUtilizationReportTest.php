@@ -136,7 +136,7 @@ class TechnicianUtilizationReportTest extends TestCase
         $this->assertSame(['Andi'], $this->names($page));
 
         $page->set('storeId', $this->otherStore->id);
-        $this->assertSame(['Andi'], $this->names($page), 'Filter cabang tidak berlaku untuk non full-access.');
+        $this->assertSame(['Andi'], $this->names($page), 'Filter toko tidak berlaku untuk non full-access.');
     }
 
     // ------------------------------------------------------------- urutan & tampilan
@@ -172,7 +172,7 @@ class TechnicianUtilizationReportTest extends TestCase
 
     public function test_the_empty_state_is_shown_when_no_technician_matches(): void
     {
-        $this->page($this->user('super_admin'))->assertSee('Belum ada teknisi aktif untuk cabang ini.');
+        $this->page($this->user('super_admin'))->assertSee('Belum ada installer aktif untuk toko ini.');
     }
 
     // ------------------------------------------------------------- ekspor
@@ -185,7 +185,7 @@ class TechnicianUtilizationReportTest extends TestCase
 
         $export = new TechnicianUtilizationExport(['from' => Carbon::parse('2026-09-07'), 'to' => Carbon::parse('2026-09-13'), 'rows' => $rows]);
 
-        $this->assertSame(['Teknisi', 'Cabang', 'Jam Hadir', 'Jam Job (Estimasi)', 'Jam Idle', 'Utilisasi (%)'], $export->headings());
+        $this->assertSame(['Installer', 'Toko', 'Jam Hadir', 'Jam Job (Estimasi)', 'Jam Idle', 'Utilisasi (%)'], $export->headings());
         $data = collect($export->array())->keyBy(0);
         $this->assertEquals(['Andi', 'Toko A', 9.0, 9.0, 0.0, 100.0], $data['Andi']);
         $this->assertSame('Belum ada akun', $data['Tanpa Akun'][2]);
@@ -233,6 +233,6 @@ class TechnicianUtilizationReportTest extends TestCase
 
         $this->page($this->user('super_admin'))->callAction('exportExcel');
 
-        $this->assertDatabaseHas('activity_log', ['log_name' => 'report_export', 'description' => 'Ekspor Utilisasi Teknisi (xlsx)']);
+        $this->assertDatabaseHas('activity_log', ['log_name' => 'report_export', 'description' => 'Export Utilisasi Installer (xlsx)']);
     }
 }

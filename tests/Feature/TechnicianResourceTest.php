@@ -66,7 +66,7 @@ class TechnicianResourceTest extends TestCase
     private function technician(array $overrides = []): Technician
     {
         return Technician::create(array_merge([
-            'store_id' => $this->store->id, 'name' => 'Teknisi ' . uniqid(), 'level' => 'intermediate', 'status' => 'active',
+            'store_id' => $this->store->id, 'name' => 'Installer ' . uniqid(), 'level' => 'intermediate', 'status' => 'active',
         ], $overrides));
     }
 
@@ -145,13 +145,13 @@ class TechnicianResourceTest extends TestCase
         $this->actingAs($this->user('store_manager'), 'web');
 
         Livewire::test(CreateTechnician::class)
-            ->fillForm(['name' => 'Calon Teknisi', 'level' => 'mentor'])
+            ->fillForm(['name' => 'Calon Installer', 'level' => 'mentor'])
             ->call('create')
             ->assertHasNoFormErrors();
 
-        $tech = Technician::where('name', 'Calon Teknisi')->firstOrFail();
+        $tech = Technician::where('name', 'Calon Installer')->firstOrFail();
         $this->assertSame($this->store->id, $tech->store_id);
-        $this->assertSame('pending_review', $tech->status, 'Staf toko tidak boleh langsung mengaktifkan teknisi.');
+        $this->assertSame('pending_review', $tech->status, 'Staff toko tidak boleh langsung mengaktifkan teknisi.');
     }
 
     public function test_store_manager_sees_only_own_store_technicians(): void
@@ -178,7 +178,7 @@ class TechnicianResourceTest extends TestCase
 
         $this->assertSame('active', $tech->fresh()->status);
         Http::assertSent(fn ($request) => str_contains($request->url(), 'exp.host')
-            && str_contains(json_encode($request->data()), 'Akun Teknisi Diaktifkan'));
+            && str_contains(json_encode($request->data()), 'Akun Installer Diaktifkan'));
     }
 
     public function test_admin_rejects_pending_technician_with_a_required_reason(): void
@@ -199,7 +199,7 @@ class TechnicianResourceTest extends TestCase
         $this->assertSame('inactive', $fresh->status);
         $this->assertStringContainsString('Catatan lama', $fresh->notes, 'Catatan lama tidak boleh hilang.');
         $this->assertStringContainsString('Ditolak: Sertifikat belum lengkap', $fresh->notes);
-        Http::assertSent(fn ($request) => str_contains(json_encode($request->data()), 'Pendaftaran Teknisi Ditolak'));
+        Http::assertSent(fn ($request) => str_contains(json_encode($request->data()), 'Pendaftaran Installer Ditolak'));
     }
 
     public function test_review_actions_are_hidden_for_non_admin_and_for_non_pending(): void
@@ -292,7 +292,7 @@ class TechnicianResourceTest extends TestCase
 
         $this->assertSame('mentor', $installers->firstWhere('id', $good->id)['level']);
         $withoutRow = $installers->firstWhere('id', $noTechnicianRow->id);
-        $this->assertNotNull($withoutRow, 'Installer tanpa baris teknisi tetap bisa dipilih.');
+        $this->assertNotNull($withoutRow, 'Installer tanpa baris installer tetap bisa dipilih.');
         $this->assertNull($withoutRow['level']);
         $this->assertNull($installers->firstWhere('id', $pending->id));
         $this->assertNull($installers->firstWhere('id', $inactive->id));

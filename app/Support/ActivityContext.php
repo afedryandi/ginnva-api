@@ -20,7 +20,7 @@ class ActivityContext
 {
     public const SOURCE_LABELS = [
         'panel' => 'Panel Admin',
-        'mobile_staf' => 'Aplikasi Staf',
+        'mobile_staf' => 'Aplikasi Staff',
         'mobile_pelanggan' => 'Aplikasi Pelanggan',
         'api' => 'API',
         'web' => 'Web',

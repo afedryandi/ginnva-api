@@ -169,7 +169,7 @@ class CashFlowReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'cash_flow', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->storeId()])
-                ->log('Ekspor Laporan Arus Kas (' . $format . ')');
+                ->log('Export Laporan Arus Kas (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

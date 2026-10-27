@@ -203,7 +203,7 @@ class MaterialMemoResource extends Resource
                             activity('report_export')
                                 ->causedBy($user)
                                 ->withProperties(['report' => 'material_memo', 'format' => 'xlsx', 'store_id' => $storeId])
-                                ->log('Ekspor Memo Pengambilan/Pengembalian (xlsx)');
+                                ->log('Export Memo Pengambilan/Pengembalian (xlsx)');
                         } catch (\Throwable $e) {
                             report($e);
                         }

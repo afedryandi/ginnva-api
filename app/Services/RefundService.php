@@ -97,7 +97,7 @@ class RefundService
             $cashAvailableCents = (int) round(($received - $alreadyRefunded) * 100);
 
             if ($cashCents > $cashAvailableCents) {
-                throw new RuntimeException('Nominal refund (Rp' . number_format($amount, 0, ',', '.') . ') melebihi uang yang sudah diterima dari customer dan piutang yang masih ada. Maksimal yang bisa di-refund sekarang Rp' . number_format(max(($cashAvailableCents + $outstandingCents) / 100, 0), 0, ',', '.') . '.');
+                throw new RuntimeException('Nominal refund (Rp' . number_format($amount, 0, ',', '.') . ') melebihi uang yang sudah diterima dari pelanggan dan piutang yang masih ada. Maksimal yang bisa di-refund sekarang Rp' . number_format(max(($cashAvailableCents + $outstandingCents) / 100, 0), 0, ',', '.') . '.');
             }
 
             $reduce = $reduceCents / 100;

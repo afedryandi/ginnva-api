@@ -164,8 +164,8 @@ class CustomerSatisfactionReport extends Page implements HasForms
             // Filter toko (audit 2026-09-30) -- full-access sebelumnya cuma bisa lihat
             // breakdown "Per Toko", tidak bisa mempersempit daftar ulasan ke 1 toko saja.
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
@@ -200,7 +200,7 @@ class CustomerSatisfactionReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'customer_satisfaction', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor Kepuasan Pelanggan (' . $format . ')');
+                ->log('Export Kepuasan Pelanggan (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

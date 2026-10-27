@@ -152,11 +152,11 @@ class DemoLengkapi extends Command
         $this->step('Stok Opname', fn () => $this->stockOpname());
         $this->step('Stok Terbuang', fn () => $this->writeOffs());
         $this->step('Izin Foto Pelanggan', fn () => $this->consents());
-        $this->step('Templat dan Kampanye Notifikasi', fn () => $this->notificationTemplatesAndCampaigns());
+        $this->step('Template dan Kampanye Notifikasi', fn () => $this->notificationTemplatesAndCampaigns());
         $this->step('Log Pengiriman', fn () => $this->deliveries());
         $this->step('Riwayat Notifikasi Partner', fn () => $this->partnerNotifications());
         $this->step('Perubahan Harga Terjadwal', fn () => $this->priceChanges());
-        $this->step('Riwayat Impor Produk', fn () => $this->importLogs());
+        $this->step('Riwayat Import Produk', fn () => $this->importLogs());
         $this->step('Catatan Panduan', fn () => $this->guideNotes());
         $this->step('Konten Marketing (marketing-group:demo)', fn () => $this->marketingContent());
 
@@ -605,7 +605,7 @@ class DemoLengkapi extends Command
             'campaign_key' => (string) Str::uuid(), 'message' => self::TAG . ' dibatalkan sebelum dikirim', 'created_by' => $this->admin?->id,
         ]);
 
-        $this->count('Templat Notifikasi', 3);
+        $this->count('Template Notifikasi', 3);
         $this->count('Kampanye Notifikasi', 3);
         $this->sentCampaignId = $sent->id;
     }
@@ -670,7 +670,7 @@ class DemoLengkapi extends Command
         ProductImportLog::create(['user_id' => $this->admin?->id, 'filename' => 'demo-harga-produk-oktober.xlsx', 'total_rows' => 58, 'updated_count' => 52, 'skipped_count' => 6, 'errors' => ['Baris 12: harga kosong', 'Baris 27: kode produk tidak dikenal', 'Baris 31: harga negatif']]);
         ProductImportLog::create(['user_id' => $this->admin?->id, 'filename' => 'demo-produk-baru.xlsx', 'total_rows' => 14, 'updated_count' => 14, 'skipped_count' => 0, 'errors' => []]);
 
-        $this->count('Riwayat Impor Produk', 2);
+        $this->count('Riwayat Import Produk', 2);
     }
 
     private function guideNotes(): void

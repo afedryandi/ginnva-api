@@ -150,7 +150,7 @@ class ExpiringStockReportTest extends TestCase
         $staff = $this->user('kasir', $store, ['menu_access' => ['ExpiringStockReport']]);
         $this->actingAs($staff, 'web');
         $this->assertTrue(ExpiringStockReport::canAccess());
-        $this->assertCount(4, $this->report([], $staff)['batches'], 'Stok nasional: staf toko melihat batch yang sama.');
+        $this->assertCount(4, $this->report([], $staff)['batches'], 'Stok nasional: staff toko melihat batch yang sama.');
 
         $this->actingAs($this->user('kasir', $store, ['menu_access' => ['BookingResource']]), 'web');
         $this->assertFalse(ExpiringStockReport::canAccess());

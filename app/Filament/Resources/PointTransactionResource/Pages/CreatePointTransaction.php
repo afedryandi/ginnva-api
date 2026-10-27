@@ -38,7 +38,7 @@ class CreatePointTransaction extends CreateRecord
             $customer = Customer::where('id', $data['customer_id'])->lockForUpdate()->first();
 
             if (! $customer) {
-                Notification::make()->title('Customer tidak ditemukan atau akunnya sudah dihapus.')->danger()->send();
+                Notification::make()->title('Pelanggan tidak ditemukan atau akunnya sudah dihapus.')->danger()->send();
 
                 $this->halt();
             }

@@ -379,16 +379,16 @@ class RawMaterialResourceTest extends TestCase
 
     public function test_export_rows_and_download_actions(): void
     {
-        $withBatch = $this->material('Ekspor A', 20, ['code' => 'EXP-A', 'category' => 'Adhesive', 'reorder_point' => 5, 'unit_cost' => 7.5]);
+        $withBatch = $this->material('Export A', 20, ['code' => 'EXP-A', 'category' => 'Adhesive', 'reorder_point' => 5, 'unit_cost' => 7.5]);
         RawMaterialBatch::create(['raw_material_id' => $withBatch->id, 'quantity' => 20, 'unit_cost' => 7.5, 'received_date' => '2026-09-01', 'expiry_date' => '2026-12-31']);
-        $bare = $this->material('Ekspor B', 3, ['code' => 'EXP-B', 'category' => null]);
+        $bare = $this->material('Export B', 3, ['code' => 'EXP-B', 'category' => null]);
 
         $export = new RawMaterialExport();
         $rows = $export->collection()->keyBy(0);
 
         $this->assertSame(['Kode', 'Nama Bahan', 'Kategori', 'Stok (Total)', 'Satuan', 'Ambang Menipis', 'Harga/Satuan', 'Kedaluwarsa Terdekat'], $export->headings());
-        $this->assertEquals(['EXP-A', 'Ekspor A', 'Adhesive', 20.0, 'ml', 5.0, 7.5, '2026-12-31'], $rows['EXP-A']);
-        $this->assertEquals(['EXP-B', 'Ekspor B', '-', 3.0, 'ml', '-', '-', '-'], $rows['EXP-B']);
+        $this->assertEquals(['EXP-A', 'Export A', 'Adhesive', 20.0, 'ml', 5.0, 7.5, '2026-12-31'], $rows['EXP-A']);
+        $this->assertEquals(['EXP-B', 'Export B', '-', 3.0, 'ml', '-', '-', '-'], $rows['EXP-B']);
 
         $this->as($this->user('kasir'));
         Excel::fake();

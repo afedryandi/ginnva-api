@@ -80,6 +80,6 @@ class SkillsRelationManager extends RelationManager
                 Tables\Actions\DeleteAction::make(),
             ])
             ->emptyStateHeading('Keterampilan belum dinilai')
-            ->emptyStateDescription('Tambah satu baris per layanan. Selama belum ada, teknisi ini tidak ikut diperiksa untuk peringatan penugasan.');
+            ->emptyStateDescription('Tambah satu baris per layanan. Selama belum ada, installer ini tidak ikut diperiksa untuk peringatan penugasan.');
     }
 }

@@ -32,7 +32,7 @@ trait HasRescheduleRequestActions
                 ->visible($allowed)
                 ->requiresConfirmation()
                 ->modalHeading('Setujui pembatalan booking?')
-                ->modalDescription(fn () => 'Alasan customer: ' . $this->record->pendingCancellationRequest?->reason . ' — booking akan dibatalkan dan DP (kalau ada) dikembalikan penuh.')
+                ->modalDescription(fn () => 'Alasan pelanggan: ' . $this->record->pendingCancellationRequest?->reason . ' — booking akan dibatalkan dan DP (kalau ada) dikembalikan penuh.')
                 ->action(function () {
                     try {
                         app(BookingCancellationService::class)->approve($this->record->pendingCancellationRequest, auth()->id(), null);
@@ -50,7 +50,7 @@ trait HasRescheduleRequestActions
                 ->visible($allowed)
                 ->form([
                     Forms\Components\Textarea::make('note')
-                        ->label('Alasan penolakan (dikirim ke customer)')
+                        ->label('Alasan penolakan (dikirim ke pelanggan)')
                         ->required()
                         ->maxLength(500),
                 ])
@@ -76,7 +76,7 @@ trait HasRescheduleRequestActions
                 ->visible(fn () => $this->record->pendingRescheduleRequest !== null && BookingResource::canEdit($this->record))
                 ->requiresConfirmation()
                 ->modalDescription(fn () => $this->record->pendingRescheduleRequest?->reason
-                    ? 'Alasan customer: ' . $this->record->pendingRescheduleRequest->reason
+                    ? 'Alasan pelanggan: ' . $this->record->pendingRescheduleRequest->reason
                     : null)
                 ->action(function () {
                     try {
@@ -95,7 +95,7 @@ trait HasRescheduleRequestActions
                 ->visible(fn () => $this->record->pendingRescheduleRequest !== null && BookingResource::canEdit($this->record))
                 ->form([
                     Forms\Components\Textarea::make('note')
-                        ->label('Alasan penolakan (dikirim ke customer)')
+                        ->label('Alasan penolakan (dikirim ke pelanggan)')
                         ->required()
                         ->maxLength(500),
                 ])

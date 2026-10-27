@@ -276,7 +276,7 @@ class BookingMessageController extends Controller
         return [
             'id'          => $m->id,
             'sender_type' => $m->sender_type,
-            'sender_name' => $m->sender_type === 'admin' ? ($m->senderUser?->chatDisplayLabel() ?? 'Tim Ginnva') : 'Customer',
+            'sender_name' => $m->sender_type === 'admin' ? ($m->senderUser?->chatDisplayLabel() ?? 'Tim Ginnva') : 'Pelanggan',
             'type'        => $m->type,
             'body'        => $m->body,
             'stage'       => $m->stage,

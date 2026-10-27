@@ -164,7 +164,7 @@ class StockOpnameResourceTest extends TestCase
             ->assertNotified('Sesi Stok Opname dicatat, stok disesuaikan.');
 
         $opname = StockOpname::withoutGlobalScopes()->with('items')->firstOrFail();
-        $this->assertSame($this->storeA->id, $opname->store_id, 'Staf tidak bisa membuat sesi untuk toko lain.');
+        $this->assertSame($this->storeA->id, $opname->store_id, 'Staff tidak bisa membuat sesi untuk toko lain.');
         $this->assertSame($staff->id, $opname->created_by);
         $this->assertSame('OPN-20261008-0001', $opname->opname_number);
         $this->assertSame('Opname bulanan', $opname->notes);
@@ -221,7 +221,7 @@ class StockOpnameResourceTest extends TestCase
             ->assertNotified('Sesi Stok Opname dicatat, stok disesuaikan.');
 
         $numbers = StockOpname::withoutGlobalScopes()->orderBy('id')->pluck('opname_number')->all();
-        $this->assertSame(['OPN-20261008-0001', 'OPN-20261008-0002'], $numbers, 'Staf toko B tidak menghasilkan nomor yang sama dengan toko A.');
+        $this->assertSame(['OPN-20261008-0001', 'OPN-20261008-0002'], $numbers, 'Staff toko B tidak menghasilkan nomor yang sama dengan toko A.');
     }
 
     public function test_an_item_with_no_discrepancy_is_recorded_without_a_movement(): void

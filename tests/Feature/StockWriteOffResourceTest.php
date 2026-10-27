@@ -181,7 +181,7 @@ class StockWriteOffResourceTest extends TestCase
         $this->assertSame('WO-20261008-0003', StockWriteOff::generateNumber(), 'Tidak menabrak 0002 yang masih ada.');
 
         $this->as($this->user('kasir', $this->storeB));
-        $this->assertSame('WO-20261008-0003', StockWriteOff::generateNumber(), 'Staf toko lain tetap melihat nomor lintas toko.');
+        $this->assertSame('WO-20261008-0003', StockWriteOff::generateNumber(), 'Staff toko lain tetap melihat nomor lintas toko.');
     }
 
     // ------------------------------------------------------------- pencatatan lewat aksi

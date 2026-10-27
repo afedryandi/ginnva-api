@@ -162,7 +162,7 @@ class BalanceSheetReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'balance_sheet', 'format' => $format, 'as_of' => $this->data['as_of'] ?? null, 'store_id' => $this->storeId()])
-                ->log('Ekspor Neraca (' . $format . ')');
+                ->log('Export Neraca (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

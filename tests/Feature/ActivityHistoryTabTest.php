@@ -24,7 +24,7 @@ class ActivityHistoryTabTest extends TestCase
 
     /** Resource utama yang diberi tab Riwayat. */
     private const RESOURCES = [
-        'Booking', 'Warranty', 'Customer', 'Invoice', 'Quotation', 'FilmProduct', 'Store', 'User', 'Spk', 'Partner', 'Vehicle',
+        'Booking', 'Warranty', 'Pelanggan', 'Invoice', 'Quotation', 'FilmProduct', 'Store', 'User', 'Spk', 'Partner', 'Vehicle',
         'Supplier', 'Payable', 'Receivable', 'FinanceTransaction', 'JournalEntry', 'Technician', 'Reward', 'Asset',
         'PurchaseRequest', 'StockOpname', 'PaymentAccount',
     ];

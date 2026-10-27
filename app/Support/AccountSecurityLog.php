@@ -47,7 +47,7 @@ class AccountSecurityLog
     {
         $event = str_contains($how, 'reset') ? 'password_reset' : 'password_changed';
 
-        self::record($event, $by ?? $account, $account, "Kata sandi staf \"{$account->name}\" {$how}", 'staff');
+        self::record($event, $by ?? $account, $account, "Password staff \"{$account->name}\" {$how}", 'staff');
     }
 
     public static function maskEmail(string $email): string
@@ -61,7 +61,7 @@ class AccountSecurityLog
 
     private static function name(Model $account): string
     {
-        return $account instanceof User ? "Staf \"{$account->name}\"" : "Pelanggan #{$account->getKey()}";
+        return $account instanceof User ? "Staff \"{$account->name}\"" : "Pelanggan #{$account->getKey()}";
     }
 
     private static function channelText(string $channel): string

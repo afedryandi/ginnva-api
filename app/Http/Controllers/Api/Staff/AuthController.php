@@ -202,7 +202,7 @@ class AuthController extends Controller
 
         $user->update(['password' => Hash::make($request->password)]);
 
-        \App\Support\AccountSecurityLog::passwordChanged($user, 'direset lewat lupa kata sandi (aplikasi)');
+        \App\Support\AccountSecurityLog::passwordChanged($user, 'direset lewat lupa password (aplikasi)');
 
         return response()->json([
             'success' => true,

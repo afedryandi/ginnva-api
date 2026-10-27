@@ -111,7 +111,7 @@ class CustomerSatisfactionReportTest extends TestCase
 
         $result = $this->report();
 
-        $this->assertSame([6, 3, 1, 2], [$result['total'], $result['positive'], $result['neutral'], $result['negative']], 'Ulasan 30 Sep tidak ikut.');
+        $this->assertSame([6, 3, 1, 2], [$result['total'], $result['positive'], $result['neutral'], $result['negative']], 'Review 30 Sep tidak ikut.');
         $this->assertEqualsWithDelta(50.0, $result['positiveRate'], 0.001);
         $this->assertSame(1, $result['unfollowedNegativeCount']);
     }
@@ -120,7 +120,7 @@ class CustomerSatisfactionReportTest extends TestCase
     {
         $this->october();
 
-        $this->assertSame(6, $this->report(['from' => '2026-10-01 10:00:00', 'to' => '2026-10-31'])['total'], 'Ulasan 08:00 di hari pertama ikut walau "Dari" berjam 10:00.');
+        $this->assertSame(6, $this->report(['from' => '2026-10-01 10:00:00', 'to' => '2026-10-31'])['total'], 'Review 08:00 di hari pertama ikut walau "Dari" berjam 10:00.');
     }
 
     public function test_tag_counts_are_ranked_with_a_stable_tie_order(): void
@@ -164,7 +164,7 @@ class CustomerSatisfactionReportTest extends TestCase
         $this->assertCount(107, $result['reviews']);
         $this->assertCount(100, $result['displayReviews']);
         $this->assertTrue($result['displayReviewsTruncated']);
-        $this->page()->assertSee('Menampilkan 100 ulasan terbaru dari 107 total');
+        $this->page()->assertSee('Menampilkan 100 review terbaru dari 107 total');
     }
 
     public function test_admin_store_filter_and_staff_lock(): void
@@ -176,7 +176,7 @@ class CustomerSatisfactionReportTest extends TestCase
 
         $staff = $this->user('kasir', $this->storeA);
         $own = $this->report(['store_id' => $this->storeB->id], $staff);
-        $this->assertSame(5, $own['total'], 'Staf tidak bisa melihat toko lain.');
+        $this->assertSame(5, $own['total'], 'Staff tidak bisa melihat toko lain.');
         $this->assertSame(['Toko A'], $own['byStore']->keys()->all());
     }
 
@@ -247,7 +247,7 @@ class CustomerSatisfactionReportTest extends TestCase
 
         $this->assertStringContainsString((string) $this->r1->id, $page->instance()->reviewUrl($this->r1->id));
 
-        $this->page(['from' => '2026-01-01', 'to' => '2026-01-31'])->assertSee('Belum ada ulasan pada rentang ini.')->assertSee('Belum ada tag pada rentang ini.');
+        $this->page(['from' => '2026-01-01', 'to' => '2026-01-31'])->assertSee('Belum ada review pada rentang ini.')->assertSee('Belum ada tag pada rentang ini.');
     }
 
     public function test_excel_has_summary_per_store_and_reviews_with_tag_labels(): void

@@ -108,7 +108,7 @@ class ListFilmProducts extends ListRecords
 
                     Notification::make()
                         ->title('Import selesai')
-                        ->body("{$log->updated_count} produk diperbarui, {$log->skipped_count} baris dilewati dari {$log->total_rows} baris. Lihat detail di menu \"Riwayat Impor Produk\".")
+                        ->body("{$log->updated_count} produk diperbarui, {$log->skipped_count} baris dilewati dari {$log->total_rows} baris. Lihat detail di menu \"Riwayat Import Produk\".")
                         ->success()
                         ->send();
                 })

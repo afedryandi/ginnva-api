@@ -354,7 +354,7 @@ class SalesDashboardTest extends TestCase
 
         $this->actingAs($this->user('kasir', $this->storeA), 'web');
         $staff = Livewire::withQueryParams(['periode' => 'bulanan', 'cabang' => (string) $this->storeB->id])->test(SalesDashboard::class);
-        $this->assertSame($this->storeA->id, $staff->instance()->effectiveStoreId(), 'Parameter cabang diabaikan.');
+        $this->assertSame($this->storeA->id, $staff->instance()->effectiveStoreId(), 'Parameter toko diabaikan.');
         $this->assertEquals(1500000.0, $staff->instance()->getResult()['current']['revenue']);
         $staff->set('storeId', $this->storeB->id);
         $this->assertEquals(1500000.0, $staff->instance()->getResult()['current']['revenue']);
@@ -400,10 +400,10 @@ class SalesDashboardTest extends TestCase
     public function test_technician_ranking_is_ordered_by_sales_and_scoped_to_the_stores_technicians(): void
     {
         [$a1, $a2, $b1] = $this->october();
-        $budi = $this->user('kasir', $this->storeA, ['name' => 'Budi Teknisi']);
-        $andi = $this->user('kasir', $this->storeB, ['name' => 'Andi Teknisi']);
-        Technician::create(['store_id' => $this->storeA->id, 'user_id' => $budi->id, 'name' => 'Budi Teknisi', 'status' => 'active']);
-        Technician::create(['store_id' => $this->storeB->id, 'user_id' => $andi->id, 'name' => 'Andi Teknisi', 'status' => 'active']);
+        $budi = $this->user('kasir', $this->storeA, ['name' => 'Budi Installer']);
+        $andi = $this->user('kasir', $this->storeB, ['name' => 'Andi Installer']);
+        Technician::create(['store_id' => $this->storeA->id, 'user_id' => $budi->id, 'name' => 'Budi Installer', 'status' => 'active']);
+        Technician::create(['store_id' => $this->storeB->id, 'user_id' => $andi->id, 'name' => 'Andi Installer', 'status' => 'active']);
         $a1->installers()->attach($budi->id);
         $a2->installers()->attach($budi->id);
         $b1->installers()->attach($andi->id);
@@ -413,13 +413,13 @@ class SalesDashboardTest extends TestCase
         $page = Livewire::test(SalesDashboard::class)->call('setPeriod', 'bulanan');
 
         $all = $page->instance()->getTechnicianRanking();
-        $this->assertSame(['Budi Teknisi', 'Andi Teknisi'], array_column($all, 'name'));
+        $this->assertSame(['Budi Installer', 'Andi Installer'], array_column($all, 'name'));
         $this->assertSame([2, 2], array_column($all, 'jobCount'));
         $this->assertSame([1500000.0, 1300000.0], array_column($all, 'salesTotal'));
 
         $page->set('storeId', $this->storeB->id);
-        $this->assertSame(['Andi Teknisi'], array_column($page->instance()->getTechnicianRanking(), 'name'), 'Filter cabang membatasi teknisinya.');
-        $page->assertSee('Ranking Teknisi')->assertSee('Andi Teknisi');
+        $this->assertSame(['Andi Installer'], array_column($page->instance()->getTechnicianRanking(), 'name'), 'Filter toko membatasi teknisinya.');
+        $page->assertSee('Ranking Installer')->assertSee('Andi Installer');
     }
 
     public function test_the_ranking_is_empty_without_technicians_or_sales_in_the_period(): void
@@ -431,7 +431,7 @@ class SalesDashboardTest extends TestCase
         $user = $this->user('kasir', $this->storeA);
         Technician::create(['store_id' => $this->storeA->id, 'user_id' => $user->id, 'name' => 'Tanpa Job', 'status' => 'active']);
         $this->assertSame([], $page->instance()->getTechnicianRanking());
-        $page->assertDontSee('Ranking Teknisi');
+        $page->assertDontSee('Ranking Installer');
     }
 
     public function test_the_page_renders_for_store_staff_with_the_charts(): void

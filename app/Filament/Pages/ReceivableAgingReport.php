@@ -115,7 +115,7 @@ class ReceivableAgingReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'receivable_aging', 'format' => $format, 'store_id' => $this->storeId()])
-                ->log('Ekspor Umur Piutang (' . $format . ')');
+                ->log('Export Umur Piutang (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

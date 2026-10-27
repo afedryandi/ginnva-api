@@ -190,7 +190,7 @@ class ClaimMaterialsTest extends TestCase
         $otherStore = Store::create(['city' => 'Bandung', 'address' => 'Jl. B', 'name' => 'Toko B', 'is_active' => true]);
         $booking = $this->visitBooking($this->claim($this->warranty()), $otherStore);
 
-        $staff = User::create(['name' => 'Staf Toko A', 'email' => uniqid() . '@test.local', 'password' => 'x', 'is_active' => true, 'store_id' => $this->store->id]);
+        $staff = User::create(['name' => 'Staff Toko A', 'email' => uniqid() . '@test.local', 'password' => 'x', 'is_active' => true, 'store_id' => $this->store->id]);
         $staff->assignRole('kasir');
         $this->actingAs($staff, 'web');
 

@@ -24,8 +24,8 @@ class TechnicianUtilizationExport implements FromArray, WithHeadings, WithStyles
     public function headings(): array
     {
         return [
-            'Teknisi',
-            'Cabang',
+            'Installer',
+            'Toko',
             'Jam Hadir',
             'Jam Job (Estimasi)',
             'Jam Idle',

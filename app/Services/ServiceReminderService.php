@@ -69,7 +69,7 @@ class ServiceReminderService
         $phone = $booking->customer?->phone_number ?? $booking->phone_number;
         if ($phone) {
             $results['whatsapp'] = $this->whatsapp->sendTemplate($phone, [
-                $booking->customer?->name ?? $booking->customer_name ?? 'Customer',
+                $booking->customer?->name ?? $booking->customer_name ?? 'Pelanggan',
                 $booking->service_type,
                 $booking->booking_number,
             ]);

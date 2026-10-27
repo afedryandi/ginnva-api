@@ -170,8 +170,8 @@ class JobDurationReport extends Page implements HasForms
             // GAP DIPERBAIKI 2026-09-29: full-access SEBELUMNYA wajib pilih 1 cabang (tidak ada
             // opsi lihat company-wide) -- sekarang opsional, sama pola dengan laporan lain.
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
@@ -207,7 +207,7 @@ class JobDurationReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'job_duration', 'format' => $format, 'from' => $this->from, 'to' => $this->to, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor Laporan Proses Order (' . $format . ')');
+                ->log('Export Laporan Proses Order (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

@@ -360,15 +360,15 @@ class InventoryItemResourceTest extends TestCase
     public function test_export_rows_and_download_actions(): void
     {
         $roll = $this->roll('GLN-EXP', $this->storeA, 'allocated', 15, 6.5);
-        $withRoll = $this->item('Ekspor Dengan Roll', 'PPF', 'in_stock', $roll);
-        $plain = $this->item('Ekspor Tanpa Roll', 'Window Film', 'out');
+        $withRoll = $this->item('Export Dengan Roll', 'PPF', 'in_stock', $roll);
+        $plain = $this->item('Export Tanpa Roll', 'Window Film', 'out');
 
         $export = new InventoryItemExport();
         $rows = $export->collection()->keyBy(0);
 
         $this->assertSame(['Kode', 'Nama Produk', 'Kategori', 'Kode Gulungan', 'Sisa Panjang', 'Total Panjang', 'Tanggal Masuk', 'Status'], $export->headings());
-        $this->assertEquals([$withRoll->code, 'Ekspor Dengan Roll', 'PPF', 'GLN-EXP', 6.5, 15.0, '2026-10-01', 'Ada Stok'], $rows[$withRoll->code]);
-        $this->assertEquals([$plain->code, 'Ekspor Tanpa Roll', 'Window Film', '-', '-', '-', '2026-10-01', 'Sudah Keluar'], $rows[$plain->code]);
+        $this->assertEquals([$withRoll->code, 'Export Dengan Roll', 'PPF', 'GLN-EXP', 6.5, 15.0, '2026-10-01', 'Ada Stok'], $rows[$withRoll->code]);
+        $this->assertEquals([$plain->code, 'Export Tanpa Roll', 'Window Film', '-', '-', '-', '2026-10-01', 'Sudah Keluar'], $rows[$plain->code]);
 
         $this->as($this->user('super_admin'));
         Excel::fake();

@@ -87,7 +87,7 @@ class ActivityAccessExportTest extends TestCase
     {
         $options = (new ReflectionMethod(UserResource::class, 'menuAccessOptions'))->invoke(null);
 
-        $this->assertSame('Histori Aktivitas', $options['Sistem']['ActivityResource']);
+        $this->assertSame('Riwayat Aktivitas', $options['Sistem']['ActivityResource']);
     }
 
     public function test_a_delegated_staff_member_can_open_the_page(): void
@@ -236,11 +236,11 @@ class ActivityAccessExportTest extends TestCase
 
         $this->assertSame('2026-11-02 07:30:00', $mapped[0]);
         $this->assertSame("'=HYPERLINK(\"http://jahat.test\")", $mapped[1], 'Nama berawalan = tidak boleh jadi rumus.');
-        $this->assertSame('Staf', $mapped[2]);
+        $this->assertSame('Staff', $mapped[2]);
         $this->assertSame('Keamanan Akun', $mapped[3]);
         $this->assertSame('Gagal Masuk', $mapped[4]);
         $this->assertSame("'+Percobaan masuk", $mapped[6]);
-        $this->assertSame(['Aplikasi Staf', '10.0.0.5', 'GinnvaStaff/1.2'], [$mapped[7], $mapped[8], $mapped[9]]);
+        $this->assertSame(['Aplikasi Staff', '10.0.0.5', 'GinnvaStaff/1.2'], [$mapped[7], $mapped[8], $mapped[9]]);
         $this->assertSame('Aktif: ya', $mapped[10]);
         $this->assertSame('Aktif: tidak', $mapped[11]);
         $this->assertSame('plain', ActivityLogExport::safe('plain'));

@@ -164,7 +164,7 @@ class ReceivableResource extends Resource
                     })
                     ->formatStateUsing(fn (string $state) => self::STATUS_LABELS[$state] ?? $state),
                 Infolists\Components\TextEntry::make('source')->label('Sumber')->state(fn (Receivable $r) => self::sourceLabel($r->source_type)),
-                Infolists\Components\TextEntry::make('customer_name')->label('Customer'),
+                Infolists\Components\TextEntry::make('customer_name')->label('Pelanggan'),
                 Infolists\Components\TextEntry::make('store.name')->label('Toko')->placeholder('Company-wide'),
                 Infolists\Components\TextEntry::make('due_date')->label('Jatuh Tempo')->date('d M Y')->placeholder('—'),
                 Infolists\Components\TextEntry::make('amount')->label('Total Piutang')->money('IDR', locale: 'id'),
@@ -213,7 +213,7 @@ class ReceivableResource extends Resource
                     ->weight('bold'),
 
                 Tables\Columns\TextColumn::make('customer_name')
-                    ->label('Customer')
+                    ->label('Pelanggan')
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('store.name')
@@ -302,7 +302,7 @@ class ReceivableResource extends Resource
                         ->when($data['until'] ?? null, fn (Builder $q, $d) => $q->whereDate('due_date', '<=', $d))),
 
                 Tables\Filters\SelectFilter::make('customer_id')
-                    ->label('Customer')
+                    ->label('Pelanggan')
                     ->options(fn () => Customer::whereIn('id', Receivable::withoutGlobalScopes()->whereNotNull('customer_id')->select('customer_id'))
                         ->orderBy('name')->pluck('name', 'id'))
                     ->searchable(),
@@ -332,7 +332,7 @@ class ReceivableResource extends Resource
                     ->visible(fn () => static::canCreate())
                     ->form([
                         Forms\Components\Select::make('customer_id')
-                            ->label('Customer Terdaftar (opsional)')
+                            ->label('Pelanggan Terdaftar (opsional)')
                             ->options(fn () => Customer::orderBy('name')->limit(200)->pluck('name', 'id'))
                             ->getSearchResultsUsing(fn (string $search) => Customer::where('name', 'like', "%{$search}%")->orWhere('phone_number', 'like', "%{$search}%")->limit(50)->pluck('name', 'id'))
                             ->searchable()
@@ -340,7 +340,7 @@ class ReceivableResource extends Resource
                             ->afterStateUpdated(fn ($state, Forms\Set $set) => $state ? $set('customer_name', Customer::whereKey($state)->value('name')) : null),
 
                         Forms\Components\TextInput::make('customer_name')
-                            ->label('Nama Customer')
+                            ->label('Nama Pelanggan')
                             ->required()
                             ->maxLength(255),
 

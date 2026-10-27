@@ -213,7 +213,7 @@ class SalesByOutletReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'sales_by_outlet', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor Penjualan Outlet (' . $format . ')');
+                ->log('Export Penjualan Outlet (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

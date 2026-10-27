@@ -158,7 +158,7 @@ class InvoiceResource extends Resource
                 ->columns(2)
                 ->schema([
                     Forms\Components\Select::make('customer_id')
-                        ->label('Akun Customer (opsional)')
+                        ->label('Akun Pelanggan (opsional)')
                         ->relationship('customer', 'name')
                         ->searchable()
                         ->live()

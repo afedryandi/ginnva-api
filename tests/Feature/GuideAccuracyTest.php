@@ -59,7 +59,7 @@ class GuideAccuracyTest extends TestCase
                 $this->assertArrayHasKey($menu, $classes, "Panduan {$guide['id']} merujuk menu {$menu} yang tidak ada di panel.");
                 $this->assertTrue(
                     $classes[$menu]::shouldRegisterNavigation(),
-                    "Panduan {$guide['id']} merujuk menu {$menu} yang disembunyikan (mis. lewat bendera fitur): staf tidak bisa menemukannya."
+                    "Panduan {$guide['id']} merujuk menu {$menu} yang disembunyikan (mis. lewat bendera fitur): staff tidak bisa menemukannya."
                 );
             }
         }
@@ -177,7 +177,7 @@ class GuideAccuracyTest extends TestCase
 
         foreach (['layanan-ppf', 'layanan-kaca-film', 'layanan-detailing', 'layanan-premium-wash'] as $id) {
             $this->assertContains($id, $ids);
-            $this->assertContains('BookingResource', $this->guide($id)['menus'], "Panduan {$id} harus terlihat oleh staf yang punya akses Booking.");
+            $this->assertContains('BookingResource', $this->guide($id)['menus'], "Panduan {$id} harus terlihat oleh staff yang punya akses Booking.");
         }
     }
 
@@ -352,7 +352,7 @@ class GuideAccuracyTest extends TestCase
 
         $activity = $this->text($this->guide('histori-aktivitas'));
         $this->assertStringContainsString('TIDAK otomatis melihatnya', $activity);
-        $this->assertStringContainsString((string) number_format(\App\Exports\ActivityLogExport::$maxRows, 0, ',', '.'), $activity, 'Batas baris ekspor harus sama dengan kode.');
+        $this->assertStringContainsString((string) number_format(\App\Exports\ActivityLogExport::$maxRows, 0, ',', '.'), $activity, 'Batas baris export harus sama dengan kode.');
     }
 
     public function test_the_finance_guides_exist_and_the_year_end_order_is_documented(): void

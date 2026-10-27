@@ -33,7 +33,7 @@ class RescheduleRequestsRelationManager extends RelationManager
             ->columns([
                 Tables\Columns\TextColumn::make('created_at')->label('Diajukan')->dateTime('d M Y H:i')->sortable(),
                 Tables\Columns\TextColumn::make('requested_date')->label('Tanggal Diminta')->date('d M Y'),
-                Tables\Columns\TextColumn::make('reason')->label('Alasan Customer')->placeholder('—')->wrap(),
+                Tables\Columns\TextColumn::make('reason')->label('Alasan Pelanggan')->placeholder('—')->wrap(),
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
                     ->formatStateUsing(fn (string $state) => match ($state) {

@@ -80,14 +80,14 @@ class BookingQcController extends Controller
                 ->keyBy('id');
 
             if ($items->isEmpty()) {
-                abort(422, 'Belum ada daftar periksa QC untuk layanan booking ini. Minta admin mengisinya di menu Daftar Periksa QC.');
+                abort(422, 'Belum ada checklist QC untuk layanan booking ini. Minta admin mengisinya di menu Checklist QC.');
             }
 
             $answers = collect($request->input('results'))->keyBy('item_id');
 
             $unknown = $answers->keys()->diff($items->keys());
             if ($unknown->isNotEmpty()) {
-                abort(422, 'Ada butir periksa yang tidak berlaku untuk booking ini. Muat ulang daftar periksa lalu coba lagi.');
+                abort(422, 'Ada butir periksa yang tidak berlaku untuk booking ini. Muat ulang checklist lalu coba lagi.');
             }
 
             $missing = $items->keys()->diff($answers->keys());

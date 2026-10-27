@@ -400,7 +400,7 @@ class AssetResource extends Resource
                 Tables\Actions\EditAction::make(),
 
                 Tables\Actions\Action::make('download_qr')
-                    ->label('Unduh QR')
+                    ->label('Download QR')
                     ->icon('heroicon-o-qr-code')
                     ->color('gray')
                     ->action(fn (Asset $record) => static::downloadQrPdf(new Collection([$record]))),
@@ -444,7 +444,7 @@ class AssetResource extends Resource
                         Forms\Components\Textarea::make('reason')
                             ->label('Alasan / Keterangan Serah Terima')
                             ->required()
-                            ->placeholder('Mis. rotasi tugas, pindah cabang, penggantian penanggung jawab'),
+                            ->placeholder('Mis. rotasi tugas, pindah toko, penggantian penanggung jawab'),
                     ])
                     ->action(function (Asset $record, array $data) {
                         $user = auth()->user();
@@ -549,7 +549,7 @@ class AssetResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\BulkAction::make('download_qr_bulk')
-                        ->label('Unduh QR (PDF Massal)')
+                        ->label('Download QR (PDF Massal)')
                         ->icon('heroicon-o-qr-code')
                         ->action(fn (Collection $records) => static::downloadQrPdf($records))
                         ->deselectRecordsAfterCompletion(),

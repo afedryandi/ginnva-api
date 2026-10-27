@@ -176,7 +176,7 @@ class StaffInventoryApiTest extends TestCase
             ->assertJsonPath('data.status', 'out');
 
         $movement = InventoryMovement::firstOrFail();
-        $this->assertSame($this->storeA->id, $movement->destination_store_id, 'Staf biasa: toko dari akunnya, kiriman store_id diabaikan.');
+        $this->assertSame($this->storeA->id, $movement->destination_store_id, 'Staff biasa: toko dari akunnya, kiriman store_id diabaikan.');
         $this->assertSame($user->id, $movement->user_id);
         $scroll = $scroll->fresh();
         $this->assertSame(['allocated', $this->storeA->id], [$scroll->status, $scroll->store_id]);

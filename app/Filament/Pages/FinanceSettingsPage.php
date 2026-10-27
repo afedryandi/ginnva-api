@@ -83,7 +83,7 @@ class FinanceSettingsPage extends Page implements HasForms
                 ]),
 
             Section::make('Persetujuan pengeluaran')
-                ->description('Alur sekarang: staf mengajukan, Store Manager menyetujui, lalu direksi menyetujui dan pengeluaran dicatat.')
+                ->description('Alur sekarang: staff mengajukan, Store Manager menyetujui, lalu direksi menyetujui dan pengeluaran dicatat.')
                 ->schema([
                     TextInput::make('expense_manager_limit')
                         ->label('Batas yang cukup disetujui Store Manager')

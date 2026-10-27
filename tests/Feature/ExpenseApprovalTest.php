@@ -259,7 +259,7 @@ class ExpenseApprovalTest extends TestCase
         $this->service->approveByManager($request, $this->manager());
 
         $this->expense->update(['is_active' => false]);
-        $this->assertRefused(fn () => $this->service->approveByDireksi($request->fresh(), $direksi), 'Kategori pada pengajuan ini sudah tidak aktif');
+        $this->assertRefused(fn () => $this->service->approveByDireksi($request->fresh(), $direksi), 'Kategori pada pengajuan ini sudah nonaktif');
         $this->expense->update(['is_active' => true]);
 
         $this->store->update(['is_active' => false]);

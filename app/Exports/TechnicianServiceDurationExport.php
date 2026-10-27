@@ -21,8 +21,8 @@ class TechnicianServiceDurationExport implements FromArray, WithHeadings, WithSt
     public function headings(): array
     {
         return [
-            'Teknisi',
-            'Cabang',
+            'Installer',
+            'Toko',
             'Jumlah Job',
             'Total Durasi (Jam)',
             'Rata-rata per Job (Menit)',

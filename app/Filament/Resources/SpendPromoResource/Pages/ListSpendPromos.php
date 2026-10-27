@@ -21,7 +21,7 @@ class ListSpendPromos extends ListRecords
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'spend_promo', 'format' => $format])
-                ->log('Ekspor Promo Total Pembelian (' . $format . ')');
+                ->log('Export Promo Total Pembelian (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }

@@ -318,7 +318,7 @@ class SalesResource extends Resource
                             activity('report_export')
                                 ->causedBy(auth()->user())
                                 ->withProperties(['report' => 'sales_detail', 'format' => 'xlsx'])
-                                ->log('Ekspor Detail Penjualan (xlsx)');
+                                ->log('Export Detail Penjualan (xlsx)');
                         } catch (\Throwable $e) {
                             report($e);
                         }
@@ -341,7 +341,7 @@ class SalesResource extends Resource
                             activity('report_export')
                                 ->causedBy(auth()->user())
                                 ->withProperties(['report' => 'sales_detail', 'format' => 'pdf'])
-                                ->log('Ekspor Detail Penjualan (pdf)');
+                                ->log('Export Detail Penjualan (pdf)');
                         } catch (\Throwable $e) {
                             report($e);
                         }

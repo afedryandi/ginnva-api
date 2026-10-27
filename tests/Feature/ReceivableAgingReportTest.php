@@ -249,7 +249,7 @@ class ReceivableAgingReportTest extends TestCase
 
         $export = new ReceivableAgingExport($aging, 'Semua Toko');
 
-        $this->assertSame(['Toko', 'Customer', 'Belum Jatuh Tempo', '1-30 Hari', '31-60 Hari', '61-90 Hari', '> 90 Hari', 'Total'], $export->headings());
+        $this->assertSame(['Toko', 'Pelanggan', 'Belum Jatuh Tempo', '1-30 Hari', '31-60 Hari', '61-90 Hari', '> 90 Hari', 'Total'], $export->headings());
         $rows = $export->array();
         $this->assertCount(3, $rows);
         $this->assertEquals(['Semua Toko', 'Ani', 0.0, 0.0, 0.0, 0.0, 300000.0, 300000.0], $rows[0]);

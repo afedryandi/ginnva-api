@@ -80,7 +80,7 @@ class LeaveTypesAndProfileTest extends TestCase
         LeaveType::ensureDefaults();
 
         $this->assertSame($count, LeaveType::count());
-        $this->assertSame(5, LeaveType::where('code', 'cuti_menikah')->value('max_days'), 'Perubahan staf tidak ditimpa.');
+        $this->assertSame(5, LeaveType::where('code', 'cuti_menikah')->value('max_days'), 'Perubahan staff tidak ditimpa.');
         $this->assertTrue(LeaveType::where('code', 'cuti_tahunan')->value('deducts_annual_quota'));
         $this->assertFalse(LeaveType::where('code', 'cuti_menikah')->value('deducts_annual_quota'));
     }

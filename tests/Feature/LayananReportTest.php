@@ -215,7 +215,7 @@ class LayananReportTest extends TestCase
 
         $staff = $this->user('kasir', $this->storeA);
         $result = $this->report(LayananReport::class, ['store_id' => $this->storeB->id], $staff);
-        $this->assertEquals(1500000.0, $result['grossRevenue'], 'Staf tidak bisa melihat toko lain.');
+        $this->assertEquals(1500000.0, $result['grossRevenue'], 'Staff tidak bisa melihat toko lain.');
         $this->assertSame(['Toko A'], array_keys($result['byStore']));
     }
 

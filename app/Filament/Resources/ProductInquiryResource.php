@@ -105,7 +105,7 @@ class ProductInquiryResource extends Resource
                         ->disabled(),
 
                     Forms\Components\TextInput::make('customer_name')
-                        ->label('Nama Customer')
+                        ->label('Nama Pelanggan')
                         ->required(fn (string $operation) => $operation === 'create')
                         ->maxLength(255)
                         ->disabled(fn (string $operation) => $operation === 'edit'),
@@ -164,7 +164,7 @@ class ProductInquiryResource extends Resource
                         ->required(fn (Forms\Get $get) => $get('outcome') === 'lost'),
 
                     Forms\Components\Textarea::make('message')
-                        ->label('Pertanyaan dari Customer')
+                        ->label('Pertanyaan dari Pelanggan')
                         ->maxLength(2000)
                         ->disabled(fn (string $operation) => $operation === 'edit')
                         ->columnSpanFull(),
@@ -201,7 +201,7 @@ class ProductInquiryResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('customer_name')
-                    ->label('Nama Customer')
+                    ->label('Nama Pelanggan')
                     ->searchable()
                     ->sortable(),
 

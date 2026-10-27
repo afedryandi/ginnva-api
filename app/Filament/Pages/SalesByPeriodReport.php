@@ -218,8 +218,8 @@ class SalesByPeriodReport extends Page implements HasForms
             // Filter cabang (audit 2026-09-29) -- cuma untuk full-access, sama pola dengan
             // SalesSummaryReport. Staff toko tidak lihat field ini sama sekali.
             Select::make('store_id')
-                ->label('Cabang')
-                ->placeholder('Semua cabang')
+                ->label('Toko')
+                ->placeholder('Semua toko')
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
@@ -266,7 +266,7 @@ class SalesByPeriodReport extends Page implements HasForms
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'sales_by_period', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'granularity' => $this->data['granularity'] ?? null, 'store_id' => $this->effectiveStoreId()])
-                ->log('Ekspor Penjualan Per Periode (' . $format . ')');
+                ->log('Export Penjualan Per Periode (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }
