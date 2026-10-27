@@ -571,6 +571,8 @@ class DemoLengkapi extends Command
             return;
         }
 
+        // Bersihkan sisa jalannya yang lalu dulu: pembuatan kategori Materi-nya gagal bila nama demo lama masih ada.
+        $this->call('marketing-group:demo', ['--cleanup' => true]);
         $this->call('marketing-group:demo');
         $this->count('Konten Marketing (marketing-group:demo)', 1);
     }
