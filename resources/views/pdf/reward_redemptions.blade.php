@@ -21,7 +21,7 @@
         };
         $typeLabel = fn (string $t) => match ($t) {
             'partner' => 'Partner',
-            'customer' => 'Customer',
+            'customer' => 'Pelanggan',
             default => $t,
         };
     @endphp

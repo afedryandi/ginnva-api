@@ -13,7 +13,7 @@
             <p class="text-xs text-gray-500 dark:text-gray-400">
                 Durasi diambil dari waktu kendaraan masuk-keluar bengkel (SPK) — data AKTUAL, bukan estimasi.
                 1 baris = 1 job (1 SPK). Untuk rekap akumulasi per teknisi (mis. persiapan komisi bertingkat),
-                lihat menu "Durasi Servis Teknisi" di cluster Karyawan.
+                lihat menu "Durasi Servis Installer" di cluster Karyawan.
             </p>
         </x-filament::section>
 

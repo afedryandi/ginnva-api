@@ -58,7 +58,7 @@
                     <table class="w-full text-sm">
                         @foreach ($r['cancelled_by'] as $who => $total)
                             <tr>
-                                <td class="py-1">{{ ['customer' => 'Pelanggan', 'staff' => 'Staf', 'system' => 'Sistem'][$who] ?? ucfirst($who) }}</td>
+                                <td class="py-1">{{ ['customer' => 'Pelanggan', 'staff' => 'Staff', 'system' => 'Sistem'][$who] ?? ucfirst($who) }}</td>
                                 <td class="py-1 text-right tabular-nums">{{ $total }}</td>
                             </tr>
                         @endforeach

@@ -143,7 +143,7 @@
                             <td class="py-2 pr-3 text-right tabular-nums">
                                 {{ $row['commission'] > 0 ? $rupiah($row['commission']) : '—' }}
                                 @if ($row['hasUnratedJob'])
-                                    <span title="Ada teknisi yang mengerjakan booking di periode ini tapi komisinya belum diatur — nominal di atas belum lengkap.">*</span>
+                                    <span title="Ada installer yang mengerjakan booking di periode ini tapi komisinya belum diatur — nominal di atas belum lengkap.">*</span>
                                 @endif
                             </td>
                             <td class="py-2 pr-3 text-right tabular-nums">

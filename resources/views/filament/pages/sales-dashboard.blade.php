@@ -348,7 +348,7 @@
             Lihat &amp; Export di Ringkasan Penjualan
         </a>
 
-        {{-- "Ranking Teknisi" (audit Majoo f1) — top 5 periode berjalan,
+        {{-- "Ranking Installer" (audit Majoo f1) — top 5 periode berjalan,
              diurutkan nilai penjualan tertinggi. Nilai "Penjualan" di sini
              adalah nilai transaksi booking yang ditugaskan (bukan
              komisinya) — sama definisi seperti Laporan Komisi Teknisi. --}}

@@ -49,7 +49,7 @@
                     @forelse ($result['rows'] as $row)
                         <tr class="border-b border-gray-100 dark:border-white/5">
                             <td class="py-2 pr-3 font-medium">
-                                <a href="{{ $this->technicianUrl($row['technician']->id) }}" class="hover:underline" title="Lihat detail teknisi ini">{{ $row['technician']->name }}</a>
+                                <a href="{{ $this->technicianUrl($row['technician']->id) }}" class="hover:underline" title="Lihat detail installer ini">{{ $row['technician']->name }}</a>
                             </td>
                             <td class="py-2 pr-3">{{ $row['technician']->store?->name ?? '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">{{ $row['jobCount'] }}</td>

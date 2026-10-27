@@ -86,7 +86,7 @@
                     @forelse ($aging['rows'] as $row)
                         <tr>
                             <td class="py-2 pe-4 font-medium">
-                                <a href="{{ $this->receivableUrl($row->customer_id, $row->customer) }}" class="hover:underline" title="Lihat piutang customer ini">{{ $row->customer }}</a>
+                                <a href="{{ $this->receivableUrl($row->customer_id, $row->customer) }}" class="hover:underline" title="Lihat piutang pelanggan ini">{{ $row->customer }}</a>
                             </td>
                             <td class="py-2 px-3 text-right tabular-nums">{{ $fmt($row->current_amt) }}</td>
                             <td class="py-2 px-3 text-right tabular-nums">{{ $fmt($row->b1) }}</td>

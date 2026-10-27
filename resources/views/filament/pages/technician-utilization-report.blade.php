@@ -46,7 +46,7 @@
                                     <td class="py-2 pr-4 text-gray-500 dark:text-gray-400">{{ $row['store_name'] ?? '—' }}</td>
                                     <td class="py-2 pr-4 text-right tabular-nums">
                                         @if (! $row['has_account'])
-                                            <span class="text-xs text-gray-400" title="Teknisi ini belum punya akun login, tidak ada data absensi">Belum ada akun</span>
+                                            <span class="text-xs text-gray-400" title="Installer ini belum punya akun login, tidak ada data absensi">Belum ada akun</span>
                                         @else
                                             {{ number_format($row['present_hours'], 1, ',', '.') }} jam
                                         @endif

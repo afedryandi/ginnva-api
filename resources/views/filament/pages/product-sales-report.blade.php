@@ -109,7 +109,7 @@
                             <td class="py-2 pr-3 text-right tabular-nums {{ $row['refundAmount'] > 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $row['refundAmount'] > 0 ? '(' . $rupiah($row['refundAmount']) . ')' : '—' }}</td>
                             <td class="py-2 pr-3 text-right tabular-nums">
                                 {{ $row['commission'] > 0 ? '(' . $rupiah($row['commission']) . ')' : '—' }}
-                                @if ($row['hasUnratedJob'])<span title="Ada teknisi di baris ini yang komisinya belum diatur — nominal belum lengkap.">*</span>@endif
+                                @if ($row['hasUnratedJob'])<span title="Ada installer di baris ini yang komisinya belum diatur — nominal belum lengkap.">*</span>@endif
                             </td>
                             <td class="py-2 pr-3 text-right tabular-nums">
                                 {{ $row['cogs'] > 0 ? '(' . $rupiah($row['cogs']) . ')' : '—' }}

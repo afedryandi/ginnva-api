@@ -23,7 +23,7 @@
     @foreach([
         ['icon' => '🛡️', 'text' => 'Cek status garansi produk Ginnva Anda'],
         ['icon' => '📋', 'text' => 'Lihat riwayat garansi dan booking'],
-        ['icon' => '📄', 'text' => 'Unduh sertifikat garansi digital (PDF)'],
+        ['icon' => '📄', 'text' => 'Download sertifikat garansi digital (PDF)'],
         ['icon' => '🔔', 'text' => 'Terima notifikasi layanan after-sales'],
     ] as $item)
     <tr>

@@ -11,7 +11,7 @@
     @endphp
 
     <div class="space-y-6">
-        <x-filament::section heading="Matriks keterampilan" description="Pemula = didampingi, Mandiri = boleh mengerjakan sendiri, Mahir = bisa melatih. Diisi di menu Teknisi > Keterampilan per Layanan.">
+        <x-filament::section heading="Matriks keterampilan" description="Pemula = didampingi, Mandiri = boleh mengerjakan sendiri, Mahir = bisa melatih. Diisi di menu Installer > Keterampilan per Layanan.">
             @if ($technicians->isEmpty())
                 <div class="text-sm text-gray-500 dark:text-gray-400">Belum ada teknisi di roster.</div>
             @else
