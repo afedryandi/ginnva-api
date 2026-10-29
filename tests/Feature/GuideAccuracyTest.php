@@ -251,6 +251,9 @@ class GuideAccuracyTest extends TestCase
 
     public function test_every_visible_menu_in_a_completed_cluster_has_a_guide(): void
     {
+        // Jadwal Kerja sengaja tidak punya panduan karena disembunyikan di server (bawaan mati); phpunit.xml menyalakannya untuk tes lain.
+        config(['features.work_schedules' => false]);
+
         $covered = collect(GuideCatalog::all())->pluck('menus')->flatten()->unique()->all();
         $missing = [];
 
