@@ -51,6 +51,29 @@ return Application::configure(basePath: dirname(__DIR__))
         // No-op otomatis kalau SENTRY_LARAVEL_DSN kosong di .env.
         Integration::handles($exceptions);
 
+        // Catat setiap penolakan akses (403) supaya "kadang muncul 403 tiba-tiba" bisa ditelusuri: Laravel tidak mencatatnya bawaan. Hanya
+        // alamat, rute, akun, dan asal permintaan (tanpa isi form atau token); tidak mengubah respons yang dikirim.
+        $exceptions->render(function (\Throwable $e, Request $request) {
+            $denied = $e instanceof \Illuminate\Auth\Access\AuthorizationException
+                || ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface && $e->getStatusCode() === 403);
+
+            if ($denied) {
+                \Illuminate\Support\Facades\Log::warning('Akses ditolak (403)', [
+                    'url' => $request->path(),
+                    'method' => $request->method(),
+                    'route' => $request->route()?->getName(),
+                    'user_id' => $request->user()?->getAuthIdentifier(),
+                    'livewire' => $request->hasHeader('X-Livewire'),
+                    'component' => $request->hasHeader('X-Livewire') ? (json_decode((string) $request->input('components.0.snapshot'), true)['memo']['name'] ?? null) : null,
+                    'referer' => $request->headers->get('referer'),
+                    'reason' => \Illuminate\Support\Str::limit($e->getMessage(), 160),
+                    'exception' => class_basename($e),
+                ]);
+            }
+
+            return null; // lanjutkan ke penanganan bawaan
+        });
+
         // PENTING: project ini API-only, tidak ada route bernama 'login'.
         // Tanpa override ini, middleware auth bawaan Laravel (dipakai oleh
         // 'auth:customer' dan guard JWT lainnya) akan mencoba REDIRECT ke
