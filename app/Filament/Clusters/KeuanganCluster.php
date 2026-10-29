@@ -19,6 +19,10 @@ class KeuanganCluster extends Cluster
      */
     public static function canAccess(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         return static::canAccessClusteredComponents();
     }
 }

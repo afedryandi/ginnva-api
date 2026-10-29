@@ -138,6 +138,7 @@ class StockWriteOffResource extends Resource
 
                 Tables\Columns\IconColumn::make('journal_entry_id')
                     ->label('Jurnal')
+                    ->visible(fn () => (bool) config('features.finance'))
                     ->boolean()
                     ->trueIcon('heroicon-o-check-circle')
                     ->falseIcon('heroicon-o-minus-circle')

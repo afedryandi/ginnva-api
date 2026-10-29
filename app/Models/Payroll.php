@@ -324,7 +324,7 @@ class Payroll extends Model
             if ($technician) {
                 $jobs = Booking::withoutGlobalScope(StoreScope::class)
                     ->whereHas('installers', fn ($q) => $q->where('users.id', $user->id))
-                    ->whereHas('journalEntry', fn ($q) => $q->withoutGlobalScope(StoreScope::class)->whereBetween('entry_date', [$periodStart->toDateString(), $periodEnd->toDateString()]))
+                    ->soldBetween($periodStart->toDateString(), $periodEnd->toDateString())
                     ->where('transaction_amount', '>', 0)
                     ->get(['id', 'transaction_amount', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash']);
 

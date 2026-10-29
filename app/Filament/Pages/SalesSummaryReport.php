@@ -365,7 +365,7 @@ class SalesSummaryReport extends Page implements HasForms
         // apa pun ke total ini (bukan error, memang belum "menyentuh"
         // fitur PPN sesuai keputusan "berlaku booking baru saja").
         $ppnAmount = (float) Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+            ->soldBetween($from->toDateString(), $to->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->sum('ppn_amount');

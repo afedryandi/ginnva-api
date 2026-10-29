@@ -267,11 +267,11 @@ class PeakProductTimeReport extends Page implements HasForms
         $storeId = $this->effectiveStoreId();
 
         $bookings = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+            ->soldBetween($from->toDateString(), $to->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['journalEntry:id,entry_date', 'filmProduct:id,sku,name', 'filmProducts.filmProduct:id,sku,name', 'refunds:id,booking_id,amount'])
-            ->get(['id', 'transaction_amount', 'journal_entry_id', 'film_product_id']);
+            ->get(['id', 'transaction_amount', 'journal_entry_id', 'sale_date', 'film_product_id']);
 
         $totalCount = $bookings->count();
         $totalRevenue = (float) $bookings->sum(fn (Booking $b) => $this->netSales($b));
@@ -299,7 +299,7 @@ class PeakProductTimeReport extends Page implements HasForms
         // dengan penjualan sungguhan.
         $groups = [];
         foreach ($bookings as $booking) {
-            $day = $booking->journalEntry?->entry_date?->dayOfWeek;
+            $day = $booking->sale_day?->dayOfWeek;
             if ($day === null) continue;
 
             $products = $productsOf($booking) ?: ['none' => null];

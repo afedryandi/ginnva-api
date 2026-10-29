@@ -53,4 +53,15 @@ return [
     */
     'pricelist_from_database' => (bool) env('FEATURE_PRICELIST_FROM_DATABASE', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Modul Keuangan buatan sendiri (keputusan 2026-10-29: pembukuan memakai Accurate 5)
+    |--------------------------------------------------------------------------
+    | Mati bawaan: klaster Keuangan (jurnal, kas, anggaran, hutang/piutang, laporan keuangan) tidak tampil di panel, endpoint
+    | /finance di aplikasi staf ditolak, jadwal otomatis keuangan tidak jalan, dan fitur lain (booking, refund, DP, penggajian,
+    | pembelian, stok terbuang, penyusutan) TIDAK membuat jurnal. Kode dan tabel tetap ada; data lama tidak dihapus.
+    | Untuk menyalakan lagi isi FEATURE_FINANCE=true di .env. Tes menyalakannya (phpunit.xml) supaya tes keuangan tetap berjalan.
+    */
+    'finance' => (bool) env('FEATURE_FINANCE', false),
+
 ];

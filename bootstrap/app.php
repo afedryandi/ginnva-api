@@ -42,6 +42,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'pricelist.auth' => \App\Http\Middleware\VerifyPricelistToken::class,
             // Idempotensi tindakan (header Idempotency-Key) -- lihat App\Http\Middleware\Idempotent.
             'idempotent' => \App\Http\Middleware\Idempotent::class,
+            // Tolak (404) bila saklar fitur mati, mis. ->middleware('feature:finance') -- lihat App\Http\Middleware\RequireFeature.
+            'feature' => \App\Http\Middleware\RequireFeature::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

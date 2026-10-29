@@ -18,7 +18,7 @@ use Illuminate\Support\Carbon;
  *
  * Definisi "pendapatan" identik dengan seluruh laporan Penjualan lain:
  * booking yang benar-benar sudah diproses ke Jurnal Umum
- * (whereHas('journalEntry') + transaction_amount > 0), dikurangi refund
+ * (sold() + transaction_amount > 0), dikurangi refund
  * yang diproses pada periode itu (by Refund.created_at) → "Penjualan
  * Bersih" di Laba-Rugi. Tidak ada angka yang ditebak / dipaksa jadi 0.
  */
@@ -86,7 +86,7 @@ class SalesSnapshotService
     public function summarize(Carbon $start, Carbon $end, ?int $storeId): array
     {
         $agg = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+            ->soldBetween($start->toDateString(), $end->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->selectRaw(
@@ -127,7 +127,7 @@ class SalesSnapshotService
     {
         return Booking::query()
             ->where('status', 'completed')
-            ->whereDoesntHave('journalEntry')
+            ->unsold()
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->count();
     }

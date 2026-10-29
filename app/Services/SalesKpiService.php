@@ -31,7 +31,7 @@ class SalesKpiService
     public function kpis(Carbon $start, Carbon $end, ?int $storeId): array
     {
         $bookings = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->withoutGlobalScopes()->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+            ->soldBetween($start->toDateString(), $end->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['saleLines', 'store:id,name'])
@@ -88,7 +88,7 @@ class SalesKpiService
         $returning = $customerIds->isEmpty() ? 0 : Booking::withoutGlobalScopes()
             ->whereIn('customer_id', $customerIds)
             ->where('transaction_amount', '>', 0)
-            ->whereHas('journalEntry', fn ($q) => $q->withoutGlobalScopes()->where('entry_date', '<', $start->toDateString()))
+            ->soldBefore($start->toDateString())
             ->distinct()->pluck('customer_id')->count();
 
         $totalDiscount = round($promo + $voucher + $other, 2);

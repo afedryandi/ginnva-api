@@ -61,11 +61,11 @@ Schedule::command('contracts:deactivate-expired')->dailyAt('07:10');
 // Ingatkan approver soal pengajuan pengeluaran yang menunggu > 2 hari —
 // lihat App\Console\Commands\RemindPendingExpenseApprovals (audit
 // Transaksi Keuangan 2026-09-28).
-Schedule::command('finance:remind-pending-approvals')->dailyAt('08:30');
+Schedule::command('finance:remind-pending-approvals')->dailyAt('08:30')->when(fn () => (bool) config('features.finance'));
 
 // Sinkronkan jurnal HPP booking selesai dengan pemakaian bahan terbaru (Keuangan Fase 2); tidak melakukan apa pun bila
 // FEATURE_INVENTORY_GL mati. Lihat App\Console\Commands\SyncBookingCogs.
-Schedule::command('cogs:sync')->dailyAt('05:00')->withoutOverlapping();
+Schedule::command('cogs:sync')->dailyAt('05:00')->withoutOverlapping()->when(fn () => (bool) config('features.finance'));
 
 // Ingatkan direksi soal pengajuan Referral/Refund/DP yang menunggu > 2 hari —
 // lihat App\Console\Commands\RemindPendingTransactionApprovals (audit
@@ -74,11 +74,11 @@ Schedule::command('transactions:remind-pending-approvals')->dailyAt('08:35');
 
 // Ingatkan direksi soal Hutang Usaha jatuh tempo (H-3 s/d terlewat) — lihat
 // App\Console\Commands\RemindPayableDue (audit Hutang Usaha 2026-09-29).
-Schedule::command('payables:remind-due')->dailyAt('08:40');
+Schedule::command('payables:remind-due')->dailyAt('08:40')->when(fn () => (bool) config('features.finance'));
 
 // Ingatkan direksi soal Piutang Usaha yang perlu ditagih (H-3 s/d terlewat) — lihat
 // App\Console\Commands\RemindReceivableDue (audit Piutang Usaha 2026-09-29).
-Schedule::command('receivables:remind-due')->dailyAt('08:45');
+Schedule::command('receivables:remind-due')->dailyAt('08:45')->when(fn () => (bool) config('features.finance'));
 
 // Tandai Alpha/Izin untuk hari KEMARIN yang belum punya baris Attendance
 // sama sekali — dijadwalkan dini hari supaya "kemarin" sudah pasti hari
@@ -100,7 +100,7 @@ Schedule::command('warranty:notify-expiring')->dailyAt('08:00');
 // Posting Beban Penyusutan Aset Tetap otomatis untuk BULAN LALU —
 // tanggal 1 supaya bulan yang disusutkan sudah selesai penuh. Lihat
 // App\Console\Commands\PostAssetDepreciation.
-Schedule::command('assets:post-depreciation')->monthlyOn(1, '02:00');
+Schedule::command('assets:post-depreciation')->monthlyOn(1, '02:00')->when(fn () => (bool) config('features.finance'));
 
 // Perubahan harga produk film yang tanggal efektifnya sudah tiba (audit ACCURATE 5, penyesuaian harga jual terjadwal).
 // Lihat App\Console\Commands\ApplyScheduledPriceChanges.
@@ -120,7 +120,7 @@ Schedule::command('idempotency:prune')->dailyAt('04:20');
 
 // Generate tagihan rutin (audit Majoo f48, "Template tagihan rutin")
 // -- lihat App\Console\Commands\GenerateRecurringBills.
-Schedule::command('billing:generate-recurring')->dailyAt('05:00')->withoutOverlapping();
+Schedule::command('billing:generate-recurring')->dailyAt('05:00')->withoutOverlapping()->when(fn () => (bool) config('features.finance'));
 
 // Hapus notifikasi lama (bell Filament + customer + partner) yang sudah
 // lewat 180 hari (audit Notifikasi 2026-10-01) -- lihat

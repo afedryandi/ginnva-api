@@ -235,12 +235,14 @@ class AssetResource extends Resource
                             ->get()
                             ->mapWithKeys(fn ($a) => [$a->id => $a->display_name]))
                         ->searchable()
+                        ->visible(fn () => (bool) config('features.finance'))
                         // Dua akun penyusutan harus diisi berpasangan -- satu saja tidak cukup untuk memposting jurnal.
                         ->required(fn (Forms\Get $get) => filled($get('accumulated_depreciation_account_id')))
                         ->helperText('Opsional — isi bersama "Akun Akumulasi Penyusutan" supaya aset ini ikut disusutkan otomatis tiap bulan.'),
 
                     Forms\Components\Select::make('accumulated_depreciation_account_id')
                         ->label('Akun Akumulasi Penyusutan')
+                        ->visible(fn () => (bool) config('features.finance'))
                         ->required(fn (Forms\Get $get) => filled($get('chart_of_account_id')))
                         ->options(fn () => \App\Models\ChartOfAccount::whereHas('parent', fn ($q) => $q->where('code', '1200'))
                             ->orderBy('code')
@@ -506,8 +508,8 @@ class AssetResource extends Resource
                             ->label('Diterima di Rekening')
                             ->options(fn () => \App\Models\PaymentAccount::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                             ->searchable()
-                            ->visible(fn (Forms\Get $get) => $get('type') === 'dijual' && (float) ($get('proceeds') ?? 0) > 0)
-                            ->required(fn (Forms\Get $get) => $get('type') === 'dijual' && (float) ($get('proceeds') ?? 0) > 0),
+                            ->visible(fn (Forms\Get $get) => config('features.finance') && $get('type') === 'dijual' && (float) ($get('proceeds') ?? 0) > 0)
+                            ->required(fn (Forms\Get $get) => config('features.finance') && $get('type') === 'dijual' && (float) ($get('proceeds') ?? 0) > 0),
                         Forms\Components\Textarea::make('notes')
                             ->label('Catatan')
                             ->rows(2)

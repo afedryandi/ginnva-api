@@ -289,7 +289,7 @@ class AuthController extends Controller
             'has_material_memo_access' => $user->hasMaterialMemoAccess(),
             'has_purchase_request_access' => $user->hasPurchaseRequestAccess(),
             // Keuangan di aplikasi (Keuangan Fase 5): catat pengeluaran/hitung kas bila punya menunya, setujui bila Store Manager atau akses penuh.
-            'has_finance_access' => $user->canAccessStaffArea() && (
+            'has_finance_access' => config('features.finance') && $user->canAccessStaffArea() && (
                 $user->hasMenuAccess(\App\Filament\Resources\FinanceTransactionResource::class)
                 || $user->hasMenuAccess(\App\Filament\Resources\CashCountResource::class)
                 || $user->isFullAccess()

@@ -53,6 +53,10 @@ class ClosePeriodPage extends Page implements HasActions, HasForms
 
     public static function canAccess(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         return auth()->user()?->isFullAccess() ?? false;
     }
 

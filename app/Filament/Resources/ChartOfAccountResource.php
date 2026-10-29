@@ -73,6 +73,10 @@ class ChartOfAccountResource extends Resource
     // supaya view saja tidak otomatis termasuk hak ubah struktur akun.
     public static function canViewAny(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return $user?->isFullAccess()

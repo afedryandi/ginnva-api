@@ -282,7 +282,7 @@ class LayananReport extends Page implements HasForms
 
         $query = Booking::query()
             ->with('store')
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+            ->soldBetween($from->toDateString(), $to->toDateString())
             ->where('transaction_amount', '>', 0)
             // store_id di bookings NOT NULL (migrasi create_bookings_table)
             // — orWhereNull() dulu di sini itu dead code, dibersihkan

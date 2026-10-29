@@ -190,7 +190,9 @@ class UserResource extends Resource
                 'BookingReworkResource' => 'Pekerjaan Ulang',
                 'HrDashboard' => 'Dasbor HR',
             ],
-            'Keuangan' => [
+            // Saklar FEATURE_FINANCE mati: menunya tidak tampil di panel, tapi kuncinya TETAP di daftar supaya menu_access user yang
+            // memuatnya tidak ikut terhapus saat disimpan (menu_access kosong = akses penuh).
+            (config('features.finance') ? 'Keuangan' : 'Keuangan (modul nonaktif)') => [
                 'FinanceCategoryResource' => 'Kategori Keuangan',
                 'FinanceTransactionResource' => 'Transaksi Keuangan',
                 'FinanceReport' => 'Laporan Keuangan',

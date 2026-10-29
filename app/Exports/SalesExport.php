@@ -27,7 +27,7 @@ class SalesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 
     public function query(): Builder
     {
-        return ($this->query ?? Booking::query()->whereHas('journalEntry'))
+        return ($this->query ?? Booking::query()->sold())
             ->with(['store', 'journalEntry', 'customer']);
     }
 
@@ -74,7 +74,7 @@ class SalesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
             $outstanding,
             $status,
             optional($booking->created_at)->format('Y-m-d H:i'),
-            optional($booking->journalEntry?->entry_date)->format('Y-m-d'),
+            optional($booking->sale_day)->format('Y-m-d'),
             $booking->journalEntry?->entry_number ?? '-',
         ];
     }

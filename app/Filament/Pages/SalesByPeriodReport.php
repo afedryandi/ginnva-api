@@ -30,7 +30,7 @@ use Maatwebsite\Excel\Facades\Excel;
  * sekaligus dalam rentang tanggal bebas.
  *
  * Sumber & logika pendapatan SAMA PERSIS dengan seluruh laporan
- * Penjualan lain (whereHas('journalEntry'), transaction_amount > 0,
+ * Penjualan lain (sold(), transaction_amount > 0,
  * amount_received NULL = lunas penuh) — satu sumber kebenaran.
  *
  * Scoping toko (audit 2026-09-11): staff toko dikunci ke store_id
@@ -346,11 +346,11 @@ class SalesByPeriodReport extends Page implements HasForms
         $storeId = $this->effectiveStoreId();
 
         $bookings = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+            ->soldBetween($from->toDateString(), $to->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['journalEntry:id,entry_date', 'installers:id'])
-            ->get(['id', 'transaction_amount', 'amount_received', 'journal_entry_id', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
+            ->get(['id', 'transaction_amount', 'amount_received', 'journal_entry_id', 'sale_date', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
 
         // Teknisi per user_id -- dipakai hitung kolom "Komisi" lewat
         // Technician::commissionForBooking() (audit Majoo f34: flat ATAU
@@ -392,7 +392,7 @@ class SalesByPeriodReport extends Page implements HasForms
         }
 
         foreach ($bookings as $booking) {
-            $entryDate = $booking->journalEntry?->entry_date;
+            $entryDate = $booking->sale_day;
             if (! $entryDate) continue;
 
             [$key] = static::periodKeyFor(Carbon::parse($entryDate), $granularity);

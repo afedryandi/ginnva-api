@@ -1285,7 +1285,7 @@ class BookingResource extends Resource
 
                 Tables\Filters\Filter::make('selesai_belum_diproses')
                     ->label('Selesai, belum diproses')
-                    ->query(fn (Builder $query) => $query->where('status', 'completed')->whereDoesntHave('journalEntry')),
+                    ->query(fn (Builder $query) => $query->where('status', 'completed')->unsold()),
             ])
             ->actions([
                 static::duplicateTableAction()->label('Duplikat (pelanggan datang lagi)'),
@@ -1511,6 +1511,7 @@ class BookingResource extends Resource
                                         ->orderBy('name')->get()
                                         ->filter(fn ($a) => $a->isUsable())
                                         ->pluck('name', 'id'))
+                                    ->visible(fn () => (bool) config('features.finance'))
                                     ->native(false),
                                 Forms\Components\TextInput::make('amount')->label('Nominal')->numeric()->minValue(1)->prefix('Rp')->live(onBlur: true)->required(),
                             ])
@@ -1670,7 +1671,7 @@ class BookingResource extends Resource
                     ->label('Proses Refund')
                     ->icon('heroicon-o-receipt-refund')
                     ->color('danger')
-                    ->visible(fn (Booking $record) => $record->journal_entry_id !== null
+                    ->visible(fn (Booking $record) => $record->isSaleProcessed()
                         && (float) $record->refunds()->sum('amount') < (float) $record->transaction_amount)
                     ->form(fn (Booking $record) => [
                         Forms\Components\Placeholder::make('sisa_refund')
@@ -1756,7 +1757,7 @@ class BookingResource extends Resource
                     ->icon('heroicon-o-calendar-days')
                     ->color('gray')
                     ->visible(fn (Booking $record) => $record->status === 'completed'
-                        && $record->journal_entry_id === null
+                        && ! $record->isSaleProcessed()
                         && (auth()->user()?->isFullAccess() ?? false))
                     ->form([
                         Forms\Components\DateTimePicker::make('completed_at')

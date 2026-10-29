@@ -212,6 +212,8 @@ class Booking extends Model
         'spend_promo_id',
         'spend_promo_discount',
         'journal_entry_id',
+        // Tanggal penjualan (tanggal nominal transaksi diproses); sumber laporan penjualan, tidak bergantung pada jurnal. Migrasi 2026_11_23_000001.
+        'sale_date',
         // Kendaraan (Fase 1 pengerjaan ulang booking, 2026-10-15): salinan data kendaraan saat booking dibuat.
         // `vehicle_size` (di atas) ikut diisi dari ukuran kendaraan. Lihat migrasi 2026_10_15_000002.
         'customer_vehicle_id',
@@ -243,6 +245,7 @@ class Booking extends Model
         'preferred_date' => 'date:Y-m-d',
         'cancelled_at' => 'datetime',
         'completed_at' => 'datetime',
+        'sale_date' => 'date',
         'ready_at' => 'datetime',
         'no_show_at' => 'datetime',
         'confirmed_at' => 'datetime',
@@ -1113,6 +1116,64 @@ class Booking extends Model
     public function journalEntry()
     {
         return $this->belongsTo(JournalEntry::class);
+    }
+
+    /**
+     * Booking yang penjualannya sudah diproses ("Proses Referral") dan jatuh pada rentang tanggal ini. Sumber laporan penjualan.
+     * Modul Keuangan menyala: tanggal jurnal pendapatannya (perilaku lama, termasuk koreksi tanggal di jurnal). Mati: sale_date di booking.
+     */
+    public function scopeSoldBetween($query, $from, $to)
+    {
+        $from = $from instanceof \DateTimeInterface ? $from->format('Y-m-d') : (string) $from;
+        $to = $to instanceof \DateTimeInterface ? $to->format('Y-m-d') : (string) $to;
+
+        if (config('features.finance')) {
+            return $query->whereHas('journalEntry', fn ($q) => $q->withoutGlobalScopes()->whereBetween('entry_date', [$from, $to]));
+        }
+
+        return $query->whereBetween('sale_date', [$from, $to]);
+    }
+
+    /** Sudah diproses penjualannya, tanpa batas tanggal. */
+    public function scopeSold($query)
+    {
+        return config('features.finance')
+            ? $query->whereHas('journalEntry', fn ($q) => $q->withoutGlobalScopes())
+            : $query->whereNotNull('sale_date');
+    }
+
+    /** Penjualan yang diproses SEBELUM tanggal ini (dipakai untuk membedakan pelanggan baru dan kembali). */
+    public function scopeSoldBefore($query, $date)
+    {
+        $date = $date instanceof \DateTimeInterface ? $date->format('Y-m-d') : (string) $date;
+
+        return config('features.finance')
+            ? $query->whereHas('journalEntry', fn ($q) => $q->withoutGlobalScopes()->where('entry_date', '<', $date))
+            : $query->where('sale_date', '<', $date);
+    }
+
+    /** Penjualan booking ini sudah diproses lewat "Proses Referral" (jurnal bila modul Keuangan menyala, selain itu tanggal penjualan). */
+    public function isSaleProcessed(): bool
+    {
+        return config('features.finance')
+            ? $this->journal_entry_id !== null
+            : $this->sale_date !== null;
+    }
+
+    /** Kebalikan sold(): penjualannya belum diproses. */
+    public function scopeUnsold($query)
+    {
+        return config('features.finance')
+            ? $query->whereDoesntHave('journalEntry')
+            : $query->whereNull('sale_date');
+    }
+
+    /** Tanggal penjualan: tanggal jurnal bila modul Keuangan menyala, selain itu sale_date. */
+    public function getSaleDayAttribute(): ?\Illuminate\Support\Carbon
+    {
+        return config('features.finance') && $this->journalEntry
+            ? $this->journalEntry->entry_date
+            : $this->sale_date;
     }
 
     /**

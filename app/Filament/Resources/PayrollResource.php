@@ -569,8 +569,11 @@ class PayrollResource extends Resource
                     'paid_at'  => now(),
                 ]);
 
-                $entry = app(PayrollPostingService::class)->post($locked->refresh());
-                $locked->update(['journal_entry_id' => $entry->id]);
+                // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): gaji cukup ditandai dibayar, tanpa jurnal.
+                if (config('features.finance')) {
+                    $entry = app(PayrollPostingService::class)->post($locked->refresh());
+                    $locked->update(['journal_entry_id' => $entry->id]);
+                }
 
                 $record = $locked;
             });

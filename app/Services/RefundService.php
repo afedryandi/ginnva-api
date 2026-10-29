@@ -63,8 +63,16 @@ class RefundService
         return DB::transaction(function () use ($booking, $amount, $reason, $userId) {
             $booking = Booking::query()->where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
-            if (! $booking->journal_entry_id) {
+            // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): booking tidak punya jurnal, jadi "sudah diproses" berarti nominal
+            // transaksinya sudah diisi lewat "Proses Referral".
+            $ledger = (bool) config('features.finance');
+
+            if ($ledger && ! $booking->journal_entry_id) {
                 throw new RuntimeException('Booking ini belum punya jurnal pendapatan (belum diproses lewat "Proses Referral") — tidak ada yang bisa di-refund.');
+            }
+
+            if (! $ledger && (float) ($booking->transaction_amount ?? 0) <= 0) {
+                throw new RuntimeException('Booking ini belum diproses lewat "Proses Referral" (nominal transaksi belum diisi) — tidak ada yang bisa di-refund.');
             }
 
             $alreadyRefunded = (float) $booking->refunds()->sum('amount');
@@ -72,6 +80,28 @@ class RefundService
 
             if ($amount > $remaining) {
                 throw new RuntimeException("Nominal refund (Rp" . number_format($amount, 0, ',', '.') . ") melebihi sisa yang bisa di-refund (Rp" . number_format($remaining, 0, ',', '.') . ').');
+            }
+
+            if (! $ledger) {
+                $received = $booking->amount_received !== null ? (float) $booking->amount_received : (float) $booking->transaction_amount;
+
+                if ($amount > round($received - $alreadyRefunded, 2)) {
+                    throw new RuntimeException('Nominal refund (Rp' . number_format($amount, 0, ',', '.') . ') melebihi uang yang sudah diterima dari pelanggan.');
+                }
+
+                $refund = Refund::create([
+                    'refund_number' => Refund::generateRefundNumber(),
+                    'booking_id' => $booking->id,
+                    'amount' => $amount,
+                    'receivable_reduced' => 0,
+                    'reason' => $reason,
+                    'journal_entry_id' => null,
+                    'created_by' => $userId,
+                ]);
+
+                $this->notifyCustomer($booking, $amount);
+
+                return $refund;
             }
 
             // Audit Piutang Usaha 2026-09-29: bagian booking yang masih Piutang Usaha belum pernah
@@ -195,20 +225,27 @@ class RefundService
             // (di luar transaction ini secara efektif tidak bisa -- jadi
             // dibungkus try/catch supaya kegagalan push tidak membatalkan
             // refund yang sudah sah).
-            if ($booking->customer_id) {
-                try {
-                    app(PushNotificationService::class)->sendToCustomer(
-                        $booking->customer_id,
-                        'Refund Diproses',
-                        "Refund Rp" . number_format($amount, 0, ',', '.') . " untuk booking #{$booking->booking_number} Anda sudah diproses.",
-                        ['type' => 'refund_processed', 'booking_id' => $booking->id, 'route' => "/booking/{$booking->id}/chat"]
-                    );
-                } catch (\Throwable $e) {
-                    report($e);
-                }
-            }
+            $this->notifyCustomer($booking, $amount);
 
             return $refund;
         });
+    }
+
+    private function notifyCustomer(Booking $booking, float $amount): void
+    {
+        if (! $booking->customer_id) {
+            return;
+        }
+
+        try {
+            app(PushNotificationService::class)->sendToCustomer(
+                $booking->customer_id,
+                'Refund Diproses',
+                "Refund Rp" . number_format($amount, 0, ',', '.') . " untuk booking #{$booking->booking_number} Anda sudah diproses.",
+                ['type' => 'refund_processed', 'booking_id' => $booking->id, 'route' => "/booking/{$booking->id}/chat"]
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }

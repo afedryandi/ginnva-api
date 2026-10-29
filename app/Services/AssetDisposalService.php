@@ -138,6 +138,11 @@ class AssetDisposalService
 
     private function canJournal(Asset $asset): bool
     {
+        // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): pelepasan aset hanya mengubah status, tanpa jurnal.
+        if (! config('features.finance')) {
+            return false;
+        }
+
         return $asset->purchase_cost !== null
             && (float) $asset->purchase_cost > 0
             && $asset->chart_of_account_id

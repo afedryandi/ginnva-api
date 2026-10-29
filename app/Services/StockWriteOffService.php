@@ -78,7 +78,8 @@ class StockWriteOffService
 
             $journalId = null;
 
-            if ($totalValue !== null) {
+            // Nilai tetap dicatat di baris Stok Terbuang; jurnalnya hanya dibuat bila modul Keuangan menyala (FEATURE_FINANCE).
+            if ($totalValue !== null && config('features.finance')) {
                 $lossAccount = ChartOfAccount::where('code', self::LOSS_ACCOUNT_CODE)->first();
                 $inventoryCode = $itemType === 'raw_material'
                     ? self::RAW_MATERIAL_INVENTORY_CODE

@@ -58,6 +58,12 @@ class BookingPostingService
      */
     public function sync(Booking $booking): ?JournalEntry
     {
+        // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): tidak ada jurnal dan piutang dibuat. Catatan operasional booking
+        // (nominal, pembayaran, alokasi DP) tetap dirapikan di sini.
+        if (! config('features.finance')) {
+            return $this->syncWithoutLedger($booking);
+        }
+
         // Audit framework 2026-09-14, "Integritas transaksi finansial"
         // -- SEBELUMNYA method ini sama sekali TIDAK dibungkus
         // DB::transaction(): balik jurnal lama, hapus piutang lama,
@@ -82,7 +88,7 @@ class BookingPostingService
             $booking->downPayments()->update(['applied_amount' => 0]);
 
             if ($amount <= 0) {
-                $booking->update(['journal_entry_id' => null]);
+                $booking->update(['journal_entry_id' => null, 'sale_date' => null]);
                 $this->syncCogs($booking);
 
                 return null;
@@ -100,7 +106,7 @@ class BookingPostingService
 
             $entry = $this->post($booking, $amount, $received, $outstanding, $dpApplied, $this->settlementCashLines($booking, round($received - $dpApplied, 2)));
             $this->allocateDownPayments($booking, $dpApplied);
-            $booking->update(['journal_entry_id' => $entry->id]);
+            $booking->update(['journal_entry_id' => $entry->id, 'sale_date' => $entry->entry_date->toDateString()]);
 
             if ($outstanding > 0) {
                 app(ReceivableService::class)->create([
@@ -122,6 +128,37 @@ class BookingPostingService
 
             return $entry;
         });
+    }
+
+    /**
+     * Versi tanpa buku besar: hanya alokasi DP yang masih bermakna operasional (supaya sisa DP yang bisa dikembalikan benar). Tidak menyentuh
+     * jurnal atau piutang, termasuk yang tersisa dari masa modul Keuangan menyala. Selalu mengembalikan null.
+     */
+    private function syncWithoutLedger(Booking $booking): ?JournalEntry
+    {
+        DB::transaction(function () use ($booking) {
+            $booking = Booking::query()->where('id', $booking->id)->lockForUpdate()->firstOrFail();
+            $booking->downPayments()->update(['applied_amount' => 0]);
+
+            $amount = (float) ($booking->transaction_amount ?? 0);
+
+            if ($amount <= 0) {
+                $booking->update(['sale_date' => null]);
+
+                return;
+            }
+
+            // Tanggal penjualan: tanggal selesai bila pengakuan pada tanggal selesai menyala dan tanggalnya sudah lewat, selain itu hari ini.
+            $saleDate = self::revenueOnCompletion() && $booking->completed_at && $booking->completed_at->lte(now())
+                ? $booking->completed_at->toDateString()
+                : today()->toDateString();
+            $booking->update(['sale_date' => $saleDate]);
+
+            $received = min((float) ($booking->amount_received ?? $amount), $amount);
+            $this->allocateDownPayments($booking, min(round((float) $booking->outstanding_down_payment, 2), $received));
+        });
+
+        return null;
     }
 
     /**

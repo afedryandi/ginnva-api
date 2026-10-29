@@ -39,6 +39,10 @@ class CashCountResource extends Resource
 
     public static function canViewAny(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return ($user?->isFullAccess() ?? false)

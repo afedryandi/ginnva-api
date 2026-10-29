@@ -42,7 +42,7 @@ class BookingSaleController extends Controller
             abort(422, 'Penjualan hanya bisa dicatat setelah booking ditandai selesai.');
         }
 
-        if ($booking->journal_entry_id !== null) {
+        if ($booking->isSaleProcessed()) {
             abort(422, 'Penjualan booking ini sudah dicatat. Koreksi dilakukan di panel admin oleh yang berwenang.');
         }
 
@@ -97,7 +97,8 @@ class BookingSaleController extends Controller
 
     private function payload(Booking $booking): array
     {
-        $accounts = PaymentAccount::query()
+        // Rekening kas/bank hanya ada bila modul Keuangan menyala (FEATURE_FINANCE).
+        $accounts = ! config('features.finance') ? collect() : PaymentAccount::query()
             ->with('chartAccount')
             ->where('is_active', true)
             ->where(fn ($q) => $q->whereNull('store_id')->orWhere('store_id', $booking->store_id))
@@ -115,8 +116,8 @@ class BookingSaleController extends Controller
                 'status' => $booking->status,
                 'completed_at' => $booking->completed_at?->toIso8601String(),
             ],
-            'processed' => $booking->journal_entry_id !== null,
-            'can_record' => $booking->status === 'completed' && $booking->journal_entry_id === null,
+            'processed' => $booking->isSaleProcessed(),
+            'can_record' => $booking->status === 'completed' && ! $booking->isSaleProcessed(),
             'transaction_amount' => $booking->transaction_amount !== null ? (float) $booking->transaction_amount : null,
             'amount_received' => $booking->amount_received !== null ? (float) $booking->amount_received : null,
             'lines_required' => BookingSaleLineService::isRequiredFor($booking),

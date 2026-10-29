@@ -52,6 +52,10 @@ class FinanceReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         // Non-full-access wajib punya toko: tanpa store_id filter toko dilewati dan data SEMUA

@@ -282,7 +282,7 @@ class TechnicianCommissionReport extends Page implements HasForms
                 // kalau ada booking tim (disengaja, bukan bug).
                 $jobs = Booking::query()
                     ->whereHas('installers', fn ($q) => $q->where('users.id', $technician->user_id))
-                    ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+                    ->soldBetween($from->toDateString(), $to->toDateString())
                     ->where('transaction_amount', '>', 0)
                     ->get(['id', 'transaction_amount', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash']);
 

@@ -124,7 +124,7 @@ class BookingRevenueStatsWidget extends BaseWidget
     private function revenueBetween(Carbon $start, Carbon $end, $user, bool $isSuperAdmin): float
     {
         $query = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+            ->soldBetween($start->toDateString(), $end->toDateString())
             ->where('transaction_amount', '>', 0);
 
         if (! $isSuperAdmin) {
@@ -142,7 +142,7 @@ class BookingRevenueStatsWidget extends BaseWidget
     private function countBetween(Carbon $start, Carbon $end, $user, bool $isSuperAdmin): int
     {
         $query = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+            ->soldBetween($start->toDateString(), $end->toDateString())
             ->where('transaction_amount', '>', 0);
 
         if (! $isSuperAdmin) {
@@ -169,7 +169,7 @@ class BookingRevenueStatsWidget extends BaseWidget
     private function receivedAndOutstandingBetween(Carbon $start, Carbon $end, $user, bool $isSuperAdmin): array
     {
         $query = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+            ->soldBetween($start->toDateString(), $end->toDateString())
             ->where('transaction_amount', '>', 0);
 
         if (! $isSuperAdmin) {

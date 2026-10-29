@@ -135,9 +135,13 @@ class BookingRevenueTrendChart extends ChartWidget
         // Agregasi & bucket per hari di SQL (GROUP BY DAY) — bukan tarik
         // semua booking lalu group di PHP. Join ke journal_entries setara
         // whereHas('journalEntry') karena bookings.journal_entry_id FK.
+        // Tanggal penjualan: tanggal jurnal bila modul Keuangan menyala, selain itu bookings.sale_date.
+        $finance = (bool) config('features.finance');
+        $dateColumn = $finance ? 'journal_entries.entry_date' : 'bookings.sale_date';
+
         $query = Booking::query()
-            ->join('journal_entries', 'journal_entries.id', '=', 'bookings.journal_entry_id')
-            ->whereBetween('journal_entries.entry_date', [$start->toDateString(), $end->toDateString()])
+            ->when($finance, fn ($q) => $q->join('journal_entries', 'journal_entries.id', '=', 'bookings.journal_entry_id'))
+            ->whereBetween($dateColumn, [$start->toDateString(), $end->toDateString()])
             ->where('bookings.transaction_amount', '>', 0);
 
         // Staff toko SELALU dikunci ke tokonya (tidak boleh dioverride
@@ -150,8 +154,8 @@ class BookingRevenueTrendChart extends ChartWidget
         }
 
         $rows = $query
-            ->groupByRaw('DAY(journal_entries.entry_date)')
-            ->selectRaw('DAY(journal_entries.entry_date) as d, COALESCE(SUM(bookings.transaction_amount), 0) as total')
+            ->groupByRaw("DAY({$dateColumn})")
+            ->selectRaw("DAY({$dateColumn}) as d, COALESCE(SUM(bookings.transaction_amount), 0) as total")
             ->toBase()
             ->get();
 

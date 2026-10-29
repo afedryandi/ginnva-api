@@ -46,7 +46,8 @@ class BookingSettlementPaymentService
                 throw new RuntimeException("Pembayaran {$n}: nominal harus lebih dari Rp 0.");
             }
 
-            $accountId = ! empty($row['payment_account_id']) ? (int) $row['payment_account_id'] : null;
+            // Rekening kas/bank adalah bagian modul Keuangan: tanpa itu (FEATURE_FINANCE mati) pembayaran cukup mencatat metode dan nominal.
+            $accountId = config('features.finance') && ! empty($row['payment_account_id']) ? (int) $row['payment_account_id'] : null;
 
             if ($accountId) {
                 $account = PaymentAccount::with('chartAccount')->find($accountId);

@@ -40,6 +40,11 @@ class CheckEmptyMenus extends Command
 
             $cluster = $resource::getCluster();
 
+            // Menu Keuangan tersembunyi bila FEATURE_FINANCE mati (pembukuan di Accurate 5): kosongnya bukan masalah.
+            if (! config('features.finance') && $cluster === \App\Filament\Clusters\KeuanganCluster::class) {
+                continue;
+            }
+
             $rows[] = [
                 'cluster' => $cluster ? preg_replace('/Cluster$/', '', class_basename($cluster)) : '-',
                 'group' => $resource::getNavigationGroup() ?: '-',

@@ -274,11 +274,11 @@ class PeakSalesTimeReport extends Page implements HasForms
         $storeId = $this->effectiveStoreId();
 
         $bookings = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+            ->soldBetween($from->toDateString(), $to->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['journalEntry:id,entry_date', 'refunds:id,booking_id,amount'])
-            ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash', 'customer_id']);
+            ->get(['id', 'transaction_amount', 'journal_entry_id', 'sale_date', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash', 'customer_id']);
 
         $days = [];
         foreach (range(0, 6) as $d) {
@@ -292,7 +292,7 @@ class PeakSalesTimeReport extends Page implements HasForms
         }
 
         foreach ($bookings as $booking) {
-            $day = $booking->journalEntry?->entry_date?->dayOfWeek;
+            $day = $booking->sale_day?->dayOfWeek;
             if ($day === null) continue;
 
             $days[$day]['revenue'] += $this->netSales($booking);

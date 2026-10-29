@@ -74,6 +74,10 @@ class RecurringBillTemplateResource extends Resource
 
     public static function canViewAny(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         return static::accessGate() || static::canViewOnly();
     }
 

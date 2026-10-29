@@ -272,7 +272,7 @@ class SalesByOutletReport extends Page implements HasForms
         // 1 query agregat GROUP BY store_id (audit 2026-09-11, temuan H)
         // -- gantikan loop N query per toko.
         $aggByStoreId = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+            ->soldBetween($from->toDateString(), $to->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->groupBy('store_id')

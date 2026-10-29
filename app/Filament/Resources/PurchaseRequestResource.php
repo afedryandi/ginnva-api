@@ -406,10 +406,12 @@ class PurchaseRequestResource extends Resource
                         Forms\Components\TextInput::make('actual_cost')
                             ->label('Total Biaya Aktual')
                             ->numeric()
-                            ->required()
+                            ->required(fn () => (bool) config('features.finance'))
                             ->minValue(0.01)
                             ->prefix('Rp')
-                            ->helperText('Dipakai untuk mencatat jurnal Persediaan/Aset otomatis (Kredit Hutang Usaha).'),
+                            ->helperText(fn () => config('features.finance')
+                                ? 'Dipakai untuk mencatat jurnal Persediaan/Aset otomatis (Kredit Hutang Usaha).'
+                                : 'Opsional. Hanya catatan; pembukuan dilakukan di Accurate.'),
 
                         Forms\Components\Select::make('supplier_id')
                             ->label('Supplier')
@@ -420,7 +422,7 @@ class PurchaseRequestResource extends Resource
                                 return $preferred?->is_active ? $preferred->id : null;
                             })
                             ->searchable()
-                            ->required()
+                            ->required(fn () => (bool) config('features.finance'))
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('name')->label('Nama Supplier')->required()->maxLength(255),
                             ])
@@ -429,12 +431,13 @@ class PurchaseRequestResource extends Resource
 
                         Forms\Components\DatePicker::make('due_date')
                             ->label('Jatuh Tempo (opsional)')
+                            ->visible(fn () => (bool) config('features.finance'))
                             ->native(false),
 
                         Forms\Components\Select::make('chart_of_account_id')
                             ->label('Akun Aset Tetap Tujuan')
-                            ->visible(fn (PurchaseRequest $record) => $record->item_type === 'asset')
-                            ->required(fn (PurchaseRequest $record) => $record->item_type === 'asset')
+                            ->visible(fn (PurchaseRequest $record) => config('features.finance') && $record->item_type === 'asset')
+                            ->required(fn (PurchaseRequest $record) => config('features.finance') && $record->item_type === 'asset')
                             ->options(fn () => ChartOfAccount::whereHas('parent', fn ($q) => $q->where('code', '1200'))
                                 ->orderBy('code')
                                 ->get()
@@ -456,14 +459,20 @@ class PurchaseRequestResource extends Resource
                                     throw new RuntimeException('Permohonan ini sudah diproses (status: ' . $locked->status . ').');
                                 }
 
-                                $supplier = \App\Models\Supplier::findOrFail($data['supplier_id']);
+                                $ledger = (bool) config('features.finance');
+                                $supplier = ! empty($data['supplier_id']) ? \App\Models\Supplier::findOrFail($data['supplier_id']) : null;
 
                                 $locked->update([
                                     'status'       => 'fulfilled',
                                     'fulfilled_at' => now(),
                                     'quantity_received' => $data['quantity_received'],
-                                    'actual_cost'  => $data['actual_cost'],
+                                    'actual_cost'  => $data['actual_cost'] ?? null,
                                 ]);
+
+                                // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): cukup tandai terpenuhi, tanpa jurnal dan tagihan.
+                                if (! $ledger) {
+                                    return;
+                                }
 
                                 $entry = app(PurchaseRequestPostingService::class)->post(
                                     $locked->refresh(),

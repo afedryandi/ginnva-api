@@ -135,11 +135,14 @@ class DemoLengkapi extends Command
 
         $this->step('Karyawan dan pelanggan demo', fn () => $this->people());
         $this->step('Booking demo', fn () => $this->demoBookings());
-        $this->step('Rekening Kas & Bank', fn () => $this->paymentAccounts());
-        $this->step('Anggaran', fn () => $this->budgets());
-        $this->step('Pemindahan Kas', fn () => $this->cashTransfers());
-        $this->step('Hitung Kas Harian', fn () => $this->cashCounts());
-        $this->step('Persetujuan Pengeluaran', fn () => $this->expenseApprovals());
+        // Menu Keuangan tersembunyi bila FEATURE_FINANCE mati (pembukuan di Accurate 5), jadi datanya tidak dibuat.
+        if (config('features.finance')) {
+            $this->step('Rekening Kas & Bank', fn () => $this->paymentAccounts());
+            $this->step('Anggaran', fn () => $this->budgets());
+            $this->step('Pemindahan Kas', fn () => $this->cashTransfers());
+            $this->step('Hitung Kas Harian', fn () => $this->cashCounts());
+            $this->step('Persetujuan Pengeluaran', fn () => $this->expenseApprovals());
+        }
         $this->step('Persetujuan Transaksi', fn () => $this->transactionApprovals());
         $this->step('Aturan Potongan Absensi', fn () => $this->deductionRule());
         $this->step('Struktur & Skala Upah', fn () => $this->salaryGrades());

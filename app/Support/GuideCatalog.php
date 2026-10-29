@@ -128,6 +128,11 @@ class GuideCatalog
      */
     public const APP_ONLY_GUIDE_IDS = ['absensi', 'istilah'];
 
+    /** Panduan yang hanya bermakna bila modul Keuangan menyala (FEATURE_FINANCE). 'approval' tidak termasuk: itu Persetujuan Transaksi (Booking). */
+    public const FINANCE_GUIDE_IDS = [
+        'transaksi-keuangan', 'kas-bank', 'jurnal-bagan-akun', 'hutang-piutang', 'tutup-periode', 'anggaran', 'laporan-keuangan', 'finance-harian',
+    ];
+
     /**
      * Panduan yang boleh dilihat user ini: akses penuh melihat semua, staf panel melihat panduan modul yang bisa diaksesnya, dan akun
      * tanpa akses panel hanya APP_ONLY_GUIDE_IDS. Dipakai halaman Panduan di panel dan API aplikasi staf supaya keduanya sama.
@@ -143,6 +148,11 @@ class GuideCatalog
         $canUsePanel = $user->canAccessStaffArea();
 
         $visible = array_values(array_filter(self::all(), function (array $guide) use ($user, $canUsePanel) {
+            // Modul Keuangan mati (FEATURE_FINANCE): panduannya tidak ditampilkan karena menunya tidak ada.
+            if (! config('features.finance') && in_array($guide['id'], self::FINANCE_GUIDE_IDS, true)) {
+                return false;
+            }
+
             if (isset($guide['audience'])) {
                 return $user->hasRole($guide['audience']) || $user->isFullAccess();
             }

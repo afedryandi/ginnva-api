@@ -88,6 +88,7 @@ class PayrollItemCategoryResource extends Resource
                         ->label('Akun Pembukuan')
                         ->options(fn () => ChartOfAccount::where('is_active', true)->where('is_postable', true)->orderBy('code')->get()->mapWithKeys(fn ($a) => [$a->id => "{$a->code} - {$a->name}"]))
                         ->searchable()
+                        ->visible(fn () => (bool) config('features.finance'))
                         ->required()
                         ->helperText('Tambahan: akun beban yang didebit. Potongan: akun yang dikredit (mis. Hutang BPJS, Hutang Pajak, Piutang Karyawan). Diatur akuntan.'),
 
@@ -114,6 +115,7 @@ class PayrollItemCategoryResource extends Resource
                     ->color(fn (string $state) => $state === PayrollItemCategory::EARNING ? 'success' : 'danger'),
                 Tables\Columns\TextColumn::make('account.code')
                     ->label('Akun')
+                    ->visible(fn () => (bool) config('features.finance'))
                     ->formatStateUsing(fn ($state, PayrollItemCategory $record) => $record->account ? "{$record->account->code} - {$record->account->name}" : '— belum diatur')
                     ->color(fn (PayrollItemCategory $record) => $record->account ? null : 'danger'),
                 Tables\Columns\IconColumn::make('is_recurring_default')->label('Disalin bulan depan')->boolean(),

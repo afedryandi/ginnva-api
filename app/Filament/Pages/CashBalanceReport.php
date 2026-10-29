@@ -32,6 +32,10 @@ class CashBalanceReport extends Page
 
     public static function canAccess(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return ($user?->isFullAccess() ?? false)

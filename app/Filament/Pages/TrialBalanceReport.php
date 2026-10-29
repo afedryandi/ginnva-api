@@ -51,6 +51,10 @@ class TrialBalanceReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return ($user?->isFullAccess() ?? false)

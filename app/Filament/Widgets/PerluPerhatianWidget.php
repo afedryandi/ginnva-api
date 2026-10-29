@@ -254,7 +254,7 @@ class PerluPerhatianWidget extends Widget
         $end = now()->endOfMonth()->toDateString();
 
         $query = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start, $end]))
+            ->soldBetween($start, $end)
             ->where('transaction_amount', '>', 0)
             ->where('status', '!=', 'cancelled')
             ->whereRaw('(transaction_amount - COALESCE(amount_received, transaction_amount)) > 0.009');

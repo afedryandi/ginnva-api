@@ -287,7 +287,7 @@ class ProductSalesReport extends Page implements HasForms
         $storeId = $this->effectiveStoreId();
 
         $bookings = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+            ->soldBetween($from->toDateString(), $to->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['filmProduct:id,sku,name,product_type', 'installers:id'])

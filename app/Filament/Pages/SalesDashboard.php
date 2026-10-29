@@ -316,9 +316,14 @@ class SalesDashboard extends Page
         // dgn kebijakan komisi tim (lihat project_installer_commission_policy).
         $aggregates = DB::table('booking_installers')
             ->join('bookings', 'bookings.id', '=', 'booking_installers.booking_id')
-            ->join('journal_entries', 'journal_entries.id', '=', 'bookings.journal_entry_id')
             ->whereIn('booking_installers.user_id', $userIds)
-            ->whereBetween('journal_entries.entry_date', [$start->toDateString(), $end->toDateString()])
+            // Tanggal penjualan: tanggal jurnal bila modul Keuangan menyala, selain itu bookings.sale_date.
+            ->when(
+                config('features.finance'),
+                fn ($q) => $q->join('journal_entries', 'journal_entries.id', '=', 'bookings.journal_entry_id')
+                    ->whereBetween('journal_entries.entry_date', [$start->toDateString(), $end->toDateString()]),
+                fn ($q) => $q->whereBetween('bookings.sale_date', [$start->toDateString(), $end->toDateString()])
+            )
             ->where('bookings.transaction_amount', '>', 0)
             ->groupBy('booking_installers.user_id')
             ->selectRaw('booking_installers.user_id, COUNT(*) as job_count, COALESCE(SUM(bookings.transaction_amount), 0) as sales_total')

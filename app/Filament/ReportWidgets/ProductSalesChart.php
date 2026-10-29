@@ -74,7 +74,7 @@ class ProductSalesChart extends ChartWidget
         $storeId = $this->storeId ?? (($user?->isFullAccess() ?? false) ? null : $user?->store_id);
 
         $bookings = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+            ->soldBetween($start->toDateString(), $end->toDateString())
             ->where('transaction_amount', '>', 0)
             ->whereNotNull('film_product_id')
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))

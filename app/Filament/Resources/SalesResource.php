@@ -75,7 +75,7 @@ class SalesResource extends Resource
         // Jurnal Umum di Keuangan.
         $query = parent::getEloquentQuery()
             ->with(['store', 'journalEntry', 'customer'])
-            ->whereHas('journalEntry');
+            ->sold();
 
         $user = auth()->user();
         if ($user && ! $user->isFullAccess()) {
@@ -214,10 +214,19 @@ class SalesResource extends Resource
                 Tables\Columns\TextColumn::make('journalEntry.entry_date')
                     ->label('Waktu Bayar')
                     ->date('d M Y')
+                    ->visible(fn () => (bool) config('features.finance'))
+                    ->sortable(),
+
+                // Tanpa modul Keuangan (FEATURE_FINANCE mati) tanggal penjualan disimpan di booking sendiri.
+                Tables\Columns\TextColumn::make('sale_date')
+                    ->label('Waktu Bayar')
+                    ->date('d M Y')
+                    ->visible(fn () => ! config('features.finance'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('journalEntry.entry_number')
                     ->label('No. Jurnal')
+                    ->visible(fn () => (bool) config('features.finance'))
                     ->fontFamily('mono')
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -246,7 +255,7 @@ class SalesResource extends Resource
                         };
 
                         return $range
-                            ? $query->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$range[0]->toDateString(), $range[1]->toDateString()]))
+                            ? $query->soldBetween($range[0]->toDateString(), $range[1]->toDateString())
                             : $query;
                     }),
 
@@ -268,8 +277,12 @@ class SalesResource extends Resource
                         }
 
                         return $query
-                            ->when($from, fn ($q, $date) => $q->whereHas('journalEntry', fn ($q2) => $q2->whereDate('entry_date', '>=', $date)))
-                            ->when($until, fn ($q, $date) => $q->whereHas('journalEntry', fn ($q2) => $q2->whereDate('entry_date', '<=', $date)));
+                            ->when($from, fn ($q, $date) => config('features.finance')
+                                ? $q->whereHas('journalEntry', fn ($q2) => $q2->whereDate('entry_date', '>=', $date))
+                                : $q->whereDate('bookings.sale_date', '>=', $date))
+                            ->when($until, fn ($q, $date) => config('features.finance')
+                                ? $q->whereHas('journalEntry', fn ($q2) => $q2->whereDate('entry_date', '<=', $date))
+                                : $q->whereDate('bookings.sale_date', '<=', $date));
                     }),
 
                 Tables\Filters\SelectFilter::make('store_id')
@@ -389,7 +402,7 @@ class SalesResource extends Resource
             // dari sebuah Daftar Invoice. Ganti ke tanggal jurnal (kapan
             // BENAR-BENAR tercatat jadi pendapatan) — kolomnya sudah
             // ->sortable() di atas lewat relasi journalEntry.
-            ->defaultSort('journalEntry.entry_date', 'desc');
+            ->defaultSort(config('features.finance') ? 'journalEntry.entry_date' : 'sale_date', 'desc');
     }
 
     public static function getPages(): array

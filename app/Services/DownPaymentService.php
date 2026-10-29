@@ -53,6 +53,19 @@ class DownPaymentService
                 throw new RuntimeException("Booking ini sudah berstatus \"{$locked->status}\" -- tidak bisa mencatat DP baru.");
             }
 
+            // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): DP hanya dicatat sebagai catatan operasional, tanpa rekening dan jurnal.
+            if (! config('features.finance')) {
+                return BookingDownPayment::create([
+                    'booking_id' => $locked->id,
+                    'payment_account_id' => null,
+                    'amount' => $amount,
+                    'received_at' => now()->toDateString(),
+                    'notes' => $notes,
+                    'journal_entry_id' => null,
+                    'created_by' => $userId,
+                ]);
+            }
+
             // Rekening yang dipilih, atau rekening bawaan toko (Keuangan Fase 1); tanpa rekening terdaftar tetap akun 1101.
             $resolver = app(PaymentAccountResolver::class);
             $paymentAccount = $paymentAccountId
@@ -126,6 +139,12 @@ class DownPaymentService
                 throw new RuntimeException('DP ini sudah dipakai sebagai pembayaran booking yang diposting, tidak bisa dikembalikan. Koreksi lewat "Proses Referral" atau Refund.');
             }
 
+            if (! config('features.finance')) {
+                $locked->update(['refunded_at' => now()]);
+
+                return $locked->fresh();
+            }
+
             // Dikembalikan dari rekening tempat DP diterima (baris lama tanpa rekening = akun 1101).
             $cash = app(PaymentAccountResolver::class)->chartAccountFor($locked->payment_account_id);
             $deferredRevenue = ChartOfAccount::where('code', self::DEFERRED_REVENUE_ACCOUNT_CODE)->first();
@@ -178,9 +197,10 @@ class DownPaymentService
                 throw new RuntimeException('Sisa DP hanya bisa dikembalikan setelah booking selesai. Untuk booking berjalan, batalkan booking agar DP dikembalikan penuh.');
             }
 
+            $ledger = (bool) config('features.finance');
             $resolver = app(PaymentAccountResolver::class);
-            $deferredRevenue = ChartOfAccount::where('code', self::DEFERRED_REVENUE_ACCOUNT_CODE)->first();
-            if (! $deferredRevenue || ! $resolver->legacyCash()) {
+            $deferredRevenue = $ledger ? ChartOfAccount::where('code', self::DEFERRED_REVENUE_ACCOUNT_CODE)->first() : null;
+            if ($ledger && (! $deferredRevenue || ! $resolver->legacyCash())) {
                 throw new RuntimeException('Akun Kas / Pendapatan Diterima Dimuka tidak ditemukan di Bagan Akun.');
             }
 
@@ -200,25 +220,29 @@ class DownPaymentService
                     continue;
                 }
 
-                $cash = $resolver->chartAccountFor($dp->payment_account_id);
+                $entry = null;
 
-                $entry = $service->create([
-                    'entry_date' => now()->toDateString(),
-                    'store_id' => $locked->store_id,
-                    'description' => "Pengembalian sisa DP -- booking {$locked->booking_number} ({$locked->display_customer_name})",
-                    'reference_type' => 'booking_down_payment_refund',
-                    'reference_id' => $dp->id,
-                    'created_by' => $userId,
-                ], [
-                    ['chart_of_account_id' => $deferredRevenue->id, 'debit' => $remainder],
-                    ['chart_of_account_id' => $cash->id, 'credit' => $remainder],
-                ]);
-                $entry = $service->post($entry, $userId);
+                if ($ledger) {
+                    $cash = $resolver->chartAccountFor($dp->payment_account_id);
+
+                    $entry = $service->create([
+                        'entry_date' => now()->toDateString(),
+                        'store_id' => $locked->store_id,
+                        'description' => "Pengembalian sisa DP -- booking {$locked->booking_number} ({$locked->display_customer_name})",
+                        'reference_type' => 'booking_down_payment_refund',
+                        'reference_id' => $dp->id,
+                        'created_by' => $userId,
+                    ], [
+                        ['chart_of_account_id' => $deferredRevenue->id, 'debit' => $remainder],
+                        ['chart_of_account_id' => $cash->id, 'credit' => $remainder],
+                    ]);
+                    $entry = $service->post($entry, $userId);
+                }
 
                 $fullyUnused = (float) $dp->applied_amount <= 0.0;
                 $dp->update(array_filter([
                     'refunded_amount' => round((float) $dp->refunded_amount + $remainder, 2),
-                    'refund_journal_entry_id' => $entry->id,
+                    'refund_journal_entry_id' => $entry?->id,
                     'refunded_at' => $fullyUnused ? now() : null,
                 ], fn ($v) => $v !== null));
 

@@ -68,7 +68,7 @@
                     <td class="value">{{ $rupiah($received) }}</td>
                     <td class="value">{{ $outstanding > 0 ? $rupiah($outstanding) : '-' }}</td>
                     <td><span class="badge {{ $badgeClass }}">{{ $status }}</span></td>
-                    <td>{{ optional($booking->journalEntry?->entry_date)->format('d M Y') ?? '-' }}</td>
+                    <td>{{ optional($booking->sale_day)->format('d M Y') ?? '-' }}</td>
                     <td>{{ $booking->journalEntry?->entry_number ?? '-' }}</td>
                 </tr>
             @empty

@@ -80,14 +80,14 @@ class SalesByOutletChart extends ChartWidget
         $datasets = $stores->map(function (Store $store) use ($start, $end) {
             $bookings = Booking::query()
                 ->where('store_id', $store->id)
-                ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+                ->soldBetween($start->toDateString(), $end->toDateString())
                 ->where('transaction_amount', '>', 0)
                 ->with('journalEntry:id,entry_date')
-                ->get(['transaction_amount', 'journal_entry_id']);
+                ->get(['transaction_amount', 'journal_entry_id', 'sale_date']);
 
             $byDate = [];
             foreach ($bookings as $booking) {
-                $date = $booking->journalEntry?->entry_date?->toDateString();
+                $date = $booking->sale_day?->toDateString();
                 if (! $date) continue;
                 $byDate[$date] = ($byDate[$date] ?? 0) + (float) $booking->transaction_amount;
             }

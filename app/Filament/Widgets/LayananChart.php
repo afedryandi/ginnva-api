@@ -89,17 +89,17 @@ class LayananChart extends ChartWidget
         $storeId = ($user?->isFullAccess() ?? false) ? $this->storeId : $user?->store_id;
 
         $bookings = Booking::query()
-            ->whereHas('journalEntry', fn ($q) => $q->whereBetween('entry_date', [$start->toDateString(), $end->toDateString()]))
+            ->soldBetween($start->toDateString(), $end->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['journalEntry:id,entry_date', 'saleLines'])
-            ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
+            ->get(['id', 'transaction_amount', 'journal_entry_id', 'sale_date', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
 
         $kacaFilmByDate = [];
         $ppfByDate = [];
 
         foreach ($bookings as $booking) {
-            $date = $booking->journalEntry?->entry_date?->toDateString();
+            $date = $booking->sale_day?->toDateString();
             if (! $date) continue;
 
             // Pembagian per jenis SAMA dengan Jurnal Umum (BookingRevenueSplitter): menurut rincian harga bila ada, bagi rata bila tidak.

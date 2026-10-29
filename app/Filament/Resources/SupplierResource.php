@@ -23,10 +23,10 @@ class SupplierResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
 
-    protected static ?string $cluster = \App\Filament\Clusters\KeuanganCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Transaksi".
-    protected static ?string $navigationGroup = 'Pengaturan';
+    protected static ?string $navigationGroup = 'Permintaan & Memo';
 
     protected static ?string $navigationLabel = 'Supplier';
 
@@ -34,7 +34,7 @@ class SupplierResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Supplier';
 
-    protected static ?int $navigationSort = 501;
+    protected static ?int $navigationSort = 91;
 
     public static function canViewAny(): bool
     {

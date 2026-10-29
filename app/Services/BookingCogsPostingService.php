@@ -30,7 +30,7 @@ class BookingCogsPostingService
 
     public static function enabled(): bool
     {
-        return (bool) config('features.inventory_gl', false);
+        return (bool) config('features.finance') && (bool) config('features.inventory_gl', false);
     }
 
     /** Jurnal HPP aktif (diposting dan belum dibalik) milik booking ini. */

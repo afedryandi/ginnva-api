@@ -55,6 +55,10 @@ class FinanceTransactionResource extends Resource
 
     public static function canViewAny(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()

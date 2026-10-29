@@ -38,6 +38,10 @@ class FinanceSettingsPage extends Page implements HasForms
 
     public static function canAccess(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         return auth()->user()?->isFullAccess() ?? false;
     }
 

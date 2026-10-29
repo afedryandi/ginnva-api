@@ -35,6 +35,10 @@ class YearEndClosingPage extends Page
 
     public static function canAccess(): bool
     {
+        if (! config('features.finance')) {
+            return false;
+        }
+
         return auth()->user()?->isFullAccess() ?? false;
     }
 

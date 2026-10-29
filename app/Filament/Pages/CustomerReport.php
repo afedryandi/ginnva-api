@@ -290,30 +290,30 @@ class CustomerReport extends Page implements HasForms
         // sekadar >1 pengajuan booking apa pun) SEPANJANG WAKTU (bukan
         // dibatasi rentang tanggal filter — status "repeat customer"
         // itu sifat kumulatif, bukan per-periode), dihitung lewat
-        // whereHas('journalEntry') sama filter dengan Laporan Jasa/
+        // sold() sama filter dengan Laporan Jasa/
         // SalesResource.
         $topCustomers = Customer::query()
             ->withCount(['bookings as bookings_in_period' => fn ($q) => $q
-                ->whereHas('journalEntry', fn ($q2) => $q2->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+                ->soldBetween($from->toDateString(), $to->toDateString())
                 ->where('transaction_amount', '>', 0)
                 ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))])
             ->withSum(['bookings as spend_in_period' => fn ($q) => $q
-                ->whereHas('journalEntry', fn ($q2) => $q2->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()]))
+                ->soldBetween($from->toDateString(), $to->toDateString())
                 ->where('transaction_amount', '>', 0)
                 ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))], 'transaction_amount')
             ->withCount(['bookings as bookings_all_time' => fn ($q) => $q
-                ->whereHas('journalEntry')
+                ->sold()
                 ->where('transaction_amount', '>', 0)
                 ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))])
             // Ditambahkan 2026-09-09 (analog Laporan Pelanggan Majoo):
             // total belanja SEPANJANG WAKTU (bukan cuma periode filter)
             // + kunjungan terakhir, dasar hitung rata-rata/bulan.
             ->withSum(['bookings as spend_all_time' => fn ($q) => $q
-                ->whereHas('journalEntry')
+                ->sold()
                 ->where('transaction_amount', '>', 0)
                 ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))], 'transaction_amount')
             ->withMax(['bookings as last_visit' => fn ($q) => $q
-                ->whereHas('journalEntry')
+                ->sold()
                 ->where('transaction_amount', '>', 0)
                 ->when($storeId, fn ($q2) => $q2->where('store_id', $storeId))], 'preferred_date')
             ->having('bookings_in_period', '>', 0)
@@ -339,7 +339,7 @@ class CustomerReport extends Page implements HasForms
         $repeatCount = Customer::query()
             ->whereHas('bookings', fn ($q) => $q
                 ->withoutGlobalScopes()
-                ->whereHas('journalEntry', fn ($q2) => $q2->withoutGlobalScopes())
+                ->sold()
                 ->where('transaction_amount', '>', 0), '>', 1)
             ->count();
 
