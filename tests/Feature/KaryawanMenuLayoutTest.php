@@ -60,6 +60,8 @@ class KaryawanMenuLayoutTest extends TestCase
             $this->assertSame('Karyawan', $screen::getNavigationGroup(), $screen);
         }
 
+        $this->assertLessThan(UserResource::getNavigationSort(), HrDashboard::getNavigationSort(), 'Dasbor HR menu pertama klaster Karyawan.');
+
         foreach ([AttendanceResource::class, AttendanceCorrectionRequestResource::class, LeaveRequestResource::class] as $screen) {
             $this->assertSame('Absensi & Cuti', $screen::getNavigationGroup(), $screen);
         }

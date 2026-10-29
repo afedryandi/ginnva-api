@@ -21,9 +21,9 @@ class HrDashboardService
     /**
      * @return array{
      *   headcount: int, by_store: array<string,int>, by_type: array<string,int>,
-     *   contracts_expiring: list<array{name:string,date:string}>, contracts_expired: int,
-     *   probation_ending: list<array{name:string,date:string}>,
-     *   incomplete_required: int, pending_leave: int, active_warnings: int,
+     *   contracts_expiring: list<array{id:int,name:string,date:string}>, contracts_expired: int,
+     *   probation_ending: list<array{id:int,name:string,date:string}>,
+     *   incomplete_required: int, pending_leave: int, pending_corrections: int, active_warnings: int,
      *   policies_pending: list<array{title:string,pending:int}>,
      *   ppe_overdue: int, trainings_expiring: int, open_incidents: int, open_injuries: int, not_reviewed: int
      * }
@@ -56,9 +56,11 @@ class HrDashboardService
             ->whereNull('returned_on')->whereNotNull('replace_due_on')->whereDate('replace_due_on', '<=', today());
 
         $soon = today()->addDays(30)->toDateString();
+        // Sertifikat yang kedaluwarsa lebih dari 12 bulan lalu dan tidak pernah diperbarui dianggap tidak aktif, supaya angkanya bisa kembali nol.
+        $oldest = today()->subYear()->toDateString();
         $trainingsExpiring = (! config('features.employee_training') ? 0 : EmployeeTraining::withoutGlobalScopes()->whereIn('user_id', $userIds)
-            ->whereNotNull('valid_until')->whereDate('valid_until', '<=', $soon)->count())
-            + TechnicianTraining::query()->whereNotNull('valid_until')->whereDate('valid_until', '<=', $soon)
+            ->whereNotNull('valid_until')->whereDate('valid_until', '<=', $soon)->whereDate('valid_until', '>=', $oldest)->count())
+            + TechnicianTraining::query()->whereNotNull('valid_until')->whereDate('valid_until', '<=', $soon)->whereDate('valid_until', '>=', $oldest)
                 ->whereHas('technician', fn ($q) => $q->withoutGlobalScopes()->where('status', '!=', 'inactive')->when($storeId, fn ($t) => $t->where('store_id', $storeId)))
                 ->count();
 
@@ -72,11 +74,12 @@ class HrDashboardService
             'by_store' => $people->groupBy(fn (User $u) => $u->store?->name ?? 'Tanpa toko')->map->count()->sortKeys()->all(),
             'by_type' => $people->groupBy(fn (User $u) => $u->employeeType?->name ?? 'Belum dipilih')->map->count()->sortKeys()->all(),
             'contracts_expiring' => $people->filter(fn (User $u) => $u->contract_end_date && $u->contract_end_date->between(today(), today()->addDays(30)))
-                ->sortBy('contract_end_date')->map(fn (User $u) => ['name' => $u->name, 'date' => $u->contract_end_date->format('d M Y')])->values()->all(),
+                ->sortBy('contract_end_date')->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name, 'date' => $u->contract_end_date->format('d M Y')])->values()->all(),
             'contracts_expired' => $people->filter(fn (User $u) => $u->employeeType?->has_end_date && $u->contract_end_date && $u->contract_end_date->isPast())->count(),
             'probation_ending' => $people->filter(fn (User $u) => $u->probation_end_date && $u->probation_end_date->between(today(), today()->addDays($warnDays)))
-                ->sortBy('probation_end_date')->map(fn (User $u) => ['name' => $u->name, 'date' => $u->probation_end_date->format('d M Y')])->values()->all(),
+                ->sortBy('probation_end_date')->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name, 'date' => $u->probation_end_date->format('d M Y')])->values()->all(),
             'incomplete_required' => $incomplete,
+            'pending_corrections' => \App\Models\AttendanceCorrectionRequest::query()->withoutGlobalScopes()->where('status', 'pending')->whereIn('user_id', $userIds)->count(),
             'pending_leave' => LeaveRequest::query()->withoutGlobalScopes()->where('status', 'pending')->whereIn('user_id', $userIds)->count(),
             'active_warnings' => WarningLetter::query()->withoutGlobalScopes()->whereIn('user_id', $userIds)->whereDate('valid_until', '>=', today()->toDateString())->count(),
             'policies_pending' => $policies->map(fn ($p) => [

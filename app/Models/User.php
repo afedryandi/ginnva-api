@@ -364,6 +364,16 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     }
 
     /**
+     * Untuk menu sensitif (data personalia semua karyawan): akses penuh, atau staf yang menunya DICENTANG eksplisit.
+     * Beda dari hasMenuAccess(), akun dengan menu_access kosong (bawaan akun baru) TIDAK lolos.
+     */
+    public function hasExplicitMenuAccess(string $resourceClass): bool
+    {
+        return $this->isFullAccess()
+            || ($this->canAccessStaffArea() && is_array($this->menu_access) && $this->hasMenuAccess($resourceClass));
+    }
+
+    /**
      * Matriks Hak Akses granular per-aksi (audit Majoo f64, 2026-09-23)
      * — lapisan LEBIH HALUS di ATAS hasMenuAccess(), bukan pengganti.
      * hasMenuAccess() cuma jawab "boleh lihat resource ini sama sekali

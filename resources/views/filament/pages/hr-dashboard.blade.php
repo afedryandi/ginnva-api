@@ -5,11 +5,18 @@
 
     @php
         $s = $this->getSummary();
+        // Daftar User hanya terbuka bagi akses penuh; staf lain diarahkan ke Riwayat Kontrak dan nama tidak jadi tautan.
+        $canOpenUsers = \App\Filament\Resources\UserResource::canViewAny();
+        $expiredUrl = $canOpenUsers
+            ? \App\Filament\Resources\UserResource::getUrl('index', ['tableFilters' => ['contract_status' => ['value' => 'expired']]])
+            : \App\Filament\Resources\ContractExtensionResource::getUrl();
+        $personUrl = fn (int $id) => $canOpenUsers ? \App\Filament\Resources\UserResource::getUrl('edit', ['record' => $id]) : null;
         // Butir yang butuh tindakan: [label, jumlah, tautan]. Jumlah 0 ditampilkan sebagai beres.
         $actions = [
             ['Data karyawan wajib belum lengkap', $s['incomplete_required'], \App\Filament\Pages\EmployeeDataCompletenessReport::getUrl()],
-            ['Kontrak sudah berakhir dan belum diperpanjang', $s['contracts_expired'], \App\Filament\Resources\ContractExtensionResource::getUrl()],
-            ['Pengajuan izin/cuti menunggu keputusan', $s['pending_leave'], \App\Filament\Resources\LeaveRequestResource::getUrl()],
+            ['Kontrak sudah berakhir dan belum diperpanjang', $s['contracts_expired'], $expiredUrl],
+            ['Pengajuan izin/cuti menunggu keputusan', $s['pending_leave'], \App\Filament\Resources\LeaveRequestResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'pending']]])],
+            ['Koreksi absensi menunggu keputusan', $s['pending_corrections'], \App\Filament\Resources\AttendanceCorrectionRequestResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'pending']]])],
         ];
 
         // Butir menu HR yang disembunyikan (config/features.php) tidak ditampilkan.
@@ -59,7 +66,7 @@
         <div class="grid gap-6 md:grid-cols-2">
             <x-filament::section heading="Kontrak berakhir 30 hari ke depan ({{ count($s['contracts_expiring']) }})">
                 @forelse ($s['contracts_expiring'] as $row)
-                    <div class="flex justify-between py-1 text-sm"><span>{{ $row['name'] }}</span><span class="tabular-nums text-gray-500 dark:text-gray-400">{{ $row['date'] }}</span></div>
+                    <div class="flex justify-between py-1 text-sm"><span>@if ($personUrl($row['id'])) <a href="{{ $personUrl($row['id']) }}" class="hover:underline">{{ $row['name'] }}</a> @else {{ $row['name'] }} @endif</span><span class="tabular-nums text-gray-500 dark:text-gray-400">{{ $row['date'] }}</span></div>
                 @empty
                     <div class="text-sm text-gray-500 dark:text-gray-400">Tidak ada.</div>
                 @endforelse
@@ -67,7 +74,7 @@
 
             <x-filament::section heading="Masa percobaan segera berakhir ({{ count($s['probation_ending']) }})">
                 @forelse ($s['probation_ending'] as $row)
-                    <div class="flex justify-between py-1 text-sm"><span>{{ $row['name'] }}</span><span class="tabular-nums text-gray-500 dark:text-gray-400">{{ $row['date'] }}</span></div>
+                    <div class="flex justify-between py-1 text-sm"><span>@if ($personUrl($row['id'])) <a href="{{ $personUrl($row['id']) }}" class="hover:underline">{{ $row['name'] }}</a> @else {{ $row['name'] }} @endif</span><span class="tabular-nums text-gray-500 dark:text-gray-400">{{ $row['date'] }}</span></div>
                 @empty
                     <div class="text-sm text-gray-500 dark:text-gray-400">Tidak ada.</div>
                 @endforelse

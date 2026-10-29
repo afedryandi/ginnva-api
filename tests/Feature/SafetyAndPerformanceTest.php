@@ -233,8 +233,8 @@ class SafetyAndPerformanceTest extends TestCase
 
         $this->assertSame(2, $summary['headcount']);
         $this->assertSame(['Toko A' => 2], $summary['by_store']);
-        $this->assertSame([['name' => 'Rina', 'date' => '20 Oct 2026']], $summary['contracts_expiring']);
-        $this->assertSame([['name' => 'Rina', 'date' => '12 Oct 2026']], $summary['probation_ending']);
+        $this->assertSame([['id' => $this->staff->id, 'name' => 'Rina', 'date' => '20 Oct 2026']], $summary['contracts_expiring']);
+        $this->assertSame([['id' => $this->staff->id, 'name' => 'Rina', 'date' => '12 Oct 2026']], $summary['probation_ending']);
         $this->assertSame([['title' => 'Peraturan Perusahaan', 'pending' => 2]], $summary['policies_pending']);
         $this->assertSame(1, $summary['ppe_overdue']);
         $this->assertSame(1, $summary['open_incidents']);
@@ -248,6 +248,33 @@ class SafetyAndPerformanceTest extends TestCase
 
         Livewire::test(HrDashboard::class)->assertSuccessful()
             ->assertSee('Perlu tindakan')
-            ->assertSee('Karyawan aktif: 2');
+            ->assertSee('Karyawan aktif: 2')
+            ->assertSeeHtml('tableFilters%5Bcontract_status%5D%5Bvalue%5D=expired')
+            ->assertSeeHtml('tableFilters%5Bstatus%5D%5Bvalue%5D=pending');
+    }
+
+    public function test_hr_dashboard_counts_pending_attendance_corrections(): void
+    {
+        $make = fn (string $status) => \App\Models\AttendanceCorrectionRequest::create([
+            'user_id' => $this->staff->id, 'store_id' => $this->store->id, 'date' => today()->subDay()->toDateString(), 'entry_type' => 'manual',
+            'reason' => 'Lupa absen', 'status' => $status, 'requested_by' => $this->staff->id,
+        ]);
+        $make('pending');
+        $make('pending');
+        $make('approved');
+
+        $this->assertSame(2, (new HrDashboardService())->summary()['pending_corrections']);
+
+        $this->actingAs($this->admin, 'web');
+        Livewire::test(HrDashboard::class)->assertSee('Koreksi absensi menunggu keputusan');
+    }
+
+    public function test_hr_dashboard_names_link_to_the_employee_account(): void
+    {
+        $this->staff->update(['contract_end_date' => today()->addDays(5)->toDateString()]);
+        $this->actingAs($this->admin, 'web');
+
+        Livewire::test(HrDashboard::class)
+            ->assertSeeHtml(\App\Filament\Resources\UserResource::getUrl('edit', ['record' => $this->staff->id]));
     }
 }

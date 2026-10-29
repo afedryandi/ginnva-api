@@ -31,7 +31,7 @@ class UserResource extends Resource
 
     protected static ?string $pluralModelLabel = 'User';
 
-    protected static ?int $navigationSort = 0;
+    protected static ?int $navigationSort = 1;
 
     /**
      * Resource ini HANYA boleh diakses super_admin. Tidak pakai Policy

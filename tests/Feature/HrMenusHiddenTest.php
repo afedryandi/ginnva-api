@@ -145,4 +145,24 @@ class HrMenusHiddenTest extends TestCase
         $this->assertSame(0, $off['open_injuries']);
         $this->assertSame(0, $off['not_reviewed']);
     }
+
+    public function test_hr_dashboard_and_completeness_report_need_full_access_or_an_explicit_menu_checkbox(): void
+    {
+        $this->actingAs($this->staff, 'web');
+        $this->assertNull($this->staff->menu_access);
+        $this->assertFalse(\App\Filament\Pages\HrDashboard::canAccess(), 'Akun dengan akses bawaan tidak boleh melihat data personalia.');
+        $this->assertFalse(\App\Filament\Pages\EmployeeDataCompletenessReport::canAccess());
+
+        $this->staff->update(['menu_access' => ['BookingResource']]);
+        $this->actingAs($this->staff->fresh(), 'web');
+        $this->assertFalse(\App\Filament\Pages\HrDashboard::canAccess(), 'Dibatasi ke modul lain.');
+
+        $this->staff->update(['menu_access' => ['HrDashboard', 'EmployeeDataCompletenessReport']]);
+        $this->actingAs($this->staff->fresh(), 'web');
+        $this->assertTrue(\App\Filament\Pages\HrDashboard::canAccess());
+        $this->assertTrue(\App\Filament\Pages\EmployeeDataCompletenessReport::canAccess());
+
+        $this->actingAs($this->admin, 'web');
+        $this->assertTrue(\App\Filament\Pages\HrDashboard::canAccess());
+    }
 }

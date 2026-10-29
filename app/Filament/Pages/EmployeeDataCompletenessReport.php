@@ -37,10 +37,8 @@ class EmployeeDataCompletenessReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
-        $user = auth()->user();
-
-        return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+        // Data personalia seluruh karyawan: hanya akses penuh atau staf yang menunya dicentang eksplisit (bukan akun dengan akses bawaan).
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
     }
 
     public function mount(): void
