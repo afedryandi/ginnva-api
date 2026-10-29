@@ -20,6 +20,11 @@ class EmployeeTrainingResource extends Resource
 {
     use HasKaryawanAccess;
 
+    protected static function requiredFeature(): ?string
+    {
+        return 'employee_training';
+    }
+
     protected static ?string $model = EmployeeTraining::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-academic-cap';

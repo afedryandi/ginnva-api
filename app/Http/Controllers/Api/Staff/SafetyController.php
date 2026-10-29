@@ -23,7 +23,8 @@ class SafetyController extends Controller
     {
         $user = $request->user('api');
 
-        $ppe = PpeIssuance::withoutGlobalScopes()->where('user_id', $user->id)->whereNull('returned_on')
+        // Bagian yang fiturnya dimatikan (config/features.php: k3, employee_training, performance_reviews) dikirim kosong.
+        $ppe = ! config('features.k3') ? collect() : PpeIssuance::withoutGlobalScopes()->where('user_id', $user->id)->whereNull('returned_on')
             ->with('type:id,name')->orderBy('replace_due_on')->get()
             ->map(fn (PpeIssuance $i) => [
                 'id' => $i->id,
@@ -34,7 +35,7 @@ class SafetyController extends Controller
                 'overdue' => $i->isOverdue(),
             ])->values();
 
-        $trainings = EmployeeTraining::withoutGlobalScopes()->where('user_id', $user->id)->orderByDesc('held_on')->get()
+        $trainings = ! config('features.employee_training') ? collect() : EmployeeTraining::withoutGlobalScopes()->where('user_id', $user->id)->orderByDesc('held_on')->get()
             ->map(fn (EmployeeTraining $t) => [
                 'id' => $t->id,
                 'category_label' => EmployeeTraining::CATEGORIES[$t->category] ?? $t->category,
@@ -46,7 +47,7 @@ class SafetyController extends Controller
                 'certificate_url' => SensitiveFiles::url($t->certificate_path),
             ])->values();
 
-        $reviews = PerformanceReview::withoutGlobalScopes()->where('user_id', $user->id)->with('reviewer:id,name')
+        $reviews = ! config('features.performance_reviews') ? collect() : PerformanceReview::withoutGlobalScopes()->where('user_id', $user->id)->with('reviewer:id,name')
             ->orderByDesc('reviewed_on')->get()
             ->map(fn (PerformanceReview $r) => [
                 'id' => $r->id,
@@ -70,6 +71,10 @@ class SafetyController extends Controller
      */
     public function acknowledgeReview(Request $request, int $id)
     {
+        if (! config('features.performance_reviews')) {
+            return response()->json(['success' => false, 'message' => 'Penilaian tidak ditemukan.'], 404);
+        }
+
         $review = PerformanceReview::withoutGlobalScopes()->where('user_id', $request->user('api')->id)->find($id);
 
         if (! $review) {

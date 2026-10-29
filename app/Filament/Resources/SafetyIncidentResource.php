@@ -25,6 +25,11 @@ class SafetyIncidentResource extends Resource
         canDelete as private traitCanDelete;
     }
 
+    protected static function requiredFeature(): ?string
+    {
+        return 'k3';
+    }
+
     protected static ?string $model = SafetyIncident::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';

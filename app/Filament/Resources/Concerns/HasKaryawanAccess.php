@@ -10,8 +10,23 @@ use Illuminate\Database\Eloquent\Builder;
  */
 trait HasKaryawanAccess
 {
+    /**
+     * Saklar fitur (config/features.php) yang harus menyala agar resource ini terbuka, atau null bila selalu terbuka.
+     * Resource menimpanya, mis. 'k3', 'performance_reviews', 'employee_training'.
+     */
+    protected static function requiredFeature(): ?string
+    {
+        return null;
+    }
+
     public static function canViewAny(): bool
     {
+        $feature = static::requiredFeature();
+
+        if ($feature !== null && ! config("features.{$feature}")) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)

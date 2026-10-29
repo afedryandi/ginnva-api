@@ -64,4 +64,18 @@ return [
     */
     'finance' => (bool) env('FEATURE_FINANCE', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Menu HR yang disembunyikan (keputusan pemilik 2026-10-29)
+    |--------------------------------------------------------------------------
+    | Mati bawaan; kode dan data tetap ada, dan menyala lagi dengan mengisi true di .env.
+    |   FEATURE_K3                  Jenis APD, Pembagian APD, dan Kejadian K3 (belum ada kewajiban K3).
+    |   FEATURE_PERFORMANCE_REVIEWS Penilaian Kinerja (skor per karyawan per periode).
+    |   FEATURE_EMPLOYEE_TRAINING   Pelatihan Karyawan (catatan sertifikat karyawan; sertifikat installer tetap di Kompetensi Installer).
+    | Ikut tersembunyi: layar "K3 & Penilaian" di aplikasi staf, butir terkait di Dasbor HR, dan panduannya.
+    */
+    'k3' => (bool) env('FEATURE_K3', false),
+    'performance_reviews' => (bool) env('FEATURE_PERFORMANCE_REVIEWS', false),
+    'employee_training' => (bool) env('FEATURE_EMPLOYEE_TRAINING', false),
+
 ];

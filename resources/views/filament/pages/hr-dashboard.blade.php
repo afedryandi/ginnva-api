@@ -10,11 +10,22 @@
             ['Data karyawan wajib belum lengkap', $s['incomplete_required'], \App\Filament\Pages\EmployeeDataCompletenessReport::getUrl()],
             ['Kontrak sudah berakhir dan belum diperpanjang', $s['contracts_expired'], \App\Filament\Resources\ContractExtensionResource::getUrl()],
             ['Pengajuan izin/cuti menunggu keputusan', $s['pending_leave'], \App\Filament\Resources\LeaveRequestResource::getUrl()],
-            ['APD lewat jatuh tempo ganti', $s['ppe_overdue'], \App\Filament\Resources\PpeIssuanceResource::getUrl()],
-            ['Sertifikat/pelatihan kedaluwarsa atau hampir (30 hari)', $s['trainings_expiring'], \App\Filament\Resources\EmployeeTrainingResource::getUrl()],
-            ['Kejadian K3 belum ditutup', $s['open_incidents'], \App\Filament\Resources\SafetyIncidentResource::getUrl()],
-            ['Karyawan belum dinilai dalam 12 bulan', $s['not_reviewed'], \App\Filament\Resources\PerformanceReviewResource::getUrl()],
         ];
+
+        // Butir menu HR yang disembunyikan (config/features.php) tidak ditampilkan.
+        if (config('features.k3')) {
+            $actions[] = ['APD lewat jatuh tempo ganti', $s['ppe_overdue'], \App\Filament\Resources\PpeIssuanceResource::getUrl()];
+        }
+
+        $actions[] = ['Sertifikat/pelatihan kedaluwarsa atau hampir (30 hari)', $s['trainings_expiring'], config('features.employee_training') ? \App\Filament\Resources\EmployeeTrainingResource::getUrl() : \App\Filament\Pages\InstallerCompetencyReport::getUrl()];
+
+        if (config('features.k3')) {
+            $actions[] = ['Kejadian K3 belum ditutup', $s['open_incidents'], \App\Filament\Resources\SafetyIncidentResource::getUrl()];
+        }
+
+        if (config('features.performance_reviews')) {
+            $actions[] = ['Karyawan belum dinilai dalam 12 bulan', $s['not_reviewed'], \App\Filament\Resources\PerformanceReviewResource::getUrl()];
+        }
     @endphp
 
     <div wire:loading.class="opacity-50" wire:target="data.store_id" class="space-y-6">

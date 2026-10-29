@@ -147,10 +147,11 @@ class DemoLengkapi extends Command
         $this->step('Aturan Potongan Absensi', fn () => $this->deductionRule());
         $this->step('Struktur & Skala Upah', fn () => $this->salaryGrades());
         $this->step('Peraturan & Kebijakan', fn () => $this->policies());
-        $this->step('Pelatihan Karyawan', fn () => $this->trainings());
-        $this->step('Pembagian APD', fn () => $this->ppe());
-        $this->step('Kejadian K3', fn () => $this->incidents());
-        $this->step('Penilaian Kinerja', fn () => $this->reviews());
+        // Menu HR yang disembunyikan (config/features.php) tidak diisi.
+        config('features.employee_training') && $this->step('Pelatihan Karyawan', fn () => $this->trainings());
+        config('features.k3') && $this->step('Pembagian APD', fn () => $this->ppe());
+        config('features.k3') && $this->step('Kejadian K3', fn () => $this->incidents());
+        config('features.performance_reviews') && $this->step('Penilaian Kinerja', fn () => $this->reviews());
         $this->step('Koreksi Absensi', fn () => $this->attendanceCorrections());
         $this->step('Stok Opname', fn () => $this->stockOpname());
         $this->step('Stok Terbuang', fn () => $this->writeOffs());

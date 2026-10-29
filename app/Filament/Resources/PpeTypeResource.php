@@ -21,6 +21,11 @@ class PpeTypeResource extends Resource
         canDelete as private traitCanDelete;
     }
 
+    protected static function requiredFeature(): ?string
+    {
+        return 'k3';
+    }
+
     protected static ?string $model = PpeType::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-shield-check';

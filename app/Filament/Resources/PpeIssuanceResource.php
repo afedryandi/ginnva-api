@@ -21,6 +21,11 @@ class PpeIssuanceResource extends Resource
 {
     use HasKaryawanAccess;
 
+    protected static function requiredFeature(): ?string
+    {
+        return 'k3';
+    }
+
     protected static ?string $model = PpeIssuance::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-hand-raised';

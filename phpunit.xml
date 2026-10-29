@@ -24,6 +24,10 @@
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <!-- Tes keuangan butuh modulnya menyala; di server saklar ini mati (FEATURE_FINANCE) -->
         <env name="FEATURE_FINANCE" value="true"/>
+        <!-- Menu HR tersembunyi di server; tes memerlukannya menyala -->
+        <env name="FEATURE_K3" value="true"/>
+        <env name="FEATURE_PERFORMANCE_REVIEWS" value="true"/>
+        <env name="FEATURE_EMPLOYEE_TRAINING" value="true"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>
         <!--

@@ -23,6 +23,11 @@ class PerformanceReviewResource extends Resource
         canDelete as private traitCanDelete;
     }
 
+    protected static function requiredFeature(): ?string
+    {
+        return 'performance_reviews';
+    }
+
     protected static ?string $model = PerformanceReview::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-star';

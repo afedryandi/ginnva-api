@@ -50,12 +50,14 @@ class HrDashboardService
             ->get(['company_policy_id', 'user_id'])
             ->groupBy('company_policy_id');
 
+        // Menu HR yang disembunyikan (config/features.php: k3, employee_training, performance_reviews) dihitung 0.
+        $k3 = (bool) config('features.k3');
         $overdueQuery = PpeIssuance::query()->withoutGlobalScopes()->whereIn('user_id', $userIds)
             ->whereNull('returned_on')->whereNotNull('replace_due_on')->whereDate('replace_due_on', '<=', today());
 
         $soon = today()->addDays(30)->toDateString();
-        $trainingsExpiring = EmployeeTraining::withoutGlobalScopes()->whereIn('user_id', $userIds)
-            ->whereNotNull('valid_until')->whereDate('valid_until', '<=', $soon)->count()
+        $trainingsExpiring = (! config('features.employee_training') ? 0 : EmployeeTraining::withoutGlobalScopes()->whereIn('user_id', $userIds)
+            ->whereNotNull('valid_until')->whereDate('valid_until', '<=', $soon)->count())
             + TechnicianTraining::query()->whereNotNull('valid_until')->whereDate('valid_until', '<=', $soon)
                 ->whereHas('technician', fn ($q) => $q->withoutGlobalScopes()->where('status', '!=', 'inactive')->when($storeId, fn ($t) => $t->where('store_id', $storeId)))
                 ->count();
@@ -81,11 +83,11 @@ class HrDashboardService
                 'title' => $p->title,
                 'pending' => $userIds->diff(($accepted[$p->id] ?? collect())->pluck('user_id'))->count(),
             ])->filter(fn (array $row) => $row['pending'] > 0)->values()->all(),
-            'ppe_overdue' => $overdueQuery->count(),
+            'ppe_overdue' => $k3 ? $overdueQuery->count() : 0,
             'trainings_expiring' => $trainingsExpiring,
-            'open_incidents' => (clone $incidents)->count(),
-            'open_injuries' => (clone $incidents)->where('type', 'injury')->count(),
-            'not_reviewed' => $userIds->diff($reviewedRecently)->count(),
+            'open_incidents' => $k3 ? (clone $incidents)->count() : 0,
+            'open_injuries' => $k3 ? (clone $incidents)->where('type', 'injury')->count() : 0,
+            'not_reviewed' => config('features.performance_reviews') ? $userIds->diff($reviewedRecently)->count() : 0,
         ];
     }
 }

@@ -153,6 +153,11 @@ class GuideCatalog
                 return false;
             }
 
+            // Menu K3, Penilaian Kinerja, dan Pelatihan Karyawan disembunyikan (config/features.php): panduannya ikut hilang bila ketiganya mati.
+            if ($guide['id'] === 'k3-kinerja' && ! (config('features.k3') || config('features.employee_training') || config('features.performance_reviews'))) {
+                return false;
+            }
+
             if (isset($guide['audience'])) {
                 return $user->hasRole($guide['audience']) || $user->isFullAccess();
             }
