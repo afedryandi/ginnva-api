@@ -502,16 +502,16 @@ class GuideCatalog
             ],
             [
                 'id' => 'approval',
-                'title' => 'Approval: pengeluaran, refund, dan referral',
+                'title' => 'Approval: refund, referral, dan uang muka',
                 'summary' => 'Aksi sensitif yang harus disetujui atasan sebelum berlaku.',
                 'menus' => ['TransactionApprovalRequestResource', 'FinanceTransactionApprovalRequestResource', 'FinanceTransactionResource', 'FinanceSettingsPage'],
                 'steps' => [
-                    'Staff mengajukan aksi (pengeluaran, refund, atau Proses Referral). Pengajuan masuk ke daftar persetujuan dengan status menunggu: **Persetujuan Pengeluaran** untuk pengeluaran, **Persetujuan Transaksi** untuk refund dan referral.',
+                    'Staff mengajukan aksi (refund, Proses Referral, atau Catat Uang Muka). Pengajuan masuk ke **Persetujuan Transaksi** dengan status menunggu.',
                     'Atasan membuka daftar yang sesuai, memeriksa rinciannya, lalu **Setujui** atau **Tolak**.',
                     'Aksi baru dijalankan setelah disetujui. Yang ditolak tidak mengubah data apa pun.',
                 ],
                 'tips' => [
-                    'Refund dan referral dari staff non-akses-penuh wajib disetujui akses penuh.',
+                    'Refund, referral, dan uang muka dari staff non-akses-penuh wajib disetujui akses penuh.',
                     'Semua keputusan tercatat di Riwayat Aktivitas (siapa dan kapan).',
                 ],
             ],

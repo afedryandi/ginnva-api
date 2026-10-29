@@ -321,7 +321,7 @@ class GuideAccuracyTest extends TestCase
             $this->assertContains($id, $ids);
         }
 
-        $this->assertStringContainsString('sudah tercatat sebagai pendapatan', $this->text($this->guide('laporan-penjualan')));
+        $this->assertStringContainsString('penjualannya sudah diproses', $this->text($this->guide('laporan-penjualan')));
     }
 
     public function test_the_marketing_guides_exist_and_keep_the_consent_rules(): void
@@ -368,14 +368,16 @@ class GuideAccuracyTest extends TestCase
         $this->assertStringContainsString('Laba Ditahan (3200)', $text);
     }
 
-    public function test_the_approval_guide_explains_the_store_manager_threshold(): void
+    public function test_the_approval_guide_covers_transaction_approvals_only(): void
     {
+        // Pengeluaran bertingkat ikut mati bersama modul Keuangan (FEATURE_FINANCE); yang tersisa Persetujuan Transaksi.
         $guide = $this->guide('approval');
         $text = $this->text($guide);
 
-        $this->assertContains('FinanceSettingsPage', $guide['menus']);
-        $this->assertStringContainsString('Batas yang cukup disetujui Store Manager', $text);
-        $this->assertStringContainsString('Secara bawaan semua nominal wajib disetujui direksi', $text);
+        $this->assertContains('TransactionApprovalRequestResource', $guide['menus']);
+        $this->assertStringContainsString('Persetujuan Transaksi', $text);
+        $this->assertStringNotContainsString('Persetujuan Pengeluaran', $text);
+        $this->assertStringNotContainsString('Batas yang cukup disetujui Store Manager', $text);
     }
 
     public function test_the_lead_guide_uses_the_outcome_reasons_defined_in_code(): void
