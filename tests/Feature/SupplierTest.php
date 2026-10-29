@@ -250,10 +250,12 @@ class SupplierTest extends TestCase
         $this->assertFalse(SupplierResource::canViewAny());
     }
 
-    public function test_the_menu_lives_in_the_settings_group_after_finance_categories(): void
+    public function test_the_menu_lives_in_the_inventory_cluster_right_after_purchase_requests(): void
     {
-        $this->assertSame('Pengaturan', SupplierResource::getNavigationGroup());
-        $this->assertSame('Pengaturan', \App\Filament\Resources\FinanceCategoryResource::getNavigationGroup());
-        $this->assertGreaterThan(\App\Filament\Resources\FinanceCategoryResource::getNavigationSort(), SupplierResource::getNavigationSort());
+        // Dipindah dari klaster Keuangan (2026-10-29): Supplier dipakai Permohonan Pembelian dan tetap tampil bila modul Keuangan mati.
+        $this->assertSame(\App\Filament\Clusters\InventarisCluster::class, SupplierResource::getCluster());
+        $this->assertSame('Permintaan & Memo', SupplierResource::getNavigationGroup());
+        $this->assertSame(\App\Filament\Resources\PurchaseRequestResource::getNavigationGroup(), SupplierResource::getNavigationGroup());
+        $this->assertGreaterThan(\App\Filament\Resources\PurchaseRequestResource::getNavigationSort(), SupplierResource::getNavigationSort());
     }
 }
