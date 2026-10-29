@@ -516,6 +516,7 @@ class AssetResource extends Resource
                             ->maxLength(500),
                         Forms\Components\Placeholder::make('preview')
                             ->label('Dampak ke pembukuan')
+                            ->visible(fn () => (bool) config('features.finance'))
                             ->content(function (Forms\Get $get) use ($record) {
                                 $date = filled($get('date')) ? \Illuminate\Support\Carbon::parse($get('date')) : today();
                                 $proceeds = $get('type') === 'dijual' ? (float) ($get('proceeds') ?? 0) : 0.0;

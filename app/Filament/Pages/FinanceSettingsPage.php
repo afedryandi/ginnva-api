@@ -15,6 +15,9 @@ use Filament\Pages\Page;
 /**
  * "Pengaturan Keuangan" (Keuangan Fase 4, 2026-11-07): aturan yang diisi pemilik tanpa developer. Batas nominal pengeluaran yang cukup disetujui
  * Store Manager (kosong = semua nominal naik ke direksi), dan Profil Perusahaan (nama PT, alamat, NPWP, KLU) untuk kop dan kaki invoice. Hanya akses penuh.
+ *
+ * Saklar FEATURE_FINANCE mati (pembukuan di Accurate 5): halaman ini tetap ada sebagai "Profil Perusahaan" di klaster Sistem, karena invoice
+ * memakai profil itu; bagian persetujuan pengeluaran disembunyikan.
  */
 class FinanceSettingsPage extends Page implements HasForms
 {
@@ -36,12 +39,33 @@ class FinanceSettingsPage extends Page implements HasForms
 
     public ?array $data = [];
 
+    public static function getCluster(): ?string
+    {
+        return config('features.finance') ? \App\Filament\Clusters\KeuanganCluster::class : \App\Filament\Clusters\SistemCluster::class;
+    }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return config('features.finance') ? 'Jurnal & Akun' : null;
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return config('features.finance') ? 'Pengaturan Keuangan' : 'Profil Perusahaan';
+    }
+
+    public function getTitle(): string
+    {
+        return static::getNavigationLabel();
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return config('features.finance') ? 209 : 30;
+    }
+
     public static function canAccess(): bool
     {
-        if (! config('features.finance')) {
-            return false;
-        }
-
         return auth()->user()?->isFullAccess() ?? false;
     }
 
@@ -87,6 +111,7 @@ class FinanceSettingsPage extends Page implements HasForms
                 ]),
 
             Section::make('Persetujuan pengeluaran')
+                ->visible(fn () => (bool) config('features.finance'))
                 ->description('Alur sekarang: staff mengajukan, Store Manager menyetujui, lalu direksi menyetujui dan pengeluaran dicatat.')
                 ->schema([
                     TextInput::make('expense_manager_limit')
@@ -103,7 +128,9 @@ class FinanceSettingsPage extends Page implements HasForms
 
         $this->form->validate();
 
-        FinanceSetting::set(FinanceSetting::EXPENSE_MANAGER_LIMIT, $value === '' || $value === null ? null : (float) $value);
+        if (config('features.finance')) {
+            FinanceSetting::set(FinanceSetting::EXPENSE_MANAGER_LIMIT, $value === '' || $value === null ? null : (float) $value);
+        }
 
         foreach ([
             FinanceSetting::COMPANY_NAME => 'company_name',

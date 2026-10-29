@@ -164,7 +164,7 @@ class GuideAccuracyTest extends TestCase
     {
         $text = $this->text($this->guide('penjualan'));
 
-        foreach (['Proses Referral', 'Rincian Harga per Layanan', 'Nominal Transaksi', 'Pembayaran diterima', 'Piutang Usaha', 'Catat Uang Muka (DP)', 'Kembalikan Sisa DP', 'Proses Refund'] as $term) {
+        foreach (['Proses Referral', 'Rincian Harga per Layanan', 'Nominal Transaksi', 'Pembayaran diterima', 'Catat Uang Muka (DP)', 'Kembalikan Sisa DP', 'Proses Refund'] as $term) {
             $this->assertStringContainsString($term, $text, "Panduan Penjualan tidak menyebut \"{$term}\".");
         }
     }
@@ -397,12 +397,12 @@ class GuideAccuracyTest extends TestCase
             'stok' => ['Bahan Terpakai', 'Pemasok Utama'],
             'riwayat-stok-dashboard' => ['Buat Permintaan Beli'],
             'karyawan-akun' => ['Salin akses dari karyawan lain'],
-            'invoice' => ['Profil perusahaan'],
+            'invoice' => ['Profil Perusahaan'],
             'tutup-periode' => ['Status buku', 'Batas penguncian', 'Periode tertutup terbaru', 'Aktivitas terakhir'],
             'dashboard' => ['Cadangan Database'],
             'kas-bank' => ['Catat sebagai Transaksi'],
             'katalog-produk' => ['Perubahan Harga Terjadwal', 'Terapkan Sekarang'],
-            'aset-tetap' => ['Lepas Aset', 'Dampak ke pembukuan'],
+            'aset-tetap' => ['Lepas Aset'],
             'laporan-keuangan' => ['Laba Rugi Bulanan'],
             'pengaturan-booking' => ['Urutkan Ulang', 'Selesai Mengurutkan'],
             'hutang-piutang' => ['Duplikat', 'Perputaran Piutang dan Hari Penagihan', 'Periode Perputaran Piutang', 'Hari Penagihan'],

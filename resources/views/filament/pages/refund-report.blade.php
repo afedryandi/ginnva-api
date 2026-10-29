@@ -35,7 +35,9 @@
     <x-filament::section>
         <x-slot name="heading">Daftar Refund</x-slot>
         <x-slot name="description">
-            Tiap refund otomatis punya jurnal kontra di Jurnal Umum — klik No. Jurnal untuk lihat detailnya.
+            @if (config('features.finance'))
+                Tiap refund otomatis punya jurnal kontra di Jurnal Umum — klik No. Jurnal untuk lihat detailnya.
+            @endif
             "Metode Pembayaran" (audit 2026-09-29): refund bisa mengurangi Piutang Usaha dulu sebelum kas keluar
             (lihat RefundService) — kolom ini sekarang menampilkan "Tunai", "Kurangi Piutang", atau kombinasi
             keduanya sesuai porsi masing-masing, bukan selalu "Tunai".
@@ -52,7 +54,9 @@
                         <th class="py-2 pr-3">Toko</th>
                         <th class="py-2 pr-3">Metode Pembayaran</th>
                         <th class="py-2 pr-3">Diproses Oleh</th>
-                        <th class="py-2 pr-3">No. Jurnal</th>
+                        @if (config('features.finance'))
+                            <th class="py-2 pr-3">No. Jurnal</th>
+                        @endif
                         <th class="py-2 pr-3">Alasan</th>
                         <th class="py-2 pl-3 text-right">Nominal</th>
                     </tr>
@@ -73,16 +77,18 @@
                             <td class="py-2 pr-3">{{ $refund->booking?->store?->name ?? '—' }}</td>
                             <td class="py-2 pr-3">{{ $refund->payment_method_label }}</td>
                             <td class="py-2 pr-3">{{ $refund->creator?->name ?? '—' }}</td>
-                            <td class="py-2 pr-3">
-                                @if ($refund->journalEntry)
-                                    <a
-                                        href="{{ \App\Filament\Resources\JournalEntryResource::getUrl('index', ['tableSearch' => $refund->journalEntry->entry_number]) }}"
-                                        class="font-mono text-primary-600 hover:underline dark:text-primary-400"
-                                    >{{ $refund->journalEntry->entry_number }}</a>
-                                @else
-                                    —
-                                @endif
-                            </td>
+                            @if (config('features.finance'))
+                                <td class="py-2 pr-3">
+                                    @if ($refund->journalEntry)
+                                        <a
+                                            href="{{ \App\Filament\Resources\JournalEntryResource::getUrl('index', ['tableSearch' => $refund->journalEntry->entry_number]) }}"
+                                            class="font-mono text-primary-600 hover:underline dark:text-primary-400"
+                                        >{{ $refund->journalEntry->entry_number }}</a>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                            @endif
                             <td class="py-2 pr-3">{{ $refund->reason ?: '—' }}</td>
                             <td class="py-2 pl-3 text-right tabular-nums text-danger-600 dark:text-danger-400">{{ $rupiah((float) $refund->amount) }}</td>
                         </tr>

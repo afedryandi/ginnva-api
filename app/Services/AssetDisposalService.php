@@ -47,7 +47,9 @@ class AssetDisposalService
         $bookValue = round($cost - $accumulated, 2);
         $warnings = [];
 
-        if (! $journalable) {
+        if (! config('features.finance')) {
+            $warnings[] = 'Pembukuan aset dilakukan di Accurate; di sini hanya status pelepasan aset yang dicatat.';
+        } elseif (! $journalable) {
             $warnings[] = 'Aset ini belum punya harga perolehan atau akun Bagan Akun, jadi hanya statusnya yang dicatat, tanpa jurnal.';
         } elseif ($this->missingDepreciationBefore($asset, $date)) {
             $warnings[] = 'Penyusutan bulan sebelum tanggal pelepasan belum diposting seluruhnya. Jalankan penyusutan dulu agar nilai buku dan laba/rugi tepat.';
