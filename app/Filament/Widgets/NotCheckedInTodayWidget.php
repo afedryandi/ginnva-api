@@ -69,7 +69,21 @@ class NotCheckedInTodayWidget extends BaseWidget
         // Sekarang pakai AttendanceResource::getRouteBaseName()
         // langsung -- otomatis tetap benar kalau resource ini
         // pindah/keluar cluster lagi nanti.
-        return request()->routeIs(\App\Filament\Resources\AttendanceResource::getRouteBaseName() . '.index');
+        if (request()->routeIs(\App\Filament\Resources\AttendanceResource::getRouteBaseName() . '.index')) {
+            return true;
+        }
+
+        // BUG DIPERBAIKI 2026-10-29 (403 "tiba-tiba" di halaman Absensi; terlacak lewat catatan 403): Filament memanggil canView() lagi
+        // pada SETIAP permintaan Livewire widget ini (authorizeAccess() di boot). Permintaan itu masuk lewat rute livewire/update, jadi
+        // routeIs() di atas selalu false dan semua permintaan susulan (polling tiap 60 detik, urut, cari) ditolak 403. Untuk permintaan
+        // Livewire, yang dicocokkan adalah alamat halaman asalnya.
+        if (\Livewire\Livewire::isLivewireRequest()) {
+            $index = ltrim((string) parse_url(\App\Filament\Resources\AttendanceResource::getUrl('index'), PHP_URL_PATH), '/');
+
+            return \Livewire\Livewire::originalPath() === $index;
+        }
+
+        return false;
     }
 
     public function table(Table $table): Table
@@ -105,6 +119,7 @@ class NotCheckedInTodayWidget extends BaseWidget
             ->emptyStateHeading('Semua karyawan sudah tercatat hari ini')
             ->emptyStateDescription('Tidak ada yang belum absen, dicatat manual, atau dinas luar.')
             ->emptyStateIcon('heroicon-o-check-circle')
-            ->poll('60s');
+            // Tanpa polling (kebijakan widget, audit 2026-09-14): daftar ini cukup diperbarui saat halaman dibuka ulang.
+            ->poll(null);
     }
 }
