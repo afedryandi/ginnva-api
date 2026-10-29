@@ -31,11 +31,16 @@ class ListAttendances extends ListRecords
                 ->color('gray')
                 ->visible(fn () => ! (auth()->user()?->isFullAccess() ?? false) && ! (auth()->user()?->isStoreManager() ?? false))
                 ->form([
+                    // Staf biasa hanya mengajukan koreksi untuk dirinya sendiri; yang berhak melihat satu toko boleh memilih rekan.
                     Forms\Components\Select::make('user_id')
                         ->label('Karyawan')
                         ->options(fn () => User::where('store_id', auth()->user()?->store_id)
                             ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
+                            ->when(! (auth()->user()?->canSeeStoreAttendance() ?? false), fn ($q) => $q->whereKey(auth()->id()))
                             ->pluck('name', 'id'))
+                        ->default(fn () => auth()->user()?->canSeeStoreAttendance() ? null : auth()->id())
+                        ->disabled(fn () => ! (auth()->user()?->canSeeStoreAttendance() ?? false))
+                        ->dehydrated()
                         ->searchable()
                         ->required(),
 
@@ -69,9 +74,12 @@ class ListAttendances extends ListRecords
                         ->columnSpanFull(),
                 ])
                 ->action(function (array $data) {
+                    // Jaga sisi server: isian karyawan tidak dipercaya untuk staf yang hanya berhak atas dirinya sendiri.
+                    $userId = (auth()->user()?->canSeeStoreAttendance() ?? false) ? $data['user_id'] : auth()->id();
+
                     app(AttendanceCorrectionService::class)->submit([
                         'attendance_id' => null,
-                        'user_id' => $data['user_id'],
+                        'user_id' => $userId,
                         'store_id' => auth()->user()?->store_id,
                         'date' => $data['date'],
                         'entry_type' => $data['entry_type'],
@@ -91,8 +99,7 @@ class ListAttendances extends ListRecords
 
     protected function getHeaderWidgets(): array
     {
-        return [
-            NotCheckedInTodayWidget::class,
-        ];
+        // Daftar nama yang belum absen hanya untuk yang berhak melihat satu toko.
+        return (auth()->user()?->canSeeStoreAttendance() ?? false) ? [NotCheckedInTodayWidget::class] : [];
     }
 }

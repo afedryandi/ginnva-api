@@ -100,6 +100,11 @@ class AttendanceResource extends Resource
 
         if ($user && ! $user->isFullAccess()) {
             $query->where('store_id', $user->store_id);
+
+            // Staf biasa hanya melihat absensinya sendiri (audit Absensi Karyawan 2026-10-29); store manager dan yang diberi izin entri langsung melihat satu toko.
+            if (! $user->canSeeStoreAttendance()) {
+                $query->where('user_id', $user->id);
+            }
         }
 
         return $query;
@@ -328,6 +333,31 @@ class AttendanceResource extends Resource
                     ->toggleable(),
             ])
             ->filters([
+                // Periode bawaan 30 hari terakhir supaya daftar tidak memuat seluruh riwayat; kosongkan filter ini untuk melihat semuanya.
+                Tables\Filters\SelectFilter::make('period')
+                    ->label('Periode')
+                    ->options([
+                        'last_30' => '30 hari terakhir',
+                        'this_month' => 'Bulan ini',
+                        'last_month' => 'Bulan lalu',
+                    ])
+                    ->default('last_30')
+                    ->query(fn (Builder $query, array $data) => match ($data['value'] ?? null) {
+                        'last_30' => $query->whereDate('date', '>=', today()->subDays(30)),
+                        'this_month' => $query->whereBetween('date', [today()->startOfMonth()->toDateString(), today()->endOfMonth()->toDateString()]),
+                        'last_month' => $query->whereBetween('date', [today()->subMonthNoOverflow()->startOfMonth()->toDateString(), today()->subMonthNoOverflow()->endOfMonth()->toDateString()]),
+                        default => $query,
+                    }),
+
+                Tables\Filters\SelectFilter::make('user_id')
+                    ->label('Karyawan')
+                    ->searchable()
+                    ->options(fn () => User::query()
+                        ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
+                        ->when(! (auth()->user()?->isFullAccess() ?? false), fn ($q) => $q->where('store_id', auth()->user()?->store_id))
+                        ->orderBy('name')->pluck('name', 'id'))
+                    ->visible(fn () => auth()->user()?->canSeeStoreAttendance() ?? false),
+
                 Tables\Filters\SelectFilter::make('entry_type')
                     ->label('Jenis Entri')
                     ->options([
@@ -386,6 +416,37 @@ class AttendanceResource extends Resource
                     ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->actions([
+                // Tampilan baca-saja untuk meninjau bukti absen (foto selfie, jarak, lokasi) tanpa membuka form yang bisa mengubah jam.
+                Tables\Actions\ViewAction::make()
+                    ->label('Lihat')
+                    ->modalHeading(fn (Attendance $record) => "Absensi {$record->user?->name} · {$record->date->translatedFormat('d M Y')}")
+                    ->infolist(fn (Attendance $record) => [
+                        \Filament\Infolists\Components\Section::make('Waktu')->columns(4)->schema([
+                            \Filament\Infolists\Components\TextEntry::make('clock_in_at')->label('Jam Masuk')->dateTime('H:i')->placeholder('—'),
+                            \Filament\Infolists\Components\TextEntry::make('clock_out_at')->label('Jam Keluar')->dateTime('H:i')->placeholder('—'),
+                            \Filament\Infolists\Components\TextEntry::make('late_minutes')->label('Telat')->formatStateUsing(fn ($state) => $state > 0 ? "{$state} mnt" : '—'),
+                            \Filament\Infolists\Components\TextEntry::make('early_leave_minutes')->label('Pulang Cepat')->formatStateUsing(fn ($state) => $state > 0 ? "{$state} mnt" : '—'),
+                        ]),
+                        \Filament\Infolists\Components\Section::make('Absen Masuk')->columns(3)->schema([
+                            \Filament\Infolists\Components\ImageEntry::make('clock_in_photo')->label('Foto')->height(220)
+                                ->getStateUsing(fn () => \App\Support\SensitiveFiles::url($record->clock_in_photo))->placeholder('Tanpa foto'),
+                            \Filament\Infolists\Components\TextEntry::make('clock_in_distance_meters')->label('Jarak dari toko')
+                                ->formatStateUsing(fn ($state) => $state !== null ? "{$state} m" . ($record->isOutsideRadius() ? ' (di luar radius)' : '') : '—')
+                                ->color($record->isOutsideRadius() ? 'danger' : null),
+                            \Filament\Infolists\Components\TextEntry::make('clock_in_latitude')->label('Lokasi')
+                                ->getStateUsing(fn () => $record->clock_in_latitude !== null ? 'Buka di peta' : '—')
+                                ->url($record->clock_in_latitude !== null ? "https://www.google.com/maps?q={$record->clock_in_latitude},{$record->clock_in_longitude}" : null, shouldOpenInNewTab: true),
+                        ])->visible($record->entry_type === 'clock'),
+                        \Filament\Infolists\Components\Section::make('Absen Keluar')->columns(3)->schema([
+                            \Filament\Infolists\Components\ImageEntry::make('clock_out_photo')->label('Foto')->height(220)
+                                ->getStateUsing(fn () => \App\Support\SensitiveFiles::url($record->clock_out_photo))->placeholder('Tanpa foto'),
+                            \Filament\Infolists\Components\TextEntry::make('clock_out_latitude')->label('Lokasi')
+                                ->getStateUsing(fn () => $record->clock_out_latitude !== null ? 'Buka di peta' : '—')
+                                ->url($record->clock_out_latitude !== null ? "https://www.google.com/maps?q={$record->clock_out_latitude},{$record->clock_out_longitude}" : null, shouldOpenInNewTab: true),
+                        ])->visible($record->entry_type === 'clock' && $record->clock_out_at !== null),
+                        \Filament\Infolists\Components\TextEntry::make('note')->label('Catatan')->placeholder('—'),
+                    ]),
+
                 Tables\Actions\Action::make('review')
                     ->label('Tandai Ditinjau')
                     ->icon('heroicon-o-eye')

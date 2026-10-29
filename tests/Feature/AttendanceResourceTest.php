@@ -279,4 +279,66 @@ class AttendanceResourceTest extends TestCase
             Livewire::test(ListAttendances::class)->assertTableActionHidden('requestCorrectionExisting', $record);
         }
     }
+
+    public function test_regular_staff_only_see_their_own_attendance_while_store_wide_viewers_see_the_whole_store(): void
+    {
+        $staff = $this->user('kasir');
+        $mine = $this->row($staff);
+        $colleague = $this->row($this->user('kasir'));
+        $other = $this->row($this->user('kasir', $this->otherStore));
+
+        $this->actingAs($staff, 'web');
+        $this->assertFalse($staff->canSeeStoreAttendance());
+        Livewire::test(ListAttendances::class)->assertCanSeeTableRecords([$mine])->assertCanNotSeeTableRecords([$colleague, $other]);
+
+        $granted = $this->user('kasir', null, ['menu_permissions' => [AttendanceResource::class => ['update']]]);
+        $this->actingAs($granted, 'web');
+        $this->assertTrue($granted->canSeeStoreAttendance());
+        Livewire::test(ListAttendances::class)->assertCanSeeTableRecords([$mine, $colleague])->assertCanNotSeeTableRecords([$other]);
+    }
+
+    public function test_regular_staff_new_correction_is_always_filed_for_themselves(): void
+    {
+        $staff = $this->user('kasir');
+        $colleague = $this->user('kasir');
+        $this->actingAs($staff, 'web');
+
+        Livewire::test(ListAttendances::class)
+            ->callAction('requestCorrection', data: [
+                'date' => $this->yesterday, 'entry_type' => 'manual',
+                'clock_in_at' => "{$this->yesterday} 09:00:00", 'reason' => 'Lupa absen',
+            ]);
+
+        $this->assertSame(0, AttendanceCorrectionRequest::where('user_id', $colleague->id)->count());
+        $this->assertSame(1, AttendanceCorrectionRequest::where('user_id', $staff->id)->count());
+    }
+
+    public function test_list_defaults_to_the_last_30_days_and_can_filter_by_period_and_employee(): void
+    {
+        $this->actingAs($this->user('super_admin'), 'web');
+        $employee = $this->user('kasir');
+        $recent = $this->row($employee);
+        $old = $this->row($employee, ['date' => now()->subDays(45)->toDateString()]);
+        $other = $this->row($this->user('kasir'));
+
+        Livewire::test(ListAttendances::class)
+            ->assertCanSeeTableRecords([$recent, $other])->assertCanNotSeeTableRecords([$old]);
+
+        Livewire::test(ListAttendances::class)->removeTableFilter('period')
+            ->assertCanSeeTableRecords([$recent, $old, $other]);
+
+        Livewire::test(ListAttendances::class)->filterTable('user_id', $employee->id)
+            ->assertCanSeeTableRecords([$recent])->assertCanNotSeeTableRecords([$old, $other]);
+    }
+
+    public function test_the_read_only_view_shows_proof_of_a_clock_row_to_anyone_who_can_see_it(): void
+    {
+        $this->actingAs($this->user('store_manager'), 'web');
+        $record = $this->row($this->user('kasir'), ['clock_in_distance_meters' => 450, 'clock_in_latitude' => -6.2, 'clock_in_longitude' => 106.8]);
+
+        Livewire::test(ListAttendances::class)
+            ->assertTableActionVisible('view', $record)
+            ->callTableAction('view', $record)
+            ->assertSuccessful();
+    }
 }

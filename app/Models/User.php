@@ -364,6 +364,20 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     }
 
     /**
+     * Boleh melihat absensi SEMUA karyawan tokonya: akses penuh, store manager, atau staf yang diberi izin Buat/Ubah langsung di Hak Akses Detail.
+     * Staf lain hanya melihat dan mengajukan koreksi untuk absensinya sendiri.
+     */
+    public function canSeeStoreAttendance(): bool
+    {
+        $resource = \App\Filament\Resources\AttendanceResource::class;
+
+        return $this->isFullAccess()
+            || $this->isStoreManager()
+            || $this->hasModuleAction($resource, 'update', false)
+            || $this->hasModuleAction($resource, 'create', false);
+    }
+
+    /**
      * Untuk menu sensitif (data personalia semua karyawan): akses penuh, atau staf yang menunya DICENTANG eksplisit.
      * Beda dari hasMenuAccess(), akun dengan menu_access kosong (bawaan akun baru) TIDAK lolos.
      */
