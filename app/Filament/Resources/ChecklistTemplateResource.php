@@ -22,7 +22,7 @@ class ChecklistTemplateResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Kebijakan & Checklist';
+    protected static ?string $navigationGroup = 'Pengaturan Karyawan';
 
     protected static ?string $navigationLabel = 'Template Checklist';
 
@@ -30,7 +30,7 @@ class ChecklistTemplateResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Template Checklist Karyawan';
 
-    protected static ?int $navigationSort = 340;
+    protected static ?int $navigationSort = 608;
 
     public static function canViewAny(): bool
     {

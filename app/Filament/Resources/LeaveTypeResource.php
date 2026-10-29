@@ -23,7 +23,7 @@ class LeaveTypeResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Cuti & Kontrak';
+    protected static ?string $navigationGroup = 'Pengaturan Karyawan';
 
     protected static ?string $navigationLabel = 'Jenis Izin & Cuti';
 
@@ -31,7 +31,7 @@ class LeaveTypeResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Jenis Izin & Cuti';
 
-    protected static ?int $navigationSort = 301;
+    protected static ?int $navigationSort = 602;
 
     public static function canViewAny(): bool
     {

@@ -25,7 +25,7 @@ class CompanyPolicyResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Kebijakan & Checklist';
+    protected static ?string $navigationGroup = 'Pengaturan Karyawan';
 
     protected static ?string $navigationLabel = 'Peraturan & Kebijakan';
 
@@ -33,7 +33,7 @@ class CompanyPolicyResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Peraturan & Kebijakan';
 
-    protected static ?int $navigationSort = 320;
+    protected static ?int $navigationSort = 606;
 
     public static function canViewAny(): bool
     {

@@ -22,7 +22,7 @@ class HrDashboard extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Data Karyawan';
+    protected static ?string $navigationGroup = 'Karyawan';
 
     protected static ?string $navigationLabel = 'Dasbor HR';
 

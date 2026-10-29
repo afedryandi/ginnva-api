@@ -23,7 +23,7 @@ class UserResource extends Resource
 
     // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Data Karyawan", pola band
     // 100-lebar per grup sama seperti cluster Keuangan.
-    protected static ?string $navigationGroup = 'Data Karyawan';
+    protected static ?string $navigationGroup = 'Karyawan';
 
     protected static ?string $navigationLabel = 'User';
 

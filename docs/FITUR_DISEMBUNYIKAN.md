@@ -22,8 +22,11 @@ Saklar K3, Penilaian Kinerja, dan Pelatihan Karyawan menutup menunya dari akses 
 
 Kotak izin menu di User tetap ada supaya izin yang tersimpan tidak hilang.
 
-## Tata letak klaster Karyawan (audit 2026-10-29)
+## Tata letak klaster Karyawan (disederhanakan 2026-10-29)
+Menu yang dipakai setiap hari atau setiap bulan tampil di empat grup; yang diatur sekali atau dipakai hanya saat ada kejadian dilipat dalam satu grup.
+- **Karyawan**: User, Dasbor HR.
+- **Absensi & Cuti**: Absensi Karyawan, Koreksi Absensi, Izin & Cuti.
+- **Penggajian**: Penggajian, Aturan Potongan Absensi, Kategori Komponen Gaji.
 - **Kinerja Installer**: Durasi Servis, Kompetensi Installer, Pekerjaan Ulang (dan Utilisasi bila dinyalakan).
-- **Cuti & Kontrak**: Izin & Cuti, Jenis Izin & Cuti, Riwayat Kontrak, Surat Peringatan.
-- **Kebijakan & Checklist**: Peraturan & Kebijakan (dan Checklist Masuk & Keluar, Template Checklist bila dinyalakan).
-- Nama baru: Role & Divisi, Kelengkapan Data Karyawan, Riwayat Kontrak (tombol di dalamnya tetap "Perpanjang Kontrak"), Checklist Masuk & Keluar.
+- **Pengaturan Karyawan**: Role & Divisi, Tipe Karyawan, Jenis Izin & Cuti, Kelengkapan Data Karyawan, Riwayat Kontrak, Surat Peringatan, Peraturan & Kebijakan (dan kedua checklist bila dinyalakan).
+- Nama: Role & Divisi, Kelengkapan Data Karyawan, Riwayat Kontrak (tombol di dalamnya tetap "Perpanjang Kontrak"), Checklist Masuk & Keluar.

@@ -23,13 +23,13 @@ class EmployeeDataCompletenessReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Data Karyawan';
+    protected static ?string $navigationGroup = 'Pengaturan Karyawan';
 
     protected static ?string $navigationLabel = 'Kelengkapan Data Karyawan';
 
     protected static ?string $title = 'Kelengkapan Data Karyawan';
 
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 603;
 
     protected static string $view = 'filament.pages.employee-data-completeness';
 

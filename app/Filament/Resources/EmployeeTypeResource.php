@@ -34,7 +34,7 @@ class EmployeeTypeResource extends Resource
 
     // Grup sidebar (audit navigasi 2026-09-29) -- band 0-99 "Data Karyawan" (sebelumnya
     // grup sendirian 'Karyawan' cuma berisi item ini).
-    protected static ?string $navigationGroup = 'Data Karyawan';
+    protected static ?string $navigationGroup = 'Pengaturan Karyawan';
 
     protected static ?string $navigationLabel = 'Tipe Karyawan';
 
@@ -42,7 +42,7 @@ class EmployeeTypeResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Tipe Karyawan';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 601;
 
     private static function accessGate(): bool
     {

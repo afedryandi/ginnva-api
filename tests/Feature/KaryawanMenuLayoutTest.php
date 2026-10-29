@@ -3,18 +3,24 @@
 namespace Tests\Feature;
 
 use App\Filament\Pages\EmployeeDataCompletenessReport;
+use App\Filament\Pages\HrDashboard;
 use App\Filament\Pages\InstallerCompetencyReport;
 use App\Filament\Pages\TechnicianServiceDurationReport;
 use App\Filament\Pages\TechnicianUtilizationReport;
+use App\Filament\Resources\AttendanceCorrectionRequestResource;
+use App\Filament\Resources\AttendanceResource;
 use App\Filament\Resources\BookingReworkResource;
 use App\Filament\Resources\ChecklistTemplateResource;
 use App\Filament\Resources\CompanyPolicyResource;
 use App\Filament\Resources\ContractExtensionResource;
 use App\Filament\Resources\EmployeeChecklistItemResource;
+use App\Filament\Resources\EmployeeTypeResource;
 use App\Filament\Resources\LeaveRequestResource;
 use App\Filament\Resources\LeaveTypeResource;
+use App\Filament\Resources\PayrollResource;
 use App\Filament\Resources\RoleResource;
 use App\Filament\Resources\SalaryGradeResource;
+use App\Filament\Resources\UserResource;
 use App\Filament\Resources\WarningLetterResource;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -48,17 +54,32 @@ class KaryawanMenuLayoutTest extends TestCase
         }
     }
 
-    public function test_leave_and_contract_are_separate_from_policies_and_checklists(): void
+    public function test_the_employee_menus_are_grouped_by_how_often_they_are_used(): void
     {
-        foreach ([LeaveRequestResource::class, LeaveTypeResource::class, ContractExtensionResource::class, WarningLetterResource::class] as $screen) {
-            $this->assertSame('Cuti & Kontrak', $screen::getNavigationGroup(), $screen);
+        foreach ([UserResource::class, HrDashboard::class] as $screen) {
+            $this->assertSame('Karyawan', $screen::getNavigationGroup(), $screen);
         }
 
-        foreach ([CompanyPolicyResource::class, EmployeeChecklistItemResource::class, ChecklistTemplateResource::class] as $screen) {
-            $this->assertSame('Kebijakan & Checklist', $screen::getNavigationGroup(), $screen);
+        foreach ([AttendanceResource::class, AttendanceCorrectionRequestResource::class, LeaveRequestResource::class] as $screen) {
+            $this->assertSame('Absensi & Cuti', $screen::getNavigationGroup(), $screen);
         }
 
-        $this->assertLessThan(ContractExtensionResource::getNavigationSort(), LeaveTypeResource::getNavigationSort(), 'Jenis Izin & Cuti mengikuti Izin & Cuti.');
+        // Diatur sekali atau dipakai hanya saat ada kejadian: dilipat dalam satu grup di bawah menu harian.
+        $settings = [
+            RoleResource::class, EmployeeTypeResource::class, LeaveTypeResource::class, EmployeeDataCompletenessReport::class, ContractExtensionResource::class,
+            WarningLetterResource::class, CompanyPolicyResource::class, EmployeeChecklistItemResource::class, ChecklistTemplateResource::class,
+        ];
+
+        foreach ($settings as $screen) {
+            $this->assertSame('Pengaturan Karyawan', $screen::getNavigationGroup(), $screen);
+            $this->assertGreaterThanOrEqual(600, $screen::getNavigationSort(), $screen);
+        }
+
+        foreach ([UserResource::class, AttendanceResource::class, PayrollResource::class, TechnicianServiceDurationReport::class] as $daily) {
+            $this->assertLessThan(600, $daily::getNavigationSort(), $daily);
+        }
+
+        $this->assertLessThan(ContractExtensionResource::getNavigationSort(), LeaveTypeResource::getNavigationSort());
     }
 
     public function test_menu_names_are_clear(): void
