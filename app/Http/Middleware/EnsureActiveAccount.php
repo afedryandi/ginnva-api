@@ -17,7 +17,7 @@ class EnsureActiveAccount
     {
         $user = $request->user('api');
 
-        if ($user && ! $user->is_active) {
+        if ($user && $user->is_active === false) {
             return response()->json(['success' => false, 'code' => 'account_inactive', 'message' => 'Akun Anda sudah dinonaktifkan. Hubungi admin jika ini keliru.'], 403);
         }
 
