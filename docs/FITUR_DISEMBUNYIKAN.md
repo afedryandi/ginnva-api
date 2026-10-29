@@ -20,7 +20,7 @@ Saklar K3, Penilaian Kinerja, dan Pelatihan Karyawan menutup menunya dari akses 
 - panduan "K3 dan Kinerja" (hilang bila ketiganya mati);
 - pengisian data demo (`demo:lengkapi`).
 
-Kotak izin menu di User tetap ada supaya izin yang tersimpan tidak hilang.
+Kotak izin menu modul yang fiturnya mati tidak lagi ditampilkan di form User, tetapi izin yang sudah tersimpan tetap dijaga (disimpan ulang apa adanya).
 
 ## Tata letak klaster Karyawan (disederhanakan 2026-10-29)
 Menu yang dipakai setiap hari atau setiap bulan tampil di empat grup; yang diatur sekali atau dipakai hanya saat ada kejadian dilipat dalam satu grup.

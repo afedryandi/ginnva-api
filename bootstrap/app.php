@@ -44,6 +44,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'idempotent' => \App\Http\Middleware\Idempotent::class,
             // Tolak (404) bila saklar fitur mati, mis. ->middleware('feature:finance') -- lihat App\Http\Middleware\RequireFeature.
             'feature' => \App\Http\Middleware\RequireFeature::class,
+            // Tolak token akun nonaktif / sesi yang dicabut -- lihat App\Http\Middleware\EnsureActiveAccount.
+            'account.active' => \App\Http\Middleware\EnsureActiveAccount::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

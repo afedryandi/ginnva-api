@@ -271,7 +271,7 @@ Route::prefix('staff')->group(function () {
     Route::post('/auth/forgot-password', [StaffAuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
     Route::post('/auth/reset-password', [StaffAuthController::class, 'resetPassword'])->middleware('throttle:10,1');
 
-    Route::middleware('auth:api')->group(function () {
+    Route::middleware(['auth:api', 'account.active'])->group(function () {
         Route::get('/auth/me', [StaffAuthController::class, 'me']);
         Route::post('/auth/logout', [StaffAuthController::class, 'logout']);
         // Gap ditutup 2026-09-26 (audit fitur User) -- staff SEBELUMNYA
@@ -551,7 +551,7 @@ Route::prefix('staff')->group(function () {
 | bawah ini spesifik untuk data profil/poin/reward milik partner tsb.
 |--------------------------------------------------------------------------
 */
-Route::prefix('partner')->middleware('auth:api')->group(function () {
+Route::prefix('partner')->middleware(['auth:api', 'account.active'])->group(function () {
     Route::get('/me', [PartnerController::class, 'me']);
     Route::get('/points', [PartnerController::class, 'points']);
     Route::get('/redemptions', [PartnerController::class, 'redemptions']);

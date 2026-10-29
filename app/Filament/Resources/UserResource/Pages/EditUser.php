@@ -115,6 +115,10 @@ class EditUser extends EditRecord
     {
         // Kata sandi tidak masuk LogsActivity (tidak boleh disimpan di log mana pun); yang dicatat hanya BAHWA sandi diubah, dan oleh siapa.
         if ($this->record->wasChanged('password')) {
+            if (auth()->id() !== $this->record->id) {
+                $this->record->revokeSessions();
+            }
+
             \App\Support\AccountSecurityLog::passwordChanged(
                 $this->record,
                 auth()->id() === $this->record->id ? 'diganti sendiri (panel)' : 'diubah oleh admin (panel)',

@@ -202,6 +202,8 @@ class AuthController extends Controller
 
         $user->update(['password' => Hash::make($request->password)]);
 
+        $user->revokeSessions();
+
         \App\Support\AccountSecurityLog::passwordChanged($user, 'direset lewat lupa password (aplikasi)');
 
         return response()->json([

@@ -96,6 +96,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'contract_end_date' => 'date',
         'probation_end_date' => 'date',
         'is_active' => 'boolean',
+        'sessions_revoked_at' => 'datetime',
         // Data identitas terenkripsi di database (Karyawan Fase 0, UU PDP); terbaca normal lewat model.
         'nik' => 'encrypted',
         'npwp' => 'encrypted',
@@ -107,6 +108,12 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     public function getJWTIdentifier()
     {
         return $this->getKey();
+    }
+
+    /** Cabut semua token aplikasi yang sudah terbit (dipakai saat password direset oleh orang lain). */
+    public function revokeSessions(): void
+    {
+        $this->forceFill(['sessions_revoked_at' => now()])->saveQuietly();
     }
 
     public function getJWTCustomClaims()

@@ -484,6 +484,72 @@ class UserResource extends Resource
         return $fields;
     }
 
+    /** Password acak 10 karakter yang pasti memuat huruf besar, huruf kecil, dan angka (tanpa huruf/angka yang mudah tertukar). */
+    public static function generatePassword(): string
+    {
+        $pick = fn (string $chars, int $n) => collect(range(1, $n))->map(fn () => $chars[random_int(0, strlen($chars) - 1)])->implode('');
+
+        return str_shuffle($pick('ABCDEFGHJKLMNPQRSTUVWXYZ', 3) . $pick('abcdefghijkmnpqrstuvwxyz', 4) . $pick('23456789', 3));
+    }
+
+    /**
+     * Modul yang menunya sedang disembunyikan saklar fitur (config/features.php). Kuncinya TETAP ada di menuAccessOptions()
+     * supaya izin yang sudah tersimpan tidak hilang saat form disimpan, tapi kotaknya tidak ditampilkan.
+     *
+     * @return list<string>
+     */
+    private static function disabledFeatureModuleKeys(): array
+    {
+        $keys = [];
+
+        foreach ([
+            'finance' => ['FinanceCategoryResource', 'FinanceTransactionResource', 'FinanceReport', 'TrialBalanceReport', 'LedgerReconciliationReport',
+                'PaymentAccountResource', 'CashTransferResource', 'CashBalanceReport', 'CashCountResource', 'BudgetResource', 'BudgetVsActualReport',
+                'IncomeStatementReport', 'GeneralLedgerReport', 'BalanceSheetReport', 'CashFlowReport', 'PayableResource', 'SupplierResource',
+                'RecurringBillTemplateResource', 'ReceivableResource', 'ChartOfAccountResource', 'JournalEntryResource', 'BankStatementLineResource'],
+            'k3' => ['PpeTypeResource', 'PpeIssuanceResource', 'SafetyIncidentResource'],
+            'employee_training' => ['EmployeeTrainingResource'],
+            'performance_reviews' => ['PerformanceReviewResource'],
+            'salary_grades' => ['SalaryGradeResource'],
+            'employee_checklists' => ['EmployeeChecklistItemResource', 'ChecklistTemplateResource'],
+            'work_schedules' => ['ShiftResource', 'WorkScheduleResource'],
+        ] as $feature => $moduleKeys) {
+            if (! config("features.{$feature}")) {
+                array_push($keys, ...$moduleKeys);
+            }
+        }
+
+        return $keys;
+    }
+
+    /** menuAccessOptions() tanpa modul yang fiturnya dimatikan (dan tanpa grup yang jadi kosong). */
+    private static function visibleMenuAccessOptions(): array
+    {
+        $hidden = self::disabledFeatureModuleKeys();
+
+        return collect(self::menuAccessOptions())
+            ->map(fn (array $options) => array_diff_key($options, array_flip($hidden)))
+            ->filter()
+            ->all();
+    }
+
+    /**
+     * Kotak modul yang disembunyikan tetap ikut di state form (Hidden), jadi nilai tersimpannya dibaca dan ditulis balik apa adanya.
+     *
+     * @return array<int, Forms\Components\Hidden>
+     */
+    private static function hiddenAccessFields(): array
+    {
+        $fields = [];
+
+        foreach (self::disabledFeatureModuleKeys() as $moduleKey) {
+            $fields[] = Forms\Components\Hidden::make(self::moduleAccessFieldKey($moduleKey));
+            $fields[] = Forms\Components\Hidden::make(self::menuPermissionFieldKey($moduleKey));
+        }
+
+        return $fields;
+    }
+
     /** Pilihan "Salin akses dari karyawan lain" (hanya akses penuh): mengisi kotak modul dan hak detail sekaligus, belum disimpan. */
     private static function copyAccessField(): Forms\Components\Select
     {
@@ -527,7 +593,7 @@ class UserResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Data Akun')
+            Forms\Components\Section::make('Akun & Login')
                 ->columns(2)
                 ->schema([
                     Forms\Components\TextInput::make('name')
@@ -542,20 +608,10 @@ class UserResource extends Resource
                         ->unique(ignoreRecord: true)
                         ->maxLength(255),
 
-                    Forms\Components\TextInput::make('employee_number')
-                        ->label('No. Karyawan')
-                        ->helperText('Nomor induk karyawan Ginnva. Semua akun di sini adalah karyawan (partner & pelanggan tidak termasuk).')
-                        ->unique(ignoreRecord: true)
-                        ->maxLength(50),
-
                     Forms\Components\TextInput::make('phone')
                         ->label('No. HP')
                         ->tel()
                         ->maxLength(255),
-
-                    Forms\Components\DatePicker::make('join_date')
-                        ->label('Tanggal Mulai Kerja')
-                        ->maxDate(today()),
 
                     Forms\Components\Toggle::make('is_active')
                         ->label('Akun Aktif')
@@ -566,37 +622,6 @@ class UserResource extends Resource
                         // admin lain yang harus melakukannya.
                         ->disabled(fn (?User $record) => $record && auth()->id() === $record->id)
                         ->dehydrated(),
-
-                    Forms\Components\TextInput::make('base_salary')
-                        ->label('Gaji Pokok')
-                        ->helperText('Dipakai sebagai dasar hitung Penggajian bulanan.')
-                        ->numeric()
-                        ->prefix('Rp')
-                        ->minValue(0),
-
-                    Forms\Components\Select::make('salary_grade_id')
-                        ->label('Golongan Upah')
-                        ->visible(fn () => (bool) config('features.salary_grades'))
-                        ->relationship('salaryGrade', 'name', fn ($query) => $query->where('is_active', true))
-                        ->helperText('Dari menu "Struktur & Skala Upah". Gaji pokok di luar rentang golongan hanya ditandai di Kelengkapan Data, tidak ditolak.')
-                        ->preload(),
-
-                    Forms\Components\DatePicker::make('probation_end_date')
-                        ->label('Masa Percobaan Berakhir')
-                        ->helperText('Kosongkan bila tidak ada masa percobaan. Maksimal 3 bulan untuk PKWTT; PKWT tidak boleh ada masa percobaan.'),
-
-                    Forms\Components\Select::make('employee_type_id')
-                        ->label('Tipe Karyawan')
-                        ->relationship('employeeType', 'name', fn ($query) => $query->where('is_active', true))
-                        ->helperText('Kelola daftar tipe di menu "Tipe Karyawan". Tipe menentukan apakah "Tanggal Berakhir Kontrak" di bawah wajib diisi atau tidak.')
-                        ->preload()
-                        ->live(),
-
-                    Forms\Components\DatePicker::make('contract_end_date')
-                        ->label('Tanggal Berakhir Kontrak')
-                        ->helperText('Isi di sini untuk kontrak PERTAMA kali. Perpanjangan berikutnya dicatat lewat menu "Perpanjang Kontrak" supaya riwayatnya tersimpan, bukan diedit langsung di sini.')
-                        ->visible(fn (Forms\Get $get) => (bool) \App\Models\EmployeeType::find($get('employee_type_id'))?->has_end_date)
-                        ->required(fn (Forms\Get $get) => (bool) \App\Models\EmployeeType::find($get('employee_type_id'))?->has_end_date),
 
                     Forms\Components\Select::make('roles')
                         ->label('Role')
@@ -731,6 +756,52 @@ class UserResource extends Resource
                         ->helperText('Ulangi password yang sama persis.'),
                 ]),
 
+            Forms\Components\Section::make('Kepegawaian')
+                ->description('Dipakai Penggajian dan menu Karyawan. Semua boleh dikosongkan dulu dan dilengkapi bertahap.')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\TextInput::make('employee_number')
+                        ->label('No. Karyawan')
+                        ->helperText('Nomor induk karyawan Ginnva. Semua akun di sini adalah karyawan (partner & pelanggan tidak termasuk).')
+                        ->unique(ignoreRecord: true)
+                        ->maxLength(50),
+
+                    Forms\Components\DatePicker::make('join_date')
+                        ->label('Tanggal Mulai Kerja')
+                        ->maxDate(today()),
+
+                    Forms\Components\Select::make('employee_type_id')
+                        ->label('Tipe Karyawan')
+                        ->relationship('employeeType', 'name', fn ($query) => $query->where('is_active', true))
+                        ->helperText('Kelola daftar tipe di menu "Tipe Karyawan". Tipe menentukan apakah "Tanggal Berakhir Kontrak" di bawah wajib diisi atau tidak.')
+                        ->preload()
+                        ->live(),
+
+                    Forms\Components\DatePicker::make('contract_end_date')
+                        ->label('Tanggal Berakhir Kontrak')
+                        ->helperText('Isi di sini untuk kontrak PERTAMA kali. Perpanjangan berikutnya dicatat lewat menu "Perpanjang Kontrak" supaya riwayatnya tersimpan, bukan diedit langsung di sini.')
+                        ->visible(fn (Forms\Get $get) => (bool) \App\Models\EmployeeType::find($get('employee_type_id'))?->has_end_date)
+                        ->required(fn (Forms\Get $get) => (bool) \App\Models\EmployeeType::find($get('employee_type_id'))?->has_end_date),
+
+                    Forms\Components\DatePicker::make('probation_end_date')
+                        ->label('Masa Percobaan Berakhir')
+                        ->helperText('Kosongkan bila tidak ada masa percobaan. Maksimal 3 bulan untuk PKWTT; PKWT tidak boleh ada masa percobaan.'),
+
+                    Forms\Components\TextInput::make('base_salary')
+                        ->label('Gaji Pokok')
+                        ->helperText('Dipakai sebagai dasar hitung Penggajian bulanan.')
+                        ->numeric()
+                        ->prefix('Rp')
+                        ->minValue(0),
+
+                    Forms\Components\Select::make('salary_grade_id')
+                        ->label('Golongan Upah')
+                        ->visible(fn () => (bool) config('features.salary_grades'))
+                        ->relationship('salaryGrade', 'name', fn ($query) => $query->where('is_active', true))
+                        ->helperText('Dari menu "Struktur & Skala Upah". Gaji pokok di luar rentang golongan hanya ditandai di Kelengkapan Data, tidak ditolak.')
+                        ->preload(),
+                ]),
+
             // "Profil karyawan HRIS lengkap" (audit Majoo f54), dibangun
             // 2026-09-22. TERBATAS full-access — data personalia formal
             // (NIK/NPWP/BPJS/rekening) adalah data sensitif, sama
@@ -827,13 +898,14 @@ class UserResource extends Resource
             // jangan boleh ubah") — kalau nanti perlu itu, butuh mekanisme
             // terpisah, bukan checklist yang sama.
             Forms\Components\Section::make('Akses Menu & Hak Akses Detail')
-                ->description('Khusus role staff/divisi (bukan Direksi). Kosongkan semua (jangan centang apa pun) supaya user otomatis dapat akses penuh ke semua menu — cara paling aman kalau belum yakin. Centang modul tertentu untuk MEMBATASI hanya ke modul itu saja, lalu atur Lihat/Buat/Ubah/Hapus/Void yang muncul di bawahnya kalau perlu MENAMBAH izin (mis. izin Hapus) — setiap kotak berdiri sendiri, TIDAK mencabut aksi lain yang tidak dicentang. Kosongkan checklist CRUD = ikut perilaku default (Lihat/Buat/Ubah tetap jalan seperti biasa, Hapus & Void TIDAK aktif sampai dicentang eksplisit).')
+                ->description('Khusus role staff/divisi. Tidak mencentang apa pun = akses penuh ke semua menu (paling aman bila belum yakin). Centang modul untuk membatasi user hanya ke modul itu; kotak Lihat/Buat/Ubah/Hapus/Void yang muncul hanya MENAMBAH izin, tidak mencabut aksi lain. Kosong = Lihat/Buat/Ubah jalan seperti biasa, Hapus & Void belum aktif. Menu yang fiturnya dimatikan tidak ditampilkan, izinnya yang sudah tersimpan tetap dijaga.')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
                 ->columns(2)
                 ->schema(array_merge(
                     [self::copyAccessField()],
+                    self::hiddenAccessFields(),
                     self::twoColumnStacks(
-                        self::menuAccessOptions(),
+                        self::visibleMenuAccessOptions(),
                         fn (array $options, string $group) => Forms\Components\Section::make($group)
                             ->columnSpan(1)
                             ->columns(2)
@@ -994,6 +1066,39 @@ class UserResource extends Resource
 
                         \Filament\Notifications\Notification::make()
                             ->title($record->is_active ? 'Akun diaktifkan' : 'Akun dinonaktifkan')
+                            ->success()
+                            ->send();
+                    }),
+
+                // Admin mengatur ulang password karyawan yang lupa dan tidak bisa menerima kode di email. Sandi awal sudah terisi acak
+                // dan memenuhi aturan; admin menyampaikannya langsung. Sesi aplikasi karyawan dicabut supaya perangkat lama harus login ulang.
+                Tables\Actions\Action::make('resetPassword')
+                    ->label('Atur Ulang Password')
+                    ->icon('heroicon-o-key')
+                    ->color('gray')
+                    ->visible(fn (User $record) => (auth()->user()?->isFullAccess() ?? false) && auth()->id() !== $record->id)
+                    ->modalHeading(fn (User $record) => "Atur ulang password {$record->name}")
+                    ->modalDescription('Sampaikan password ini langsung ke karyawan. Semua sesi aplikasinya akan keluar dan ia perlu masuk lagi.')
+                    ->modalSubmitActionLabel('Atur Ulang')
+                    ->form([
+                        Forms\Components\TextInput::make('password')
+                            ->label('Password baru')
+                            ->default(fn () => self::generatePassword())
+                            ->required()
+                            ->minLength(8)
+                            ->regex('/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).+$/')
+                            ->validationMessages(['regex' => 'Password harus mengandung huruf besar, huruf kecil, dan angka.'])
+                            ->helperText('Boleh diganti sendiri. Minimal 8 karakter, wajib ada huruf besar, huruf kecil, dan angka.'),
+                    ])
+                    ->action(function (User $record, array $data) {
+                        $record->update(['password' => $data['password']]);
+                        $record->revokeSessions();
+
+                        \App\Support\AccountSecurityLog::passwordChanged($record, 'diubah oleh admin (panel)', auth()->user());
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Password diatur ulang')
+                            ->body("Sampaikan password baru ke {$record->name}. Sesi aplikasinya sudah dikeluarkan.")
                             ->success()
                             ->send();
                     }),

@@ -288,6 +288,29 @@ class UserManagementTest extends TestCase
         $this->assertFalse($user->hasMenuAccess('ModulLainYangTidakDicentang'));
     }
 
+    public function test_modules_of_disabled_features_are_not_offered_but_their_saved_access_survives_a_save(): void
+    {
+        config(['features.k3' => false, 'features.finance' => false]);
+        $this->asAdmin();
+        $user = $this->user('kasir', [
+            'menu_access' => ['BookingResource', 'PpeTypeResource', 'FinanceReport'],
+            'menu_permissions' => ['PpeTypeResource' => ['delete']],
+        ]);
+
+        Livewire::test(EditUser::class, ['record' => $user->getKey()])
+            ->assertSee('Booking Instalasi')
+            ->assertDontSee('Jenis APD')
+            ->assertDontSee('Laporan Keuangan')
+            ->fillForm(['name' => 'Nama Baru'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $fresh = $user->fresh();
+        $this->assertSame('Nama Baru', $fresh->name);
+        $this->assertEqualsCanonicalizing(['BookingResource', 'PpeTypeResource', 'FinanceReport'], $fresh->menu_access);
+        $this->assertSame(['delete'], $fresh->menu_permissions['PpeTypeResource']);
+    }
+
     public function test_menu_access_helpers_round_trip_and_null_means_full_access(): void
     {
         $unset = $this->user('kasir');
@@ -445,6 +468,31 @@ class UserManagementTest extends TestCase
         $this->assertTrue($user->fresh()->is_active);
     }
 
+    public function test_admin_resets_a_password_from_the_list_and_old_app_sessions_end(): void
+    {
+        $admin = $this->asAdmin();
+        $user = $this->user('kasir', ['email' => 'staf@ginnva.test', 'password' => 'Rahasia123']);
+        $old = $this->postJson('/api/staff/auth/login', ['email' => 'staf@ginnva.test', 'password' => 'Rahasia123'])->json('token');
+
+        $this->assertMatchesRegularExpression('/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{10}$/', UserResource::generatePassword());
+
+        $this->travel(5)->seconds();
+        Livewire::test(ListUsers::class)
+            ->assertTableActionHidden('resetPassword', $admin)
+            ->callTableAction('resetPassword', $user, ['password' => 'weak'])
+            ->assertHasTableActionErrors(['password']);
+        $this->assertTrue(Hash::check('Rahasia123', $user->fresh()->password));
+
+        Livewire::test(ListUsers::class)
+            ->callTableAction('resetPassword', $user, ['password' => 'BaruAman456'])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertTrue(Hash::check('BaruAman456', $user->fresh()->password));
+        $this->assertNotNull($user->fresh()->sessions_revoked_at);
+        $this->appGet($old)->assertStatus(401);
+        $this->postJson('/api/staff/auth/login', ['email' => 'staf@ginnva.test', 'password' => 'BaruAman456'])->assertSuccessful();
+    }
+
     public function test_you_cannot_deactivate_or_delete_your_own_account(): void
     {
         $admin = $this->asAdmin();
@@ -552,5 +600,55 @@ class UserManagementTest extends TestCase
 
         $change(['current_password' => 'Rahasia123', 'password' => 'BaruAman456', 'password_confirmation' => 'BaruAman456'])->assertSuccessful();
         $this->assertTrue(Hash::check('BaruAman456', $user->fresh()->password));
+    }
+
+    private function appGet(string $token): \Illuminate\Testing\TestResponse
+    {
+        $this->app['auth']->forgetGuards();
+
+        return $this->withToken($token)->getJson('/api/staff/auth/me');
+    }
+
+    public function test_an_issued_app_token_stops_working_once_the_account_is_deactivated(): void
+    {
+        $user = $this->user('kasir', ['email' => 'staf@ginnva.test', 'password' => 'Rahasia123']);
+        $token = $this->postJson('/api/staff/auth/login', ['email' => 'staf@ginnva.test', 'password' => 'Rahasia123'])->json('token');
+
+        $this->appGet($token)->assertSuccessful();
+
+        $user->update(['is_active' => false]);
+        $this->appGet($token)->assertStatus(403);
+
+        $user->update(['is_active' => true]);
+        $this->appGet($token)->assertSuccessful();
+    }
+
+    public function test_a_password_reset_by_someone_else_revokes_older_app_tokens_but_not_new_ones(): void
+    {
+        $user = $this->user('kasir', ['email' => 'staf@ginnva.test', 'password' => 'Rahasia123']);
+        $old = $this->postJson('/api/staff/auth/login', ['email' => 'staf@ginnva.test', 'password' => 'Rahasia123'])->json('token');
+
+        $this->travel(5)->seconds();
+        $user->revokeSessions();
+
+        $this->appGet($old)->assertStatus(401);
+
+        $this->travel(5)->seconds();
+        $new = $this->postJson('/api/staff/auth/login', ['email' => 'staf@ginnva.test', 'password' => 'Rahasia123'])->json('token');
+        $this->appGet($new)->assertSuccessful();
+    }
+
+    public function test_changing_your_own_password_keeps_your_session(): void
+    {
+        $user = $this->user('kasir', ['email' => 'staf@ginnva.test', 'password' => 'Rahasia123']);
+        $token = $this->postJson('/api/staff/auth/login', ['email' => 'staf@ginnva.test', 'password' => 'Rahasia123'])->json('token');
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->postJson('/api/staff/auth/change-password', [
+            'current_password' => 'Rahasia123', 'password' => 'BaruAman456', 'password_confirmation' => 'BaruAman456',
+        ])->assertSuccessful();
+
+        $this->assertNull($user->fresh()->sessions_revoked_at);
+        $this->appGet($token)->assertSuccessful();
     }
 }
