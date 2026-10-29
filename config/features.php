@@ -78,4 +78,14 @@ return [
     'performance_reviews' => (bool) env('FEATURE_PERFORMANCE_REVIEWS', false),
     'employee_training' => (bool) env('FEATURE_EMPLOYEE_TRAINING', false),
 
+    /*
+    | Menu Karyawan lain yang disembunyikan (audit modul Karyawan, 2026-10-29), mati bawaan:
+    |   FEATURE_SALARY_GRADES         Struktur & Skala Upah (dan pilihan Golongan Upah di form User).
+    |   FEATURE_EMPLOYEE_CHECKLISTS   Checklist Masuk & Keluar dan Template Checklist (onboarding/offboarding).
+    |   FEATURE_INSTALLER_UTILIZATION Utilisasi Installer (jam pekerjaannya hanya estimasi; Durasi Servis memakai jam nyata dari SPK).
+    */
+    'salary_grades' => (bool) env('FEATURE_SALARY_GRADES', false),
+    'employee_checklists' => (bool) env('FEATURE_EMPLOYEE_CHECKLISTS', false),
+    'installer_utilization' => (bool) env('FEATURE_INSTALLER_UTILIZATION', false),
+
 ];

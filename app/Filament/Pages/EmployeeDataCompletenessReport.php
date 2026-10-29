@@ -25,7 +25,7 @@ class EmployeeDataCompletenessReport extends Page implements HasForms
 
     protected static ?string $navigationGroup = 'Data Karyawan';
 
-    protected static ?string $navigationLabel = 'Kelengkapan Data';
+    protected static ?string $navigationLabel = 'Kelengkapan Data Karyawan';
 
     protected static ?string $title = 'Kelengkapan Data Karyawan';
 

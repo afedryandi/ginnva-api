@@ -58,6 +58,10 @@ class WorkScheduleResource extends Resource
 
     private static function accessGate(): bool
     {
+        if (! config('features.work_schedules')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)

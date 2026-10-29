@@ -145,7 +145,7 @@ class DemoLengkapi extends Command
         }
         $this->step('Persetujuan Transaksi', fn () => $this->transactionApprovals());
         $this->step('Aturan Potongan Absensi', fn () => $this->deductionRule());
-        $this->step('Struktur & Skala Upah', fn () => $this->salaryGrades());
+        config('features.salary_grades') && $this->step('Struktur & Skala Upah', fn () => $this->salaryGrades());
         $this->step('Peraturan & Kebijakan', fn () => $this->policies());
         // Menu HR yang disembunyikan (config/features.php) tidak diisi.
         config('features.employee_training') && $this->step('Pelatihan Karyawan', fn () => $this->trainings());

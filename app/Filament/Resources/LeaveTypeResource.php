@@ -31,7 +31,7 @@ class LeaveTypeResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Jenis Izin & Cuti';
 
-    protected static ?int $navigationSort = 310;
+    protected static ?int $navigationSort = 301;
 
     public static function canViewAny(): bool
     {

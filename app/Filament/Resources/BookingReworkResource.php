@@ -27,7 +27,7 @@ class BookingReworkResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'K3 & Kinerja';
+    protected static ?string $navigationGroup = 'Kinerja Installer';
 
     protected static ?string $navigationLabel = 'Pekerjaan Ulang';
 

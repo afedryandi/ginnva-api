@@ -25,7 +25,7 @@ class CompanyPolicyResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Cuti & Kontrak';
+    protected static ?string $navigationGroup = 'Kebijakan & Checklist';
 
     protected static ?string $navigationLabel = 'Peraturan & Kebijakan';
 

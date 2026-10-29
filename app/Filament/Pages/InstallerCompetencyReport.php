@@ -31,13 +31,13 @@ class InstallerCompetencyReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Data Karyawan';
+    protected static ?string $navigationGroup = 'Kinerja Installer';
 
     protected static ?string $navigationLabel = 'Kompetensi Installer';
 
     protected static ?string $title = 'Kompetensi & Mutu Installer';
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 502;
 
     protected static string $view = 'filament.pages.installer-competency-report';
 

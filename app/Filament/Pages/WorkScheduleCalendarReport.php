@@ -75,6 +75,10 @@ class WorkScheduleCalendarReport extends Page implements HasActions, HasForms
 
     public static function canAccess(): bool
     {
+        if (! config('features.work_schedules')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)

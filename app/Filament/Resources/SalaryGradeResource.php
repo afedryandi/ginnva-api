@@ -34,6 +34,10 @@ class SalaryGradeResource extends Resource
 
     public static function canViewAny(): bool
     {
+        if (! config('features.salary_grades')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()

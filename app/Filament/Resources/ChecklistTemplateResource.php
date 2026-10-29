@@ -22,7 +22,7 @@ class ChecklistTemplateResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Cuti & Kontrak';
+    protected static ?string $navigationGroup = 'Kebijakan & Checklist';
 
     protected static ?string $navigationLabel = 'Template Checklist';
 
@@ -34,6 +34,10 @@ class ChecklistTemplateResource extends Resource
 
     public static function canViewAny(): bool
     {
+        if (! config('features.employee_checklists')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()

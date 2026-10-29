@@ -161,10 +161,10 @@ class UserResource extends Resource
                 'LeaveRequestResource' => 'Izin & Cuti',
                 'LeaveTypeResource' => 'Jenis Izin & Cuti',
                 'CompanyPolicyResource' => 'Peraturan & Kebijakan',
-                'EmployeeChecklistItemResource' => 'Checklist Karyawan',
+                'EmployeeChecklistItemResource' => 'Checklist Masuk & Keluar',
                 'ChecklistTemplateResource' => 'Template Checklist',
                 'WarningLetterResource' => 'Surat Peringatan',
-                'ContractExtensionResource' => 'Perpanjang Kontrak',
+                'ContractExtensionResource' => 'Riwayat Kontrak',
                 // Modul Jadwal Kerja (audit Majoo, 2026-09-22).
                 // WorkScheduleCalendarReport (Page) SENGAJA tidak
                 // dimasukkan di sini -- pola sama dgn report Page lain,
@@ -576,6 +576,7 @@ class UserResource extends Resource
 
                     Forms\Components\Select::make('salary_grade_id')
                         ->label('Golongan Upah')
+                        ->visible(fn () => (bool) config('features.salary_grades'))
                         ->relationship('salaryGrade', 'name', fn ($query) => $query->where('is_active', true))
                         ->helperText('Dari menu "Struktur & Skala Upah". Gaji pokok di luar rentang golongan hanya ditandai di Kelengkapan Data, tidak ditolak.')
                         ->preload(),

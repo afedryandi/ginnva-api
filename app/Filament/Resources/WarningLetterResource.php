@@ -30,7 +30,7 @@ class WarningLetterResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Surat Peringatan';
 
-    protected static ?int $navigationSort = 302;
+    protected static ?int $navigationSort = 303;
 
     public static function canViewAny(): bool
     {

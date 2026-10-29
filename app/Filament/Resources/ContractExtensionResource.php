@@ -23,13 +23,13 @@ class ContractExtensionResource extends Resource
     // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Cuti & Kontrak".
     protected static ?string $navigationGroup = 'Cuti & Kontrak';
 
-    protected static ?string $navigationLabel = 'Perpanjang Kontrak';
+    protected static ?string $navigationLabel = 'Riwayat Kontrak';
 
     protected static ?string $modelLabel = 'Perpanjangan Kontrak';
 
-    protected static ?string $pluralModelLabel = 'Perpanjang Kontrak';
+    protected static ?string $pluralModelLabel = 'Riwayat Kontrak';
 
-    protected static ?int $navigationSort = 301;
+    protected static ?int $navigationSort = 302;
 
     public static function canViewAny(): bool
     {

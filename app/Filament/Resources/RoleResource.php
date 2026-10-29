@@ -43,11 +43,11 @@ class RoleResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
-    protected static ?string $navigationLabel = 'Role / Divisi';
+    protected static ?string $navigationLabel = 'Role & Divisi';
 
     protected static ?string $modelLabel = 'Role';
 
-    protected static ?string $pluralModelLabel = 'Role / Divisi';
+    protected static ?string $pluralModelLabel = 'Role & Divisi';
 
     private const PROTECTED_ROLES = ['super_admin', 'direksi', 'installer', 'partner', 'store_manager'];
 

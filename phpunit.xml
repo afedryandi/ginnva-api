@@ -28,6 +28,10 @@
         <env name="FEATURE_K3" value="true"/>
         <env name="FEATURE_PERFORMANCE_REVIEWS" value="true"/>
         <env name="FEATURE_EMPLOYEE_TRAINING" value="true"/>
+        <env name="FEATURE_SALARY_GRADES" value="true"/>
+        <env name="FEATURE_EMPLOYEE_CHECKLISTS" value="true"/>
+        <env name="FEATURE_INSTALLER_UTILIZATION" value="true"/>
+        <env name="FEATURE_WORK_SCHEDULES" value="true"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>
         <!--

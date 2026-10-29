@@ -47,6 +47,8 @@ class WorkScheduleFeatureFlagTest extends TestCase
 
     public function test_the_schedule_menus_are_hidden_by_default_and_return_when_the_feature_is_switched_on(): void
     {
+        config(['features.work_schedules' => false]); // phpunit.xml menyalakannya; di server bawaannya mati
+
         foreach ([ShiftResource::class, WorkScheduleResource::class, WorkScheduleCalendarReport::class] as $screen) {
             $this->assertFalse($screen::shouldRegisterNavigation(), "{$screen} harus tersembunyi bila fitur mati.");
         }
@@ -58,8 +60,27 @@ class WorkScheduleFeatureFlagTest extends TestCase
         }
     }
 
+    public function test_the_schedule_screens_are_closed_to_direct_access_when_the_feature_is_off(): void
+    {
+        config(['features.work_schedules' => false]);
+        $admin = User::create(['name' => 'Admin', 'email' => uniqid() . '@test.local', 'password' => 'x']);
+        Role::findOrCreate('super_admin', 'web');
+        $admin->assignRole('super_admin');
+        $this->actingAs($admin, 'web');
+
+        $this->assertFalse(ShiftResource::canViewAny());
+        $this->assertFalse(WorkScheduleResource::canViewAny());
+        $this->assertFalse(WorkScheduleCalendarReport::canAccess());
+
+        config(['features.work_schedules' => true]);
+
+        $this->assertTrue(ShiftResource::canViewAny());
+        $this->assertTrue(WorkScheduleResource::canViewAny());
+    }
+
     public function test_the_staff_app_only_gets_the_schedule_screen_when_the_feature_is_on_and_the_person_has_a_schedule(): void
     {
+        config(['features.work_schedules' => false]);
         $withSchedule = $this->staffWithSchedule();
 
         $this->actingAs($withSchedule, 'api')->getJson('/api/staff/auth/me')->assertOk()
