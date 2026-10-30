@@ -272,7 +272,8 @@ class SafetyAndPerformanceTest extends TestCase
 
     public function test_hr_dashboard_names_link_to_the_employee_account(): void
     {
-        $this->staff->update(['contract_end_date' => today()->addDays(5)->toDateString()]);
+        $contractType = \App\Models\EmployeeType::create(['name' => 'Kontrak', 'has_end_date' => true, 'is_active' => true]);
+        $this->staff->update(['employee_type_id' => $contractType->id, 'contract_end_date' => today()->addDays(5)->toDateString()]);
         $this->actingAs($this->admin, 'web');
 
         Livewire::test(HrDashboard::class)
