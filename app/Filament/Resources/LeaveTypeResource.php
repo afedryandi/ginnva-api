@@ -33,29 +33,31 @@ class LeaveTypeResource extends Resource
 
     protected static ?int $navigationSort = 602;
 
+    /**
+     * Jenis menentukan batas hari, syarat lampiran, dan pemotongan jatah cuti SEMUA karyawan, jadi tidak terbuka lewat akses bawaan akun
+     * baru: hanya akses penuh atau staf yang menunya dicentang eksplisit. Membuat, mengubah, dan menghapus butuh izin aksi eksplisit.
+     */
     public static function canViewAny(): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
     }
 
     public static function canCreate(): bool
     {
-        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'create', false) ?? false);
     }
 
     public static function canEdit($record): bool
     {
-        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', false) ?? false);
     }
 
     public static function canDelete($record): bool
     {
         return ! $record->requests()->exists()
+            && ! $record->isBuiltIn()
             && static::canViewAny()
-            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', false) ?? false);
     }
 
     public static function form(Form $form): Form
@@ -91,7 +93,10 @@ class LeaveTypeResource extends Resource
                 ->schema([
                     Forms\Components\Toggle::make('deducts_annual_quota')
                         ->label('Memotong jatah cuti tahunan')
-                        ->helperText('Aktifkan hanya untuk Cuti Tahunan. Cuti khusus (menikah, melahirkan, dst.) tidak memotong jatah.')
+                        ->disabled(fn (?LeaveType $record) => $record?->requests()->exists() ?? false)
+                        ->helperText(fn (?LeaveType $record) => ($record?->requests()->exists() ?? false)
+                            ? 'Terkunci karena jenis ini sudah dipakai pengajuan: mengubahnya akan menulis ulang pemakaian jatah semua karyawan. Buat jenis baru bila perlu.'
+                            : 'Aktifkan hanya untuk Cuti Tahunan. Cuti khusus (menikah, melahirkan, dst.) tidak memotong jatah.')
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('max_days')
@@ -106,7 +111,13 @@ class LeaveTypeResource extends Resource
 
                     Forms\Components\Textarea::make('notes')->label('Keterangan untuk karyawan')->rows(2)->columnSpanFull(),
 
-                    Forms\Components\Toggle::make('is_active')->label('Aktif')->default(true),
+                    Forms\Components\Toggle::make('is_active')
+                        ->label('Aktif')
+                        ->default(true)
+                        ->disabled(fn (?LeaveType $record) => $record?->isBaseType() ?? false)
+                        ->helperText(fn (?LeaveType $record) => ($record?->isBaseType() ?? false)
+                            ? 'Jenis dasar (Izin, Sakit, Cuti Tahunan) tidak bisa dinonaktifkan.'
+                            : 'Jenis nonaktif tidak bisa dipilih untuk pengajuan baru; pengajuan yang sudah ada tidak berubah.'),
                 ]),
         ]);
     }
@@ -123,13 +134,44 @@ class LeaveTypeResource extends Resource
                 Tables\Columns\IconColumn::make('deducts_annual_quota')->label('Potong jatah tahunan')->boolean(),
                 Tables\Columns\TextColumn::make('max_days')->label('Maks. hari')->placeholder('—'),
                 Tables\Columns\TextColumn::make('document_required_from_days')->label('Lampiran wajib mulai')->placeholder('—')->suffix(' hari'),
-                Tables\Columns\IconColumn::make('is_active')->label('Aktif')->boolean(),
+                Tables\Columns\TextColumn::make('requests_count')
+                    ->label('Dipakai')
+                    ->suffix(' pengajuan')
+                    ->tooltip(fn (LeaveType $record) => static::deleteBlockedReason($record)),
+                Tables\Columns\ToggleColumn::make('is_active')
+                    ->label('Aktif')
+                    ->disabled(fn (LeaveType $record) => $record->isBaseType() || ! static::canEdit($record)),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('category')->label('Kategori')->options(LeaveType::CATEGORIES),
+                Tables\Filters\TernaryFilter::make('is_active')->label('Status Aktif'),
             ])
             ->defaultSort('sort_order')
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ]);
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()->withCount('requests');
+    }
+
+    /** Alasan jenis tidak bisa dihapus, untuk tooltip di daftar; null bila boleh dihapus. */
+    public static function deleteBlockedReason(LeaveType $record): ?string
+    {
+        if ($record->isBaseType()) {
+            return 'Jenis dasar: tidak bisa dihapus atau dinonaktifkan.';
+        }
+        if ($record->isBuiltIn()) {
+            return 'Jenis bawaan: tidak bisa dihapus, nonaktifkan bila tidak dipakai.';
+        }
+        if (($record->requests_count ?? $record->requests()->count()) > 0) {
+            return 'Sudah dipakai pengajuan: tidak bisa dihapus, nonaktifkan saja.';
+        }
+
+        return null;
     }
 
     public static function getPages(): array

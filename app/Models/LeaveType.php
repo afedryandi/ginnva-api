@@ -23,7 +23,48 @@ class LeaveType extends Model
     /** Jenis dasar menurut kategori, dipakai bila pengajuan hanya menyebut kategori (aplikasi lama). */
     public const CODE_BY_CATEGORY = ['izin' => 'izin', 'sakit' => 'sakit', 'cuti' => 'cuti_tahunan'];
 
+    /** Tiga jenis dasar: cadangan untuk aplikasi lama dan dasar jatah tahunan. Tidak boleh dihapus maupun dinonaktifkan. */
+    public const BASE_CODES = ['izin', 'sakit', 'cuti_tahunan'];
+
+    /** Jenis bawaan di luar tiga jenis dasar (lihat ensureDefaults()). Tidak boleh dihapus (akan dibuat ulang); cukup dinonaktifkan. */
+    public const DEFAULT_CODES = [
+        'cuti_haid', 'cuti_melahirkan', 'cuti_keguguran', 'cuti_menikah', 'cuti_menikahkan_anak', 'cuti_khitan_baptis_anak',
+        'cuti_istri_melahirkan', 'cuti_keluarga_meninggal', 'cuti_serumah_meninggal', 'cuti_ibadah',
+    ];
+
     protected $fillable = ['code', 'name', 'category', 'deducts_annual_quota', 'max_days', 'document_required_from_days', 'notes', 'sort_order', 'is_active'];
+
+    protected static function booted(): void
+    {
+        // Penjaga di model (bukan hanya di form) supaya tidak bisa dilewati dari tempat lain.
+        static::updating(function (LeaveType $type) {
+            if ($type->isDirty('is_active') && ! $type->is_active && $type->isBaseType()) {
+                throw new \RuntimeException("Jenis dasar \"{$type->name}\" tidak bisa dinonaktifkan.");
+            }
+
+            // Pemakaian jatah dihitung dari pengaturan jenis saat ini; mengubahnya setelah dipakai menulis ulang riwayat jatah semua karyawan.
+            if ($type->isDirty('deducts_annual_quota') && $type->requests()->exists()) {
+                throw new \RuntimeException("Pengaturan potong jatah \"{$type->name}\" tidak bisa diubah karena sudah dipakai pengajuan. Buat jenis baru.");
+            }
+        });
+
+        static::deleting(function (LeaveType $type) {
+            if ($type->isBuiltIn()) {
+                throw new \RuntimeException("Jenis bawaan \"{$type->name}\" tidak bisa dihapus; nonaktifkan saja bila tidak dipakai.");
+            }
+        });
+    }
+
+    public function isBaseType(): bool
+    {
+        return in_array($this->code, self::BASE_CODES, true);
+    }
+
+    /** Jenis dasar atau bawaan sistem: tidak bisa dihapus. */
+    public function isBuiltIn(): bool
+    {
+        return $this->isBaseType() || in_array($this->code, self::DEFAULT_CODES, true);
+    }
 
     protected $casts = [
         'deducts_annual_quota' => 'boolean',

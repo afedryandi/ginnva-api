@@ -19,6 +19,11 @@ class ListLeaveTypes extends ListRecords
         parent::mount();
     }
 
+    public function getSubheading(): ?string
+    {
+        return 'Batas hari dan syarat lampiran bawaan hanyalah titik awal; sesuaikan dengan Peraturan Perusahaan sebelum dipakai karyawan. Jenis yang sudah dipakai pengajuan, jenis dasar, dan jenis bawaan tidak bisa dihapus (cukup dinonaktifkan).';
+    }
+
     protected function getHeaderActions(): array
     {
         return [

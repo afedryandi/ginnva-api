@@ -174,8 +174,11 @@ class LeaveTypesAndProfileTest extends TestCase
         $this->actingAs($admin, 'web');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $this->assertFalse(LeaveTypeResource::canDelete(LeaveType::where('code', 'izin')->first()));
-        $this->assertTrue(LeaveTypeResource::canDelete(LeaveType::where('code', 'sakit')->first()));
+        $custom = LeaveType::create(['code' => 'cuti_umroh', 'name' => 'Cuti Umroh', 'category' => 'cuti', 'deducts_annual_quota' => false, 'sort_order' => 200, 'is_active' => true]);
+
+        $this->assertFalse(LeaveTypeResource::canDelete(LeaveType::where('code', 'izin')->first()), 'Dipakai pengajuan.');
+        $this->assertFalse(LeaveTypeResource::canDelete(LeaveType::where('code', 'sakit')->first()), 'Jenis dasar.');
+        $this->assertTrue(LeaveTypeResource::canDelete($custom), 'Jenis buatan sendiri yang belum dipakai boleh dihapus.');
 
         Livewire::test(ListLeaveTypes::class)->assertSuccessful()
             ->assertCanSeeTableRecords(LeaveType::orderBy('sort_order')->take(10)->get());
@@ -228,5 +231,114 @@ class LeaveTypesAndProfileTest extends TestCase
     {
         $this->getJson('/api/staff/profile')->assertStatus(401);
         $this->getJson('/api/staff/leave-types')->assertStatus(401);
+    }
+
+    public function test_default_staff_cannot_open_or_change_leave_types_and_changes_need_an_explicit_grant(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $type = LeaveType::where('code', 'sakit')->first();
+
+        $viewer = User::create(['name' => 'Viewer', 'email' => 'v@test.local', 'password' => 'x', 'store_id' => $this->store->id, 'menu_access' => [LeaveTypeResource::class]]);
+        $viewer->assignRole('kasir');
+        $maintainer = User::create([
+            'name' => 'Maintainer', 'email' => 'm@test.local', 'password' => 'x', 'store_id' => $this->store->id,
+            'menu_access' => [LeaveTypeResource::class],
+            'menu_permissions' => [LeaveTypeResource::class => ['create', 'update', 'delete']],
+        ]);
+        $maintainer->assignRole('kasir');
+
+        $this->assertNull($this->staff->menu_access);
+        $this->actingAs($this->staff, 'web');
+        $this->assertFalse(LeaveTypeResource::canViewAny(), 'Akun bawaan tidak membuka aturan izin dan cuti.');
+        $this->assertFalse(LeaveTypeResource::canCreate());
+        $this->assertFalse(LeaveTypeResource::canEdit($type));
+        $this->assertFalse((bool) LeaveTypeResource::canDelete($type));
+        Livewire::test(\App\Filament\Resources\LeaveTypeResource\Pages\CreateLeaveType::class)->assertForbidden();
+
+        $this->actingAs($viewer, 'web');
+        $this->assertTrue(LeaveTypeResource::canViewAny());
+        $this->assertFalse(LeaveTypeResource::canCreate());
+        $this->assertFalse(LeaveTypeResource::canEdit($type));
+        $this->assertFalse((bool) LeaveTypeResource::canDelete($type));
+
+        $this->actingAs($maintainer, 'web');
+        $this->assertTrue(LeaveTypeResource::canCreate());
+        $this->assertTrue(LeaveTypeResource::canEdit($type));
+        $this->assertTrue((bool) LeaveTypeResource::canDelete($type));
+    }
+
+    public function test_base_and_default_types_are_protected_and_the_quota_switch_locks_once_a_type_is_used(): void
+    {
+        LeaveType::ensureDefaults();
+        $base = LeaveType::where('code', 'cuti_tahunan')->firstOrFail();
+        $default =LeaveType::where('code', 'cuti_haid')->firstOrFail();
+
+        $this->assertTrue($base->isBaseType());
+        $this->assertTrue($default->isBuiltIn());
+        $this->assertFalse($default->isBaseType());
+
+        $this->assertThrows(fn () => $base->update(['is_active' => false]), \RuntimeException::class);
+        $this->assertTrue($base->fresh()->is_active);
+        $default->update(['is_active' => false]);
+        $this->assertFalse($default->fresh()->is_active);
+        $this->assertThrows(fn () => $default->delete(), \RuntimeException::class);
+        $this->assertNotNull(LeaveType::where('code', 'cuti_haid')->first());
+
+        $custom = LeaveType::create(['code' => 'cuti_umroh', 'name' => 'Cuti Umroh', 'category' => 'cuti', 'deducts_annual_quota' => false, 'sort_order' => 200, 'is_active' => true]);
+        $custom->update(['deducts_annual_quota' => true]);
+        $this->assertTrue($custom->fresh()->deducts_annual_quota);
+
+        $this->request(['leave_type_id' => $custom->id, 'start_date' => '2026-10-12', 'end_date' => '2026-10-12'])->assertStatus(201);
+        $this->assertThrows(fn () => $custom->fresh()->update(['deducts_annual_quota' => false]), \RuntimeException::class);
+        $this->assertTrue($custom->fresh()->deducts_annual_quota);
+
+        $custom->fresh()->update(['max_days' => 7]);
+        $this->assertSame(7, $custom->fresh()->max_days);
+    }
+
+    public function test_the_default_code_list_matches_what_ensure_defaults_creates(): void
+    {
+        LeaveType::query()->whereNotIn('code', LeaveType::BASE_CODES)->delete();
+        LeaveType::ensureDefaults();
+
+        $created = LeaveType::whereNotIn('code', LeaveType::BASE_CODES)->pluck('code')->all();
+
+        $this->assertEqualsCanonicalizing(LeaveType::DEFAULT_CODES, $created);
+    }
+
+    public function test_the_list_shows_usage_filters_by_category_and_status_and_explains_why_a_type_cannot_be_deleted(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        LeaveType::ensureDefaults();
+        $maintainer = User::create([
+            'name' => 'Maintainer', 'email' => 'm@test.local', 'password' => 'x', 'store_id' => $this->store->id,
+            'menu_access' => [LeaveTypeResource::class],
+            'menu_permissions' => [LeaveTypeResource::class => ['create', 'update', 'delete']],
+        ]);
+        $maintainer->assignRole('kasir');
+
+        $this->request(['leave_type_id' => $this->typeId('izin'), 'start_date' => '2026-10-12', 'end_date' => '2026-10-12'])->assertStatus(201);
+        $this->actingAs($maintainer, 'web');
+
+        $izin = LeaveTypeResource::getEloquentQuery()->where('code', 'izin')->first();
+        $haid = LeaveType::where('code', 'cuti_haid')->first();
+
+        Livewire::test(\App\Filament\Resources\LeaveTypeResource\Pages\ListLeaveTypes::class)
+            ->assertCanSeeTableRecords(LeaveType::all())
+            ->assertTableColumnStateSet('requests_count', 1, $izin)
+            ->filterTable('category', 'cuti')
+            ->assertCanSeeTableRecords(LeaveType::where('category', 'cuti')->get())
+            ->assertCanNotSeeTableRecords(LeaveType::where('category', '!=', 'cuti')->get());
+
+        $haid->update(['is_active' => false]);
+        Livewire::test(\App\Filament\Resources\LeaveTypeResource\Pages\ListLeaveTypes::class)
+            ->filterTable('is_active', false)
+            ->assertCanSeeTableRecords(LeaveType::where('is_active', false)->get())
+            ->assertCanNotSeeTableRecords(LeaveType::where('is_active', true)->get());
+
+        $this->assertStringContainsString('Jenis dasar', LeaveTypeResource::deleteBlockedReason($izin));
+        $this->assertStringContainsString('bawaan', LeaveTypeResource::deleteBlockedReason($haid));
+        $custom = LeaveType::create(['code' => 'cuti_umroh', 'name' => 'Cuti Umroh', 'category' => 'cuti', 'deducts_annual_quota' => false, 'sort_order' => 200, 'is_active' => true]);
+        $this->assertNull(LeaveTypeResource::deleteBlockedReason($custom));
     }
 }
