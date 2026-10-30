@@ -47,8 +47,8 @@ class InstallerQualityService
 
         return $bookings->map(function (Booking $booking) use ($results, $reworks) {
             $checks = $results->get($booking->id, collect());
-            $firstFailed = $checks->isNotEmpty() && ! $checks->first()->passed;
             $everFailed = $checks->contains(fn ($r) => ! $r->passed);
+            $lastFailed = $checks->isNotEmpty() && ! $checks->last()->passed;
             $notes = $reworks->get($booking->id, collect())
                 ->map(fn ($r) => (BookingRework::SOURCES[$r->source] ?? $r->source) . ': ' . $r->reason)->values()->all();
 
@@ -56,7 +56,12 @@ class InstallerQualityService
                 'booking_id' => $booking->id,
                 'booking_number' => $booking->booking_number,
                 'date' => Carbon::parse($booking->preferred_date),
-                'qc' => $checks->isEmpty() ? 'Belum diperiksa' : ($firstFailed ? 'Gagal pada pemeriksaan pertama' : ($everFailed ? 'Lulus (pernah gagal)' : 'Lulus pertama')),
+                'qc' => match (true) {
+                    $checks->isEmpty() => 'Belum diperiksa',
+                    $lastFailed => 'Gagal QC (belum lulus)',
+                    $everFailed => 'Lulus (pernah gagal)',
+                    default => 'Lulus pertama',
+                },
                 'reworks' => $notes,
                 'attention' => $everFailed || $notes !== [],
             ];

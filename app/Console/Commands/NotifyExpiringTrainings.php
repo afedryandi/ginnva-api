@@ -19,7 +19,7 @@ class NotifyExpiringTrainings extends Command
 
     protected $description = 'Kirim pengingat mingguan sertifikat installer yang hampir atau baru kedaluwarsa ke akses penuh dan store manager';
 
-    public function handle(StaffNotifier $notifier): int
+    public function handle(): int
     {
         $trainings = TechnicianTraining::query()
             ->current()
@@ -51,7 +51,7 @@ class NotifyExpiringTrainings extends Command
                 continue;
             }
 
-            $notifier->toUsers([$user->id], 'Sertifikat Installer Segera Kedaluwarsa', $this->body($mine), [], 'training-expiry', 'warning');
+            app(StaffNotifier::class)->toUsers([$user->id], 'Sertifikat Installer Segera Kedaluwarsa', $this->body($mine), [], 'training-expiry', 'warning');
             $sent++;
         }
 
