@@ -134,17 +134,24 @@ class TechnicianServiceDurationTest extends TestCase
         $this->assertSame(1, $row['job_count']);
     }
 
-    public function test_installers_without_a_technician_record_or_inactive_technicians_are_ignored(): void
+    public function test_users_without_a_technician_record_are_ignored_and_inactive_technicians_show_only_when_they_had_jobs_in_the_period(): void
     {
         [$active, $activeUser] = $this->technician('Dewi');
-        [$inactive, $inactiveUser] = $this->technician('Eko', null, true, 'inactive');
+        [$inactiveWorked, $inactiveWorkedUser] = $this->technician('Eko', null, true, 'inactive');
+        [$inactiveIdle] = $this->technician('Fani', null, true, 'inactive');
         $plain = $this->user('kasir', null, ['name' => 'Bukan Installer']);
-        $this->spk([$activeUser, $inactiveUser, $plain], '2026-09-07 09:00:00', '2026-09-07 10:00:00');
+        $this->spk([$activeUser, $inactiveWorkedUser, $plain], '2026-09-07 09:00:00', '2026-09-07 10:00:00');
 
         $rows = $this->summarize();
 
-        $this->assertSame([$active->id], $rows->pluck('technician_id')->all());
+        $this->assertEqualsCanonicalizing([$active->id, $inactiveWorked->id], $rows->pluck('technician_id')->all(), 'Eko nonaktif tampil karena punya job; Fani nonaktif tanpa job tidak.');
+        $this->assertNotContains($inactiveIdle->id, $rows->pluck('technician_id')->all());
         $this->assertSame(60, $this->row($rows, $active)['total_minutes']);
+        $this->assertSame(60, $this->row($rows, $inactiveWorked)['total_minutes']);
+        $this->assertTrue($this->row($rows, $active)['is_active']);
+        $this->assertFalse($this->row($rows, $inactiveWorked)['is_active']);
+
+        $this->assertSame([$active->id], $this->summarize('2026-09-14', '2026-09-20')->pluck('technician_id')->all(), 'Periode tanpa job Eko: ia tidak muncul.');
     }
 
     public function test_a_technician_without_an_account_shows_zero_and_is_flagged(): void
@@ -181,13 +188,25 @@ class TechnicianServiceDurationTest extends TestCase
         return Livewire::test(TechnicianServiceDurationReport::class)->set('from', '2026-09-07')->set('to', '2026-09-13');
     }
 
-    public function test_page_access_follows_menu_access(): void
+    public function test_page_access_is_for_full_access_store_managers_and_explicitly_granted_staff(): void
     {
         $this->actingAs($this->user('kasir'), 'web');
-        $this->assertTrue(TechnicianServiceDurationReport::canAccess());
+        $this->assertFalse(TechnicianServiceDurationReport::canAccess(), 'Akun bawaan tidak melihat kinerja per installer.');
 
         $this->actingAs($this->user('kasir', null, ['menu_access' => ['SomeOtherResource']]), 'web');
         $this->assertFalse(TechnicianServiceDurationReport::canAccess());
+
+        $this->actingAs($this->user('kasir', null, ['menu_access' => [TechnicianServiceDurationReport::class]]), 'web');
+        $this->assertTrue(TechnicianServiceDurationReport::canAccess(), 'Menu dicentang eksplisit.');
+
+        $this->actingAs($this->user('store_manager'), 'web');
+        $this->assertTrue(TechnicianServiceDurationReport::canAccess(), 'Store manager melihat installer tokonya.');
+
+        $this->actingAs($this->user('store_manager', null, ['menu_access' => ['SomeOtherResource']]), 'web');
+        $this->assertFalse(TechnicianServiceDurationReport::canAccess(), 'Daftar menu yang dibatasi tetap dihormati.');
+
+        $this->actingAs($this->user('super_admin'), 'web');
+        $this->assertTrue(TechnicianServiceDurationReport::canAccess());
     }
 
     public function test_default_range_is_the_current_month_and_garbage_falls_back_to_it(): void
@@ -251,5 +270,102 @@ class TechnicianServiceDurationTest extends TestCase
         $this->spk([$user], '2026-09-07 09:00:00', '2026-09-07 12:00:00');
 
         $this->page($this->user('super_admin'))->callAction('exportPdf')->assertFileDownloaded();
+    }
+
+    public function test_spk_left_without_checkout_for_more_than_a_day_are_counted_as_a_data_warning(): void
+    {
+        [, $user] = $this->technician('Joko');
+        $this->spk([$user], '2026-09-07 09:00:00', null);                         // lupa check-out
+        $this->spk([$user], '2026-09-08 09:00:00', '2026-09-08 11:00:00');        // lengkap
+        $this->spk([$user], now()->subHours(2)->toDateTimeString(), null);        // sedang dikerjakan hari ini
+        $this->spk([$this->technician('Kiki', $this->otherStore)[1]], '2026-09-09 09:00:00', null, $this->otherStore);
+
+        $service = app(TechnicianServiceDurationService::class);
+        $from = Carbon::parse('2026-09-01')->startOfDay();
+        $to = now()->endOfDay();
+
+        $this->assertSame(2, $service->unfinishedSpkCount($from, $to), 'Dua SPK lama tanpa check-out; yang sedang berjalan hari ini tidak dihitung.');
+        $this->assertSame(1, $service->unfinishedSpkCount($from, $to, $this->store->id));
+        $this->assertSame(0, $service->unfinishedSpkCount(Carbon::parse('2026-08-01'), Carbon::parse('2026-08-31')->endOfDay()));
+    }
+
+    public function test_the_page_warns_about_missing_checkouts_flags_installers_without_account_and_shows_a_total_row(): void
+    {
+        [, $withAccount] = $this->technician('Lina');
+        $this->technician('Mira', null, false);
+        $this->spk([$withAccount], '2026-09-07 09:00:00', '2026-09-07 12:00:00');
+        $this->spk([$withAccount], '2026-09-08 09:00:00', '2026-09-08 10:00:00');
+        $this->spk([$withAccount], '2026-09-09 09:00:00', null);
+
+        $this->page($this->user('super_admin'))
+            ->assertSee('1 SPK di periode ini belum di-check-out')
+            ->assertSee('Belum punya akun')
+            ->assertSee('Total')
+            ->assertSee('4,0 jam')
+            ->assertDontSee('menunggu keputusan skema tier');
+    }
+
+    public function test_the_job_breakdown_matches_the_total_flags_long_jobs_and_lists_the_team(): void
+    {
+        [$andi, $andiUser] = $this->technician('Andi');
+        [, $budiUser] = $this->technician('Budi');
+        $short = $this->spk([$andiUser, $budiUser], '2026-09-07 09:00:00', '2026-09-07 11:00:00');   // 120 mnt, tim
+        $overnight = $this->spk([$andiUser], '2026-09-08 16:00:00', '2026-09-09 10:00:00');          // 18 jam: menginap
+        $this->spk([$andiUser], '2026-09-09 09:00:00', null);                                        // belum check-out: tidak ikut
+        $this->spk([$budiUser], '2026-09-10 09:00:00', '2026-09-10 10:00:00');                        // bukan milik Andi
+
+        $service = app(TechnicianServiceDurationService::class);
+        $jobs = $service->jobsFor($andiUser->id, Carbon::parse('2026-09-07')->startOfDay(), Carbon::parse('2026-09-13')->endOfDay());
+
+        $this->assertCount(2, $jobs);
+        $this->assertSame([$short->spk_number, $overnight->spk_number], $jobs->pluck('spk_number')->all());
+        $this->assertSame($this->row($this->summarize(), $andi)['total_minutes'], $jobs->sum('minutes'), 'Rincian sama dengan total di tabel.');
+        $this->assertSame([false, true], $jobs->pluck('long')->all());
+        $this->assertSame(['Budi'], $jobs->first()['team']);
+        $this->assertSame([], $jobs->last()['team']);
+    }
+
+    public function test_the_page_opens_an_installers_jobs_on_click_and_ignores_installers_outside_the_viewers_scope(): void
+    {
+        [$andi, $andiUser] = $this->technician('Andi');
+        [$outsider, $outsiderUser] = $this->technician('Luar', $this->otherStore);
+        $job = $this->spk([$andiUser], '2026-09-08 16:00:00', '2026-09-09 10:00:00');
+        $this->spk([$outsiderUser], '2026-09-08 09:00:00', '2026-09-08 10:00:00', $this->otherStore);
+
+        $this->page($this->user('super_admin'))
+            ->assertDontSee($job->spk_number)
+            ->call('toggleJobs', $andi->id)
+            ->assertSee($job->spk_number)
+            ->assertSee('Panjang')
+            ->call('toggleJobs', $andi->id)
+            ->assertDontSee($job->spk_number);
+
+        $component = $this->page($this->user('store_manager'))->call('toggleJobs', $outsider->id);
+        $this->assertNull($component->instance()->expandedTechnicianId, 'Installer toko lain tidak bisa dibuka oleh store manager toko ini.');
+        $this->assertCount(0, $component->instance()->getExpandedJobs());
+    }
+
+    public function test_the_page_links_to_the_per_job_report_for_those_who_may_open_it(): void
+    {
+        $this->technician('Andi');
+
+        $this->page($this->user('super_admin'))
+            ->assertSee('laporan Proses Order')
+            ->assertSee(\App\Filament\Pages\JobDurationReport::getUrl(), false);
+    }
+
+    public function test_the_page_labels_an_inactive_installer_who_worked_in_the_period(): void
+    {
+        [, $activeUser] = $this->technician('Dewi');
+        [, $leaverUser] = $this->technician('Eko Keluar', null, true, 'inactive');
+        $this->technician('Fani Nganggur', null, true, 'inactive');
+        $this->spk([$activeUser], '2026-09-07 09:00:00', '2026-09-07 10:00:00');
+        $this->spk([$leaverUser], '2026-09-08 09:00:00', '2026-09-08 12:00:00');
+
+        $this->page($this->user('super_admin'))
+            ->assertSee('Eko Keluar')
+            ->assertSee('Nonaktif')
+            ->assertDontSee('Fani Nganggur')
+            ->assertSee('4,0 jam');   // total mencakup jam Eko yang sudah keluar
     }
 }

@@ -14,7 +14,7 @@
     </style>
 </head>
 <body>
-    <h1>Akumulasi Durasi Servis Installer</h1>
+    <h1>Durasi Servis Installer</h1>
     <div class="period">Periode: {{ $result['from']->format('d M Y') }} - {{ $result['to']->format('d M Y') }}</div>
     <div class="note">
         Durasi diambil dari waktu kendaraan masuk-keluar bengkel (SPK) — data AKTUAL, bukan estimasi. Kalau 1 job
@@ -35,7 +35,7 @@
         <tbody>
             @forelse ($result['rows'] as $row)
                 <tr>
-                    <td>{{ $row['name'] }}</td>
+                    <td>{{ $row['name'] }}@if (! ($row['is_active'] ?? true)) (nonaktif)@endif</td>
                     <td>{{ $row['store_name'] ?? '-' }}</td>
                     <td class="value">{{ number_format($row['job_count'], 0, ',', '.') }}</td>
                     <td class="value">{{ number_format($row['total_hours'], 1, ',', '.') }} jam</td>

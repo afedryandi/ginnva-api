@@ -35,24 +35,72 @@ use Illuminate\Support\Collection;
  */
 class TechnicianServiceDurationService
 {
+    /** Durasi satu job di atas ini (jam) ditandai: kemungkinan kendaraan menginap, bukan jam kerja. */
+    public const LONG_JOB_HOURS = 12;
+
+    /**
+     * Rincian job yang membentuk total satu installer (akun $userId) pada periode itu, urut terlama dulu. Sama persis dengan aturan
+     * summarize(): SPK dengan check-in dan check-out, check-in di dalam periode, durasi positif.
+     *
+     * @return Collection<int, array{
+     *   spk_id: int, spk_number: ?string, booking_id: ?int, booking_number: ?string,
+     *   checked_in_at: Carbon, checked_out_at: Carbon, minutes: int, long: bool, team: list<string>
+     * }>
+     */
+    public function jobsFor(int $userId, Carbon $from, Carbon $to, ?int $storeId = null): Collection
+    {
+        return Spk::query()
+            ->whereNotNull('checked_in_at')
+            ->whereNotNull('checked_out_at')
+            ->whereBetween('checked_in_at', [$from, $to])
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->whereHas('booking.installers', fn ($q) => $q->where('users.id', $userId))
+            ->with('booking.installers:id,name')
+            ->orderBy('checked_in_at')
+            ->get()
+            ->map(function (Spk $spk) use ($userId) {
+                $minutes = (int) $spk->checked_in_at->diffInMinutes($spk->checked_out_at);
+
+                return [
+                    'spk_id' => $spk->id,
+                    'spk_number' => $spk->spk_number,
+                    'booking_id' => $spk->booking?->id,
+                    'booking_number' => $spk->booking?->booking_number,
+                    'checked_in_at' => $spk->checked_in_at,
+                    'checked_out_at' => $spk->checked_out_at,
+                    'minutes' => $minutes,
+                    'long' => $minutes > self::LONG_JOB_HOURS * 60,
+                    'team' => $spk->booking?->installers->where('id', '!=', $userId)->pluck('name')->values()->all() ?? [],
+                ];
+            })
+            ->filter(fn (array $job) => $job['minutes'] > 0)
+            ->values();
+    }
+
+    /**
+     * SPK yang kendaraannya sudah lebih dari sehari masuk tetapi belum di-check-out: kemungkinan besar lupa menekan check-out, jadi jobnya
+     * tidak ikut terhitung di laporan. Dipakai sebagai peringatan kualitas data.
+     */
+    public function unfinishedSpkCount(Carbon $from, Carbon $to, ?int $storeId = null): int
+    {
+        return Spk::query()
+            ->whereNotNull('checked_in_at')
+            ->whereNull('checked_out_at')
+            ->whereBetween('checked_in_at', [$from, $to])
+            ->where('checked_in_at', '<=', now()->subDay())
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->count();
+    }
+
     /**
      * @return Collection<int, array{
      *   technician_id: int, name: string, store_name: ?string,
      *   total_minutes: int, total_hours: float, job_count: int,
-     *   avg_minutes_per_job: int, has_account: bool
+     *   avg_minutes_per_job: int, has_account: bool, is_active: bool
      * }>
      */
     public function summarize(Carbon $from, Carbon $to, ?int $storeId = null): Collection
     {
-        $technicians = Technician::query()
-            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->where('status', 'active')
-            ->with('store')
-            ->orderBy('name')
-            ->get();
-
-        $userIds = $technicians->pluck('user_id')->filter()->unique();
-
         $spks = Spk::query()
             ->whereNotNull('checked_in_at')
             ->whereNotNull('checked_out_at')
@@ -71,17 +119,20 @@ class TechnicianServiceDurationService
                 continue;
             }
 
-            $installers = $spk->booking?->installers ?? collect();
-
-            foreach ($installers as $installer) {
-                if (! $userIds->contains($installer->id)) {
-                    continue;
-                }
-
+            foreach ($spk->booking?->installers ?? collect() as $installer) {
                 $minutesByUser[$installer->id] = ($minutesByUser[$installer->id] ?? 0) + $minutes;
                 $jobsByUser[$installer->id] = ($jobsByUser[$installer->id] ?? 0) + 1;
             }
         }
+
+        // Installer aktif selalu tampil; yang sudah nonaktif tampil hanya bila punya job di periode ini, supaya laporan lama tetap lengkap
+        // tanpa memenuhi daftar dengan mantan karyawan.
+        $technicians = Technician::query()
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->where(fn ($q) => $q->where('status', 'active')->orWhereIn('user_id', array_keys($minutesByUser)))
+            ->with('store')
+            ->orderBy('name')
+            ->get();
 
         return $technicians->map(function (Technician $technician) use ($minutesByUser, $jobsByUser) {
             $minutes = $minutesByUser[$technician->user_id] ?? 0;
@@ -96,6 +147,7 @@ class TechnicianServiceDurationService
                 'job_count' => $jobs,
                 'avg_minutes_per_job' => $jobs > 0 ? (int) round($minutes / $jobs) : 0,
                 'has_account' => $technician->user_id !== null,
+                'is_active' => $technician->status === 'active',
             ];
         })->sortByDesc('total_minutes')->values();
     }

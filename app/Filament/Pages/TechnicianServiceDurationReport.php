@@ -44,7 +44,7 @@ class TechnicianServiceDurationReport extends Page implements HasForms
 
     protected static ?string $navigationLabel = 'Durasi Servis Installer';
 
-    protected static ?string $title = 'Akumulasi Durasi Servis Installer';
+    protected static ?string $title = 'Durasi Servis Installer';
 
     protected static ?int $navigationSort = 501;
 
@@ -61,12 +61,20 @@ class TechnicianServiceDurationReport extends Page implements HasForms
     #[Url(as: 'cabang')]
     public ?int $storeId = null;
 
+    /** Installer yang rincian jobnya sedang dibuka di tabel (null = tertutup). */
+    public ?int $expandedTechnicianId = null;
+
+    /**
+     * Laporan kinerja per installer (bahan penilaian): akses penuh, store manager (untuk installer tokonya), atau staf yang menunya
+     * dicentang eksplisit. Akun bawaan (menu_access kosong) tidak melihatnya; daftar menu yang dibatasi tetap dihormati.
+     */
     public static function canAccess(): bool
     {
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && ($user->isFullAccess() || $user->isStoreManager() || is_array($user->menu_access));
     }
 
     public function mount(): void
@@ -133,6 +141,71 @@ class TechnicianServiceDurationReport extends Page implements HasForms
         $storeId = $user?->isFullAccess() ? $this->storeId : $user?->store_id;
 
         return app(TechnicianServiceDurationService::class)->summarize(
+            Carbon::parse($this->from)->startOfDay(),
+            Carbon::parse($this->to)->endOfDay(),
+            $storeId,
+        );
+    }
+
+    /** Buka atau tutup rincian job seorang installer. Hanya installer yang memang tampil di laporan ini yang bisa dibuka. */
+    public function toggleJobs(int $technicianId): void
+    {
+        if ($this->expandedTechnicianId === $technicianId) {
+            $this->expandedTechnicianId = null;
+
+            return;
+        }
+
+        $this->expandedTechnicianId = $this->getRows()->contains('technician_id', $technicianId) ? $technicianId : null;
+    }
+
+    /**
+     * Rincian job installer yang sedang dibuka; kosong bila tidak ada yang dibuka atau installernya tidak punya akun.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function getExpandedJobs(): Collection
+    {
+        $row = $this->expandedTechnicianId
+            ? $this->getRows()->firstWhere('technician_id', $this->expandedTechnicianId)
+            : null;
+
+        if (! $row || ! $row['has_account']) {
+            return collect();
+        }
+
+        $user = auth()->user();
+        $storeId = $user?->isFullAccess() ? $this->storeId : $user?->store_id;
+        $userId = \App\Models\Technician::query()->whereKey($row['technician_id'])->value('user_id');
+
+        return app(TechnicianServiceDurationService::class)->jobsFor(
+            (int) $userId,
+            Carbon::parse($this->from)->startOfDay(),
+            Carbon::parse($this->to)->endOfDay(),
+            $storeId,
+        );
+    }
+
+    public function bookingUrl(?int $bookingId): ?string
+    {
+        return $bookingId && \App\Filament\Resources\BookingResource::canViewAny()
+            ? \App\Filament\Resources\BookingResource::getUrl('view', ['record' => $bookingId])
+            : null;
+    }
+
+    /** Tautan ke laporan durasi per job (Proses Order), bila boleh dibuka. */
+    public function jobReportUrl(): ?string
+    {
+        return JobDurationReport::canAccess() ? JobDurationReport::getUrl() : null;
+    }
+
+    /** Jumlah SPK di periode ini yang kendaraannya masuk lebih dari sehari lalu tetapi belum di-check-out (tidak ikut terhitung). */
+    public function getUnfinishedSpkCount(): int
+    {
+        $user = auth()->user();
+        $storeId = $user?->isFullAccess() ? $this->storeId : $user?->store_id;
+
+        return app(TechnicianServiceDurationService::class)->unfinishedSpkCount(
             Carbon::parse($this->from)->startOfDay(),
             Carbon::parse($this->to)->endOfDay(),
             $storeId,

@@ -33,7 +33,7 @@ class TechnicianServiceDurationExport implements FromArray, WithHeadings, WithSt
     {
         return collect($this->result['rows'])
             ->map(fn (array $row) => [
-                $row['name'],
+                $row['name'] . (! ($row['is_active'] ?? true) ? ' (nonaktif)' : ''),
                 $row['store_name'] ?? '-',
                 $row['job_count'],
                 (float) $row['total_hours'],
