@@ -264,7 +264,8 @@ class LeaveTypesAndProfileTest extends TestCase
         $this->actingAs($maintainer, 'web');
         $this->assertTrue(LeaveTypeResource::canCreate());
         $this->assertTrue(LeaveTypeResource::canEdit($type));
-        $this->assertTrue((bool) LeaveTypeResource::canDelete($type));
+        $this->assertFalse((bool) LeaveTypeResource::canDelete($type), 'Jenis dasar tidak bisa dihapus meski punya izin hapus.');
+        $this->assertTrue((bool) LeaveTypeResource::canDelete(LeaveType::create(['code' => 'cuti_umroh', 'name' => 'Cuti Umroh', 'category' => 'cuti', 'deducts_annual_quota' => false, 'sort_order' => 200, 'is_active' => true])));
     }
 
     public function test_base_and_default_types_are_protected_and_the_quota_switch_locks_once_a_type_is_used(): void
@@ -324,6 +325,7 @@ class LeaveTypesAndProfileTest extends TestCase
         $haid = LeaveType::where('code', 'cuti_haid')->first();
 
         Livewire::test(\App\Filament\Resources\LeaveTypeResource\Pages\ListLeaveTypes::class)
+            ->set("tableRecordsPerPage", 50)
             ->assertCanSeeTableRecords(LeaveType::all())
             ->assertTableColumnStateSet('requests_count', 1, $izin)
             ->filterTable('category', 'cuti')
@@ -332,6 +334,7 @@ class LeaveTypesAndProfileTest extends TestCase
 
         $haid->update(['is_active' => false]);
         Livewire::test(\App\Filament\Resources\LeaveTypeResource\Pages\ListLeaveTypes::class)
+            ->set("tableRecordsPerPage", 50)
             ->filterTable('is_active', false)
             ->assertCanSeeTableRecords(LeaveType::where('is_active', false)->get())
             ->assertCanNotSeeTableRecords(LeaveType::where('is_active', true)->get());
