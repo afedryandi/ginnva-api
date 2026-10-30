@@ -417,6 +417,8 @@ Route::prefix('staff')->group(function () {
         Route::get('/attendance/corrections', [StaffAttendanceController::class, 'correctionsIndex']);
         Route::post('/attendance/corrections', [StaffAttendanceController::class, 'correctionsStore'])
             ->middleware('throttle:10,1');
+        Route::post('/attendance/corrections/{id}/cancel', [StaffAttendanceController::class, 'correctionsCancel'])
+            ->middleware('throttle:20,1');
 
         // Jadwal kerja mandiri (audit fitur relevan Majoo Teams, 2026-09-30) --
         // sama pola dengan Absensi/Slip Gaji di atas, tidak dibatasi hasMenuAccess().

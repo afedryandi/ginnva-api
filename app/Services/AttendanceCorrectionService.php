@@ -7,6 +7,7 @@ use App\Models\AttendanceCorrectionRequest;
 use App\Models\User;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 use RuntimeException;
 
 /**
@@ -21,9 +22,13 @@ class AttendanceCorrectionService
 {
     /**
      * @param array{attendance_id: ?int, user_id: int, store_id: int, date: string, entry_type: string, clock_in_at: ?string, clock_out_at: ?string, reason: string} $data
+     *
+     * @throws RuntimeException bila pengajuan tidak valid (aturan yang sama untuk aplikasi dan panel).
      */
     public function submit(array $data, int $requestedBy): AttendanceCorrectionRequest
     {
+        $this->assertValid($data);
+
         $request = AttendanceCorrectionRequest::create($data + [
             'status' => AttendanceCorrectionRequest::STATUS_PENDING,
             'requested_by' => $requestedBy,
@@ -32,6 +37,41 @@ class AttendanceCorrectionService
         $this->notifyApprovers($request);
 
         return $request;
+    }
+
+    /**
+     * Aturan pengajuan: minimal satu jam, jam keluar setelah jam masuk, jam jatuh di tanggal absensi, dan satu pengajuan menunggu per
+     * karyawan per tanggal (supaya penyetuju tidak menghadapi dua pengajuan yang saling menimpa).
+     */
+    private function assertValid(array $data): void
+    {
+        $in = ! empty($data['clock_in_at']) ? Carbon::parse($data['clock_in_at']) : null;
+        $out = ! empty($data['clock_out_at']) ? Carbon::parse($data['clock_out_at']) : null;
+
+        if (! $in && ! $out) {
+            throw new RuntimeException('Isi minimal salah satu: jam masuk atau jam keluar.');
+        }
+
+        $date = Carbon::parse($data['date'])->toDateString();
+
+        foreach (['Jam masuk' => $in, 'Jam keluar' => $out] as $label => $time) {
+            if ($time && $time->toDateString() !== $date) {
+                throw new RuntimeException("{$label} harus di tanggal yang sama dengan tanggal absensi.");
+            }
+        }
+
+        if ($in && $out && $out->lessThanOrEqualTo($in)) {
+            throw new RuntimeException('Jam keluar harus setelah jam masuk.');
+        }
+
+        $hasPending = AttendanceCorrectionRequest::where('user_id', $data['user_id'])
+            ->whereDate('date', $date)
+            ->where('status', AttendanceCorrectionRequest::STATUS_PENDING)
+            ->exists();
+
+        if ($hasPending) {
+            throw new RuntimeException('Sudah ada pengajuan koreksi untuk tanggal ini yang masih menunggu keputusan.');
+        }
     }
 
     /**
@@ -84,13 +124,22 @@ class AttendanceCorrectionService
                 throw new RuntimeException('Tidak boleh menyetujui pengajuan koreksi absensi milik sendiri.');
             }
 
+            // Jam yang tidak diisi pengaju tetap memakai jam yang sudah tercatat (mis. hanya melengkapi jam keluar), bukan dikosongkan.
+            $existing = Attendance::where('user_id', $locked->user_id)->where('date', $locked->date->toDateString())->first();
+            $clockIn = $locked->clock_in_at ?? $existing?->clock_in_at;
+            $clockOut = $locked->clock_out_at ?? $existing?->clock_out_at;
+
+            if ($clockIn && $clockOut && $clockOut->lessThanOrEqualTo($clockIn)) {
+                throw new RuntimeException('Jam keluar usulan tidak boleh sebelum jam masuk yang sudah tercatat. Tolak pengajuan ini dan minta diajukan ulang dengan kedua jam.');
+            }
+
             $attendance = Attendance::updateOrCreate(
                 ['user_id' => $locked->user_id, 'date' => $locked->date->toDateString()],
                 [
                     'store_id' => $locked->store_id,
                     'entry_type' => $locked->entry_type,
-                    'clock_in_at' => $locked->clock_in_at,
-                    'clock_out_at' => $locked->clock_out_at,
+                    'clock_in_at' => $clockIn,
+                    'clock_out_at' => $clockOut,
                     'note' => $locked->reason,
                     'recorded_by' => $approvedBy,
                 ]
@@ -139,6 +188,27 @@ class AttendanceCorrectionService
             ]);
 
             $this->notifyRequester($locked, approved: false);
+        });
+    }
+
+    /**
+     * Pengaju menarik kembali pengajuannya selama masih menunggu (salah isi jam, atau tidak jadi). Hanya pengaju sendiri; yang sudah diputuskan
+     * tidak bisa ditarik. Tanggalnya langsung bebas untuk pengajuan baru.
+     */
+    public function cancel(AttendanceCorrectionRequest $request, int $cancelledBy): void
+    {
+        DB::transaction(function () use ($request, $cancelledBy) {
+            $locked = AttendanceCorrectionRequest::whereKey($request->id)->lockForUpdate()->first();
+
+            if (! $locked || $locked->requested_by !== $cancelledBy) {
+                throw new RuntimeException('Pengajuan ini bukan milik Anda.');
+            }
+
+            if (! $locked->isPending()) {
+                throw new RuntimeException('Cuma pengajuan yang masih menunggu keputusan yang bisa dibatalkan.');
+            }
+
+            $locked->update(['status' => AttendanceCorrectionRequest::STATUS_CANCELLED]);
         });
     }
 

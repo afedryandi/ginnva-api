@@ -142,7 +142,8 @@ class AttendanceCorrectionRequestResource extends Resource
                     ->limit(40),
 
                 Tables\Columns\TextColumn::make('requestedBy.name')
-                    ->label('Diajukan Oleh'),
+                    ->label('Diajukan Oleh')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
@@ -157,16 +158,21 @@ class AttendanceCorrectionRequestResource extends Resource
                         AttendanceCorrectionRequest::STATUS_PENDING => 'Menunggu',
                         AttendanceCorrectionRequest::STATUS_APPROVED => 'Disetujui',
                         AttendanceCorrectionRequest::STATUS_REJECTED => 'Ditolak',
+                        AttendanceCorrectionRequest::STATUS_CANCELLED => 'Dibatalkan',
                         default => $state,
                     }),
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
+                // Penyetuju membuka daftar langsung pada antrean yang menunggu; pengaju tetap melihat seluruh riwayatnya.
                 Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->default(fn () => (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager()) ? AttendanceCorrectionRequest::STATUS_PENDING : null)
                     ->options([
                         AttendanceCorrectionRequest::STATUS_PENDING => 'Menunggu',
                         AttendanceCorrectionRequest::STATUS_APPROVED => 'Disetujui',
                         AttendanceCorrectionRequest::STATUS_REJECTED => 'Ditolak',
+                        AttendanceCorrectionRequest::STATUS_CANCELLED => 'Dibatalkan',
                     ]),
             ])
             ->actions([
@@ -196,8 +202,10 @@ class AttendanceCorrectionRequestResource extends Resource
                                     ->where('date', $record->date->toDateString())
                                     ->first();
 
+                                $payrollNote = static::payrollNote($record);
+
                                 if (! $existing) {
-                                    return 'Belum ada baris absensi untuk tanggal ini — koreksi ini akan MEMBUAT baris baru.';
+                                    return 'Belum ada baris absensi untuk tanggal ini — koreksi ini akan MEMBUAT baris baru.' . $payrollNote;
                                 }
 
                                 $label = match ($existing->entry_type) {
@@ -209,7 +217,7 @@ class AttendanceCorrectionRequestResource extends Resource
                                     default => $existing->entry_type,
                                 };
 
-                                return "Jenis saat ini: {$label}. Menyetujui koreksi ini akan MENIMPA baris tersebut jadi \"Manual\" sesuai jam yang diajukan.";
+                                return "Jenis saat ini: {$label}. Menyetujui koreksi ini akan MENIMPA baris tersebut jadi \"Manual\" sesuai jam yang diajukan." . $payrollNote;
                             })
                             ->columnSpanFull(),
 
@@ -253,9 +261,64 @@ class AttendanceCorrectionRequestResource extends Resource
                         }
                     }),
 
+                // Pengaju menarik kembali pengajuannya sendiri selama masih menunggu.
+                Tables\Actions\Action::make('cancel')
+                    ->label('Batalkan')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('gray')
+                    ->visible(fn (AttendanceCorrectionRequest $record) => $record->isPending() && $record->requested_by === auth()->id())
+                    ->requiresConfirmation()
+                    ->modalDescription('Pengajuan ini ditarik kembali dan tidak akan diputuskan siapa pun. Anda bisa mengajukan lagi untuk tanggal yang sama.')
+                    ->action(function (AttendanceCorrectionRequest $record) {
+                        try {
+                            app(AttendanceCorrectionService::class)->cancel($record, auth()->id());
+
+                            Notification::make()->title('Pengajuan dibatalkan')->success()->send();
+                        } catch (\RuntimeException $e) {
+                            Notification::make()->title('Gagal membatalkan')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
+
                 Tables\Actions\ViewAction::make(),
             ]);
     }
+
+    /** Peringatan bila penggajian bulan pengajuan sudah dikunci atau berupa draf yang perlu digenerate ulang. */
+    private static function payrollNote(AttendanceCorrectionRequest $request): string
+    {
+        $payroll = \App\Models\Payroll::where('user_id', $request->user_id)
+            ->whereDate('period_month', $request->date->copy()->startOfMonth()->toDateString())
+            ->first();
+
+        if (! $payroll) {
+            return '';
+        }
+
+        $month = $request->date->translatedFormat('F Y');
+
+        return $payroll->status === 'draft'
+            ? " Catatan: slip gaji {$month} masih draf; generate ulang supaya angkanya ikut berubah."
+            : " PERHATIAN: slip gaji {$month} sudah {$payroll->status_label}; angka gaji TIDAK otomatis berubah oleh koreksi ini.";
+    }
+
+    /** Jumlah pengajuan orang lain yang menunggu keputusan; hanya untuk penyetuju. */
+    public static function getNavigationBadge(): ?string
+    {
+        $user = auth()->user();
+
+        if (! $user || ! ($user->isFullAccess() || $user->isStoreManager())) {
+            return null;
+        }
+
+        $count = static::getEloquentQuery()
+            ->where('status', AttendanceCorrectionRequest::STATUS_PENDING)
+            ->where('requested_by', '!=', $user->id)
+            ->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    protected static ?string $navigationBadgeColor = 'warning';
 
     public static function getPages(): array
     {

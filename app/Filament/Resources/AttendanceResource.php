@@ -495,16 +495,23 @@ class AttendanceResource extends Resource
                         'clock_out_at' => $record->clock_out_at,
                     ])
                     ->action(function (Attendance $record, array $data) {
-                        app(\App\Services\AttendanceCorrectionService::class)->submit([
-                            'attendance_id' => $record->id,
-                            'user_id' => $record->user_id,
-                            'store_id' => $record->store_id,
-                            'date' => $record->date->toDateString(),
-                            'entry_type' => $record->entry_type,
-                            'clock_in_at' => $data['clock_in_at'] ?: null,
-                            'clock_out_at' => $data['clock_out_at'] ?: null,
-                            'reason' => $data['reason'],
-                        ], auth()->id());
+                        try {
+                            app(\App\Services\AttendanceCorrectionService::class)->submit([
+                                'attendance_id' => $record->id,
+                                'user_id' => $record->user_id,
+                                'store_id' => $record->store_id,
+                                'date' => $record->date->toDateString(),
+                                // Baris Alpha/Izin yang dikoreksi jadi entri manual, bukan tetap Alpha dengan jam.
+                                'entry_type' => in_array($record->entry_type, ['alpha', 'leave'], true) ? 'manual' : $record->entry_type,
+                                'clock_in_at' => $data['clock_in_at'] ?: null,
+                                'clock_out_at' => $data['clock_out_at'] ?: null,
+                                'reason' => $data['reason'],
+                            ], auth()->id());
+                        } catch (\RuntimeException $e) {
+                            Notification::make()->title('Pengajuan tidak dikirim')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
 
                         Notification::make()
                             ->title('Permintaan koreksi dikirim')

@@ -271,6 +271,7 @@ class AttendanceCorrectionApprovalTest extends TestCase
 
         $this->actingAs($manager, 'web');
         Livewire::test(ListAttendanceCorrectionRequests::class)
+            ->removeTableFilter('status')
             ->assertTableActionVisible('approve', $request)->assertTableActionVisible('reject', $request)
             ->assertTableActionHidden('approve', $managersOwn)->assertTableActionHidden('reject', $managersOwn)
             ->assertTableActionHidden('approve', $decided->fresh())->assertTableActionHidden('reject', $decided->fresh());
@@ -383,5 +384,54 @@ class AttendanceCorrectionApprovalTest extends TestCase
         $row = Attendance::where('user_id', $employee->id)->firstOrFail();
         $this->assertSame(5, $row->late_minutes, 'Jam masuk dikoreksi ke 09:05: telat 5 menit dicatat apa adanya.');
         $this->assertSame(0, $row->early_leave_minutes);
+    }
+
+    public function test_approvers_open_the_pending_queue_by_default_while_requesters_keep_their_full_history(): void
+    {
+        $employee = $this->user('kasir');
+        $pending = $this->submit($employee);
+        $decided = $this->submit($this->user('kasir'));
+        $this->service->reject($decided, $this->user('super_admin')->id, 'tidak valid');
+        $mine = $this->submit($employee, ['date' => '2026-09-20']);
+        $this->service->cancel($mine, $employee->id);
+
+        $this->actingAs($this->user('store_manager'), 'web');
+        Livewire::test(ListAttendanceCorrectionRequests::class)
+            ->assertCanSeeTableRecords([$pending])->assertCanNotSeeTableRecords([$decided, $mine]);
+
+        $this->actingAs($employee, 'web');
+        Livewire::test(ListAttendanceCorrectionRequests::class)
+            ->assertCanSeeTableRecords([$pending, $mine]);
+    }
+
+    public function test_navigation_badge_counts_other_peoples_pending_requests_for_approvers_only(): void
+    {
+        $manager = $this->user('store_manager');
+        $employee = $this->user('kasir');
+        $this->submit($employee);
+        $this->submit($this->user('kasir'));
+        $this->submit($manager);
+
+        $this->actingAs($manager, 'web');
+        $this->assertSame('2', AttendanceCorrectionRequestResource::getNavigationBadge(), 'Milik sendiri tidak dihitung.');
+
+        $this->actingAs($employee, 'web');
+        $this->assertNull(AttendanceCorrectionRequestResource::getNavigationBadge());
+    }
+
+    public function test_the_approval_modal_warns_when_the_months_payroll_is_already_locked(): void
+    {
+        $manager = $this->user('store_manager');
+        $employee = $this->user('kasir');
+        $request = $this->submit($employee);
+        \App\Models\Payroll::create([
+            'user_id' => $employee->id, 'store_id' => $this->store->id, 'period_month' => '2026-09-01', 'status' => 'paid',
+            'base_salary' => 3000000, 'net_pay' => 3000000,
+        ]);
+
+        $method = new \ReflectionMethod(AttendanceCorrectionRequestResource::class, 'payrollNote');
+        $method->setAccessible(true);
+
+        $this->assertStringContainsString('TIDAK otomatis berubah', $method->invoke(null, $request->fresh()));
     }
 }

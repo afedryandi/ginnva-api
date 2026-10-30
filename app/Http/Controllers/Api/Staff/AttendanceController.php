@@ -271,22 +271,48 @@ class AttendanceController extends Controller
 
         $existingAttendance = Attendance::where('user_id', $user->id)->where('date', $date->toDateString())->first();
 
-        $correctionRequest = app(AttendanceCorrectionService::class)->submit([
-            'attendance_id' => $existingAttendance?->id,
-            'user_id'       => $user->id,
-            'store_id'      => $user->store_id,
-            'date'          => $date->toDateString(),
-            'entry_type'    => 'manual',
-            'clock_in_at'   => $request->filled('clock_in_at') ? $date->copy()->setTimeFromTimeString($request->clock_in_at) : null,
-            'clock_out_at'  => $request->filled('clock_out_at') ? $date->copy()->setTimeFromTimeString($request->clock_out_at) : null,
-            'reason'        => $request->reason,
-        ], $user->id);
+        try {
+            $correctionRequest = app(AttendanceCorrectionService::class)->submit([
+                'attendance_id' => $existingAttendance?->id,
+                'user_id'       => $user->id,
+                'store_id'      => $user->store_id,
+                'date'          => $date->toDateString(),
+                'entry_type'    => 'manual',
+                'clock_in_at'   => $request->filled('clock_in_at') ? $date->copy()->setTimeFromTimeString($request->clock_in_at) : null,
+                'clock_out_at'  => $request->filled('clock_out_at') ? $date->copy()->setTimeFromTimeString($request->clock_out_at) : null,
+                'reason'        => $request->reason,
+            ], $user->id);
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Pengajuan koreksi terkirim, menunggu persetujuan admin/store manager.',
             'correction' => $this->transformCorrection($correctionRequest),
         ], 201);
+    }
+
+    /**
+     * POST /api/staff/attendance/corrections/{id}/cancel
+     * Tarik kembali pengajuan koreksi milik sendiri yang masih menunggu.
+     */
+    public function correctionsCancel(Request $request, int $id)
+    {
+        $user = $request->user('api');
+        $correction = AttendanceCorrectionRequest::where('id', $id)->where('user_id', $user->id)->first();
+
+        if (! $correction) {
+            return response()->json(['success' => false, 'message' => 'Pengajuan tidak ditemukan.'], 404);
+        }
+
+        try {
+            app(AttendanceCorrectionService::class)->cancel($correction, $user->id);
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true, 'correction' => $this->transformCorrection($correction->fresh())]);
     }
 
     private function transformCorrection(AttendanceCorrectionRequest $r): array

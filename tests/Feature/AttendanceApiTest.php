@@ -322,6 +322,22 @@ class AttendanceApiTest extends TestCase
         $this->assertSame(1, AttendanceCorrectionRequest::count());
     }
 
+    public function test_a_pending_correction_can_be_cancelled_by_its_owner_and_frees_the_date(): void
+    {
+        $other = $this->makeStaff($this->store);
+        $valid = ['date' => '2026-10-06', 'clock_in_at' => '09:00', 'reason' => 'Salah isi'];
+        $id = $this->actingAs($this->staff, 'api')->postJson('/api/staff/attendance/corrections', $valid)->assertStatus(201)->json('correction.id');
+
+        $this->actingAs($other, 'api')->postJson("/api/staff/attendance/corrections/{$id}/cancel")->assertStatus(404);
+        $this->assertSame(AttendanceCorrectionRequest::STATUS_PENDING, AttendanceCorrectionRequest::find($id)->status);
+
+        $this->actingAs($this->staff, 'api')->postJson("/api/staff/attendance/corrections/{$id}/cancel")
+            ->assertSuccessful()->assertJsonPath('correction.status', AttendanceCorrectionRequest::STATUS_CANCELLED);
+
+        $this->actingAs($this->staff, 'api')->postJson("/api/staff/attendance/corrections/{$id}/cancel")->assertStatus(422);
+        $this->actingAs($this->staff, 'api')->postJson('/api/staff/attendance/corrections', ['clock_in_at' => '08:50'] + $valid)->assertStatus(201);
+    }
+
     public function test_correction_list_shows_only_my_own_requests(): void
     {
         $other = $this->makeStaff($this->store);

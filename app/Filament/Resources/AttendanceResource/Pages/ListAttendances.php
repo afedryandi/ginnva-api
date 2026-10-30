@@ -77,16 +77,22 @@ class ListAttendances extends ListRecords
                     // Jaga sisi server: isian karyawan tidak dipercaya untuk staf yang hanya berhak atas dirinya sendiri.
                     $userId = (auth()->user()?->canSeeStoreAttendance() ?? false) ? $data['user_id'] : auth()->id();
 
-                    app(AttendanceCorrectionService::class)->submit([
-                        'attendance_id' => null,
-                        'user_id' => $userId,
-                        'store_id' => auth()->user()?->store_id,
-                        'date' => $data['date'],
-                        'entry_type' => $data['entry_type'],
-                        'clock_in_at' => $data['clock_in_at'] ?: null,
-                        'clock_out_at' => $data['clock_out_at'] ?: null,
-                        'reason' => $data['reason'],
-                    ], auth()->id());
+                    try {
+                        app(AttendanceCorrectionService::class)->submit([
+                            'attendance_id' => null,
+                            'user_id' => $userId,
+                            'store_id' => auth()->user()?->store_id,
+                            'date' => $data['date'],
+                            'entry_type' => $data['entry_type'],
+                            'clock_in_at' => $data['clock_in_at'] ?: null,
+                            'clock_out_at' => $data['clock_out_at'] ?: null,
+                            'reason' => $data['reason'],
+                        ], auth()->id());
+                    } catch (\RuntimeException $e) {
+                        Notification::make()->title('Pengajuan tidak dikirim')->body($e->getMessage())->danger()->send();
+
+                        return;
+                    }
 
                     Notification::make()
                         ->title('Permintaan koreksi dikirim')
