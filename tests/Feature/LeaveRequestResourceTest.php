@@ -502,9 +502,9 @@ class LeaveRequestResourceTest extends TestCase
 
         Livewire::test(ListLeaveRequests::class)
             ->assertTableActionVisible('revoke', $request->fresh())
-            ->callTableAction('revoke', $request, data: ['review_note' => ''])
+            ->callTableAction('revoke', $request->fresh(), data: ['review_note' => ''])
             ->assertHasTableActionErrors(['review_note' => 'required'])
-            ->callTableAction('revoke', $request, data: ['review_note' => 'Rencana batal'])
+            ->callTableAction('revoke', $request->fresh(), data: ['review_note' => 'Rencana batal'])
             ->assertHasNoTableActionErrors();
 
         $fresh = $request->fresh();
