@@ -34,29 +34,30 @@ class PayrollItemCategoryResource extends Resource
 
     protected static ?int $navigationSort = 420;
 
+    /**
+     * Kategori menentukan jenis, nama, dan akun setiap komponen di slip gaji semua orang, jadi tidak terbuka lewat akses bawaan akun baru:
+     * hanya akses penuh atau staf yang menunya dicentang eksplisit. Membuat, mengubah, dan menghapus butuh izin aksi eksplisit.
+     */
     public static function canViewAny(): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
     }
 
     public static function canCreate(): bool
     {
-        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'create', false) ?? false);
     }
 
     public static function canEdit($record): bool
     {
-        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', false) ?? false);
     }
 
     public static function canDelete($record): bool
     {
         return ! $record->items()->exists()
             && static::canViewAny()
-            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', false) ?? false);
     }
 
     public static function form(Form $form): Form
@@ -119,7 +120,26 @@ class PayrollItemCategoryResource extends Resource
                     ->formatStateUsing(fn ($state, PayrollItemCategory $record) => $record->account ? "{$record->account->code} - {$record->account->name}" : '— belum diatur')
                     ->color(fn (PayrollItemCategory $record) => $record->account ? null : 'danger'),
                 Tables\Columns\IconColumn::make('is_recurring_default')->label('Disalin bulan depan')->boolean(),
-                Tables\Columns\IconColumn::make('is_active')->label('Aktif')->boolean(),
+                Tables\Columns\TextColumn::make('items_count')
+                    ->label('Dipakai')
+                    ->suffix(' komponen')
+                    ->description(fn (PayrollItemCategory $record) => $record->items_count > 0 ? 'Tidak bisa dihapus, cukup nonaktifkan' : null),
+                // Saklar langsung di daftar: kategori nonaktif tidak bisa dipilih untuk komponen baru, slip lama tidak berubah.
+                Tables\Columns\ToggleColumn::make('is_active')
+                    ->label('Aktif')
+                    ->disabled(fn (PayrollItemCategory $record) => ! static::canEdit($record)),
+            ])
+            ->groups([
+                Tables\Grouping\Group::make('type')
+                    ->label('Jenis')
+                    ->getTitleFromRecordUsing(fn (PayrollItemCategory $record) => PayrollItemCategory::TYPES[$record->type] ?? $record->type)
+                    // 'deduction' mengurut sebelum 'earning' secara abjad; dibalik agar Tambahan tampil lebih dulu.
+                    ->orderQueryUsing(fn (\Illuminate\Database\Eloquent\Builder $query, string $direction) => $query->orderBy('type', $direction === 'asc' ? 'desc' : 'asc')),
+            ])
+            ->defaultGroup('type')
+            ->filters([
+                Tables\Filters\SelectFilter::make('type')->label('Jenis')->options(PayrollItemCategory::TYPES),
+                Tables\Filters\TernaryFilter::make('is_active')->label('Status')->trueLabel('Aktif')->falseLabel('Nonaktif'),
             ])
             ->defaultSort('sort_order')
             ->actions([
@@ -130,7 +150,7 @@ class PayrollItemCategoryResource extends Resource
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
-        return parent::getEloquentQuery()->with('account');
+        return parent::getEloquentQuery()->with('account')->withCount('items');
     }
 
     public static function getPages(): array

@@ -16,14 +16,14 @@ class PayrollItem extends Model
 {
     use LogsActivity;
 
-    protected $fillable = ['payroll_id', 'payroll_item_category_id', 'label', 'amount', 'is_recurring', 'notes', 'created_by'];
+    protected $fillable = ['payroll_id', 'payroll_item_category_id', 'label', 'amount', 'is_recurring', 'repeat_until', 'notes', 'created_by'];
 
-    protected $casts = ['amount' => 'decimal:2', 'is_recurring' => 'boolean'];
+    protected $casts = ['amount' => 'decimal:2', 'is_recurring' => 'boolean', 'repeat_until' => 'date'];
 
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['payroll_id', 'payroll_item_category_id', 'label', 'amount', 'is_recurring'])
+            ->logOnly(['payroll_id', 'payroll_item_category_id', 'label', 'amount', 'is_recurring', 'repeat_until'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('payroll_item');

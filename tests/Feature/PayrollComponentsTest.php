@@ -133,7 +133,7 @@ class PayrollComponentsTest extends TestCase
         $this->assertEquals(375000, $fresh->total_item_deductions);
         $this->assertEquals(5000000 + 5500000 - 375000, $fresh->net_pay);
         $this->assertSame(5, $fresh->items()->count());
-        $this->assertSame('Kasbon Agustus', $fresh->items()->whereNotNull('label')->first()->displayLabel());
+        $this->assertSame('Kasbon Agustus', $fresh->items()->where('label', 'Kasbon Agustus')->first()->displayLabel());
         $this->assertSame('Tunjangan Tetap', $fresh->items()->where('payroll_item_category_id', $this->cat('tunjangan_tetap')->id)->first()->displayLabel());
     }
 
@@ -379,5 +379,148 @@ class PayrollComponentsTest extends TestCase
             [['label' => 'Tunjangan Tetap', 'type' => 'earning', 'amount' => 500000], ['label' => 'PPh 21', 'type' => 'deduction', 'amount' => 125000]],
             $row['items']
         );
+    }
+
+    public function test_default_staff_cannot_view_or_change_the_payroll_component_categories(): void
+    {
+        $category = $this->cat('bonus');
+
+        $default = $this->user('kasir');
+        $this->assertNull($default->menu_access);
+        $this->actingAs($default, 'web');
+        $this->assertFalse(PayrollItemCategoryResource::canViewAny());
+        $this->assertFalse(PayrollItemCategoryResource::canCreate());
+        $this->assertFalse(PayrollItemCategoryResource::canEdit($category));
+        $this->assertFalse(PayrollItemCategoryResource::canDelete($this->cat('tunjangan_tetap')));
+        Livewire::test(CreatePayrollItemCategory::class)->assertForbidden();
+
+        $viewer = $this->user('kasir', ['menu_access' => [PayrollItemCategoryResource::class]]);
+        $this->actingAs($viewer, 'web');
+        $this->assertTrue(PayrollItemCategoryResource::canViewAny());
+        $this->assertFalse(PayrollItemCategoryResource::canCreate());
+        $this->assertFalse(PayrollItemCategoryResource::canEdit($category));
+
+        $maintainer = $this->user('kasir', [
+            'menu_access' => [PayrollItemCategoryResource::class],
+            'menu_permissions' => [PayrollItemCategoryResource::class => ['create', 'update']],
+        ]);
+        $this->actingAs($maintainer, 'web');
+        $this->assertTrue(PayrollItemCategoryResource::canCreate());
+        $this->assertTrue(PayrollItemCategoryResource::canEdit($category));
+        $this->assertFalse(PayrollItemCategoryResource::canDelete($this->cat('tunjangan_tetap')), 'Hapus butuh izin sendiri.');
+    }
+
+    public function test_the_category_list_shows_usage_filters_by_type_and_status_and_groups_additions_first(): void
+    {
+        $this->actingAs($this->admin, 'web');
+        $used = $this->cat('bonus');
+        $unused = $this->cat('tunjangan_tidak_tetap');
+        $deduction = $this->cat('kasbon');
+        app(PayrollItemService::class)->sync($this->payroll(), [$this->row('bonus', 1000)]);
+        $unused->update(['is_active' => false]);
+
+        Livewire::test(\App\Filament\Resources\PayrollItemCategoryResource\Pages\ListPayrollItemCategories::class)
+            ->assertSuccessful()
+            ->assertTableColumnStateSet('items_count', 1, $used)
+            ->assertTableColumnStateSet('items_count', 0, $unused)
+            ->assertSee('Tidak bisa dihapus, cukup nonaktifkan')
+            ->filterTable('type', 'deduction')
+            ->assertCanSeeTableRecords([$deduction])->assertCanNotSeeTableRecords([$used, $unused])
+            ->resetTableFilters()
+            ->filterTable('is_active', false)
+            ->assertCanSeeTableRecords([$unused])->assertCanNotSeeTableRecords([$used, $deduction]);
+    }
+
+    // ------------------------------------------------------------- berhenti disalin & nama dibekukan
+
+    public function test_a_component_stops_being_copied_after_its_last_month(): void
+    {
+        $user = $this->user();
+        $july = Payroll::generateForMonth($user, Carbon::parse('2026-07-01'));
+        $service = app(PayrollItemService::class);
+        $service->sync($july, [
+            $this->row('kasbon', 200000, ['is_recurring' => true, 'repeat_until' => '2026-09-15']),   // cicilan terakhir September
+            $this->row('bpjs_kesehatan', 50000, ['is_recurring' => true]),                              // tanpa batas
+        ]);
+        $this->assertSame('2026-09-01', $july->items()->where('label', $this->cat('kasbon')->name)->first()->repeat_until->toDateString(), 'Disimpan sebagai awal bulan.');
+
+        $august = Payroll::generateForMonth($user, Carbon::parse('2026-08-01'));
+        $this->assertSame(2, $service->copyRecurring($august));
+
+        $september = Payroll::generateForMonth($user, Carbon::parse('2026-09-01'));
+        $this->assertSame(2, $service->copyRecurring($september), 'September masih ikut (bulan terakhir).');
+        $this->assertNotNull($september->items()->whereHas('category', fn ($q) => $q->where('code', 'kasbon'))->first()->repeat_until, 'Batasnya ikut tersalin.');
+
+        $october = Payroll::generateForMonth($user, Carbon::parse('2026-10-01'));
+        $this->assertSame(1, $service->copyRecurring($october), 'Oktober hanya BPJS; kasbon sudah lewat bulan terakhirnya.');
+        $this->assertSame(['bpjs_kesehatan'], $october->items()->with('category')->get()->pluck('category.code')->all());
+    }
+
+    public function test_the_last_month_cannot_be_before_the_slips_own_period_and_is_ignored_when_not_recurring(): void
+    {
+        $service = app(PayrollItemService::class);
+        $payroll = $this->payroll();   // September 2026
+
+        try {
+            $service->sync($payroll, [$this->row('kasbon', 100000, ['is_recurring' => true, 'repeat_until' => '2026-08-01'])]);
+            $this->fail('Bulan terakhir sebelum periode slip seharusnya ditolak.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('tidak boleh sebelum periode slip', $e->getMessage());
+        }
+
+        $service->sync($payroll, [$this->row('kasbon', 100000, ['is_recurring' => false, 'repeat_until' => '2027-01-01'])]);
+        $this->assertNull($payroll->items()->first()->repeat_until);
+    }
+
+    public function test_a_blank_name_on_the_slip_is_frozen_to_the_category_name_so_renaming_the_category_leaves_old_slips_alone(): void
+    {
+        $payroll = $this->payroll();
+        $category = $this->cat('bonus');
+        app(PayrollItemService::class)->sync($payroll, [$this->row('bonus', 1000000)]);
+
+        $item = $payroll->items()->firstOrFail();
+        $this->assertSame($category->name, $item->label);
+
+        $category->update(['name' => 'Insentif Penjualan']);
+
+        $this->assertSame('Bonus / Insentif', $item->fresh()->displayLabel(), 'Slip yang sudah dibuat tidak ikut berubah.');
+
+        $other = $this->payroll($this->user());
+        app(PayrollItemService::class)->sync($other, [$this->row('bonus', 1000000)]);
+        $this->assertSame('Insentif Penjualan', $other->items()->firstOrFail()->displayLabel(), 'Komponen baru memakai nama kategori yang baru.');
+    }
+
+    public function test_changing_the_category_of_an_untouched_name_follows_the_new_category(): void
+    {
+        $payroll = $this->payroll();
+        $service = app(PayrollItemService::class);
+        $service->sync($payroll, [$this->row('bonus', 1000000)]);
+        $item = $payroll->items()->firstOrFail();
+
+        $service->sync($payroll, [['id' => $item->id, 'payroll_item_category_id' => $this->cat('thr')->id, 'amount' => 1000000, 'label' => $item->label]]);
+
+        $this->assertSame($this->cat('thr')->name, $item->fresh()->displayLabel());
+    }
+
+    public function test_default_categories_do_not_create_ledger_accounts_while_the_finance_module_is_off_and_get_them_when_it_is_on(): void
+    {
+        \App\Models\ChartOfAccount::whereIn('code', ['6145', '6150', '2180', '2190'])->delete();
+        PayrollItemCategory::query()->delete();
+        $accountsBefore = \App\Models\ChartOfAccount::count();
+
+        config(['features.finance' => false]);
+        PayrollItemCategory::ensureDefaults();
+
+        $this->assertSame($accountsBefore, \App\Models\ChartOfAccount::count(), 'Tidak ada akun Bagan Akun baru saat modul keuangan mati.');
+        $this->assertSame(11, PayrollItemCategory::count());
+        $this->assertSame(0, PayrollItemCategory::whereNotNull('chart_of_account_id')->count());
+
+        config(['features.finance' => true]);
+        PayrollItemCategory::ensureDefaults();
+
+        $this->assertGreaterThan($accountsBefore, \App\Models\ChartOfAccount::count());
+        $this->assertSame(11, PayrollItemCategory::count(), 'Tidak menggandakan kategori.');
+        $this->assertSame(0, PayrollItemCategory::whereNull('chart_of_account_id')->count(), 'Kategori bawaan mendapat akunnya begitu modul dinyalakan.');
+        $this->assertSame($this->accountId('6130'), $this->cat('tunjangan_tetap')->chart_of_account_id);
     }
 }

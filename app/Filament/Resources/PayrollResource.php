@@ -382,7 +382,7 @@ class PayrollResource extends Resource
                     ->modalWidth('4xl')
                     ->fillForm(fn (Payroll $record) => ['items' => $record->items()->orderBy('id')->get()->map(fn ($i) => [
                         'id' => $i->id, 'payroll_item_category_id' => $i->payroll_item_category_id, 'label' => $i->label,
-                        'amount' => (float) $i->amount, 'is_recurring' => $i->is_recurring, 'notes' => $i->notes,
+                        'amount' => (float) $i->amount, 'is_recurring' => $i->is_recurring, 'repeat_until' => $i->repeat_until?->toDateString(), 'notes' => $i->notes,
                     ])->all()])
                     ->form([
                         Forms\Components\Repeater::make('items')
@@ -403,7 +403,14 @@ class PayrollResource extends Resource
                                 Forms\Components\TextInput::make('amount')->label('Nominal (Rp)')->numeric()->prefix('Rp')->minValue(0.01)->required()->columnSpan(2),
                                 Forms\Components\TextInput::make('label')->label('Nama di slip (opsional)')->maxLength(120)->placeholder('Kosong = nama kategori')->columnSpan(2),
                                 Forms\Components\TextInput::make('notes')->label('Catatan (opsional)')->maxLength(255)->columnSpan(1),
-                                Forms\Components\Toggle::make('is_recurring')->label('Salin ke bulan depan')->columnSpan(1),
+                                Forms\Components\Toggle::make('is_recurring')->label('Salin ke bulan depan')->live()->columnSpan(1),
+                                Forms\Components\DatePicker::make('repeat_until')
+                                    ->label('Salin sampai bulan (opsional)')
+                                    ->native(false)
+                                    ->displayFormat('F Y')
+                                    ->visible(fn (Forms\Get $get) => (bool) $get('is_recurring'))
+                                    ->helperText('Kosong = terus disalin tiap bulan. Isi bulan terakhirnya untuk cicilan kasbon atau tunjangan yang berakhir; sesudah bulan itu tidak disalin lagi.')
+                                    ->columnSpan(2),
                             ]),
                     ])
                     ->action(function (Payroll $record, array $data) {

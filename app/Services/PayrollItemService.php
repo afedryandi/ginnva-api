@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Models\PayrollItemCategory;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -18,7 +19,7 @@ class PayrollItemService
     /**
      * Menyimpan daftar komponen lengkap: baris dengan id diperbarui, baris tanpa id dibuat, komponen yang tidak ada di daftar dihapus.
      *
-     * @param  array<int, array{id?: ?int, payroll_item_category_id: int, label?: ?string, amount: numeric, is_recurring?: bool, notes?: ?string}>  $rows
+     * @param  array<int, array{id?: ?int, payroll_item_category_id: int, label?: ?string, amount: numeric, is_recurring?: bool, repeat_until?: ?string, notes?: ?string}>  $rows
      */
     public function sync(Payroll $payroll, array $rows, ?int $userId = null): void
     {
@@ -39,15 +40,30 @@ class PayrollItemService
                     throw new RuntimeException("Nominal komponen \"{$category->name}\" harus lebih dari 0.");
                 }
 
+                $item = ! empty($row['id']) ? $locked->items()->whereKey($row['id'])->first() : null;
+
+                // Nama di slip dibekukan saat disimpan (kosong = nama kategori SAAT INI), supaya mengganti nama kategori kelak tidak
+                // mengubah slip lama. Bila kategori komponen diganti dan namanya masih nama kategori lama, ikut nama kategori yang baru.
+                $label = filled($row['label'] ?? null) ? trim($row['label']) : $category->name;
+                if ($item && $item->payroll_item_category_id !== $category->id && $item->label === $label && $item->category) {
+                    $label = $category->name;
+                }
+
+                $isRecurring = (bool) ($row['is_recurring'] ?? false);
+                $repeatUntil = $isRecurring && filled($row['repeat_until'] ?? null) ? Carbon::parse($row['repeat_until'])->startOfMonth() : null;
+
+                if ($repeatUntil && $repeatUntil->lt($locked->period_month->copy()->startOfMonth())) {
+                    throw new RuntimeException("Komponen \"{$category->name}\": \"Salin sampai bulan\" tidak boleh sebelum periode slip ini.");
+                }
+
                 $attributes = [
                     'payroll_item_category_id' => $category->id,
-                    'label' => filled($row['label'] ?? null) ? trim($row['label']) : null,
+                    'label' => $label,
                     'amount' => $amount,
-                    'is_recurring' => (bool) ($row['is_recurring'] ?? false),
+                    'is_recurring' => $isRecurring,
+                    'repeat_until' => $repeatUntil,
                     'notes' => filled($row['notes'] ?? null) ? trim($row['notes']) : null,
                 ];
-
-                $item = ! empty($row['id']) ? $locked->items()->whereKey($row['id'])->first() : null;
 
                 if ($item) {
                     $item->update($attributes);
@@ -91,6 +107,11 @@ class PayrollItemService
                     continue;
                 }
 
+                // Sudah lewat bulan terakhir yang ditentukan: berhenti disalin (mis. cicilan kasbon yang lunas).
+                if ($source->repeat_until && $source->repeat_until->lt($locked->period_month->copy()->startOfMonth())) {
+                    continue;
+                }
+
                 $exists = $locked->items()
                     ->where('payroll_item_category_id', $source->payroll_item_category_id)
                     ->when($source->label === null, fn ($q) => $q->whereNull('label'), fn ($q) => $q->where('label', $source->label))
@@ -105,6 +126,7 @@ class PayrollItemService
                     'label' => $source->label,
                     'amount' => $source->amount,
                     'is_recurring' => true,
+                    'repeat_until' => $source->repeat_until,
                     'notes' => $source->notes,
                     'created_by' => $userId,
                 ]);

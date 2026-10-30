@@ -70,7 +70,11 @@ class PayrollItemCategory extends Model
             '2190' => ['Hutang Potongan Karyawan Lainnya', 'kewajiban', '2100', 'operasional', 'Potongan gaji lain yang belum disetor/diselesaikan.'],
         ];
 
-        foreach ($accounts as $code => [$name, $type, $parent, $flow, $description]) {
+        // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): akun Bagan Akun tidak dibuat dan kategori tanpa akun. Begitu modul keuangan
+        // dinyalakan, pemanggilan berikutnya membuat akunnya dan mengisi kategori bawaan yang akunnya masih kosong.
+        $financeOn = (bool) config('features.finance');
+
+        foreach ($financeOn ? $accounts : [] as $code => [$name, $type, $parent, $flow, $description]) {
             $account = ChartOfAccount::firstOrCreate(['code' => $code], [
                 'name' => $name,
                 'type' => $type,
@@ -105,14 +109,21 @@ class PayrollItemCategory extends Model
         ];
 
         foreach ($categories as $code => [$name, $type, $accountCode, $recurring, $order]) {
-            static::firstOrCreate(['code' => $code], [
+            $accountId = $financeOn ? ChartOfAccount::where('code', $accountCode)->value('id') : null;
+
+            $category = static::firstOrCreate(['code' => $code], [
                 'name' => $name,
                 'type' => $type,
-                'chart_of_account_id' => ChartOfAccount::where('code', $accountCode)->value('id'),
+                'chart_of_account_id' => $accountId,
                 'is_recurring_default' => $recurring,
                 'sort_order' => $order,
                 'is_active' => true,
             ]);
+
+            // Kategori bawaan yang dibuat saat modul keuangan mati belum punya akun: isi sekali ketika modulnya dinyalakan.
+            if ($accountId && ! $category->chart_of_account_id) {
+                $category->update(['chart_of_account_id' => $accountId]);
+            }
         }
     }
 }
