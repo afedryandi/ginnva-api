@@ -142,3 +142,6 @@ Schedule::command('notifications:send-scheduled')->everyMinute()->withoutOverlap
 // Lihat App\Console\Commands\NotifyForgottenClockouts/NotifyMissingClockins.
 Schedule::command('attendance:notify-forgotten-clockouts')->dailyAt('08:00');
 Schedule::command('attendance:notify-missing-clockins')->hourlyAt(5)->between('07:00', '21:00');
+
+// Pengingat sertifikat installer yang hampir/baru kedaluwarsa (audit Kompetensi Installer): tiap Senin pagi ke akses penuh dan store manager.
+Schedule::command('training:notify-expiring')->weeklyOn(1, '08:00');

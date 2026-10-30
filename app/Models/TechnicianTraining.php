@@ -28,6 +28,39 @@ class TechnicianTraining extends Model
             ->useLogName('technician_training');
     }
 
+    /**
+     * Catatan yang sudah DIGANTIKAN: installer yang sama punya catatan lain dengan judul dan layanan yang sama yang berlaku lebih lama
+     * (atau tanpa batas). Memperbarui sertifikat berarti menambah catatan baru, jadi yang lama tidak boleh terus dihitung kedaluwarsa.
+     * Dipakai di query (laporan, Dasbor HR) sebagai ->current().
+     */
+    public function scopeCurrent(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereNotExists(function ($sub) {
+            $sub->selectRaw('1')
+                ->from('technician_trainings as newer')
+                ->whereColumn('newer.technician_id', 'technician_trainings.technician_id')
+                ->whereColumn('newer.title', 'technician_trainings.title')
+                ->whereRaw('newer.service_type <=> technician_trainings.service_type')
+                ->whereColumn('newer.id', '!=', 'technician_trainings.id')
+                ->where(fn ($w) => $w->whereNull('newer.valid_until')->orWhereColumn('newer.valid_until', '>', 'technician_trainings.valid_until'));
+        });
+    }
+
+    /**
+     * Sama dengan scopeCurrent() untuk koleksi catatan satu installer yang sudah dimuat: apakah catatan ini digantikan oleh yang lain.
+     *
+     * @param  \Illuminate\Support\Collection<int, TechnicianTraining>  $siblings
+     */
+    public function isSupersededBy(\Illuminate\Support\Collection $siblings): bool
+    {
+        $title = mb_strtolower(trim($this->title));
+
+        return $siblings->contains(fn (TechnicianTraining $other) => $other->id !== $this->id
+            && mb_strtolower(trim($other->title)) === $title
+            && $other->service_type === $this->service_type
+            && ($other->valid_until === null || ($this->valid_until !== null && $other->valid_until->gt($this->valid_until))));
+    }
+
     public function technician(): BelongsTo
     {
         return $this->belongsTo(Technician::class);

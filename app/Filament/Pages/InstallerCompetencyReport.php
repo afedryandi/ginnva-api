@@ -43,12 +43,23 @@ class InstallerCompetencyReport extends Page implements HasForms
 
     public ?array $data = [];
 
+    /** Urutan tabel mutu: name | rate (lulus QC pertama terendah dulu) | rework (pekerjaan ulang terbanyak dulu). */
+    public string $qualitySort = 'name';
+
+    /** Installer (user id) yang rincian pekerjaannya sedang dibuka di tabel mutu. */
+    public ?int $expandedUserId = null;
+
+    /**
+     * Mutu dan sertifikat per installer (bahan pembinaan): akses penuh, store manager (untuk installer tokonya), atau staf yang menunya
+     * dicentang eksplisit. Akun bawaan (menu_access kosong) tidak melihatnya; daftar menu yang dibatasi tetap dihormati.
+     */
     public static function canAccess(): bool
     {
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasMenuAccess(static::class)
+            && ($user->isFullAccess() || $user->isStoreManager() || is_array($user->menu_access));
     }
 
     public function mount(): void
@@ -126,7 +137,7 @@ class InstallerCompetencyReport extends Page implements HasForms
                     'title' => 'Mutu pekerjaan',
                     'headings' => ['Installer', 'Toko', 'Pekerjaan selesai', 'Diperiksa QC', 'Lulus QC pertama', '% Lulus', 'Pernah gagal QC', 'Pekerjaan ulang dicatat'],
                     'rows' => $this->getQuality()->map(fn (array $row) => [
-                        $row['name'], $row['store'] ?? '—', $row['jobs'], $row['checked'], $row['first_pass'],
+                        $row['name'] . ($row['is_active'] ? '' : ' (nonaktif)'), $row['store'] ?? '—', $row['jobs'], $row['checked'], $row['first_pass'],
                         $row['first_pass_rate'] !== null ? number_format($row['first_pass_rate'], 0) . '%' : null,
                         $row['reworked'], $row['rework_recorded'],
                     ])->all(),
@@ -164,15 +175,65 @@ class InstallerCompetencyReport extends Page implements HasForms
     {
         return $technicians->flatMap(fn (Technician $t) => $t->trainings->map(fn (TechnicianTraining $tr) => ['technician' => $t, 'training' => $tr]))
             ->filter(fn (array $row) => $row['training']->isExpired() || $row['training']->expiresSoon())
+            // Sertifikat yang sudah diperbarui (ada catatan baru yang sama judulnya dan berlaku lebih lama) tidak lagi dihitung kedaluwarsa.
+            ->reject(fn (array $row) => $row['training']->isSupersededBy($row['technician']->trainings))
             ->sortBy(fn (array $row) => $row['training']->valid_until)
             ->values();
     }
 
     public function getQuality(): Collection
     {
-        $from = ! empty($this->data['from']) ? Carbon::parse($this->data['from']) : now()->subDays(89);
-        $to = ! empty($this->data['to']) ? Carbon::parse($this->data['to']) : now();
+        $rows = app(InstallerQualityService::class)->forPeriod($this->qualityFrom(), $this->qualityTo(), $this->storeId());
 
-        return app(InstallerQualityService::class)->forPeriod($from, $to, $this->storeId());
+        return match ($this->qualitySort) {
+            // Yang paling perlu perhatian di atas; yang belum pernah diperiksa QC (tanpa persentase) di akhir.
+            'rate' => $rows->sortBy(fn (array $r) => [$r['first_pass_rate'] === null ? 1 : 0, $r['first_pass_rate'] ?? 0, $r['name']])->values(),
+            'rework' => $rows->sortBy(fn (array $r) => [-($r['reworked'] + $r['rework_recorded']), $r['name']])->values(),
+            default => $rows,
+        };
+    }
+
+    private function qualityFrom(): Carbon
+    {
+        return ! empty($this->data['from']) ? Carbon::parse($this->data['from']) : now()->subDays(89);
+    }
+
+    private function qualityTo(): Carbon
+    {
+        return ! empty($this->data['to']) ? Carbon::parse($this->data['to']) : now();
+    }
+
+    public function sortQuality(string $by): void
+    {
+        $this->qualitySort = in_array($by, ['name', 'rate', 'rework'], true) ? $by : 'name';
+    }
+
+    /** Buka atau tutup rincian pekerjaan seorang installer; hanya yang tampil di tabel mutu yang bisa dibuka. */
+    public function toggleQualityJobs(int $userId): void
+    {
+        if ($this->expandedUserId === $userId) {
+            $this->expandedUserId = null;
+
+            return;
+        }
+
+        $this->expandedUserId = $this->getQuality()->contains('user_id', $userId) ? $userId : null;
+    }
+
+    /** @return Collection<int, array<string, mixed>> */
+    public function getQualityJobs(): Collection
+    {
+        if (! $this->expandedUserId || ! $this->getQuality()->contains('user_id', $this->expandedUserId)) {
+            return collect();
+        }
+
+        return app(InstallerQualityService::class)->jobsFor($this->expandedUserId, $this->qualityFrom(), $this->qualityTo(), $this->storeId());
+    }
+
+    public function bookingUrl(?int $bookingId): ?string
+    {
+        return $bookingId && \App\Filament\Resources\BookingResource::canViewAny()
+            ? \App\Filament\Resources\BookingResource::getUrl('view', ['record' => $bookingId])
+            : null;
     }
 }

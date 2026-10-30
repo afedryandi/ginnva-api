@@ -81,29 +81,79 @@
                     <table class="w-full text-sm tabular-nums">
                         <thead>
                             <tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500 dark:border-white/10 dark:text-gray-400">
-                                <th class="py-2 pe-4">Installer</th>
+                                <th class="py-2 pe-4">
+                                    <button type="button" wire:click="sortQuality('name')" @class(['uppercase', 'text-primary-600 dark:text-primary-400' => $this->qualitySort === 'name'])>Installer</button>
+                                </th>
                                 <th class="py-2 pe-4 text-right">Pekerjaan selesai</th>
                                 <th class="py-2 pe-4 text-right">Diperiksa QC</th>
-                                <th class="py-2 pe-4 text-right">Lulus QC pertama</th>
+                                <th class="py-2 pe-4 text-right">
+                                    <button type="button" wire:click="sortQuality('rate')" title="Urutkan: lulus QC pertama terendah dulu" @class(['uppercase', 'text-primary-600 dark:text-primary-400' => $this->qualitySort === 'rate'])>Lulus QC pertama &#8645;</button>
+                                </th>
                                 <th class="py-2 pe-4 text-right">Pernah gagal QC</th>
-                                <th class="py-2 pe-4 text-right">Pekerjaan ulang dicatat</th>
+                                <th class="py-2 pe-4 text-right">
+                                    <button type="button" wire:click="sortQuality('rework')" title="Urutkan: pekerjaan ulang terbanyak dulu" @class(['uppercase', 'text-primary-600 dark:text-primary-400' => $this->qualitySort === 'rework'])>Pekerjaan ulang dicatat &#8645;</button>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($quality as $row)
                                 <tr class="border-b border-gray-100 last:border-0 dark:border-white/5">
-                                    <td class="py-2 pe-4 font-medium">{{ $row['name'] }}<span class="block text-xs font-normal text-gray-500 dark:text-gray-400">{{ $row['store'] }}</span></td>
+                                    <td class="py-2 pe-4 font-medium">
+                                        <button type="button" wire:click="toggleQualityJobs({{ $row['user_id'] }})" class="inline-flex items-center gap-1 hover:underline">
+                                            <x-filament::icon :icon="$this->expandedUserId === $row['user_id'] ? 'heroicon-m-chevron-down' : 'heroicon-m-chevron-right'" class="h-4 w-4 text-gray-400" />
+                                            {{ $row['name'] }}
+                                        </button>
+                                        @unless ($row['is_active'])
+                                            <span class="ml-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300" title="Installer ini sudah nonaktif; tampil karena punya pekerjaan di periode ini.">Nonaktif</span>
+                                        @endunless
+                                        <span class="block text-xs font-normal text-gray-500 dark:text-gray-400">{{ $row['store'] }}</span>
+                                    </td>
                                     <td class="py-2 pe-4 text-right">{{ $row['jobs'] }}</td>
                                     <td class="py-2 pe-4 text-right">{{ $row['checked'] }}</td>
                                     <td class="py-2 pe-4 text-right">
                                         {{ $row['first_pass'] }}
                                         @if ($row['first_pass_rate'] !== null)
                                             <span class="text-xs text-gray-500 dark:text-gray-400">({{ number_format($row['first_pass_rate'], 0) }}%)</span>
+                                            @if ($row['small_sample'])
+                                                <span class="ml-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300" title="Kurang dari {{ \App\Services\InstallerQualityService::SMALL_SAMPLE }} pekerjaan diperiksa QC: persentase belum bisa dijadikan patokan.">Sampel kecil</span>
+                                            @endif
                                         @endif
                                     </td>
                                     <td class="py-2 pe-4 text-right">{{ $row['reworked'] }}</td>
                                     <td class="py-2 pe-4 text-right">{{ $row['rework_recorded'] }}</td>
                                 </tr>
+                                @if ($this->expandedUserId === $row['user_id'])
+                                    <tr class="border-b border-gray-100 bg-gray-50 dark:border-white/5 dark:bg-white/5">
+                                        <td colspan="6" class="px-4 py-3">
+                                            <table class="w-full text-xs">
+                                                <thead>
+                                                    <tr class="text-left uppercase text-gray-500 dark:text-gray-400">
+                                                        <th class="py-1 pe-3">Booking</th>
+                                                        <th class="py-1 pe-3">Tanggal</th>
+                                                        <th class="py-1 pe-3">QC</th>
+                                                        <th class="py-1">Pekerjaan ulang</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach ($this->getQualityJobs() as $job)
+                                                        <tr @class(['text-danger-700 dark:text-danger-400' => $job['attention']])>
+                                                            <td class="py-1 pe-3">
+                                                                @if ($url = $this->bookingUrl($job['booking_id']))
+                                                                    <a href="{{ $url }}" class="underline">{{ $job['booking_number'] }}</a>
+                                                                @else
+                                                                    {{ $job['booking_number'] }}
+                                                                @endif
+                                                            </td>
+                                                            <td class="py-1 pe-3 tabular-nums">{{ $job['date']->format('d M Y') }}</td>
+                                                            <td class="py-1 pe-3">{{ $job['qc'] }}</td>
+                                                            <td class="py-1">{{ $job['reworks'] ? implode('; ', $job['reworks']) : '—' }}</td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                @endif
                             @endforeach
                         </tbody>
                     </table>

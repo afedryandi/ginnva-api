@@ -60,7 +60,7 @@ class HrDashboardService
         $oldest = today()->subYear()->toDateString();
         $trainingsExpiring = (! config('features.employee_training') ? 0 : EmployeeTraining::withoutGlobalScopes()->whereIn('user_id', $userIds)
             ->whereNotNull('valid_until')->whereDate('valid_until', '<=', $soon)->whereDate('valid_until', '>=', $oldest)->count())
-            + TechnicianTraining::query()->whereNotNull('valid_until')->whereDate('valid_until', '<=', $soon)->whereDate('valid_until', '>=', $oldest)
+            + TechnicianTraining::query()->current()->whereNotNull('valid_until')->whereDate('valid_until', '<=', $soon)->whereDate('valid_until', '>=', $oldest)
                 ->whereHas('technician', fn ($q) => $q->withoutGlobalScopes()->where('status', '!=', 'inactive')->when($storeId, fn ($t) => $t->where('store_id', $storeId)))
                 ->count();
 
