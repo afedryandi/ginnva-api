@@ -190,14 +190,32 @@ class EmployeeTypeTest extends TestCase
             });
     }
 
-    public function test_permissions_follow_menu_access_and_module_actions(): void
+    public function test_default_staff_cannot_open_or_change_employee_types_and_changes_need_an_explicit_grant(): void
     {
         $type = $this->type('Tetap');
-        $withMenu = $this->user('kasir');
+        $default = $this->user('kasir');
+        $viewer = $this->user('kasir', ['menu_access' => [EmployeeTypeResource::class]]);
+        $maintainer = $this->user('kasir', [
+            'menu_access' => [EmployeeTypeResource::class],
+            'menu_permissions' => [EmployeeTypeResource::class => ['create', 'update', 'delete']],
+        ]);
         $noMenu = $this->user('kasir', ['menu_access' => ['SomeOtherResource']]);
 
-        $this->actingAs($withMenu, 'web');
+        $this->assertNull($default->menu_access);
+        $this->actingAs($default, 'web');
+        $this->assertFalse(EmployeeTypeResource::canViewAny(), 'Akun bawaan tidak membuka menu yang mengatur nonaktivasi otomatis.');
+        $this->assertFalse(EmployeeTypeResource::canCreate());
+        $this->assertFalse(EmployeeTypeResource::canEdit($type));
+        $this->assertFalse((bool) EmployeeTypeResource::canDelete($type));
+        Livewire::test(CreateEmployeeType::class)->assertForbidden();
+
+        $this->actingAs($viewer, 'web');
         $this->assertTrue(EmployeeTypeResource::canViewAny());
+        $this->assertFalse(EmployeeTypeResource::canCreate(), 'Menu dicentang saja belum boleh mengubah.');
+        $this->assertFalse(EmployeeTypeResource::canEdit($type));
+        $this->assertFalse((bool) EmployeeTypeResource::canDelete($type));
+
+        $this->actingAs($maintainer, 'web');
         $this->assertTrue(EmployeeTypeResource::canCreate());
         $this->assertTrue(EmployeeTypeResource::canEdit($type));
         $this->assertTrue((bool) EmployeeTypeResource::canDelete($type));
@@ -261,5 +279,50 @@ class EmployeeTypeTest extends TestCase
         $this->artisan('contracts:deactivate-expired')->assertSuccessful();
 
         $this->assertTrue($employee->fresh()->is_active);
+    }
+
+    public function test_the_form_and_list_explain_the_automatic_deactivation_and_why_a_type_cannot_be_deleted(): void
+    {
+        $this->asAdmin();
+        $used = $this->type('Kontrak (PKWT)', true);
+        $unused = $this->type('Magang', true);
+        $this->user('kasir', ['employee_type_id' => $used->id]);
+
+        Livewire::test(CreateEmployeeType::class)->assertSee('DINONAKTIFKAN OTOMATIS')->assertSee('diperpanjang di Riwayat Kontrak');
+
+        Livewire::test(ListEmployeeTypes::class)->assertSuccessful()
+            ->assertSee('Tidak bisa dihapus selama masih dipakai')
+            ->assertTableColumnStateSet('users_count', 1, $used->loadCount('users'))
+            ->assertTableColumnStateSet('users_count', 0, $unused->loadCount('users'));
+    }
+
+    public function test_the_edit_page_previews_who_is_affected_for_the_selected_toggle_position(): void
+    {
+        $this->asAdmin();
+        $type = $this->type('Tetap', false);
+        $this->user('kasir', ['employee_type_id' => $type->id, 'contract_end_date' => today()->subDays(10)->toDateString()]);   // lewat tanggal
+        $this->user('kasir', ['employee_type_id' => $type->id, 'contract_end_date' => today()->addDays(10)->toDateString()]);   // segera berakhir
+        $this->user('kasir', ['employee_type_id' => $type->id]);                                                                // tanpa tanggal
+        $this->user('kasir', ['employee_type_id' => $type->id, 'is_active' => false, 'contract_end_date' => today()->subYear()->toDateString()]);   // nonaktif: tidak dihitung
+
+        $off = EmployeeTypeResource::impactSummary($type, false);
+        $this->assertStringContainsString('3 karyawan aktif', $off);
+        $this->assertStringContainsString('tidak pernah dinonaktifkan otomatis', $off);
+        $this->assertStringContainsString('1 di antaranya punya tanggal kontrak yang sudah lewat; tetap aktif', $off);
+
+        $on = EmployeeTypeResource::impactSummary($type, true);
+        $this->assertStringContainsString('Kontrak berakhir dalam 30 hari: 1', $on);
+        $this->assertStringContainsString('Tanggal kontrak sudah lewat: 1 (akan dinonaktifkan otomatis', $on);
+        $this->assertStringContainsString('Belum ada tanggal berakhir: 1 (perlu diisi', $on);
+
+        $this->assertSame('Belum ada karyawan aktif bertipe ini.', EmployeeTypeResource::impactSummary($this->type('Kosong'), true));
+
+        Livewire::test(EditEmployeeType::class, ['record' => $type->getKey()])
+            ->assertSee('Dampak pada karyawan saat ini')
+            ->assertSee('3 karyawan aktif bertipe ini')
+            ->fillForm(['has_end_date' => true])
+            ->assertSee('Tanggal kontrak sudah lewat: 1');
+
+        Livewire::test(CreateEmployeeType::class)->assertDontSee('Dampak pada karyawan saat ini');
     }
 }

@@ -44,12 +44,14 @@ class EmployeeTypeResource extends Resource
 
     protected static ?int $navigationSort = 601;
 
+    /**
+     * Saklar "Memiliki Tanggal Berakhir" menentukan siapa yang dinonaktifkan otomatis saat kontrak berakhir (contracts:deactivate-expired),
+     * jadi menu ini tidak terbuka lewat akses bawaan akun baru: hanya akses penuh atau staf yang menunya dicentang eksplisit. Membuat,
+     * mengubah, dan menghapus butuh izin aksi eksplisit (bawaan tidak).
+     */
     private static function accessGate(): bool
     {
-        $user = auth()->user();
-
-        return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
     }
 
     public static function canViewAny(): bool
@@ -60,7 +62,7 @@ class EmployeeTypeResource extends Resource
     public static function canCreate(): bool
     {
         return static::accessGate()
-            && (auth()->user()?->hasModuleAction(static::class, 'create', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'create', false) ?? false);
     }
 
     public static function canView($record): bool
@@ -72,20 +74,20 @@ class EmployeeTypeResource extends Resource
     public static function canEdit($record): bool
     {
         return static::accessGate()
-            && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'update', false) ?? false);
     }
 
     public static function canDelete($record): bool
     {
         return static::accessGate()
             && ! $record->users()->exists()
-            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', false) ?? false);
     }
 
     public static function canDeleteAny(): bool
     {
         return static::accessGate()
-            && (auth()->user()?->hasModuleAction(static::class, 'delete', true) ?? false);
+            && (auth()->user()?->hasModuleAction(static::class, 'delete', false) ?? false);
     }
 
     public static function form(Form $form): Form
@@ -98,9 +100,18 @@ class EmployeeTypeResource extends Resource
                 ->maxLength(50)
                 ->unique(ignoreRecord: true),
 
+            Forms\Components\Placeholder::make('impact')
+                ->label('Dampak pada karyawan saat ini')
+                ->hiddenOn('create')
+                ->content(fn (?EmployeeType $record, Forms\Get $get) => $record
+                    ? new \Illuminate\Support\HtmlString(nl2br(e(static::impactSummary($record, (bool) $get('has_end_date')))))
+                    : '')
+                ->columnSpanFull(),
+
             Forms\Components\Toggle::make('has_end_date')
+                ->live()
                 ->label('Memiliki Tanggal Berakhir')
-                ->helperText('Kalau aktif, field "Tanggal Berakhir Kontrak" akan WAJIB diisi untuk karyawan dengan tipe ini di menu Daftar Karyawan. Kalau tidak, field itu disembunyikan (mis. untuk tipe "Tetap").')
+                ->helperText('Kalau aktif, field "Tanggal Berakhir Kontrak" WAJIB diisi untuk karyawan bertipe ini di menu User, dan akun mereka DINONAKTIFKAN OTOMATIS (tidak bisa login ke panel maupun aplikasi) begitu tanggal itu lewat tanpa diperpanjang di Riwayat Kontrak. Kalau tidak, field itu disembunyikan dan tidak ada nonaktivasi otomatis (mis. untuk tipe "Tetap").')
                 ->default(false),
 
             Forms\Components\Toggle::make('is_active')
@@ -108,6 +119,34 @@ class EmployeeTypeResource extends Resource
                 ->helperText('Matikan supaya tidak muncul lagi sebagai pilihan baru, tanpa mengubah karyawan yang sudah memakainya.')
                 ->default(true),
         ]);
+    }
+
+    /**
+     * Ringkasan dampak tipe ini pada karyawan AKTIF saat ini, mengikuti posisi saklar "Memiliki Tanggal Berakhir" yang sedang dipilih di form
+     * (belum disimpan), supaya admin melihat akibatnya sebelum menyimpan.
+     */
+    public static function impactSummary(EmployeeType $type, bool $hasEndDate): string
+    {
+        $people = $type->users()->where('is_active', true);
+        $total = (clone $people)->count();
+
+        if ($total === 0) {
+            return 'Belum ada karyawan aktif bertipe ini.';
+        }
+
+        $withoutDate = (clone $people)->whereNull('contract_end_date')->count();
+        $expired = (clone $people)->whereNotNull('contract_end_date')->whereDate('contract_end_date', '<', today())->count();
+        $soon = (clone $people)->whereNotNull('contract_end_date')->whereDate('contract_end_date', '>=', today())->whereDate('contract_end_date', '<=', today()->addDays(30))->count();
+
+        if (! $hasEndDate) {
+            return "{$total} karyawan aktif bertipe ini. Tanpa tanggal berakhir, mereka tidak pernah dinonaktifkan otomatis."
+                . ($expired > 0 ? "\n{$expired} di antaranya punya tanggal kontrak yang sudah lewat; tetap aktif." : '');
+        }
+
+        return "{$total} karyawan aktif bertipe ini."
+            . "\nKontrak berakhir dalam 30 hari: {$soon}."
+            . "\nTanggal kontrak sudah lewat: {$expired}" . ($expired > 0 ? ' (akan dinonaktifkan otomatis pada jalannya perintah harian berikutnya).' : '.')
+            . "\nBelum ada tanggal berakhir: {$withoutDate}" . ($withoutDate > 0 ? ' (perlu diisi; tidak diminta otomatis).' : '.');
     }
 
     public static function table(Table $table): Table
@@ -121,16 +160,21 @@ class EmployeeTypeResource extends Resource
 
                 Tables\Columns\IconColumn::make('has_end_date')
                     ->label('Punya Tanggal Berakhir')
-                    ->boolean(),
+                    ->boolean()
+                    ->tooltip(fn (EmployeeType $record) => $record->has_end_date
+                        ? 'Akun karyawan bertipe ini dinonaktifkan otomatis bila kontraknya lewat tanpa diperpanjang.'
+                        : 'Tanpa tanggal berakhir: tidak ada nonaktivasi otomatis.'),
 
                 Tables\Columns\TextColumn::make('users_count')
                     ->label('Jumlah Karyawan')
                     ->counts('users')
-                    ->sortable(),
+                    ->sortable()
+                    ->description(fn (EmployeeType $record) => ($record->users_count ?? 0) > 0 ? 'Tidak bisa dihapus selama masih dipakai' : null),
 
-                Tables\Columns\IconColumn::make('is_active')
+                // Saklar langsung: tipe nonaktif tidak ditawarkan untuk karyawan baru, karyawan yang sudah memakainya tidak berubah.
+                Tables\Columns\ToggleColumn::make('is_active')
                     ->label('Aktif')
-                    ->boolean(),
+                    ->disabled(fn (EmployeeType $record) => ! static::canEdit($record)),
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')
