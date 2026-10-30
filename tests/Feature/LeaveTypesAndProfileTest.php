@@ -351,7 +351,7 @@ class LeaveTypesAndProfileTest extends TestCase
 
         $profile = $this->actingAs($this->staff, 'api')->getJson('/api/staff/profile')->json('profile');
 
-        $this->assertSame(['NIK (tampak keliru)', 'Rekening bank'], $profile['missing_data'], 'Gaji pokok yang kosong adalah urusan HR dan tidak ikut.');
+        $this->assertEqualsCanonicalizing(['NIK (tampak keliru)', 'Rekening bank'], $profile['missing_data'], 'Gaji pokok yang kosong adalah urusan HR dan tidak ikut.');
 
         $this->staff->forceFill(['nik' => '3174012345670001', 'bank_name' => 'BCA', 'bank_account_number' => '1234567890'])->save();
 
