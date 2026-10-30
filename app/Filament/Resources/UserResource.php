@@ -783,6 +783,10 @@ class UserResource extends Resource
                         ->visible(fn (Forms\Get $get) => (bool) \App\Models\EmployeeType::find($get('employee_type_id'))?->has_end_date)
                         ->required(fn (Forms\Get $get) => (bool) \App\Models\EmployeeType::find($get('employee_type_id'))?->has_end_date),
 
+                    Forms\Components\DatePicker::make('last_work_date')
+                        ->label('Hari Kerja Terakhir')
+                        ->helperText('Isi bila karyawan berhenti. Gaji bulan terakhirnya dihitung proporsional sampai tanggal ini dan Alpha sesudahnya tidak dicatat. Nonaktifkan akun setelah gaji terakhir dibayar; Generate Payroll tetap menyertakan karyawan nonaktif yang berhenti di bulan itu.'),
+
                     Forms\Components\DatePicker::make('probation_end_date')
                         ->label('Masa Percobaan Berakhir')
                         ->helperText('Kosongkan bila tidak ada masa percobaan. Maksimal 3 bulan untuk PKWTT; PKWT tidak boleh ada masa percobaan.'),

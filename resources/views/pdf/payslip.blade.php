@@ -132,6 +132,11 @@
     <div class="total-box">
         GAJI BERSIH: Rp {{ number_format($payroll->net_pay, 0, ',', '.') }}
     </div>
+    @if ($payroll->uncollected_deduction > 0)
+        <div style="margin-top: 6px; font-size: 11px; color: #b45309; text-align: right;">
+            Catatan: total potongan melebihi gaji bulan ini; Rp {{ number_format($payroll->uncollected_deduction, 0, ',', '.') }} tidak terpotong.
+        </div>
+    @endif
 
     <div class="signature-box">
         <div>{{ $payroll->payer?->name ?? '_________________' }}</div>

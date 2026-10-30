@@ -123,6 +123,58 @@ class Payroll extends Model
         return max(0, round($proratedBase + $commission + $additions - $attendanceDeduction - $itemDeductions, 2));
     }
 
+    /**
+     * Subquery "ada absensi di bulan slip ini yang berubah setelah slip dihitung", dipasang di getEloquentQuery() sebagai kolom
+     * stale_attendance supaya daftar tidak menjalankan satu query per baris.
+     */
+    public static function staleAttendanceSubquery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return Attendance::withoutGlobalScopes()
+            ->selectRaw('1')
+            ->whereColumn('attendances.user_id', 'payrolls.user_id')
+            ->whereRaw('attendances.date >= payrolls.period_month')
+            ->whereRaw('attendances.date <= LAST_DAY(payrolls.period_month)')
+            ->whereColumn('attendances.updated_at', '>', 'payrolls.updated_at')
+            ->limit(1);
+    }
+
+    /**
+     * Slip draf yang angkanya mungkin sudah tertinggal: absensi bulan itu berubah (izin, koreksi, Alpha otomatis) atau gaji pokok
+     * karyawan diubah sesudah slip dihitung. Hanya draf; slip yang sudah diajukan atau dibayar terkunci dari perhitungan ulang.
+     */
+    public function isStale(): bool
+    {
+        if ($this->status !== 'draft') {
+            return false;
+        }
+
+        if ($this->user && (float) $this->user->base_salary !== (float) $this->base_salary) {
+            return true;
+        }
+
+        if (array_key_exists('stale_attendance', $this->attributes)) {
+            return (bool) $this->attributes['stale_attendance'];
+        }
+
+        return Attendance::withoutGlobalScopes()
+            ->where('user_id', $this->user_id)
+            ->whereBetween('date', [$this->period_month->copy()->startOfMonth()->toDateString(), $this->period_month->copy()->endOfMonth()->toDateString()])
+            ->where('updated_at', '>', $this->updated_at)
+            ->exists();
+    }
+
+    /**
+     * Bagian potongan yang TIDAK terpotong karena gaji bersih tidak boleh negatif (mis. kasbon lebih besar dari gaji bulan itu).
+     * Dihitung dari kolom tersimpan, jadi berlaku juga untuk baris lama.
+     */
+    public function getUncollectedDeductionAttribute(): float
+    {
+        $raw = (float) $this->prorated_base_salary + (float) $this->total_commission + (float) $this->total_additions
+            - (float) $this->total_deduction - (float) $this->total_item_deductions;
+
+        return $raw < 0 ? round(-$raw, 2) : 0.0;
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -274,18 +326,26 @@ class Payroll extends Model
 
             // Proporsi HANYA kalau join_date jatuh DI DALAM bulan payroll ini -- join_date di bulan-bulan sebelumnya (atau kosong)
             // berarti karyawan sudah kerja penuh sebulan ini.
-            if ($user->join_date && $user->join_date->between($periodStart, $periodEnd)) {
+            // Hari kerja terakhir (last_work_date) di dalam bulan ini bekerja sama seperti join_date: gaji pokok dihitung hanya untuk hari
+            // sejak mulai (bila join di bulan ini) sampai hari terakhir (bila berhenti di bulan ini).
+            $joinsThisMonth = $user->join_date && $user->join_date->between($periodStart, $periodEnd);
+            $leavesThisMonth = $user->last_work_date && $user->last_work_date->between($periodStart, $periodEnd);
+
+            if ($joinsThisMonth || $leavesThisMonth) {
+                $from = $joinsThisMonth ? $user->join_date->toDateString() : $periodStart->toDateString();
+                $to = $leavesThisMonth ? $user->last_work_date->toDateString() : $periodEnd->toDateString();
+
                 if ($hoursBased) {
                     $employedMinutes = 0;
                     foreach ($minutesByDate as $date => $minutes) {
-                        if ($date >= $user->join_date->toDateString()) {
+                        if ($date >= $from && $date <= $to) {
                             $employedMinutes += $minutes;
                         }
                     }
                     $proratedBaseSalary = round(($hourlyRate / 60) * $employedMinutes, 2);
                 } else {
                     $employedWorkingDays = 0;
-                    for ($day = $user->join_date->copy(); $day->lte($periodEnd); $day->addDay()) {
+                    for ($day = Carbon::parse($from); $day->lte(Carbon::parse($to)); $day->addDay()) {
                         if (! $store?->isClosedOn($day)) {
                             $employedWorkingDays++;
                         }
@@ -298,7 +358,8 @@ class Payroll extends Model
 
             // Alpha: potongan = tarif per jam x jam kerja hari itu (Sabtu pendek dipotong lebih kecil dari hari penuh), ditambah denda
             // tetap per hari Alpha (nominal dari aturan). Tanpa jam kerja terisi, tarif harian seperti sebelumnya.
-            $alphaRows = $attendances->where('entry_type', 'alpha');
+            $alphaRows = $attendances->where('entry_type', 'alpha')
+                ->filter(fn ($row) => ! $user->last_work_date || $row->date->lte($user->last_work_date));
             $alphaDaysCount = $alphaRows->count();
             $alphaHours = 0.0;
             $alphaWage = 0.0;
@@ -382,6 +443,8 @@ class Payroll extends Model
 
             if ($existing) {
                 $existing->update($attributes);
+                // Hitung ulang tanpa perubahan angka tetap menandai slip "baru dihitung" (dasar isStale()).
+                $existing->touch();
 
                 return $existing;
             }

@@ -56,6 +56,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'employee_number',
         'phone',
         'join_date',
+        'last_work_date',
         'base_salary',
         'contract_end_date',
         'probation_end_date',
@@ -92,6 +93,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'menu_access' => 'array',
         'menu_permissions' => 'array',
         'join_date' => 'date',
+        'last_work_date' => 'date',
         'base_salary' => 'decimal:2',
         'contract_end_date' => 'date',
         'probation_end_date' => 'date',
@@ -605,7 +607,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         // role/menu_access -- siapa-menonaktifkan-siapa-kapan wajib
         // terlacak untuk akun yang jadi fondasi otorisasi sistem.
         return LogOptions::defaults()
-            ->logOnly(['name', 'email', 'store_id', 'menu_access', 'menu_permissions', 'base_salary', 'is_active'])
+            ->logOnly(['name', 'email', 'store_id', 'menu_access', 'menu_permissions', 'base_salary', 'is_active', 'last_work_date'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('user')

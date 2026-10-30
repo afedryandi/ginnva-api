@@ -50,6 +50,7 @@ class NotifyMissingClockins extends Command
 
             $employees = User::where('store_id', $store->id)
                 ->where('is_active', true)
+                ->where(fn ($q) => $q->whereNull('last_work_date')->orWhereDate('last_work_date', '>=', $today))
                 ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
                 ->get();
 

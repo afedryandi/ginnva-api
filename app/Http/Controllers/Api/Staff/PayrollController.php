@@ -103,6 +103,8 @@ class PayrollController extends Controller
             'has_unrated_commission' => (bool) $p->has_unrated_commission,
             'total_deduction' => (float) $p->total_deduction,
             'net_pay' => (float) $p->net_pay,
+            // Potongan yang tidak terpotong karena gaji bersih tidak boleh negatif (0 bila tidak ada).
+            'uncollected_deduction' => $p->uncollected_deduction,
             'paid_at' => $p->paid_at?->toIso8601String(),
         ];
     }

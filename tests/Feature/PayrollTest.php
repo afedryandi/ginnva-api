@@ -360,7 +360,10 @@ class PayrollTest extends TestCase
             'status' => 'pending_approval', 'payment_requested_by' => $spv->id, 'payment_requested_at' => now(),
             'alpha_days' => 1, 'alpha_deduction' => 100000, 'total_deduction' => 100000, 'net_pay' => 2500000,
         ]);
-        $this->mock(PushNotificationService::class, fn ($mock) => $mock->shouldReceive('sendToUsers')->once()->withArgs(fn (array $ids, string $title) => $ids === [$employee->id] && $title === 'Gaji Sudah Dibayar'));
+        $this->mock(PushNotificationService::class, function ($mock) use ($employee, $spv) {
+            $mock->shouldReceive('sendToUsers')->once()->withArgs(fn (array $ids, string $title) => $ids === [$employee->id] && $title === 'Gaji Sudah Dibayar');
+            $mock->shouldReceive('sendToUsers')->once()->withArgs(fn (array $ids, string $title) => $ids === [$spv->id] && $title === 'Pengajuan Pembayaran Gaji Disetujui');
+        });
         $this->actingAs($admin, 'web');
 
         Livewire::test(ListPayrolls::class)->callTableAction('approvePayment', $payroll);
@@ -535,5 +538,304 @@ class PayrollTest extends TestCase
 
         $this->actingAs($me, 'api')->get("/api/staff/payroll/{$draft->id}/slip")->assertStatus(404);
         $this->actingAs($me, 'api')->get("/api/staff/payroll/{$theirs->id}/slip")->assertStatus(404);
+    }
+
+    // ------------------------------------------------------------- aksi massal & potongan melebihi gaji
+
+    public function test_a_finance_supervisor_requests_many_slips_at_once_with_one_summary_notification(): void
+    {
+        $spv = $this->user('spv_finance', ['store_id' => null]);
+        $admin = $this->user('direksi', ['store_id' => null]);
+        $a = $this->payroll($this->user('kasir'));
+        $b = $this->payroll($this->user('kasir'));
+        $already = $this->payroll($this->user('kasir'), ['status' => 'paid']);
+
+        $this->actingAs($spv, 'web');
+        Livewire::test(ListPayrolls::class)
+            ->assertTableBulkActionVisible('bulkRequestPayment')
+            ->assertTableBulkActionHidden('bulkApprove')
+            ->assertTableBulkActionHidden('bulkMarkPaid')
+            ->callTableBulkAction('bulkRequestPayment', [$a, $b, $already]);
+
+        $this->assertSame('pending_approval', $a->fresh()->status);
+        $this->assertSame('pending_approval', $b->fresh()->status);
+        $this->assertSame('paid', $already->fresh()->status, 'Yang sudah dibayar dilewati.');
+        $this->assertSame($spv->id, $a->fresh()->payment_requested_by);
+        $this->assertSame(1, $admin->notifications()->count(), 'Satu pemberitahuan ringkasan, bukan satu per slip.');
+    }
+
+    public function test_full_access_approves_and_pays_many_slips_and_each_employee_is_told(): void
+    {
+        $admin = $this->user('direksi', ['store_id' => null]);
+        $e1 = $this->user('kasir');
+        $e2 = $this->user('kasir');
+        $pending1 = $this->payroll($e1, ['status' => 'pending_approval']);
+        $pending2 = $this->payroll($e2, ['status' => 'pending_approval', 'net_pay' => 2000000]);
+        $draft = $this->payroll($this->user('kasir'));
+        $this->mock(PushNotificationService::class, fn ($mock) => $mock->shouldReceive('sendToUsers')->twice());
+        $this->actingAs($admin, 'web');
+
+        Livewire::test(ListPayrolls::class)
+            ->assertTableBulkActionVisible('bulkApprove')
+            ->assertTableBulkActionVisible('bulkMarkPaid')
+            ->assertTableBulkActionHidden('bulkRequestPayment')
+            ->callTableBulkAction('bulkApprove', [$pending1, $pending2, $draft]);
+
+        $this->assertSame('paid', $pending1->fresh()->status);
+        $this->assertSame('paid', $pending2->fresh()->status);
+        $this->assertSame($admin->id, $pending1->fresh()->paid_by);
+        $this->assertSame('draft', $draft->fresh()->status, 'Draft tidak ikut disetujui oleh aksi persetujuan.');
+        $this->assertNotNull($pending1->fresh()->journal_entry_id);
+    }
+
+    public function test_mark_paid_in_bulk_only_takes_drafts_and_the_server_refuses_a_non_full_access_caller(): void
+    {
+        $draft = $this->payroll($this->user('kasir'));
+        $pending = $this->payroll($this->user('kasir'), ['status' => 'pending_approval']);
+        $this->mock(PushNotificationService::class, fn ($mock) => $mock->shouldReceive('sendToUsers')->once());
+        $this->actingAs($this->user('direksi', ['store_id' => null]), 'web');
+
+        Livewire::test(ListPayrolls::class)->callTableBulkAction('bulkMarkPaid', [$draft, $pending]);
+
+        $this->assertSame('paid', $draft->fresh()->status);
+        $this->assertSame('pending_approval', $pending->fresh()->status);
+
+        $method = new \ReflectionMethod(PayrollResource::class, 'payOne');
+        $method->setAccessible(true);
+        $this->actingAs($this->user('spv_finance', ['store_id' => null]), 'web');
+        $this->expectException(\RuntimeException::class);
+        $method->invoke(null, $pending->id, 'pending_approval');
+    }
+
+    public function test_deductions_larger_than_the_pay_are_flagged_instead_of_silently_disappearing(): void
+    {
+        $over = $this->payroll($this->user('kasir'), [
+            'prorated_base_salary' => 1000000, 'total_commission' => 0, 'total_additions' => 0, 'total_deduction' => 200000,
+            'total_item_deductions' => 1500000, 'net_pay' => 0,
+        ]);
+        $normal = $this->payroll($this->user('kasir'), ['total_deduction' => 100000, 'net_pay' => 2500000]);
+
+        $this->assertEquals(700000, $over->uncollected_deduction);
+        $this->assertEquals(0, $normal->uncollected_deduction);
+
+        $this->actingAs($this->user('direksi', ['store_id' => null]), 'web');
+        Livewire::test(ListPayrolls::class)
+            ->assertSee('tidak terpotong (melebihi gaji)')
+            ->assertTableColumnStateSet('net_pay', 0, $over);
+
+        $me = $this->user('kasir');
+        $paid = $this->payroll($me, ['status' => 'paid', 'prorated_base_salary' => 1000000, 'total_deduction' => 1200000, 'net_pay' => 0, 'paid_at' => now()]);
+        $this->actingAs($me, 'api')->getJson('/api/staff/payroll')->assertSuccessful()
+            ->assertJsonPath('payrolls.0.uncollected_deduction', 200000);
+    }
+
+    public function test_the_period_filter_narrows_the_list(): void
+    {
+        $this->actingAs($this->user('direksi', ['store_id' => null]), 'web');
+        $last = now()->subMonth()->startOfMonth()->toDateString();
+        $september = $this->payroll($this->user('kasir'), ['period_month' => $last]);
+        $august = $this->payroll($this->user('kasir'), ['period_month' => now()->subMonths(2)->startOfMonth()->toDateString()]);
+
+        Livewire::test(ListPayrolls::class)
+            ->filterTable('period_month', $last)
+            ->assertCanSeeTableRecords([$september])->assertCanNotSeeTableRecords([$august]);
+    }
+
+    // ------------------------------------------------------------- slip usang & batalkan dibayar
+
+    private function isStale(Payroll $payroll): bool
+    {
+        return (bool) PayrollResource::getEloquentQuery()->findOrFail($payroll->id)->isStale();
+    }
+
+    public function test_a_draft_goes_stale_when_attendance_or_base_salary_changes_and_recalculating_clears_it(): void
+    {
+        $employee = $this->user('kasir');
+        $payroll = $this->payroll($employee);
+        \Illuminate\Support\Facades\DB::table('payrolls')->where('id', $payroll->id)->update(['updated_at' => now()->subDay()]);
+        $payroll = $payroll->fresh();
+        $this->assertFalse($this->isStale($payroll), 'Baru dihitung, belum ada yang berubah.');
+
+        $this->attend($employee, '2026-09-10', 'clock', 20);
+        $this->assertTrue($this->isStale($payroll), 'Absensi di bulan slip berubah sesudah slip dihitung.');
+
+        $this->actingAs($this->user('direksi', ['store_id' => null]), 'web');
+        Livewire::test(ListPayrolls::class)->assertSee('hitung ulang')->callTableAction('recalculate', $payroll->fresh());
+
+        $this->assertFalse($this->isStale($payroll->fresh()), 'Setelah dihitung ulang, tidak usang lagi.');
+        $this->assertSame(20, $payroll->fresh()->total_late_minutes);
+
+        $employee->update(['base_salary' => 3000000]);
+        $this->assertTrue($this->isStale($payroll->fresh()), 'Gaji pokok karyawan berbeda dari slip.');
+
+        $locked = $this->payroll($this->user('kasir'), ['status' => 'paid']);
+        $this->assertFalse($this->isStale($locked), 'Slip yang sudah dibayar tidak pernah dianggap usang.');
+    }
+
+    public function test_recalculating_in_bulk_only_touches_drafts(): void
+    {
+        $draftOwner = $this->user('kasir');
+        $draft = $this->payroll($draftOwner);
+        $paid = $this->payroll($this->user('kasir'), ['status' => 'paid']);
+        $this->attend($draftOwner, '2026-09-12', 'alpha');
+        $this->actingAs($this->user('direksi', ['store_id' => null]), 'web');
+
+        Livewire::test(ListPayrolls::class)->callTableBulkAction('bulkRecalculate', [$draft, $paid]);
+
+        $this->assertSame(1, $draft->fresh()->alpha_days);
+        $this->assertSame('paid', $paid->fresh()->status);
+        $this->assertSame(0, $paid->fresh()->alpha_days);
+    }
+
+    public function test_full_access_can_undo_a_wrong_paid_mark_with_a_reason_but_not_once_it_was_posted_to_a_journal(): void
+    {
+        $employee = $this->user('kasir');
+        $admin = $this->user('direksi', ['store_id' => null]);
+        $wrong = $this->payroll($employee, ['status' => 'paid', 'paid_by' => $admin->id, 'paid_at' => now()]);
+        $this->mock(PushNotificationService::class, fn ($mock) => $mock->shouldReceive('sendToUsers')->atLeast()->once());
+        $this->actingAs($admin, 'web');
+
+        Livewire::test(ListPayrolls::class)
+            ->assertTableActionVisible('unpay', $wrong)
+            ->callTableAction('unpay', $wrong, data: ['reason' => ''])
+            ->assertHasTableActionErrors(['reason' => 'required'])
+            ->callTableAction('unpay', $wrong, data: ['reason' => 'Salah pilih karyawan'])
+            ->assertHasNoTableActionErrors();
+
+        $fresh = $wrong->fresh();
+        $this->assertSame('draft', $fresh->status);
+        $this->assertNull($fresh->paid_by);
+        $this->assertNull($fresh->paid_at);
+        $this->assertTrue(\Spatie\Activitylog\Models\Activity::where('log_name', 'payroll')->where('subject_id', $wrong->id)->where('description', 'like', '%Salah pilih karyawan%')->exists());
+
+        $posted = $this->payroll($this->user('kasir'), ['status' => 'pending_approval', 'payment_requested_by' => $admin->id, 'payment_requested_at' => now()]);
+        Livewire::test(ListPayrolls::class)->callTableAction('approvePayment', $posted);
+        $this->assertNotNull($posted->fresh()->journal_entry_id);
+        Livewire::test(ListPayrolls::class)->assertTableActionHidden('unpay', $posted->fresh());
+
+        $this->actingAs($this->user('spv_finance', ['store_id' => null]), 'web');
+        Livewire::test(ListPayrolls::class)->assertTableActionHidden('unpay', $this->payroll($this->user('kasir'), ['status' => 'paid']));
+    }
+
+    // ------------------------------------------------------------- rekening & perapian daftar
+
+    private function resourceCall(string $method, ...$args)
+    {
+        $reflection = new \ReflectionMethod(PayrollResource::class, $method);
+        $reflection->setAccessible(true);
+
+        return $reflection->invoke(null, ...$args);
+    }
+
+    public function test_the_payment_modal_shows_where_to_transfer_or_warns_when_the_account_is_missing(): void
+    {
+        $with = $this->user('kasir', ['bank_name' => 'BCA', 'bank_account_number' => '1234567890', 'bank_account_holder_name' => 'Rina Pengaju']);
+        $without = $this->user('kasir', ['name' => 'Budi Tanpa Rekening']);
+
+        $this->assertSame('Transfer ke: BCA 1234567890 a.n. Rina Pengaju.', $this->resourceCall('bankLine', $with));
+        $this->assertStringContainsString('Budi Tanpa Rekening belum punya nomor rekening', $this->resourceCall('bankLine', $without));
+
+        $records = collect([$this->payroll($with)->load('user'), $this->payroll($without)->load('user')]);
+        $summary = $this->resourceCall('selectionSummary', $records, true);
+        $this->assertStringContainsString('2 slip terpilih', $summary);
+        $this->assertStringContainsString('1 karyawan belum punya nomor rekening (Budi Tanpa Rekening)', $summary);
+        $this->assertStringNotContainsString('PERHATIAN', $this->resourceCall('selectionSummary', $records));
+    }
+
+    public function test_the_list_opens_on_the_latest_period_and_hides_the_detail_columns_by_default(): void
+    {
+        $this->actingAs($this->user('direksi', ['store_id' => null]), 'web');
+        $latest = $this->payroll($this->user('kasir'), ['period_month' => '2026-09-01']);
+        $older = $this->payroll($this->user('kasir'), ['period_month' => '2026-08-01']);
+
+        Livewire::test(ListPayrolls::class)
+            ->assertCanSeeTableRecords([$latest])->assertCanNotSeeTableRecords([$older])
+            ->removeTableFilter('period_month')
+            ->assertCanSeeTableRecords([$latest, $older]);
+
+        $component = Livewire::test(ListPayrolls::class);
+        foreach (['store.name', 'total_late_minutes', 'late_violation_days', 'alpha_days', 'user.bank_account_number', 'base_salary'] as $hidden) {
+            $component->assertTableColumnExists($hidden);
+            $this->assertTrue($component->instance()->getTable()->getColumn($hidden)->isToggledHiddenByDefault(), "{$hidden} disembunyikan bawaan");
+        }
+    }
+
+    // ------------------------------------------------------------- karyawan yang berhenti (Hari Kerja Terakhir)
+
+    public function test_a_leaver_is_paid_proportionally_up_to_the_last_work_day_and_later_alpha_is_ignored(): void
+    {
+        // September 2026: 26 hari kerja x 9 jam = 234 jam. 1-15 September, tanpa Minggu 6 dan 13 = 13 hari = 117 jam = setengah bulan.
+        $leaver = $this->user('kasir', ['last_work_date' => '2026-09-15']);
+        $this->attend($leaver, '2026-09-10', 'alpha');
+        $this->attend($leaver, '2026-09-22', 'alpha');
+
+        $payroll = Payroll::generateForMonth($leaver, $this->month);
+
+        $this->assertEquals(1300000, $payroll->prorated_base_salary);
+        $this->assertSame(1, $payroll->alpha_days, 'Alpha sesudah hari kerja terakhir tidak dihitung.');
+    }
+
+    public function test_someone_who_joined_and_left_in_the_same_month_gets_only_the_days_between(): void
+    {
+        // 8-15 September tanpa Minggu 13 = 7 hari x 9 jam = 63 jam dari 234 jam.
+        $both = $this->user('kasir', ['join_date' => '2026-09-08', 'last_work_date' => '2026-09-15']);
+
+        $this->assertEquals(round(2600000 * 63 / 234, 2), Payroll::generateForMonth($both, $this->month)->prorated_base_salary);
+    }
+
+    public function test_generate_includes_inactive_leavers_of_that_month_and_skips_those_who_left_earlier(): void
+    {
+        $active = $this->user('kasir');
+        $leaverInMonth = $this->user('kasir', ['is_active' => false, 'last_work_date' => '2026-09-20']);
+        $leftEarlier = $this->user('kasir', ['is_active' => false, 'last_work_date' => '2026-08-20']);
+        $inactiveNoDate = $this->user('kasir', ['is_active' => false]);
+        $this->actingAs($this->user('direksi', ['store_id' => null]), 'web');
+
+        Livewire::test(ListPayrolls::class)
+            ->callTableAction('generate', data: ['month' => '2026-09-01', 'store_id' => $this->store->id]);
+
+        $this->assertTrue(Payroll::where('user_id', $active->id)->exists());
+        $this->assertTrue(Payroll::where('user_id', $leaverInMonth->id)->exists(), 'Gaji terakhir tetap dibuat walau akun sudah nonaktif.');
+        $this->assertFalse(Payroll::where('user_id', $leftEarlier->id)->exists());
+        $this->assertFalse(Payroll::where('user_id', $inactiveNoDate->id)->exists());
+    }
+
+    public function test_daily_absence_marking_stops_after_the_last_work_day(): void
+    {
+        $stayer = $this->user('kasir');
+        $leaver = $this->user('kasir', ['last_work_date' => '2026-10-02']);
+
+        Carbon::setTestNow('2026-10-07 01:00:00');
+        try {
+            $this->artisan('attendance:mark-absences')->assertSuccessful();
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $this->assertSame(1, Attendance::where('user_id', $stayer->id)->where('entry_type', 'alpha')->count());
+        $this->assertSame(0, Attendance::where('user_id', $leaver->id)->count(), 'Tidak ada Alpha sesudah hari kerja terakhir.');
+    }
+
+    public function test_the_requester_gets_one_summary_when_a_bulk_approval_covers_their_slips(): void
+    {
+        $spv = $this->user('spv_finance', ['store_id' => null]);
+        $admin = $this->user('direksi', ['store_id' => null]);
+        $a = $this->payroll($this->user('kasir'), ['status' => 'pending_approval', 'payment_requested_by' => $spv->id, 'payment_requested_at' => now()]);
+        $b = $this->payroll($this->user('kasir'), ['status' => 'pending_approval', 'payment_requested_by' => $spv->id, 'payment_requested_at' => now()]);
+        $pushes = [];
+        $this->mock(PushNotificationService::class, function ($mock) use (&$pushes) {
+            $mock->shouldReceive('sendToUsers')->andReturnUsing(function (array $ids, string $title, string $body) use (&$pushes) {
+                $pushes[] = [$ids, $title, $body];
+            });
+        });
+        $this->actingAs($admin, 'web');
+
+        Livewire::test(ListPayrolls::class)->callTableBulkAction('bulkApprove', [$a, $b]);
+
+        $toRequester = array_values(array_filter($pushes, fn ($p) => $p[0] === [$spv->id]));
+        $this->assertCount(1, $toRequester, 'Satu ringkasan untuk pengaju, bukan satu per slip.');
+        $this->assertSame('Pengajuan Pembayaran Gaji Disetujui', $toRequester[0][1]);
+        $this->assertStringContainsString('2 slip gaji', $toRequester[0][2]);
+        $this->assertCount(2, array_filter($pushes, fn ($p) => $p[1] === 'Gaji Sudah Dibayar'), 'Tiap karyawan tetap diberi tahu.');
     }
 }
