@@ -392,7 +392,7 @@ class AttendanceCorrectionApprovalTest extends TestCase
         $pending = $this->submit($employee);
         $decided = $this->submit($this->user('kasir'));
         $this->service->reject($decided, $this->user('super_admin')->id, 'tidak valid');
-        $mine = $this->submit($employee, ['date' => '2026-09-20']);
+        $mine = $this->submit($employee, ['date' => '2026-09-20', 'clock_in_at' => '2026-09-20 08:55:00', 'clock_out_at' => '2026-09-20 18:00:00']);
         $this->service->cancel($mine, $employee->id);
 
         $this->actingAs($this->user('store_manager'), 'web');
