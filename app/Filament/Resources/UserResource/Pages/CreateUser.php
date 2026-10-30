@@ -9,6 +9,11 @@ class CreateUser extends CreateRecord
 {
     protected static string $resource = UserResource::class;
 
+    protected function afterCreate(): void
+    {
+        \App\Models\ContractExtension::recordFirstContractIfMissing($this->record, auth()->id());
+    }
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         // Password sudah otomatis di-hash lewat cast 'password' => 'hashed'

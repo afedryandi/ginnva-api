@@ -47,19 +47,21 @@ class DeactivateExpiredContracts extends Command
             return self::SUCCESS;
         }
 
+        // Hari Kerja Terakhir diisi tanggal akhir kontrak (bila belum ada): Generate Payroll hanya menyertakan karyawan nonaktif yang
+        // Hari Kerja Terakhirnya jatuh di bulan itu, jadi tanpa ini gaji bulan terakhir mereka terlewat diam-diam.
         foreach ($expired as $user) {
-            $user->update(['is_active' => false]);
+            $user->update(['is_active' => false, 'last_work_date' => $user->last_work_date ?? $user->contract_end_date->toDateString()]);
         }
 
         $names = $expired->map(fn (User $u) => "{$u->name} (berakhir {$u->contract_end_date->format('d M Y')})")->implode(', ');
 
-        $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess()
-            || $u->hasMenuAccess(UserResource::class));
+        // Halaman User khusus akses penuh, jadi hanya mereka yang diberi tahu (bukan setiap akun dengan akses bawaan).
+        $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess());
 
         foreach ($recipients as $recipient) {
             Notification::make()
                 ->title('Karyawan Dinonaktifkan Otomatis (Kontrak Berakhir)')
-                ->body("{$expired->count()} karyawan: {$names}. Tidak diperpanjang sebelum tanggal berakhir, akses dicabut otomatis.")
+                ->body("{$expired->count()} karyawan: {$names}. Tidak diperpanjang sebelum tanggal berakhir, akses dicabut otomatis dan Hari Kerja Terakhir diisi tanggal akhir kontrak. Bila kontrak ternyata diperpanjang, catat di Riwayat Kontrak: akunnya diaktifkan kembali.")
                 ->danger()
                 ->actions([
                     \Filament\Notifications\Actions\Action::make('view')

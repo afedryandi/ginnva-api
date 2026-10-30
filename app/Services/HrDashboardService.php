@@ -35,7 +35,7 @@ class HrDashboardService
             ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId));
 
-        $people = $employees()->with(['store:id,name', 'employeeType:id,name'])->get();
+        $people = $employees()->with(['store:id,name', 'employeeType:id,name,has_end_date'])->get();
         $userIds = $people->pluck('id');
 
         $warnDays = (int) config('hr.probation_warning_days', 14);
@@ -73,7 +73,7 @@ class HrDashboardService
             'headcount' => $people->count(),
             'by_store' => $people->groupBy(fn (User $u) => $u->store?->name ?? 'Tanpa toko')->map->count()->sortKeys()->all(),
             'by_type' => $people->groupBy(fn (User $u) => $u->employeeType?->name ?? 'Belum dipilih')->map->count()->sortKeys()->all(),
-            'contracts_expiring' => $people->filter(fn (User $u) => $u->contract_end_date && $u->contract_end_date->between(today(), today()->addDays(30)))
+            'contracts_expiring' => $people->filter(fn (User $u) => $u->employeeType?->has_end_date && $u->contract_end_date && $u->contract_end_date->between(today(), today()->addDays(30)))
                 ->sortBy('contract_end_date')->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name, 'date' => $u->contract_end_date->format('d M Y')])->values()->all(),
             'contracts_expired' => $people->filter(fn (User $u) => $u->employeeType?->has_end_date && $u->contract_end_date && $u->contract_end_date->isPast())->count(),
             'probation_ending' => $people->filter(fn (User $u) => $u->probation_end_date && $u->probation_end_date->between(today(), today()->addDays($warnDays)))

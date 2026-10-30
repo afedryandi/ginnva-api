@@ -224,7 +224,8 @@ class SafetyAndPerformanceTest extends TestCase
     public function test_hr_dashboard_counts_what_needs_attention(): void
     {
         CompanyPolicy::create(['title' => 'Peraturan Perusahaan', 'category' => 'peraturan_perusahaan', 'is_published' => true, 'requires_acknowledgment' => true]);
-        $this->staff->update(['contract_end_date' => '2026-10-20', 'probation_end_date' => '2026-10-12']);
+        $contractType = \App\Models\EmployeeType::create(['name' => 'Kontrak', 'has_end_date' => true, 'is_active' => true]);
+        $this->staff->update(['employee_type_id' => $contractType->id, 'contract_end_date' => '2026-10-20', 'probation_end_date' => '2026-10-12']);
         PpeIssuance::create(['user_id' => $this->staff->id, 'ppe_type_id' => PpeType::where('name', 'Sarung tangan')->value('id'), 'issued_on' => '2026-08-01']);
         SafetyIncident::create(['store_id' => $this->store->id, 'occurred_at' => '2026-10-06 10:00', 'type' => 'injury', 'severity' => 'sedang', 'description' => 'Cedera']);
         $this->review($this->staff);

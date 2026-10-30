@@ -30,10 +30,10 @@ class CreateContractExtension extends CreateRecord
         $employee = User::findOrFail($data['user_id']);
         $actor = auth()->user();
 
-        if ($employee->hasRole('partner') || (! $actor->isFullAccess() && $employee->store_id !== $actor->store_id)) {
+        if (! ContractExtension::eligibleEmployees($actor)->whereKey($employee->id)->exists()) {
             Notification::make()
                 ->title('Tidak bisa disimpan')
-                ->body('Karyawan ini tidak termasuk yang boleh Anda kelola.')
+                ->body('Karyawan ini tidak termasuk yang boleh Anda perpanjang kontraknya: harus aktif, bertipe kontrak, dan dalam wewenang Anda.')
                 ->danger()
                 ->send();
 
@@ -65,6 +65,14 @@ class CreateContractExtension extends CreateRecord
      */
     protected function afterCreate(): void
     {
+        if ($this->record->reactivatedUser) {
+            Notification::make()
+                ->title('Akun diaktifkan kembali')
+                ->body("Akun {$this->record->user->name} sempat dinonaktifkan otomatis karena kontrak berakhir; kini aktif lagi.")
+                ->success()
+                ->send();
+        }
+
         app(\App\Services\StaffNotifier::class)->toUsers(
             [$this->record->user_id],
             'Kontrak Kerja Diperpanjang',

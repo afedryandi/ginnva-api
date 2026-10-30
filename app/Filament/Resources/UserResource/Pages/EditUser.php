@@ -113,6 +113,9 @@ class EditUser extends EditRecord
 
     protected function afterSave(): void
     {
+        // Kontrak pertama yang baru diisi di sini masuk Riwayat Kontrak; perpanjangan berikutnya lewat menu Riwayat Kontrak.
+        \App\Models\ContractExtension::recordFirstContractIfMissing($this->record, auth()->id());
+
         // Kata sandi tidak masuk LogsActivity (tidak boleh disimpan di log mana pun); yang dicatat hanya BAHWA sandi diubah, dan oleh siapa.
         if ($this->record->wasChanged('password')) {
             if (auth()->id() !== $this->record->id) {

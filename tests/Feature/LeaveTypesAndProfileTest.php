@@ -188,9 +188,10 @@ class LeaveTypesAndProfileTest extends TestCase
 
     public function test_profile_shows_own_data_with_masked_identity_numbers(): void
     {
+        $contractType = \App\Models\EmployeeType::create(['name' => 'Kontrak', 'has_end_date' => true, 'is_active' => true]);
         $this->staff->forceFill([
             'nik' => '3174012345670001', 'npwp' => '123456789012345', 'bank_name' => 'BCA', 'bank_account_number' => '1234567890',
-            'contract_end_date' => '2026-12-31', 'emergency_contact_name' => 'Budi', 'emergency_contact_phone' => '0812',
+            'employee_type_id' => $contractType->id, 'contract_end_date' => '2026-12-31', 'emergency_contact_name' => 'Budi', 'emergency_contact_phone' => '0812',
         ])->save();
 
         $profile = $this->actingAs($this->staff, 'api')->getJson('/api/staff/profile')->assertSuccessful()->json('profile');

@@ -42,9 +42,17 @@ class ProfileController extends Controller
                     'type' => $user->employeeType?->name,
                     'join_date' => $user->join_date?->toDateString(),
                     'tenure_label' => $this->tenureLabel($user->join_date),
-                    'contract_end_date' => $user->contract_end_date?->toDateString(),
-                    'contract_days_left' => $user->contract_end_date ? (int) Carbon::today()->diffInDays($user->contract_end_date, false) : null,
+                    // Tanggal akhir kontrak hanya berarti bagi karyawan bertipe kontrak; karyawan tetap tidak menampilkannya.
+                    'contract_end_date' => $user->employeeType?->has_end_date ? $user->contract_end_date?->toDateString() : null,
+                    'contract_days_left' => $user->employeeType?->has_end_date && $user->contract_end_date ? (int) Carbon::today()->diffInDays($user->contract_end_date, false) : null,
                     'contract_extensions' => $user->contractExtensions()->count(),
+                    // Tanggal-tanggal kontrak karyawan sendiri, terbaru di atas (tanpa catatan dan pencatat, itu urusan HR); hanya tipe kontrak.
+                    'contract_history' => $user->employeeType?->has_end_date
+                        ? $user->contractExtensions()->reorder()->orderByDesc('id')->limit(10)->get(['previous_end_date', 'new_end_date'])->map(fn (\App\Models\ContractExtension $e) => [
+                            'previous_end_date' => $e->previous_end_date?->toDateString(),
+                            'new_end_date' => $e->new_end_date->toDateString(),
+                        ])->values()->all()
+                        : [],
                     'probation_end_date' => $user->probation_end_date?->toDateString(),
                 ],
                 'identity' => [
