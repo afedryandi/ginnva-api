@@ -292,7 +292,25 @@ class PayrollResource extends Resource
                             ->required(),
                     ])
                     ->requiresConfirmation()
-                    ->modalDescription('Pastikan bulan yang dipilih sudah SELESAI PENUH sebelum generate — kalau bulan masih berjalan, potongan telat/alpha yang dihasilkan belum lengkap.')
+                    ->modalDescription(function () {
+                        $text = 'Pastikan bulan yang dipilih sudah SELESAI PENUH sebelum generate — kalau bulan masih berjalan, potongan telat/alpha yang dihasilkan belum lengkap.';
+
+                        // Karyawan yang datanya belum lengkap baru terlihat SESUDAH generate (terlewat diam-diam); tunjukkan sebelumnya.
+                        $incomplete = app(\App\Services\EmployeeDataCompletenessService::class)->findings()
+                            ->filter(fn (array $row) => $row['required'] !== [])->count();
+
+                        if ($incomplete === 0) {
+                            return $text;
+                        }
+
+                        $link = \App\Filament\Pages\EmployeeDataCompletenessReport::canAccess()
+                            ? ' <a href="' . e(\App\Filament\Pages\EmployeeDataCompletenessReport::getUrl()) . '" target="_blank" class="underline">Lihat Kelengkapan Data Karyawan</a>'
+                            : '';
+
+                        return new \Illuminate\Support\HtmlString(
+                            e($text) . '<br><br><strong>' . $incomplete . ' karyawan aktif masih kurang data wajib</strong> (gaji pokok, toko, tanggal bergabung, dst.); yang tanpa gaji pokok atau toko akan terlewat.' . $link
+                        );
+                    })
                     ->action(function (array $data) {
                         $month = Carbon::parse($data['month']);
 

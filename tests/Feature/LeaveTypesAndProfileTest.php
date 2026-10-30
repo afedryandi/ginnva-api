@@ -344,4 +344,17 @@ class LeaveTypesAndProfileTest extends TestCase
         $custom = LeaveType::create(['code' => 'cuti_umroh', 'name' => 'Cuti Umroh', 'category' => 'cuti', 'deducts_annual_quota' => false, 'sort_order' => 200, 'is_active' => true]);
         $this->assertNull(LeaveTypeResource::deleteBlockedReason($custom));
     }
+
+    public function test_profile_lists_the_data_the_employee_can_hand_to_hr_without_internal_items(): void
+    {
+        $this->staff->forceFill(['nik' => '123', 'npwp' => '123456789012345', 'bank_name' => null, 'bank_account_number' => null, 'bpjs_kesehatan_number' => '1', 'bpjs_ketenagakerjaan_number' => '2', 'emergency_contact_name' => 'Budi', 'emergency_contact_phone' => '0812', 'base_salary' => null])->save();
+
+        $profile = $this->actingAs($this->staff, 'api')->getJson('/api/staff/profile')->json('profile');
+
+        $this->assertSame(['NIK (tampak keliru)', 'Rekening bank'], $profile['missing_data'], 'Gaji pokok yang kosong adalah urusan HR dan tidak ikut.');
+
+        $this->staff->forceFill(['nik' => '3174012345670001', 'bank_name' => 'BCA', 'bank_account_number' => '1234567890'])->save();
+
+        $this->assertSame([], $this->actingAs($this->staff, 'api')->getJson('/api/staff/profile')->json('profile.missing_data'));
+    }
 }

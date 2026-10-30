@@ -145,3 +145,6 @@ Schedule::command('attendance:notify-missing-clockins')->hourlyAt(5)->between('0
 
 // Pengingat sertifikat installer yang hampir/baru kedaluwarsa (audit Kompetensi Installer): tiap Senin pagi ke akses penuh dan store manager.
 Schedule::command('training:notify-expiring')->weeklyOn(1, '08:00');
+
+// Pengingat kelengkapan data wajib karyawan menjelang payroll (audit Kelengkapan Data Karyawan): tanggal 25 pagi ke akses penuh dan pemegang menunya.
+Schedule::command('hr:notify-incomplete-data')->monthlyOn(25, '08:00');

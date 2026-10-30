@@ -90,6 +90,7 @@ class NotificationCatalog
             ['audience' => 'pengguna', 'source' => 'Services/TransactionApprovalService.php', 'title' => 'Keputusan pengajuan transaksi untuk pemohon', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Services/TransactionApprovalService.php', 'title' => 'Menunggu persetujuan (per jenis pengajuan)', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Console/Commands/NotifyExpiringTrainings.php', 'title' => 'Sertifikat Installer Segera Kedaluwarsa', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/NotifyIncompleteEmployeeData.php', 'title' => 'Data Karyawan Belum Lengkap', 'panel_inbox' => true],
             ['audience' => 'staf_toko', 'source' => 'Console/Commands/NotifyForgottenClockouts.php', 'title' => 'Ada Absensi Belum Lengkap', 'panel_inbox' => true],
             ['audience' => 'staf_toko', 'source' => 'Console/Commands/NotifyMissingClockins.php', 'title' => 'Karyawan Belum Absen Masuk', 'panel_inbox' => true],
             ['audience' => 'staf_toko', 'source' => 'Console/Commands/NotifyStaleQuotations.php', 'title' => 'Lead Belum Di-follow-up', 'panel_inbox' => true],

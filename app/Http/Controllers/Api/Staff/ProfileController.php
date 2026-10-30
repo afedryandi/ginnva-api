@@ -55,6 +55,8 @@ class ProfileController extends Controller
                     'bank_name' => $user->bank_name,
                     'bank_account_number' => $this->mask($user->bank_account_number),
                 ],
+                // Data yang belum lengkap dan bisa diserahkan karyawan ke HR (banner di layar); tidak bisa diubah dari aplikasi.
+                'missing_data' => app(\App\Services\EmployeeDataCompletenessService::class)->employeeFacingGaps($user),
                 'emergency_contact' => [
                     'name' => $user->emergency_contact_name,
                     'phone' => $user->emergency_contact_phone,
