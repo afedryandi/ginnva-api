@@ -477,6 +477,8 @@ class AttendanceController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
+        $leaveRequest->notifyApprovers();
+
         return response()->json(['success' => true, 'leave_request' => $this->transformLeaveRequest($leaveRequest)], 201);
     }
 
@@ -537,7 +539,7 @@ class AttendanceController extends Controller
             'end_date' => $r->end_date->toDateString(),
             'reason' => $r->reason,
             'document_url' => \App\Support\SensitiveFiles::url($r->document),
-            'status' => $r->status,
+            'status' => $r->isRevoked() ? 'revoked' : $r->status,
             'review_note' => $r->review_note,
             'reviewer_name' => $r->reviewer?->name,
             'reviewed_at' => $r->reviewed_at?->toIso8601String(),

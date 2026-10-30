@@ -80,6 +80,22 @@ class LeaveRequest extends Model
         return $this->leaveType ? $this->leaveType->deducts_annual_quota : $this->type === 'cuti';
     }
 
+    /**
+     * Beri tahu penyetuju (akses penuh yang aktif, kecuali karyawan pengaju sendiri) lewat lonceng panel bahwa ada pengajuan baru.
+     */
+    public function notifyApprovers(): void
+    {
+        User::where('is_active', true)
+            ->where('id', '!=', $this->user_id)
+            ->get()
+            ->filter(fn (User $u) => $u->canDecideLeaveFor($this))
+            ->each(fn (User $u) => \Filament\Notifications\Notification::make()
+                ->title('Pengajuan izin/cuti baru')
+                ->body("{$this->user?->name} mengajukan {$this->request_number} ({$this->start_date->format('d M')}–{$this->end_date->format('d M Y')}).")
+                ->warning()
+                ->sendToDatabase($u));
+    }
+
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
@@ -258,6 +274,22 @@ class LeaveRequest extends Model
                 throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
             }
 
+            self::assertMayDecide($locked, $approvedBy);
+
+            // Jatah dicek ulang saat disetujui: saat diajukan, pengajuan lain yang masih menunggu belum dihitung, jadi dua pengajuan bisa
+            // sama-sama lolos dan melewati jatah bila keduanya disetujui. Baris karyawan dikunci agar dua persetujuan tidak saling menyalip.
+            if ($locked->deductsAnnualQuota()) {
+                $employee = User::whereKey($locked->user_id)->lockForUpdate()->first();
+                $year = $locked->start_date->year;
+                $remaining = max(0, self::annualQuotaFor($employee, $year) - self::usedCutiDaysFor($employee, $year, $locked->id));
+
+                if ($locked->dayCount() > $remaining) {
+                    throw new RuntimeException(
+                        "Jatah cuti {$employee->name} tahun {$year} tinggal {$remaining} hari, tidak cukup untuk {$locked->dayCount()} hari. Tolak pengajuan ini atau minta karyawan mengajukan ulang."
+                    );
+                }
+            }
+
             $locked->update([
                 'status'      => 'approved',
                 'reviewed_by' => $approvedBy,
@@ -266,6 +298,58 @@ class LeaveRequest extends Model
 
             return $locked;
         });
+    }
+
+    /**
+     * Cabut persetujuan (salah setuju, atau rencana berubah). Statusnya menjadi 'cancelled' dengan reviewed_by terisi, itulah yang
+     * membedakannya dari pembatalan oleh karyawan sendiri (isRevoked()). Jatah cuti otomatis kembali karena hanya yang 'approved' dihitung.
+     * Absensi berjenis Izin/Cuti (tanpa jam) di rentangnya dikembalikan: tanggal yang sudah lewat menjadi Alpha, hari ini dan mendatang
+     * dihapus (job harian membuatnya sendiri nanti).
+     *
+     * @throws RuntimeException kalau pengajuan ini tidak sedang berstatus disetujui.
+     */
+    public static function revokeLocked(int $id, int $revokedBy, string $note): self
+    {
+        return DB::transaction(function () use ($id, $revokedBy, $note) {
+            $locked = self::whereKey($id)->lockForUpdate()->first();
+
+            if (! $locked || $locked->status !== 'approved') {
+                throw new RuntimeException('Cuma pengajuan yang sedang berstatus disetujui yang bisa dicabut.');
+            }
+
+            $locked->update([
+                'status'      => 'cancelled',
+                'reviewed_by' => $revokedBy,
+                'reviewed_at' => now(),
+                'review_note' => $note,
+            ]);
+
+            $rows = Attendance::where('user_id', $locked->user_id)
+                ->whereBetween('date', [$locked->start_date->toDateString(), $locked->end_date->toDateString()])
+                ->where('entry_type', 'leave')
+                ->whereNull('clock_in_at');
+
+            (clone $rows)->whereDate('date', '<', today())->update(['entry_type' => 'alpha']);
+            (clone $rows)->whereDate('date', '>=', today())->delete();
+
+            return $locked;
+        });
+    }
+
+    /** Penegakan siapa yang boleh memutuskan, di dalam kunci (bukan hanya tombol yang disembunyikan). */
+    private static function assertMayDecide(self $request, int $deciderId): void
+    {
+        $decider = User::find($deciderId);
+
+        if (! $decider || ! $decider->canDecideLeaveFor($request)) {
+            throw new RuntimeException('Anda tidak berhak memutuskan pengajuan ini (hanya akses penuh, atau Store Manager/Spv Finance toko yang sama untuk pengajuan orang lain).');
+        }
+    }
+
+    /** Dicabut penyetuju (bukan dibatalkan karyawan sendiri). */
+    public function isRevoked(): bool
+    {
+        return $this->status === 'cancelled' && $this->reviewed_by !== null;
     }
 
     /**
@@ -279,6 +363,8 @@ class LeaveRequest extends Model
             if (! $locked || $locked->status !== 'pending') {
                 throw new RuntimeException('Permintaan ini sudah diputuskan sebelumnya.');
             }
+
+            self::assertMayDecide($locked, $rejectedBy);
 
             $locked->update([
                 'status'      => 'rejected',

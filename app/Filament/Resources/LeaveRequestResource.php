@@ -64,6 +64,18 @@ class LeaveRequestResource extends Resource
             && $user->hasModuleAction(static::class, 'create', true);
     }
 
+    /**
+     * Boleh melihat dan mengelola izin/cuti SELURUH toko: akses penuh, store manager, atau staf yang diberi izin Ubah di Hak Akses Detail.
+     * Staf lain hanya melihat dan mengajukan miliknya sendiri (izin sakit dan lampiran surat dokter bersifat pribadi).
+     */
+    public static function seesWholeStore(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null
+            && ($user->isFullAccess() || $user->isStoreManager() || $user->hasRole('spv_finance') || $user->hasModuleAction(static::class, 'update', false));
+    }
+
     public static function canEdit($record): bool
     {
         $user = auth()->user();
@@ -74,7 +86,8 @@ class LeaveRequestResource extends Resource
             // Pengajuan yang sudah diputuskan (disetujui/ditolak/dibatalkan) terkunci: tombol Edit sudah
             // disembunyikan di tabel, tapi halaman edit tetap bisa dibuka lewat URL dan mengubah tanggal/jenis
             // pengajuan yang sudah disetujui tanpa persetujuan ulang.
-            && (! $record || $record->status === 'pending');
+            && (! $record || $record->status === 'pending')
+            && (! $record || static::seesWholeStore() || $record->user_id === $user->id);
     }
 
     /**
@@ -101,6 +114,10 @@ class LeaveRequestResource extends Resource
 
         if ($user && ! $user->isFullAccess()) {
             $query->where('store_id', $user->store_id);
+
+            if (! static::seesWholeStore()) {
+                $query->where('user_id', $user->id);
+            }
         }
 
         return $query;
@@ -125,12 +142,15 @@ class LeaveRequestResource extends Resource
                                 ! $isSuperAdmin,
                                 fn ($q) => $q->where('store_id', auth()->user()?->store_id)
                             )
+                            ->when(! static::seesWholeStore(), fn ($q) => $q->whereKey(auth()->id()))
                             ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
                             ->pluck('name', 'id')
                         )
                         ->searchable()
                         ->required()
                         ->live()
+                        ->disabled(fn (?LeaveRequest $record) => ! $record && ! static::seesWholeStore())
+                        ->dehydrated()
                         ->default(fn () => $isSuperAdmin ? null : auth()->id())
                         ->afterStateUpdated(fn (Forms\Set $set, ?string $state) => $set('store_id', $state ? User::find($state)?->store_id : null)),
 
@@ -175,7 +195,12 @@ class LeaveRequestResource extends Resource
                         // saja dari tanggal yang sekarang sudah lewat, mis.
                         // dicatat admin belakangan) — cuma dipaksa untuk
                         // pengajuan BARU lewat CreateLeaveRequest.
-                        ->minDate(fn (?LeaveRequest $record) => $record ? null : today()),
+                        // Akses penuh boleh mencatat izin/sakit untuk tanggal yang sudah lewat (karyawan melapor belakangan); saat disetujui,
+                        // baris Alpha di tanggal itu menjadi Izin. Staf lain tetap hanya untuk hari ini dan seterusnya.
+                        ->minDate(fn (?LeaveRequest $record) => ($record || (auth()->user()?->isFullAccess() ?? false)) ? null : today())
+                        ->helperText(fn (?LeaveRequest $record) => (! $record && (auth()->user()?->isFullAccess() ?? false))
+                            ? 'Boleh tanggal yang sudah lewat (mis. sakit yang dilaporkan belakangan). Saat disetujui, absensi Alpha di tanggal itu otomatis menjadi Izin.'
+                            : null),
 
                     Forms\Components\DatePicker::make('end_date')
                         ->label('Sampai Tanggal')
@@ -264,6 +289,25 @@ class LeaveRequestResource extends Resource
                     ->label('Sampai')
                     ->date('d M Y'),
 
+                Tables\Columns\TextColumn::make('duration')
+                    ->label('Hari')
+                    ->state(fn (LeaveRequest $record) => $record->dayCount())
+                    ->alignEnd(),
+
+                Tables\Columns\TextColumn::make('reason')
+                    ->label('Alasan')
+                    ->limit(40)
+                    ->tooltip(fn (LeaveRequest $record) => $record->reason),
+
+                Tables\Columns\IconColumn::make('document')
+                    ->label('Lampiran')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-paper-clip')
+                    ->falseIcon('heroicon-o-minus')
+                    ->trueColor('info')
+                    ->falseColor('gray')
+                    ->state(fn (LeaveRequest $record) => filled($record->document)),
+
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
                     ->colors([
@@ -272,11 +316,11 @@ class LeaveRequestResource extends Resource
                         'danger'  => 'rejected',
                         'gray'    => 'cancelled',
                     ])
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                    ->formatStateUsing(fn (string $state, LeaveRequest $record): string => match ($state) {
                         'pending'   => 'Menunggu Persetujuan',
                         'approved'  => 'Disetujui',
                         'rejected'  => 'Ditolak',
-                        'cancelled' => 'Dibatalkan Sendiri',
+                        'cancelled' => $record->isRevoked() ? 'Dicabut Admin' : 'Dibatalkan Sendiri',
                         default     => $state,
                     }),
 
@@ -310,9 +354,16 @@ class LeaveRequestResource extends Resource
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (LeaveRequest $record) => auth()->user()?->isFullAccess()
-                        && $record->status === 'pending')
+                    ->visible(fn (LeaveRequest $record) => $record->status === 'pending'
+                        && (auth()->user()?->canDecideLeaveFor($record) ?? false))
                     ->requiresConfirmation()
+                    ->modalHeading(fn (LeaveRequest $record) => "Setujui $record->request_number?")
+                    ->form(fn (LeaveRequest $record) => [
+                        Forms\Components\Placeholder::make('context')
+                            ->label('Yang perlu diperhatikan')
+                            ->content(static::approvalContext($record))
+                            ->columnSpanFull(),
+                    ])
                     ->action(function (LeaveRequest $record) {
                         // Bug diperbaiki 2026-09-27 (audit ulang Izin &
                         // Cuti) -- approveLocked() sekarang lockForUpdate()
@@ -342,15 +393,26 @@ class LeaveRequestResource extends Resource
                             "Pengajuan {$record->request_number} ({$record->start_date->format('d M')}–{$record->end_date->format('d M Y')}) disetujui."
                         );
 
-                        Notification::make()->title('Izin disetujui')->success()->send();
+                        // Absensi tanggal lampau yang diubah dari Alpha mengubah potongan gaji; ingatkan bila slip bulan itu sudah dikunci.
+                        $locked = \App\Models\Payroll::where('user_id', $record->user_id)
+                            ->whereIn('status', ['pending_approval', 'paid'])
+                            ->whereDate('period_month', '>=', $record->start_date->copy()->startOfMonth()->toDateString())
+                            ->whereDate('period_month', '<=', $record->end_date->copy()->startOfMonth()->toDateString())
+                            ->exists();
+
+                        Notification::make()
+                            ->title('Izin disetujui')
+                            ->body($locked ? 'Perhatian: slip gaji bulan terkait sudah menunggu persetujuan atau dibayar; angka gaji tidak otomatis berubah.' : null)
+                            ->success()
+                            ->send();
                     }),
 
                 Tables\Actions\Action::make('reject')
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn (LeaveRequest $record) => auth()->user()?->isFullAccess()
-                        && $record->status === 'pending')
+                    ->visible(fn (LeaveRequest $record) => $record->status === 'pending'
+                        && (auth()->user()?->canDecideLeaveFor($record) ?? false))
                     ->form([
                         Forms\Components\Textarea::make('review_note')
                             ->label('Alasan Ditolak')
@@ -375,6 +437,38 @@ class LeaveRequestResource extends Resource
                         Notification::make()->title('Izin ditolak')->warning()->send();
                     }),
 
+                // Mencabut persetujuan yang sudah diberikan (salah setuju atau rencana berubah); hanya akses penuh.
+                Tables\Actions\Action::make('revoke')
+                    ->label('Cabut Persetujuan')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('gray')
+                    ->visible(fn (LeaveRequest $record) => (auth()->user()?->isFullAccess() ?? false) && $record->status === 'approved')
+                    ->modalHeading(fn (LeaveRequest $record) => "Cabut persetujuan $record->request_number?")
+                    ->modalDescription('Jatah cuti dikembalikan. Absensi Izin/Cuti di rentang ini kembali menjadi Alpha untuk tanggal yang sudah lewat, dan dihapus untuk hari ini dan seterusnya. Karyawan diberi tahu.')
+                    ->form([
+                        Forms\Components\Textarea::make('review_note')
+                            ->label('Alasan dicabut')
+                            ->required()
+                            ->rows(2),
+                    ])
+                    ->action(function (LeaveRequest $record, array $data) {
+                        try {
+                            $record = LeaveRequest::revokeLocked($record->id, auth()->id(), $data['review_note']);
+                        } catch (\RuntimeException $e) {
+                            Notification::make()->title('Gagal mencabut')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        app(\App\Services\StaffNotifier::class)->toUsers(
+                            [$record->user_id],
+                            'Persetujuan Izin Dicabut',
+                            "Persetujuan {$record->request_number} dicabut: {$data['review_note']}"
+                        );
+
+                        Notification::make()->title('Persetujuan dicabut')->warning()->send();
+                    }),
+
                 Tables\Actions\EditAction::make()
                     ->visible(fn (LeaveRequest $record) => $record->status === 'pending'),
 
@@ -383,6 +477,40 @@ class LeaveRequestResource extends Resource
                         && $record->status === 'pending'),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    /** Ringkasan untuk penyetuju: alasan, durasi, sisa jatah, lampiran, dan rekan se-toko yang juga cuti di tanggal yang sama. */
+    private static function approvalContext(LeaveRequest $record): \Illuminate\Support\HtmlString
+    {
+        $e = fn (?string $text) => e($text ?? '');
+        $lines = [
+            '<strong>' . $e($record->user?->name) . '</strong> · ' . $e($record->leaveType?->name ?? ucfirst($record->type)),
+            $record->dayCount() . ' hari (' . $record->start_date->translatedFormat('d M Y') . ' – ' . $record->end_date->translatedFormat('d M Y') . ')',
+            'Alasan: ' . $e($record->reason),
+        ];
+
+        if ($record->deductsAnnualQuota() && $record->user) {
+            $year = $record->start_date->year;
+            $remaining = max(0, LeaveRequest::annualQuotaFor($record->user, $year) - LeaveRequest::usedCutiDaysFor($record->user, $year, $record->id));
+            $lines[] = "Sisa jatah cuti {$year} (sebelum pengajuan ini): {$remaining} hari";
+        }
+
+        $link = \App\Support\SensitiveFiles::url($record->document);
+        $lines[] = $link ? '<a href="' . e($link) . '" target="_blank" rel="noopener" style="text-decoration:underline">Lihat lampiran</a>' : 'Tanpa lampiran';
+
+        $overlapping = LeaveRequest::with('user:id,name')
+            ->where('store_id', $record->store_id)
+            ->where('user_id', '!=', $record->user_id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where('start_date', '<=', $record->end_date)
+            ->where('end_date', '>=', $record->start_date)
+            ->get();
+
+        $lines[] = $overlapping->isEmpty()
+            ? 'Tidak ada rekan se-toko yang izin/cuti di tanggal ini.'
+            : 'Rekan se-toko yang juga izin/cuti di tanggal ini: ' . $overlapping->map(fn (LeaveRequest $o) => $e($o->user?->name) . ($o->status === 'pending' ? ' (menunggu)' : ''))->implode(', ');
+
+        return new \Illuminate\Support\HtmlString(implode('<br>', $lines));
     }
 
     public static function getNavigationBadge(): ?string

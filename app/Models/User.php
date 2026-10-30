@@ -364,6 +364,22 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     }
 
     /**
+     * Boleh memutuskan (setujui/tolak) pengajuan izin/cuti: akses penuh untuk semua toko; store manager dan Spv Finance hanya untuk tokonya
+     * sendiri dan tidak untuk pengajuannya sendiri (keputusan 2026-10-30).
+     */
+    public function canDecideLeaveFor(\App\Models\LeaveRequest $request): bool
+    {
+        if ($this->isFullAccess()) {
+            return true;
+        }
+
+        return ($this->isStoreManager() || $this->hasRole('spv_finance'))
+            && $this->store_id !== null
+            && $this->store_id === $request->store_id
+            && $this->id !== $request->user_id;
+    }
+
+    /**
      * Boleh melihat absensi SEMUA karyawan tokonya: akses penuh, store manager, atau staf yang diberi izin Buat/Ubah langsung di Hak Akses Detail.
      * Staf lain hanya melihat dan mengajukan koreksi untuk absensinya sendiri.
      */

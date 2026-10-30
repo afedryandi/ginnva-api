@@ -17,9 +17,22 @@ class CreateLeaveRequest extends CreateRecord
             $data['store_id'] = auth()->user()->store_id;
         }
 
+        // Staf yang hanya berhak atas dirinya sendiri tidak bisa mengajukan atas nama rekan, apa pun isian yang dikirim.
+        if (! LeaveRequestResource::seesWholeStore()) {
+            $data['user_id'] = auth()->id();
+        }
+
         $data['status'] = 'pending';
 
         return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        // Pengajuan yang dibuat akses penuh sendiri tidak perlu memberi tahu dirinya; selain itu penyetuju diberi tahu.
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            $this->record->notifyApprovers();
+        }
     }
 
     /**
