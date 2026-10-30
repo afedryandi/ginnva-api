@@ -466,7 +466,7 @@ class GuideCatalog
                 'id' => 'garansi-maintenance',
                 'title' => 'Garansi dan Maintenance PPF',
                 'summary' => 'Dari menerbitkan garansi sampai jadwal maintenance berulang dan kunjungan pelanggan.',
-                'menus' => ['WarrantyResource'],
+                'menus' => ['WarrantyResource', 'BookingReworkResource'],
                 'steps' => [
                     'Garansi dibuat staff atau didaftarkan pelanggan di aplikasi. Garansi dari pelanggan menunggu **review**; saat disetujui, pelanggan mendapat poin registrasi garansi.',
                     'Untuk PPF, isi **Kuota Maintenance** (berapa kali boleh datang) dan **Interval** (jarak bulan antar kunjungan). Sistem menghitung tanggal kunjungan berikutnya sendiri.',
@@ -474,6 +474,7 @@ class GuideCatalog
                     'Staff atau sales boleh menghubungi pelanggan lebih dulu (mis. lewat WhatsApp) lalu memakai aksi **Buatkan Booking** di tab Jadwal Maintenance garansi tersebut.',
                     'Pelanggan yang datang tanpa jadwal dicatat lewat **Catat Kunjungan Maintenance**. Setiap kunjungan mengurangi kuota.',
                     'Klaim after-sales dicatat di tab **Riwayat Klaim After-Sales** pada garansi yang sudah disetujui QA: pilih **Kategori After-Sales** dan tulis keluhan. Akses penuh memutuskan **Pass** atau **Reject** (Reject wajib memakai alasan); pelanggan mendapat notifikasi.',
+                    '**Pekerjaan Ulang** (grup Setelah Layanan) mencatat booking yang perlu dikerjakan ulang: pilih **Booking** dan **Sumber**, isi **Apa yang perlu diperbaiki** dan **Catatan pembinaan (opsional)**. Installer yang bertugas pada booking itu otomatis ikut terhitung. Isi **Selesai dikerjakan ulang** saat pekerjaan selesai. Dipakai laporan Kompetensi Installer untuk pembinaan, bukan dasar potongan gaji atau komisi.',
                     'Untuk klaim yang berjalan, isi **Ditangani oleh** (installer) dan **Perkiraan Selesai** lewat Ubah. Perkiraan yang sudah lewat ditandai **Terlambat** di daftar.',
                     'Klaim yang disetujui punya tombol **Bahan Terpakai**: isinya Memo Pengambilan/Pengembalian booking kunjungan klaim itu (barang, diambil, dikembalikan, terpakai). Bila memo belum ada, tautan di dalamnya membuka form memo yang sudah terisi booking, toko, dan kendaraan. Stok berubah lewat memo, bukan dari klaim.',
                     'Setelah ditangani, pakai **Catat Penyelesaian**: pilih **Hasil Penanganan** (Diperbaiki, Diganti atau dipasang ulang, Dana dikembalikan, atau Dibatalkan pelanggan) dan isi catatan. Pelanggan menerima notifikasi bahwa klaimnya sudah ditangani.',
@@ -1035,16 +1036,15 @@ class GuideCatalog
             ],
             [
                 'id' => 'k3-kinerja',
-                'title' => 'K3, pelatihan, penilaian kinerja, dan pekerjaan ulang',
-                'summary' => 'Mencatat pembagian APD, kejadian K3, pelatihan, penilaian kinerja, dan booking yang perlu dikerjakan ulang.',
-                'menus' => ['PpeTypeResource', 'PpeIssuanceResource', 'SafetyIncidentResource', 'EmployeeTrainingResource', 'PerformanceReviewResource', 'BookingReworkResource'],
+                'title' => 'K3, pelatihan, dan penilaian kinerja',
+                'summary' => 'Mencatat pembagian APD, kejadian K3, pelatihan, dan penilaian kinerja.',
+                'menus' => ['PpeTypeResource', 'PpeIssuanceResource', 'SafetyIncidentResource', 'EmployeeTrainingResource', 'PerformanceReviewResource'],
                 'steps' => [
                     '**Jenis APD** mendaftarkan perlengkapan beserta **Umur pakai (bulan)**, dasar jatuh tempo penggantian (kosongkan bila tidak ada jadwal ganti). Jenis yang sudah pernah dibagikan tidak bisa dihapus; nonaktifkan.',
                     '**Pembagian APD** mencatat siapa menerima apa: **Karyawan**, **Jenis APD**, **Jumlah**, dan **Tanggal dibagikan**. **Jatuh tempo ganti** terisi otomatis dari umur pakai bila dikosongkan. Isi **Dikembalikan/diganti pada** saat barang lama dikembalikan; barang itu tidak dihitung jatuh tempo lagi. Filter **Perlu diganti** menampilkan yang sudah waktunya diganti.',
                     '**Kejadian K3**: catat **Waktu kejadian**, **Jenis**, **Tingkat**, **Karyawan terlibat/terdampak**, **Apa yang terjadi**, dan **Tindakan saat itu**. Isi **Penyebab** dan **Tindak lanjut/pencegahan** (wajib sebelum kejadian bisa ditutup), lalu tekan **Tutup**. Kejadian tidak bisa dihapus. Untuk kejadian cedera, periksa kewajiban pelaporan ke BPJS Ketenagakerjaan; cedera yang belum ditutup ditandai di Dasbor HR.',
                     '**Pelatihan Karyawan** mencatat pelatihan K3, pengetahuan produk, dan sejenisnya: **Karyawan**, **Nama pelatihan**, **Penyelenggara**, **Tanggal pelatihan**, **Berlaku sampai** (kosongkan bila tidak kedaluwarsa), dan **Berkas sertifikat (opsional)** yang disimpan privat. Pelatihan installer per layanan tetap dicatat di Installer, Pelatihan & Sertifikat.',
                     '**Penilaian Kinerja** menilai empat aspek dengan skor 1 sampai 5, ditambah **Kekuatan**, **Yang perlu diperbaiki**, dan **Target periode berikutnya**. Satu penilaian per karyawan per **Periode**. Untuk pembinaan, bukan dasar gaji atau potongan. Penilaian yang sudah dibaca karyawan terkunci dari perubahan nilai.',
-                    '**Pekerjaan Ulang** mencatat booking yang perlu dikerjakan ulang: pilih **Booking** dan **Sumber**, isi **Apa yang perlu diperbaiki** dan **Catatan pembinaan (opsional)**. Installer yang bertugas pada booking itu otomatis ikut terhitung. Isi **Selesai dikerjakan ulang** saat pekerjaan selesai. Dipakai laporan Kompetensi Installer untuk pembinaan, bukan dasar potongan gaji atau komisi.',
                 ],
                 'tips' => [
                     'Pelatihan yang sudah kedaluwarsa atau akan kedaluwarsa dalam 30 hari ditandai di daftar dan di Dasbor HR.',

@@ -27,6 +27,6 @@ Menu yang dipakai setiap hari atau setiap bulan tampil di empat grup; yang diatu
 - **Karyawan**: User, Dasbor HR.
 - **Absensi & Cuti**: Absensi Karyawan, Koreksi Absensi, Izin & Cuti.
 - **Penggajian**: Penggajian, Aturan Potongan Absensi, Kategori Komponen Gaji.
-- **Kinerja Installer**: Durasi Servis, Kompetensi Installer, Pekerjaan Ulang (dan Utilisasi bila dinyalakan).
+- **Kinerja Installer**: Durasi Servis, Kompetensi Installer (dan Utilisasi bila dinyalakan). Pekerjaan Ulang dipindah ke klaster Booking, grup Setelah Layanan (2026-10-30).
 - **Pengaturan Karyawan**: Role & Divisi, Tipe Karyawan, Jenis Izin & Cuti, Kelengkapan Data Karyawan, Riwayat Kontrak, Surat Peringatan, Peraturan & Kebijakan (dan kedua checklist bila dinyalakan).
 - Nama: Role & Divisi, Kelengkapan Data Karyawan, Riwayat Kontrak (tombol di dalamnya tetap "Perpanjang Kontrak"), Checklist Masuk & Keluar.

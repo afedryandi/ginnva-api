@@ -25,9 +25,11 @@ class BookingReworkResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
 
-    protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
-    protected static ?string $navigationGroup = 'Kinerja Installer';
+    // Dipindah dari klaster Karyawan ke Booking (2026-10-30): ini catatan kejadian pada sebuah booking, ditangani staf booking. Laporan
+    // Kompetensi Installer tetap membacanya.
+    protected static ?string $navigationGroup = 'Setelah Layanan';
 
     protected static ?string $navigationLabel = 'Pekerjaan Ulang';
 
@@ -35,7 +37,7 @@ class BookingReworkResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Pekerjaan Ulang';
 
-    protected static ?int $navigationSort = 560;
+    protected static ?int $navigationSort = 302;
 
     public static function getEloquentQuery(): Builder
     {

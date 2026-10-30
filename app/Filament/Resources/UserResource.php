@@ -103,6 +103,8 @@ class UserResource extends Resource
                 'TechnicianResource' => 'Installer',
                 'WarrantyResource' => 'Garansi',
                 'StoreReviewResource' => 'Review Toko',
+                // Dipindah dari bagian Karyawan (2026-10-30); kuncinya tetap, izin yang tersimpan tidak hilang.
+                'BookingReworkResource' => 'Pekerjaan Ulang',
                 // Invoice/SPK SEBELUMNYA sudah pakai hasMenuAccess() di
                 // canViewAny() masing-masing (siap didelegasikan) tapi
                 // KELUPAAN tidak pernah dimasukkan ke daftar ini — checkbox-
@@ -187,7 +189,6 @@ class UserResource extends Resource
                 'EmployeeTrainingResource' => 'Pelatihan Karyawan',
                 'SafetyIncidentResource' => 'Kejadian K3',
                 'PerformanceReviewResource' => 'Penilaian Kinerja',
-                'BookingReworkResource' => 'Pekerjaan Ulang',
                 'HrDashboard' => 'Dasbor HR',
             ],
             // Saklar FEATURE_FINANCE mati: menunya tidak tampil di panel, tapi kuncinya TETAP di daftar supaya menu_access user yang

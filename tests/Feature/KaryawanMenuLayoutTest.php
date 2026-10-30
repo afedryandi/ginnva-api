@@ -49,9 +49,16 @@ class KaryawanMenuLayoutTest extends TestCase
 
     public function test_installer_performance_screens_share_one_group(): void
     {
-        foreach ([TechnicianUtilizationReport::class, TechnicianServiceDurationReport::class, InstallerCompetencyReport::class, BookingReworkResource::class] as $screen) {
+        foreach ([TechnicianUtilizationReport::class, TechnicianServiceDurationReport::class, InstallerCompetencyReport::class] as $screen) {
             $this->assertSame('Kinerja Installer', $screen::getNavigationGroup(), $screen);
         }
+    }
+
+    public function test_rework_lives_with_the_booking_menus_after_service(): void
+    {
+        $this->assertSame(\App\Filament\Clusters\BookingCluster::class, BookingReworkResource::getCluster());
+        $this->assertSame('Setelah Layanan', BookingReworkResource::getNavigationGroup());
+        $this->assertSame(\App\Filament\Resources\WarrantyResource::getNavigationGroup(), BookingReworkResource::getNavigationGroup());
     }
 
     public function test_the_employee_menus_are_grouped_by_how_often_they_are_used(): void
