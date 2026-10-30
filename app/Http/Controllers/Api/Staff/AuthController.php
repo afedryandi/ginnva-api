@@ -258,7 +258,9 @@ class AuthController extends Controller
             'id'       => $user->id,
             'name'     => $user->name,
             'email'    => $user->email,
-            'role'     => $user->getRoleNames()->first(),
+            // Role utama (prioritas tertinggi) untuk pengecekan di aplikasi, dan semua role untuk label jabatan.
+            'role'     => $user->primaryRoleName(),
+            'roles'    => $user->getRoleNames()->sort()->values()->all(),
             'store_id' => $user->store_id,
             // Dipakai app buat putuskan halaman awal setelah login —
             // lihat User::hasBookingAccess()/hasInventoryAccess().

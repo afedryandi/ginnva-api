@@ -35,7 +35,8 @@ class ProfileController extends Controller
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'employee_number' => $user->employee_number,
-                'role' => $user->getRoleNames()->first(),
+                'role' => $user->primaryRoleName(),
+                'roles' => $user->getRoleNames()->sort()->values()->all(),
                 'store_name' => $user->store?->name,
                 'employment' => [
                     'type' => $user->employeeType?->name,

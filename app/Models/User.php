@@ -381,6 +381,26 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
             && $this->id !== $request->user_id;
     }
 
+    /** Urutan prioritas role untuk label dan pengecekan di aplikasi bila satu akun memegang lebih dari satu role. */
+    public const ROLE_PRIORITY = ['super_admin', 'direksi', 'store_manager', 'installer_leader', 'spv_finance', 'installer', 'partner'];
+
+    /**
+     * Role utama akun: role dengan wewenang tertinggi menurut ROLE_PRIORITY, selain itu role pertama menurut abjad. Dipakai API supaya akun
+     * dengan beberapa role (mis. direksi dan spv_finance) tidak bergantung pada urutan acak role pertama.
+     */
+    public function primaryRoleName(): ?string
+    {
+        $names = $this->getRoleNames();
+
+        foreach (self::ROLE_PRIORITY as $name) {
+            if ($names->contains($name)) {
+                return $name;
+            }
+        }
+
+        return $names->sort()->first();
+    }
+
     /**
      * Boleh melihat absensi SEMUA karyawan tokonya: akses penuh, store manager, atau staf yang diberi izin Buat/Ubah langsung di Hak Akses Detail.
      * Staf lain hanya melihat dan mengajukan koreksi untuk absensinya sendiri.

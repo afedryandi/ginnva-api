@@ -18,8 +18,8 @@ use Tests\TestCase;
 
 /**
  * Role / Divisi: buat role baru (nama huruf kecil + underscore, unik, tercatat
- * di audit), ubah nama, hapus hanya role kosong yang tidak terkunci, 5 role
- * sistem terkunci, role baru langsung bisa dipakai di form User, dan hanya
+ * di audit), ubah nama, hapus hanya role kosong yang tidak terkunci, 7 role
+ * sistem terkunci (termasuk spv_finance dan installer_leader), role baru langsung bisa dipakai di form User, dan hanya
  * full-access yang boleh mengelola.
  */
 class RoleManagementTest extends TestCase
@@ -31,7 +31,7 @@ class RoleManagementTest extends TestCase
         parent::setUp();
 
         Http::fake();
-        foreach (['store_manager', 'installer', 'partner', 'kasir'] as $name) {
+        foreach (['store_manager', 'installer', 'partner', 'kasir', 'spv_finance', 'installer_leader'] as $name) {
             Role::findOrCreate($name, 'web');
         }
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -162,7 +162,7 @@ class RoleManagementTest extends TestCase
     {
         $this->asAdmin();
 
-        foreach (['super_admin', 'direksi', 'installer', 'partner', 'store_manager'] as $name) {
+        foreach (['super_admin', 'direksi', 'installer', 'partner', 'store_manager', 'spv_finance', 'installer_leader'] as $name) {
             $role = $this->role($name);
             $this->assertFalse((bool) RoleResource::canEdit($role), "{$name} tidak boleh diubah (namanya di-hardcode di logika lain).");
             $this->assertFalse((bool) RoleResource::canDelete($role), "{$name} tidak boleh dihapus.");
@@ -228,5 +228,57 @@ class RoleManagementTest extends TestCase
             $this->assertTrue(RoleResource::canCreate());
             $this->assertTrue((bool) RoleResource::canEdit($custom));
         }
+    }
+
+    public function test_every_role_name_the_code_relies_on_is_locked_against_rename_and_delete(): void
+    {
+        $this->asAdmin();
+
+        // Nama role yang dibaca langsung oleh kode (hasRole / hasAnyRole) harus ada di daftar terkunci.
+        $hardcoded = [];
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(app_path(), \FilesystemIterator::SKIP_DOTS));
+        foreach ($iterator as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+            $source = (string) file_get_contents($file->getPathname());
+            if (preg_match_all("/(?:hasRole\('([a-z_]+)'\)|hasAnyRole\(\[([^\]]*)\]\))/", $source, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $match) {
+                    $names = ($match[1] ?? '') !== '' ? [$match[1]] : (preg_match_all("/'([a-z_]+)'/", $match[2] ?? '', $inner) ? $inner[1] : []);
+                    $hardcoded = array_merge($hardcoded, $names);
+                }
+            }
+        }
+
+        $missing = array_values(array_diff(array_unique($hardcoded), RoleResource::PROTECTED_ROLES));
+        $this->assertSame([], $missing, 'Role yang dipakai di kode tetapi belum terkunci di Role & Divisi: ' . implode(', ', $missing));
+
+        foreach (['spv_finance', 'installer_leader'] as $name) {
+            $this->assertFalse((bool) RoleResource::canEdit($this->role($name)), $name);
+            $this->assertFalse((bool) RoleResource::canDelete($this->role($name)), $name);
+        }
+    }
+
+    public function test_the_list_explains_what_each_role_means_and_why_a_role_cannot_be_deleted(): void
+    {
+        $this->asAdmin();
+        $this->user('kasir');
+        $custom = Role::create(['name' => 'hrd', 'guard_name' => 'web']);
+        $kasir = $this->role('kasir')->loadCount('users');
+
+        $this->assertSame(RoleResource::GENERIC_DESCRIPTION, RoleResource::descriptionFor('hrd'));
+        $this->assertStringContainsString('izin/cuti', RoleResource::descriptionFor('store_manager'));
+        $this->assertStringContainsString('Penggajian', RoleResource::descriptionFor('spv_finance'));
+
+        foreach (RoleResource::PROTECTED_ROLES as $protected) {
+            $this->assertArrayHasKey($protected, RoleResource::DESCRIPTIONS, "{$protected} perlu keterangan.");
+        }
+
+        Livewire::test(ListRoles::class)->assertSuccessful()
+            ->assertSee('Role hanya label jabatan')
+            ->assertSee('Pemimpin tim installer')
+            ->assertSee(RoleResource::GENERIC_DESCRIPTION)
+            ->assertSee('Tidak bisa dihapus selama masih dipakai')
+            ->assertTableColumnStateSet('description', RoleResource::GENERIC_DESCRIPTION, $custom);
     }
 }

@@ -651,4 +651,27 @@ class UserManagementTest extends TestCase
         $this->assertNull($user->fresh()->sessions_revoked_at);
         $this->appGet($token)->assertSuccessful();
     }
+
+    public function test_an_account_with_several_roles_reports_its_highest_priority_role_and_all_roles_to_the_app(): void
+    {
+        Role::findOrCreate('direksi', 'web');
+        Role::findOrCreate('spv_finance', 'web');
+        $user = $this->user('spv_finance', ['email' => 'ganda@ginnva.test', 'password' => 'Rahasia123']);
+        $user->assignRole('direksi');
+
+        $this->assertSame('direksi', $user->primaryRoleName());
+
+        $token = $this->postJson('/api/staff/auth/login', ['email' => 'ganda@ginnva.test', 'password' => 'Rahasia123'])
+            ->assertSuccessful()->assertJsonPath('user.role', 'direksi')->assertJsonPath('user.roles', ['direksi', 'spv_finance'])->json('token');
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/staff/profile')->assertSuccessful()
+            ->assertJsonPath('profile.role', 'direksi')->assertJsonPath('profile.roles', ['direksi', 'spv_finance']);
+
+        $custom = $this->user('kasir');
+        $custom->assignRole('spv_finance');
+        $this->assertSame('spv_finance', $custom->primaryRoleName(), 'Role prioritas menang atas urutan abjad.');
+        $this->assertSame('kasir', $this->user('kasir')->primaryRoleName());
+        $this->assertNull(User::create(['name' => 'Tanpa Role', 'email' => 'nr@test.local', 'password' => 'x'])->primaryRoleName());
+    }
 }

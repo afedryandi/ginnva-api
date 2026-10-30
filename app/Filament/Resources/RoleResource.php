@@ -23,12 +23,14 @@ use Spatie\Permission\Models\Role;
  * - Aksesnya ke tiap menu diatur lewat "Akses Menu" di form User (per akun),
  *   BUKAN dari role ini — role di sini cuma label/pengelompokan.
  *
- * Role 'super_admin', 'direksi', 'installer', 'partner' & 'store_manager'
- * SENGAJA tidak bisa dihapus/diedit dari sini (lihat canEdit/canDelete) —
- * kelima nama ini di-hardcode sebagai string literal di tempat lain
- * (User::isFullAccess()/NO_PANEL_ROLES, & pengecekan wajib-isi-Toko di
- * UserResource::form()), jadi mengubah namanya akan diam-diam merusak
- * logic itu tanpa ada peringatan apa pun ke admin yang me-rename.
+ * Role 'super_admin', 'direksi', 'installer', 'partner', 'store_manager',
+ * 'spv_finance' & 'installer_leader' SENGAJA tidak bisa dihapus/diedit dari
+ * sini (lihat canEdit/canDelete) — ketujuh nama ini di-hardcode sebagai
+ * string literal di tempat lain (User::isFullAccess()/NO_PANEL_ROLES,
+ * pengecekan wajib-isi-Toko di UserResource::form(), wewenang Penggajian
+ * dan keputusan izin/cuti, hak membuat SPK), jadi mengubah namanya akan
+ * diam-diam merusak logic itu tanpa ada peringatan apa pun ke admin yang
+ * me-rename.
  */
 class RoleResource extends Resource
 {
@@ -49,7 +51,31 @@ class RoleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Role & Divisi';
 
-    private const PROTECTED_ROLES = ['super_admin', 'direksi', 'installer', 'partner', 'store_manager'];
+    /**
+     * Nama role yang dipakai langsung di kode sebagai penentu wewenang. spv_finance (Penggajian, pengajuan pembayaran, keputusan izin/cuti)
+     * dan installer_leader (membuat SPK, konfirmasi booking di aplikasi) ditambahkan 2026-10-31: mengganti namanya akan diam-diam
+     * menghilangkan wewenang itu.
+     */
+    public const PROTECTED_ROLES = ['super_admin', 'direksi', 'installer', 'partner', 'store_manager', 'spv_finance', 'installer_leader'];
+
+    /** Teks untuk role selain yang dikenal sistem: hanya label, tanpa wewenang bawaan. */
+    public const GENERIC_DESCRIPTION = 'Label jabatan. Akses menu diatur per akun di menu User.';
+
+    /** Apa yang dikaitkan sistem dengan role tertentu (ditulis dari yang dibaca kode). */
+    public const DESCRIPTIONS = [
+        'super_admin' => 'Akses penuh ke semua menu dan semua toko.',
+        'direksi' => 'Akses penuh ke semua menu dan semua toko; memutuskan hal yang butuh persetujuan, mis. pembayaran gaji.',
+        'store_manager' => 'Wajib terikat satu toko. Memutuskan izin/cuti dan koreksi absensi tokonya, serta wewenang khusus booking (batal, tidak datang, koreksi tahap).',
+        'spv_finance' => 'Menjalankan Penggajian (mengajukan pembayaran ke direksi) dan memutuskan izin/cuti tokonya. Menu lain dicentang per akun di User.',
+        'installer_leader' => 'Pemimpin tim installer: boleh membuat SPK dan menjalankan booking di aplikasi.',
+        'installer' => 'Wajib terikat satu toko. Login lewat aplikasi saja, tidak masuk panel ini.',
+        'partner' => 'Akun mitra referral. Dikelola di menu Partner, login lewat aplikasi saja.',
+    ];
+
+    public static function descriptionFor(string $roleName): string
+    {
+        return self::DESCRIPTIONS[$roleName] ?? self::GENERIC_DESCRIPTION;
+    }
 
     public static function canViewAny(): bool
     {
@@ -87,7 +113,7 @@ class RoleResource extends Resource
                 ->label('Nama Role')
                 ->required()
                 ->unique(ignoreRecord: true)
-                ->helperText('Pakai huruf kecil & underscore, contoh: finance, hrd, warehouse_staff. Nama ini yang muncul di dropdown Role saat bikin akun User.')
+                ->helperText('Pakai huruf kecil & underscore, contoh: finance, hrd, warehouse_staff. Nama ini yang muncul di dropdown Role saat bikin akun User. Role baru hanya label jabatan: akses menu tiap orang diatur di menu User, bukan di sini.')
                 ->regex('/^[a-z_]+$/')
                 // Tanpa pesan custom, rule 'unique' bawaan Laravel tampil
                 // dalam Bahasa Inggris ("The name has already been
@@ -114,9 +140,18 @@ class RoleResource extends Resource
                     ->searchable()
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('description')
+                    ->label('Keterangan')
+                    ->state(fn (Role $record) => static::descriptionFor($record->name))
+                    ->wrap()
+                    ->color(fn (Role $record) => isset(self::DESCRIPTIONS[$record->name]) ? null : 'gray'),
+
                 Tables\Columns\TextColumn::make('users_count')
                     ->label('Jumlah User')
-                    ->counts('users'),
+                    ->counts('users')
+                    ->description(fn (Role $record) => ($record->users_count ?? 0) > 0 && ! in_array($record->name, self::PROTECTED_ROLES, true)
+                        ? 'Tidak bisa dihapus selama masih dipakai'
+                        : null),
 
                 Tables\Columns\IconColumn::make('protected')
                     ->label('Terkunci')
@@ -125,7 +160,10 @@ class RoleResource extends Resource
                     ->trueIcon('heroicon-o-lock-closed')
                     ->falseIcon('heroicon-o-lock-open')
                     ->trueColor('gray')
-                    ->falseColor('success'),
+                    ->falseColor('success')
+                    ->tooltip(fn (Role $record) => in_array($record->name, self::PROTECTED_ROLES, true)
+                        ? 'Nama role ini dipakai langsung oleh sistem; mengubah atau menghapusnya akan merusak wewenang terkait.'
+                        : null),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Dibuat')
