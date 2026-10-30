@@ -421,8 +421,8 @@ class PayrollComponentsTest extends TestCase
 
         Livewire::test(\App\Filament\Resources\PayrollItemCategoryResource\Pages\ListPayrollItemCategories::class)
             ->assertSuccessful()
-            ->assertTableColumnStateSet('items_count', 1, $used)
-            ->assertTableColumnStateSet('items_count', 0, $unused)
+            ->assertTableColumnStateSet('items_count', 1, PayrollItemCategoryResource::getEloquentQuery()->findOrFail($used->id))
+            ->assertTableColumnStateSet('items_count', 0, PayrollItemCategoryResource::getEloquentQuery()->findOrFail($unused->id))
             ->assertSee('Tidak bisa dihapus, cukup nonaktifkan')
             ->filterTable('type', 'deduction')
             ->assertCanSeeTableRecords([$deduction])->assertCanNotSeeTableRecords([$used, $unused])
