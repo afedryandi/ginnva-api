@@ -248,7 +248,12 @@ class AttendanceDeductionRuleTest extends TestCase
         $this->assertTrue(AttendanceDeductionRuleResource::canEdit($rule), 'Belum dipakai payroll: boleh diubah.');
 
         $user = $this->employee();
-        Payroll::generateForMonth($user, Carbon::parse('2026-11-01'));
+        $payroll = Payroll::generateForMonth($user, Carbon::parse('2026-11-01'));
+
+        $this->assertFalse($rule->fresh()->isInUse(), 'Slip draf tidak mengunci aturan: cukup dihitung ulang.');
+        $this->assertTrue(AttendanceDeductionRuleResource::canEdit($rule->fresh()));
+
+        $payroll->update(['status' => 'paid']);
 
         $this->assertTrue($rule->fresh()->isInUse());
         $this->assertFalse(AttendanceDeductionRuleResource::canEdit($rule->fresh()), 'Sudah dipakai payroll: tidak boleh diubah, buat aturan baru.');
@@ -266,5 +271,123 @@ class AttendanceDeductionRuleTest extends TestCase
         $kasirWithMenu = $this->employee(['menu_access' => [AttendanceDeductionRuleResource::class]]);
         $this->actingAs($kasirWithMenu, 'web');
         $this->assertTrue(AttendanceDeductionRuleResource::canViewAny());
+    }
+
+    public function test_default_staff_cannot_view_or_change_the_payroll_deduction_rules(): void
+    {
+        $rule = AttendanceDeductionRule::create(['effective_from' => '2026-12-01', 'late_block_minutes' => 15, 'late_deduction_per_block' => 50000, 'alpha_fine_per_day' => 0]);
+
+        // Akun bawaan (menu_access kosong) tidak boleh menyentuh aturan yang menentukan gaji semua orang.
+        $default = $this->employee();
+        $this->assertNull($default->menu_access);
+        $this->actingAs($default, 'web');
+        $this->assertFalse(AttendanceDeductionRuleResource::canViewAny());
+        $this->assertFalse(AttendanceDeductionRuleResource::canCreate());
+        $this->assertFalse(AttendanceDeductionRuleResource::canEdit($rule));
+        $this->assertFalse(AttendanceDeductionRuleResource::canDelete($rule));
+        Livewire::test(CreateAttendanceDeductionRule::class)->assertForbidden();
+
+        // Menu dicentang eksplisit: boleh melihat, belum boleh mengubah.
+        $viewer = $this->employee(['menu_access' => [AttendanceDeductionRuleResource::class]]);
+        $this->actingAs($viewer, 'web');
+        $this->assertTrue(AttendanceDeductionRuleResource::canViewAny());
+        $this->assertFalse(AttendanceDeductionRuleResource::canCreate());
+        $this->assertFalse(AttendanceDeductionRuleResource::canEdit($rule));
+
+        // Menu dan izin aksi eksplisit: boleh mengubah aturan yang belum dipakai.
+        $maintainer = $this->employee([
+            'menu_access' => [AttendanceDeductionRuleResource::class],
+            'menu_permissions' => [AttendanceDeductionRuleResource::class => ['create', 'update', 'delete']],
+        ]);
+        $this->actingAs($maintainer, 'web');
+        $this->assertTrue(AttendanceDeductionRuleResource::canCreate());
+        $this->assertTrue(AttendanceDeductionRuleResource::canEdit($rule));
+        $this->assertTrue(AttendanceDeductionRuleResource::canDelete($rule));
+    }
+
+    public function test_a_rule_is_locked_only_by_requested_or_paid_payrolls_within_its_own_period_of_force(): void
+    {
+        $old = AttendanceDeductionRule::create(['effective_from' => '2026-01-01', 'late_block_minutes' => 15, 'late_deduction_per_block' => 50000, 'alpha_fine_per_day' => 0]);
+        $new = AttendanceDeductionRule::create(['effective_from' => '2026-06-01', 'late_block_minutes' => 15, 'late_deduction_per_block' => 60000, 'alpha_fine_per_day' => 0]);
+        $user = $this->employee();
+
+        $march = Payroll::generateForMonth($user, Carbon::parse('2026-03-01'));
+        $march->update(['status' => 'paid']);
+
+        $this->assertTrue($old->fresh()->isInUse(), 'Maret dibayar memakai aturan lama.');
+        $this->assertFalse($new->fresh()->isInUse(), 'Aturan baru belum dipakai slip yang dibayar; maret masuk masa aturan lama.');
+
+        $pending = Payroll::generateForMonth($user, Carbon::parse('2026-09-01'));
+        $pending->update(['status' => 'pending_approval']);
+
+        $this->assertTrue($new->fresh()->isInUse(), 'September diajukan memakai aturan baru.');
+        $this->assertSame(0, $new->fresh()->draftPayrollCount());
+
+        $draft = Payroll::generateForMonth($this->employee(), Carbon::parse('2026-10-01'));
+        $this->assertSame(1, $new->fresh()->draftPayrollCount(), 'Slip draf pada masa berlaku aturan ini perlu dihitung ulang.');
+        $this->assertSame(0, $old->fresh()->draftPayrollCount());
+    }
+
+    public function test_the_effective_date_must_be_the_first_of_a_month(): void
+    {
+        $admin = $this->employee();
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin, 'web');
+        $fill = fn (string $date) => Livewire::test(CreateAttendanceDeductionRule::class)
+            ->fillForm(['effective_from' => $date, 'late_block_minutes' => 15, 'late_deduction_per_block' => 50000, 'alpha_fine_per_day' => 0])
+            ->call('create');
+
+        $fill('2026-11-15')->assertHasFormErrors(['effective_from']);
+        $fill('2026-11-01')->assertHasNoFormErrors();
+    }
+
+    public function test_changing_a_rule_warns_about_draft_payrolls_and_marks_them_stale(): void
+    {
+        $admin = $this->employee();
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin, 'web');
+        $rule = AttendanceDeductionRule::create(['effective_from' => '2026-11-01', 'late_block_minutes' => 15, 'late_deduction_per_block' => 50000, 'alpha_fine_per_day' => 0]);
+        $payroll = Payroll::generateForMonth($this->employee(), Carbon::parse('2026-11-01'));
+        \Illuminate\Support\Facades\DB::table('payrolls')->where('id', $payroll->id)->update(['updated_at' => now()->subDay()]);
+        \Illuminate\Support\Facades\DB::table('attendance_deduction_rules')->where('id', $rule->id)->update(['updated_at' => now()->subDays(2)]);
+        $this->assertFalse(\App\Filament\Resources\PayrollResource::getEloquentQuery()->findOrFail($payroll->id)->isStale());
+
+        Livewire::test(\App\Filament\Resources\AttendanceDeductionRuleResource\Pages\EditAttendanceDeductionRule::class, ['record' => $rule->getKey()])
+            ->fillForm(['late_deduction_per_block' => 75000])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertNotified('1 slip draf perlu dihitung ulang');
+
+        $this->assertTrue(\App\Filament\Resources\PayrollResource::getEloquentQuery()->findOrFail($payroll->id)->isStale(), 'Aturan berubah sesudah slip dihitung.');
+    }
+
+    public function test_the_form_shows_a_worked_example_of_the_rule_being_filled(): void
+    {
+        $admin = $this->employee();
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin, 'web');
+
+        Livewire::test(CreateAttendanceDeductionRule::class)
+            ->fillForm(['effective_from' => '2026-12-01', 'late_block_minutes' => 15, 'late_deduction_per_block' => 50000, 'alpha_fine_per_day' => 100000])
+            ->assertSee('14 menit: tidak dipotong')
+            ->assertSee('37 menit: 2 blok penuh x Rp 50.000 = Rp 100.000')
+            ->assertSee('denda tetap Rp 100.000');
+
+        $this->assertStringContainsString('hanya gaji jam kerja', AttendanceDeductionRuleResource::exampleText(15, 50000, 0));
+        $this->assertStringContainsString('Isi ukuran blok', AttendanceDeductionRuleResource::exampleText(0, 0, 0));
+    }
+
+    public function test_the_list_explains_why_a_used_rule_is_locked(): void
+    {
+        $admin = $this->employee();
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin, 'web');
+        $rule = AttendanceDeductionRule::create(['effective_from' => '2026-11-01', 'late_block_minutes' => 15, 'late_deduction_per_block' => 50000, 'alpha_fine_per_day' => 0]);
+
+        Livewire::test(ListAttendanceDeductionRules::class)->assertDontSee('Terkunci');
+
+        Payroll::generateForMonth($this->employee(), Carbon::parse('2026-11-01'))->update(['status' => 'paid']);
+
+        Livewire::test(ListAttendanceDeductionRules::class)->assertSee('Terkunci: sudah dipakai slip yang diajukan/dibayar');
     }
 }

@@ -138,6 +138,16 @@ class Payroll extends Model
             ->limit(1);
     }
 
+    /** Subquery "aturan potongan yang berlaku untuk bulan slip ini diubah/dibuat setelah slip dihitung" (kolom stale_rule). */
+    public static function staleRuleSubquery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return AttendanceDeductionRule::query()
+            ->selectRaw('1')
+            ->whereRaw('attendance_deduction_rules.effective_from = (select max(r2.effective_from) from attendance_deduction_rules r2 where r2.effective_from <= payrolls.period_month)')
+            ->whereColumn('attendance_deduction_rules.updated_at', '>', 'payrolls.updated_at')
+            ->limit(1);
+    }
+
     /**
      * Slip draf yang angkanya mungkin sudah tertinggal: absensi bulan itu berubah (izin, koreksi, Alpha otomatis) atau gaji pokok
      * karyawan diubah sesudah slip dihitung. Hanya draf; slip yang sudah diajukan atau dibayar terkunci dari perhitungan ulang.
@@ -152,8 +162,17 @@ class Payroll extends Model
             return true;
         }
 
+        if (array_key_exists('stale_rule', $this->attributes) && $this->attributes['stale_rule']) {
+            return true;
+        }
+
         if (array_key_exists('stale_attendance', $this->attributes)) {
             return (bool) $this->attributes['stale_attendance'];
+        }
+
+        $rule = AttendanceDeductionRule::effectiveFor($this->period_month->copy()->startOfMonth());
+        if ($rule && $rule->updated_at && $rule->updated_at->gt($this->updated_at)) {
+            return true;
         }
 
         return Attendance::withoutGlobalScopes()

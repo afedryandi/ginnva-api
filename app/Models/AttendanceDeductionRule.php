@@ -57,11 +57,36 @@ class AttendanceDeductionRule extends Model
         return intdiv(max(0, $totalLateMinutes), $block);
     }
 
-    /** Sudah dipakai payroll bulan-bulan sejak tanggal berlaku? Aturan yang sudah dipakai tidak boleh diubah atau dihapus. */
-    public function isInUse(): bool
+    /** Tanggal berlaku aturan berikutnya (batas atas masa berlaku aturan ini), atau null bila ini aturan terbaru. */
+    private function supersededOn(): ?string
     {
+        return static::query()
+            ->whereDate('effective_from', '>', $this->effective_from->toDateString())
+            ->min('effective_from');
+    }
+
+    /** Slip pada masa berlaku aturan ini: dari tanggal berlaku sampai sebelum aturan berikutnya. */
+    private function payrollsInForce(): \Illuminate\Database\Eloquent\Builder
+    {
+        $until = $this->supersededOn();
+
         return Payroll::withoutGlobalScopes()
             ->whereDate('period_month', '>=', $this->effective_from->toDateString())
-            ->exists();
+            ->when($until, fn ($q) => $q->whereDate('period_month', '<', Carbon::parse($until)->toDateString()));
+    }
+
+    /**
+     * Sudah dipakai slip yang diajukan atau dibayar pada masa berlakunya? Aturan seperti itu tidak boleh diubah atau dihapus (buat aturan
+     * baru). Slip draf tidak mengunci: setelah aturan diubah, slip draf cukup dihitung ulang.
+     */
+    public function isInUse(): bool
+    {
+        return $this->payrollsInForce()->where('status', '!=', 'draft')->exists();
+    }
+
+    /** Jumlah slip draf pada masa berlaku aturan ini yang angkanya perlu dihitung ulang setelah aturan dibuat atau diubah. */
+    public function draftPayrollCount(): int
+    {
+        return $this->payrollsInForce()->where('status', 'draft')->count();
     }
 }

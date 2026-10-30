@@ -110,7 +110,7 @@ class PayrollResource extends Resource
     {
         return parent::getEloquentQuery()
             ->select('payrolls.*')
-            ->addSelect(['stale_attendance' => Payroll::staleAttendanceSubquery()])
+            ->addSelect(['stale_attendance' => Payroll::staleAttendanceSubquery(), 'stale_rule' => Payroll::staleRuleSubquery()])
             ->with(['journalEntry', 'store', 'user']);
     }
 
@@ -233,7 +233,7 @@ class PayrollResource extends Resource
                         'paid'             => 'Sudah Dibayar',
                         default            => $state,
                     })
-                    ->description(fn (Payroll $record) => $record->isStale() ? 'Absensi/gaji pokok berubah, hitung ulang' : null),
+                    ->description(fn (Payroll $record) => $record->isStale() ? 'Absensi, gaji pokok, atau aturan potongan berubah, hitung ulang' : null),
 
                 Tables\Columns\TextColumn::make('journalEntry.entry_number')
                     ->label('No. Jurnal')

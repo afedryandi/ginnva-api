@@ -653,6 +653,7 @@ class PayrollTest extends TestCase
         $employee = $this->user('kasir');
         $payroll = $this->payroll($employee);
         \Illuminate\Support\Facades\DB::table('payrolls')->where('id', $payroll->id)->update(['updated_at' => now()->subDay()]);
+        \Illuminate\Support\Facades\DB::table('attendance_deduction_rules')->update(['updated_at' => now()->subDays(2)]);
         $payroll = $payroll->fresh();
         $this->assertFalse($this->isStale($payroll), 'Baru dihitung, belum ada yang berubah.');
 
