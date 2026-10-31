@@ -35,6 +35,43 @@ class CompanyPolicy extends Model
         'is_published' => 'boolean',
     ];
 
+    /** Kolom yang membentuk isi dokumen dan syarat penerimaannya; terkunci begitu ada karyawan yang menerima. */
+    public const LOCKED_AFTER_ACKNOWLEDGMENT = [
+        'title', 'category', 'version', 'effective_from', 'description', 'file_path', 'original_filename', 'requires_acknowledgment',
+    ];
+
+    /**
+     * Bukti penerimaan harus tetap merujuk dokumen yang sama persis dengan yang diterima karyawan (audit Peraturan & Kebijakan, 2026-10-31).
+     * Penguncian di form saja tidak cukup: jalur lain (tinker, perintah, aksi baru) bisa mengubah isi dokumen atau menghapusnya, dan
+     * penghapusan ikut menghapus berantai seluruh bukti penerimaannya. Mencabut terbit tetap boleh (itu cara mengganti versi).
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (CompanyPolicy $policy) {
+            $normalize = fn ($v) => ($v === '' || $v === null) ? null : $v;
+
+            if ($policy->isDirty('is_published') && $policy->is_published && blank($policy->file_path)) {
+                throw new \RuntimeException('Dokumen tanpa berkas PDF tidak boleh diterbitkan.');
+            }
+
+            if (! $policy->acknowledgments()->exists()) {
+                return;
+            }
+
+            foreach (self::LOCKED_AFTER_ACKNOWLEDGMENT as $column) {
+                if ($policy->isDirty($column) && $normalize($policy->getOriginal($column)) !== $normalize($policy->getAttribute($column))) {
+                    throw new \RuntimeException('Dokumen yang sudah diterima karyawan tidak boleh diubah. Buat dokumen versi baru, lalu cabut terbit versi lama.');
+                }
+            }
+        });
+
+        static::deleting(function (CompanyPolicy $policy) {
+            if ($policy->acknowledgments()->exists()) {
+                throw new \RuntimeException('Dokumen yang sudah diterima karyawan tidak boleh dihapus; cabut terbit saja agar bukti penerimaan tetap utuh.');
+            }
+        });
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
@@ -55,17 +92,74 @@ class CompanyPolicy extends Model
     }
 
     /** Karyawan yang wajib menerima: akun aktif selain mitra. */
-    public static function audienceQuery(): Builder
+    public static function audienceQuery(?int $storeId = null): Builder
     {
         return User::query()
             ->where('is_active', true)
-            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'));
+            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
+            ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId));
+    }
+
+    /**
+     * Memberi tahu seluruh karyawan aktif bahwa dokumen wajib-terima ini baru terbit (audit Peraturan & Kebijakan, 2026-10-31). Tanpa ini
+     * karyawan baru tahu bila kebetulan membuka Profil. Ketukan pada pesan membuka layar Peraturan & Kebijakan. Mengembalikan jumlah penerima.
+     */
+    public function announce(): int
+    {
+        if (! $this->is_published || ! $this->requires_acknowledgment) {
+            return 0;
+        }
+
+        $ids = static::audienceQuery()->pluck('id')->all();
+
+        if ($ids === []) {
+            return 0;
+        }
+
+        app(\App\Services\StaffNotifier::class)->toUsers(
+            $ids,
+            'Dokumen Baru Perlu Anda Terima',
+            $this->title . ($this->version ? " ({$this->version})" : '') . ' sudah terbit. Buka Peraturan & Kebijakan untuk membaca dan menerimanya.',
+            ['type' => 'company_policy', 'route' => '/staff/policies'],
+            'policy-published-' . $this->id,
+            'warning'
+        );
+
+        return count($ids);
+    }
+
+    /**
+     * Mengingatkan karyawan aktif yang belum menerima dokumen ini (aksi manual dari daftar; $storeId membatasi ke satu toko). Pesan yang
+     * belum dibuka diperbarui, bukan ditumpuk. Mengembalikan jumlah karyawan yang diingatkan.
+     */
+    public function remindPending(?int $storeId = null): int
+    {
+        if (! $this->is_published || ! $this->requires_acknowledgment) {
+            return 0;
+        }
+
+        $ids = $this->pendingUsers($storeId)->pluck('id')->all();
+
+        if ($ids === []) {
+            return 0;
+        }
+
+        app(\App\Services\StaffNotifier::class)->toUsers(
+            $ids,
+            'Pengingat Menerima Dokumen',
+            $this->title . ($this->version ? " ({$this->version})" : '') . ' belum Anda terima. Buka Peraturan & Kebijakan untuk membaca dan menerimanya.',
+            ['type' => 'company_policy', 'route' => '/staff/policies'],
+            'policy-remind-' . $this->id,
+            'warning'
+        );
+
+        return count($ids);
     }
 
     /** Karyawan aktif yang belum menerima dokumen ini. */
-    public function pendingUsers(): Builder
+    public function pendingUsers(?int $storeId = null): Builder
     {
-        return static::audienceQuery()
+        return static::audienceQuery($storeId)
             ->whereNotIn('id', $this->acknowledgments()->select('user_id'));
     }
 

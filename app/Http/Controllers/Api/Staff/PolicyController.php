@@ -22,7 +22,10 @@ class PolicyController extends Controller
         $user = $request->user('api');
         $accepted = $user->policyAcknowledgments()->pluck('acknowledged_at', 'company_policy_id');
 
-        $policies = CompanyPolicy::published()
+        // Dokumen terbit, ditambah dokumen yang sudah pernah diterima karyawan ini walau kemudian dicabut terbit (is_published false), supaya
+        // aturan yang dulu ia terima tetap bisa dibuka lagi.
+        $policies = CompanyPolicy::query()
+            ->where(fn ($q) => $q->where('is_published', true)->orWhereIn('id', $accepted->keys()))
             ->orderByRaw("FIELD(category, 'peraturan_perusahaan', 'kebijakan', 'sop')")
             ->orderByDesc('effective_from')
             ->orderByDesc('id')
@@ -37,6 +40,7 @@ class PolicyController extends Controller
                 'description' => $p->description,
                 'file_url' => SensitiveFiles::url($p->file_path),
                 'requires_acknowledgment' => $p->requires_acknowledgment,
+                'is_published' => $p->is_published,
                 'acknowledged_at' => isset($accepted[$p->id]) ? $accepted[$p->id]->toIso8601String() : null,
             ])
             ->values();

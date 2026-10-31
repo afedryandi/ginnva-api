@@ -148,6 +148,7 @@ Schedule::command('training:notify-expiring')->weeklyOn(1, '08:00');
 
 // Pengingat ke karyawan bila Surat Peringatan belum dibaca (audit Surat Peringatan): pagi hari, pada umur surat 3, 7, dan 14 hari.
 Schedule::command('warnings:remind-unread')->dailyAt('08:30');
+Schedule::command('policies:remind-pending')->weeklyOn(1, '08:45');
 
 // Pengingat kelengkapan data wajib karyawan menjelang payroll (audit Kelengkapan Data Karyawan): tanggal 25 pagi ke akses penuh dan pemegang menunya.
 Schedule::command('hr:notify-incomplete-data')->monthlyOn(25, '08:00');

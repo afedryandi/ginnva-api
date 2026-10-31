@@ -130,6 +130,328 @@ class EmploymentLifecycleTest extends TestCase
         $this->actingAs($this->staff, 'api')->postJson("/api/staff/policies/{$info->id}/acknowledge")->assertStatus(404);
     }
 
+    // ------------------------------------------------------------- audit Peraturan & Kebijakan A: akses eksplisit
+
+    private function policyHolder(array $permissions = [], ?Store $store = null, string $role = 'store_manager'): User
+    {
+        Role::findOrCreate($role, 'web');
+
+        return $this->makeUser('Holder' . uniqid(), $role, [
+            'store_id'         => ($store ?? $this->store)->id,
+            'menu_access'      => [CompanyPolicyResource::class],
+            'menu_permissions' => [CompanyPolicyResource::class => $permissions],
+        ]);
+    }
+
+    public function test_default_accounts_cannot_open_or_manage_policies_but_a_ticked_menu_alone_is_view_only(): void
+    {
+        $policy = $this->policy();
+
+        $this->actingAs($this->makeUser('Baru', 'kasir'), 'web');
+        $this->assertFalse(CompanyPolicyResource::canViewAny(), 'Akun bawaan (menu_access kosong) tidak boleh membuka menu ini.');
+        $this->assertFalse(CompanyPolicyResource::canCreate());
+        $this->assertFalse(CompanyPolicyResource::canEdit($policy));
+        $this->assertFalse(CompanyPolicyResource::canDelete($policy));
+
+        $this->actingAs($this->policyHolder(), 'web');
+        $this->assertTrue(CompanyPolicyResource::canViewAny());
+        $this->assertFalse(CompanyPolicyResource::canCreate(), 'Menu dicentang saja hanya boleh melihat.');
+        $this->assertFalse(CompanyPolicyResource::canEdit($policy));
+        $this->assertFalse(CompanyPolicyResource::canDelete($policy));
+
+        $this->actingAs($this->policyHolder(['create', 'update', 'delete']), 'web');
+        $this->assertTrue(CompanyPolicyResource::canCreate());
+        $this->assertTrue(CompanyPolicyResource::canEdit($policy));
+        $this->assertTrue(CompanyPolicyResource::canDelete($policy));
+
+        $this->actingAs($this->admin, 'web');
+        $this->assertTrue(CompanyPolicyResource::canViewAny() && CompanyPolicyResource::canCreate() && CompanyPolicyResource::canEdit($policy));
+    }
+
+    public function test_store_scoped_accounts_only_see_their_own_stores_acceptance_counts_and_pending_names(): void
+    {
+        $otherStore = Store::create(['city' => 'Bandung', 'address' => 'Jl. B', 'name' => 'Toko B', 'is_active' => true]);
+        $policy = $this->policy();
+        $mine = $this->makeUser('Sendiri', 'kasir');
+        $theirs = $this->makeUser('Lain', 'kasir', ['store_id' => $otherStore->id]);
+        $policy->acknowledge($mine);
+        $holder = $this->policyHolder();
+
+        $this->actingAs($holder, 'web');
+        $this->assertSame($this->store->id, CompanyPolicyResource::audienceStoreId());
+        $pending = $policy->pendingUsers(CompanyPolicyResource::audienceStoreId())->pluck('id');
+        $this->assertTrue($pending->contains($holder->id));
+        $this->assertFalse($pending->contains($theirs->id), 'Nama karyawan toko lain tidak boleh terlihat.');
+        $this->assertFalse($pending->contains($mine->id));
+
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\ListCompanyPolicies::class)
+            ->assertTableColumnStateSet('acknowledgments_count', '1 dari ' . CompanyPolicy::audienceQuery($this->store->id)->count(), $policy);
+
+        $this->actingAs($this->admin, 'web');
+        $this->assertNull(CompanyPolicyResource::audienceStoreId());
+        $this->assertTrue($policy->pendingUsers()->pluck('id')->contains($theirs->id));
+    }
+
+    // ------------------------------------------------------------- audit Peraturan & Kebijakan B: integritas bukti penerimaan
+
+    public function test_an_accepted_policy_cannot_be_changed_or_deleted_by_any_path_but_can_be_unpublished(): void
+    {
+        $policy = $this->policy(['description' => 'Ringkasan']);
+        $policy->acknowledge($this->staff);
+
+        foreach (['title' => 'Diganti', 'version' => '2.0', 'description' => 'Baru', 'file_path' => 'company-policies/lain.pdf', 'requires_acknowledgment' => false, 'category' => 'sop', 'effective_from' => '2027-01-01'] as $column => $value) {
+            try {
+                $policy->fresh()->update([$column => $value]);
+                $this->fail("Kolom {$column} seharusnya terkunci.");
+            } catch (\RuntimeException $e) {
+                $this->assertStringContainsString('sudah diterima', $e->getMessage());
+            }
+        }
+
+        try {
+            $policy->fresh()->delete();
+            $this->fail('Dokumen yang sudah diterima tidak boleh dihapus.');
+        } catch (\RuntimeException) {
+        }
+        $this->assertSame(1, $policy->acknowledgments()->count(), 'Bukti penerimaan tetap utuh.');
+
+        $policy->fresh()->update(['is_published' => false]);
+        $this->assertFalse($policy->fresh()->is_published);
+        $this->assertSame('Peraturan Perusahaan', $policy->fresh()->title);
+    }
+
+    public function test_a_policy_without_acknowledgments_stays_editable_and_deletable(): void
+    {
+        $policy = $this->policy(['description' => null]);
+        $policy->update(['title' => 'Revisi', 'requires_acknowledgment' => false, 'description' => 'Ringkasan']);
+        $this->assertSame('Revisi', $policy->fresh()->title);
+
+        $policy->delete();
+        $this->assertNull(CompanyPolicy::find($policy->id));
+    }
+
+    public function test_a_policy_cannot_be_published_without_a_pdf(): void
+    {
+        $draft = $this->policy(['file_path' => null, 'is_published' => false]);
+
+        try {
+            $draft->update(['is_published' => true]);
+            $this->fail('Dokumen tanpa berkas tidak boleh diterbitkan.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('berkas PDF', $e->getMessage());
+        }
+        $this->assertFalse($draft->fresh()->is_published);
+
+        $this->actingAs($this->admin, 'web');
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\CreateCompanyPolicy::class)
+            ->fillForm(['title' => 'SOP Baru', 'category' => 'sop', 'requires_acknowledgment' => true, 'is_published' => true])
+            ->call('create')
+            ->assertHasFormErrors(['file_path' => 'required']);
+        $this->assertNull(CompanyPolicy::where('title', 'SOP Baru')->first());
+
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\CreateCompanyPolicy::class)
+            ->fillForm(['title' => 'SOP Draf', 'category' => 'sop', 'requires_acknowledgment' => true, 'is_published' => false])
+            ->call('create')
+            ->assertHasNoFormErrors();
+        $this->assertNotNull(CompanyPolicy::where('title', 'SOP Draf')->first());
+    }
+
+    public function test_the_form_locks_the_acknowledgment_flag_and_summary_once_someone_has_accepted(): void
+    {
+        $policy = $this->policy(['description' => 'Ringkasan']);
+        $policy->acknowledge($this->staff);
+        $this->actingAs($this->admin, 'web');
+
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\EditCompanyPolicy::class, ['record' => $policy->getKey()])
+            ->assertFormFieldIsDisabled('requires_acknowledgment')
+            ->assertFormFieldIsDisabled('description')
+            ->assertFormFieldIsDisabled('title')
+            ->fillForm(['is_published' => false])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertFalse($policy->fresh()->is_published);
+        $this->assertTrue($policy->fresh()->requires_acknowledgment);
+    }
+
+    // ------------------------------------------------------------- audit Peraturan & Kebijakan C: pemberitahuan dan penggantian versi
+
+    private function capturePushes(): \ArrayObject
+    {
+        $pushes = new \ArrayObject();
+        $this->mock(\App\Services\PushNotificationService::class, function ($mock) use ($pushes) {
+            $mock->shouldReceive('sendToUsers')->andReturnUsing(function (array $ids, string $title, string $body, array $data = []) use ($pushes) {
+                $pushes[] = [$ids, $title, $body, $data];
+            });
+        });
+
+        return $pushes;
+    }
+
+    public function test_publishing_a_required_policy_notifies_active_employees_and_unpublishing_a_replaced_version(): void
+    {
+        $partner = $this->makeUser('Mitra', 'partner');
+        $inactive = $this->makeUser('Keluar', 'kasir', ['is_active' => false]);
+        $old = $this->policy(['title' => 'PP Lama', 'version' => '1.0']);
+        $old->acknowledge($this->staff);
+        $pushes = $this->capturePushes();
+        Storage::disk('local')->put('company-policies/pp.pdf', 'x');
+        $this->actingAs($this->admin, 'web');
+
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\CreateCompanyPolicy::class)
+            ->fillForm(['title' => 'PP Baru', 'category' => 'peraturan_perusahaan', 'version' => '2.0', 'requires_acknowledgment' => true, 'is_published' => true, 'replaces' => $old->id])
+            ->call('create');
+
+        // tanpa berkas formnya menolak; unggah lewat model lalu terbitkan lewat halaman Ubah
+        $this->assertNull(CompanyPolicy::where('title', 'PP Baru')->first());
+        $draft = $this->policy(['title' => 'PP Baru', 'version' => '2.0', 'is_published' => false]);
+
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\EditCompanyPolicy::class, ['record' => $draft->getKey()])
+            ->fillForm(['is_published' => true, 'replaces' => $old->id])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertFalse($old->fresh()->is_published, 'Versi lama otomatis dicabut dari terbit.');
+        $this->assertSame(1, $old->acknowledgments()->count(), 'Bukti penerimaan versi lama tetap utuh.');
+        $this->assertTrue($draft->fresh()->is_published);
+
+        $this->assertCount(1, $pushes);
+        [$ids, $title, $body, $data] = $pushes[0];
+        $this->assertSame('Dokumen Baru Perlu Anda Terima', $title);
+        $this->assertStringContainsString('PP Baru (2.0)', $body);
+        $this->assertSame('/staff/policies', $data['route']);
+        $this->assertTrue(in_array($this->staff->id, $ids, true));
+        $this->assertFalse(in_array($partner->id, $ids, true));
+        $this->assertFalse(in_array($inactive->id, $ids, true));
+
+        // koreksi dokumen yang sudah terbit tidak mengumumkan ulang
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\EditCompanyPolicy::class, ['record' => $draft->getKey()])
+            ->fillForm(['description' => 'Koreksi'])
+            ->call('save');
+        $this->assertCount(1, $pushes);
+    }
+
+    public function test_a_draft_or_optional_policy_does_not_announce(): void
+    {
+        $pushes = $this->capturePushes();
+
+        $this->policy(['is_published' => false])->announce();
+        $this->policy(['requires_acknowledgment' => false])->announce();
+
+        $this->assertCount(0, $pushes);
+    }
+
+    public function test_the_weekly_reminder_goes_once_per_employee_with_pending_required_policies(): void
+    {
+        $a = $this->policy(['title' => 'A']);
+        $b = $this->policy(['title' => 'B']);
+        $this->policy(['title' => 'Draf', 'is_published' => false]);
+        $this->policy(['title' => 'Info', 'requires_acknowledgment' => false]);
+        $a->acknowledge($this->staff);
+        $b->acknowledge($this->staff);
+        $b->acknowledge($this->admin);
+        $pushes = $this->capturePushes();
+
+        $this->artisan('policies:remind-pending')->assertSuccessful();
+
+        $this->assertCount(1, $pushes, 'Hanya admin yang masih punya dokumen tertunda; staff sudah menerima semuanya.');
+        $this->assertSame([$this->admin->id], $pushes[0][0]);
+        $this->assertSame('Dokumen Peraturan Belum Diterima', $pushes[0][1]);
+        $this->assertStringContainsString('1 dokumen', $pushes[0][2]);
+
+        $event = collect(app(\Illuminate\Console\Scheduling\Schedule::class)->events())->first(fn ($e) => str_contains($e->command ?? '', 'policies:remind-pending'));
+        $this->assertNotNull($event, 'Terdaftar di jadwal.');
+        $this->assertSame('45 8 * * 1', $event->expression);
+    }
+
+    // ------------------------------------------------------------- audit Peraturan & Kebijakan D: angka penerimaan dan tombol Ingatkan
+
+    public function test_acceptance_count_ignores_inactive_and_partner_acceptances_and_never_exceeds_the_total(): void
+    {
+        $policy = $this->policy();
+        $partner = $this->makeUser('Mitra', 'partner');
+        $left = $this->makeUser('Keluar', 'kasir');
+        $policy->acknowledge($this->staff);
+        $policy->acknowledge($partner);
+        $policy->acknowledge($left);
+        $left->update(['is_active' => false]);
+        $this->actingAs($this->admin, 'web');
+
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\ListCompanyPolicies::class)
+            ->assertTableColumnStateSet('acknowledgments_count', '1 dari 2', $policy);
+    }
+
+    public function test_the_policy_list_runs_a_fixed_number_of_queries_regardless_of_row_count(): void
+    {
+        $this->actingAs($this->admin, 'web');
+        $this->policy();
+
+        $count = function () {
+            \Illuminate\Support\Facades\DB::flushQueryLog();
+            \Illuminate\Support\Facades\DB::enableQueryLog();
+            Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\ListCompanyPolicies::class);
+
+            return count(\Illuminate\Support\Facades\DB::getQueryLog());
+        };
+
+        $count();
+        $few = $count();
+        foreach (range(1, 6) as $i) {
+            $this->policy(['title' => "Dokumen {$i}"]);
+        }
+
+        $this->assertSame($few, $count(), 'Jumlah query tidak boleh bertambah per baris.');
+    }
+
+    public function test_the_remind_action_notifies_only_pending_active_employees_and_respects_store_scope(): void
+    {
+        $otherStore = Store::create(['city' => 'Bandung', 'address' => 'Jl. B', 'name' => 'Toko B', 'is_active' => true]);
+        $policy = $this->policy();
+        $theirs = $this->makeUser('Lain', 'kasir', ['store_id' => $otherStore->id]);
+        $policy->acknowledge($this->staff);
+        $pushes = $this->capturePushes();
+
+        $this->actingAs($this->admin, 'web');
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\ListCompanyPolicies::class)
+            ->callTableAction('remind', $policy)
+            ->assertNotified();
+        $this->assertCount(1, $pushes);
+        $this->assertSame('Pengingat Menerima Dokumen', $pushes[0][1]);
+        $this->assertTrue(in_array($theirs->id, $pushes[0][0], true));
+        $this->assertFalse(in_array($this->staff->id, $pushes[0][0], true), 'Yang sudah menerima tidak diingatkan.');
+
+        $holder = $this->policyHolder(['update']);
+        $this->actingAs($holder, 'web');
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\ListCompanyPolicies::class)
+            ->callTableAction('remind', $policy);
+        $this->assertCount(2, $pushes);
+        $this->assertFalse(in_array($theirs->id, $pushes[1][0], true), 'Akun satu toko hanya mengingatkan tokonya sendiri.');
+
+        $viewOnly = $this->policyHolder([]);
+        $this->actingAs($viewOnly, 'web');
+        Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\ListCompanyPolicies::class)
+            ->assertTableActionHidden('remind', $policy);
+    }
+
+    // ------------------------------------------------------------- audit Peraturan & Kebijakan E: mobile
+
+    public function test_an_unpublished_policy_stays_listed_only_for_employees_who_accepted_it(): void
+    {
+        $old = $this->policy(['title' => 'PP Lama']);
+        $old->acknowledge($this->staff);
+        $old->update(['is_published' => false]);
+        $new = $this->policy(['title' => 'PP Baru']);
+
+        $mine = collect($this->actingAs($this->staff, 'api')->getJson('/api/staff/policies')->assertSuccessful()->json('policies'))->keyBy('id');
+        $this->assertTrue($mine->has($old->id), 'Yang sudah menerima tetap bisa membuka versi lama.');
+        $this->assertFalse($mine[$old->id]['is_published']);
+        $this->assertTrue($mine[$new->id]['is_published']);
+
+        $others = collect($this->actingAs($this->admin, 'api')->getJson('/api/staff/policies')->json('policies'))->pluck('id');
+        $this->assertFalse($others->contains($old->id), 'Yang belum pernah menerima tidak melihat versi yang dicabut.');
+        $this->actingAs($this->admin, 'api')->postJson("/api/staff/policies/{$old->id}/acknowledge")->assertStatus(404);
+    }
+
     public function test_completeness_flags_employees_who_have_not_accepted_a_required_policy(): void
     {
         $policy = $this->policy(['title' => 'Peraturan Perusahaan 2026']);

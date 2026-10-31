@@ -60,7 +60,11 @@
                 @endforeach
                 @foreach ($s['policies_pending'] as $row)
                     <li class="flex items-center justify-between gap-4 py-2 text-sm">
-                        <a href="{{ \App\Filament\Resources\CompanyPolicyResource::getUrl() }}" class="hover:underline">Belum menerima &ldquo;{{ $row['title'] }}&rdquo;</a>
+                        @if (\App\Filament\Resources\CompanyPolicyResource::canViewAny())
+                            <a href="{{ \App\Filament\Resources\CompanyPolicyResource::getUrl() }}" class="hover:underline">Belum menerima &ldquo;{{ $row['title'] }}&rdquo;</a>
+                        @else
+                            <span>Belum menerima &ldquo;{{ $row['title'] }}&rdquo;</span>
+                        @endif
                         <span class="rounded-md bg-warning-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">{{ $row['pending'] }}</span>
                     </li>
                 @endforeach
