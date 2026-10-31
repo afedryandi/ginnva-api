@@ -340,7 +340,7 @@ class WarningLetterTest extends TestCase
         $data = $this->actingAs($me, 'api')->getJson('/api/staff/warning-letters')->assertSuccessful()->json('warning_letters');
 
         $this->assertSame([$newer->id, $older->id], collect($data)->pluck('id')->all());
-        $this->assertSame(['id', 'warning_number', 'level', 'reason', 'issued_date', 'valid_until', 'acknowledged_at', 'document_url', 'issuer_name'], array_keys($data[0]));
+        $this->assertSame(['id', 'warning_number', 'level', 'status', 'reason', 'issued_date', 'valid_until', 'acknowledged_at', 'cancelled_at', 'cancel_reason', 'document_url', 'issuer_name'], array_keys($data[0]));
         $this->assertStringContainsString('warning-letters/sp2.pdf', $data[0]['document_url']);
         $this->assertMatchesRegularExpression('/expir/', $data[0]['document_url'], 'Tautan sementara, bukan alamat tetap yang terbuka untuk umum.');
         $this->assertNull($data[1]['document_url']);
@@ -402,7 +402,7 @@ class WarningLetterTest extends TestCase
         $this->assertThrows(fn () => $letter->delete(), \RuntimeException::class);
         $this->assertSame('sp1', $letter->fresh()->level);
 
-        $letter->update(['document' => 'warning-letters/scan.pdf']);
+        $letter->fresh()->update(['document' => 'warning-letters/scan.pdf']);   // model segar: percobaan ubah di atas meninggalkan atribut kotor di instance lama
         $this->assertSame('warning-letters/scan.pdf', $letter->fresh()->document, 'Scan boleh dilengkapi setelah dibaca.');
 
         Livewire::test(ListWarningLetters::class)->assertTableActionHidden('delete', $letter);
