@@ -185,7 +185,7 @@ class EmploymentLifecycleTest extends TestCase
         $this->assertFalse($pending->contains($mine->id));
 
         Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\ListCompanyPolicies::class)
-            ->assertTableColumnStateSet('acknowledgments_count', '1 dari ' . CompanyPolicy::audienceQuery($this->store->id)->count(), $policy);
+            ->assertTableColumnStateSet('acknowledgments_count', '1 dari ' . CompanyPolicy::audienceQuery($this->store->id)->count(), $policy->getKey());
 
         $this->actingAs($this->admin, 'web');
         $this->assertNull(CompanyPolicyResource::audienceStoreId());
@@ -378,7 +378,7 @@ class EmploymentLifecycleTest extends TestCase
         $this->actingAs($this->admin, 'web');
 
         Livewire::test(\App\Filament\Resources\CompanyPolicyResource\Pages\ListCompanyPolicies::class)
-            ->assertTableColumnStateSet('acknowledgments_count', '1 dari 2', $policy);
+            ->assertTableColumnStateSet('acknowledgments_count', '1 dari 2', $policy->getKey());
     }
 
     public function test_the_policy_list_runs_a_fixed_number_of_queries_regardless_of_row_count(): void

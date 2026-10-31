@@ -57,7 +57,12 @@ class CompanyPolicyResource extends Resource
 
     public static function canDelete($record): bool
     {
-        return ! $record->acknowledgments()->exists()
+        // acknowledgments_exists ikut dimuat di daftar (getEloquentQuery) supaya tidak ada query per baris; model biasa memeriksa langsung.
+        $hasAcknowledgments = array_key_exists('acknowledgments_exists', $record->getAttributes())
+            ? (bool) $record->acknowledgments_exists
+            : $record->acknowledgments()->exists();
+
+        return ! $hasAcknowledgments
             && static::canViewAny()
             && (auth()->user()?->hasModuleAction(static::class, 'delete', false) ?? false);
     }
@@ -95,6 +100,7 @@ class CompanyPolicyResource extends Resource
 
         return parent::getEloquentQuery()
             ->select('company_policies.*')
+            ->withExists('acknowledgments')
             ->addSelect([
                 'accepted_count' => \App\Models\PolicyAcknowledgment::query()
                     ->selectRaw('count(*)')
@@ -112,7 +118,7 @@ class CompanyPolicyResource extends Resource
             Forms\Components\Section::make('Dokumen')
                 ->columns(2)
                 ->schema([
-                    Forms\Components\TextInput::make('title')->label('Judul')->required()->maxLength(160)->disabled($locked)->dehydrated(),
+                    Forms\Components\TextInput::make('title')->label('Judul')->required()->maxLength(160)->disabled($locked)->dehydrated(fn (?CompanyPolicy $record) => ! $locked($record)),
 
                     Forms\Components\Select::make('category')
                         ->label('Jenis')
@@ -120,11 +126,11 @@ class CompanyPolicyResource extends Resource
                         ->required()
                         ->native(false)
                         ->disabled($locked)
-                        ->dehydrated(),
+                        ->dehydrated(fn (?CompanyPolicy $record) => ! $locked($record)),
 
-                    Forms\Components\TextInput::make('version')->label('Versi')->maxLength(40)->placeholder('mis. 1.0 atau Oktober 2026')->disabled($locked)->dehydrated(),
+                    Forms\Components\TextInput::make('version')->label('Versi')->maxLength(40)->placeholder('mis. 1.0 atau Oktober 2026')->disabled($locked)->dehydrated(fn (?CompanyPolicy $record) => ! $locked($record)),
 
-                    Forms\Components\DatePicker::make('effective_from')->label('Berlaku Sejak')->disabled($locked)->dehydrated(),
+                    Forms\Components\DatePicker::make('effective_from')->label('Berlaku Sejak')->disabled($locked)->dehydrated(fn (?CompanyPolicy $record) => ! $locked($record)),
 
                     Forms\Components\FileUpload::make('file_path')
                         ->label('Berkas (PDF)')
@@ -136,11 +142,11 @@ class CompanyPolicyResource extends Resource
                         ->storeFileNamesIn('original_filename')
                         ->required(fn (Forms\Get $get, ?CompanyPolicy $record) => ! ($record?->acknowledgments()->exists() ?? false) && (bool) $get('is_published'))
                         ->disabled($locked)
-                        ->dehydrated()
+                        ->dehydrated(fn (?CompanyPolicy $record) => ! $locked($record))
                         ->helperText('Wajib sebelum dokumen diterbitkan. Disimpan privat; karyawan membukanya lewat aplikasi dengan tautan sementara.')
                         ->columnSpanFull(),
 
-                    Forms\Components\Textarea::make('description')->label('Ringkasan untuk karyawan')->rows(3)->disabled($locked)->dehydrated()->columnSpanFull(),
+                    Forms\Components\Textarea::make('description')->label('Ringkasan untuk karyawan')->rows(3)->disabled($locked)->dehydrated(fn (?CompanyPolicy $record) => ! $locked($record))->columnSpanFull(),
                 ]),
 
             Forms\Components\Section::make('Penerbitan')
@@ -150,7 +156,7 @@ class CompanyPolicyResource extends Resource
                         ->label('Karyawan wajib menyatakan menerima')
                         ->default(true)
                         ->disabled($locked)
-                        ->dehydrated()
+                        ->dehydrated(fn (?CompanyPolicy $record) => ! $locked($record))
                         ->helperText(fn (?CompanyPolicy $record) => ($record?->acknowledgments()->exists() ?? false)
                             ? 'Terkunci karena sudah ada karyawan yang menerima dokumen ini.'
                             : 'Aktifkan untuk Peraturan Perusahaan dan kebijakan yang mengikat (mis. aturan potongan).'),
