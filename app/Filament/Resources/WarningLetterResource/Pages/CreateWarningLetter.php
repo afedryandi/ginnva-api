@@ -17,6 +17,12 @@ class CreateWarningLetter extends CreateRecord
             $data['store_id'] = auth()->user()->store_id;
         }
 
+        if ($problem = WarningLetterResource::levelProblem($data)) {
+            Notification::make()->title('Tidak bisa disimpan')->body($problem)->danger()->send();
+
+            $this->halt();
+        }
+
         if ($problem = WarningLetterResource::employeeProblem($data)) {
             Notification::make()->title('Tidak bisa disimpan')->body($problem)->danger()->send();
 
@@ -41,7 +47,10 @@ class CreateWarningLetter extends CreateRecord
         app(\App\Services\StaffNotifier::class)->toUsers(
             [$this->record->user_id],
             'Surat Peringatan Diterbitkan',
-            'Anda menerima Surat Peringatan (' . strtoupper(str_replace('sp', 'SP ', $this->record->level)) . '). Buka app untuk lihat rincian.'
+            'Anda menerima Surat Peringatan (' . strtoupper(str_replace('sp', 'SP ', $this->record->level)) . '). Buka app untuk lihat rincian.',
+            ['type' => 'warning_letter', 'route' => '/staff/attendance/warning-letters'],
+            null,
+            'warning'
         );
     }
 }

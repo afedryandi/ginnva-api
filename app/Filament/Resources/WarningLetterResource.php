@@ -32,12 +32,14 @@ class WarningLetterResource extends Resource
 
     protected static ?int $navigationSort = 605;
 
+    /**
+     * Surat Peringatan adalah dokumen disipliner: membaca semua SP satu toko dan menerbitkannya (yang langsung memberi tahu karyawan) tidak
+     * boleh terbuka lewat akses bawaan akun baru (menu_access kosong). Hanya akses penuh atau staf yang menunya dicentang eksplisit;
+     * menerbitkan, mengoreksi, dan menghapus masing-masing butuh izin aksi eksplisit (audit Surat Peringatan, 2026-10-31).
+     */
     public static function canViewAny(): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
     }
 
     /**
@@ -48,7 +50,22 @@ class WarningLetterResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->with(['user', 'store', 'issuer']);
+        // "Jumlah SP berlaku" karyawan yang sama, ditampilkan di bawah namanya (satu subquery, bukan satu query per baris).
+        return static::scopedQuery()
+            ->with(['user', 'store', 'issuer'])
+            ->select('warning_letters.*')
+            ->addSelect(['active_count' => WarningLetter::query()->withoutGlobalScopes()->from('warning_letters as sibling')
+                ->selectRaw('count(*)')
+                ->whereColumn('sibling.user_id', 'warning_letters.user_id')
+                ->whereNull('sibling.cancelled_at')
+                ->whereDate('sibling.issued_date', '<=', today()->toDateString())
+                ->where(fn ($q) => $q->whereNull('sibling.valid_until')->orWhereDate('sibling.valid_until', '>=', today()->toDateString()))]);
+    }
+
+    /** Surat yang boleh dilihat akun ini: akses penuh semuanya, selain itu hanya surat tokonya. */
+    private static function scopedQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
         $user  = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -73,8 +90,7 @@ class WarningLetterResource extends Resource
 
         // hasModuleAction(..., false) (audit Majoo f64, 2026-09-23) —
         // default FALSE (tetap ketat spt sebelumnya, isFullAccess()-only).
-        return $user?->isFullAccess()
-            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'update', false));
+        return static::canViewAny() && ($user?->hasModuleAction(static::class, 'update', false) ?? false);
     }
 
     /**
@@ -89,19 +105,12 @@ class WarningLetterResource extends Resource
      */
     public static function canCreate(): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'create', true);
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'create', false) ?? false);
     }
 
     public static function canDelete($record): bool
     {
-        $user = auth()->user();
-
-        return $user?->isFullAccess()
-            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'delete', false) ?? false);
     }
 
     /**
@@ -124,17 +133,80 @@ class WarningLetterResource extends Resource
         return null;
     }
 
+    /** Data untuk surat resmi (PDF): tingkat dalam kata, jabatan karyawan, dan SP sebelumnya yang tidak dibatalkan. */
+    public static function letterViewData(WarningLetter $letter): array
+    {
+        $letter->loadMissing(['user', 'store', 'issuer']);
+        $number = WarningLetter::levelNumber($letter->level);
+
+        return [
+            'letter' => $letter,
+            'levelNumber' => $number,
+            'levelWords' => match ($number) {
+                1 => 'Surat Peringatan Pertama',
+                2 => 'Surat Peringatan Kedua',
+                default => 'Surat Peringatan Ketiga dan Terakhir',
+            },
+            'roleLabel' => $letter->user?->primaryRoleName() ? \Illuminate\Support\Str::of($letter->user->primaryRoleName())->replace('_', ' ')->title()->toString() : null,
+            'previous' => WarningLetter::withoutGlobalScopes()->where('user_id', $letter->user_id)
+                ->whereNull('cancelled_at')
+                ->where('id', '!=', $letter->id)
+                ->whereDate('issued_date', '<=', $letter->issued_date->toDateString())
+                ->orderBy('issued_date')->get(),
+        ];
+    }
+
+    /** Surat resmi dalam PDF. Surat yang dibatalkan tetap bisa dicetak, dengan tanda DIBATALKAN dan alasannya di bagian atas. */
+    public static function downloadLetterPdf(WarningLetter $letter)
+    {
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.warning-letter', static::letterViewData($letter))->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(fn () => print($pdf->output()), 'Surat-Peringatan-' . $letter->warning_number . '.pdf');
+    }
+
+    /** Tingkat yang boleh diterbitkan akun ini: akses penuh semuanya; yang lain hanya SP 1 (SP 2 dan SP 3 menuju PHK, keputusan 2026-10-31). */
+    public static function allowedLevels(): array
+    {
+        return auth()->user()?->isFullAccess()
+            ? ['sp1' => 'SP 1', 'sp2' => 'SP 2', 'sp3' => 'SP 3']
+            : ['sp1' => 'SP 1'];
+    }
+
+    /**
+     * Validasi SERVER (pilihan di form bisa dipalsukan): akun non-penuh tidak boleh menerbitkan SP 2 atau SP 3, dan tidak boleh menaikkan
+     * tingkat surat yang ada. Tingkat yang sudah tersimpan pada surat boleh tetap saat bagian lain dikoreksi.
+     */
+    public static function levelProblem(array $data, ?WarningLetter $existing = null): ?string
+    {
+        if (auth()->user()?->isFullAccess()) {
+            return null;
+        }
+
+        $level = $data['level'] ?? null;
+
+        if ($level === 'sp1' || ($existing && $existing->level === $level)) {
+            return null;
+        }
+
+        return 'SP 2 dan SP 3 hanya bisa diterbitkan oleh akses penuh. Ajukan ke akses penuh, atau terbitkan SP 1.';
+    }
+
+    /** Membatalkan SP memakai aksi "Void" di Hak Akses Detail (akses penuh selalu boleh). */
+    public static function canVoid(): bool
+    {
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'void', false) ?? false);
+    }
+
     public static function canDeleteAny(): bool
     {
-        $user = auth()->user();
-
-        return $user?->isFullAccess()
-            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'delete', false) ?? false);
     }
 
     public static function form(Form $form): Form
     {
         $isSuperAdmin = auth()->user()?->isFullAccess();
+        // Surat yang sudah dibaca karyawan atau dibatalkan: isinya terkunci (hanya Scan Surat yang bisa dilengkapi).
+        $locked = fn (?WarningLetter $record) => $record?->isLocked() ?? false;
 
         return $form->schema([
             Forms\Components\Section::make('Surat Peringatan')
@@ -146,7 +218,7 @@ class WarningLetterResource extends Resource
                         ->searchable()
                         ->required()
                         ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id)
-                        ->disabled(! $isSuperAdmin)
+                        ->disabled(fn (?WarningLetter $record) => ! $isSuperAdmin || $locked($record))
                         ->dehydrated()
                         ->live()
                         ->afterStateUpdated(fn (Forms\Set $set) => $set('user_id', null)),
@@ -165,9 +237,15 @@ class WarningLetterResource extends Resource
                         )
                         ->searchable()
                         ->required()
+                        ->disabled($locked)
                         ->live()
                         // Tingkat diisi otomatis dengan saran berjenjang (Karyawan Fase 3 lanjutan); tetap bisa diganti.
-                        ->afterStateUpdated(fn (Forms\Set $set, ?string $state) => $set('level', $state ? \App\Models\WarningLetter::suggestedLevelFor((int) $state) : null)),
+                        ->afterStateUpdated(function (Forms\Set $set, ?string $state) {
+                            $suggested = $state ? \App\Models\WarningLetter::suggestedLevelFor((int) $state) : null;
+
+                            // Tingkat yang tidak boleh diterbitkan akun ini tidak diisi otomatis; helper di bawah menjelaskan kenapa.
+                            $set('level', $suggested !== null && array_key_exists($suggested, static::allowedLevels()) ? $suggested : null);
+                        }),
 
                     /**
                      * Gap standar enterprise diperbaiki 2026-09-27 (audit
@@ -192,7 +270,7 @@ class WarningLetterResource extends Resource
 
                             $previous = \App\Models\WarningLetter::where('user_id', $userId)
                                 ->orderByDesc('issued_date')
-                                ->get(['level', 'issued_date', 'warning_number']);
+                                ->get(['level', 'issued_date', 'warning_number', 'cancelled_at']);
 
                             if ($previous->isEmpty()) {
                                 return 'Belum pernah menerima SP sebelumnya.';
@@ -200,7 +278,7 @@ class WarningLetterResource extends Resource
 
                             $lines = $previous->map(fn ($w) => e(strtoupper(str_replace('sp', 'SP ', $w->level)))
                                 . ' — ' . e($w->warning_number)
-                                . ' (' . e($w->issued_date->translatedFormat('d M Y')) . ')');
+                                . ' (' . e($w->issued_date->translatedFormat('d M Y')) . ')' . ($w->cancelled_at ? ' <em>dibatalkan</em>' : ''));
 
                             return new \Illuminate\Support\HtmlString($lines->implode('<br>'));
                         })
@@ -208,12 +286,9 @@ class WarningLetterResource extends Resource
 
                     Forms\Components\Select::make('level')
                         ->label('Tingkat')
-                        ->options([
-                            'sp1' => 'SP 1',
-                            'sp2' => 'SP 2',
-                            'sp3' => 'SP 3',
-                        ])
+                        ->options(fn (?WarningLetter $record) => static::allowedLevels() + ($record ? [$record->level => strtoupper(str_replace('sp', 'SP ', $record->level))] : []))
                         ->required()
+                        ->disabled($locked)
                         ->live()
                         ->helperText(function (Forms\Get $get) {
                             $userId = $get('user_id');
@@ -231,17 +306,34 @@ class WarningLetterResource extends Resource
                                 $text .= ' Anda memilih tingkat yang melompati urutan; pastikan pelanggarannya memang layak dan tercatat di Peraturan Perusahaan.';
                             }
 
+                            if (! array_key_exists($suggested, static::allowedLevels())) {
+                                $text .= ' SP 2 dan SP 3 hanya bisa diterbitkan oleh akses penuh; ajukan ke mereka, atau terbitkan SP 1.';
+                            }
+
                             return $text;
                         }),
 
                     Forms\Components\DatePicker::make('issued_date')
                         ->label('Tanggal Diterbitkan')
                         ->required()
-                        ->default(today()),
+                        ->default(today())
+                        ->maxDate(today())
+                        ->disabled($locked)
+                        ->live()
+                        ->helperText(function (Forms\Get $get) {
+                            $months = (int) config('hr.warning_validity_months', WarningLetter::DEFAULT_VALIDITY_MONTHS);
+
+                            if (filled($get('issued_date')) && blank($get('valid_until')) && \Illuminate\Support\Carbon::parse($get('issued_date'))->addMonths($months)->lt(today())) {
+                                return "Tanggal ini sudah lebih dari {$months} bulan lalu: tanpa tanggal Berlaku Sampai, surat ini langsung berstatus kedaluwarsa.";
+                            }
+
+                            return 'Tidak boleh tanggal yang akan datang.';
+                        }),
 
                     Forms\Components\DatePicker::make('valid_until')
                         ->label('Berlaku Sampai (opsional)')
-                        ->helperText('Kosongkan kalau tidak ada batas waktu berlaku.')
+                        ->helperText(fn () => 'Kosongkan untuk otomatis ' . (int) config('hr.warning_validity_months', WarningLetter::DEFAULT_VALIDITY_MONTHS) . ' bulan sejak tanggal terbit (PP 35/2021 Pasal 52).')
+                        ->disabled($locked)
                         ->minDate(fn (Forms\Get $get) => $get('issued_date')),
 
                     Forms\Components\FileUpload::make('document')
@@ -268,7 +360,16 @@ class WarningLetterResource extends Resource
                     Forms\Components\Textarea::make('reason')
                         ->label('Alasan / Pelanggaran')
                         ->required()
+                        ->disabled($locked)
                         ->rows(3)
+                        ->columnSpanFull(),
+
+                    Forms\Components\Placeholder::make('lock_notice')
+                        ->label('Status')
+                        ->visible(fn (?WarningLetter $record) => $record?->isLocked() ?? false)
+                        ->content(fn (?WarningLetter $record) => $record?->isCancelled()
+                            ? 'Dibatalkan ' . $record->cancelled_at->translatedFormat('d M Y H:i') . ': ' . $record->cancel_reason
+                            : 'Sudah dibaca karyawan: isi surat terkunci. Bila keliru, batalkan lewat tombol Batalkan SP di daftar lalu terbitkan surat baru.')
                         ->columnSpanFull(),
                 ]),
         ]);
@@ -286,7 +387,8 @@ class WarningLetterResource extends Resource
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Karyawan')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->description(fn (WarningLetter $record) => (int) $record->active_count > 0 ? ((int) $record->active_count . ' SP berlaku') : null),
 
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
@@ -300,6 +402,17 @@ class WarningLetterResource extends Resource
                         'gray'    => 'sp3',
                     ])
                     ->formatStateUsing(fn (string $state) => strtoupper(str_replace('sp', 'SP ', $state))),
+
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Status')
+                    ->badge()
+                    ->state(fn (WarningLetter $record) => $record->statusLabel())
+                    ->color(fn (WarningLetter $record) => match ($record->statusLabel()) {
+                        'Berlaku' => 'success',
+                        'Dibatalkan' => 'danger',
+                        default => 'gray',
+                    })
+                    ->tooltip(fn (WarningLetter $record) => $record->isCancelled() ? 'Alasan: ' . $record->cancel_reason : null),
 
                 Tables\Columns\TextColumn::make('issued_date')
                     ->label('Diterbitkan')
@@ -334,6 +447,21 @@ class WarningLetterResource extends Resource
                     ->toggleable(),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->options(['berlaku' => 'Berlaku', 'kedaluwarsa' => 'Kedaluwarsa', 'dibatalkan' => 'Dibatalkan'])
+                    ->query(fn (Builder $query, array $data) => match ($data['value'] ?? null) {
+                        'berlaku' => $query->active(),
+                        'kedaluwarsa' => $query->whereNull('cancelled_at')->whereNotNull('valid_until')->whereDate('valid_until', '<', today()->toDateString()),
+                        'dibatalkan' => $query->whereNotNull('cancelled_at'),
+                        default => $query,
+                    }),
+
+                Tables\Filters\Filter::make('unread')
+                    ->label('Belum dibaca karyawan lebih dari ' . (int) config('hr.warning_unread_days', 3) . ' hari')
+                    ->toggle()
+                    ->query(fn (Builder $query) => $query->unreadForTooLong()),
+
                 Tables\Filters\SelectFilter::make('level')
                     ->label('Tingkat')
                     ->options(['sp1' => 'SP 1', 'sp2' => 'SP 2', 'sp3' => 'SP 3']),
@@ -347,9 +475,10 @@ class WarningLetterResource extends Resource
                 // tidak ada filter per karyawan/rentang tanggal sama
                 // sekali, tidak mungkin membuat rekap SP per karyawan
                 // atau per periode dari tabel ini tanpa filter dasar ini.
+                // Hanya karyawan yang punya surat dalam cakupan akun ini (relationship() akan memuat semua karyawan, termasuk toko lain).
                 Tables\Filters\SelectFilter::make('user_id')
                     ->label('Karyawan')
-                    ->relationship('user', 'name')
+                    ->options(fn () => User::whereIn('id', static::scopedQuery()->reorder()->select('warning_letters.user_id'))->orderBy('name')->pluck('name', 'id'))
                     ->searchable(),
 
                 Tables\Filters\Filter::make('issued_date')
@@ -380,9 +509,46 @@ class WarningLetterResource extends Resource
                     ->url(fn (WarningLetter $record) => \App\Support\SensitiveFiles::url($record->document))
                     ->openUrlInNewTab(),
 
+                Tables\Actions\Action::make('printLetter')
+                    ->label('Cetak Surat')
+                    ->icon('heroicon-o-printer')
+                    ->color('gray')
+                    ->action(fn (WarningLetter $record) => static::downloadLetterPdf($record)),
+
                 Tables\Actions\EditAction::make(),
+
+                Tables\Actions\Action::make('cancelLetter')
+                    ->label('Batalkan SP')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn (WarningLetter $record) => ! $record->isCancelled() && static::canVoid())
+                    ->modalHeading('Batalkan Surat Peringatan')
+                    ->modalDescription('Surat tetap tersimpan sebagai bukti, tetapi tidak dihitung sebagai SP berlaku maupun dasar tingkat berikutnya. Karyawan diberi tahu. Tidak bisa dikembalikan; bila perlu, terbitkan surat baru.')
+                    ->form([
+                        Forms\Components\Textarea::make('cancel_reason')->label('Alasan pembatalan')->required()->rows(3),
+                    ])
+                    ->action(function (WarningLetter $record, array $data) {
+                        try {
+                            $cancelled = $record->cancel(auth()->user(), $data['cancel_reason']);
+                        } catch (\InvalidArgumentException $e) {
+                            \Filament\Notifications\Notification::make()->title('Tidak bisa dibatalkan')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        app(\App\Services\StaffNotifier::class)->toUsers(
+                            [$cancelled->user_id],
+                            'Surat Peringatan Dibatalkan',
+                            "Surat Peringatan {$cancelled->warning_number} dibatalkan. Alasan: {$cancelled->cancel_reason}",
+                            ['type' => 'warning_letter', 'route' => '/staff/attendance/warning-letters']
+                        );
+
+                        \Filament\Notifications\Notification::make()->title('Surat dibatalkan')->success()->send();
+                    }),
+
                 Tables\Actions\DeleteAction::make()
-                    ->visible(fn () => auth()->user()?->isFullAccess()),
+                    ->visible(fn (WarningLetter $record) => ! $record->isLocked() && static::canDelete($record))
+                    ->modalDescription('Hanya untuk surat yang salah input dan belum dibaca karyawan. Surat yang sudah dibaca tidak bisa dihapus; gunakan Batalkan SP.'),
             ])
             ->defaultSort('issued_date', 'desc');
     }

@@ -9,6 +9,9 @@ return [
     // Masa berlaku Surat Peringatan dalam bulan (PP 35/2021 Pasal 52, kecuali diatur lain di Peraturan Perusahaan).
     'warning_validity_months' => (int) env('HR_WARNING_VALIDITY_MONTHS', 6),
 
+    // SP yang belum dibaca karyawan sesudah sekian hari muncul di Dasbor HR dan daftar "Belum dibaca".
+    'warning_unread_days' => (int) env('HR_WARNING_UNREAD_DAYS', 3),
+
     // Lama maksimal PKWT termasuk perpanjangan, dalam tahun, dihitung dari tanggal mulai kerja.
     'pkwt_max_years' => (int) env('HR_PKWT_MAX_YEARS', 5),
 

@@ -38,6 +38,7 @@ class WarningLetterController extends Controller
 
         return response()->json([
             'success' => true,
+            'unread_count' => $letters->filter(fn (WarningLetter $w) => $w->acknowledged_at === null && $w->cancelled_at === null)->count(),
             'warning_letters' => $letters->map(fn (WarningLetter $w) => $this->transform($w)),
         ]);
     }
@@ -71,10 +72,14 @@ class WarningLetterController extends Controller
             'id' => $w->id,
             'warning_number' => $w->warning_number,
             'level' => $w->level,
+            // "Berlaku", "Kedaluwarsa", atau "Dibatalkan" (definisi yang sama dengan panel).
+            'status' => $w->statusLabel(),
             'reason' => $w->reason,
             'issued_date' => $w->issued_date->toDateString(),
             'valid_until' => $w->valid_until?->toDateString(),
             'acknowledged_at' => $w->acknowledged_at?->toIso8601String(),
+            'cancelled_at' => $w->cancelled_at?->toIso8601String(),
+            'cancel_reason' => $w->cancelled_at ? $w->cancel_reason : null,
             'document_url' => \App\Support\SensitiveFiles::url($w->document),
             'issuer_name' => $w->issuer?->name,
         ];

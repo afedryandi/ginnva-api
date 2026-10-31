@@ -79,6 +79,7 @@ class ProfileController extends Controller
                     // Cuti khusus yang tidak memotong jatah tahunan, dihitung dari yang sudah disetujui tahun ini.
                     'other_used' => $this->otherLeaveUsed($user->id, $year),
                 ],
+                'unread_warning_letters' => \App\Models\WarningLetter::unreadCountFor($user->id),
                 // Dokumen kebijakan yang wajib diterima tetapi belum (Karyawan Fase 3).
                 'pending_policies' => \App\Models\CompanyPolicy::published()->where('requires_acknowledgment', true)
                     ->whereNotIn('id', $user->policyAcknowledgments()->select('company_policy_id'))->count(),

@@ -24,6 +24,10 @@
             $actions[] = ['APD lewat jatuh tempo ganti', $s['ppe_overdue'], \App\Filament\Resources\PpeIssuanceResource::getUrl()];
         }
 
+        if (\App\Filament\Resources\WarningLetterResource::canViewAny()) {
+            $actions[] = ['Surat Peringatan belum dibaca karyawan lebih dari ' . (int) config('hr.warning_unread_days', 3) . ' hari', $s['unread_warnings'], \App\Filament\Resources\WarningLetterResource::getUrl('index', ['tableFilters' => ['unread' => ['isActive' => 'true']]])];
+        }
+
         $actions[] = ['Sertifikat/pelatihan kedaluwarsa atau hampir (30 hari)', $s['trainings_expiring'], config('features.employee_training') ? \App\Filament\Resources\EmployeeTrainingResource::getUrl() : \App\Filament\Pages\InstallerCompetencyReport::getUrl()];
 
         if (config('features.k3')) {

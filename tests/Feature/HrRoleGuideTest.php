@@ -30,9 +30,9 @@ class HrRoleGuideTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
     }
 
-    private function user(string $role, ?array $menuAccess): User
+    private function user(string $role, ?array $menuAccess, ?array $menuPermissions = null): User
     {
-        return tap(User::create(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'menu_access' => $menuAccess, 'is_active' => true]), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'menu_access' => $menuAccess, 'menu_permissions' => $menuPermissions, 'is_active' => true]), fn (User $u) => $u->assignRole($role));
     }
 
     private function ids(User $user): array
@@ -50,7 +50,7 @@ class HrRoleGuideTest extends TestCase
 
     public function test_the_limits_the_hr_guide_states_are_enforced(): void
     {
-        $this->actingAs($this->user('general_affair', ['LeaveRequestResource', 'WarningLetterResource', 'ContractExtensionResource']), 'web');
+        $this->actingAs($this->user('general_affair', ['LeaveRequestResource', 'WarningLetterResource', 'ContractExtensionResource'], ['WarningLetterResource' => ['create']]), 'web');
 
         $this->assertFalse(UserResource::canViewAny(), 'Panduan menyebut pengelolaan akun hanya untuk akses penuh.');
         $this->assertFalse(UserResource::canCreate());

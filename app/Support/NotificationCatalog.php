@@ -77,6 +77,8 @@ class NotificationCatalog
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/TechnicianResource.php', 'title' => 'Akun Installer Diaktifkan', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/TechnicianResource.php', 'title' => 'Pendaftaran Installer Ditolak', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/WarningLetterResource/Pages/CreateWarningLetter.php', 'title' => 'Surat Peringatan Diterbitkan', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Filament/Resources/WarningLetterResource.php', 'title' => 'Surat Peringatan Dibatalkan', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindUnreadWarningLetters.php', 'title' => 'Surat Peringatan Belum Dibaca', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/WorkScheduleResource.php', 'title' => 'Jadwal Kerja Baru', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/WorkScheduleResource/Pages/EditWorkSchedule.php', 'title' => 'Jadwal Kerja Berubah', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Http/Controllers/Api/Staff/BookingController.php', 'title' => 'Penugasan Dicabut', 'panel_inbox' => true],

@@ -40,6 +40,8 @@ class AttendanceController extends Controller
         return response()->json([
             'success' => true,
             'attendance' => $attendance ? $this->transform($attendance) : null,
+            // Penanda di tautan Riwayat Surat Peringatan pada layar Absensi.
+            'unread_warning_letters' => \App\Models\WarningLetter::unreadCountFor($user->id),
             'store' => $store ? [
                 'id' => $store->id,
                 'name' => $store->name,

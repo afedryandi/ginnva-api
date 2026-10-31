@@ -23,7 +23,7 @@ class HrDashboardService
      *   headcount: int, by_store: array<string,int>, by_type: array<string,int>,
      *   contracts_expiring: list<array{id:int,name:string,date:string}>, contracts_expired: int,
      *   probation_ending: list<array{id:int,name:string,date:string}>,
-     *   incomplete_required: int, pending_leave: int, pending_corrections: int, active_warnings: int,
+     *   incomplete_required: int, pending_leave: int, pending_corrections: int, active_warnings: int, unread_warnings: int,
      *   policies_pending: list<array{title:string,pending:int}>,
      *   ppe_overdue: int, trainings_expiring: int, open_incidents: int, open_injuries: int, not_reviewed: int
      * }
@@ -81,7 +81,8 @@ class HrDashboardService
             'incomplete_required' => $incomplete,
             'pending_corrections' => \App\Models\AttendanceCorrectionRequest::query()->withoutGlobalScopes()->where('status', 'pending')->whereIn('user_id', $userIds)->count(),
             'pending_leave' => LeaveRequest::query()->withoutGlobalScopes()->where('status', 'pending')->whereIn('user_id', $userIds)->count(),
-            'active_warnings' => WarningLetter::query()->withoutGlobalScopes()->whereIn('user_id', $userIds)->whereDate('valid_until', '>=', today()->toDateString())->count(),
+            'active_warnings' => WarningLetter::query()->withoutGlobalScopes()->whereIn('user_id', $userIds)->active()->count(),
+            'unread_warnings' => WarningLetter::query()->withoutGlobalScopes()->whereIn('user_id', $userIds)->unreadForTooLong()->count(),
             'policies_pending' => $policies->map(fn ($p) => [
                 'title' => $p->title,
                 'pending' => $userIds->diff(($accepted[$p->id] ?? collect())->pluck('user_id'))->count(),
