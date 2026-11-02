@@ -33,6 +33,11 @@ class MaterialMemoStockService
      */
     public static function addMaterial($material, string $itemType, MaterialMemo $memo, float $qtyTaken, int $userId, ?string $conditionNotes): MaterialMemoItem
     {
+        // Barang yang sudah dinonaktifkan tidak diambil lagi (pemilih di app/panel sudah menyaringnya; ini penjaga di server).
+        if ($material->getAttribute('is_active') === false) {
+            throw new \InvalidArgumentException("{$material->name} sudah dinonaktifkan dan tidak bisa ditambahkan ke memo.");
+        }
+
         return DB::transaction(function () use ($material, $itemType, $memo, $qtyTaken, $userId, $conditionNotes) {
             // Penanda cabang (Topik 4, Fase 1, 2026-09-19) -- ini SATU-
             // SATUNYA event yang benar-benar "pemakaian bahan" per
@@ -148,6 +153,75 @@ class MaterialMemoStockService
                 'qty_returned' => $qtyReturned,
                 'qty_used' => $locked->qty_taken - $qtyReturned,
             ]);
+        });
+    }
+
+    /**
+     * Koreksi pengembalian yang sudah tercatat (audit Memo, 2026-11-02): jumlah dikembalikan diganti dengan yang benar, stok disesuaikan
+     * sebesar selisihnya (bertambah bila lebih banyak kembali, berkurang bila lebih sedikit), dan alasannya wajib. Catatan lamanya tidak
+     * dihapus: pergerakan stok yang baru bertanda cabang memo dan kejadiannya masuk riwayat baris memo beserta alasan dan pelakunya.
+     *
+     * @param  string|null  $expiryDate  Hanya untuk bahan baku dan hanya bila jumlah kembali bertambah: kedaluwarsa batch barunya.
+     *
+     * @throws \InvalidArgumentException
+     */
+    public static function correctReturn(MaterialMemoItem $memoItem, float $newReturned, int $userId, MaterialMemo $memo, string $note, ?string $expiryDate = null): void
+    {
+        if (! in_array($memoItem->item_type, ['raw_material', 'consumable_item'], true)) {
+            throw new \InvalidArgumentException('Jenis barang ini tidak punya alur pengembalian.');
+        }
+
+        if ($memoItem->qty_returned === null) {
+            throw new \InvalidArgumentException('Belum ada pengembalian yang tercatat untuk baris ini. Pakai Catat Pengembalian.');
+        }
+
+        if (trim($note) === '') {
+            throw new \InvalidArgumentException('Alasan koreksi wajib diisi.');
+        }
+
+        if ($newReturned < 0 || $newReturned > (float) $memoItem->qty_taken) {
+            throw new \InvalidArgumentException("Jumlah dikembalikan harus antara 0 dan {$memoItem->qty_taken} {$memoItem->unit}.");
+        }
+
+        $material = $memoItem->resolveItem();
+
+        if (! $material) {
+            throw new \InvalidArgumentException('Barang aslinya sudah tidak ada di sistem.');
+        }
+
+        DB::transaction(function () use ($material, $memoItem, $newReturned, $userId, $memo, $note, $expiryDate) {
+            $locked = MaterialMemoItem::where('id', $memoItem->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->qty_returned === null) {
+                throw new \InvalidArgumentException('Belum ada pengembalian yang tercatat untuk baris ini. Pakai Catat Pengembalian.');
+            }
+
+            $old = (float) $locked->qty_returned;
+            $delta = round($newReturned - $old, 2);
+
+            if ($delta === 0.0) {
+                throw new \InvalidArgumentException('Jumlah pengembalian sama dengan yang sudah tercatat.');
+            }
+
+            $movementNote = self::buildNote($memo, 'koreksi pengembalian', $note);
+
+            if ($delta > 0) {
+                $args = ['storeId' => $memo->store_id] + ($material instanceof RawMaterial && $expiryDate ? ['expiryDate' => $expiryDate] : []);
+                $material->recordMovement('in', $delta, $userId, $movementNote, ...$args);
+            } else {
+                $material->recordMovement('out', abs($delta), $userId, $movementNote, storeId: $memo->store_id);
+            }
+
+            $locked->update([
+                'qty_returned' => $newReturned,
+                'qty_used' => (float) $locked->qty_taken - $newReturned,
+            ]);
+
+            activity('material_memo_item')
+                ->performedOn($locked)
+                ->causedBy(\App\Models\User::find($userId))
+                ->event('return_corrected')
+                ->log("Pengembalian \"{$locked->item_name}\" dikoreksi dari {$old} menjadi {$newReturned} {$locked->unit} — {$note}");
         });
     }
 

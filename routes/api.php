@@ -534,6 +534,8 @@ Route::prefix('staff')->group(function () {
         // menu satu-satu). Dibatasi ke staff yang akun Filament-nya
         // dicentang akses menu "Memo Pengambilan/Pengembalian".
         Route::get('/memos', [StaffMaterialMemoController::class, 'index']);
+        // Harus sebelum /memos/{id}, kalau tidak "bookings" terbaca sebagai id.
+        Route::get('/memos/bookings', [StaffMaterialMemoController::class, 'bookings']);
         Route::post('/memos', [StaffMaterialMemoController::class, 'store'])
             ->middleware('throttle:30,1');
         Route::get('/memos/{id}', [StaffMaterialMemoController::class, 'show']);
@@ -544,6 +546,8 @@ Route::prefix('staff')->group(function () {
         Route::post('/memos/{id}/items', [StaffMaterialMemoController::class, 'addItem'])
             ->middleware('throttle:30,1');
         Route::post('/memos/{id}/items/{itemId}/return', [StaffMaterialMemoController::class, 'returnItem'])
+            ->middleware('throttle:30,1');
+        Route::post('/memos/{id}/items/{itemId}/correct-return', [StaffMaterialMemoController::class, 'correctReturn'])
             ->middleware('throttle:30,1');
         Route::patch('/memos/{id}/items/{itemId}', [StaffMaterialMemoController::class, 'updateItem'])
             ->middleware('throttle:30,1');

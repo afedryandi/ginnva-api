@@ -22,6 +22,9 @@ class MaterialMemo extends Model
     // report/service) yang sebelumnya rawan lupa di-scope.
     use HasStoreScope;
 
+    // Booking tertaut ikut dimuat (nomor dan nama pelanggan) di semua respons memo.
+    protected $with = ['booking:id,booking_number,customer_name'];
+
     protected $fillable = [
         'memo_number',
         'store_id',
@@ -57,6 +60,12 @@ class MaterialMemo extends Model
             ->max() ?? 0;
 
         return sprintf('MEMO-%s-%04d', $datePart, $last + 1);
+    }
+
+    /** Memo yang masih punya baris bahan/barang habis pakai tanpa catatan pengembalian (stok sudah keluar, belum diselesaikan). */
+    public function scopeHasUnreturned($query)
+    {
+        return $query->whereHas('items', fn ($q) => $q->whereIn('item_type', ['raw_material', 'consumable_item'])->whereNull('qty_returned'));
     }
 
     public function store(): BelongsTo

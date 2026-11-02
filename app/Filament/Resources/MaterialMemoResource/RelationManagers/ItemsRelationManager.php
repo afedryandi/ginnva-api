@@ -106,6 +106,8 @@ class ItemsRelationManager extends RelationManager
             ])
             ->headerActions([
                 Tables\Actions\Action::make('add_item')
+                    // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
                     ->label('Tambah Barang')
                     ->icon('heroicon-o-plus')
                     ->form([
@@ -236,6 +238,8 @@ class ItemsRelationManager extends RelationManager
                 // dilewati supaya aman diklik berulang (memo boleh diedit
                 // di tengah pekerjaan).
                 Tables\Actions\Action::make('isi_dari_resep')
+                    // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
                     ->label('Isi dari Master Resep')
                     ->icon('heroicon-o-beaker')
                     ->color('info')
@@ -346,6 +350,8 @@ class ItemsRelationManager extends RelationManager
             ])
             ->actions([
                 Tables\Actions\Action::make('return_item')
+                    // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
                     ->label('Catat Pengembalian')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('success')
@@ -397,7 +403,58 @@ class ItemsRelationManager extends RelationManager
                         }
                     }),
 
+                Tables\Actions\Action::make('correct_return')
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
+                    ->label('Koreksi Pengembalian')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->visible(fn (MaterialMemoItem $record) => in_array($record->item_type, ['raw_material', 'consumable_item'], true)
+                        && $record->qty_returned !== null)
+                    ->form(fn (MaterialMemoItem $record) => [
+                        Forms\Components\TextInput::make('qty_returned')
+                            ->label('Jumlah Dikembalikan yang Benar')
+                            ->default((float) $record->qty_returned)
+                            ->numeric()
+                            ->required()
+                            ->minValue(0)
+                            ->maxValue((float) $record->qty_taken)
+                            ->helperText("Diambil: {$record->qty_taken} {$record->unit}. Tercatat sekarang: {$record->qty_returned} {$record->unit}. Selisihnya menambah atau mengurangi stok."),
+
+                        Forms\Components\DatePicker::make('expiry_date')
+                            ->label('Tanggal Kedaluwarsa (opsional)')
+                            ->native(false)
+                            ->displayFormat('d M Y')
+                            ->visible(fn () => $record->item_type === 'raw_material')
+                            ->helperText('Hanya dipakai bila jumlah dikembalikan bertambah: bahan yang bertambah dicatat sebagai batch baru.'),
+
+                        Forms\Components\Textarea::make('note')
+                            ->label('Alasan Koreksi')
+                            ->required()
+                            ->rows(2)
+                            ->maxLength(500),
+                    ])
+                    ->action(function (MaterialMemoItem $record, array $data) {
+                        try {
+                            MaterialMemoStockService::correctReturn(
+                                $record,
+                                (float) $data['qty_returned'],
+                                auth()->id(),
+                                $this->getOwnerRecord(),
+                                (string) $data['note'],
+                                ! empty($data['expiry_date']) ? (string) $data['expiry_date'] : null,
+                            );
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()->title('Tidak bisa mengoreksi pengembalian')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Pengembalian dikoreksi')->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('edit_qty')
+                    // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
                     ->label('Koreksi Jumlah')
                     ->icon('heroicon-o-pencil')
                     ->color('warning')
@@ -440,6 +497,8 @@ class ItemsRelationManager extends RelationManager
                     }),
 
                 Tables\Actions\Action::make('delete_item')
+                    // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
                     ->label('Hapus')
                     ->icon('heroicon-o-trash')
                     ->color('danger')

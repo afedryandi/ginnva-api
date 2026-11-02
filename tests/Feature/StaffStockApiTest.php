@@ -584,9 +584,68 @@ class StaffStockApiTest extends TestCase
         $this->assertNotNull(MaterialMemo::find($memo->id));
     }
 
+    public function test_memo_access_is_explicit_and_changes_need_the_matching_grant(): void
+    {
+        $memo = $this->memo($this->storeA);
+        $material = $this->material('Lem', 10);
+
+        $this->api($this->staff('kasir', $this->storeA))->getJson('/api/staff/memos')->assertStatus(403);
+
+        $viewer = $this->memoStaff($this->storeA, []);
+        $this->api($viewer)->getJson("/api/staff/memos/{$memo->id}")->assertSuccessful()->assertJsonPath('can_modify', false);
+        $this->api($viewer)->getJson('/api/staff/memos')->assertSuccessful()->assertJsonPath('can_create', false);
+        $this->api($viewer)->postJson('/api/staff/memos', [])->assertStatus(403);
+        $this->api($viewer)->patchJson("/api/staff/memos/{$memo->id}", ['notes' => 'x'])->assertStatus(403);
+        $this->api($viewer)->postJson("/api/staff/memos/{$memo->id}/items", ['item_type' => 'raw_material', 'item_id' => $material->id, 'qty_taken' => 1])->assertStatus(403);
+        $this->assertEquals(10, (float) $material->fresh()->current_stock);
+
+        $creator = $this->memoStaff($this->storeA, ['create']);
+        $this->api($creator)->postJson('/api/staff/memos', ['vehicle_info' => 'Avanza'])->assertStatus(201);
+        $this->api($creator)->patchJson("/api/staff/memos/{$memo->id}", ['notes' => 'x'])->assertStatus(403);
+
+        $writer = $this->memoStaff($this->storeA, ['update']);
+        $this->api($writer)->patchJson("/api/staff/memos/{$memo->id}", ['notes' => 'Catatan'])->assertSuccessful();
+        $this->assertTrue($this->api($writer)->getJson("/api/staff/memos/{$memo->id}")->json('can_modify'));
+        $this->api($writer)->postJson("/api/staff/memos/{$memo->id}/items", ['item_type' => 'raw_material', 'item_id' => $material->id, 'qty_taken' => 1])->assertSuccessful();
+        $this->assertEquals(9, (float) $material->fresh()->current_stock);
+
+        $material->update(['is_active' => false]);
+        $this->api($writer)->postJson("/api/staff/memos/{$memo->id}/items", ['item_type' => 'raw_material', 'item_id' => $material->id, 'qty_taken' => 1])->assertStatus(422);
+        $this->assertEquals(9, (float) $material->fresh()->current_stock, 'Barang nonaktif tidak bisa diambil lewat API.');
+    }
+
+    public function test_the_memo_list_can_be_searched_filtered_and_summarised(): void
+    {
+        $writer = $this->memoStaff($this->storeA);
+        $open = $this->memo($this->storeA, ['vehicle_info' => 'Avanza B 1 ABC', 'spk_number' => 'SPK-77']);
+        $done = $this->memo($this->storeA, ['vehicle_info' => 'Brio D 2 XYZ']);
+        $other = $this->memo($this->storeB, ['vehicle_info' => 'Toko Lain']);
+        $material = $this->material('Lem', 50);
+        $service = \App\Services\MaterialMemoStockService::class;
+        $service::addMaterial($material, 'raw_material', $open, 2, $writer->id, null);
+        $service::addMaterial($material, 'raw_material', $other, 2, $writer->id, null);
+        $doneItem = $service::addMaterial($material, 'raw_material', $done, 1, $writer->id, null);
+        $service::returnMaterial($doneItem->fresh(), 1, $writer->id, $done);
+
+        $all = $this->api($writer)->getJson('/api/staff/memos')->assertSuccessful();
+        $this->assertSame(2, $all->json('total'));
+        $this->assertSame(['all' => 2, 'unreturned' => 1], $all->json('summary'), 'Ringkasan hanya menghitung memo toko akun ini.');
+        $this->assertTrue($all->json('can_create'));
+
+        $unreturned = $this->api($writer)->getJson('/api/staff/memos?unreturned=1')->assertSuccessful();
+        $this->assertSame([$open->id], array_column($unreturned->json('data'), 'id'));
+        $this->assertSame(1, $unreturned->json('data.0.unreturned_count'));
+        $this->assertSame(1, $unreturned->json('total'));
+
+        $this->assertSame([$done->id], array_column($this->api($writer)->getJson('/api/staff/memos?search=Brio')->json('data'), 'id'));
+        $this->assertSame([$open->id], array_column($this->api($writer)->getJson('/api/staff/memos?search=SPK-77')->json('data'), 'id'));
+        $this->assertSame([$open->id], array_column($this->api($writer)->getJson('/api/staff/memos?search=' . $open->memo_number)->json('data'), 'id'));
+        $this->assertSame([], $this->api($writer)->getJson('/api/staff/memos?search=Toko Lain')->json('data'), 'Memo toko lain tidak ikut dicari.');
+    }
+
     public function test_staff_create_a_memo_for_their_own_store_and_only_see_their_own(): void
     {
-        $staff = $this->staff('kasir', $this->storeA);
+        $staff = $this->memoStaff($this->storeA);
         $theirs = $this->memo($this->storeB);
 
         $response = $this->api($staff)->postJson('/api/staff/memos', ['vehicle_info' => 'Avanza B 1 XYZ', 'spk_number' => 'SPK-1', 'notes' => 'Catatan', 'store_id' => $this->storeB->id])
@@ -618,15 +677,15 @@ class StaffStockApiTest extends TestCase
         $this->api($admin)->postJson('/api/staff/memos', ['store_id' => $this->storeB->id])->assertStatus(201);
         $this->assertSame($this->storeB->id, MaterialMemo::withoutGlobalScopes()->firstOrFail()->store_id);
 
-        $noStore = $this->staff('kasir', null, null, false);
+        $noStore = $this->staff('kasir', null, ['MaterialMemoResource'], false, ['MaterialMemoResource' => ['create', 'update', 'view']]);
         $this->api($noStore)->postJson('/api/staff/memos', [])->assertStatus(422)->assertJsonPath('message', 'Akun ini belum terhubung ke toko manapun.');
 
-        $this->api($this->staff())->postJson('/api/staff/memos', ['vehicle_info' => str_repeat('a', 256)])->assertStatus(422)->assertJsonValidationErrors('vehicle_info');
+        $this->api($this->memoStaff())->postJson('/api/staff/memos', ['vehicle_info' => str_repeat('a', 256)])->assertStatus(422)->assertJsonValidationErrors('vehicle_info');
     }
 
     public function test_memo_numbers_stay_unique_across_many_creations(): void
     {
-        $staff = $this->staff();
+        $staff = $this->memoStaff();
 
         foreach (range(1, 3) as $i) {
             $this->api($staff)->postJson('/api/staff/memos', [])->assertStatus(201);
@@ -637,7 +696,7 @@ class StaffStockApiTest extends TestCase
 
     public function test_memo_items_move_stock_and_can_be_corrected_returned_and_removed(): void
     {
-        $staff = $this->staff();
+        $staff = $this->memoStaff();
         $memo = $this->memo($this->storeA);
         $material = $this->material('Adhesive', 10);
         $consumable = $this->consumable('Sarung Tangan', 10);
@@ -676,7 +735,7 @@ class StaffStockApiTest extends TestCase
 
     public function test_only_full_access_can_delete_a_whole_memo_but_staff_can_still_remove_a_row(): void
     {
-        $staff = $this->staff('kasir', $this->storeA);
+        $staff = $this->memoStaff($this->storeA);
         $memo = $this->memo($this->storeA);
         $material = $this->material('Adhesive', 10);
         $this->api($staff)->postJson("/api/staff/memos/{$memo->id}/items", ['item_type' => 'raw_material', 'item_id' => $material->id, 'qty_taken' => 4])->assertSuccessful();
@@ -703,7 +762,7 @@ class StaffStockApiTest extends TestCase
 
     public function test_memo_item_validation_and_errors(): void
     {
-        $staff = $this->staff();
+        $staff = $this->memoStaff();
         $memo = $this->memo($this->storeA);
         $material = $this->material('Adhesive', 3);
         $plainRoll = InventoryItem::create(['code' => 'INV-P', 'name' => 'Tanpa Gulungan', 'category' => 'PPF', 'status' => 'in_stock']);
@@ -798,6 +857,12 @@ class StaffStockApiTest extends TestCase
     private function assetStaff(?Store $store = null, array $permissions = ['update', 'view']): User
     {
         return $this->staff('kasir', $store, ['AssetResource'], true, ['AssetResource' => $permissions]);
+    }
+
+    /** Staf memo: menu Memo dicentang dengan izin Tambah, Ubah, dan Lihat (akses bawaan tidak lagi membuka menu ini). */
+    private function memoStaff(?Store $store = null, array $permissions = ['create', 'update', 'view']): User
+    {
+        return $this->staff('kasir', $store, ['MaterialMemoResource'], true, ['MaterialMemoResource' => $permissions]);
     }
 
     private function asset(string $name, ?Store $store, array $extra = []): Asset

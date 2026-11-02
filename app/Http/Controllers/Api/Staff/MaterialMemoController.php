@@ -22,10 +22,8 @@ class MaterialMemoController extends Controller
      */
     private function authorizeAccess(Request $request): bool
     {
-        $user = $request->user('api');
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(\App\Filament\Resources\MaterialMemoResource::class);
+        // Eksplisit (bukan akses bawaan): akun dengan menu_access kosong tidak ikut (audit Memo, 2026-11-02).
+        return $request->user('api')?->hasMaterialMemoAccess() ?? false;
     }
 
     /**
@@ -62,6 +60,94 @@ class MaterialMemoController extends Controller
      * Dipaginasi lewat offset (bukan cuma limit polos) supaya toko yang
      * memo-nya sudah banyak (>50) tetap bisa buka yang lebih lama.
      */
+    /** Membuat memo butuh izin Tambah; mengubah memo dan barangnya butuh izin Ubah pada menu Memo. */
+    private function can(Request $request, string $action): bool
+    {
+        return $this->authorizeAccess($request)
+            && $request->user('api')->hasModuleAction(\App\Filament\Resources\MaterialMemoResource::class, $action, false);
+    }
+
+    private function denyUnlessCan(Request $request, string $action): ?\Illuminate\Http\JsonResponse
+    {
+        if (! $this->can($request, $action)) {
+            return response()->json(['success' => false, 'message' => 'Akun ini hanya boleh melihat memo, tidak boleh membuat atau mengubahnya.'], 403);
+        }
+
+        return null;
+    }
+
+    /**
+     * Alasan sebuah booking tidak boleh ditautkan ke memo (null = boleh): harus ada, milik toko memo, belum selesai/dibatalkan, dan belum
+     * tertaut ke memo lain. Tautan ke booking opsional; sistem tidak mewajibkannya.
+     */
+    private function bookingProblem(int $bookingId, int $storeId, ?int $ignoreMemoId = null): ?string
+    {
+        $booking = \App\Models\Booking::query()->find($bookingId);
+
+        if (! $booking) {
+            return 'Booking tidak ditemukan.';
+        }
+
+        if ((int) $booking->store_id !== $storeId) {
+            return 'Booking ini milik toko lain.';
+        }
+
+        if (! in_array($booking->status, ['pending', 'confirmed'], true)) {
+            return 'Booking ini sudah selesai atau dibatalkan.';
+        }
+
+        $taken = MaterialMemo::withoutGlobalScopes()
+            ->where('booking_id', $bookingId)
+            ->when($ignoreMemoId, fn ($q) => $q->where('id', '!=', $ignoreMemoId))
+            ->exists();
+
+        return $taken ? 'Booking ini sudah tertaut ke memo lain.' : null;
+    }
+
+    private function bookingErrorResponse(string $message): \Illuminate\Http\JsonResponse
+    {
+        return response()->json(['success' => false, 'message' => $message, 'errors' => ['booking_id' => [$message]]], 422);
+    }
+
+    /**
+     * GET /api/staff/memos/bookings?search=...&store_id=...
+     *
+     * Pilihan booking untuk ditautkan ke memo: hanya milik toko akun ini (akses penuh: toko yang dipilih lewat store_id), yang belum
+     * selesai atau dibatalkan, dan yang belum punya memo.
+     */
+    public function bookings(Request $request)
+    {
+        if (! $this->authorizeAccess($request)) {
+            return $this->forbiddenResponse();
+        }
+
+        if (! $this->can($request, 'create') && ! $this->can($request, 'update')) {
+            return $this->denyUnlessCan($request, 'update');
+        }
+
+        $user = $request->user('api');
+        $storeId = $user->isFullAccess() ? (int) $request->query('store_id') : (int) $user->store_id;
+
+        if (! $storeId) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $search = trim((string) $request->query('search', ''));
+
+        $bookings = \App\Models\Booking::query()
+            ->where('store_id', $storeId)
+            ->whereIn('status', ['pending', 'confirmed'])
+            ->whereNotIn('id', MaterialMemo::withoutGlobalScopes()->whereNotNull('booking_id')->select('booking_id'))
+            ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('booking_number', 'like', "%{$search}%")
+                ->orWhere('customer_name', 'like', "%{$search}%")
+                ->orWhere('vehicle_plate', 'like', "%{$search}%")))
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get(['id', 'booking_number', 'customer_name', 'vehicle_brand', 'vehicle_model', 'vehicle_plate', 'status']);
+
+        return response()->json(['success' => true, 'data' => $bookings]);
+    }
+
     public function index(Request $request)
     {
         if (! $this->authorizeAccess($request)) {
@@ -72,17 +158,33 @@ class MaterialMemoController extends Controller
         $storeId = $user->isFullAccess() ? $request->query('store_id') : $user->store_id;
         $offset = max(0, (int) $request->query('offset', 0));
         $perPage = 50;
+        $search = trim((string) $request->query('search', ''));
 
         $query = MaterialMemo::query()
             ->with(['creator:id,name', 'store:id,name'])
-            ->withCount('items')
+            ->withCount(['items', 'items as unreturned_count' => fn ($q) => $q->whereIn('item_type', ['raw_material', 'consumable_item'])->whereNull('qty_returned')])
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('memo_number', 'like', "%{$search}%")
+                ->orWhere('vehicle_info', 'like', "%{$search}%")
+                ->orWhere('spk_number', 'like', "%{$search}%")))
+            ->when($request->boolean('unreturned'), fn ($q) => $q->hasUnreturned())
             ->orderByDesc('created_at');
 
         $memos = (clone $query)->offset($offset)->limit($perPage)->get();
         $hasMore = (clone $query)->offset($offset + $perPage)->limit(1)->exists();
 
-        return response()->json(['success' => true, 'data' => $memos, 'has_more' => $hasMore]);
+        return response()->json([
+            'success' => true,
+            'data' => $memos,
+            'has_more' => $hasMore,
+            // Jumlah yang cocok dengan pencarian/filter, dan ringkasan seluruh memo (tidak terpengaruh pencarian/filter) untuk chip di app.
+            'total' => (clone $query)->reorder()->count(),
+            'summary' => [
+                'all' => MaterialMemo::query()->when($storeId, fn ($q) => $q->where('store_id', $storeId))->count(),
+                'unreturned' => MaterialMemo::query()->when($storeId, fn ($q) => $q->where('store_id', $storeId))->hasUnreturned()->count(),
+            ],
+            'can_create' => $this->can($request, 'create'),
+        ]);
     }
 
     /**
@@ -98,6 +200,10 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
+        if ($denied = $this->denyUnlessCan($request, 'create')) {
+            return $denied;
+        }
+
         $user = $request->user('api');
 
         $validator = Validator::make($request->all(), [
@@ -107,6 +213,7 @@ class MaterialMemoController extends Controller
             // Full-access wajib kirim store_id manual (tidak terikat
             // toko manapun) — staff biasa selalu pakai toko akunnya
             // sendiri, field ini diabaikan kalau dikirim.
+            'booking_id' => 'nullable|integer',
             'store_id' => $user->isFullAccess() ? 'required|exists:stores,id' : 'nullable',
         ]);
 
@@ -132,6 +239,10 @@ class MaterialMemoController extends Controller
         // constraint unique di DB bakal menolak salah satunya dengan
         // QueryException mentah. Coba ulang beberapa kali dengan nomor
         // baru daripada 500 error ke user.
+        if ($request->filled('booking_id') && ($problem = $this->bookingProblem((int) $request->booking_id, (int) $storeId))) {
+            return $this->bookingErrorResponse($problem);
+        }
+
         $attempts = 0;
         while (true) {
             $attempts++;
@@ -142,6 +253,7 @@ class MaterialMemoController extends Controller
                         'store_id' => $storeId,
                         'vehicle_info' => $request->vehicle_info,
                         'spk_number' => $request->spk_number,
+                        'booking_id' => $request->filled('booking_id') ? (int) $request->booking_id : null,
                         'notes' => $request->notes,
                         'created_by' => $user->id,
                     ]);
@@ -178,7 +290,7 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
-        return response()->json(['success' => true, 'data' => $memo]);
+        return response()->json(['success' => true, 'data' => $memo, 'can_modify' => $this->can($request, 'update')]);
     }
 
     /**
@@ -199,10 +311,15 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
+        if ($denied = $this->denyUnlessCan($request, 'update')) {
+            return $denied;
+        }
+
         $validator = Validator::make($request->all(), [
             'vehicle_info' => 'nullable|string|max:255',
             'spk_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
+            'booking_id' => 'nullable|integer',
         ]);
 
         if ($validator->fails()) {
@@ -211,6 +328,12 @@ class MaterialMemoController extends Controller
                 'message' => 'Data yang dikirim tidak valid.',
                 'errors' => $validator->errors(),
             ], 422);
+        }
+
+        // Tautan booking diperiksa hanya bila berubah (booking lama yang sudah selesai tidak menghalangi mengubah info lain).
+        if ($request->filled('booking_id') && (int) $request->booking_id !== (int) $memo->booking_id
+            && ($problem = $this->bookingProblem((int) $request->booking_id, (int) $memo->store_id, $memo->id))) {
+            return $this->bookingErrorResponse($problem);
         }
 
         $memo->update($validator->validated());
@@ -242,6 +365,10 @@ class MaterialMemoController extends Controller
 
         if (! $this->authorizeMemoAccess($request, $memo)) {
             return $this->forbiddenResponse();
+        }
+
+        if ($denied = $this->denyUnlessCan($request, 'update')) {
+            return $denied;
         }
 
         // Hapus memo utuh hanya untuk akses penuh (keputusan 2026-10-09), sama dengan tombol Hapus di panel admin
@@ -286,6 +413,10 @@ class MaterialMemoController extends Controller
 
         if (! $this->authorizeMemoAccess($request, $memo)) {
             return $this->forbiddenResponse();
+        }
+
+        if ($denied = $this->denyUnlessCan($request, 'update')) {
+            return $denied;
         }
 
         $validator = Validator::make($request->all(), [
@@ -362,6 +493,10 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
+        if ($denied = $this->denyUnlessCan($request, 'update')) {
+            return $denied;
+        }
+
         $memoItem = MaterialMemoItem::where('material_memo_id', $memo->id)->find($itemId);
 
         if (! $memoItem) {
@@ -412,6 +547,69 @@ class MaterialMemoController extends Controller
      * tambah ulang). Cuma selisihnya yang disesuaikan ke stok/sisa meter
      * gulungan, bukan menimpa polos.
      */
+    /**
+     * POST /api/staff/memos/{id}/items/{itemId}/correct-return
+     *
+     * Koreksi pengembalian yang sudah tercatat (alasan wajib); stok disesuaikan sebesar selisihnya.
+     */
+    public function correctReturn(Request $request, int $id, int $itemId)
+    {
+        $memo = MaterialMemo::find($id);
+
+        if (! $memo) {
+            return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
+        }
+
+        if (! $this->authorizeMemoAccess($request, $memo)) {
+            return $this->forbiddenResponse();
+        }
+
+        if ($denied = $this->denyUnlessCan($request, 'update')) {
+            return $denied;
+        }
+
+        $memoItem = MaterialMemoItem::where('material_memo_id', $memo->id)->find($itemId);
+
+        if (! $memoItem) {
+            return response()->json(['success' => false, 'message' => 'Baris barang tidak ditemukan.'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'qty_returned' => ['required', 'numeric', 'min:0', 'max:1000000'],
+            'note' => ['required', 'string', 'max:500'],
+            'expiry_date' => ['nullable', 'date'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            MaterialMemoStockService::correctReturn(
+                $memoItem,
+                (float) $request->qty_returned,
+                $request->user('api')->id,
+                $memo,
+                (string) $request->note,
+                $request->filled('expiry_date') ? (string) $request->expiry_date : null,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pengembalian dikoreksi.',
+            'data' => $memo,
+        ]);
+    }
+
     public function updateItem(Request $request, int $id, int $itemId)
     {
         $memo = MaterialMemo::find($id);
@@ -422,6 +620,10 @@ class MaterialMemoController extends Controller
 
         if (! $this->authorizeMemoAccess($request, $memo)) {
             return $this->forbiddenResponse();
+        }
+
+        if ($denied = $this->denyUnlessCan($request, 'update')) {
+            return $denied;
         }
 
         $memoItem = MaterialMemoItem::where('material_memo_id', $memo->id)->find($itemId);
@@ -480,6 +682,10 @@ class MaterialMemoController extends Controller
 
         if (! $this->authorizeMemoAccess($request, $memo)) {
             return $this->forbiddenResponse();
+        }
+
+        if ($denied = $this->denyUnlessCan($request, 'update')) {
+            return $denied;
         }
 
         $memoItem = MaterialMemoItem::where('material_memo_id', $memo->id)->find($itemId);

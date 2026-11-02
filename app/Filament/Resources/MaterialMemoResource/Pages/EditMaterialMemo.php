@@ -54,7 +54,8 @@ class EditMaterialMemo extends EditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         // Toko memo tidak boleh dipindah oleh staf non-full-access (field hanya di-disable di form).
-        if (! auth()->user()?->isFullAccess()) {
+        // Dan tidak boleh dipindah oleh siapa pun begitu memo punya barang: pergerakan stoknya sudah bertanda toko ini.
+        if (! auth()->user()?->isFullAccess() || $this->record->items()->exists()) {
             $data['store_id'] = $this->record->store_id;
         }
 

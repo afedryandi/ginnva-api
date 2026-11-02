@@ -34,12 +34,19 @@ class MaterialMemoResource extends Resource
 
     protected static ?int $navigationSort = 80;
 
+    /**
+     * Memo mengubah stok (bahan, barang habis pakai, dan panjang gulungan film), jadi tidak terbuka lewat akses bawaan akun baru
+     * (menu_access kosong): hanya akses penuh atau staf yang menunya dicentang eksplisit (audit Memo, 2026-11-02). Membuat memo
+     * butuh izin Tambah; mengubah memo dan mencatat/mengoreksi/mengembalikan/menghapus barangnya butuh izin Ubah.
+     */
     public static function canViewAny(): bool
     {
-        $user = auth()->user();
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
+    }
 
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+    public static function canView($record): bool
+    {
+        return static::canViewAny();
     }
 
     /**
@@ -59,20 +66,12 @@ class MaterialMemoResource extends Resource
      */
     public static function canCreate(): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'create', true);
+        return static::canViewAny() && auth()->user()->hasModuleAction(static::class, 'create', false);
     }
 
     public static function canEdit($record): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'update', true);
+        return static::canViewAny() && auth()->user()->hasModuleAction(static::class, 'update', false);
     }
 
     public static function getEloquentQuery(): Builder
@@ -99,7 +98,10 @@ class MaterialMemoResource extends Resource
                     ->searchable()
                     ->required()
                     ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id)
-                    ->disabled(! $isSuperAdmin)
+                    ->disabled(fn (?MaterialMemo $record) => ! $isSuperAdmin || ($record !== null && $record->items()->exists()))
+                    ->helperText(fn (?MaterialMemo $record) => $record !== null && $record->items()->exists()
+                        ? 'Toko terkunci karena memo ini sudah punya barang: pergerakan stoknya sudah bertanda toko ini.'
+                        : null)
                     ->dehydrated(),
                 // Opsional (diminta 2026-09-09) -- supaya Detail Penjualan/
                 // View Booking bisa menampilkan inventori yang benar-benar
@@ -122,7 +124,10 @@ class MaterialMemoResource extends Resource
                     ->validationMessages([
                         'unique' => 'Booking ini sudah tertaut ke Memo Barang lain.',
                     ])
-                    ->helperText('Hubungkan ke booking supaya bahan/produk yang dipakai muncul di Detail Penjualan booking tersebut.'),
+                    ->helperText(fn (?MaterialMemo $record) => 'Hubungkan ke booking supaya bahan/produk yang dipakai muncul di Detail Penjualan booking tersebut.'
+                        . ($record !== null && $record->items()->exists()
+                            ? ' Perhatian: mengganti booking memindahkan seluruh biaya bahan di memo ini ke booking yang baru (perubahannya tercatat di riwayat).'
+                            : '')),
                 Forms\Components\TextInput::make('vehicle_info')
                     ->label('Info Kendaraan')
                     ->placeholder('Mis. Toyota Avanza - B 1234 XYZ')
@@ -142,6 +147,10 @@ class MaterialMemoResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // Jumlah baris bahan/barang habis pakai yang belum dicatat pengembaliannya, satu subquery untuk seluruh halaman.
+            ->modifyQueryUsing(fn ($query) => $query->withCount(['items as unreturned_count' => fn ($items) => $items
+                ->whereIn('item_type', ['raw_material', 'consumable_item'])
+                ->whereNull('qty_returned')]))
             ->columns([
                 Tables\Columns\TextColumn::make('memo_number')
                     ->label('No Memo')
@@ -167,6 +176,12 @@ class MaterialMemoResource extends Resource
                     ->label('Jumlah Barang')
                     ->counts('items')
                     ->badge(),
+                Tables\Columns\TextColumn::make('unreturned_count')
+                    ->label('Belum Kembali')
+                    ->badge()
+                    ->color(fn (int $state) => $state > 0 ? 'warning' : 'gray')
+                    ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} baris" : '—')
+                    ->tooltip('Baris bahan/barang habis pakai yang stoknya sudah keluar tetapi pengembaliannya belum dicatat (isi 0 bila habis terpakai).'),
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Dibuat Oleh')
                     ->placeholder('—'),
@@ -180,6 +195,31 @@ class MaterialMemoResource extends Resource
                 // filter ini selalu tampil ke semua user, padahal getEloquentQuery() sudah
                 // membatasi non-full-access ke 1 toko duluan -- staff toko bisa pilih toko lain
                 // di sini tapi hasilnya tidak pernah berubah (membingungkan, bukan bug keamanan).
+                Tables\Filters\Filter::make('unreturned')
+                    ->label('Ada Barang Belum Dikembalikan')
+                    ->query(fn (Builder $query) => $query->hasUnreturned()),
+
+                Tables\Filters\TernaryFilter::make('has_booking')
+                    ->label('Tertaut Booking')
+                    ->placeholder('Semua')
+                    ->trueLabel('Sudah tertaut')
+                    ->falseLabel('Belum tertaut')
+                    ->queries(
+                        true: fn (Builder $query) => $query->whereNotNull('booking_id'),
+                        false: fn (Builder $query) => $query->whereNull('booking_id'),
+                        blank: fn (Builder $query) => $query,
+                    ),
+
+                Tables\Filters\Filter::make('created_between')
+                    ->label('Tanggal Dibuat')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')->label('Dari Tanggal'),
+                        Forms\Components\DatePicker::make('until')->label('Sampai Tanggal'),
+                    ])
+                    ->query(fn (Builder $query, array $data) => $query
+                        ->when($data['from'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+                        ->when($data['until'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))),
+
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
                     ->options(fn () => Store::pluck('name', 'id'))
@@ -215,6 +255,7 @@ class MaterialMemoResource extends Resource
                     }),
             ])
             ->actions([
+                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
             ]);
     }
@@ -231,6 +272,7 @@ class MaterialMemoResource extends Resource
         return [
             'index' => Pages\ListMaterialMemos::route('/'),
             'create' => Pages\CreateMaterialMemo::route('/create'),
+            'view' => Pages\ViewMaterialMemo::route('/{record}'),
             'edit' => Pages\EditMaterialMemo::route('/{record}/edit'),
         ];
     }

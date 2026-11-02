@@ -66,6 +66,12 @@ class MaterialMemoResourceTest extends TestCase
         return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess, 'is_active' => true], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
+    /** Staf memo: menu dicentang, boleh Tambah dan Ubah (mencatat barang masuk/keluar). */
+    private function writer(?Store $store = null): User
+    {
+        return $this->user('kasir', ['MaterialMemoResource'], $store, ['menu_permissions' => ['MaterialMemoResource' => ['create', 'update', 'view']]]);
+    }
+
     private function as(User $user): User
     {
         $this->actingAs($user, 'web');
@@ -116,9 +122,15 @@ class MaterialMemoResourceTest extends TestCase
         $this->assertTrue(MaterialMemoResource::canCreate());
         $this->assertTrue(MaterialMemoResource::canEdit(new MaterialMemo()));
 
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $this->assertTrue(MaterialMemoResource::canViewAny());
         $this->assertTrue(MaterialMemoResource::canCreate());
+        $this->assertTrue(MaterialMemoResource::canEdit(new MaterialMemo()));
+
+        // Akses bawaan (menu_access kosong) tidak membuka menu ini.
+        $this->as($this->user('kasir'));
+        $this->assertFalse(MaterialMemoResource::canViewAny());
+        $this->assertFalse(MaterialMemoResource::canCreate());
 
         $this->as($this->user('kasir', ['BookingResource']));
         $this->assertFalse(MaterialMemoResource::canViewAny());
@@ -126,12 +138,198 @@ class MaterialMemoResourceTest extends TestCase
         $this->assertFalse(MaterialMemoResource::canEdit(new MaterialMemo()));
     }
 
+    public function test_a_view_only_account_cannot_change_a_memo_and_a_writer_can(): void
+    {
+        $admin = $this->user('super_admin');
+        $memo = $this->memo($this->storeA, ['memo_number' => 'MEMO-LIHAT']);
+        $item = \App\Services\MaterialMemoStockService::addMaterial($this->material('Lem Lihat', 10), 'raw_material', $memo, 2, $admin->id, null);
+
+        $this->as($this->user('kasir', ['MaterialMemoResource'], $this->storeA));
+        $this->assertTrue(MaterialMemoResource::canView($memo));
+        $this->assertFalse(MaterialMemoResource::canEdit($memo));
+        $this->assertFalse(MaterialMemoResource::canCreate());
+
+        Livewire::test(\App\Filament\Resources\MaterialMemoResource\Pages\ViewMaterialMemo::class, ['record' => $memo->getKey()])
+            ->assertSuccessful()
+            ->assertActionHidden('edit');
+        $this->manager($memo)
+            ->assertTableActionHidden('add_item')
+            ->assertTableActionHidden('return_item', $item)
+            ->assertTableActionHidden('edit_qty', $item)
+            ->assertTableActionHidden('delete_item', $item);
+
+        $this->as($this->writer($this->storeA));
+        $this->manager($memo)
+            ->assertTableActionVisible('add_item')
+            ->assertTableActionVisible('return_item', $item)
+            ->assertTableActionVisible('delete_item', $item);
+    }
+
+    public function test_the_list_flags_and_filters_memos_with_unreturned_items(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $open = $this->memo($this->storeA, ['memo_number' => 'MEMO-BELUM']);
+        $done = $this->memo($this->storeA, ['memo_number' => 'MEMO-SELESAI']);
+        $empty = $this->memo($this->storeA, ['memo_number' => 'MEMO-KOSONG']);
+        $service = \App\Services\MaterialMemoStockService::class;
+        $service::addMaterial($this->material('Lem A', 10), 'raw_material', $open, 2, $admin->id, null);
+        $doneItem = $service::addMaterial($this->material('Lem B', 10), 'raw_material', $done, 1, $admin->id, null);
+        $service::returnMaterial($doneItem->fresh(), 0, $admin->id, $done);
+
+        $this->assertSame(['MEMO-BELUM'], MaterialMemo::hasUnreturned()->whereIn('id', [$open->id, $done->id, $empty->id])->pluck('memo_number')->all());
+
+        Livewire::test(ListMaterialMemos::class)
+            ->filterTable('unreturned')
+            ->assertCanSeeTableRecords([$open])
+            ->assertCanNotSeeTableRecords([$done, $empty]);
+    }
+
+    public function test_a_memo_can_optionally_be_linked_to_an_open_booking_of_the_accounts_store(): void
+    {
+        $staff = $this->writer($this->storeA);
+        $db = \Illuminate\Support\Facades\DB::table('bookings');
+        $open = $this->booking($this->storeA);
+        $pending = $this->booking($this->storeA);
+        $db->where('id', $pending->id)->update(['status' => 'pending']);
+        $done = $this->booking($this->storeA);
+        \Illuminate\Support\Facades\DB::table('bookings')->where('id', $done->id)->update(['status' => 'completed']);
+        $cancelled = $this->booking($this->storeA);
+        \Illuminate\Support\Facades\DB::table('bookings')->where('id', $cancelled->id)->update(['status' => 'cancelled']);
+        $other = $this->booking($this->storeB);
+        $taken = $this->booking($this->storeA);
+        $this->memo($this->storeA, ['booking_id' => $taken->id]);
+
+        $ids = collect($this->actingAs($staff, 'api')->getJson('/api/staff/memos/bookings')->assertSuccessful()->json('data'))->pluck('id')->sort()->values()->all();
+        $this->assertSame(collect([$open->id, $pending->id])->sort()->values()->all(), $ids, 'Hanya booking toko ini yang belum selesai dan belum bermemo.');
+        $this->assertSame([$open->id], collect($this->actingAs($staff, 'api')->getJson('/api/staff/memos/bookings?search=' . $open->booking_number)->json('data'))->pluck('id')->all());
+
+        $created = $this->actingAs($staff, 'api')->postJson('/api/staff/memos', ['booking_id' => $open->id, 'vehicle_info' => 'Avanza'])->assertStatus(201);
+        $this->assertSame($open->booking_number, $created->json('data.booking.booking_number'));
+        $this->assertSame($open->id, MaterialMemo::withoutGlobalScopes()->findOrFail($created->json('data.id'))->booking_id);
+
+        foreach ([$done, $cancelled, $other, $taken, $open] as $bad) {
+            $this->actingAs($staff, 'api')->postJson('/api/staff/memos', ['booking_id' => $bad->id])->assertStatus(422)->assertJsonValidationErrors('booking_id');
+        }
+        $this->assertSame(1, MaterialMemo::withoutGlobalScopes()->where('booking_id', $open->id)->count());
+
+        $this->actingAs($staff, 'api')->postJson('/api/staff/memos', ['vehicle_info' => 'Tanpa booking'])->assertStatus(201);
+
+        // Mengubah dan melepas tautan; info lain tetap bisa diubah walau booking lamanya sudah selesai.
+        $memoId = $created->json('data.id');
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/memos/{$memoId}", ['booking_id' => $pending->id])->assertSuccessful();
+        \Illuminate\Support\Facades\DB::table('bookings')->where('id', $pending->id)->update(['status' => 'completed']);
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/memos/{$memoId}", ['booking_id' => $pending->id, 'notes' => 'Catatan baru'])->assertSuccessful();
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/memos/{$memoId}", ['booking_id' => $done->id])->assertStatus(422);
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/memos/{$memoId}", ['booking_id' => null])->assertSuccessful();
+        $this->assertNull(MaterialMemo::withoutGlobalScopes()->findOrFail($memoId)->booking_id);
+
+        $viewer = $this->user('kasir', ['MaterialMemoResource'], $this->storeA);
+        $this->actingAs($viewer, 'api')->getJson('/api/staff/memos/bookings')->assertStatus(403);
+    }
+
+    public function test_a_return_can_be_corrected_with_a_reason_and_the_stock_follows_the_difference(): void
+    {
+        $admin = $this->user('super_admin');
+        $memo = $this->memo($this->storeA);
+        $material = $this->material('Lem Koreksi', 10);
+        $service = \App\Services\MaterialMemoStockService::class;
+        $item = $service::addMaterial($material, 'raw_material', $memo, 5, $admin->id, null);   // stok 5
+        $service::returnMaterial($item->fresh(), 2, $admin->id, $memo);                         // stok 7
+
+        $service::correctReturn($item->fresh(), 4, $admin->id, $memo, 'Salah hitung, yang kembali 4', '2027-03-01');
+        $fresh = $item->fresh();
+        $this->assertSame([4.0, 1.0], [(float) $fresh->qty_returned, (float) $fresh->qty_used]);
+        $this->assertEquals(9, (float) $material->fresh()->current_stock);
+        $this->assertEquals(2, (float) $material->batches()->whereDate('expiry_date', '2027-03-01')->sum('quantity'), 'Tambahan kembali menjadi batch baru dengan kedaluwarsanya.');
+
+        $service::correctReturn($item->fresh(), 1, $admin->id, $memo, 'Ternyata hanya 1');
+        $this->assertEquals(6, (float) $material->fresh()->current_stock);
+        $this->assertEquals(4.0, (float) $item->fresh()->qty_used, "Diambil 5, kembali 1: terpakai 4.");
+
+        $this->assertSame(0, $material->movements()->whereNull('store_id')->count(), 'Pergerakan koreksi ikut bertanda cabang memo.');
+        $log = Activity::where('log_name', 'material_memo_item')->where('subject_id', $item->id)->where('event', 'return_corrected')->latest('id')->first();
+        $this->assertNotNull($log);
+        $this->assertStringContainsString('Ternyata hanya 1', $log->description);
+
+        foreach ([
+            [fn () => $service::correctReturn($item->fresh(), 1, $admin->id, $memo, 'sama'), 'sama dengan'],
+            [fn () => $service::correctReturn($item->fresh(), 2, $admin->id, $memo, '   '), 'Alasan'],
+            [fn () => $service::correctReturn($item->fresh(), 9, $admin->id, $memo, 'terlalu banyak'), 'antara 0 dan'],
+        ] as [$call, $fragment]) {
+            try {
+                $call();
+                $this->fail('Harus ditolak: ' . $fragment);
+            } catch (\InvalidArgumentException $e) {
+                $this->assertStringContainsString($fragment, $e->getMessage());
+            }
+        }
+
+        $unreturned = $service::addMaterial($material->fresh(), 'raw_material', $memo, 1, $admin->id, null);
+        $this->expectException(\InvalidArgumentException::class);
+        $service::correctReturn($unreturned->fresh(), 0, $admin->id, $memo, 'belum ada pengembalian');
+    }
+
+    public function test_correct_return_in_the_panel_and_the_api_needs_the_update_grant(): void
+    {
+        $admin = $this->user('super_admin');
+        $memo = $this->memo($this->storeA);
+        $material = $this->material('Lem Panel', 10);
+        $service = \App\Services\MaterialMemoStockService::class;
+        $returned = $service::addMaterial($material, 'raw_material', $memo, 4, $admin->id, null);
+        $service::returnMaterial($returned->fresh(), 1, $admin->id, $memo);
+        $open = $service::addMaterial($material->fresh(), 'raw_material', $memo, 1, $admin->id, null);
+
+        $this->as($this->writer($this->storeA));
+        $this->manager($memo)
+            ->assertTableActionVisible('correct_return', $returned)
+            ->assertTableActionHidden('correct_return', $open)
+            ->callTableAction('correct_return', $returned, data: ['qty_returned' => 3, 'note' => 'Salah ketik'])
+            ->assertHasNoTableActionErrors();
+        $this->assertEquals(3.0, (float) $returned->fresh()->qty_returned);
+
+        $this->as($this->user('kasir', ['MaterialMemoResource'], $this->storeA));
+        $this->manager($memo)->assertTableActionHidden('correct_return', $returned);
+
+        $writer = $this->writer($this->storeA);
+        $url = "/api/staff/memos/{$memo->id}/items/{$returned->id}/correct-return";
+        $this->actingAs($writer, 'api')->postJson($url, ['qty_returned' => 2])->assertStatus(422)->assertJsonValidationErrors('note');
+        $this->actingAs($writer, 'api')->postJson($url, ['qty_returned' => 2, 'note' => 'Hitung ulang'])->assertSuccessful()->assertJsonPath('message', 'Pengembalian dikoreksi.');
+        $this->assertEquals(2.0, (float) $returned->fresh()->qty_returned);
+        $this->actingAs($writer, 'api')->postJson($url, ['qty_returned' => 2, 'note' => 'sama'])->assertStatus(422);
+
+        $viewer = $this->user('kasir', ['MaterialMemoResource'], $this->storeA);
+        $this->actingAs($viewer, 'api')->postJson($url, ['qty_returned' => 1, 'note' => 'x'])->assertStatus(403);
+        $this->assertEquals(2.0, (float) $returned->fresh()->qty_returned);
+    }
+
+    public function test_the_store_is_locked_once_a_memo_has_items_and_an_inactive_item_is_refused(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $withItems = $this->memo($this->storeA);
+        $fresh = $this->memo($this->storeA);
+        \App\Services\MaterialMemoStockService::addMaterial($this->material('Lem Terkunci', 10), 'raw_material', $withItems, 1, $admin->id, null);
+
+        Livewire::test(EditMaterialMemo::class, ['record' => $withItems->getKey()])
+            ->assertFormFieldIsDisabled('store_id')
+            ->fillForm(['store_id' => $this->storeB->id])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $this->assertSame($this->storeA->id, $withItems->fresh()->store_id);
+
+        Livewire::test(EditMaterialMemo::class, ['record' => $fresh->getKey()])->assertFormFieldIsEnabled('store_id');
+
+        $inactive = $this->material('Lem Mati', 10);
+        $inactive->update(['is_active' => false]);
+        $this->expectException(\InvalidArgumentException::class);
+        \App\Services\MaterialMemoStockService::addMaterial($inactive, 'raw_material', $fresh, 1, $admin->id, null);
+    }
+
     public function test_staff_only_see_their_own_store_and_cannot_open_other_memos(): void
     {
         $mine = $this->memo($this->storeA, ['memo_number' => 'MEMO-MINE']);
         $theirs = $this->memo($this->storeB, ['memo_number' => 'MEMO-THEIRS']);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(ListMaterialMemos::class)
             ->assertCanSeeTableRecords([$mine])
             ->assertCanNotSeeTableRecords([$theirs])
@@ -170,7 +368,7 @@ class MaterialMemoResourceTest extends TestCase
 
     public function test_staff_create_forces_own_store_and_sets_creator_and_number(): void
     {
-        $staff = $this->as($this->user('kasir', null, $this->storeA));
+        $staff = $this->as($this->writer($this->storeA));
 
         Livewire::test(CreateMaterialMemo::class)
             ->fillForm(['store_id' => $this->storeB->id, 'vehicle_info' => 'Avanza B 1 XYZ', 'spk_number' => 'SPK-1', 'notes' => 'Catatan'])
@@ -233,7 +431,7 @@ class MaterialMemoResourceTest extends TestCase
         $booking = $this->booking($this->storeA);
         $this->memo($this->storeA, ['booking_id' => $booking->id]);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(CreateMaterialMemo::class)
             ->fillForm(['booking_id' => $booking->id])
             ->call('create')
@@ -247,7 +445,7 @@ class MaterialMemoResourceTest extends TestCase
         $booking = $this->booking($this->storeA);
         $memo = $this->memo($this->storeA, ['booking_id' => $booking->id]);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(EditMaterialMemo::class, ['record' => $memo->getRouteKey()])
             ->fillForm(['vehicle_info' => 'Innova', 'notes' => 'Diubah'])
             ->call('save')
@@ -265,7 +463,7 @@ class MaterialMemoResourceTest extends TestCase
         $material = $this->material('Adhesive', 10);
         $consumable = $this->consumable('Sarung Tangan', 20);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $this->manager($memo)
             ->callTableAction('add_item', data: ['item_type' => 'raw_material', 'raw_material_id' => $material->id, 'qty_taken' => 2.5, 'condition_notes' => 'Untuk dashboard'])
             ->assertHasNoTableActionErrors()
@@ -290,7 +488,7 @@ class MaterialMemoResourceTest extends TestCase
         $memo = $this->memo($this->storeA);
         $material = $this->material('Adhesive', 3);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $this->manager($memo)
             ->callTableAction('add_item', data: ['item_type' => 'raw_material', 'raw_material_id' => $material->id, 'qty_taken' => 5])
             ->assertNotified('Tidak bisa menambah barang');
@@ -304,7 +502,7 @@ class MaterialMemoResourceTest extends TestCase
         $memo = $this->memo($this->storeA);
         $material = $this->material('Adhesive', 10);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $this->manager($memo)
             ->callTableAction('add_item', data: ['item_type' => 'raw_material', 'raw_material_id' => $material->id, 'qty_taken' => 0])
             ->assertHasTableActionErrors(['qty_taken']);
@@ -325,7 +523,7 @@ class MaterialMemoResourceTest extends TestCase
         $item = $this->roll('SC-MEMO-1', 15);
         $scroll = $item->scrollCode ?? ScrollCode::find($item->scroll_code_id);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $this->manager($memo)
             ->callTableAction('add_item', data: ['item_type' => 'inventory_item', 'inventory_item_id' => $item->id, 'meters_used' => 4.5])
             ->assertHasNoTableActionErrors()
@@ -348,7 +546,7 @@ class MaterialMemoResourceTest extends TestCase
     {
         $memo = $this->memo($this->storeA);
         $material = $this->material('Adhesive', 10);
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $row = \App\Services\MaterialMemoStockService::addMaterial($material, 'raw_material', $memo, 5, auth()->id(), null);
         $this->assertEquals(5, (float) $material->fresh()->current_stock);
 
@@ -373,7 +571,7 @@ class MaterialMemoResourceTest extends TestCase
     {
         $memo = $this->memo($this->storeA);
         $material = $this->material('Adhesive', 10);
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $row = \App\Services\MaterialMemoStockService::addMaterial($material, 'raw_material', $memo, 5, auth()->id(), null);
 
         $this->manager($memo)->callTableAction('return_item', $row, data: ['qty_returned' => 0])->assertHasNoTableActionErrors();
@@ -388,7 +586,7 @@ class MaterialMemoResourceTest extends TestCase
     {
         $memo = $this->memo($this->storeA);
         $item = $this->roll('SC-MEMO-2');
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $row = \App\Services\MaterialMemoStockService::addInventory($item, $memo, 2, auth()->id(), null);
 
         $this->manager($memo)->assertTableActionHidden('return_item', $row)->assertTableActionVisible('edit_qty', $row);
@@ -400,7 +598,7 @@ class MaterialMemoResourceTest extends TestCase
     {
         $memo = $this->memo($this->storeA);
         $material = $this->material('Adhesive', 10);
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $row = \App\Services\MaterialMemoStockService::addMaterial($material, 'raw_material', $memo, 4, auth()->id(), null);
 
         $this->manager($memo)->callTableAction('edit_qty', $row, data: ['qty' => 6])->assertHasNoTableActionErrors();
@@ -422,7 +620,7 @@ class MaterialMemoResourceTest extends TestCase
     {
         $memo = $this->memo($this->storeA);
         $item = $this->roll('SC-MEMO-3', 15);
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $row = \App\Services\MaterialMemoStockService::addInventory($item, $memo, 5, auth()->id(), null);
 
         $this->manager($memo)->callTableAction('edit_qty', $row, data: ['qty' => 8])->assertHasNoTableActionErrors();
@@ -443,7 +641,7 @@ class MaterialMemoResourceTest extends TestCase
         $memo = $this->memo($this->storeA);
         $material = $this->material('Adhesive', 10);
         $roll = $this->roll('SC-MEMO-4', 15);
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $rowA = \App\Services\MaterialMemoStockService::addMaterial($material, 'raw_material', $memo, 4, auth()->id(), null);
         $rowB = \App\Services\MaterialMemoStockService::addInventory($roll, $memo, 3, auth()->id(), null);
 
@@ -462,7 +660,7 @@ class MaterialMemoResourceTest extends TestCase
     {
         $memo = $this->memo($this->storeA);
         $material = $this->material('Adhesive', 10);
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $row = \App\Services\MaterialMemoStockService::addMaterial($material, 'raw_material', $memo, 5, auth()->id(), null);
         \App\Services\MaterialMemoStockService::returnMaterial($row, 2, auth()->id(), $memo);
         $this->assertEquals(7, (float) $material->fresh()->current_stock);
@@ -481,7 +679,7 @@ class MaterialMemoResourceTest extends TestCase
         \App\Services\MaterialMemoStockService::addMaterial($material, 'raw_material', $memo, 4, $admin->id, null);
         \App\Services\MaterialMemoStockService::addInventory($roll, $memo, 6, $admin->id, null);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(EditMaterialMemo::class, ['record' => $memo->getRouteKey()])->assertActionHidden('delete');
 
         $this->as($admin);
@@ -510,7 +708,7 @@ class MaterialMemoResourceTest extends TestCase
         $booking->update(['film_product_id' => $product->id]);
         $memo = $this->memo($this->storeA, ['booking_id' => $booking->id]);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $this->manager($memo)->callTableAction('isi_dari_resep')->assertHasNoTableActionErrors();
         $this->manager($memo)->callTableAction('isi_dari_resep')->assertHasNoTableActionErrors();
 
@@ -522,7 +720,7 @@ class MaterialMemoResourceTest extends TestCase
     public function test_fill_from_recipe_is_hidden_without_a_booking(): void
     {
         $memo = $this->memo($this->storeA);
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
 
         $this->manager($memo)->assertTableActionHidden('isi_dari_resep');
     }
@@ -554,7 +752,7 @@ class MaterialMemoResourceTest extends TestCase
         $this->assertSame('4.00 meter', $rows['Film (SC-1)'][12]);
 
         Excel::fake();
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(ListMaterialMemos::class)->callTableAction('export')->assertHasNoTableActionErrors();
         Excel::assertDownloaded('memo-pengambilan-pengembalian-20261008.xlsx');
 
