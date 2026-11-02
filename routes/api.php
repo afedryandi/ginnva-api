@@ -519,6 +519,10 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:30,1');
         Route::post('/consumables/{id}/adjust', [StaffConsumableItemController::class, 'adjustStock'])
             ->middleware('throttle:30,1');
+        Route::post('/consumables/{id}/write-off', [StaffConsumableItemController::class, 'writeOff'])
+            ->middleware('throttle:30,1');
+        Route::post('/consumables/{id}/restock-request', [StaffConsumableItemController::class, 'requestRestock'])
+            ->middleware('throttle:30,1');
 
         // Memo Pengambilan/Pengembalian Barang — 1 memo per instalasi,
         // gabungkan pencatatan keluar-masuk Bahan Baku, Barang Habis

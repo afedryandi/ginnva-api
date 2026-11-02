@@ -169,7 +169,7 @@ class StockTurnoverReport extends Page implements HasForms
     {
         return $type === 'Bahan Baku'
             ? \App\Filament\Resources\RawMaterialResource::getUrl('view', ['record' => $id])
-            : \App\Filament\Resources\ConsumableItemResource::getUrl('edit', ['record' => $id]);
+            : \App\Filament\Resources\ConsumableItemResource::getUrl('view', ['record' => $id]);
     }
 
     /** Log ekspor (audit 2026-09-30), konsisten dengan laporan lain. */

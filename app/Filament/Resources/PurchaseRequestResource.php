@@ -152,7 +152,7 @@ class PurchaseRequestResource extends Resource
                         ->searchable()
                         ->options(fn (Forms\Get $get) => match ($get('item_type')) {
                             'raw_material'    => RawMaterial::active()->orderBy('name')->pluck('name', 'id'),
-                            'consumable_item' => ConsumableItem::orderBy('name')->pluck('name', 'id'),
+                            'consumable_item' => ConsumableItem::active()->orderBy('name')->pluck('name', 'id'),
                             default           => [],
                         })
                         ->in(fn (Forms\Get $get) => match ($get('item_type')) {

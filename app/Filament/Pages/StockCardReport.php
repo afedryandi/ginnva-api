@@ -139,7 +139,7 @@ class StockCardReport extends Page implements HasForms
 
     public function consumableUrl(int $id): string
     {
-        return \App\Filament\Resources\ConsumableItemResource::getUrl('edit', ['record' => $id]);
+        return \App\Filament\Resources\ConsumableItemResource::getUrl('view', ['record' => $id]);
     }
 
     /** Log ekspor (audit Daftar Stok 2026-09-30), konsisten dengan laporan lain. */

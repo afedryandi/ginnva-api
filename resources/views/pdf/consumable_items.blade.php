@@ -17,7 +17,7 @@
     <table>
         <tr>
             <th>Kode</th><th>Nama Barang</th><th>Kategori</th><th class="value">Stok</th>
-            <th>Satuan</th><th class="value">Ambang Menipis</th><th class="value">Harga/Satuan</th>
+            <th>Satuan</th><th class="value">Ambang Menipis</th>@if ($showCost ?? true)<th class="value">Harga/Satuan</th>@endif
         </tr>
         @forelse ($items as $item)
             <tr>
@@ -27,7 +27,7 @@
                 <td class="value">{{ number_format((float) $item->current_stock, 2, ',', '.') }}</td>
                 <td>{{ $item->unit }}</td>
                 <td class="value">{{ $item->reorder_point !== null ? number_format((float) $item->reorder_point, 2, ',', '.') : '-' }}</td>
-                <td class="value">{{ $item->unit_cost !== null ? number_format((float) $item->unit_cost, 0, ',', '.') : '-' }}</td>
+                @if ($showCost ?? true)<td class="value">{{ $item->unit_cost !== null ? number_format((float) $item->unit_cost, 0, ',', '.') : '-' }}</td>@endif
             </tr>
         @empty
             <tr><td colspan="7">Belum ada barang.</td></tr>

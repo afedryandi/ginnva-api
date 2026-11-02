@@ -32,12 +32,17 @@ class ConsumableItemMovementResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Riwayat Barang Habis Pakai';
 
+    /** Buku pergerakan stok memuat pelaku dan harga beli per kejadian: hanya akses penuh atau menu yang dicentang eksplisit; harga butuh izin Lihat. */
     public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
+    }
+
+    public static function canSeeCost(): bool
     {
         $user = auth()->user();
 
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return $user !== null && ($user->isFullAccess() || $user->hasModuleAction(static::class, 'view', false));
     }
 
     public static function canCreate(): bool
@@ -74,8 +79,8 @@ class ConsumableItemMovementResource extends Resource
                     ->searchable()
                     ->placeholder('— (barang sudah dihapus)')
                     // Drill-down ke halaman edit barang terkait (audit 2026-09-30).
-                    ->url(fn (ConsumableItemMovement $record) => $record->consumableItem
-                        ? ConsumableItemResource::getUrl('edit', ['record' => $record->consumableItem->id])
+                    ->url(fn (ConsumableItemMovement $record) => $record->consumableItem && ConsumableItemResource::canView($record->consumableItem)
+                        ? ConsumableItemResource::getUrl('view', ['record' => $record->consumableItem->id])
                         : null),
 
                 Tables\Columns\TextColumn::make('consumableItem.category')
@@ -105,6 +110,7 @@ class ConsumableItemMovementResource extends Resource
 
                 Tables\Columns\TextColumn::make('unit_cost')
                     ->label('Harga/Satuan')
+                    ->visible(fn () => static::canSeeCost())
                     ->money('IDR')
                     ->placeholder('—')
                     ->toggleable(),
@@ -165,7 +171,7 @@ class ConsumableItemMovementResource extends Resource
                         }
 
                         return Excel::download(
-                            new ConsumableItemMovementExport($livewire->getFilteredTableQuery()),
+                            new ConsumableItemMovementExport($livewire->getFilteredTableQuery(), static::canSeeCost()),
                             'riwayat-barang-habis-pakai-' . now()->format('Ymd') . '.xlsx'
                         );
                     }),

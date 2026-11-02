@@ -68,6 +68,12 @@ class ConsumableItemResourceTest extends TestCase
         return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store->id, 'menu_access' => $menuAccess, 'is_active' => true], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
+    /** Staf gudang: menu dicentang, boleh Tambah/Ubah dan melihat harga; tidak boleh menghapus. */
+    private function writer(): User
+    {
+        return $this->user('kasir', ['ConsumableItemResource'], ['menu_permissions' => ['ConsumableItemResource' => ['create', 'update', 'view']]]);
+    }
+
     private function as(User $user): User
     {
         $this->actingAs($user, 'web');
@@ -90,15 +96,20 @@ class ConsumableItemResourceTest extends TestCase
         $this->assertTrue(ConsumableItemResource::canViewAny());
         $this->assertTrue(ConsumableItemResource::canDelete($record));
 
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $this->assertTrue(ConsumableItemResource::canViewAny());
         $this->assertTrue(ConsumableItemResource::canCreate());
         $this->assertTrue(ConsumableItemResource::canEdit($record));
         $this->assertFalse(ConsumableItemResource::canDelete($record));
         $this->assertFalse(ConsumableItemResource::canDeleteAny());
 
-        $this->as($this->user('kasir', null, ['menu_permissions' => ['ConsumableItemResource' => ['delete']]]));
+        $this->as($this->user('kasir', ['ConsumableItemResource'], ['menu_permissions' => ['ConsumableItemResource' => ['delete']]]));
         $this->assertTrue(ConsumableItemResource::canDelete($record));
+
+        // Akses bawaan (menu_access kosong) tidak membuka menu ini.
+        $this->as($this->user('kasir'));
+        $this->assertFalse(ConsumableItemResource::canViewAny());
+        $this->assertFalse(ConsumableItemResource::canCreate());
 
         $this->as($this->user('kasir', ['BookingResource']));
         $this->assertFalse(ConsumableItemResource::canViewAny());
@@ -122,6 +133,176 @@ class ConsumableItemResourceTest extends TestCase
         $empty = $this->item('Stok Kosong', 0);
         DB::table('consumable_items')->where('id', $empty->id)->update(['created_at' => '2026-06-01 09:00:00']);
         $this->assertFalse($empty->fresh()->isDeadStock());
+    }
+
+    // ------------------------------------------------------------- audit Barang Habis Pakai B-F
+
+    public function test_the_unit_is_locked_after_history_the_name_is_unique_and_the_category_matches_existing_ones(): void
+    {
+        $this->as($this->user('super_admin'));
+        $fresh = $this->item('Belum Ada Riwayat', 0);
+        $used = $this->item('Sudah Ada Riwayat', 10, ['category' => 'Lakban Uji']);
+        $used->recordMovement('in', 5, null, 'riwayat');
+
+        Livewire::test(EditConsumableItem::class, ['record' => $fresh->getKey()])->assertFormFieldIsEnabled('unit');
+        Livewire::test(EditConsumableItem::class, ['record' => $used->getKey()])
+            ->assertFormFieldIsDisabled('unit')
+            ->fillForm(['unit' => 'box', 'name' => 'Nama Lain'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $used->refresh();
+        $this->assertSame(['pcs', 'Nama Lain'], [$used->unit, $used->name], 'Satuan tidak berubah, field lain tersimpan.');
+
+        Livewire::test(CreateConsumableItem::class)
+            ->fillForm(['name' => 'nama lain', 'unit' => 'pcs', 'received_date' => '2026-10-05'])
+            ->call('create')
+            ->assertHasFormErrors(['name']);
+
+        Livewire::test(CreateConsumableItem::class)
+            ->fillForm(['name' => 'Barang Kategori', 'unit' => 'pcs', 'received_date' => '2026-10-05', 'category' => ' lakban uji '])
+            ->call('create')
+            ->assertHasNoFormErrors();
+        $this->assertSame('Lakban Uji', ConsumableItem::where('name', 'Barang Kategori')->value('category'));
+    }
+
+    public function test_importing_the_same_file_twice_does_not_duplicate_items(): void
+    {
+        $this->as($this->user('super_admin'));
+        Storage::fake('local');
+        $this->item('Sudah Ada Duluan', 0);
+
+        $rows = [
+            ['Nama', 'Kode', 'Kategori', 'Satuan', 'Stok Awal', 'Ambang', 'Harga', 'Tgl', 'Catatan'],
+            ['Impor Baru', '', '', 'pcs', 10, '', '', '', ''],
+            ['IMPOR BARU', '', '', 'pcs', 5, '', '', '', ''],
+            ['sudah ada duluan', '', '', 'pcs', 5, '', '', '', ''],
+            ['', '', '', '', '', '', '', '', ''],
+        ];
+        $method = new \ReflectionMethod(ConsumableItemResource::class, 'importItems');
+        $method->setAccessible(true);
+
+        foreach ([1, 2] as $run) {
+            Excel::store(new ConsumableTestRowsExport($rows), "ci-imports/dup-{$run}.xlsx", 'local');
+            $method->invoke(null, "ci-imports/dup-{$run}.xlsx");
+        }
+
+        $this->assertSame(1, ConsumableItem::whereRaw('LOWER(name) = ?', ['impor baru'])->count());
+        $this->assertSame(1, ConsumableItem::whereRaw('LOWER(name) = ?', ['sudah ada duluan'])->count());
+        $this->assertEqualsWithDelta(10.0, (float) ConsumableItem::where('name', 'Impor Baru')->value('current_stock'), 0.001);
+    }
+
+    public function test_inactive_items_are_hidden_by_default_and_from_the_alerts_but_keep_their_stock(): void
+    {
+        $this->as($this->user('super_admin'));
+        $active = $this->item('Zeta Aktif', 2, ['reorder_point' => 10]);
+        $inactive = $this->item('Zeta Nonaktif', 2, ['reorder_point' => 10, 'is_active' => false]);
+
+        Livewire::test(ListConsumableItems::class)->searchTable('Zeta')
+            ->assertCanSeeTableRecords([$active])
+            ->assertCanNotSeeTableRecords([$inactive]);
+        Livewire::test(ListConsumableItems::class)->searchTable('Zeta')->filterTable('is_active', false)
+            ->assertCanSeeTableRecords([$inactive])
+            ->assertCanNotSeeTableRecords([$active]);
+
+        $alerts = \App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget::needingAttentionQuery();
+        $this->assertTrue((clone $alerts)->whereKey($active->id)->exists());
+        $this->assertFalse((clone $alerts)->whereKey($inactive->id)->exists());
+        $this->assertEquals(2, (float) $inactive->fresh()->current_stock);
+    }
+
+    public function test_the_view_page_the_value_column_and_the_filtered_export(): void
+    {
+        $item = $this->item('Bernilai', 10, ['unit_cost' => 100]);
+
+        $this->as($this->user('kasir'));
+        Livewire::test(\App\Filament\Resources\ConsumableItemResource\Pages\ViewConsumableItem::class, ['record' => $item->getKey()])->assertForbidden();
+
+        $this->as($this->user('kasir', ['ConsumableItemResource']));
+        $this->assertTrue(ConsumableItemResource::canView($item));
+        Livewire::test(\App\Filament\Resources\ConsumableItemResource\Pages\ViewConsumableItem::class, ['record' => $item->getKey()])
+            ->assertSuccessful()
+            ->assertActionHidden('edit');
+        Livewire::test(ListConsumableItems::class)
+            ->assertCanSeeTableRecords([$item])
+            ->assertTableColumnHidden('stock_value')
+            ->assertTableColumnVisible('last_movement_at');
+
+        $this->as($this->writer());
+        Livewire::test(ListConsumableItems::class)->assertTableColumnVisible('stock_value');
+
+        $this->as($this->user('super_admin'));
+        $this->item('Ekspor B', 5, ['category' => 'Kategori Ekspor Uji']);
+        $this->item('Ekspor A', 5, ['category' => 'Kategori Ekspor Uji']);
+        $this->item('Bukan Ekspor', 5, ['category' => 'Kategori Lain']);
+
+        Excel::fake();
+        Livewire::test(ListConsumableItems::class)
+            ->filterTable('category', 'Kategori Ekspor Uji')
+            ->callAction('exportExcel')
+            ->assertHasNoActionErrors();
+        Excel::assertDownloaded('barang-habis-pakai-20261008-100000.xlsx', function (ConsumableItemExport $export) {
+            return $export->collection()->pluck(1)->all() === ['Ekspor A', 'Ekspor B'];
+        });
+    }
+
+    public function test_an_opname_difference_above_the_limit_needs_a_note_and_the_list_offers_a_purchase_request(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $limited = $this->item('Zeta Berbatas', 20, ['adjustment_note_threshold' => 5, 'reorder_point' => 30]);
+        $free = $this->item('Zeta Bebas', 20);
+
+        $this->assertTrue($limited->adjustmentNeedsNote(10));
+        $this->assertFalse($limited->adjustmentNeedsNote(15), 'Selisih tepat di batas tidak wajib catatan.');
+        $this->assertFalse($free->adjustmentNeedsNote(0), 'Tanpa batas, aturan mati.');
+
+        Livewire::test(ListConsumableItems::class)
+            ->callTableAction('adjust_stock', $limited, data: ['actual_quantity' => 10, 'note' => ''])
+            ->assertHasTableActionErrors(['note' => 'required']);
+        $this->assertEquals(20, (float) $limited->fresh()->current_stock);
+
+        Livewire::test(ListConsumableItems::class)
+            ->callTableAction('adjust_stock', $limited, data: ['actual_quantity' => 10, 'note' => 'Hilang di lokasi'])
+            ->assertHasNoTableActionErrors();
+        $this->assertEquals(10, (float) $limited->fresh()->current_stock);
+
+        Livewire::test(ListConsumableItems::class)
+            ->callTableAction('adjust_stock', $free, data: ['actual_quantity' => 1, 'note' => ''])
+            ->assertHasNoTableActionErrors();
+
+        // Stok 10 <= ambang 30: permintaan beli ditawarkan; barang yang cukup tidak.
+        $fine = $this->item('Zeta Cukup', 50, ['reorder_point' => 10]);
+        Livewire::test(ListConsumableItems::class)
+            ->assertTableActionVisible('requestPurchase', $limited)
+            ->assertTableActionHidden('requestPurchase', $fine)
+            ->callTableAction('requestPurchase', $limited, data: ['store_id' => $admin->store_id, 'quantity' => 8])
+            ->assertHasNoTableActionErrors()
+            ->assertTableActionHidden('requestPurchase', $limited);
+        $this->assertSame('pending', \App\Models\PurchaseRequest::where('item_id', $limited->id)->where('item_type', 'consumable_item')->value('status'));
+    }
+
+    public function test_a_view_only_account_cannot_record_stock_and_does_not_see_prices(): void
+    {
+        $item = $this->item('Hanya Lihat', 10, ['unit_cost' => 5000]);
+
+        $this->as($this->user('kasir', ['ConsumableItemResource']));
+        $this->assertFalse(ConsumableItemResource::canEdit($item));
+        $this->assertFalse(ConsumableItemResource::canSeeCost());
+
+        Livewire::test(ListConsumableItems::class)
+            ->assertTableActionHidden('adjust_stock', $item)
+            ->assertTableActionHidden('write_off', $item)
+            ->assertTableActionHidden('record_movement', $item)
+            ->assertTableColumnHidden('unit_cost');
+
+        $this->assertSame(['Kode', 'Nama Barang', 'Kategori', 'Stok', 'Satuan', 'Ambang Menipis'], (new ConsumableItemExport(false))->headings());
+        $this->assertCount(6, (new ConsumableItemExport(false))->collection()->first());
+
+        $this->as($this->writer());
+        Livewire::test(ListConsumableItems::class)
+            ->assertTableActionVisible('adjust_stock', $item)
+            ->assertTableActionVisible('write_off', $item)
+            ->assertTableActionVisible('record_movement', $item);
+        $this->assertContains('Harga/Satuan', (new ConsumableItemExport())->headings());
     }
 
     // ------------------------------------------------------------- daftar
@@ -178,7 +359,7 @@ class ConsumableItemResourceTest extends TestCase
 
     public function test_creating_without_stock_records_nothing(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
 
         Livewire::test(CreateConsumableItem::class)
             ->fillForm(['name' => 'Cutter Kosong', 'unit' => 'pcs', 'received_date' => '2026-10-05'])
@@ -220,7 +401,7 @@ class ConsumableItemResourceTest extends TestCase
 
     public function test_the_form_cannot_change_the_stock_but_other_fields_save(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $item = $this->item('Stok Terkunci', 40, ['code' => 'LOCK-1']);
 
         Livewire::test(EditConsumableItem::class, ['record' => $item->getKey()])
@@ -238,7 +419,7 @@ class ConsumableItemResourceTest extends TestCase
     {
         $item = $this->item('Untuk Dihapus');
 
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         Livewire::test(EditConsumableItem::class, ['record' => $item->getKey()])->assertActionHidden('delete');
         Livewire::test(ListConsumableItems::class)->assertTableBulkActionHidden('delete');
 
@@ -251,7 +432,7 @@ class ConsumableItemResourceTest extends TestCase
 
     public function test_adjust_stock_records_the_difference_or_nothing(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $item = $this->item('Opname', 50);
 
         Livewire::test(ListConsumableItems::class)
@@ -273,7 +454,7 @@ class ConsumableItemResourceTest extends TestCase
 
     public function test_recording_stock_in_and_out(): void
     {
-        $user = $this->as($this->user('kasir'));
+        $user = $this->as($this->writer());
         $item = $this->item('Catat', 10, ['unit_cost' => 1000]);
 
         Livewire::test(ListConsumableItems::class)
@@ -326,7 +507,7 @@ class ConsumableItemResourceTest extends TestCase
 
     public function test_write_off_cannot_exceed_the_stock_or_use_an_unknown_reason(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $item = $this->item('Terbuang Terbatas', 10, ['unit_cost' => 100]);
         $before = StockWriteOff::count();
 
@@ -355,7 +536,7 @@ class ConsumableItemResourceTest extends TestCase
         $this->assertEquals(['EXP-A', 'Export A', 'Lakban', 20.0, 'pcs', 5.0, 7.5], $rows['EXP-A']);
         $this->assertEquals(['EXP-B', 'Export B', '-', 3.0, 'pcs', '-', '-'], $rows['EXP-B']);
 
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         Excel::fake();
         $page = Livewire::test(ListConsumableItems::class);
         $page->callAction('exportExcel')->assertHasNoActionErrors();
@@ -365,7 +546,7 @@ class ConsumableItemResourceTest extends TestCase
 
     public function test_import_and_template_actions_are_for_full_access_only(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         Livewire::test(ListConsumableItems::class)->assertTableActionHidden('import')->assertTableActionHidden('download_template');
 
         $this->as($this->user('super_admin'));

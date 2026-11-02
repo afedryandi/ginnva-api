@@ -408,6 +408,27 @@ class PurchaseRequestResourceTest extends TestCase
         $this->assertNull($other->fresh()->stock_recorded_at);
     }
 
+    public function test_fulfilling_a_consumable_request_can_record_the_received_quantity_as_stock(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $item = ConsumableItem::create(['name' => 'Lakban', 'code' => 'CI-' . uniqid(), 'category' => 'umum', 'unit' => 'roll', 'current_stock' => 5]);
+        $request = $this->request($this->storeA, ['item_type' => 'consumable_item', 'item_id' => $item->id, 'item_name' => 'Lakban', 'unit' => 'roll', 'quantity' => 5, 'status' => 'approved', 'requested_by' => $admin->id]);
+        $supplier = Supplier::create(['name' => 'Toko Perlengkapan']);
+
+        $this->assertTrue(PurchaseRequestResource::canRecordStock($request));
+
+        Livewire::test(ListPurchaseRequests::class)
+            ->callTableAction('fulfill', $request, data: ['quantity_received' => 4, 'actual_cost' => 200000, 'supplier_id' => $supplier->id, 'record_stock' => true])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertNotNull($request->fresh()->stock_recorded_at);
+        $this->assertEquals(9, (float) $item->fresh()->current_stock, 'Stok 5 + 4 diterima.');
+        $movement = $item->movements()->where('type', 'in')->latest('id')->firstOrFail();
+        $this->assertSame($this->storeA->id, $movement->store_id);
+        $this->assertEquals(50000, (float) $movement->unit_cost, 'Total biaya aktual dibagi jumlah diterima.');
+        $this->assertFalse(PurchaseRequestResource::canRecordStock($request->fresh()));
+    }
+
     public function test_only_the_requester_or_full_access_can_fulfill(): void
     {
         $requester = $this->user('kasir', null, $this->storeA);

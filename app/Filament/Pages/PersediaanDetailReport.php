@@ -164,7 +164,7 @@ class PersediaanDetailReport extends Page implements HasForms
 
     public function consumableUrl(int $id): string
     {
-        return \App\Filament\Resources\ConsumableItemResource::getUrl('edit', ['record' => $id]);
+        return \App\Filament\Resources\ConsumableItemResource::getUrl('view', ['record' => $id]);
     }
 
     /** Log ekspor (audit Detail Persediaan 2026-09-29), konsisten dengan laporan lain. */

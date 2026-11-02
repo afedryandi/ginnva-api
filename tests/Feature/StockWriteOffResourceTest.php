@@ -248,7 +248,7 @@ class StockWriteOffResourceTest extends TestCase
     public function test_a_consumable_write_off_without_cost_skips_the_journal(): void
     {
         $item = ConsumableItem::create(['name' => 'Lakban', 'code' => 'CI-' . uniqid(), 'category' => 'umum', 'unit' => 'pcs', 'current_stock' => 10]);
-        $this->as($this->user('kasir', $this->storeA));
+        $this->as($this->user('kasir', $this->storeA, ['ConsumableItemResource'], ['menu_permissions' => ['ConsumableItemResource' => ['update']]]));
 
         Livewire::test(ListConsumableItems::class)
             ->callTableAction('write_off', $item, data: ['quantity' => 4, 'reason' => 'expired'])

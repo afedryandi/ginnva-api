@@ -43,7 +43,7 @@ class ConsumablesNeedingAttentionWidget extends BaseWidget
      */
     public static function conditionQuery(): Builder
     {
-        return ConsumableItem::query()
+        return ConsumableItem::query()->active()
             ->where(function ($query) {
                 $query->where(fn ($q) => $q->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point'))
                     // Dead stock: ada stok tapi tidak ada pergerakan

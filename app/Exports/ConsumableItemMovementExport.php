@@ -17,7 +17,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  */
 class ConsumableItemMovementExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
 {
-    public function __construct(private ?Builder $query = null)
+    /** Kolom harga hanya untuk yang boleh melihat harga (ConsumableItemMovementResource::canSeeCost()). */
+    public function __construct(private ?Builder $query = null, private bool $withCost = true)
     {
     }
 
@@ -30,15 +31,17 @@ class ConsumableItemMovementExport implements FromQuery, WithHeadings, WithMappi
 
     public function headings(): array
     {
-        return [
+        $headings = [
             'Waktu', 'Barang', 'Kategori', 'Jenis',
             'Jumlah', 'Satuan', 'Harga/Satuan', 'Dicatat Oleh', 'Catatan',
         ];
+
+        return $this->withCost ? $headings : array_values(array_diff_key($headings, [6 => true]));
     }
 
     public function map($movement): array
     {
-        return [
+        $row = [
             $movement->created_at?->format('d/m/Y H:i'),
             $movement->consumableItem?->name ?? '— (barang sudah dihapus)',
             $movement->consumableItem?->category ?? '—',
@@ -55,6 +58,8 @@ class ConsumableItemMovementExport implements FromQuery, WithHeadings, WithMappi
             $movement->user?->name ?? '—',
             $movement->note,
         ];
+
+        return $this->withCost ? $row : array_values(array_diff_key($row, [6 => true]));
     }
 
     public function styles(Worksheet $sheet): array

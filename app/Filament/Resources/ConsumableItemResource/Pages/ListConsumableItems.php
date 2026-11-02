@@ -26,8 +26,9 @@ class ListConsumableItems extends ListRecords
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new ConsumableItemExport,
+                ->tooltip('Mengekspor daftar sesuai filter dan pencarian yang sedang aktif')
+                ->action(fn ($livewire) => Excel::download(
+                    new ConsumableItemExport(\App\Filament\Resources\ConsumableItemResource::canSeeCost(), $livewire->getFilteredSortedTableQuery()),
                     'barang-habis-pakai-' . now()->format('Ymd-His') . '.xlsx'
                 )),
 
@@ -35,9 +36,10 @@ class ListConsumableItems extends ListRecords
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
-                ->action(function () {
-                    $items = ConsumableItem::query()->orderBy('name')->get();
-                    $pdf = Pdf::loadView('pdf.consumable_items', ['items' => $items])->setPaper('a4', 'landscape');
+                ->tooltip('Mengekspor daftar sesuai filter dan pencarian yang sedang aktif')
+                ->action(function ($livewire) {
+                    $items = $livewire->getFilteredSortedTableQuery()->get();
+                    $pdf = Pdf::loadView('pdf.consumable_items', ['items' => $items, 'showCost' => \App\Filament\Resources\ConsumableItemResource::canSeeCost()])->setPaper('a4', 'landscape');
                     $filename = 'barang-habis-pakai-' . now()->format('Ymd-His') . '.pdf';
 
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);

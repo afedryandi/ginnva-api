@@ -105,7 +105,7 @@ class PersediaanRingkasanReport extends Page
     {
         return $source === 'raw_material'
             ? \App\Filament\Resources\RawMaterialResource::getUrl('view', ['record' => $id])
-            : \App\Filament\Resources\ConsumableItemResource::getUrl('edit', ['record' => $id]);
+            : \App\Filament\Resources\ConsumableItemResource::getUrl('view', ['record' => $id]);
     }
 
     public function getResult(): array

@@ -49,6 +49,7 @@ class MovementsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('unit_cost')
                     ->label('Harga/Satuan')
+                    ->visible(fn () => \App\Filament\Resources\ConsumableItemResource::canSeeCost())
                     ->money('IDR')
                     ->placeholder('—')
                     ->toggleable(),

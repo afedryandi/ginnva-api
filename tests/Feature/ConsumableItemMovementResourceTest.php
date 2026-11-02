@@ -91,8 +91,16 @@ class ConsumableItemMovementResourceTest extends TestCase
         $this->assertFalse(ConsumableItemMovementResource::canEdit($record));
         $this->assertFalse(ConsumableItemMovementResource::canDelete($record));
 
-        $this->as($this->user('kasir'));
+        $this->as($this->user('kasir', ['ConsumableItemMovementResource']));
         $this->assertTrue(ConsumableItemMovementResource::canViewAny());
+        $this->assertFalse(ConsumableItemMovementResource::canSeeCost());
+
+        $this->as($this->user('kasir', ['ConsumableItemMovementResource'], ['menu_permissions' => ['ConsumableItemMovementResource' => ['view']]]));
+        $this->assertTrue(ConsumableItemMovementResource::canSeeCost());
+
+        // Akses bawaan (menu_access kosong) tidak membuka buku pergerakan stok.
+        $this->as($this->user('kasir'));
+        $this->assertFalse(ConsumableItemMovementResource::canViewAny());
 
         $this->as($this->user('kasir', ['BookingResource']));
         $this->assertFalse(ConsumableItemMovementResource::canViewAny());
@@ -236,7 +244,7 @@ class ConsumableItemMovementResourceTest extends TestCase
         $first = $this->move($item, 'in', 10);
         $latest = $this->move($item, 'out', 2);
 
-        $this->as($this->user('kasir'));
+        $this->as($this->user('kasir', ['ConsumableItemMovementResource']));
         Livewire::test(ListConsumableItemMovements::class)->assertTableActionHidden('reverse', $latest);
 
         $this->as($this->user('super_admin'));

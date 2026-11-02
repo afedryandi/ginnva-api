@@ -17,17 +17,23 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  */
 class ConsumableItemExport implements FromCollection, WithHeadings, WithStyles
 {
+    /** Kolom harga hanya untuk yang boleh melihat harga (ConsumableItemResource::canSeeCost()). */
+    /** $query: daftar yang sedang difilter/dicari di layar; kosong = semua barang menurut abjad. */
+    public function __construct(private bool $withCost = true, private ?\Illuminate\Database\Eloquent\Builder $query = null)
+    {
+    }
+
     public function headings(): array
     {
-        return ['Kode', 'Nama Barang', 'Kategori', 'Stok', 'Satuan', 'Ambang Menipis', 'Harga/Satuan'];
+        $headings = ['Kode', 'Nama Barang', 'Kategori', 'Stok', 'Satuan', 'Ambang Menipis', 'Harga/Satuan'];
+
+        return $this->withCost ? $headings : array_values(array_diff_key($headings, [6 => true]));
     }
 
     public function collection(): Collection
     {
-        return ConsumableItem::query()
-            ->orderBy('name')
-            ->get()
-            ->map(fn (ConsumableItem $item) => [
+        return ($this->query ? $this->query->get() : ConsumableItem::query()->orderBy('name')->get())
+            ->map(fn (ConsumableItem $item) => $this->withoutCostColumn([
                 $item->code ?? '-',
                 $item->name,
                 $item->category ?? '-',
@@ -35,7 +41,12 @@ class ConsumableItemExport implements FromCollection, WithHeadings, WithStyles
                 $item->unit,
                 $item->reorder_point !== null ? (float) $item->reorder_point : '-',
                 $item->unit_cost !== null ? (float) $item->unit_cost : '-',
-            ]);
+            ]));
+    }
+
+    private function withoutCostColumn(array $row): array
+    {
+        return $this->withCost ? $row : array_values(array_diff_key($row, [6 => true]));
     }
 
     public function styles(Worksheet $sheet): array

@@ -125,8 +125,8 @@ class InventoryStatsOverview extends BaseWidget
         }
 
         if ($canConsumables) {
-            $low = ConsumableItem::query()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->needsReview()->count();
-            $dead = ConsumableItem::query()
+            $low = ConsumableItem::query()->active()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->needsReview()->count();
+            $dead = ConsumableItem::query()->active()
                 ->deadStock()
                 ->needsReview()
                 ->count();

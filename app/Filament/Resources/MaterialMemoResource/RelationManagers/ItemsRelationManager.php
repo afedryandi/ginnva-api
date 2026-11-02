@@ -135,7 +135,7 @@ class ItemsRelationManager extends RelationManager
                             ->visible(fn (Forms\Get $get) => $get('item_type') === 'consumable_item')
                             ->required(fn (Forms\Get $get) => $get('item_type') === 'consumable_item')
                             ->searchable()
-                            ->getSearchResultsUsing(fn (string $search) => ConsumableItem::where('name', 'like', "%{$search}%")
+                            ->getSearchResultsUsing(fn (string $search) => ConsumableItem::active()->where('name', 'like', "%{$search}%")
                                 ->orWhere('code', 'like', "%{$search}%")
                                 ->limit(20)
                                 ->pluck('name', 'id'))

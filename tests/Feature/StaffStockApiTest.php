@@ -344,6 +344,113 @@ class StaffStockApiTest extends TestCase
         $this->api($user)->postJson("/api/staff/materials/{$free->id}/adjust", ['actual_quantity' => 1])->assertSuccessful();
     }
 
+    public function test_consumable_access_is_explicit_writes_need_update_and_prices_need_view(): void
+    {
+        $item = $this->consumable('Lakban', 10);
+        $item->update(['unit_cost' => 7000]);
+        $item->recordMovement('in', 1, null, 'uji', 7000);
+
+        // Akun dengan akses bawaan hanya boleh memakai daftar pencarian (pemilih Memo Bahan/Permohonan Pembelian), tanpa harga.
+        $default = $this->staff();
+        $this->api($default)->getJson('/api/staff/consumables')->assertSuccessful();
+        $this->api($default)->getJson("/api/staff/consumables/{$item->id}")->assertStatus(403);
+        $this->api($default)->postJson("/api/staff/consumables/{$item->id}/movement", ['type' => 'in', 'quantity' => 1])->assertStatus(403);
+
+        $viewer = $this->staff('kasir', null, ['ConsumableItemResource']);
+        $detail = $this->api($viewer)->getJson("/api/staff/consumables/{$item->id}")->assertSuccessful();
+        $this->assertFalse($detail->json('can_modify'));
+        $this->assertArrayNotHasKey('unit_cost', $detail->json('data'));
+        $this->assertArrayNotHasKey('notes', $detail->json('data'));
+        $this->assertArrayNotHasKey('unit_cost', $detail->json('data.movements.0'));
+        $this->api($viewer)->postJson("/api/staff/consumables/{$item->id}/movement", ['type' => 'in', 'quantity' => 1])->assertStatus(403);
+        $this->api($viewer)->postJson("/api/staff/consumables/{$item->id}/adjust", ['actual_quantity' => 1])->assertStatus(403);
+
+        $writer = $this->staff('kasir', null, ['ConsumableItemResource'], true, ['ConsumableItemResource' => ['update']]);
+        $this->api($writer)->postJson("/api/staff/consumables/{$item->id}/movement", ['type' => 'in', 'quantity' => 2, 'unit_cost' => 99999])
+            ->assertSuccessful()
+            ->assertJsonMissingPath('data.unit_cost');
+        $this->assertSame(0, $item->movements()->where('unit_cost', 99999)->count(), 'Harga dari akun tanpa izin Lihat diabaikan.');
+        $this->assertTrue($this->api($writer)->getJson("/api/staff/consumables/{$item->id}")->json('can_modify'));
+
+        $costViewer = $this->staff('kasir', null, ['ConsumableItemResource'], true, ['ConsumableItemResource' => ['view']]);
+        $this->assertEquals(7000, $this->api($costViewer)->getJson("/api/staff/consumables/{$item->id}")->json('data.unit_cost'));
+    }
+
+    public function test_consumable_records_are_tagged_write_off_works_and_the_opname_limit_applies(): void
+    {
+        $this->seed(\Database\Seeders\ChartOfAccountSeeder::class);
+        $item = $this->consumable('Lakban', 20);
+        $item->update(['adjustment_note_threshold' => 5, 'unit_cost' => 5000]);
+        $user = $this->stockStaff();
+
+        $this->api($user)->postJson("/api/staff/consumables/{$item->id}/movement", ['type' => 'out', 'quantity' => 1])->assertSuccessful();
+        $this->api($user)->postJson("/api/staff/consumables/{$item->id}/adjust", ['actual_quantity' => 18])->assertSuccessful();
+        $this->assertSame([$this->storeA->id, $this->storeA->id], $item->movements()->pluck('store_id')->all());
+
+        // Selisih 8 > batas 5: catatan wajib.
+        $this->api($user)->postJson("/api/staff/consumables/{$item->id}/adjust", ['actual_quantity' => 10])->assertStatus(422)->assertJsonValidationErrors('note');
+        $this->api($user)->postJson("/api/staff/consumables/{$item->id}/adjust", ['actual_quantity' => 10, 'note' => '   '])->assertStatus(422);
+        $this->api($user)->postJson("/api/staff/consumables/{$item->id}/adjust", ['actual_quantity' => 10, 'note' => 'Hilang'])->assertSuccessful();
+        $this->assertEquals(10, (float) $item->fresh()->current_stock);
+
+        $this->api($user)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 3, 'reason' => 'damaged', 'note' => 'patah'])
+            ->assertSuccessful()
+            ->assertJsonPath('message', 'Stok terbuang dicatat.');
+        $this->assertEquals(7, (float) $item->fresh()->current_stock);
+        $this->assertSame(1, \App\Models\StockWriteOff::withoutGlobalScopes()->where('writeoffable_id', $item->id)->where('writeoffable_type', 'consumable_item')->count());
+        $this->api($user)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 99, 'reason' => 'lost'])->assertStatus(422);
+        $this->api($user)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 1, 'reason' => 'ngawur'])->assertStatus(422)->assertJsonValidationErrors('reason');
+
+        $viewer = $this->staff('kasir', null, ['ConsumableItemResource']);
+        $this->api($viewer)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 1, 'reason' => 'lost'])->assertStatus(403);
+        $this->assertNull($this->api($viewer)->getJson("/api/staff/consumables/{$item->id}")->json('write_off_reasons'));
+    }
+
+    public function test_consumable_restock_request_card_pending_purchase_inactive_and_totals(): void
+    {
+        $supplier = \App\Models\Supplier::create(['name' => 'Toko Perlengkapan']);
+        $low = $this->consumable('Zeta Tipis', 2);
+        $low->update(['reorder_point' => 10, 'preferred_supplier_id' => $supplier->id]);
+        $fine = $this->consumable('Zeta Aman', 50);
+        $fine->update(['reorder_point' => 10]);
+        $inactive = $this->consumable('Zeta Mati', 1);
+        $inactive->update(['reorder_point' => 10, 'is_active' => false]);
+        $user = $this->staff('kasir', null, ['ConsumableItemResource', 'PurchaseRequestResource']);
+
+        $list = $this->api($user)->getJson('/api/staff/consumables?search=Zeta')->assertSuccessful();
+        $this->assertEqualsCanonicalizing(['Zeta Tipis', 'Zeta Aman'], array_column($list->json('data'), 'name'));
+        $this->assertSame(2, $list->json('total'));
+        $this->assertSame(30, $list->json('limit'));
+        $this->assertArrayHasKey('low', $list->json('summary'));
+        $this->assertSame(['Zeta Tipis'], array_column($this->api($user)->getJson('/api/staff/consumables?filter=low&search=Zeta')->json('data'), 'name'));
+        $this->api($user)->getJson("/api/staff/consumables/{$inactive->id}")->assertSuccessful();
+
+        $detail = $this->api($user)->getJson("/api/staff/consumables/{$low->id}")->assertSuccessful();
+        $this->assertSame('Toko Perlengkapan', $detail->json('card.preferred_supplier'));
+        $this->assertTrue($detail->json('restock.can_request'));
+        $this->assertEquals(8, $detail->json('restock.suggested_quantity'));
+        $this->assertFalse($this->api($user)->getJson("/api/staff/consumables/{$fine->id}")->json('restock.can_request'));
+
+        $this->api($user)->postJson("/api/staff/consumables/{$fine->id}/restock-request", ['quantity' => 5])->assertStatus(422);
+        $this->api($user)->postJson("/api/staff/consumables/{$low->id}/restock-request", ['quantity' => 0])->assertStatus(422)->assertJsonValidationErrors('quantity');
+        $created = $this->api($user)->postJson("/api/staff/consumables/{$low->id}/restock-request", ['quantity' => 8, 'note' => 'Habis minggu ini'])->assertSuccessful();
+        $purchase = \App\Models\PurchaseRequest::where('item_id', $low->id)->where('item_type', 'consumable_item')->firstOrFail();
+        $this->assertSame($purchase->request_number, $created->json('data.request_number'));
+        $this->assertSame(['pending', $this->storeA->id, $user->id], [$purchase->status, $purchase->store_id, $purchase->requested_by]);
+        $this->api($user)->postJson("/api/staff/consumables/{$low->id}/restock-request", ['quantity' => 3])->assertStatus(422);
+
+        $noPurchaseMenu = $this->staff('kasir', null, ['ConsumableItemResource']);
+        $this->assertNull($this->api($noPurchaseMenu)->getJson("/api/staff/consumables/{$low->id}")->json('restock'));
+        $this->api($noPurchaseMenu)->postJson("/api/staff/consumables/{$low->id}/restock-request", ['quantity' => 3])->assertStatus(403);
+
+        // Permohonan disetujui yang menunggu barang ini muncul bagi akun yang boleh mencatat.
+        $writer = $this->stockStaff();
+        $this->assertNull($this->api($writer)->getJson("/api/staff/consumables/{$low->id}")->json('pending_purchase'), 'Yang masih menunggu persetujuan tidak ditampilkan.');
+        $purchase->update(['status' => 'approved']);
+        $this->assertSame($purchase->request_number, $this->api($writer)->getJson("/api/staff/consumables/{$low->id}")->json('pending_purchase.request_number'));
+        $this->assertNull($this->api($noPurchaseMenu)->getJson("/api/staff/consumables/{$low->id}")->json('pending_purchase'));
+    }
+
     public function test_search_lists_by_name_or_code_and_flags_expiry_for_materials(): void
     {
         $adhesive = $this->material('Adhesive');

@@ -29,18 +29,22 @@ class ConsumableItem extends Model
         'unit',
         'current_stock',
         'reorder_point',
+        'adjustment_note_threshold',
         'preferred_supplier_id',
         'unit_cost',
         'notes',
+        'is_active',
         'created_by',
     ];
 
     protected $casts = [
         'current_stock' => 'decimal:2',
         'reorder_point' => 'decimal:2',
+        'adjustment_note_threshold' => 'decimal:2',
         'unit_cost'     => 'decimal:2',
         'received_date' => 'date',
         'reviewed_at'   => 'datetime',
+        'is_active'     => 'boolean',
     ];
 
     public const DEAD_STOCK_DAYS = 60;
@@ -51,6 +55,22 @@ class ConsumableItem extends Model
      * membuat barang yang sebenarnya mengendap tampak "baru bergerak". Barang tanpa riwayat dihitung sejak tanggal dibuat.
      * Sama dengan RawMaterial::scopeDeadStock().
      */
+    /** Barang yang masih dipakai: yang nonaktif tidak muncul di pemilih dan peringatan (stok dan riwayatnya tetap ada). */
+    public function scopeActive($query)
+    {
+        return $query->where('consumable_items.is_active', true);
+    }
+
+    /**
+     * Opname dengan hasil hitung $actual wajib disertai catatan bila selisihnya dari stok sistem lebih besar dari
+     * adjustment_note_threshold barang ini (satuan barang itu). Ambang kosong = aturan mati. Dicek di pintu masuk (panel dan API).
+     */
+    public function adjustmentNeedsNote(float $actual): bool
+    {
+        return $this->adjustment_note_threshold !== null
+            && abs($actual - (float) $this->current_stock) > (float) $this->adjustment_note_threshold + 1e-9;
+    }
+
     public function scopeDeadStock($query)
     {
         $cutoff = now()->subDays(self::DEAD_STOCK_DAYS);
@@ -231,7 +251,7 @@ class ConsumableItem extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'code', 'category', 'received_date', 'unit', 'current_stock', 'reorder_point', 'unit_cost', 'notes'])
+            ->logOnly(['name', 'code', 'category', 'is_active', 'received_date', 'unit', 'current_stock', 'reorder_point', 'adjustment_note_threshold', 'unit_cost', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('consumable_item')

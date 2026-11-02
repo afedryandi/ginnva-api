@@ -38,7 +38,7 @@ class StockOverviewController extends Controller
         $consumables = null;
         if ($user->hasConsumableAccess()) {
             $consumables = [
-                'low' => ConsumableItem::query()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->count(),
+                'low' => ConsumableItem::query()->active()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->count(),
             ];
         }
 
