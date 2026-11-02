@@ -505,6 +505,9 @@ Route::prefix('staff')->group(function () {
 
         // Barang Habis Pakai — sama pola dengan Bahan Baku (tidak ada
         // kode fisik per unit, dicari lewat nama/kode, bukan scan QR).
+        // Ringkasan stok untuk Beranda (menipis, kedaluwarsa); hanya jumlah.
+        Route::get('/stock-overview', [\App\Http\Controllers\Api\Staff\StockOverviewController::class, 'show']);
+
         Route::get('/consumables', [StaffConsumableItemController::class, 'index']);
         Route::get('/consumables/{id}', [StaffConsumableItemController::class, 'show']);
         Route::get('/consumables/{id}/movements', [StaffConsumableItemController::class, 'movements']);

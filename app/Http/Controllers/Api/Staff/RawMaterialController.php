@@ -38,6 +38,9 @@ class RawMaterialController extends Controller
         }
 
         $search = trim((string) $request->query('search', ''));
+        // filter=low (stok di bawah ambang) atau filter=expiry (ada batch kedaluwarsa/mendekati, 30 hari); tanpa filter, 30 baris
+        // pertama menurut abjad saja, jadi bahan yang menipis bisa tak terlihat di daftar panjang.
+        $filter = in_array($request->query('filter'), ['low', 'expiry'], true) ? $request->query('filter') : null;
 
         // Batch aktif (quantity>0) ikut di-eager-load supaya staff bisa
         // lihat status kedaluwarsa langsung dari daftar pencarian — dulu
@@ -50,10 +53,16 @@ class RawMaterialController extends Controller
             ->with(['batches' => fn ($q) => $q->where('quantity', '>', 0)->whereNotNull('expiry_date')])
             ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%")))
+            ->when($filter === 'low', fn ($q) => $q->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')
+                ->orderByRaw('(current_stock - reorder_point) asc'))
+            ->when($filter === 'expiry', fn ($q) => $q->whereHas('batches', fn ($b) => $b->where('quantity', '>', 0)
+                ->whereNotNull('expiry_date')
+                ->whereDate('expiry_date', '<=', today()->addDays(30)->toDateString())))
             ->orderBy('name')
-            ->limit(30)
+            ->limit($filter ? 100 : 30)
             ->get()
             ->map(function (RawMaterial $m) {
+                $m->setAttribute('is_low_stock', $m->reorder_point !== null && (float) $m->current_stock <= (float) $m->reorder_point);
                 $earliest = $m->batches->min('expiry_date');
 
                 $m->setAttribute('nearest_expiry_date', $earliest);

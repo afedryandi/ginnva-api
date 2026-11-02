@@ -34,13 +34,18 @@ class ConsumableItemController extends Controller
         }
 
         $search = trim((string) $request->query('search', ''));
+        // filter=low: hanya yang stoknya di bawah ambang, yang paling kurang dulu (lihat RawMaterialController::index()).
+        $filter = $request->query('filter') === 'low' ? 'low' : null;
 
         $items = ConsumableItem::query()
             ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%")))
+            ->when($filter === 'low', fn ($q) => $q->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')
+                ->orderByRaw('(current_stock - reorder_point) asc'))
             ->orderBy('name')
-            ->limit(30)
-            ->get(['id', 'name', 'code', 'category', 'unit', 'current_stock', 'reorder_point']);
+            ->limit($filter ? 100 : 30)
+            ->get(['id', 'name', 'code', 'category', 'unit', 'current_stock', 'reorder_point'])
+            ->each(fn (ConsumableItem $i) => $i->setAttribute('is_low_stock', $i->reorder_point !== null && (float) $i->current_stock <= (float) $i->reorder_point));
 
         return response()->json([
             'success' => true,
