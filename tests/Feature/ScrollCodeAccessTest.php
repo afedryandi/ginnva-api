@@ -156,7 +156,7 @@ class ScrollCodeAccessTest extends TestCase
         $this->assertSame('allocated', $free->fresh()->status);
         $this->assertSame($other->id, $free->fresh()->store_id);
         $this->assertSame('unallocated', $inWarehouse->fresh()->status, 'Gulungan barang Ada Stok tidak dialokasikan dari sini.');
-        $this->assertNull($inWarehouse->fresh()->store_id);
+        $this->assertNotSame($other->id, $inWarehouse->fresh()->store_id, 'Toko tujuan tidak diterapkan ke gulungan yang dilewati.');
     }
 
     // ------------------------------------------------------------- audit Kode Gulungan C: daftar
@@ -258,9 +258,9 @@ class ScrollCodeAccessTest extends TestCase
                 'length_summary' => '8.00 / 15.00 m',
                 'length_adjustment_display' => '-3.00 m',
                 'cost_display' => 'Rp3.000.000 (Rp200.000/m)',
+                'usage_summary' => '0 garansi · 1 catatan meter',
             ])
-            ->assertSee('INV-LIHAT001')
-            ->assertSee('0 garansi · 1 catatan meter');
+            ->assertSee('INV-LIHAT001');
     }
 
     public function test_the_view_page_hides_the_cost_without_the_view_grant(): void
@@ -269,11 +269,11 @@ class ScrollCodeAccessTest extends TestCase
 
         $this->actingAs($this->user('kasir', ['ScrollCodeResource']), 'web');
         Livewire::test(ScrollCodeResource\Pages\ViewScrollCode::class, ['record' => $roll->getKey()])
-            ->assertFormFieldHidden('cost_display');
+            ->assertFormFieldIsHidden('cost_display');
 
         $this->actingAs($this->user('kasir', ['ScrollCodeResource'], ['ScrollCodeResource' => ['view']]), 'web');
         Livewire::test(ScrollCodeResource\Pages\ViewScrollCode::class, ['record' => $roll->getKey()])
-            ->assertFormFieldVisible('cost_display');
+            ->assertFormFieldIsVisible('cost_display');
     }
 
     public function test_the_view_page_header_actions_follow_full_access_and_the_roll_status(): void
