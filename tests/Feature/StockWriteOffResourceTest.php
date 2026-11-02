@@ -189,7 +189,8 @@ class StockWriteOffResourceTest extends TestCase
     public function test_staff_can_record_a_write_off_and_see_it_but_other_stores_do_not(): void
     {
         $material = $this->material('Adhesive', 20, 50000);
-        $staff = $this->as($this->user('kasir', $this->storeA));
+        // Staf gudang: menu Daftar Bahan Baku dicentang dan boleh Ubah (akses bawaan tidak lagi membuka menu ini).
+        $staff = $this->as($this->user('kasir', $this->storeA, ['RawMaterialResource', 'StockWriteOffResource'], ['menu_permissions' => ['RawMaterialResource' => ['update']]]));
 
         Livewire::test(ListRawMaterials::class)
             ->callTableAction('write_off', $material, data: ['quantity' => 5, 'reason' => 'damaged', 'note' => 'Tumpah'])
@@ -228,7 +229,7 @@ class StockWriteOffResourceTest extends TestCase
     public function test_the_action_rejects_more_than_the_stock_and_unknown_reasons(): void
     {
         $material = $this->material('Adhesive', 3, 50000);
-        $this->as($this->user('kasir', $this->storeA));
+        $this->as($this->user('kasir', $this->storeA, ['RawMaterialResource'], ['menu_permissions' => ['RawMaterialResource' => ['update']]]));
 
         Livewire::test(ListRawMaterials::class)
             ->callTableAction('write_off', $material, data: ['quantity' => 5, 'reason' => 'damaged'])

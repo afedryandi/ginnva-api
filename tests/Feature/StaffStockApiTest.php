@@ -110,9 +110,12 @@ class StaffStockApiTest extends TestCase
         $material->batches()->create(['quantity' => 10, 'unit_cost' => 5000, 'received_date' => '2026-10-01']);
         $material->recordMovement('in', 1, null, 'uji', '2026-10-02', null, 5000);
 
+        // Akun dengan akses bawaan hanya boleh memakai daftar pencarian (pemilih Memo Bahan/Permohonan Pembelian, tanpa harga):
+        // detail dan pencatatan tetap tertutup.
         $default = $this->staff();
-        $this->api($default)->getJson('/api/staff/materials')->assertStatus(403);
+        $this->api($default)->getJson('/api/staff/materials')->assertSuccessful()->assertJsonPath('can_modify', false);
         $this->api($default)->getJson("/api/staff/materials/{$material->id}")->assertStatus(403);
+        $this->api($default)->postJson("/api/staff/materials/{$material->id}/movement", ['type' => 'in', 'quantity' => 1])->assertStatus(403);
 
         $viewer = $this->staff('kasir', null, ['RawMaterialResource']);
         $detail = $this->api($viewer)->getJson("/api/staff/materials/{$material->id}")->assertSuccessful();
@@ -139,6 +142,8 @@ class StaffStockApiTest extends TestCase
 
     public function test_mobile_records_are_tagged_with_the_recorders_store_and_write_off_has_its_own_endpoint(): void
     {
+        // Jurnal kerugian memerlukan akun bagan akun (6520/1130) bila modul Keuangan menyala.
+        $this->seed(\Database\Seeders\ChartOfAccountSeeder::class);
         $material = $this->material('Adhesive', 10, 5000);
         $user = $this->stockStaff();
 
