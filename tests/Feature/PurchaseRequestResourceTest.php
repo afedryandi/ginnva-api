@@ -397,9 +397,9 @@ class PurchaseRequestResourceTest extends TestCase
         // Pemohon tanpa izin mengubah stok bahan baku: toggle tidak ditawarkan dan dipaksa ikut pun diabaikan.
         $requester = $this->user('kasir', ['PurchaseRequestResource'], $this->storeA);
         $other = $this->request($this->storeA, ['item_type' => 'raw_material', 'item_id' => $material->id, 'item_name' => 'Adhesive', 'unit' => 'liter', 'quantity' => 3, 'status' => 'approved', 'requested_by' => $requester->id]);
+        $this->as($requester);
         $this->assertFalse(PurchaseRequestResource::canRecordStock($other));
 
-        $this->as($requester);
         Livewire::test(ListPurchaseRequests::class)
             ->callTableAction('fulfill', $other, data: ['quantity_received' => 3, 'actual_cost' => 90000, 'supplier_id' => $supplier->id, 'record_stock' => true])
             ->assertHasNoTableActionErrors();

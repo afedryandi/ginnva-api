@@ -56,13 +56,15 @@ class MaterialMemoStoreTaggingTest extends TestCase
         MaterialMemoStockService::updateMaterialQty($item->fresh(), 6, $staff->id, $memo);   // masuk 1
         MaterialMemoStockService::returnMaterial($item->fresh(), 2, $staff->id, $memo, null, '2027-03-01');
 
+        // Diperiksa sebelum pengambilan berikutnya: stok keluar memakai FIFO dan menghabiskan batch tertua lebih dulu.
+        $this->assertEquals(2, (float) $material->batches()->whereDate('expiry_date', '2027-03-01')->sum('quantity'), 'Batch hasil pengembalian membawa kedaluwarsa yang diisi.');
+
         $second = MaterialMemoStockService::addMaterial($material->fresh(), 'raw_material', $memo, 3, $staff->id, null);
         MaterialMemoStockService::reverseItem($second->fresh(), $staff->id, $memo);
 
         $this->assertSame(0, $material->movements()->whereNull('store_id')->count(), 'Semua pergerakan memo bahan baku ditandai cabang memo.');
         $this->assertSame(6, $material->movements()->count());
         $this->assertEquals(16, (float) $material->fresh()->current_stock);
-        $this->assertEquals(2, (float) $material->batches()->whereDate('expiry_date', '2027-03-01')->sum('quantity'), 'Batch hasil pengembalian membawa kedaluwarsa yang diisi.');
 
         $consumableItem = MaterialMemoStockService::addMaterial($consumable, 'consumable_item', $memo, 4, $staff->id, null);
         MaterialMemoStockService::returnMaterial($consumableItem->fresh(), 1, $staff->id, $memo, null, '2027-03-01');
