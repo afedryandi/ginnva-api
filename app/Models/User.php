@@ -401,6 +401,20 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         return $names->sort()->first();
     }
 
+    /** Role yang tidak wajib absen (keputusan 2026-11-02): direksi. */
+    public const ATTENDANCE_EXEMPT_ROLES = ['direksi'];
+
+    public function isAttendanceExempt(): bool
+    {
+        return $this->hasAnyRole(self::ATTENDANCE_EXEMPT_ROLES);
+    }
+
+    /** Karyawan yang wajib absen: semua kecuali role yang dibebaskan. Dipakai penanda Alpha otomatis dan pengingat belum absen. */
+    public function scopeRequiresAttendance($query)
+    {
+        return $query->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', self::ATTENDANCE_EXEMPT_ROLES));
+    }
+
     /**
      * Boleh melihat absensi SEMUA karyawan tokonya: akses penuh, store manager, atau staf yang diberi izin Buat/Ubah langsung di Hak Akses Detail.
      * Staf lain hanya melihat dan mengajukan koreksi untuk absensinya sendiri.

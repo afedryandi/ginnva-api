@@ -262,6 +262,8 @@ class AuthController extends Controller
             'role'     => $user->primaryRoleName(),
             'roles'    => $user->getRoleNames()->sort()->values()->all(),
             'store_id' => $user->store_id,
+            // Direksi tidak wajib absen: aplikasi menyembunyikan tab dan kartu absensi (sesi lama tanpa flag dianggap wajib).
+            'attendance_required' => ! $user->isAttendanceExempt(),
             // Dipakai app buat putuskan halaman awal setelah login —
             // lihat User::hasBookingAccess()/hasInventoryAccess().
             'has_booking_access'   => $user->hasBookingAccess(),

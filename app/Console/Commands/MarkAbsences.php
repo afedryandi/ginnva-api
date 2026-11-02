@@ -50,6 +50,8 @@ class MarkAbsences extends Command
                 // Sudah lewat Hari Kerja Terakhir: tidak ada lagi Alpha.
                 ->where(fn ($q) => $q->whereNull('last_work_date')->orWhereDate('last_work_date', '>=', $yesterday))
                 ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
+                // Direksi tidak wajib absen, jadi tidak pernah ditandai Alpha.
+                ->requiresAttendance()
                 ->get();
 
             $alreadyRecorded = Attendance::where('store_id', $store->id)

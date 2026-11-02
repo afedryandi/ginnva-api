@@ -39,6 +39,7 @@ class AttendanceController extends Controller
 
         return response()->json([
             'success' => true,
+            'attendance_required' => ! $user->isAttendanceExempt(),
             'attendance' => $attendance ? $this->transform($attendance) : null,
             // Penanda di tautan Riwayat Surat Peringatan pada layar Absensi.
             'unread_warning_letters' => \App\Models\WarningLetter::unreadCountFor($user->id),
@@ -61,6 +62,8 @@ class AttendanceController extends Controller
      */
     public function clockIn(Request $request)
     {
+        abort_if($request->user('api')->isAttendanceExempt(), 403, 'Role Direksi tidak perlu absen.');
+
         $this->normalizeMockedFlag($request);
 
         $request->validate([
@@ -141,6 +144,8 @@ class AttendanceController extends Controller
      */
     public function clockOut(Request $request)
     {
+        abort_if($request->user('api')->isAttendanceExempt(), 403, 'Role Direksi tidak perlu absen.');
+
         $this->normalizeMockedFlag($request);
 
         $request->validate([
