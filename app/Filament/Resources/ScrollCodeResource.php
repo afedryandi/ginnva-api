@@ -26,16 +26,19 @@ class ScrollCodeResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-qr-code';
 
-    // Dipindah ke MasterDataCluster 2026-09-14 (struktur dropdown top-nav
-    // "Lainnya" bertingkat — lihat catatan di MasterDataCluster.php).
-    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
+    // Dipindah ke klaster Inventori 2026-11-02 (kode gulungan adalah data stok roll film); sebelumnya MasterDataCluster. Tetap
+    // disembunyikan dari sidebar (lihat shouldRegisterNavigation()): dibuka lewat Produk PPF/WF.
+    protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
+
+    protected static ?string $navigationGroup = 'Master Data Stok';
+
     protected static ?string $navigationLabel = 'Kode Gulungan';
 
     protected static ?string $modelLabel = 'Kode Gulungan';
 
     protected static ?string $pluralModelLabel = 'Kode Gulungan';
 
-    protected static ?int $navigationSort = 50;
+    protected static ?int $navigationSort = 15;
 
     public static function canViewAny(): bool
     {

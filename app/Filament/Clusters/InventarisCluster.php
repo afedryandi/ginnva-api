@@ -5,16 +5,13 @@ namespace App\Filament\Clusters;
 use Filament\Clusters\Cluster;
 
 /**
- * Cluster "Inventori" — di bawah navigationGroup "Penjualan" (dipindah
- * 2026-09-10, mengikuti struktur Majoo: Penjualan > Inventori > Daftar
- * Bahan Baku). Sejajar dengan cluster Produk / Laporan / Analisa Laporan.
+ * Cluster "Inventori" — tab menu atas sendiri, sejajar dengan Booking dan Karyawan (2026-11-02). Stok adalah salah satu dari tiga
+ * modul inti, bukan bagian dari grup "Penjualan" (sebelumnya di sana mengikuti struktur Majoo, 2026-09-10).
  *
- * Isi cluster (RawMaterial, ConsumableItem, InventoryItem + riwayat,
- * Aset, Memo Barang, Permohonan Pembelian, Dashboard Inventaris) tidak
- * berubah — cuma penempatan top-nav-nya.
+ * Isi cluster (RawMaterial, ConsumableItem, InventoryItem + riwayat, Aset, Memo Barang, Permohonan Pembelian, Dashboard Inventaris)
+ * tidak berubah. Laporan stok (Persediaan, Stok Kedaluwarsa, Serial Number) tetap di klaster Laporan.
  *
- * Band sort grup "Penjualan": Dashboard 14, Laporan 15, Analisa Laporan
- * 16, Produk 17, Inventori 18 (diurutkan ulang 2026-09-11).
+ * Urutan tab menu atas: Booking 10, grup Penjualan 14, Inventori 20, Karyawan 30.
  */
 class InventarisCluster extends Cluster
 {
@@ -22,11 +19,9 @@ class InventarisCluster extends Cluster
 
     protected static ?string $navigationLabel = 'Inventori';
 
-    protected static ?string $navigationGroup = 'Penjualan';
-
     protected static ?string $clusterBreadcrumb = 'Inventori';
 
-    protected static ?int $navigationSort = 18;
+    protected static ?int $navigationSort = 20;
 
     /**
      * Halaman induk menu hanya bisa dibuka kalau ada isi yang boleh diakses role ini. Tanpa ini, role yang tidak punya

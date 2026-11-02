@@ -12,7 +12,7 @@ use Filament\Clusters\Cluster;
  * Majoo, cuma yang RELEVAN untuk Ginnva yang masuk sini:
  *   - Daftar Produk (FilmProductResource, dipindah dari Lainnya > Master
  *     Data) = "Daftar Produk" Majoo
- *   - Master Resep (MasterResepResource) = "Master Resep" Majoo
+ *   - Master Resep (MasterResepResource) = "Master Resep" Majoo (dipindah ke klaster Inventori, 2026-11-02)
  * Sisanya (Departemen, Kategori, Layanan, Fasilitas, Ekstra, Paket,
  * Deposit, Harga Ojek Online, Penjadwalan/Berdasarkan-Waktu Harga,
  * Cetak Barcode, dst) TIDAK relevan / terkunci keputusan harga —

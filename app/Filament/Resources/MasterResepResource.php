@@ -35,9 +35,12 @@ class MasterResepResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-beaker';
 
-    protected static ?string $cluster = \App\Filament\Clusters\ProdukCluster::class;
+    // Dipindah ke klaster Inventori 2026-11-02 (resep = bahan standar per pemasangan, dasar pengurangan stok); sebelumnya ProdukCluster.
+    protected static ?string $cluster = \App\Filament\Clusters\InventarisCluster::class;
 
-    protected static ?int $navigationSort = 2;
+    protected static ?string $navigationGroup = 'Kelola Stok';
+
+    protected static ?int $navigationSort = 113;
 
     protected static ?string $navigationLabel = 'Master Resep';
 
