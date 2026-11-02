@@ -26,8 +26,9 @@ class ListPurchaseRequests extends ListRecords
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new PurchaseRequestExport,
+                ->tooltip('Mengekspor daftar sesuai filter dan pencarian yang sedang aktif')
+                ->action(fn ($livewire) => Excel::download(
+                    new PurchaseRequestExport(\App\Filament\Resources\PurchaseRequestResource::canSeeCost(), $livewire->getFilteredSortedTableQuery()),
                     'permohonan-pembelian-' . now()->format('Ymd-His') . '.xlsx'
                 )),
 
@@ -35,14 +36,12 @@ class ListPurchaseRequests extends ListRecords
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
-                ->action(function () {
-                    $query = PurchaseRequest::query()->with(['store', 'requester']);
-                    if (($user = auth()->user()) && ! $user->isFullAccess()) {
-                        $query->where('store_id', $user->store_id);
-                    }
-                    $requests = $query->orderByDesc('created_at')->get();
+                ->tooltip('Mengekspor daftar sesuai filter dan pencarian yang sedang aktif')
+                ->action(function ($livewire) {
+                    // Query tabel sudah dibatasi ke toko akun ini (PurchaseRequestResource::getEloquentQuery()) dan mengikuti filter/urutan layar.
+                    $requests = $livewire->getFilteredSortedTableQuery()->with(['store', 'requester'])->get();
 
-                    $pdf = Pdf::loadView('pdf.purchase_requests', ['requests' => $requests])->setPaper('a4', 'landscape');
+                    $pdf = Pdf::loadView('pdf.purchase_requests', ['requests' => $requests, 'showCost' => \App\Filament\Resources\PurchaseRequestResource::canSeeCost()])->setPaper('a4', 'landscape');
                     $filename = 'permohonan-pembelian-' . now()->format('Ymd-His') . '.pdf';
 
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);

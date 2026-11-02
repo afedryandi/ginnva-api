@@ -110,10 +110,13 @@ class StaffStockApiTest extends TestCase
         $material->batches()->create(['quantity' => 10, 'unit_cost' => 5000, 'received_date' => '2026-10-01']);
         $material->recordMovement('in', 1, null, 'uji', '2026-10-02', null, 5000);
 
-        // Akun dengan akses bawaan hanya boleh memakai daftar pencarian (pemilih Memo Bahan/Permohonan Pembelian, tanpa harga):
+        // Akun yang menu-nya tidak dicentang (akses bawaan) tertutup; pemohon pembelian hanya boleh memakai daftar pencarian (tanpa harga):
         // detail dan pencatatan tetap tertutup.
         $default = $this->staff();
-        $this->api($default)->getJson('/api/staff/materials')->assertSuccessful()->assertJsonPath('can_modify', false);
+        $this->api($default)->getJson('/api/staff/materials')->assertStatus(403);
+        $picker = $this->prStaff();
+        $this->api($picker)->getJson('/api/staff/materials')->assertSuccessful()->assertJsonPath('can_modify', false);
+        $this->api($picker)->getJson("/api/staff/materials/{$material->id}")->assertStatus(403);
         $this->api($default)->getJson("/api/staff/materials/{$material->id}")->assertStatus(403);
         $this->api($default)->postJson("/api/staff/materials/{$material->id}/movement", ['type' => 'in', 'quantity' => 1])->assertStatus(403);
 
@@ -350,9 +353,10 @@ class StaffStockApiTest extends TestCase
         $item->update(['unit_cost' => 7000]);
         $item->recordMovement('in', 1, null, 'uji', 7000);
 
-        // Akun dengan akses bawaan hanya boleh memakai daftar pencarian (pemilih Memo Bahan/Permohonan Pembelian), tanpa harga.
+        // Akun yang menu-nya tidak dicentang tertutup; pemohon pembelian hanya boleh memakai daftar pencarian, tanpa harga.
         $default = $this->staff();
-        $this->api($default)->getJson('/api/staff/consumables')->assertSuccessful();
+        $this->api($default)->getJson('/api/staff/consumables')->assertStatus(403);
+        $this->api($this->prStaff())->getJson('/api/staff/consumables')->assertSuccessful();
         $this->api($default)->getJson("/api/staff/consumables/{$item->id}")->assertStatus(403);
         $this->api($default)->postJson("/api/staff/consumables/{$item->id}/movement", ['type' => 'in', 'quantity' => 1])->assertStatus(403);
 
@@ -797,7 +801,7 @@ class StaffStockApiTest extends TestCase
 
     public function test_staff_submit_a_request_snapshotting_the_catalogue_and_forcing_their_store(): void
     {
-        $staff = $this->staff('kasir', $this->storeA);
+        $staff = $this->prStaff($this->storeA);
         $material = $this->material('Slip Solution');
 
         $response = $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'raw_material', 'item_id' => $material->id, 'quantity' => 6, 'reason' => 'Stok menipis', 'store_id' => $this->storeB->id])
@@ -814,7 +818,7 @@ class StaffStockApiTest extends TestCase
 
     public function test_purchase_request_validation_and_missing_catalogue_items(): void
     {
-        $staff = $this->staff();
+        $staff = $this->prStaff();
         $url = '/api/staff/purchase-requests';
 
         $this->api($staff)->postJson($url, ['item_type' => 'laptop', 'quantity' => 1])->assertStatus(422)->assertJsonValidationErrors('item_type');
@@ -826,14 +830,14 @@ class StaffStockApiTest extends TestCase
         $this->api($staff)->postJson($url, ['item_type' => 'consumable_item', 'item_id' => 999999, 'quantity' => 1])->assertNotFound();
         $this->api($this->staff('super_admin'))->postJson($url, ['item_type' => 'asset', 'item_name' => 'X', 'quantity' => 1, 'store_id' => 99999])->assertStatus(422)->assertJsonValidationErrors('store_id');
 
-        $noStore = $this->staff('kasir', null, null, false);
+        $noStore = $this->staff('kasir', null, ['PurchaseRequestResource'], false, ['PurchaseRequestResource' => ['create']]);
         $this->api($noStore)->postJson($url, ['item_type' => 'asset', 'item_name' => 'X', 'quantity' => 1])->assertStatus(422);
         $this->assertSame(0, PurchaseRequest::withoutGlobalScopes()->count());
     }
 
     public function test_the_request_list_is_scoped_and_paged(): void
     {
-        $mine = $this->staff('kasir', $this->storeA);
+        $mine = $this->prStaff($this->storeA);
         foreach (range(1, 52) as $i) {
             PurchaseRequest::create(['store_id' => $this->storeA->id, 'item_type' => 'asset', 'item_name' => "Barang {$i}", 'quantity' => 1, 'status' => 'pending', 'requested_by' => $mine->id]);
         }
@@ -851,6 +855,49 @@ class StaffStockApiTest extends TestCase
         $this->assertSame(1, count($this->api($this->staff('super_admin'))->getJson('/api/staff/purchase-requests?store_id=' . $this->storeB->id)->json('data')));
     }
 
+    public function test_a_view_only_account_lists_but_cannot_submit_and_new_requests_are_refused_for_duplicates_and_inactive_items(): void
+    {
+        $viewer = $this->prStaff($this->storeA, ['view']);
+        $this->api($viewer)->getJson('/api/staff/purchase-requests')->assertSuccessful()->assertJsonPath('can_create', false);
+        $this->api($viewer)->postJson('/api/staff/purchase-requests', ['item_type' => 'asset', 'item_name' => 'X', 'quantity' => 1])->assertStatus(403);
+
+        $staff = $this->prStaff($this->storeA);
+        $this->api($staff)->getJson('/api/staff/purchase-requests')->assertJsonPath('can_create', true);
+
+        $material = $this->material('Slip Solution');
+        $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'raw_material', 'item_id' => $material->id, 'quantity' => 2])->assertStatus(201);
+        $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'raw_material', 'item_id' => $material->id, 'quantity' => 2])->assertStatus(422);
+        $this->assertSame(1, PurchaseRequest::withoutGlobalScopes()->count());
+
+        $old = $this->material('Bahan Lama');
+        $old->update(['is_active' => false]);
+        $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'raw_material', 'item_id' => $old->id, 'quantity' => 1])->assertStatus(422);
+    }
+
+    public function test_a_requester_cancels_only_their_own_pending_request(): void
+    {
+        $mine = $this->prStaff($this->storeA);
+        $other = $this->prStaff($this->storeA);
+        $request = PurchaseRequest::create(['store_id' => $this->storeA->id, 'item_type' => 'asset', 'item_name' => 'Kompresor', 'quantity' => 4, 'quantity_approved' => 2, 'status' => 'pending', 'requested_by' => $mine->id]);
+
+        $this->api($other)->postJson("/api/staff/purchase-requests/{$request->id}/cancel")->assertStatus(403);
+        $this->api($mine)->postJson('/api/staff/purchase-requests/999999/cancel')->assertNotFound();
+
+        $listed = $this->api($mine)->getJson('/api/staff/purchase-requests')->json('data.0');
+        $this->assertTrue($listed['is_mine']);
+        $this->assertEquals(2, $listed['quantity_approved']);
+
+        $this->api($mine)->postJson("/api/staff/purchase-requests/{$request->id}/cancel")->assertSuccessful()->assertJsonPath('data.status', 'cancelled');
+        $this->assertSame('cancelled', $request->fresh()->status);
+        $this->api($mine)->postJson("/api/staff/purchase-requests/{$request->id}/cancel")->assertStatus(422);
+
+        $approved = PurchaseRequest::create(['store_id' => $this->storeA->id, 'item_type' => 'asset', 'item_name' => 'Lampu', 'quantity' => 1, 'status' => 'approved', 'requested_by' => $mine->id]);
+        $this->api($mine)->postJson("/api/staff/purchase-requests/{$approved->id}/cancel")->assertStatus(422);
+        $this->assertSame('approved', $approved->fresh()->status);
+
+        $this->api($this->staff('super_admin'))->postJson("/api/staff/purchase-requests/{$approved->id}/cancel")->assertStatus(422);
+    }
+
     // ------------------------------------------------------------- aset
 
     /** Staf aset: menu Aset Tetap dicentang dengan izin Ubah dan Lihat (akses bawaan tidak lagi membuka menu ini). */
@@ -860,6 +907,12 @@ class StaffStockApiTest extends TestCase
     }
 
     /** Staf memo: menu Memo dicentang dengan izin Tambah, Ubah, dan Lihat (akses bawaan tidak lagi membuka menu ini). */
+    /** Staf permohonan pembelian: menu dicentang dengan izin Tambah (mengajukan) dan Lihat (melihat harga). */
+    private function prStaff(?Store $store = null, array $permissions = ['create', 'view']): User
+    {
+        return $this->staff('kasir', $store, ['PurchaseRequestResource'], true, ['PurchaseRequestResource' => $permissions]);
+    }
+
     private function memoStaff(?Store $store = null, array $permissions = ['create', 'update', 'view']): User
     {
         return $this->staff('kasir', $store, ['MaterialMemoResource'], true, ['MaterialMemoResource' => $permissions]);

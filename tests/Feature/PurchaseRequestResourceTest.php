@@ -65,6 +65,12 @@ class PurchaseRequestResourceTest extends TestCase
         return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess, 'is_active' => true], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
+    /** Staf permohonan pembelian: menu dicentang dengan izin Tambah, Ubah, dan Lihat (harga). Akses bawaan tidak lagi membuka menu ini. */
+    private function writer(?Store $store = null, array $permissions = ['create', 'update', 'view']): User
+    {
+        return $this->user('kasir', ['PurchaseRequestResource'], $store, ['menu_permissions' => ['PurchaseRequestResource' => $permissions]]);
+    }
+
     private function as(User $user): User
     {
         $this->actingAs($user, 'web');
@@ -96,14 +102,27 @@ class PurchaseRequestResourceTest extends TestCase
         $this->assertFalse(PurchaseRequestResource::canEdit($approved), 'Yang sudah diproses terkunci.');
         $this->assertTrue(PurchaseRequestResource::canDelete($pending));
 
+        // Akses bawaan (menu tidak dicentang) tertutup; harus dicentang eksplisit.
         $this->as($this->user('kasir'));
+        $this->assertFalse(PurchaseRequestResource::canViewAny());
+        $this->assertFalse(PurchaseRequestResource::canCreate());
+
+        $this->as($this->writer());
         $this->assertTrue(PurchaseRequestResource::canViewAny());
         $this->assertTrue(PurchaseRequestResource::canCreate());
         $this->assertTrue(PurchaseRequestResource::canEdit($pending));
         $this->assertFalse(PurchaseRequestResource::canEdit(new PurchaseRequest(['status' => 'fulfilled'])));
         $this->assertFalse(PurchaseRequestResource::canDelete($pending));
+        $this->assertTrue(PurchaseRequestResource::canSeeCost());
 
-        $this->as($this->user('kasir', null, null, ['menu_permissions' => ['PurchaseRequestResource' => ['delete']]]));
+        // Menu dicentang tanpa izin tambah/ubah/lihat: hanya membaca, tanpa harga.
+        $this->as($this->writer(null, []));
+        $this->assertTrue(PurchaseRequestResource::canViewAny());
+        $this->assertFalse(PurchaseRequestResource::canCreate());
+        $this->assertFalse(PurchaseRequestResource::canEdit($pending));
+        $this->assertFalse(PurchaseRequestResource::canSeeCost());
+
+        $this->as($this->writer(null, ['delete']));
         $this->assertTrue(PurchaseRequestResource::canDelete($pending));
 
         $this->as($this->user('kasir', ['BookingResource']));
@@ -116,7 +135,7 @@ class PurchaseRequestResourceTest extends TestCase
         $mine = $this->request($this->storeA, ['item_name' => 'Punya A']);
         $theirs = $this->request($this->storeB, ['item_name' => 'Punya B']);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(ListPurchaseRequests::class)
             ->assertCanSeeTableRecords([$mine])
             ->assertCanNotSeeTableRecords([$theirs])
@@ -145,7 +164,7 @@ class PurchaseRequestResourceTest extends TestCase
         $material = $this->request($this->storeA, ['item_type' => 'raw_material', 'item_name' => 'Adhesive']);
         $this->request($this->storeB, ['item_name' => 'Toko B']);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(ListPurchaseRequests::class)
             ->filterTable('status', 'approved')
             ->assertCanSeeTableRecords([$approved])
@@ -166,7 +185,7 @@ class PurchaseRequestResourceTest extends TestCase
 
     public function test_staff_create_snapshots_catalog_data_and_forces_own_store(): void
     {
-        $staff = $this->as($this->user('kasir', null, $this->storeA));
+        $staff = $this->as($this->writer($this->storeA));
         $material = $this->material('Slip Solution');
 
         Livewire::test(CreatePurchaseRequest::class)
@@ -211,7 +230,7 @@ class PurchaseRequestResourceTest extends TestCase
 
     public function test_create_validation(): void
     {
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $material = $this->material();
 
         Livewire::test(CreatePurchaseRequest::class)
@@ -241,7 +260,7 @@ class PurchaseRequestResourceTest extends TestCase
 
     public function test_editing_a_pending_request_keeps_the_review_fields(): void
     {
-        $staff = $this->as($this->user('kasir', null, $this->storeA));
+        $staff = $this->as($this->writer($this->storeA));
         $request = $this->request($this->storeA, ['requested_by' => $staff->id]);
 
         Livewire::test(EditPurchaseRequest::class, ['record' => $request->getRouteKey()])
@@ -272,9 +291,9 @@ class PurchaseRequestResourceTest extends TestCase
 
     public function test_approve_is_for_full_access_only_and_only_while_pending(): void
     {
-        $request = $this->request($this->storeA, ['requested_by' => $this->user('kasir')->id]);
+        $request = $this->request($this->storeA, ['requested_by' => $this->writer()->id]);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(ListPurchaseRequests::class)
             ->assertTableActionHidden('approve', $request)
             ->assertTableActionHidden('reject', $request);
@@ -319,7 +338,7 @@ class PurchaseRequestResourceTest extends TestCase
 
     public function test_fulfilling_posts_the_journal_and_creates_the_payable(): void
     {
-        $requester = $this->user('kasir', null, $this->storeA);
+        $requester = $this->writer($this->storeA);
         $material = $this->material();
         $request = $this->request($this->storeA, ['item_type' => 'raw_material', 'item_id' => $material->id, 'item_name' => 'Adhesive', 'unit' => 'liter', 'quantity' => 5, 'status' => 'approved', 'requested_by' => $requester->id]);
         $supplier = Supplier::create(['name' => 'PT Kimia Jaya']);
@@ -431,10 +450,10 @@ class PurchaseRequestResourceTest extends TestCase
 
     public function test_only_the_requester_or_full_access_can_fulfill(): void
     {
-        $requester = $this->user('kasir', null, $this->storeA);
+        $requester = $this->writer($this->storeA);
         $request = $this->request($this->storeA, ['status' => 'approved', 'requested_by' => $requester->id]);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(ListPurchaseRequests::class)->assertTableActionHidden('fulfill', $request);
 
         $this->as($this->user('super_admin'));
@@ -505,7 +524,7 @@ class PurchaseRequestResourceTest extends TestCase
     {
         $request = $this->request($this->storeA);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(ListPurchaseRequests::class)->assertTableActionHidden('delete', $request);
 
         $this->as($this->user('super_admin'));
@@ -523,7 +542,7 @@ class PurchaseRequestResourceTest extends TestCase
         $this->request($this->storeA, ['item_name' => 'Barang A', 'quantity' => 2.5, 'unit' => 'liter', 'item_type' => 'raw_material', 'actual_cost' => 1000, 'status' => 'fulfilled']);
         $this->request($this->storeB, ['item_name' => 'Barang B']);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $export = new PurchaseRequestExport();
         $rows = $export->collection();
         $this->assertSame(['No. Permohonan', 'Barang', 'Jenis', 'Jumlah', 'Toko', 'Status', 'Biaya Aktual', 'Diajukan Oleh', 'Tanggal'], $export->headings());
@@ -538,5 +557,193 @@ class PurchaseRequestResourceTest extends TestCase
         $page->callAction('exportExcel')->assertHasNoActionErrors();
         Excel::assertDownloaded('permohonan-pembelian-20261008-100000.xlsx');
         $page->callAction('exportPdf')->assertFileDownloaded('permohonan-pembelian-20261008-100000.pdf');
+    }
+    // ------------------------------------------------------------- jumlah disetujui, batal, penolakan duplikat
+
+    public function test_approver_can_approve_a_smaller_quantity_and_fulfil_defaults_to_it(): void
+    {
+        $request = $this->request($this->storeA, ['quantity' => 10, 'unit' => 'pcs']);
+
+        $this->as($this->user('super_admin'));
+        Livewire::test(ListPurchaseRequests::class)
+            ->callTableAction('approve', $request, data: ['quantity_approved' => 6])
+            ->assertHasNoTableActionErrors();
+
+        $fresh = $request->fresh();
+        $this->assertSame('approved', $fresh->status);
+        $this->assertEquals(6, (float) $fresh->quantity_approved);
+        $this->assertEquals(6, $fresh->effectiveQuantity());
+
+        // Lebih dari yang diminta ditolak; sama dengan yang diminta berarti tidak ada pengurangan.
+        $other = $this->request($this->storeA, ['quantity' => 4, 'item_name' => 'Lampu']);
+        Livewire::test(ListPurchaseRequests::class)
+            ->callTableAction('approve', $other, data: ['quantity_approved' => 5])
+            ->assertHasTableActionErrors(['quantity_approved']);
+        Livewire::test(ListPurchaseRequests::class)
+            ->callTableAction('approve', $other->fresh(), data: ['quantity_approved' => 4])
+            ->assertHasNoTableActionErrors();
+        $this->assertNull($other->fresh()->quantity_approved);
+    }
+
+    public function test_shortfall_is_measured_against_the_approved_quantity(): void
+    {
+        $request = $this->request($this->storeA, ['quantity' => 10, 'quantity_approved' => 6, 'quantity_received' => 6, 'status' => 'fulfilled']);
+        $short = $this->request($this->storeA, ['item_name' => 'Kurang', 'quantity' => 10, 'quantity_approved' => 6, 'quantity_received' => 4, 'status' => 'fulfilled']);
+
+        $this->assertEquals(0, $request->fresh()->shortfall());
+        $this->assertEquals(2, $short->fresh()->shortfall());
+
+        $this->as($this->user('super_admin'));
+        Livewire::test(ListPurchaseRequests::class)
+            ->filterTable('short_received', true)
+            ->assertCanSeeTableRecords([$short])
+            ->assertCanNotSeeTableRecords([$request]);
+    }
+
+    public function test_requester_can_cancel_a_pending_request_but_not_someone_elses(): void
+    {
+        $mine = $this->writer($this->storeA);
+        $request = $this->request($this->storeA, ['requested_by' => $mine->id]);
+        $theirs = $this->request($this->storeA, ['item_name' => 'Punya orang lain', 'requested_by' => $this->writer($this->storeA)->id]);
+        $approved = $this->request($this->storeA, ['item_name' => 'Sudah disetujui', 'status' => 'approved', 'requested_by' => $mine->id]);
+
+        $this->as($mine);
+        Livewire::test(ListPurchaseRequests::class)
+            ->assertTableActionVisible('cancel', $request->fresh())
+            ->assertTableActionHidden('cancel', $theirs->fresh())
+            ->assertTableActionHidden('cancel', $approved->fresh())
+            ->callTableAction('cancel', $request->fresh());
+
+        $this->assertSame('cancelled', $request->fresh()->status);
+
+        $this->as($this->user('super_admin'));
+        Livewire::test(ListPurchaseRequests::class)->assertTableActionVisible('cancel', $theirs->fresh());
+    }
+
+    public function test_a_second_open_request_for_the_same_item_is_refused(): void
+    {
+        $material = $this->material('Slip Solution');
+        $this->request($this->storeA, ['item_type' => 'raw_material', 'item_id' => $material->id, 'item_name' => 'Slip Solution', 'unit' => 'liter']);
+
+        $this->as($this->writer($this->storeA));
+        Livewire::test(CreatePurchaseRequest::class)
+            ->fillForm(['item_type' => 'raw_material', 'item_id' => $material->id, 'quantity' => 2])
+            ->call('create')
+            ->assertHasFormErrors(['item_id']);
+
+        $this->assertSame(1, PurchaseRequest::withoutGlobalScopes()->count());
+    }
+
+    public function test_an_inactive_catalogue_item_cannot_be_requested(): void
+    {
+        $material = $this->material('Lama');
+        $material->update(['is_active' => false]);
+
+        $this->as($this->writer($this->storeA));
+        Livewire::test(CreatePurchaseRequest::class)
+            ->fillForm(['item_type' => 'raw_material', 'item_id' => $material->id, 'quantity' => 2])
+            ->call('create')
+            ->assertHasFormErrors(['item_id']);
+
+        $this->assertSame(0, PurchaseRequest::withoutGlobalScopes()->count());
+    }
+
+    public function test_request_detail_page_is_readable_and_hides_cost_without_the_view_grant(): void
+    {
+        $request = $this->request($this->storeA, ['status' => 'fulfilled', 'actual_cost' => 123000, 'quantity_received' => 1]);
+
+        $this->as($this->writer($this->storeA));
+        Livewire::test(\App\Filament\Resources\PurchaseRequestResource\Pages\ViewPurchaseRequest::class, ['record' => $request->getRouteKey()])
+            ->assertSuccessful();
+
+        $this->as($this->writer($this->storeA, ['create']));
+        Livewire::test(ListPurchaseRequests::class)->assertTableColumnHidden('actual_cost');
+        $this->as($this->writer($this->storeA));
+        Livewire::test(ListPurchaseRequests::class)->assertTableColumnVisible('actual_cost');
+    }
+
+    // ------------------------------------------------------------- aset per unit
+
+    public function test_fulfilling_an_asset_request_registers_one_asset_per_unit(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $request = $this->request($this->storeA, ['item_name' => 'Kompresor', 'quantity' => 3, 'status' => 'approved', 'requested_by' => $admin->id]);
+        $supplier = Supplier::create(['name' => 'PT Mesin']);
+        $account = ChartOfAccount::whereHas('parent', fn ($q) => $q->where('code', '1200'))->orderBy('code')->firstOrFail();
+
+        $this->assertTrue(PurchaseRequestResource::canRegisterAsset($request));
+
+        Livewire::test(ListPurchaseRequests::class)
+            ->callTableAction('fulfill', $request, data: ['quantity_received' => 3, 'register_asset' => true, 'actual_cost' => 3000000, 'supplier_id' => $supplier->id, 'chart_of_account_id' => $account->id])
+            ->assertHasNoTableActionErrors();
+
+        $assets = \App\Models\Asset::query()->where('notes', 'like', "%{$request->request_number}%")->orderBy('name')->get();
+        $this->assertCount(3, $assets);
+        $this->assertSame(['Kompresor #1', 'Kompresor #2', 'Kompresor #3'], $assets->pluck('name')->all());
+        $this->assertEquals(1000000, (float) $assets->first()->purchase_cost);
+        $this->assertSame($this->storeA->id, $assets->first()->store_id);
+        $this->assertNotNull($request->fresh()->stock_recorded_at);
+        $this->assertFalse(PurchaseRequestResource::canRegisterAsset($request->fresh()), 'Tidak bisa didaftarkan dua kali.');
+    }
+
+    public function test_fulfilling_an_asset_request_without_the_toggle_registers_nothing(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $request = $this->request($this->storeA, ['quantity' => 2, 'status' => 'approved', 'requested_by' => $admin->id]);
+        $supplier = Supplier::create(['name' => 'PT Mesin']);
+        $account = ChartOfAccount::whereHas('parent', fn ($q) => $q->where('code', '1200'))->orderBy('code')->firstOrFail();
+
+        Livewire::test(ListPurchaseRequests::class)
+            ->callTableAction('fulfill', $request, data: ['quantity_received' => 2, 'register_asset' => false, 'actual_cost' => 2000000, 'supplier_id' => $supplier->id, 'chart_of_account_id' => $account->id])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertSame(0, \App\Models\Asset::query()->count());
+        $this->assertNull($request->fresh()->stock_recorded_at);
+    }
+
+    // ------------------------------------------------------------- pemberitahuan & pengingat
+
+    public function test_new_requests_notify_approvers_and_pending_ones_are_reminded_daily(): void
+    {
+        $admin = $this->user('super_admin');
+        $requester = $this->writer($this->storeA);
+
+        $notifier = \Mockery::mock(\App\Services\StaffNotifier::class);
+        $notifier->shouldReceive('toUsers')->once()->withArgs(fn ($ids, $title) => $ids->contains($admin->id) && ! $ids->contains($requester->id) && $title === 'Permohonan Pembelian Baru');
+        $this->app->instance(\App\Services\StaffNotifier::class, $notifier);
+
+        $request = $this->request($this->storeA, ['requested_by' => $requester->id]);
+        app(\App\Services\PurchaseRequestNotifier::class)->notifyNew($request);
+
+        // Pengingat: hanya yang menunggu lebih dari sehari, dan sekali per hari.
+        $old = $this->request($this->storeA, ['item_name' => 'Lama', 'requested_by' => $requester->id]);
+        PurchaseRequest::withoutGlobalScopes()->whereKey($old->id)->update(['created_at' => now()->subDays(2)]);
+
+        $reminder = \Mockery::mock(\App\Services\StaffNotifier::class);
+        $reminder->shouldReceive('toUsers')->once()->withArgs(fn ($ids, $title) => $title === 'Permohonan Pembelian Menunggu');
+        $this->app->instance(\App\Services\StaffNotifier::class, $reminder);
+
+        $service = app(\App\Services\PurchaseRequestNotifier::class);
+        $this->assertSame(1, $service->remindPending());
+        $this->assertNotNull($old->fresh()->last_reminded_at);
+        $this->assertSame(0, $service->remindPending(), 'Hari yang sama tidak diingatkan dua kali.');
+
+        Carbon::setTestNow(now()->addDay()->addHour());
+        $again = \Mockery::mock(\App\Services\StaffNotifier::class);
+        $again->shouldReceive('toUsers')->once();
+        $this->app->instance(\App\Services\StaffNotifier::class, $again);
+        $this->assertSame(1, app(\App\Services\PurchaseRequestNotifier::class)->remindPending());
+    }
+
+    // ------------------------------------------------------------- ekspor tanpa harga
+
+    public function test_export_drops_the_cost_column_without_the_view_grant(): void
+    {
+        $this->request($this->storeA, ['item_name' => 'Barang A', 'actual_cost' => 1000, 'status' => 'fulfilled']);
+
+        $this->as($this->writer($this->storeA, ['create']));
+        $export = new PurchaseRequestExport(PurchaseRequestResource::canSeeCost());
+        $this->assertNotContains('Biaya Aktual', $export->headings());
+        $this->assertCount(8, $export->collection()->first());
     }
 }

@@ -47,9 +47,13 @@ class RestockRequestService
             throw new RuntimeException('Jumlah yang diminta harus lebih dari nol.');
         }
 
-        return DB::transaction(function () use ($item, $storeId, $quantity, $note, $requester) {
+        $created = DB::transaction(function () use ($item, $storeId, $quantity, $note, $requester) {
             // Kunci baris barang dulu supaya dua klik bersamaan tidak sama-sama lolos pemeriksaan permintaan terbuka.
             $locked = $item::query()->lockForUpdate()->findOrFail($item->getKey());
+
+            if ($locked->is_active === false) {
+                throw new RuntimeException("{$locked->name} sudah dinonaktifkan dan tidak bisa diminta beli.");
+            }
 
             if ($open = $this->openRequest($locked)) {
                 throw new RuntimeException("Sudah ada permintaan beli untuk {$locked->name} ({$open->request_number}, status " . ($open->status === 'approved' ? 'disetujui' : 'menunggu') . ').');
@@ -74,5 +78,9 @@ class RestockRequestService
                 'requested_by' => $requester->id,
             ]);
         });
+
+        app(PurchaseRequestNotifier::class)->notifyNew($created);
+
+        return $created;
     }
 }

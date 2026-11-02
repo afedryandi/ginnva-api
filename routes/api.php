@@ -559,6 +559,8 @@ Route::prefix('staff')->group(function () {
         // PurchaseRequestController). Approve/Reject/Fulfill TETAP cuma
         // lewat Filament, tidak ada jalur mobile untuk itu.
         Route::get('/purchase-requests', [StaffPurchaseRequestController::class, 'index']);
+        Route::post('/purchase-requests/{id}/cancel', [StaffPurchaseRequestController::class, 'cancel'])
+            ->middleware('throttle:30,1');
         Route::post('/purchase-requests', [StaffPurchaseRequestController::class, 'store'])
             ->middleware('throttle:20,1');
     });

@@ -18,6 +18,7 @@
             'approved' => 'Disetujui',
             'rejected' => 'Ditolak',
             'fulfilled' => 'Terpenuhi',
+            'cancelled' => 'Dibatalkan',
             default => $s,
         };
         $itemTypeLabel = fn (string $t) => match ($t) {
@@ -33,7 +34,7 @@
     <table>
         <tr>
             <th>No. Permohonan</th><th>Barang</th><th>Jenis</th><th>Jumlah</th><th>Toko</th>
-            <th>Status</th><th class="value">Biaya Aktual</th><th>Diajukan Oleh</th><th>Tanggal</th>
+            <th>Status</th>@if ($showCost ?? true)<th class="value">Biaya Aktual</th>@endif<th>Diajukan Oleh</th><th>Tanggal</th>
         </tr>
         @forelse ($requests as $request)
             <tr>
@@ -43,7 +44,7 @@
                 <td>{{ number_format((float) $request->quantity, 2, ',', '.') }}{{ $request->unit ? ' '.$request->unit : '' }}</td>
                 <td>{{ $request->store?->name ?? '-' }}</td>
                 <td>{{ $statusLabel($request->status) }}</td>
-                <td class="value">{{ $request->actual_cost !== null ? number_format((float) $request->actual_cost, 0, ',', '.') : '-' }}</td>
+                @if ($showCost ?? true)<td class="value">{{ $request->actual_cost !== null ? number_format((float) $request->actual_cost, 0, ',', '.') : '-' }}</td>@endif
                 <td>{{ $request->requester?->name ?? '-' }}</td>
                 <td>{{ $request->created_at?->format('d M Y') ?? '-' }}</td>
             </tr>

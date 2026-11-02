@@ -41,4 +41,10 @@ class CreatePurchaseRequest extends CreateRecord
 
         return $data;
     }
+
+    // Penyetuju (akses penuh) diberi tahu ada permohonan baru.
+    protected function afterCreate(): void
+    {
+        app(\App\Services\PurchaseRequestNotifier::class)->notifyNew($this->record);
+    }
 }

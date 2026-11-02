@@ -601,8 +601,8 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
 
     public function hasPurchaseRequestAccess(): bool
     {
-        return $this->canAccessStaffArea()
-            && $this->hasMenuAccess(\App\Filament\Resources\PurchaseRequestResource::class);
+        // Eksplisit (bukan akses bawaan): lihat PurchaseRequestResource::canViewAny().
+        return $this->hasExplicitMenuAccess(\App\Filament\Resources\PurchaseRequestResource::class);
     }
 
     /**

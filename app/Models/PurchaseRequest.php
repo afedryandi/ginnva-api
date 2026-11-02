@@ -30,6 +30,7 @@ class PurchaseRequest extends Model
         'item_name',
         'unit',
         'quantity',
+        'quantity_approved',
         'quantity_received',
         'actual_cost',
         'reason',
@@ -37,6 +38,7 @@ class PurchaseRequest extends Model
         'requested_by',
         'reviewed_by',
         'reviewed_at',
+        'last_reminded_at',
         'review_note',
         'fulfilled_at',
         'stock_recorded_at',
@@ -45,6 +47,8 @@ class PurchaseRequest extends Model
 
     protected $casts = [
         'quantity'     => 'decimal:2',
+        'quantity_approved' => 'decimal:2',
+        'last_reminded_at' => 'datetime',
         'quantity_received' => 'decimal:2',
         'actual_cost'  => 'decimal:2',
         'reviewed_at'  => 'datetime',
@@ -56,13 +60,19 @@ class PurchaseRequest extends Model
      * Kekurangan penerimaan: jumlah diminta dikurangi jumlah diterima, hanya bila sudah dicatat dan memang kurang.
      * Null untuk permohonan yang belum terpenuhi, yang lama (jumlah diterima tidak tercatat), atau yang diterima penuh/lebih.
      */
+    /** Jumlah yang berlaku: yang disetujui bila penyetuju menurunkannya, selain itu yang diminta. */
+    public function effectiveQuantity(): float
+    {
+        return (float) ($this->quantity_approved ?? $this->quantity);
+    }
+
     public function shortfall(): ?float
     {
         if ($this->quantity_received === null) {
             return null;
         }
 
-        $short = round((float) $this->quantity - (float) $this->quantity_received, 2);
+        $short = round($this->effectiveQuantity() - (float) $this->quantity_received, 2);
 
         return $short > 0 ? $short : null;
     }
@@ -126,7 +136,7 @@ class PurchaseRequest extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'quantity', 'quantity_received', 'review_note', 'reviewed_by', 'fulfilled_at'])
+            ->logOnly(['status', 'quantity', 'quantity_approved', 'quantity_received', 'review_note', 'reviewed_by', 'fulfilled_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('purchase_request')

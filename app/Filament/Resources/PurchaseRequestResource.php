@@ -40,12 +40,27 @@ class PurchaseRequestResource extends Resource
 
     protected static ?int $navigationSort = 90;
 
+    /**
+     * Permohonan memuat biaya aktual pembelian, jadi tidak terbuka lewat akses bawaan akun baru (menu_access kosong): hanya akses penuh
+     * atau staf yang menunya dicentang eksplisit (audit Permohonan Pembelian, 2026-11-02). Mengajukan butuh izin Tambah, mengubah
+     * (selagi menunggu) butuh izin Ubah, melihat biaya aktual butuh izin Lihat. Setujui/Tolak tetap hanya akses penuh; pemohon selalu
+     * boleh membatalkan permohonannya sendiri selagi menunggu.
+     */
     public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
+    }
+
+    public static function canView($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canSeeCost(): bool
     {
         $user = auth()->user();
 
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return $user !== null && ($user->isFullAccess() || $user->hasModuleAction(static::class, 'view', false));
     }
 
     /**
@@ -69,21 +84,13 @@ class PurchaseRequestResource extends Resource
      */
     public static function canCreate(): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'create', true);
+        return static::canViewAny() && auth()->user()->hasModuleAction(static::class, 'create', false);
     }
 
     public static function canEdit($record): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'update', true)
-            // Hanya permohonan yang masih menunggu yang boleh diubah; yang sudah diproses terkunci walau URL edit dibuka langsung.
+        return static::canViewAny()
+            && auth()->user()->hasModuleAction(static::class, 'update', false)
             && (($record?->status ?? 'pending') === 'pending');
     }
 
@@ -95,8 +102,8 @@ class PurchaseRequestResource extends Resource
     {
         $user = auth()->user();
 
-        return $user?->isFullAccess()
-            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+        return ($user?->isFullAccess() ?? false)
+            || (static::canViewAny() && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     public static function getEloquentQuery(): Builder
@@ -155,10 +162,25 @@ class PurchaseRequestResource extends Resource
                             'consumable_item' => ConsumableItem::active()->orderBy('name')->pluck('name', 'id'),
                             default           => [],
                         })
-                        ->in(fn (Forms\Get $get) => match ($get('item_type')) {
-                            'raw_material'    => RawMaterial::pluck('id')->all(),
-                            'consumable_item' => ConsumableItem::pluck('id')->all(),
-                            default           => [],
+                        ->in(fn (Forms\Get $get, ?PurchaseRequest $record) => static::allowedItemIds($get('item_type'), $record))
+                        // Satu barang satu permohonan terbuka (menunggu/disetujui), sama dengan tombol Minta Beli dan pengajuan dari mobile.
+                        ->rule(fn (Forms\Get $get, ?PurchaseRequest $record) => function (string $attribute, $value, \Closure $fail) use ($get, $record) {
+                            $type = $get('item_type');
+
+                            if (! in_array($type, ['raw_material', 'consumable_item'], true) || ! filled($value)) {
+                                return;
+                            }
+
+                            $open = PurchaseRequest::withoutGlobalScopes()
+                                ->where('item_type', $type)
+                                ->where('item_id', $value)
+                                ->whereIn('status', ['pending', 'approved'])
+                                ->when($record, fn ($q) => $q->where('id', '!=', $record->id))
+                                ->first();
+
+                            if ($open) {
+                                $fail("Sudah ada permohonan untuk barang ini ({$open->request_number}, status " . ($open->status === 'approved' ? 'disetujui' : 'menunggu') . ').');
+                            }
                         }),
 
                     // Aset baru: belum ada baris katalognya, jadi nama
@@ -182,7 +204,63 @@ class PurchaseRequestResource extends Resource
                         ->rows(2)
                         ->columnSpanFull(),
                 ]),
+            // Hanya di halaman Lihat/Ubah: riwayat pemrosesan permohonan.
+            Forms\Components\Section::make('Proses Permohonan')
+                ->columns(2)
+                ->visible(fn (?PurchaseRequest $record) => $record !== null)
+                ->schema([
+                    Forms\Components\Placeholder::make('p_status')->label('Status')
+                        ->content(fn (?PurchaseRequest $record) => static::statusLabel((string) $record?->status)),
+                    Forms\Components\Placeholder::make('p_requester')->label('Diajukan Oleh')
+                        ->content(fn (?PurchaseRequest $record) => ($record?->requester?->name ?? '—') . ($record?->created_at ? ' · ' . $record->created_at->format('d M Y H:i') : '')),
+                    Forms\Components\Placeholder::make('p_reviewer')->label('Ditinjau Oleh')
+                        ->content(fn (?PurchaseRequest $record) => $record?->reviewer ? $record->reviewer->name . ($record->reviewed_at ? ' · ' . $record->reviewed_at->format('d M Y H:i') : '') : '—'),
+                    Forms\Components\Placeholder::make('p_note')->label('Catatan Peninjau')
+                        ->content(fn (?PurchaseRequest $record) => $record?->review_note ?: '—'),
+                    Forms\Components\Placeholder::make('p_approved')->label('Jumlah Disetujui')
+                        ->content(fn (?PurchaseRequest $record) => $record === null || $record->quantity_approved === null
+                            ? ($record?->status === 'pending' ? 'Belum ditinjau' : 'Sama dengan yang diminta')
+                            : rtrim(rtrim(number_format((float) $record->quantity_approved, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : '')),
+                    Forms\Components\Placeholder::make('p_received')->label('Jumlah Diterima')
+                        ->content(fn (?PurchaseRequest $record) => $record?->quantity_received === null
+                            ? '—'
+                            : rtrim(rtrim(number_format((float) $record->quantity_received, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : '')
+                                . ($record->fulfilled_at ? ' · ' . $record->fulfilled_at->format('d M Y') : '')),
+                    Forms\Components\Placeholder::make('p_cost')->label('Biaya Aktual')
+                        ->visible(fn () => static::canSeeCost())
+                        ->content(fn (?PurchaseRequest $record) => $record?->actual_cost === null ? '—' : 'Rp ' . number_format((float) $record->actual_cost, 0, ',', '.')),
+                    Forms\Components\Placeholder::make('p_recorded')->label('Tercatat ke Stok/Aset')
+                        ->content(fn (?PurchaseRequest $record) => $record?->stock_recorded_at ? 'Ya, ' . $record->stock_recorded_at->format('d M Y H:i') : 'Belum'),
+                ]),
         ]);
+    }
+
+    public static function statusLabel(string $status): string
+    {
+        return match ($status) {
+            'pending'   => 'Menunggu Persetujuan',
+            'approved'  => 'Disetujui',
+            'rejected'  => 'Ditolak',
+            'fulfilled' => 'Terpenuhi',
+            'cancelled' => 'Dibatalkan',
+            default     => $status,
+        };
+    }
+
+    /** Id barang yang boleh dipilih: yang aktif, ditambah barang yang sudah tercatat di permohonan ini (supaya permohonan lama tetap bisa disimpan). */
+    public static function allowedItemIds(?string $type, ?PurchaseRequest $record): array
+    {
+        $ids = match ($type) {
+            'raw_material'    => RawMaterial::active()->pluck('id')->all(),
+            'consumable_item' => ConsumableItem::active()->pluck('id')->all(),
+            default           => [],
+        };
+
+        if ($record !== null && $record->item_type === $type && $record->item_id !== null) {
+            $ids[] = (int) $record->item_id;
+        }
+
+        return $ids;
     }
 
     public static function table(Table $table): Table
@@ -206,10 +284,13 @@ class PurchaseRequestResource extends Resource
 
                 Tables\Columns\TextColumn::make('quantity')
                     ->label('Jumlah')
-                    ->formatStateUsing(fn (PurchaseRequest $record) => rtrim(rtrim(number_format((float) $record->quantity, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : '')),
+                    ->formatStateUsing(fn (PurchaseRequest $record) => rtrim(rtrim(number_format((float) $record->quantity, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : ''))
+                    ->description(fn (PurchaseRequest $record) => $record->quantity_approved !== null
+                        ? 'Disetujui ' . rtrim(rtrim(number_format((float) $record->quantity_approved, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : '')
+                        : null),
 
                 Tables\Columns\IconColumn::make('stock_recorded_at')
-                    ->label('Stok Dicatat')
+                    ->label('Tercatat (Stok/Aset)')
                     ->boolean()
                     ->getStateUsing(fn (PurchaseRequest $record) => $record->stock_recorded_at !== null)
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -236,18 +317,13 @@ class PurchaseRequestResource extends Resource
                         'warning' => 'pending',
                         'success' => 'approved',
                         'danger'  => 'rejected',
-                        'gray'    => 'fulfilled',
+                        'gray'    => ['fulfilled', 'cancelled'],
                     ])
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'pending'  => 'Menunggu Persetujuan',
-                        'approved' => 'Disetujui',
-                        'rejected' => 'Ditolak',
-                        'fulfilled' => 'Terpenuhi',
-                        default    => $state,
-                    }),
+                    ->formatStateUsing(fn (string $state): string => static::statusLabel($state)),
 
                 Tables\Columns\TextColumn::make('actual_cost')
                     ->label('Biaya Aktual')
+                    ->visible(fn () => static::canSeeCost())
                     ->money('IDR', locale: 'id')
                     ->placeholder('—')
                     ->toggleable(),
@@ -270,11 +346,27 @@ class PurchaseRequestResource extends Resource
                         'approved'  => 'Disetujui',
                         'rejected'  => 'Ditolak',
                         'fulfilled' => 'Terpenuhi',
+                        'cancelled' => 'Dibatalkan',
                     ]),
 
+                Tables\Filters\Filter::make('mine')
+                    ->label('Permohonan Saya')
+                    ->query(fn (Builder $query) => $query->where('requested_by', auth()->id())),
+
+                Tables\Filters\Filter::make('created_between')
+                    ->label('Tanggal Diajukan')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')->label('Dari Tanggal'),
+                        Forms\Components\DatePicker::make('until')->label('Sampai Tanggal'),
+                    ])
+                    ->query(fn (Builder $query, array $data) => $query
+                        ->when($data['from'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+                        ->when($data['until'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))),
+
+                // Dibandingkan dengan jumlah yang berlaku (yang disetujui bila diturunkan, selain itu yang diminta).
                 Tables\Filters\Filter::make('short_received')
                     ->label('Diterima kurang dari diminta')
-                    ->query(fn (Builder $query) => $query->whereNotNull('quantity_received')->whereColumn('quantity_received', '<', 'quantity')),
+                    ->query(fn (Builder $query) => $query->whereNotNull('quantity_received')->whereRaw('quantity_received < COALESCE(quantity_approved, quantity)')),
 
                 Tables\Filters\SelectFilter::make('item_type')
                     ->label('Jenis Barang')
@@ -290,16 +382,61 @@ class PurchaseRequestResource extends Resource
                     ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->actions([
+                Tables\Actions\ViewAction::make(),
+
+                Tables\Actions\Action::make('cancel')
+                    ->label('Batalkan')
+                    ->icon('heroicon-o-x-mark')
+                    ->color('gray')
+                    ->visible(fn (PurchaseRequest $record) => $record->status === 'pending'
+                        && (auth()->user()?->isFullAccess() || auth()->id() === $record->requested_by))
+                    ->requiresConfirmation()
+                    ->modalHeading('Batalkan permohonan ini?')
+                    ->modalDescription('Permohonan yang dibatalkan tidak diproses lagi. Ajukan permohonan baru bila barangnya masih diperlukan.')
+                    ->action(function (PurchaseRequest $record) {
+                        $processed = DB::transaction(function () use ($record) {
+                            $locked = PurchaseRequest::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
+
+                            if ($locked->status !== 'pending') {
+                                return true;
+                            }
+
+                            $locked->update(['status' => 'cancelled']);
+
+                            return false;
+                        });
+
+                        if ($processed) {
+                            Notification::make()->title('Permohonan sudah diproses')->warning()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Permohonan dibatalkan')->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->visible(fn (PurchaseRequest $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending')
-                    ->requiresConfirmation()
-                    ->action(function (PurchaseRequest $record) {
+                    ->modalHeading(fn (PurchaseRequest $record) => "Setujui {$record->request_number}?")
+                    ->modalDescription('Jumlah yang disetujui boleh lebih kecil dari yang diminta; jumlah awal tetap tercatat.')
+                    ->form(fn (PurchaseRequest $record) => [
+                        Forms\Components\TextInput::make('quantity_approved')
+                            ->label('Jumlah yang Disetujui')
+                            ->numeric()
+                            ->required()
+                            ->minValue(0.01)
+                            ->maxValue((float) $record->quantity)
+                            ->default((float) $record->quantity)
+                            ->suffix($record->unit)
+                            ->helperText('Diminta: ' . rtrim(rtrim(number_format((float) $record->quantity, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : '') . '.'),
+                    ])
+                    ->action(function (PurchaseRequest $record, array $data) {
                         // Kunci + cek ulang status: $record dari Livewire bisa basi (klik ganda / dua reviewer bersamaan).
-                        $processed = DB::transaction(function () use ($record) {
+                        $processed = DB::transaction(function () use ($record, $data) {
                             $locked = PurchaseRequest::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
 
                             if ($locked->status !== 'pending') {
@@ -308,6 +445,8 @@ class PurchaseRequestResource extends Resource
 
                             $locked->update([
                                 'status'      => 'approved',
+                                // Kosong bila disetujui sebesar yang diminta.
+                                'quantity_approved' => round((float) $data['quantity_approved'], 2) < round((float) $locked->quantity, 2) ? round((float) $data['quantity_approved'], 2) : null,
                                 'reviewed_by' => auth()->id(),
                                 'reviewed_at' => now(),
                             ]);
@@ -327,7 +466,7 @@ class PurchaseRequestResource extends Resource
                             app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->requested_by],
                                 'Permohonan Pembelian Disetujui',
-                                "Permohonan {$record->request_number} ({$record->item_name}) disetujui."
+                                "Permohonan {$record->request_number} ({$record->item_name}) disetujui" . ($record->quantity_approved !== null ? ' dengan jumlah ' . rtrim(rtrim(number_format((float) $record->quantity_approved, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : '') . ' (diminta ' . rtrim(rtrim(number_format((float) $record->quantity, 2, ',', '.'), '0'), ',') . ').' : '.')
                             );
                         }
 
@@ -400,7 +539,7 @@ class PurchaseRequestResource extends Resource
                             ->numeric()
                             ->required()
                             ->minValue(0.01)
-                            ->default(fn (PurchaseRequest $record) => (float) $record->quantity)
+                            ->default(fn (PurchaseRequest $record) => $record->effectiveQuantity())
                             ->suffix(fn (PurchaseRequest $record) => $record->unit)
                             ->helperText('Isi sesuai barang yang benar-benar sampai. Bila kurang dari yang diminta, ajukan permohonan baru untuk sisanya.'),
 
@@ -426,6 +565,13 @@ class PurchaseRequestResource extends Resource
                         // setelah barang benar-benar dibeli, dipakai
                         // PurchaseRequestPostingService untuk jurnal
                         // Persediaan/Aset otomatis.
+                        // Permohonan Aset Baru: terima barangnya sekaligus daftarkan ke Aset Tetap (satu aset per unit, kode QR masing-masing).
+                        Forms\Components\Toggle::make('register_asset')
+                            ->label('Daftarkan sebagai Aset Tetap sekarang')
+                            ->default(fn (PurchaseRequest $record) => static::canRegisterAsset($record))
+                            ->visible(fn (PurchaseRequest $record) => static::canRegisterAsset($record))
+                            ->helperText('Satu aset per unit yang diterima, dengan harga dari Total Biaya Aktual dibagi rata. Matikan kalau aset ini sudah didaftarkan manual, supaya tidak tercatat dua kali.'),
+
                         Forms\Components\TextInput::make('actual_cost')
                             ->label('Total Biaya Aktual')
                             ->numeric()
@@ -508,6 +654,27 @@ class PurchaseRequestResource extends Resource
                                     $locked->update(['stock_recorded_at' => now()]);
                                 }
 
+                                if (! empty($data['register_asset']) && static::canRegisterAsset($locked)) {
+                                    $units = max(1, min(50, (int) floor((float) $data['quantity_received'])));
+                                    $unitCost = ! empty($data['actual_cost']) ? round((float) $data['actual_cost'] / $units, 2) : null;
+
+                                    for ($i = 1; $i <= $units; $i++) {
+                                        \App\Models\Asset::create([
+                                            'asset_tag' => \App\Models\Asset::generateAssetTag(),
+                                            'name' => $units > 1 ? "{$locked->item_name} #{$i}" : $locked->item_name,
+                                            'status' => 'aktif',
+                                            'store_id' => $locked->store_id,
+                                            'received_date' => today()->toDateString(),
+                                            'purchase_date' => today()->toDateString(),
+                                            'purchase_cost' => $unitCost,
+                                            'notes' => "Dari permohonan pembelian {$locked->request_number}",
+                                            'created_by' => auth()->id(),
+                                        ]);
+                                    }
+
+                                    $locked->update(['stock_recorded_at' => now()]);
+                                }
+
                                 // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): cukup tandai terpenuhi, tanpa jurnal dan tagihan.
                                 if (! $ledger) {
                                     return;
@@ -562,7 +729,7 @@ class PurchaseRequestResource extends Resource
 
                         Notification::make()
                             ->title('Permohonan ditandai terpenuhi')
-                            ->body($record->stock_recorded_at ? 'Stok bertambah sesuai jumlah yang diterima.' : null)
+                            ->body($record->stock_recorded_at ? ($record->item_type === 'asset' ? 'Aset sudah didaftarkan ke menu Aset Tetap.' : 'Stok bertambah sesuai jumlah yang diterima.') : null)
                             ->success()
                             ->send();
                     }),
@@ -598,6 +765,14 @@ class PurchaseRequestResource extends Resource
             : \App\Filament\Resources\ConsumableItemResource::canEdit($item);
     }
 
+    /** Permohonan Aset Baru yang terpenuhi boleh sekaligus didaftarkan ke Aset Tetap, bila belum dan akun ini boleh menambah aset. */
+    public static function canRegisterAsset(PurchaseRequest $record): bool
+    {
+        return $record->item_type === 'asset'
+            && $record->stock_recorded_at === null
+            && \App\Filament\Resources\AssetResource::canCreate();
+    }
+
     public static function getNavigationBadge(): ?string
     {
         $count = static::getEloquentQuery()->where('status', 'pending')->count();
@@ -619,6 +794,7 @@ class PurchaseRequestResource extends Resource
         return [
             'index'  => Pages\ListPurchaseRequests::route('/'),
             'create' => Pages\CreatePurchaseRequest::route('/create'),
+            'view'   => Pages\ViewPurchaseRequest::route('/{record}'),
             'edit'   => Pages\EditPurchaseRequest::route('/{record}/edit'),
         ];
     }
