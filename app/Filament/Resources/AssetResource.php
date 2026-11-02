@@ -20,6 +20,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -42,12 +43,27 @@ class AssetResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Aset Tetap';
 
+    /**
+     * Aset memuat harga beli dan nilai buku, dan punya alur serah terima serta pelepasan, jadi tidak terbuka lewat akses bawaan akun
+     * baru (menu_access kosong): hanya akses penuh atau staf yang menunya dicentang eksplisit (audit Aset Tetap, 2026-11-02).
+     * Mengubah data dan serah terima butuh izin Tambah/Ubah, melihat harga butuh izin Lihat, menghapus butuh izin Hapus.
+     */
     public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
+    }
+
+    public static function canView($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    /** Boleh melihat harga beli, nilai residu, nilai buku, dan hasil pelepasan: akses penuh atau izin "Lihat" pada menu Aset Tetap. */
+    public static function canSeeCost(): bool
     {
         $user = auth()->user();
 
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return $user !== null && ($user->isFullAccess() || $user->hasModuleAction(static::class, 'view', false));
     }
 
     /**
@@ -56,10 +72,7 @@ class AssetResource extends Resource
      */
     public static function canDelete($record): bool
     {
-        $user = auth()->user();
-
-        return $user?->isFullAccess()
-            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+        return static::canDeleteAny();
     }
 
     /**
@@ -74,28 +87,20 @@ class AssetResource extends Resource
      */
     public static function canCreate(): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'create', true);
+        return static::canViewAny() && auth()->user()->hasModuleAction(static::class, 'create', false);
     }
 
     public static function canEdit($record): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'update', true);
+        return static::canViewAny() && auth()->user()->hasModuleAction(static::class, 'update', false);
     }
 
     public static function canDeleteAny(): bool
     {
         $user = auth()->user();
 
-        return $user?->isFullAccess()
-            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+        return ($user?->isFullAccess() ?? false)
+            || (static::canViewAny() && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     /**
@@ -131,7 +136,10 @@ class AssetResource extends Resource
                     Forms\Components\TextInput::make('category')
                         ->label('Kategori')
                         ->maxLength(255)
-                        ->placeholder('Mis. Elektronik, Kendaraan, Mesin, Furnitur'),
+                        ->placeholder('Mis. Elektronik, Kendaraan, Mesin, Furnitur')
+                        // Saran dari kategori yang sudah ada; ejaan/huruf besar-kecil disamakan dengannya saat disimpan.
+                        ->datalist(fn () => static::categoryOptions())
+                        ->dehydrateStateUsing(fn (?string $state) => static::canonicalCategory($state)),
 
                     Forms\Components\TextInput::make('asset_tag')
                         ->label('Kode Aset / QR')
@@ -142,17 +150,18 @@ class AssetResource extends Resource
 
                     Forms\Components\Select::make('status')
                         ->label('Status')
-                        ->options([
+                        ->options(fn (?Asset $record) => [
                             'aktif'      => 'Aktif Dipakai',
                             'diperbaiki' => 'Sedang Diperbaiki',
                             'rusak'      => 'Rusak',
-                            'dijual'     => 'Dijual',
                             'hilang'     => 'Hilang',
-                        ])
-                        ->in(['aktif', 'diperbaiki', 'rusak', 'dijual', 'hilang'])
-                        ->required()
+                        ] + ($record?->status === 'dijual' ? ['dijual' => 'Dijual'] : []))
+                        // Aset yang sudah dilepas (Lepas Aset) statusnya terkunci.
+                        ->disabled(fn (?Asset $record) => $record?->disposed_at !== null)
+                        ->dehydrated(fn (?Asset $record) => $record?->disposed_at === null)
+                        ->required(fn (?Asset $record) => $record?->disposed_at === null)
                         ->default('aktif')
-                        ->helperText('Untuk aset yang dijual atau hilang/dibuang, pakai tombol "Lepas Aset" di daftar (akses penuh) supaya jurnal pembukuannya tercatat. Mengubah status di sini tidak membuat jurnal.'),
+                        ->helperText('Aset yang dijual atau dibuang dilepas lewat tombol "Lepas Aset" di daftar (akses penuh) supaya jurnal pembukuannya tercatat; status "Dijual" hanya lewat sana. "Hilang" boleh ditandai di sini tanpa jurnal. Status aset yang sudah dilepas terkunci.'),
 
                     Forms\Components\Select::make('assigned_to')
                         ->label('Dipegang Oleh')
@@ -199,6 +208,7 @@ class AssetResource extends Resource
 
                     Forms\Components\TextInput::make('purchase_cost')
                         ->label('Harga Beli')
+                        ->visible(fn () => static::canSeeCost())
                         ->numeric()
                         ->minValue(0)
                         ->prefix('Rp'),
@@ -209,14 +219,32 @@ class AssetResource extends Resource
                         ->displayFormat('d M Y')
                         ->helperText('Opsional — isi kalau aset ini butuh servis/kalibrasi berkala. Admin akan diberi tahu otomatis begitu tanggalnya jatuh tempo.'),
 
+                    Forms\Components\TextInput::make('maintenance_interval_days')
+                        ->label('Interval Servis (hari)')
+                        ->numeric()
+                        ->minValue(1)
+                        ->maxValue(3650)
+                        ->helperText('Opsional — kalau diisi, "Catat Servis" mengisi jadwal berikutnya otomatis sebesar interval ini. Kosongkan kalau aset ini tidak punya interval tetap.'),
+
+                    Forms\Components\DatePicker::make('last_maintenance_date')
+                        ->label('Servis Terakhir')
+                        ->native(false)
+                        ->displayFormat('d M Y')
+                        ->disabled()
+                        ->dehydrated(false)
+                        ->visible(fn (?Asset $record) => $record?->last_maintenance_date !== null)
+                        ->helperText('Diisi otomatis oleh "Catat Servis".'),
+
                     Forms\Components\TextInput::make('useful_life_years')
                         ->label('Umur Ekonomis (tahun)')
+                        ->visible(fn () => static::canSeeCost())
                         ->numeric()
                         ->minValue(1)
                         ->helperText('Opsional — untuk hitung estimasi nilai buku saat ini (depresiasi garis lurus). Kosongkan kalau tidak perlu dilacak.'),
 
                     Forms\Components\TextInput::make('salvage_value')
                         ->label('Nilai Residu')
+                        ->visible(fn () => static::canSeeCost())
                         ->numeric()
                         ->minValue(0)
                         // Tidak boleh melebihi Harga Beli yang diisi di form yang sama.
@@ -255,6 +283,30 @@ class AssetResource extends Resource
                         ->columnSpanFull(),
                 ]),
         ]);
+    }
+
+    /** Kategori yang sudah dipakai, untuk saran isian. */
+    public static function categoryOptions(): array
+    {
+        return Asset::query()->whereNotNull('category')->where('category', '!=', '')->distinct()->orderBy('category')->pluck('category')->all();
+    }
+
+    /** Samakan kategori dengan yang sudah ada (tanpa membedakan huruf besar/kecil); kategori baru disimpan apa adanya. */
+    public static function canonicalCategory(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        return Asset::query()->whereRaw('LOWER(category) = ?', [mb_strtolower($value)])->orderBy('id')->value('category') ?? $value;
+    }
+
+    /** Ciri satu aset untuk mendeteksi baris import yang sama dengan aset yang sudah terdaftar. */
+    private static function importSignature(string $name, ?string $category, ?int $storeId, ?string $purchaseDate, ?float $purchaseCost): string
+    {
+        return implode('|', [mb_strtolower(trim($name)), mb_strtolower((string) $category), (string) $storeId, (string) $purchaseDate, $purchaseCost === null ? '' : number_format($purchaseCost, 2, '.', '')]);
     }
 
     public static function table(Table $table): Table
@@ -300,7 +352,7 @@ class AssetResource extends Resource
                     ->label('Tgl Pelepasan')
                     ->date('d M Y')
                     ->placeholder('—')
-                    ->description(fn (Asset $record) => $record->disposed_at && $record->disposal_proceeds !== null && (float) $record->disposal_proceeds > 0
+                    ->description(fn (Asset $record) => static::canSeeCost() && $record->disposed_at && $record->disposal_proceeds !== null && (float) $record->disposal_proceeds > 0
                         ? 'Hasil Rp ' . number_format((float) $record->disposal_proceeds, 0, ',', '.')
                         : null)
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -330,8 +382,15 @@ class AssetResource extends Resource
 
                 Tables\Columns\TextColumn::make('book_value')
                     ->label('Nilai Buku Saat Ini')
+                    ->visible(fn () => static::canSeeCost())
                     ->state(fn (Asset $record) => $record->currentBookValue())
                     ->formatStateUsing(fn (?float $state) => $state !== null ? 'Rp ' . number_format($state, 0, ',', '.') : '—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('last_maintenance_date')
+                    ->label('Servis Terakhir')
+                    ->date('d M Y')
+                    ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('next_maintenance_date')
@@ -352,6 +411,15 @@ class AssetResource extends Resource
                         'dijual'     => 'Dijual',
                         'hilang'     => 'Hilang',
                     ]),
+
+                Tables\Filters\SelectFilter::make('assigned_to')
+                    ->label('Dipegang Oleh')
+                    ->options(fn () => User::query()->whereIn('id', Asset::query()->visibleTo(auth()->user())->whereNotNull('assigned_to')->select('assigned_to'))->orderBy('name')->pluck('name', 'id'))
+                    ->searchable(),
+
+                Tables\Filters\Filter::make('maintenance_due')
+                    ->label('Maintenance Jatuh Tempo')
+                    ->query(fn ($query) => $query->whereNull('disposed_at')->whereNotNull('next_maintenance_date')->whereDate('next_maintenance_date', '<=', today())),
 
                 Tables\Filters\SelectFilter::make('category')
                     ->label('Kategori')
@@ -399,25 +467,14 @@ class AssetResource extends Resource
                     ->modalSubmitActionLabel('Import'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ViewAction::make(),
 
-                Tables\Actions\Action::make('download_qr')
-                    ->label('Download QR')
-                    ->icon('heroicon-o-qr-code')
-                    ->color('gray')
-                    ->action(fn (Asset $record) => static::downloadQrPdf(new Collection([$record]))),
-
-                // Jalan RESMI pindah tangan aset — beda dari sekadar edit
-                // field "Dipegang Oleh"/"Lokasi" di form (yang tetap ada,
-                // untuk koreksi data biasa): aksi ini WAJIB isi kondisi
-                // fisik + alasan saat serah terima, dan tercatat sebagai 1
-                // baris utuh di asset_transfers (lihat tab "Riwayat
-                // Kepemilikan"), bukan cuma diff before/after generik di
-                // activity log.
                 Tables\Actions\Action::make('transfer')
                     ->label('Serah Terima')
                     ->icon('heroicon-o-arrow-path-rounded-square')
-                    ->color('warning')
+                    ->button()
+                    ->color('primary')
+                    ->visible(fn (Asset $record) => static::canEdit($record) && $record->disposed_at === null)
                     ->form([
                         Forms\Components\Select::make('to_user_id')
                             ->label('Diserahkan Ke')
@@ -478,6 +535,69 @@ class AssetResource extends Resource
 
                 // Pelepasan aset (audit ACCURATE 5, tombol "Dispos"): aset dijual atau hilang/dibuang keluar dari pembukuan dengan
                 // satu jurnal (harga perolehan, akumulasi penyusutan, hasil, laba/rugi). Hanya akses penuh; satu aset sekali saja.
+
+                Tables\Actions\ActionGroup::make([
+                Tables\Actions\EditAction::make(),
+
+                Tables\Actions\Action::make('record_maintenance')
+                    ->label('Catat Servis')
+                    ->icon('heroicon-o-wrench-screwdriver')
+                    ->color('gray')
+                    ->visible(fn (Asset $record) => static::canEdit($record) && $record->disposed_at === null)
+                    ->modalHeading(fn (Asset $record) => "Catat servis: {$record->name}")
+                    ->form(fn (Asset $record) => [
+                        Forms\Components\DatePicker::make('date')
+                            ->label('Tanggal Servis')
+                            ->native(false)
+                            ->displayFormat('d M Y')
+                            ->default(today())
+                            ->maxDate(today())
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function (Forms\Set $set, ?string $state) use ($record) {
+                                $set('next_date', filled($state) ? $record->nextMaintenanceFrom(\Illuminate\Support\Carbon::parse($state))?->toDateString() : null);
+                            }),
+
+                        Forms\Components\DatePicker::make('next_date')
+                            ->label('Jadwal Servis Berikutnya')
+                            ->native(false)
+                            ->displayFormat('d M Y')
+                            ->default($record->nextMaintenanceFrom(today())?->toDateString())
+                            ->afterOrEqual('date')
+                            ->helperText($record->maintenance_interval_days
+                                ? "Terisi otomatis dari interval {$record->maintenance_interval_days} hari; boleh diubah."
+                                : 'Opsional — kosongkan kalau aset ini tidak punya jadwal servis berikutnya (pengingat berhenti).'),
+
+                        Forms\Components\Textarea::make('note')
+                            ->label('Catatan Servis')
+                            ->rows(2)
+                            ->maxLength(500),
+                    ])
+                    ->action(function (Asset $record, array $data) {
+                        $record->recordMaintenance(
+                            \Illuminate\Support\Carbon::parse($data['date']),
+                            filled($data['next_date'] ?? null) ? \Illuminate\Support\Carbon::parse($data['next_date']) : null,
+                            $data['note'] ?? null,
+                            auth()->id(),
+                        );
+
+                        Notification::make()->title('Servis dicatat')->success()->send();
+                    }),
+
+                Tables\Actions\Action::make('download_qr')
+                    ->label('Download QR')
+                    ->icon('heroicon-o-qr-code')
+                    ->color('gray')
+                    ->action(fn (Asset $record) => static::downloadQrPdf(new Collection([$record]))),
+
+                // Jalan RESMI pindah tangan aset — beda dari sekadar edit
+                // field "Dipegang Oleh"/"Lokasi" di form (yang tetap ada,
+                // untuk koreksi data biasa): aksi ini WAJIB isi kondisi
+                // fisik + alasan saat serah terima, dan tercatat sebagai 1
+                // baris utuh di asset_transfers (lihat tab "Riwayat
+                // Kepemilikan"), bukan cuma diff before/after generik di
+                // activity log.
+
                 Tables\Actions\Action::make('dispose')
                     ->label('Lepas Aset')
                     ->icon('heroicon-o-archive-box-x-mark')
@@ -548,6 +668,7 @@ class AssetResource extends Resource
                             ->success()
                             ->send();
                     }),
+                ]),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -621,25 +742,34 @@ class AssetResource extends Resource
         $statusOptions = ['aktif', 'diperbaiki', 'rusak', 'dijual', 'hilang'];
 
         $createdCount = 0;
-        $invalidCount = 0;
-        // SEBELUMNYA cuma hitung jumlah gagal cocok — admin tidak tahu
-        // NAMA mana yang gagal, harus buka tiap baris hasil import satu-
-        // satu untuk menebak. Sekarang nama yang gagal ditampung supaya
-        // bisa disebutkan langsung di notifikasi akhir.
         $unmatchedAssigneeNames = [];
         $unmatchedStoreNames = [];
         $userCache = [];
         $storeCache = [];
+        $problems = [];
 
-        foreach ($rows as $row) {
-            $name = isset($row[0]) ? trim((string) $row[0]) : '';
+        // Baris yang identik dengan aset yang SUDAH terdaftar (nama, kategori, lokasi, tanggal beli, harga beli) dilewati, supaya mengimpor
+        // file yang sama dua kali tidak menggandakan seluruh aset (tiap aset mendapat kode QR berbeda). Baris kembar di dalam file yang sama
+        // tetap dibuat, karena beberapa unit yang sama persis (mis. kursi) memang wajar.
+        $existing = Asset::query()->get(['name', 'category', 'store_id', 'purchase_date', 'purchase_cost'])
+            ->mapWithKeys(fn (Asset $a) => [static::importSignature($a->name, $a->category, $a->store_id, $a->purchase_date?->toDateString(), $a->purchase_cost !== null ? (float) $a->purchase_cost : null) => true])
+            ->all();
 
-            if ($name === '') {
-                $invalidCount++;
+        foreach ($rows as $index => $row) {
+            $line = $index + 2; // baris header sudah dibuang; nomor baris di Excel mulai dari 1
+
+            if (! array_filter($row, fn ($cell) => trim((string) $cell) !== '')) {
                 continue;
             }
 
-            $category = isset($row[1]) ? trim((string) $row[1]) : '';
+            $name = isset($row[0]) ? trim((string) $row[0]) : '';
+
+            if ($name === '') {
+                $problems[] = "Baris {$line}: Nama Aset kosong";
+                continue;
+            }
+
+            $category = static::canonicalCategory(isset($row[1]) ? trim((string) $row[1]) : '');
             $status = isset($row[2]) ? strtolower(trim((string) $row[2])) : 'aktif';
             $status = in_array($status, $statusOptions, true) ? $status : 'aktif';
 
@@ -647,9 +777,6 @@ class AssetResource extends Resource
             $assignedTo = null;
             if ($assigneeName !== '') {
                 if (! array_key_exists($assigneeName, $userCache)) {
-                    // Sama pembatasan dengan Select 'assigned_to' di form —
-                    // cuma cocokkan ke akun yang benar-benar bisa masuk area
-                    // staff, bukan sembarang user (mis. installer/partner).
                     $userCache[$assigneeName] = User::where('name', $assigneeName)
                         ->get()
                         ->first(fn (User $u) => $u->canAccessStaffArea())
@@ -671,30 +798,41 @@ class AssetResource extends Resource
 
             $receivedDate = static::normalizeImportedDate($row[5] ?? null) ?? now()->toDateString();
             $purchaseDate = static::normalizeImportedDate($row[6] ?? null);
-            // max(0, ...) — jalur form sudah dibatasi minValue(0), import
-            // ini bypass form jadi perlu dibatasi terpisah supaya tidak
-            // ada harga beli negatif menyelinap lewat file Excel.
             $purchaseCost = isset($row[7]) && $row[7] !== '' ? max(0, (float) $row[7]) : null;
             $notes = isset($row[8]) ? trim((string) $row[8]) : '';
 
-            Asset::create([
-                'asset_tag' => Asset::generateAssetTag(),
-                'name' => $name,
-                'category' => $category ?: null,
-                'status' => $status,
-                'assigned_to' => $assignedTo,
-                'store_id' => $storeId,
-                'received_date' => $receivedDate,
-                'purchase_date' => $purchaseDate,
-                'purchase_cost' => $purchaseCost,
-                'notes' => $notes ?: null,
-                'created_by' => auth()->id(),
-            ]);
+            if (isset($existing[static::importSignature($name, $category, $storeId, $purchaseDate, $purchaseCost)])) {
+                $problems[] = "Baris {$line}: \"{$name}\" sudah terdaftar";
+                continue;
+            }
+
+            try {
+                DB::transaction(fn () => Asset::create([
+                    'asset_tag' => Asset::generateAssetTag(),
+                    'name' => $name,
+                    'category' => $category,
+                    'status' => $status,
+                    'assigned_to' => $assignedTo,
+                    'store_id' => $storeId,
+                    'received_date' => $receivedDate,
+                    'purchase_date' => $purchaseDate,
+                    'purchase_cost' => $purchaseCost,
+                    'notes' => $notes ?: null,
+                    'created_by' => auth()->id(),
+                ]));
+            } catch (\Throwable $e) {
+                report($e);
+                $problems[] = "Baris {$line}: gagal disimpan ({$name})";
+                continue;
+            }
+
             $createdCount++;
         }
 
         $bodyLines = ["{$createdCount} aset berhasil didaftarkan."];
-        if ($invalidCount > 0) $bodyLines[] = "{$invalidCount} baris dilewati (Nama Aset kosong).";
+        if ($problems !== []) {
+            $bodyLines[] = count($problems) . ' baris dilewati: ' . implode('; ', array_slice($problems, 0, 10)) . (count($problems) > 10 ? '; dan ' . (count($problems) - 10) . ' lainnya.' : '.');
+        }
         if (! empty($unmatchedAssigneeNames)) {
             $bodyLines[] = 'Nama user tidak ditemukan (dikosongkan): ' . implode(', ', array_keys($unmatchedAssigneeNames)) . '.';
         }
@@ -746,6 +884,7 @@ class AssetResource extends Resource
         return [
             'index'  => Pages\ListAssets::route('/'),
             'create' => Pages\CreateAsset::route('/create'),
+            'view'   => Pages\ViewAsset::route('/{record}'),
             'edit'   => Pages\EditAsset::route('/{record}/edit'),
         ];
     }

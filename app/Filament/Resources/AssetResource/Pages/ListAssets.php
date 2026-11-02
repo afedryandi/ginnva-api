@@ -26,8 +26,9 @@ class ListAssets extends ListRecords
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new AssetExport,
+                ->tooltip('Mengekspor daftar sesuai filter dan pencarian yang sedang aktif')
+                ->action(fn ($livewire) => Excel::download(
+                    new AssetExport(\App\Filament\Resources\AssetResource::canSeeCost(), $livewire->getFilteredSortedTableQuery()),
                     'aset-tetap-' . now()->format('Ymd-His') . '.xlsx'
                 )),
 
@@ -35,14 +36,12 @@ class ListAssets extends ListRecords
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
-                ->action(function () {
-                    $query = Asset::query()->with(['assignee', 'store']);
-                    if ($user = auth()->user()) {
-                        $query->visibleTo($user);
-                    }
-                    $assets = $query->orderByDesc('created_at')->get();
+                ->tooltip('Mengekspor daftar sesuai filter dan pencarian yang sedang aktif')
+                ->action(function ($livewire) {
+                    // Query tabel sudah dibatasi ke toko akun ini (AssetResource::getEloquentQuery()) dan mengikuti filter/urutan layar.
+                    $assets = $livewire->getFilteredSortedTableQuery()->with(['assignee', 'store'])->get();
 
-                    $pdf = Pdf::loadView('pdf.assets', ['assets' => $assets])->setPaper('a4', 'landscape');
+                    $pdf = Pdf::loadView('pdf.assets', ['assets' => $assets, 'showCost' => \App\Filament\Resources\AssetResource::canSeeCost()])->setPaper('a4', 'landscape');
                     $filename = 'aset-tetap-' . now()->format('Ymd-His') . '.pdf';
 
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);

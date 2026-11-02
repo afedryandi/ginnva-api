@@ -794,6 +794,12 @@ class StaffStockApiTest extends TestCase
 
     // ------------------------------------------------------------- aset
 
+    /** Staf aset: menu Aset Tetap dicentang dengan izin Ubah dan Lihat (akses bawaan tidak lagi membuka menu ini). */
+    private function assetStaff(?Store $store = null, array $permissions = ['update', 'view']): User
+    {
+        return $this->staff('kasir', $store, ['AssetResource'], true, ['AssetResource' => $permissions]);
+    }
+
     private function asset(string $name, ?Store $store, array $extra = []): Asset
     {
         return Asset::create(array_merge(['asset_tag' => Asset::generateAssetTag(), 'name' => $name, 'category' => 'Mesin', 'status' => 'aktif', 'store_id' => $store?->id, 'received_date' => '2026-10-01'], $extra));
@@ -808,6 +814,7 @@ class StaffStockApiTest extends TestCase
         $this->api($noMenu)->getJson('/api/staff/assets')->assertStatus(403);
         $this->api($noMenu)->getJson("/api/staff/assets/{$asset->asset_tag}")->assertStatus(403);
         $this->api($noMenu)->postJson("/api/staff/assets/{$asset->asset_tag}/update", ['status' => 'rusak'])->assertStatus(403);
+        $this->api($noMenu)->postJson("/api/staff/assets/{$asset->asset_tag}/transfer", ['condition_at_transfer' => 'baik', 'reason' => 'x'])->assertStatus(403);
         $this->assertSame('aktif', $asset->fresh()->status);
     }
 
@@ -816,7 +823,7 @@ class StaffStockApiTest extends TestCase
         $mine = $this->asset('Kompresor A', $this->storeA);
         $theirs = $this->asset('Kompresor B', $this->storeB);
         $headOffice = $this->asset('Kompresor Pusat', null);
-        $staff = $this->staff('kasir', $this->storeA);
+        $staff = $this->assetStaff($this->storeA);
 
         $names = fn (string $query) => collect($this->api($staff)->getJson('/api/staff/assets' . $query)->assertSuccessful()->json('data'))->pluck('name')->all();
 
@@ -833,8 +840,8 @@ class StaffStockApiTest extends TestCase
 
     public function test_assigned_to_me_filter_cannot_be_bypassed_by_searching(): void
     {
-        $staff = $this->staff('kasir', $this->storeA);
-        $other = $this->staff('kasir', $this->storeA);
+        $staff = $this->assetStaff($this->storeA);
+        $other = $this->assetStaff($this->storeA);
         $assigned = $this->asset('Bor Saya', $this->storeA, ['assigned_to' => $staff->id]);
         $notMine = $this->asset('Bor Orang', $this->storeA, ['assigned_to' => $other->id]);
 
@@ -849,7 +856,7 @@ class StaffStockApiTest extends TestCase
     {
         $mine = $this->asset('Kompresor A', $this->storeA);
         $theirs = $this->asset('Kompresor B', $this->storeB);
-        $staff = $this->staff('kasir', $this->storeA);
+        $staff = $this->assetStaff($this->storeA);
 
         $this->api($staff)->getJson("/api/staff/assets/{$mine->asset_tag}")->assertSuccessful()->assertJsonPath('data.name', 'Kompresor A');
         $this->api($staff)->getJson("/api/staff/assets/{$theirs->asset_tag}")->assertNotFound();
@@ -860,7 +867,7 @@ class StaffStockApiTest extends TestCase
     public function test_updating_an_asset_status_notes_and_store(): void
     {
         $asset = $this->asset('Kompresor A', $this->storeA, ['notes' => 'Catatan lama']);
-        $staff = $this->staff('kasir', $this->storeA);
+        $staff = $this->assetStaff($this->storeA);
 
         $this->api($staff)->postJson("/api/staff/assets/{$asset->asset_tag}/update", ['status' => 'diperbaiki', 'store_id' => $this->storeB->id])
             ->assertSuccessful()
@@ -871,18 +878,149 @@ class StaffStockApiTest extends TestCase
         $this->api($staff)->postJson("/api/staff/assets/{$asset->asset_tag}/update", ['status' => 'aktif', 'notes' => 'Sudah beres'])->assertSuccessful();
         $this->assertSame('Sudah beres', $asset->fresh()->notes);
 
-        $this->api($this->staff('super_admin'))->postJson("/api/staff/assets/{$asset->asset_tag}/update", ['status' => 'aktif', 'store_id' => $this->storeB->id])->assertSuccessful();
+        // Pindah toko tidak lagi lewat update (tidak ada catatan serah terima): akses penuh diarahkan ke Serah Terima.
+        $admin = $this->staff('super_admin');
+        $this->api($admin)->postJson("/api/staff/assets/{$asset->asset_tag}/update", ['status' => 'aktif', 'store_id' => $this->storeB->id])->assertStatus(422);
+        $this->assertSame($this->storeA->id, $asset->fresh()->store_id);
+        $this->api($admin)->postJson("/api/staff/assets/{$asset->asset_tag}/transfer", ['to_store_id' => $this->storeB->id, 'condition_at_transfer' => 'baik', 'reason' => 'Dipindah ke Toko B'])->assertSuccessful();
         $this->assertSame($this->storeB->id, $asset->fresh()->store_id);
 
         $this->assertNotNull(Activity::where('log_name', 'asset')->where('subject_id', $asset->id)->where('description', 'like', '%updated%')->first()
             ?? Activity::where('log_name', 'asset')->where('subject_id', $asset->id)->latest('id')->first());
     }
 
+    public function test_asset_access_is_explicit_changes_need_update_and_prices_need_view(): void
+    {
+        $asset = $this->asset('Kompresor', $this->storeA, ['purchase_cost' => 5000000, 'purchase_date' => '2026-01-01', 'notes' => 'Catatan']);
+        $asset->update(['status' => 'rusak']);   // menghasilkan catatan aktivitas yang memuat nilai lama/baru
+
+        $default = $this->staff('kasir', $this->storeA);
+        $this->api($default)->getJson('/api/staff/assets')->assertStatus(403);
+        $this->api($default)->getJson("/api/staff/assets/{$asset->asset_tag}")->assertStatus(403);
+
+        $viewer = $this->assetStaff($this->storeA, []);
+        $detail = $this->api($viewer)->getJson("/api/staff/assets/{$asset->asset_tag}")->assertSuccessful();
+        $this->assertFalse($detail->json('can_modify'));
+        $this->assertArrayNotHasKey('purchase_cost', $detail->json('data'));
+        $this->assertArrayNotHasKey('purchase_date', $detail->json('data'));
+        $this->assertArrayNotHasKey('created_by', $detail->json('data'));
+        $this->assertArrayNotHasKey('properties', $detail->json('data.activities.0'), 'Nilai lama/baru di log (yang memuat harga) tidak dikirim.');
+        $this->assertSame([], $detail->json('holders'));
+        $this->api($viewer)->postJson("/api/staff/assets/{$asset->asset_tag}/update", ['status' => 'aktif'])->assertStatus(403);
+        $this->api($viewer)->postJson("/api/staff/assets/{$asset->asset_tag}/transfer", ['condition_at_transfer' => 'baik', 'reason' => 'x'])->assertStatus(403);
+        $this->assertSame('rusak', $asset->fresh()->status);
+
+        $costViewer = $this->assetStaff($this->storeA, ['view']);
+        $this->assertEquals(5000000, $this->api($costViewer)->getJson("/api/staff/assets/{$asset->asset_tag}")->json('data.purchase_cost'));
+
+        $writer = $this->assetStaff($this->storeA, ['update']);
+        $written = $this->api($writer)->getJson("/api/staff/assets/{$asset->asset_tag}")->assertSuccessful();
+        $this->assertTrue($written->json('can_modify'));
+        $this->assertArrayNotHasKey('purchase_cost', $written->json('data'));
+    }
+
+    public function test_a_handover_from_the_app_records_the_transfer_and_updates_the_holder(): void
+    {
+        $asset = $this->asset('Bor', $this->storeA, ['notes' => 'Catatan lama']);
+        $staff = $this->assetStaff($this->storeA);
+        $newHolder = $this->staff('kasir', $this->storeA);
+        $nonStaff = User::create(['name' => 'Tanpa Panel', 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $this->storeA->id, 'is_active' => true]);
+
+        $detail = $this->api($staff)->getJson("/api/staff/assets/{$asset->asset_tag}")->assertSuccessful();
+        $this->assertContains($newHolder->id, array_column($detail->json('holders'), 'id'));
+        $this->assertNotContains($nonStaff->id, array_column($detail->json('holders'), 'id'));
+
+        $url = "/api/staff/assets/{$asset->asset_tag}/transfer";
+        $this->api($staff)->postJson($url, ['to_user_id' => $newHolder->id, 'reason' => 'Rotasi'])->assertStatus(422)->assertJsonValidationErrors('condition_at_transfer');
+        $this->api($staff)->postJson($url, ['to_user_id' => $newHolder->id, 'condition_at_transfer' => 'baik'])->assertStatus(422)->assertJsonValidationErrors('reason');
+        $this->api($staff)->postJson($url, ['to_user_id' => $nonStaff->id, 'condition_at_transfer' => 'baik', 'reason' => 'x'])->assertStatus(422)->assertJsonValidationErrors('to_user_id');
+
+        // Staf biasa tidak bisa memindahkan toko; yang dikirim diabaikan.
+        $this->api($staff)->postJson($url, ['to_user_id' => $newHolder->id, 'to_store_id' => $this->storeB->id, 'condition_at_transfer' => 'perlu_perhatian', 'reason' => 'Rotasi tugas'])
+            ->assertSuccessful()
+            ->assertJsonPath('message', 'Serah terima dicatat.');
+
+        $fresh = $asset->fresh();
+        $this->assertSame([$newHolder->id, $this->storeA->id, 'Catatan lama'], [$fresh->assigned_to, $fresh->store_id, $fresh->notes]);
+        $record = \App\Models\AssetTransfer::where('asset_id', $asset->id)->firstOrFail();
+        $this->assertSame([null, $newHolder->id, $this->storeA->id, $this->storeA->id, 'perlu_perhatian', 'Rotasi tugas', $staff->id], [$record->from_user_id, $record->to_user_id, $record->from_store_id, $record->to_store_id, $record->condition_at_transfer, $record->reason, $record->performed_by]);
+
+        $shown = $this->api($staff)->getJson("/api/staff/assets/{$asset->asset_tag}")->json('transfers');
+        $this->assertCount(1, $shown);
+        $this->assertSame('Rotasi tugas', $shown[0]['reason']);
+
+        // Aset toko lain tidak bisa diserahterimakan.
+        $theirs = $this->asset('Bor B', $this->storeB);
+        $this->api($staff)->postJson("/api/staff/assets/{$theirs->asset_tag}/transfer", ['condition_at_transfer' => 'baik', 'reason' => 'x'])->assertNotFound();
+    }
+
+    public function test_the_asset_list_reports_the_total(): void
+    {
+        foreach (range(1, 22) as $i) {
+            $this->asset(sprintf('Kursi %02d', $i), $this->storeA);
+        }
+        $staff = $this->assetStaff($this->storeA);
+
+        $list = $this->api($staff)->getJson('/api/staff/assets?search=Kursi')->assertSuccessful();
+        $this->assertCount(20, $list->json('data'));
+        $this->assertSame(22, $list->json('total'));
+        $this->assertSame(20, $list->json('limit'));
+        $this->assertTrue($list->json('can_modify'));
+    }
+
+    public function test_sold_is_refused_lost_is_allowed_and_a_disposed_asset_is_locked(): void
+    {
+        $asset = $this->asset('Kompresor A', $this->storeA);
+        $staff = $this->assetStaff($this->storeA);
+        $url = "/api/staff/assets/{$asset->asset_tag}/update";
+
+        $this->api($staff)->postJson($url, ['status' => 'dijual'])->assertStatus(422)->assertJsonValidationErrors('status');
+        $this->assertSame('aktif', $asset->fresh()->status);
+
+        $this->api($staff)->postJson($url, ['status' => 'hilang'])->assertSuccessful();
+        $this->assertSame('hilang', $asset->fresh()->status);
+
+        $disposed = $this->asset('Sudah Dilepas', $this->storeA, ['status' => 'dijual', 'disposed_at' => '2026-10-01', 'disposal_type' => 'dijual']);
+        $this->api($staff)->postJson("/api/staff/assets/{$disposed->asset_tag}/update", ['status' => 'aktif'])->assertStatus(422);
+        $this->api($staff)->postJson("/api/staff/assets/{$disposed->asset_tag}/transfer", ['condition_at_transfer' => 'baik', 'reason' => 'x'])->assertStatus(422);
+        $this->api($staff)->postJson("/api/staff/assets/{$disposed->asset_tag}/maintenance", ['date' => '2026-10-07'])->assertStatus(422);
+        $this->assertSame('dijual', $disposed->fresh()->status);
+    }
+
+    public function test_recording_a_service_from_the_app_uses_the_interval_or_the_given_date(): void
+    {
+        $withInterval = $this->asset('Kompresor', $this->storeA, ['maintenance_interval_days' => 30, 'next_maintenance_date' => '2026-10-01']);
+        $noInterval = $this->asset('Genset', $this->storeA, ['next_maintenance_date' => '2026-10-01']);
+        $staff = $this->assetStaff($this->storeA);
+
+        $this->api($staff)->postJson("/api/staff/assets/{$withInterval->asset_tag}/maintenance", ['date' => '2026-10-07', 'note' => 'Ganti oli'])
+            ->assertSuccessful()
+            ->assertJsonPath('message', 'Servis dicatat.');
+        $fresh = $withInterval->fresh();
+        $this->assertSame(['2026-10-07', '2026-11-06'], [$fresh->last_maintenance_date->toDateString(), $fresh->next_maintenance_date->toDateString()], 'Interval 30 hari dari tanggal servis.');
+
+        $this->api($staff)->postJson("/api/staff/assets/{$withInterval->asset_tag}/maintenance", ['date' => '2026-10-07', 'next_date' => '2026-12-01'])->assertSuccessful();
+        $this->assertSame('2026-12-01', $withInterval->fresh()->next_maintenance_date->toDateString());
+
+        $this->api($staff)->postJson("/api/staff/assets/{$noInterval->asset_tag}/maintenance", ['date' => '2026-10-07'])->assertSuccessful();
+        $this->assertNull($noInterval->fresh()->next_maintenance_date, 'Tanpa interval dan tanpa tanggal: tidak ada jadwal berikutnya.');
+
+        $url = "/api/staff/assets/{$withInterval->asset_tag}/maintenance";
+        $this->api($staff)->postJson($url, [])->assertStatus(422)->assertJsonValidationErrors('date');
+        $this->api($staff)->postJson($url, ['date' => '2099-01-01'])->assertStatus(422)->assertJsonValidationErrors('date');
+        $this->api($staff)->postJson($url, ['date' => '2026-10-07', 'next_date' => '2026-10-01'])->assertStatus(422)->assertJsonValidationErrors('next_date');
+
+        $viewer = $this->assetStaff($this->storeA, []);
+        $this->api($viewer)->postJson($url, ['date' => '2026-10-07'])->assertStatus(403);
+        $theirs = $this->asset('Kompresor B', $this->storeB);
+        $this->api($staff)->postJson("/api/staff/assets/{$theirs->asset_tag}/maintenance", ['date' => '2026-10-07'])->assertNotFound();
+    }
+
     public function test_asset_update_validation_and_other_stores(): void
     {
         $theirs = $this->asset('Kompresor B', $this->storeB);
         $mine = $this->asset('Kompresor A', $this->storeA);
-        $staff = $this->staff('kasir', $this->storeA);
+        $staff = $this->assetStaff($this->storeA);
 
         $this->api($staff)->postJson("/api/staff/assets/{$mine->asset_tag}/update", ['status' => 'terbang'])->assertStatus(422)->assertJsonValidationErrors('status');
         $this->api($staff)->postJson("/api/staff/assets/{$mine->asset_tag}/update", [])->assertStatus(422)->assertJsonValidationErrors('status');

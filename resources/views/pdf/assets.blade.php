@@ -28,7 +28,7 @@
     <table>
         <tr>
             <th>Kode</th><th>Nama Aset</th><th>Kategori</th><th>Status</th><th>Dipegang Oleh</th>
-            <th>Lokasi</th><th>Tanggal Beli</th><th class="value">Harga Beli</th><th class="value">Nilai Buku Saat Ini</th>
+            <th>Lokasi</th><th>Tanggal Beli</th>@if ($showCost ?? true)<th class="value">Harga Beli</th><th class="value">Nilai Buku Saat Ini</th>@endif
         </tr>
         @forelse ($assets as $asset)
             <tr>
@@ -39,11 +39,13 @@
                 <td>{{ $asset->assignee?->name ?? '-' }}</td>
                 <td>{{ $asset->store?->name ?? 'Kantor Pusat' }}</td>
                 <td>{{ $asset->purchase_date?->format('d M Y') ?? '-' }}</td>
-                <td class="value">{{ $asset->purchase_cost !== null ? number_format((float) $asset->purchase_cost, 0, ',', '.') : '-' }}</td>
-                <td class="value">{{ $asset->currentBookValue() !== null ? number_format((float) $asset->currentBookValue(), 0, ',', '.') : '-' }}</td>
+                @if ($showCost ?? true)
+                    <td class="value">{{ $asset->purchase_cost !== null ? number_format((float) $asset->purchase_cost, 0, ',', '.') : '-' }}</td>
+                    <td class="value">{{ $asset->currentBookValue() !== null ? number_format((float) $asset->currentBookValue(), 0, ',', '.') : '-' }}</td>
+                @endif
             </tr>
         @empty
-            <tr><td colspan="9">Belum ada aset.</td></tr>
+            <tr><td colspan="{{ ($showCost ?? true) ? 9 : 7 }}">Belum ada aset.</td></tr>
         @endforelse
     </table>
 </body>

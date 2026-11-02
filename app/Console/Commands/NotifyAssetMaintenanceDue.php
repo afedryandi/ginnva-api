@@ -37,7 +37,7 @@ class NotifyAssetMaintenanceDue extends Command
         }
 
         $recipients = User::all()->filter(fn (User $user) => $user->isFullAccess()
-            || $user->hasMenuAccess(AssetResource::class));
+            || $user->hasExplicitMenuAccess(AssetResource::class));
 
         $listText = $dueAssets->take(10)
             ->map(fn (Asset $a) => "{$a->name} ({$a->asset_tag})" . ($a->store ? " — {$a->store->name}" : ''))

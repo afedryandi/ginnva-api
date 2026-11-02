@@ -74,6 +74,12 @@ class AssetResourceTest extends TestCase
         return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess, 'is_active' => true], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
+    /** Staf aset: menu dicentang, boleh Tambah/Ubah dan melihat harga; tidak boleh menghapus. */
+    private function writer(?Store $store = null): User
+    {
+        return $this->user('kasir', ['AssetResource'], $store, ['menu_permissions' => ['AssetResource' => ['create', 'update', 'view']]]);
+    }
+
     private function as(User $user): User
     {
         $this->actingAs($user, 'web');
@@ -97,19 +103,168 @@ class AssetResourceTest extends TestCase
         $this->assertTrue(AssetResource::canDelete($record));
         $this->assertTrue(AssetResource::canDeleteAny());
 
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $this->assertTrue(AssetResource::canViewAny());
         $this->assertTrue(AssetResource::canCreate());
         $this->assertTrue(AssetResource::canEdit($record));
+        $this->assertTrue(AssetResource::canSeeCost());
         $this->assertFalse(AssetResource::canDelete($record));
         $this->assertFalse(AssetResource::canDeleteAny());
 
-        $this->as($this->user('kasir', null, null, ['menu_permissions' => ['AssetResource' => ['delete']]]));
+        $this->as($this->user('kasir', ['AssetResource'], null, ['menu_permissions' => ['AssetResource' => ['delete']]]));
         $this->assertTrue(AssetResource::canDelete($record));
+
+        // Akses bawaan (menu_access kosong) tidak membuka menu ini.
+        $this->as($this->user('kasir'));
+        $this->assertFalse(AssetResource::canViewAny());
+        $this->assertFalse(AssetResource::canCreate());
 
         $this->as($this->user('kasir', ['BookingResource']));
         $this->assertFalse(AssetResource::canViewAny());
         $this->assertFalse(AssetResource::canCreate());
+    }
+
+    public function test_a_view_only_account_cannot_hand_over_or_see_prices(): void
+    {
+        $asset = $this->asset('Kompresor', $this->storeA, ['purchase_cost' => 5000000, 'purchase_date' => '2026-01-01', 'useful_life_years' => 5]);
+
+        $this->as($this->user('kasir', ['AssetResource'], $this->storeA));
+        $this->assertTrue(AssetResource::canView($asset));
+        $this->assertFalse(AssetResource::canEdit($asset));
+        $this->assertFalse(AssetResource::canSeeCost());
+
+        Livewire::test(ListAssets::class)
+            ->assertCanSeeTableRecords([$asset])
+            ->assertTableActionHidden('transfer', $asset)
+            ->assertTableColumnHidden('book_value');
+
+        $this->assertSame(7, count((new AssetExport(false))->headings()));
+        $this->assertCount(7, (new AssetExport(false))->collection()->first());
+
+        $this->as($this->writer($this->storeA));
+        Livewire::test(ListAssets::class)
+            ->assertTableActionVisible('transfer', $asset)
+            ->assertTableColumnVisible('book_value');
+        $this->assertSame(9, count((new AssetExport())->headings()));
+    }
+
+    public function test_the_view_page_the_filters_and_the_filtered_export(): void
+    {
+        $holder = $this->user('kasir', null, $this->storeA, ['name' => 'Rina Pemegang']);
+        $due = $this->asset('Servis Lewat', $this->storeA, ['assigned_to' => $holder->id, 'next_maintenance_date' => '2026-10-01']);
+        $later = $this->asset('Servis Nanti', $this->storeA, ['next_maintenance_date' => '2026-12-01']);
+
+        $this->as($this->user('kasir'));
+        Livewire::test(\App\Filament\Resources\AssetResource\Pages\ViewAsset::class, ['record' => $due->getKey()])->assertForbidden();
+
+        $this->as($this->user('kasir', ['AssetResource'], $this->storeA));
+        Livewire::test(\App\Filament\Resources\AssetResource\Pages\ViewAsset::class, ['record' => $due->getKey()])
+            ->assertSuccessful()
+            ->assertActionHidden('edit');
+
+        $this->as($this->user('super_admin'));
+        Livewire::test(ListAssets::class)
+            ->filterTable('maintenance_due')
+            ->assertCanSeeTableRecords([$due])
+            ->assertCanNotSeeTableRecords([$later]);
+        Livewire::test(ListAssets::class)
+            ->filterTable('assigned_to', $holder->id)
+            ->assertCanSeeTableRecords([$due])
+            ->assertCanNotSeeTableRecords([$later]);
+
+        $this->asset('Ekspor B', $this->storeA, ['category' => 'Kategori Ekspor Uji']);
+        $this->asset('Ekspor A', $this->storeA, ['category' => 'Kategori Ekspor Uji']);
+        $this->asset('Bukan Ekspor', $this->storeA, ['category' => 'Kategori Lain']);
+
+        Excel::fake();
+        Livewire::test(ListAssets::class)
+            ->filterTable('category', 'Kategori Ekspor Uji')
+            ->callAction('exportExcel')
+            ->assertHasNoActionErrors();
+        Excel::assertDownloaded('aset-tetap-20261008-100000.xlsx', function (AssetExport $export) {
+            return $export->collection()->pluck(1)->sort()->values()->all() === ['Ekspor A', 'Ekspor B'];
+        });
+    }
+
+    public function test_importing_the_same_file_twice_does_not_duplicate_assets_and_categories_match_existing_ones(): void
+    {
+        $this->as($this->user('super_admin'));
+        Storage::fake('local');
+        $this->asset('Sudah Ada', $this->storeA, ['category' => 'Elektronik Uji']);
+
+        $rows = [
+            ['Nama', 'Kategori', 'Status', 'Pemegang', 'Lokasi', 'Tgl Masuk', 'Tgl Beli', 'Harga Beli', 'Catatan'],
+            ['Laptop Impor', 'elektronik uji', '', '', '', '', '', 5000000, ''],
+            ['Laptop Impor', 'elektronik uji', '', '', '', '', '', 5000000, ''],
+            ['', 'Elektronik Uji', '', '', '', '', '', '', ''],
+        ];
+        $method = new \ReflectionMethod(AssetResource::class, 'importAssets');
+        $method->setAccessible(true);
+
+        foreach ([1, 2] as $run) {
+            Excel::store(new AssetTestRowsExport($rows), "asset-imports/dup-{$run}.xlsx", 'local');
+            $method->invoke(null, "asset-imports/dup-{$run}.xlsx");
+        }
+
+        $this->assertSame(2, Asset::where('name', 'Laptop Impor')->count(), 'Dua unit yang sama persis di satu file wajar; impor ulang tidak menggandakannya.');
+        $this->assertSame(['Elektronik Uji'], Asset::where('name', 'Laptop Impor')->pluck('category')->unique()->values()->all());
+    }
+
+    public function test_sold_is_only_offered_by_dispose_and_a_disposed_assets_status_is_locked(): void
+    {
+        $this->as($this->user('super_admin'));
+
+        Livewire::test(CreateAsset::class)
+            ->fillForm(['name' => 'Aset Dijual Langsung', 'status' => 'dijual', 'received_date' => '2026-10-05'])
+            ->call('create')
+            ->assertHasFormErrors(['status']);
+        $this->assertDatabaseMissing('assets', ['name' => 'Aset Dijual Langsung']);
+
+        Livewire::test(CreateAsset::class)
+            ->fillForm(['name' => 'Aset Hilang', 'status' => 'hilang', 'received_date' => '2026-10-05'])
+            ->call('create')
+            ->assertHasNoFormErrors();
+        $this->assertDatabaseHas('assets', ['name' => 'Aset Hilang', 'status' => 'hilang']);
+
+        $disposed = $this->asset('Sudah Dilepas', $this->storeA, ['status' => 'dijual', 'disposed_at' => '2026-10-01', 'disposal_type' => 'dijual']);
+        $active = $this->asset('Masih Aktif', $this->storeA);
+
+        Livewire::test(EditAsset::class, ['record' => $disposed->getKey()])->assertFormFieldIsDisabled('status');
+        Livewire::test(EditAsset::class, ['record' => $active->getKey()])->assertFormFieldIsEnabled('status');
+
+        Livewire::test(ListAssets::class)
+            ->assertTableActionHidden('transfer', $disposed)
+            ->assertTableActionHidden('record_maintenance', $disposed)
+            ->assertTableActionVisible('transfer', $active)
+            ->assertTableActionVisible('record_maintenance', $active);
+    }
+
+    public function test_record_maintenance_moves_the_next_date_by_the_interval_or_clears_it(): void
+    {
+        $this->as($this->writer($this->storeA));
+        $withInterval = $this->asset('Kompresor', $this->storeA, ['maintenance_interval_days' => 30, 'next_maintenance_date' => '2026-10-01']);
+        $noInterval = $this->asset('Genset', $this->storeA, ['next_maintenance_date' => '2026-10-01']);
+
+        Livewire::test(ListAssets::class)
+            ->callTableAction('record_maintenance', $withInterval, data: ['date' => '2026-10-08', 'next_date' => '2026-11-07', 'note' => 'Ganti oli'])
+            ->assertHasNoTableActionErrors();
+        $fresh = $withInterval->fresh();
+        $this->assertSame(['2026-10-08', '2026-11-07'], [$fresh->last_maintenance_date->toDateString(), $fresh->next_maintenance_date->toDateString()]);
+        $this->assertSame('2026-11-07', $withInterval->nextMaintenanceFrom(\Illuminate\Support\Carbon::parse('2026-10-08'))->toDateString());
+        $this->assertNull($noInterval->nextMaintenanceFrom(\Illuminate\Support\Carbon::parse('2026-10-08')));
+
+        $log = Activity::where('log_name', 'asset')->where('subject_id', $withInterval->id)->where('event', 'maintenance')->first();
+        $this->assertNotNull($log);
+        $this->assertStringContainsString('Ganti oli', $log->description);
+
+        Livewire::test(ListAssets::class)
+            ->callTableAction('record_maintenance', $noInterval, data: ['date' => '2026-10-08', 'next_date' => null])
+            ->assertHasNoTableActionErrors();
+        $this->assertNull($noInterval->fresh()->next_maintenance_date, 'Tanpa interval dan tanpa jadwal berikutnya: pengingat berhenti.');
+
+        Livewire::test(ListAssets::class)
+            ->callTableAction('record_maintenance', $withInterval, data: ['date' => '2026-10-08', 'next_date' => '2026-10-01'])
+            ->assertHasTableActionErrors(['next_date']);
     }
 
     public function test_staff_see_only_their_store_assets_and_head_office_assets_are_hidden_from_them(): void
@@ -118,7 +273,7 @@ class AssetResourceTest extends TestCase
         $theirs = $this->asset('Mesin Toko B', $this->storeB);
         $hq = $this->asset('Mesin Pusat', null);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(ListAssets::class)
             ->assertCanSeeTableRecords([$mine])
             ->assertCanNotSeeTableRecords([$theirs, $hq]);
@@ -130,7 +285,7 @@ class AssetResourceTest extends TestCase
     public function test_staff_cannot_open_an_asset_of_another_store(): void
     {
         $theirs = $this->asset('Mesin Toko B', $this->storeB);
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
 
         $this->expectException(ModelNotFoundException::class);
 
@@ -220,7 +375,7 @@ class AssetResourceTest extends TestCase
 
     public function test_staff_assets_are_forced_into_their_own_store(): void
     {
-        $staff = $this->as($this->user('kasir', null, $this->storeA));
+        $staff = $this->as($this->writer($this->storeA));
 
         Livewire::test(CreateAsset::class)
             ->fillForm(['name' => 'Kipas Toko', 'status' => 'aktif', 'received_date' => '2026-10-05', 'store_id' => $this->storeB->id])
@@ -273,7 +428,7 @@ class AssetResourceTest extends TestCase
 
     public function test_edit_keeps_the_tag_and_staff_cannot_move_the_asset_to_another_store(): void
     {
-        $staff = $this->as($this->user('kasir', null, $this->storeA));
+        $staff = $this->as($this->writer($this->storeA));
         $asset = $this->asset('Nama Lama', $this->storeA);
         $tag = $asset->asset_tag;
 
@@ -291,7 +446,7 @@ class AssetResourceTest extends TestCase
     {
         $asset = $this->asset('Untuk Dihapus', $this->storeA);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(EditAsset::class, ['record' => $asset->getKey()])->assertActionHidden('delete');
         Livewire::test(ListAssets::class)->assertTableBulkActionHidden('delete');
 
@@ -304,7 +459,7 @@ class AssetResourceTest extends TestCase
 
     public function test_a_transfer_records_the_handover_and_updates_the_holder(): void
     {
-        $staff = $this->as($this->user('kasir', null, $this->storeA));
+        $staff = $this->as($this->writer($this->storeA));
         $from = $this->user('kasir', null, $this->storeA, ['name' => 'Pemegang Lama']);
         $to = $this->user('kasir', null, $this->storeA, ['name' => 'Pemegang Baru']);
         $asset = $this->asset('Laptop', $this->storeA, ['assigned_to' => $from->id]);
@@ -322,7 +477,7 @@ class AssetResourceTest extends TestCase
     {
         $asset = $this->asset('Compressor', $this->storeA);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(ListAssets::class)
             ->callTableAction('transfer', $asset, data: ['to_store_id' => $this->storeB->id, 'condition_at_transfer' => 'baik', 'reason' => 'coba pindah toko'])
             ->assertHasNoTableActionErrors();
@@ -339,7 +494,7 @@ class AssetResourceTest extends TestCase
 
     public function test_a_transfer_requires_condition_and_reason(): void
     {
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $asset = $this->asset('Laptop', $this->storeA);
 
         Livewire::test(ListAssets::class)
@@ -357,7 +512,7 @@ class AssetResourceTest extends TestCase
         $theirs = $this->asset('Export Toko B', $this->storeB);
         $hq = $this->asset('Export Pusat', null);
 
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $names = (new AssetExport())->collection()->pluck(1)->all();
         $this->assertContains('Export Toko A', $names);
         $this->assertNotContains('Export Toko B', $names);
@@ -379,7 +534,7 @@ class AssetResourceTest extends TestCase
 
     public function test_the_qr_pdf_downloads(): void
     {
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         $asset = $this->asset('QR Aset', $this->storeA);
 
         Livewire::test(ListAssets::class)
@@ -389,7 +544,7 @@ class AssetResourceTest extends TestCase
 
     public function test_import_actions_are_for_full_access_only(): void
     {
-        $this->as($this->user('kasir', null, $this->storeA));
+        $this->as($this->writer($this->storeA));
         Livewire::test(ListAssets::class)->assertTableActionHidden('import')->assertTableActionHidden('download_template');
 
         $this->as($this->user('super_admin'));

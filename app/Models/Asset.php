@@ -31,6 +31,8 @@ class Asset extends Model
         'chart_of_account_id',
         'accumulated_depreciation_account_id',
         'next_maintenance_date',
+        'maintenance_interval_days',
+        'last_maintenance_date',
         'notes',
         'created_by',
         'disposed_at',
@@ -48,6 +50,7 @@ class Asset extends Model
         'disposed_at' => 'date',
         'disposal_proceeds' => 'decimal:2',
         'next_maintenance_date' => 'date',
+        'last_maintenance_date' => 'date',
         'reviewed_at'   => 'datetime',
     ];
 
@@ -149,6 +152,34 @@ class Asset extends Model
      * Kode unik per aset — dikodekan ke QR (sama pola dengan
      * InventoryItem::generateCode()) supaya bisa ditempel & dicari fisik.
      */
+    /**
+     * Jadwal servis berikutnya menurut interval aset ini (hari); null bila aset tidak punya interval tetap.
+     */
+    public function nextMaintenanceFrom(\Illuminate\Support\Carbon $date): ?\Illuminate\Support\Carbon
+    {
+        return $this->maintenance_interval_days ? $date->copy()->addDays((int) $this->maintenance_interval_days) : null;
+    }
+
+    /**
+     * Catat satu servis: tanggal terakhir dan jadwal berikutnya diperbarui (null = tidak ada jadwal berikutnya), dan kejadiannya masuk
+     * riwayat perubahan aset beserta pelaku dan catatannya.
+     */
+    public function recordMaintenance(\Illuminate\Support\Carbon $date, ?\Illuminate\Support\Carbon $nextDate, ?string $note, ?int $userId): void
+    {
+        $this->update([
+            'last_maintenance_date' => $date->toDateString(),
+            'next_maintenance_date' => $nextDate?->toDateString(),
+        ]);
+
+        activity('asset')
+            ->performedOn($this)
+            ->causedBy($userId ? User::find($userId) : null)
+            ->event('maintenance')
+            ->log("Servis aset \"{$this->name}\" ({$this->asset_tag}) dicatat tanggal " . $date->format('d M Y')
+                . ($nextDate ? ', jadwal berikutnya ' . $nextDate->format('d M Y') : ', tanpa jadwal berikutnya')
+                . ($note ? " — {$note}" : ''));
+    }
+
     public static function generateAssetTag(): string
     {
         do {

@@ -491,6 +491,10 @@ Route::prefix('staff')->group(function () {
         Route::get('/assets/{code}', [StaffAssetController::class, 'show']);
         Route::post('/assets/{code}/update', [StaffAssetController::class, 'update'])
             ->middleware('throttle:30,1');
+        Route::post('/assets/{code}/transfer', [StaffAssetController::class, 'transfer'])
+            ->middleware('throttle:30,1');
+        Route::post('/assets/{code}/maintenance', [StaffAssetController::class, 'maintenance'])
+            ->middleware('throttle:30,1');
 
         // Bahan Baku — TIDAK ada kode fisik per unit (beda dari Barang &
         // Aset), jadi dicari lewat nama, bukan scan QR. Dibatasi ke staff
