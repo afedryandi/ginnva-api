@@ -1147,4 +1147,177 @@ class StaffStockApiTest extends TestCase
         $this->api($staff)->postJson("/api/staff/assets/{$theirs->asset_tag}/update", ['status' => 'rusak'])->assertNotFound();
         $this->assertSame('aktif', $theirs->fresh()->status);
     }
+    // ------------------------------------------------------------- gudang: terima barang, scan, perlu tindakan, opname massal
+
+    /** Staf gudang: menu Permohonan Pembelian, Bahan Baku, dan Barang Habis Pakai dengan izin Ubah (dan Lihat). */
+    private function warehouse(?Store $store = null, array $permissions = ['update', 'view']): User
+    {
+        return $this->staff('kasir', $store, ['PurchaseRequestResource', 'RawMaterialResource', 'ConsumableItemResource', 'AssetResource'], true, [
+            'PurchaseRequestResource' => $permissions,
+            'RawMaterialResource' => $permissions,
+            'ConsumableItemResource' => $permissions,
+            'AssetResource' => array_merge($permissions, ['create']),
+        ]);
+    }
+
+    private function approvedRequest(Store $store, User $requester, array $extra = []): PurchaseRequest
+    {
+        return PurchaseRequest::create(array_merge(['store_id' => $store->id, 'item_type' => 'asset', 'item_name' => 'Kompresor', 'quantity' => 1, 'status' => 'approved', 'requested_by' => $requester->id], $extra));
+    }
+
+    public function test_warehouse_staff_receive_an_approved_request_into_stock(): void
+    {
+        $requester = $this->prStaff($this->storeA);
+        $gudang = $this->warehouse($this->storeA);
+        $material = $this->material('Slip Solution', 5);
+        $request = $this->approvedRequest($this->storeA, $requester, ['item_type' => 'raw_material', 'item_id' => $material->id, 'item_name' => 'Slip Solution', 'unit' => 'liter', 'quantity' => 10, 'quantity_approved' => 6]);
+
+        $listed = $this->api($gudang)->getJson('/api/staff/purchase-requests?status=approved')->assertSuccessful()->json('data.0');
+        $this->assertTrue($listed['can_receive']);
+        $this->assertTrue($listed['can_record_stock']);
+        $this->assertEquals(6, $listed['effective_quantity']);
+
+        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 0])->assertStatus(422);
+
+        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 6, 'record_stock' => true, 'expiry_date' => '2027-01-31'])
+            ->assertSuccessful()->assertJsonPath('data.status', 'fulfilled');
+
+        $fresh = $request->fresh();
+        $this->assertSame('fulfilled', $fresh->status);
+        $this->assertEquals(6, (float) $fresh->quantity_received);
+        $this->assertNotNull($fresh->stock_recorded_at);
+        $this->assertEquals(11, (float) $material->fresh()->current_stock);
+        $this->assertSame($this->storeA->id, $material->movements()->where('type', 'in')->latest('id')->firstOrFail()->store_id);
+
+        // Sudah diterima: tidak bisa dua kali.
+        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 6, 'record_stock' => true])->assertStatus(422);
+        $this->assertEquals(11, (float) $material->fresh()->current_stock);
+    }
+
+    public function test_receiving_is_limited_to_the_requester_warehouse_staff_and_own_store(): void
+    {
+        $requester = $this->prStaff($this->storeA);
+        $request = $this->approvedRequest($this->storeA, $requester);
+
+        // Pemohon sendiri boleh; yang hanya boleh mengajukan (bukan pemohon) tidak.
+        $other = $this->prStaff($this->storeA);
+        $this->api($other)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 1])->assertStatus(403);
+        $this->assertFalse($this->api($other)->getJson('/api/staff/purchase-requests')->json('data.0.can_receive'));
+
+        // Gudang toko lain tidak melihatnya sama sekali.
+        $this->api($this->warehouse($this->storeB))->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 1])->assertNotFound();
+
+        // Belum disetujui: ditolak.
+        $pending = PurchaseRequest::create(['store_id' => $this->storeA->id, 'item_type' => 'asset', 'item_name' => 'Lampu', 'quantity' => 1, 'status' => 'pending', 'requested_by' => $requester->id]);
+        $this->api($this->warehouse($this->storeA))->postJson("/api/staff/purchase-requests/{$pending->id}/receive", ['quantity_received' => 1])->assertStatus(422);
+
+        $this->api($requester)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 1, 'register_asset' => true])->assertSuccessful();
+        $this->assertSame('fulfilled', $request->fresh()->status);
+        // Pemohon tanpa izin menambah aset: status terpenuhi, tetapi tidak ada aset yang didaftarkan.
+        $this->assertSame(0, \App\Models\Asset::query()->count());
+    }
+
+    public function test_receiving_an_asset_request_registers_one_asset_per_unit(): void
+    {
+        $gudang = $this->warehouse($this->storeA);
+        $request = $this->approvedRequest($this->storeA, $gudang, ['item_name' => 'Kompresor', 'quantity' => 2]);
+
+        $this->assertTrue($this->api($gudang)->getJson('/api/staff/purchase-requests')->json('data.0.can_register_asset'));
+
+        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 2, 'register_asset' => true])->assertSuccessful();
+
+        $assets = \App\Models\Asset::query()->orderBy('name')->get();
+        $this->assertSame(['Kompresor #1', 'Kompresor #2'], $assets->pluck('name')->all());
+        $this->assertSame($this->storeA->id, $assets->first()->store_id);
+        $this->assertNotNull($request->fresh()->stock_recorded_at);
+    }
+
+    public function test_stock_scan_resolves_codes_and_markers_within_access(): void
+    {
+        $gudang = $this->warehouse($this->storeA);
+        $material = $this->material('Adhesive');
+        $consumable = $this->consumable('Sarung Tangan');
+        $noCode = RawMaterial::create(['name' => 'Tanpa Kode', 'category' => 'chemical', 'unit' => 'liter', 'current_stock' => 1]);
+
+        $this->api($gudang)->getJson('/api/staff/stock-scan?code=' . urlencode($material->code))->assertSuccessful()
+            ->assertJsonPath('data.type', 'raw_material')->assertJsonPath('data.id', $material->id);
+        $this->api($gudang)->getJson('/api/staff/stock-scan?code=' . urlencode($consumable->code))->assertSuccessful()
+            ->assertJsonPath('data.type', 'consumable_item')->assertJsonPath('data.id', $consumable->id);
+        $this->api($gudang)->getJson('/api/staff/stock-scan?code=' . urlencode(\App\Support\StockScanCode::for($noCode)))->assertSuccessful()
+            ->assertJsonPath('data.id', $noCode->id);
+        $this->api($gudang)->getJson('/api/staff/stock-scan?code=TIDAK-ADA')->assertNotFound();
+        $this->api($gudang)->getJson('/api/staff/stock-scan')->assertNotFound();
+
+        // Tanpa akses menu asalnya: ditolak, bukan dibocorkan.
+        $onlyConsumables = $this->staff('kasir', $this->storeA, ['ConsumableItemResource']);
+        $this->api($onlyConsumables)->getJson('/api/staff/stock-scan?code=' . urlencode($material->code))->assertStatus(403);
+        $this->api($onlyConsumables)->getJson('/api/staff/stock-scan?code=' . urlencode($consumable->code))->assertSuccessful();
+        $this->getJson('/api/staff/stock-scan?code=x')->assertStatus(401);
+
+        // Label PDF bisa dibuat untuk bahan dengan maupun tanpa kode.
+        $response = \App\Support\StockScanCode::labelsPdf(collect([$material, $noCode]), 'Label Bahan Baku');
+        $this->assertInstanceOf(\Symfony\Component\HttpFoundation\StreamedResponse::class, $response);
+    }
+
+    public function test_the_overview_counts_approved_requests_waiting_to_be_received(): void
+    {
+        $gudang = $this->warehouse($this->storeA);
+        $this->approvedRequest($this->storeA, $gudang);
+        $this->approvedRequest($this->storeB, $gudang, ['item_name' => 'Punya B']);
+        PurchaseRequest::create(['store_id' => $this->storeA->id, 'item_type' => 'asset', 'item_name' => 'Menunggu', 'quantity' => 1, 'status' => 'pending', 'requested_by' => $gudang->id]);
+
+        $this->assertSame(1, $this->api($gudang)->getJson('/api/staff/stock-overview')->json('data.to_receive'), 'Hanya yang disetujui di toko sendiri.');
+        $this->assertSame(2, $this->api($this->staff('super_admin'))->getJson('/api/staff/stock-overview')->json('data.to_receive'));
+        $this->assertNull($this->api($this->staff('kasir', $this->storeA, ['ConsumableItemResource']))->getJson('/api/staff/stock-overview')->json('data.to_receive'));
+    }
+
+    public function test_bulk_adjust_saves_every_row_or_none(): void
+    {
+        $gudang = $this->warehouse($this->storeA);
+        $a = $this->material('A', 10);
+        $b = $this->material('B', 20);
+        $b->update(['adjustment_note_threshold' => 2]);
+        $c = $this->material('C', 5);
+
+        // Satu baris melewati ambang tanpa catatan: tidak ada yang tersimpan.
+        $this->api($gudang)->postJson('/api/staff/materials/bulk-adjust', ['items' => [
+            ['id' => $a->id, 'actual_quantity' => 8],
+            ['id' => $b->id, 'actual_quantity' => 12],
+        ]])->assertStatus(422)->assertJsonPath('problems.0.id', $b->id);
+        $this->assertEquals(10, (float) $a->fresh()->current_stock);
+        $this->assertEquals(20, (float) $b->fresh()->current_stock);
+
+        $response = $this->api($gudang)->postJson('/api/staff/materials/bulk-adjust', ['items' => [
+            ['id' => $a->id, 'actual_quantity' => 8],
+            ['id' => $b->id, 'actual_quantity' => 12, 'note' => 'Tumpah saat dipindah'],
+            ['id' => $c->id, 'actual_quantity' => 5],
+        ]])->assertSuccessful();
+
+        $this->assertEquals(8, (float) $a->fresh()->current_stock);
+        $this->assertEquals(12, (float) $b->fresh()->current_stock);
+        $this->assertEquals(5, (float) $c->fresh()->current_stock);
+        $this->assertSame([true, true, false], collect($response->json('data'))->pluck('adjusted')->all());
+        $this->assertEquals(-2, $response->json('data.0.delta'));
+        $this->assertSame($this->storeA->id, $a->movements()->where('type', 'adjustment')->firstOrFail()->store_id);
+        $this->assertSame('Tumpah saat dipindah', $b->movements()->where('type', 'adjustment')->firstOrFail()->note);
+    }
+
+    public function test_bulk_adjust_validates_and_needs_the_update_grant(): void
+    {
+        $a = $this->material('A', 10);
+        $item = $this->consumable('Sarung', 4);
+
+        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/materials/bulk-adjust', ['items' => []])->assertStatus(422);
+        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/materials/bulk-adjust', ['items' => [['id' => $a->id, 'actual_quantity' => 1], ['id' => $a->id, 'actual_quantity' => 2]]])->assertStatus(422);
+        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/materials/bulk-adjust', ['items' => [['id' => 999999, 'actual_quantity' => 1]]])->assertStatus(422);
+        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/materials/bulk-adjust', ['items' => [['id' => $a->id, 'actual_quantity' => -1]]])->assertStatus(422);
+
+        $viewer = $this->warehouse($this->storeA, ['view']);
+        $this->api($viewer)->postJson('/api/staff/materials/bulk-adjust', ['items' => [['id' => $a->id, 'actual_quantity' => 1]]])->assertStatus(403);
+        $this->api($viewer)->postJson('/api/staff/consumables/bulk-adjust', ['items' => [['id' => $item->id, 'actual_quantity' => 1]]])->assertStatus(403);
+        $this->assertEquals(10, (float) $a->fresh()->current_stock);
+
+        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/consumables/bulk-adjust', ['items' => [['id' => $item->id, 'actual_quantity' => 7]]])->assertSuccessful();
+        $this->assertEquals(7, (float) $item->fresh()->current_stock);
+    }
 }

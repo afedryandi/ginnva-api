@@ -453,7 +453,12 @@ class PurchaseRequestResourceTest extends TestCase
         $requester = $this->writer($this->storeA);
         $request = $this->request($this->storeA, ['status' => 'approved', 'requested_by' => $requester->id]);
 
+        // Staf berizin Ubah di toko yang sama (gudang) ikut boleh menerima; yang hanya boleh mengajukan tidak.
+        $this->as($this->writer($this->storeA, ['create']));
+        Livewire::test(ListPurchaseRequests::class)->assertTableActionHidden('fulfill', $request);
         $this->as($this->writer($this->storeA));
+        Livewire::test(ListPurchaseRequests::class)->assertTableActionVisible('fulfill', $request);
+        $this->as($this->writer($this->storeB));
         Livewire::test(ListPurchaseRequests::class)->assertTableActionHidden('fulfill', $request);
 
         $this->as($this->user('super_admin'));

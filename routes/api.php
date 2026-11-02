@@ -496,10 +496,14 @@ Route::prefix('staff')->group(function () {
         Route::post('/assets/{code}/maintenance', [StaffAssetController::class, 'maintenance'])
             ->middleware('throttle:30,1');
 
-        // Bahan Baku — TIDAK ada kode fisik per unit (beda dari Barang &
-        // Aset), jadi dicari lewat nama, bukan scan QR. Dibatasi ke staff
-        // yang akun Filament-nya dicentang akses menu "Bahan Baku".
+        // Bahan Baku & Barang Habis Pakai — label QR dicetak dari panel (StockScanCode), scan lewat /stock-scan; ringkasan Beranda
+        // (/stock-overview) merangkum stok menipis, kedaluwarsa, dan permohonan yang menunggu diterima. Dibatasi ke staff yang akun
+        // Filament-nya dicentang akses menu masing-masing.
+        Route::get('/stock-scan', [\App\Http\Controllers\Api\Staff\StockScanController::class, 'lookup'])
+            ->middleware('throttle:60,1');
         Route::get('/materials', [StaffRawMaterialController::class, 'index']);
+        Route::post('/materials/bulk-adjust', [StaffRawMaterialController::class, 'bulkAdjust'])
+            ->middleware('throttle:20,1');
         Route::get('/materials/{id}', [StaffRawMaterialController::class, 'show']);
         Route::get('/materials/{id}/movements', [StaffRawMaterialController::class, 'movements']);
         Route::post('/materials/{id}/movement', [StaffRawMaterialController::class, 'storeMovement'])
@@ -517,6 +521,8 @@ Route::prefix('staff')->group(function () {
         Route::get('/stock-overview', [\App\Http\Controllers\Api\Staff\StockOverviewController::class, 'show']);
 
         Route::get('/consumables', [StaffConsumableItemController::class, 'index']);
+        Route::post('/consumables/bulk-adjust', [StaffConsumableItemController::class, 'bulkAdjust'])
+            ->middleware('throttle:20,1');
         Route::get('/consumables/{id}', [StaffConsumableItemController::class, 'show']);
         Route::get('/consumables/{id}/movements', [StaffConsumableItemController::class, 'movements']);
         Route::post('/consumables/{id}/movement', [StaffConsumableItemController::class, 'storeMovement'])
@@ -560,6 +566,8 @@ Route::prefix('staff')->group(function () {
         // lewat Filament, tidak ada jalur mobile untuk itu.
         Route::get('/purchase-requests', [StaffPurchaseRequestController::class, 'index']);
         Route::post('/purchase-requests/{id}/cancel', [StaffPurchaseRequestController::class, 'cancel'])
+            ->middleware('throttle:30,1');
+        Route::post('/purchase-requests/{id}/receive', [StaffPurchaseRequestController::class, 'receive'])
             ->middleware('throttle:30,1');
         Route::post('/purchase-requests', [StaffPurchaseRequestController::class, 'store'])
             ->middleware('throttle:20,1');

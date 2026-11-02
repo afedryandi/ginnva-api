@@ -4,13 +4,14 @@ namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
 use App\Models\ConsumableItem;
+use App\Models\PurchaseRequest;
 use App\Models\RawMaterial;
 use Illuminate\Http\Request;
 
 /**
  * Ringkasan stok untuk Beranda aplikasi staf (audit Dashboard Inventaris, 2026-11-02): berapa bahan baku dan barang habis pakai yang menipis
  * atau mendekati kedaluwarsa, supaya staf gudang tahu apa yang perlu ditangani tanpa membuka daftar satu per satu. Hanya jumlah, tanpa nilai
- * rupiah. Tiap kategori hanya dikirim bila akun itu boleh membuka menunya (sama dengan menu di aplikasi); selain itu null.
+ * rupiah, ditambah jumlah permohonan pembelian yang menunggu diterima. Tiap kategori hanya dikirim bila akun itu boleh membuka menunya (sama dengan menu di aplikasi); selain itu null.
  */
 class StockOverviewController extends Controller
 {
@@ -42,6 +43,14 @@ class StockOverviewController extends Controller
             ];
         }
 
-        return response()->json(['success' => true, 'data' => ['materials' => $materials, 'consumables' => $consumables]]);
+        // Permohonan yang sudah disetujui dan menunggu barangnya diterima (toko sendiri, atau semua toko untuk akses penuh).
+        $toReceive = null;
+        if ($user->hasPurchaseRequestAccess()) {
+            $toReceive = PurchaseRequest::query()->where('status', 'approved')
+                ->when(! $user->isFullAccess(), fn ($q) => $q->where('store_id', $user->store_id))
+                ->count();
+        }
+
+        return response()->json(['success' => true, 'data' => ['materials' => $materials, 'consumables' => $consumables, 'to_receive' => $toReceive]]);
     }
 }

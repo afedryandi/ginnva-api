@@ -8,8 +8,7 @@ use App\Models\ConsumableItem;
 use App\Models\PurchaseRequest;
 use App\Models\RawMaterial;
 use App\Models\Store;
-use App\Services\PayableService;
-use App\Services\PurchaseRequestPostingService;
+use App\Services\PurchaseRequestReceiveService;
 use App\Services\PushNotificationService;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -530,8 +529,7 @@ class PurchaseRequestResource extends Resource
                     ->label('Tandai Terpenuhi')
                     ->icon('heroicon-o-archive-box-arrow-down')
                     ->color('gray')
-                    ->visible(fn (PurchaseRequest $record) => $record->status === 'approved'
-                        && (auth()->user()?->isFullAccess() || auth()->id() === $record->requested_by))
+                    ->visible(fn (PurchaseRequest $record) => static::canReceive($record, auth()->user()))
                     ->form([
                         // Jumlah yang benar-benar sampai (audit ACCURATE 5): terlihat di daftar sebagai Diterima dan Kurang.
                         Forms\Components\TextInput::make('quantity_received')
@@ -618,95 +616,13 @@ class PurchaseRequestResource extends Resource
                     ->modalDescription('Pastikan barang sudah dicatat masuk lewat "Catat Stok" sebelum menandai ini terpenuhi.')
                     ->action(function (PurchaseRequest $record, array $data) {
                         try {
-                            DB::transaction(function () use ($record, $data) {
-                                // Kunci baris + cek ulang status di dalam transaksi (audit Hutang
-                                // Usaha 2026-09-29): $record dari Livewire bisa basi, klik ganda /
-                                // 2 orang bersamaan sebelumnya bisa bikin jurnal & Payable dobel.
-                                $locked = PurchaseRequest::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
-
-                                if ($locked->status !== 'approved') {
-                                    throw new RuntimeException('Permohonan ini sudah diproses (status: ' . $locked->status . ').');
-                                }
-
-                                $ledger = (bool) config('features.finance');
-                                $supplier = ! empty($data['supplier_id']) ? \App\Models\Supplier::findOrFail($data['supplier_id']) : null;
-
-                                $locked->update([
-                                    'status'       => 'fulfilled',
-                                    'fulfilled_at' => now(),
-                                    'quantity_received' => $data['quantity_received'],
-                                    'actual_cost'  => $data['actual_cost'] ?? null,
-                                ]);
-
-                                // Stok masuk sejumlah yang diterima, dalam transaksi yang sama: status terpenuhi dan stok selalu sejalan.
-                                if (! empty($data['record_stock']) && static::canRecordStock($locked)) {
-                                    $item = $locked->resolveItem();
-                                    $received = (float) $data['quantity_received'];
-                                    $unitCost = ! empty($data['actual_cost']) && $received > 0 ? round((float) $data['actual_cost'] / $received, 2) : null;
-                                    $note = "Permohonan {$locked->request_number} — barang diterima";
-
-                                    if ($item instanceof \App\Models\RawMaterial) {
-                                        $item->recordMovement('in', $received, auth()->id(), $note, null, ! empty($data['expiry_date']) ? (string) $data['expiry_date'] : null, $unitCost, $locked->store_id);
-                                    } else {
-                                        $item->recordMovement('in', $received, auth()->id(), $note, $unitCost, $locked->store_id);
-                                    }
-
-                                    $locked->update(['stock_recorded_at' => now()]);
-                                }
-
-                                if (! empty($data['register_asset']) && static::canRegisterAsset($locked)) {
-                                    $units = max(1, min(50, (int) floor((float) $data['quantity_received'])));
-                                    $unitCost = ! empty($data['actual_cost']) ? round((float) $data['actual_cost'] / $units, 2) : null;
-
-                                    for ($i = 1; $i <= $units; $i++) {
-                                        \App\Models\Asset::create([
-                                            'asset_tag' => \App\Models\Asset::generateAssetTag(),
-                                            'name' => $units > 1 ? "{$locked->item_name} #{$i}" : $locked->item_name,
-                                            'status' => 'aktif',
-                                            'store_id' => $locked->store_id,
-                                            'received_date' => today()->toDateString(),
-                                            'purchase_date' => today()->toDateString(),
-                                            'purchase_cost' => $unitCost,
-                                            'notes' => "Dari permohonan pembelian {$locked->request_number}",
-                                            'created_by' => auth()->id(),
-                                        ]);
-                                    }
-
-                                    $locked->update(['stock_recorded_at' => now()]);
-                                }
-
-                                // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): cukup tandai terpenuhi, tanpa jurnal dan tagihan.
-                                if (! $ledger) {
-                                    return;
-                                }
-
-                                $entry = app(PurchaseRequestPostingService::class)->post(
-                                    $locked->refresh(),
-                                    (float) $data['actual_cost'],
-                                    $data['chart_of_account_id'] ?? null
-                                );
-
-                                $locked->update(['journal_entry_id' => $entry->id]);
-
-                                // Payable dicatat menautkan ke jurnal yang
-                                // BARU SAJA dibuat di atas — TIDAK bikin
-                                // jurnal baru lagi (lihat komentar
-                                // PayableService::create() vs
-                                // createWithJournal()), supaya saldo 2110
-                                // tidak dobel tercatat. source_key unik =
-                                // lapisan kedua anti-duplikat.
-                                app(PayableService::class)->create([
-                                    'supplier_name' => $supplier->name,
-                                    'supplier_id' => $supplier->id,
-                                    'store_id' => $locked->store_id,
-                                    'source_type' => 'purchase_request',
-                                    'source_id' => $locked->id,
-                                    'amount' => $data['actual_cost'],
-                                    'due_date' => $data['due_date'] ?? null,
-                                    'journal_entry_id' => $entry->id,
-                                    'created_by' => auth()->id(),
-                                ]);
-                            });
+                            app(PurchaseRequestReceiveService::class)->receive(
+                                $record,
+                                $data,
+                                auth()->user(),
+                                static::canRecordStockBy($record),
+                                \App\Filament\Resources\AssetResource::canCreate()
+                            );
                         } catch (RuntimeException $e) {
                             Notification::make()
                                 ->title('Gagal menandai terpenuhi')
@@ -718,14 +634,6 @@ class PurchaseRequestResource extends Resource
                         }
 
                         $record->refresh();
-
-                        if ($record->requested_by) {
-                            app(\App\Services\StaffNotifier::class)->toUsers(
-                                [$record->requested_by],
-                                'Permohonan Pembelian Terpenuhi',
-                                "Permohonan {$record->request_number} ({$record->item_name}) sudah terpenuhi, barang sudah tersedia."
-                            );
-                        }
 
                         Notification::make()
                             ->title('Permohonan ditandai terpenuhi')
@@ -760,9 +668,34 @@ class PurchaseRequestResource extends Resource
             return false;
         }
 
-        return $item instanceof \App\Models\RawMaterial
-            ? \App\Filament\Resources\RawMaterialResource::canEdit($item)
-            : \App\Filament\Resources\ConsumableItemResource::canEdit($item);
+        return static::canRecordStockBy($record);
+    }
+
+    /**
+     * Siapa yang boleh menerima barang (Tandai Terpenuhi / Terima Barang di mobile): pemohon, akses penuh, dan staf gudang yang
+     * dicentang izin Ubah pada menu ini di toko yang sama (pemohon sering bukan orang yang memegang barang saat datang).
+     */
+    public static function canReceive(PurchaseRequest $record, ?\App\Models\User $user): bool
+    {
+        if ($user === null || $record->status !== 'approved') {
+            return false;
+        }
+
+        return $user->isFullAccess()
+            || (int) $user->id === (int) $record->requested_by
+            || ($user->hasModuleAction(static::class, 'update', false) && (int) $user->store_id === (int) $record->store_id);
+    }
+
+    /** Izin akun ini mengubah stok barang itu (tanpa memeriksa apakah permohonan masih bisa mencatat stok). */
+    public static function canRecordStockBy(PurchaseRequest $record): bool
+    {
+        $item = $record->resolveItem();
+
+        return match (true) {
+            $item instanceof \App\Models\RawMaterial => \App\Filament\Resources\RawMaterialResource::canEdit($item),
+            $item instanceof \App\Models\ConsumableItem => \App\Filament\Resources\ConsumableItemResource::canEdit($item),
+            default => false,
+        };
     }
 
     /** Permohonan Aset Baru yang terpenuhi boleh sekaligus didaftarkan ke Aset Tetap, bila belum dan akun ini boleh menambah aset. */

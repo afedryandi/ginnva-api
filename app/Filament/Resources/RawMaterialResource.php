@@ -727,6 +727,12 @@ class RawMaterialResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    // Label QR untuk rak/kemasan: scan di mobile langsung membuka bahan ini (lihat StockScanCode).
+                    Tables\Actions\BulkAction::make('print_labels')
+                        ->label('Cetak Label QR')
+                        ->icon('heroicon-o-qr-code')
+                        ->deselectRecordsAfterCompletion()
+                        ->action(fn (\Illuminate\Support\Collection $records) => \App\Support\StockScanCode::labelsPdf($records->values(), 'Label Bahan Baku')),
                     // Diproses satu-satu: yang belum punya riwayat stok terhapus, yang punya dilewati dengan laporan jumlahnya.
                     Tables\Actions\BulkAction::make('delete')
                         ->label('Hapus')

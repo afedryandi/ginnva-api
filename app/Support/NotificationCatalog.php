@@ -72,7 +72,7 @@ class NotificationCatalog
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/PayrollResource.php', 'title' => 'Pengajuan Pembayaran Gaji Ditolak', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/PurchaseRequestResource.php', 'title' => 'Permohonan Pembelian Disetujui', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/PurchaseRequestResource.php', 'title' => 'Permohonan Pembelian Ditolak', 'panel_inbox' => true],
-            ['audience' => 'pengguna', 'source' => 'Filament/Resources/PurchaseRequestResource.php', 'title' => 'Permohonan Pembelian Terpenuhi', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/PurchaseRequestReceiveService.php', 'title' => 'Permohonan Pembelian Terpenuhi', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Services/PurchaseRequestNotifier.php', 'title' => 'Permohonan Pembelian Baru', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Services/PurchaseRequestNotifier.php', 'title' => 'Permohonan Pembelian Menunggu', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/ShiftResource/Pages/EditShift.php', 'title' => 'Jam Shift Berubah', 'panel_inbox' => true],
