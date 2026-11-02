@@ -25,8 +25,9 @@ class ListRawMaterials extends ListRecords
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => Excel::download(
-                    new RawMaterialExport,
+                ->tooltip('Mengekspor daftar sesuai filter dan pencarian yang sedang aktif')
+                ->action(fn ($livewire) => Excel::download(
+                    new RawMaterialExport(RawMaterialResource::canSeeCost(), $livewire->getFilteredSortedTableQuery()),
                     'daftar-bahan-baku-' . now()->format('Ymd-His') . '.xlsx'
                 )),
 
@@ -34,9 +35,10 @@ class ListRawMaterials extends ListRecords
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
-                ->action(function () {
-                    $materials = RawMaterial::query()->orderBy('name')->get();
-                    $pdf = Pdf::loadView('pdf.raw_materials', ['materials' => $materials])->setPaper('a4', 'landscape');
+                ->tooltip('Mengekspor daftar sesuai filter dan pencarian yang sedang aktif')
+                ->action(function ($livewire) {
+                    $materials = $livewire->getFilteredSortedTableQuery()->get();
+                    $pdf = Pdf::loadView('pdf.raw_materials', ['materials' => $materials, 'showCost' => RawMaterialResource::canSeeCost()])->setPaper('a4', 'landscape');
                     $filename = 'daftar-bahan-baku-' . now()->format('Ymd-His') . '.pdf';
 
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);

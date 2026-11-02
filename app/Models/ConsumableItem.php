@@ -45,11 +45,35 @@ class ConsumableItem extends Model
 
     public const DEAD_STOCK_DAYS = 60;
 
+    /**
+     * Tidak bergerak = ada stok tapi tidak ada pergerakan (masuk/keluar/opname/koreksi) dalam DEAD_STOCK_DAYS hari. Dihitung dari
+     * riwayat pergerakan, BUKAN updated_at: mengganti nama, kategori, atau harga barang ikut memperbarui updated_at dan dulu
+     * membuat barang yang sebenarnya mengendap tampak "baru bergerak". Barang tanpa riwayat dihitung sejak tanggal dibuat.
+     * Sama dengan RawMaterial::scopeDeadStock().
+     */
+    public function scopeDeadStock($query)
+    {
+        $cutoff = now()->subDays(self::DEAD_STOCK_DAYS);
+
+        return $query->where('consumable_items.current_stock', '>', 0)
+            ->where('consumable_items.created_at', '<', $cutoff)
+            ->whereNotExists(fn ($q) => $q->select(DB::raw(1))
+                ->from('consumable_item_movements')
+                ->whereColumn('consumable_item_movements.consumable_item_id', 'consumable_items.id')
+                ->where('consumable_item_movements.created_at', '>=', $cutoff));
+    }
+
     public function isDeadStock(): bool
     {
-        return (float) $this->current_stock > 0
-            && $this->updated_at !== null
-            && $this->updated_at->lt(now()->subDays(self::DEAD_STOCK_DAYS));
+        if ((float) $this->current_stock <= 0) {
+            return false;
+        }
+
+        $cutoff = now()->subDays(self::DEAD_STOCK_DAYS);
+        $lastMovement = $this->movements()->reorder()->max('created_at');
+        $lastActivity = $lastMovement ? \Illuminate\Support\Carbon::parse($lastMovement) : ($this->created_at ?? $this->updated_at);
+
+        return $lastActivity !== null && $lastActivity->lt($cutoff);
     }
 
     public function preferredSupplier(): BelongsTo

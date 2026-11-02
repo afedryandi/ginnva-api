@@ -17,7 +17,7 @@
     <table>
         <tr>
             <th>Kode</th><th>Nama Bahan</th><th>Kategori</th><th class="value">Stok (Total)</th>
-            <th>Satuan</th><th class="value">Ambang Menipis</th><th class="value">Harga/Satuan</th><th>Kedaluwarsa Terdekat</th>
+            <th>Satuan</th><th class="value">Ambang Menipis</th>@if ($showCost ?? true)<th class="value">Harga/Satuan</th>@endif<th>Kedaluwarsa Terdekat</th>
         </tr>
         @forelse ($materials as $material)
             <tr>
@@ -27,7 +27,7 @@
                 <td class="value">{{ number_format((float) $material->current_stock, 2, ',', '.') }}</td>
                 <td>{{ $material->unit }}</td>
                 <td class="value">{{ $material->reorder_point !== null ? number_format((float) $material->reorder_point, 2, ',', '.') : '-' }}</td>
-                <td class="value">{{ $material->unit_cost !== null ? number_format((float) $material->unit_cost, 0, ',', '.') : '-' }}</td>
+                @if ($showCost ?? true)<td class="value">{{ $material->unit_cost !== null ? number_format((float) $material->unit_cost, 0, ',', '.') : '-' }}</td>@endif
                 <td>{{ $material->earliestActiveExpiryDate()?->format('d M Y') ?? '-' }}</td>
             </tr>
         @empty

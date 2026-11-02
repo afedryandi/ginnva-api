@@ -105,6 +105,25 @@ class ConsumableItemResourceTest extends TestCase
         $this->assertFalse(ConsumableItemResource::canCreate());
     }
 
+    public function test_dead_stock_follows_movements_not_updated_at(): void
+    {
+        $quiet = $this->item('Mengendap', 20);
+        $revived = $this->item('Baru Bergerak', 20);
+        DB::table('consumable_items')->whereIn('id', [$quiet->id, $revived->id])->update(['created_at' => '2026-06-01 09:00:00', 'updated_at' => '2026-06-01 09:00:00']);
+
+        // Ganti nama memperbarui updated_at, tapi tidak boleh membuatnya tampak bergerak.
+        $quiet->refresh()->update(['name' => 'Mengendap (ganti nama)']);
+        $revived->refresh()->recordMovement('out', 1, null, 'dipakai');
+
+        $this->assertSame(['Mengendap (ganti nama)'], ConsumableItem::deadStock()->whereIn('id', [$quiet->id, $revived->id])->pluck('name')->all());
+        $this->assertTrue($quiet->fresh()->isDeadStock());
+        $this->assertFalse($revived->fresh()->isDeadStock());
+
+        $empty = $this->item('Stok Kosong', 0);
+        DB::table('consumable_items')->where('id', $empty->id)->update(['created_at' => '2026-06-01 09:00:00']);
+        $this->assertFalse($empty->fresh()->isDeadStock());
+    }
+
     // ------------------------------------------------------------- daftar
 
     public function test_list_search_labels_and_filters(): void
@@ -112,7 +131,7 @@ class ConsumableItemResourceTest extends TestCase
         $this->as($this->user('super_admin'));
         $low = $this->item('Zeta Lakban Menipis', 2, ['reorder_point' => 5, 'category' => 'Lakban']);
         $dead = $this->item('Zeta Lap Sepi', 20, ['category' => 'Kebersihan']);
-        DB::table('consumable_items')->where('id', $dead->id)->update(['updated_at' => '2026-07-01 09:00:00']);
+        DB::table('consumable_items')->where('id', $dead->id)->update(['created_at' => '2026-07-01 09:00:00', 'updated_at' => '2026-07-01 09:00:00']);
         $fine = $this->item('Zeta Cutter Aman', 100, ['category' => 'Kebersihan', 'reorder_point' => 10]);
 
         $page = fn () => Livewire::test(ListConsumableItems::class)->searchTable('Zeta');

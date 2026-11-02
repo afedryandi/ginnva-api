@@ -102,11 +102,34 @@ class RawMaterial extends Model
             ->exists();
     }
 
+    /**
+     * Tidak bergerak = ada stok tapi tidak ada pergerakan (masuk/keluar/opname/koreksi) dalam DEAD_STOCK_DAYS hari. Dihitung dari
+     * riwayat pergerakan, BUKAN updated_at: mengganti nama, kategori, atau harga bahan ikut memperbarui updated_at dan dulu
+     * membuat bahan yang sebenarnya mengendap tampak "baru bergerak". Bahan tanpa riwayat dihitung sejak tanggal dibuat.
+     */
+    public function scopeDeadStock($query)
+    {
+        $cutoff = now()->subDays(self::DEAD_STOCK_DAYS);
+
+        return $query->where('raw_materials.current_stock', '>', 0)
+            ->where('raw_materials.created_at', '<', $cutoff)
+            ->whereNotExists(fn ($q) => $q->select(DB::raw(1))
+                ->from('raw_material_movements')
+                ->whereColumn('raw_material_movements.raw_material_id', 'raw_materials.id')
+                ->where('raw_material_movements.created_at', '>=', $cutoff));
+    }
+
     public function isDeadStock(): bool
     {
-        return (float) $this->current_stock > 0
-            && $this->updated_at !== null
-            && $this->updated_at->lt(now()->subDays(self::DEAD_STOCK_DAYS));
+        if ((float) $this->current_stock <= 0) {
+            return false;
+        }
+
+        $cutoff = now()->subDays(self::DEAD_STOCK_DAYS);
+        $lastMovement = $this->movements()->reorder()->max('created_at');
+        $lastActivity = $lastMovement ? \Illuminate\Support\Carbon::parse($lastMovement) : ($this->created_at ?? $this->updated_at);
+
+        return $lastActivity !== null && $lastActivity->lt($cutoff);
     }
 
     public function preferredSupplier(): BelongsTo
@@ -200,10 +223,15 @@ class RawMaterial extends Model
      */
     public function earliestActiveExpiryDate(): ?\Illuminate\Support\Carbon
     {
-        $date = $this->batches()
-            ->where('quantity', '>', 0)
-            ->whereNotNull('expiry_date')
-            ->min('expiry_date');
+        // Relasi batches sudah dimuat (mis. daftar di panel): hitung dari memori, tanpa query per baris.
+        $date = $this->relationLoaded('batches')
+            ? $this->batches
+                ->filter(fn ($batch) => (float) $batch->quantity > 0 && $batch->expiry_date !== null)
+                ->min('expiry_date')
+            : $this->batches()
+                ->where('quantity', '>', 0)
+                ->whereNotNull('expiry_date')
+                ->min('expiry_date');
 
         return $date ? \Illuminate\Support\Carbon::parse($date) : null;
     }

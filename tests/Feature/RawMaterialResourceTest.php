@@ -70,6 +70,12 @@ class RawMaterialResourceTest extends TestCase
         return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store->id, 'menu_access' => $menuAccess, 'is_active' => true], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
+    /** Staf gudang: menu dicentang, boleh Tambah/Ubah dan melihat harga; tidak boleh menghapus. */
+    private function writer(): User
+    {
+        return $this->user('kasir', ['RawMaterialResource'], ['menu_permissions' => ['RawMaterialResource' => ['create', 'update', 'view']]]);
+    }
+
     private function as(User $user): User
     {
         $this->actingAs($user, 'web');
@@ -92,19 +98,50 @@ class RawMaterialResourceTest extends TestCase
         $this->assertTrue(RawMaterialResource::canViewAny());
         $this->assertTrue(RawMaterialResource::canDelete($record));
 
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $this->assertTrue(RawMaterialResource::canViewAny());
         $this->assertTrue(RawMaterialResource::canCreate());
         $this->assertTrue(RawMaterialResource::canEdit($record));
+        $this->assertTrue(RawMaterialResource::canSeeCost());
         $this->assertFalse(RawMaterialResource::canDelete($record));
         $this->assertFalse(RawMaterialResource::canDeleteAny());
 
-        $this->as($this->user('kasir', null, ['menu_permissions' => ['RawMaterialResource' => ['delete']]]));
+        $this->as($this->user('kasir', ['RawMaterialResource'], ['menu_permissions' => ['RawMaterialResource' => ['delete']]]));
         $this->assertTrue(RawMaterialResource::canDelete($record));
+
+        // Akses bawaan (menu_access kosong) tidak membuka menu ini.
+        $this->as($this->user('kasir'));
+        $this->assertFalse(RawMaterialResource::canViewAny());
+        $this->assertFalse(RawMaterialResource::canCreate());
 
         $this->as($this->user('kasir', ['BookingResource']));
         $this->assertFalse(RawMaterialResource::canViewAny());
         $this->assertFalse(RawMaterialResource::canCreate());
+    }
+
+    public function test_a_view_only_account_cannot_record_stock_and_does_not_see_prices(): void
+    {
+        $material = $this->material('Hanya Lihat', 10, ['unit_cost' => 5000]);
+
+        $this->as($this->user('kasir', ['RawMaterialResource']));
+        $this->assertFalse(RawMaterialResource::canEdit($material));
+        $this->assertFalse(RawMaterialResource::canSeeCost());
+
+        Livewire::test(ListRawMaterials::class)
+            ->assertTableActionHidden('adjust_stock', $material)
+            ->assertTableActionHidden('write_off', $material)
+            ->assertTableActionHidden('record_movement', $material)
+            ->assertTableColumnHidden('unit_cost');
+
+        $this->assertSame(['Kode', 'Nama Bahan', 'Kategori', 'Stok (Total)', 'Satuan', 'Ambang Menipis', 'Kedaluwarsa Terdekat'], (new RawMaterialExport(false))->headings());
+        $this->assertCount(7, (new RawMaterialExport(false))->collection()->firstWhere(0, '!=', null));
+
+        $this->as($this->writer());
+        Livewire::test(ListRawMaterials::class)
+            ->assertTableActionVisible('adjust_stock', $material)
+            ->assertTableActionVisible('write_off', $material)
+            ->assertTableActionVisible('record_movement', $material);
+        $this->assertContains('Harga/Satuan', (new RawMaterialExport())->headings());
     }
 
     // ------------------------------------------------------------- daftar
@@ -116,7 +153,7 @@ class RawMaterialResourceTest extends TestCase
         $expiring = $this->material('Zeta Lem Kedaluwarsa', 50, ['category' => 'Adhesive']);
         RawMaterialBatch::create(['raw_material_id' => $expiring->id, 'quantity' => 50, 'unit_cost' => 10, 'received_date' => '2026-09-01', 'expiry_date' => '2026-10-20']);
         $dead = $this->material('Zeta Kertas Sepi', 20, ['category' => 'Packaging']);
-        DB::table('raw_materials')->where('id', $dead->id)->update(['updated_at' => '2026-07-01 09:00:00']);
+        DB::table('raw_materials')->where('id', $dead->id)->update(['created_at' => '2026-07-01 09:00:00', 'updated_at' => '2026-07-01 09:00:00']);
         $fine = $this->material('Zeta Aman', 100, ['category' => 'Packaging', 'reorder_point' => 10]);
 
         // Migrasi menanam banyak bahan awal (halaman pertama penuh), jadi cari "Zeta" dulu sebelum memeriksa barisnya.
@@ -183,7 +220,7 @@ class RawMaterialResourceTest extends TestCase
 
     public function test_creating_without_stock_records_nothing(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
 
         Livewire::test(CreateRawMaterial::class)
             ->fillForm(['name' => 'Kertas Kosong', 'unit' => 'lembar', 'received_date' => '2026-10-05'])
@@ -231,7 +268,7 @@ class RawMaterialResourceTest extends TestCase
 
     public function test_the_form_cannot_change_the_stock_but_other_fields_save(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $material = $this->material('Stok Terkunci', 40, ['code' => 'LOCK-1']);
 
         Livewire::test(EditRawMaterial::class, ['record' => $material->getKey()])
@@ -249,7 +286,7 @@ class RawMaterialResourceTest extends TestCase
     {
         $material = $this->material('Untuk Dihapus');
 
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         Livewire::test(EditRawMaterial::class, ['record' => $material->getKey()])->assertActionHidden('delete');
         Livewire::test(ListRawMaterials::class)->assertTableBulkActionHidden('delete');
 
@@ -262,7 +299,7 @@ class RawMaterialResourceTest extends TestCase
 
     public function test_adjust_stock_records_the_difference_or_nothing(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $material = $this->material('Opname', 100);
 
         Livewire::test(ListRawMaterials::class)
@@ -285,7 +322,7 @@ class RawMaterialResourceTest extends TestCase
 
     public function test_recording_stock_in_creates_a_batch_with_expiry_and_cost_and_updates_the_last_price(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $material = $this->material('Masuk', 10, ['unit_cost' => 5]);
 
         Livewire::test(ListRawMaterials::class)
@@ -302,7 +339,7 @@ class RawMaterialResourceTest extends TestCase
 
     public function test_stock_in_can_be_entered_in_the_purchase_unit(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $material = $this->material('Cairan Galon', 0, ['unit' => 'ml', 'purchase_unit' => 'Galon', 'purchase_conversion_factor' => 3785]);
 
         Livewire::test(ListRawMaterials::class)
@@ -316,7 +353,7 @@ class RawMaterialResourceTest extends TestCase
 
     public function test_stock_out_consumes_the_oldest_batch_first_and_refuses_more_than_the_stock(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $material = $this->material('Keluar', 0);
         $material->recordMovement('in', 10, null, null, '2026-08-01', null, 5);
         $material->recordMovement('in', 10, null, null, '2026-09-01', null, 6);
@@ -360,7 +397,7 @@ class RawMaterialResourceTest extends TestCase
 
     public function test_write_off_cannot_exceed_the_stock_or_use_an_unknown_reason(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         $material = $this->material('Terbuang Terbatas', 10, ['unit_cost' => 100]);
         $before = StockWriteOff::count();
 
@@ -390,7 +427,7 @@ class RawMaterialResourceTest extends TestCase
         $this->assertEquals(['EXP-A', 'Export A', 'Adhesive', 20.0, 'ml', 5.0, 7.5, '2026-12-31'], $rows['EXP-A']);
         $this->assertEquals(['EXP-B', 'Export B', '-', 3.0, 'ml', '-', '-', '-'], $rows['EXP-B']);
 
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         Excel::fake();
         $page = Livewire::test(ListRawMaterials::class);
         $page->callAction('exportExcel')->assertHasNoActionErrors();
@@ -400,11 +437,147 @@ class RawMaterialResourceTest extends TestCase
 
     public function test_import_and_template_actions_are_for_full_access_only(): void
     {
-        $this->as($this->user('kasir'));
+        $this->as($this->writer());
         Livewire::test(ListRawMaterials::class)->assertTableActionHidden('import')->assertTableActionHidden('download_template');
 
         $this->as($this->user('super_admin'));
         Livewire::test(ListRawMaterials::class)->assertTableActionVisible('import')->assertTableActionVisible('download_template');
+    }
+
+    // ------------------------------------------------------------- audit Daftar Bahan Baku D: UI/UX daftar
+
+    public function test_the_view_page_is_read_only_and_follows_the_menu_access(): void
+    {
+        $material = $this->material('Untuk Dilihat', 10);
+
+        $this->as($this->user('kasir'));
+        Livewire::test(\App\Filament\Resources\RawMaterialResource\Pages\ViewRawMaterial::class, ['record' => $material->getKey()])->assertForbidden();
+
+        $this->as($this->user('kasir', ['RawMaterialResource']));
+        $this->assertTrue(RawMaterialResource::canView($material));
+        Livewire::test(\App\Filament\Resources\RawMaterialResource\Pages\ViewRawMaterial::class, ['record' => $material->getKey()])
+            ->assertSuccessful()
+            ->assertActionHidden('edit');
+
+        $this->as($this->writer());
+        Livewire::test(\App\Filament\Resources\RawMaterialResource\Pages\ViewRawMaterial::class, ['record' => $material->getKey()])->assertActionVisible('edit');
+    }
+
+    public function test_stock_value_and_last_movement_columns_follow_the_price_grant(): void
+    {
+        $material = $this->material('Bernilai', 10, ['unit_cost' => 100]);
+        RawMaterialBatch::create(['raw_material_id' => $material->id, 'quantity' => 10, 'unit_cost' => 100, 'received_date' => '2026-10-01']);
+        $material->recordMovement('out', 1, null, 'dipakai');
+
+        $this->as($this->user('kasir', ['RawMaterialResource']));
+        Livewire::test(ListRawMaterials::class)
+            ->assertCanSeeTableRecords([$material])
+            ->assertTableColumnHidden('stock_value')
+            ->assertTableColumnVisible('last_movement_at');
+
+        $this->as($this->writer());
+        Livewire::test(ListRawMaterials::class)->assertTableColumnVisible('stock_value');
+        $this->assertEqualsWithDelta(900.0, $material->fresh()->load('batches')->stockValue(), 0.001);
+    }
+
+    public function test_the_export_follows_the_active_filter(): void
+    {
+        $this->as($this->user('super_admin'));
+        $this->material('Ekspor B', 5, ['category' => 'Kategori Ekspor Uji']);
+        $this->material('Ekspor A', 5, ['category' => 'Kategori Ekspor Uji']);
+        $this->material('Bukan Ekspor', 5, ['category' => 'Kategori Lain']);
+
+        Excel::fake();
+        Livewire::test(ListRawMaterials::class)
+            ->filterTable('category', 'Kategori Ekspor Uji')
+            ->callAction('exportExcel')
+            ->assertHasNoActionErrors();
+
+        Excel::assertDownloaded('daftar-bahan-baku-20261008-100000.xlsx', function (RawMaterialExport $export) {
+            return $export->collection()->pluck(1)->all() === ['Ekspor A', 'Ekspor B'];
+        });
+    }
+
+    // ------------------------------------------------------------- audit Daftar Bahan Baku B: integritas master
+
+    public function test_dead_stock_follows_movements_not_updated_at(): void
+    {
+        $quiet = $this->material('Mengendap', 20);
+        $revived = $this->material('Baru Bergerak', 20);
+        DB::table('raw_materials')->whereIn('id', [$quiet->id, $revived->id])->update(['created_at' => '2026-06-01 09:00:00', 'updated_at' => '2026-06-01 09:00:00']);
+
+        // Ganti nama memperbarui updated_at, tapi tidak boleh membuatnya tampak bergerak.
+        $quiet->refresh()->update(['name' => 'Mengendap (ganti nama)']);
+        $revived->refresh()->recordMovement('out', 1, null, 'dipakai');
+
+        $this->assertSame(['Mengendap (ganti nama)'], RawMaterial::deadStock()->pluck('name')->all());
+        $this->assertTrue($quiet->fresh()->isDeadStock());
+        $this->assertFalse($revived->fresh()->isDeadStock());
+
+        $empty = $this->material('Stok Kosong', 0);
+        DB::table('raw_materials')->where('id', $empty->id)->update(['created_at' => '2026-06-01 09:00:00']);
+        $this->assertFalse($empty->fresh()->isDeadStock());
+    }
+
+    public function test_the_unit_is_locked_once_there_is_stock_history_and_expiry_is_only_for_the_opening_batch(): void
+    {
+        $this->as($this->user('super_admin'));
+        $fresh = $this->material('Belum Ada Riwayat', 0);
+        $used = $this->material('Sudah Ada Riwayat', 10);
+        $used->recordMovement('in', 5, null, 'riwayat');
+
+        Livewire::test(EditRawMaterial::class, ['record' => $fresh->getKey()])->assertFormFieldIsEnabled('unit');
+        Livewire::test(EditRawMaterial::class, ['record' => $used->getKey()])
+            ->assertFormFieldIsDisabled('unit')
+            ->assertFormFieldIsDisabled('received_date')
+            ->assertFormFieldIsHidden('expiry_date')
+            ->fillForm(['unit' => 'liter', 'name' => 'Nama Lain'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $used->refresh();
+        $this->assertSame(['ml', 'Nama Lain'], [$used->unit, $used->name], 'Satuan tidak berubah, field lain tersimpan.');
+
+        Livewire::test(CreateRawMaterial::class)->assertFormFieldIsVisible('expiry_date');
+    }
+
+    public function test_a_new_material_cannot_reuse_an_existing_name(): void
+    {
+        $this->as($this->user('super_admin'));
+        $this->material('Lem Kembar');
+
+        Livewire::test(CreateRawMaterial::class)
+            ->fillForm(['name' => 'lem kembar', 'unit' => 'ml', 'received_date' => '2026-10-05'])
+            ->call('create')
+            ->assertHasFormErrors(['name']);
+
+        $this->assertSame(1, RawMaterial::whereRaw('LOWER(name) = ?', ['lem kembar'])->count());
+    }
+
+    public function test_importing_the_same_file_twice_does_not_duplicate_materials(): void
+    {
+        $this->as($this->user('super_admin'));
+        Storage::fake('local');
+        $this->material('Sudah Ada Duluan', 0);
+
+        $rows = [
+            ['Nama', 'Kode', 'Kategori', 'Satuan', 'Stok Awal', 'Ambang', 'Harga', 'Tgl Daftar', 'Kedaluwarsa', 'Catatan'],
+            ['Impor Baru', '', '', 'ml', 10, '', '', '', '', ''],
+            ['IMPOR BARU', '', '', 'ml', 5, '', '', '', '', ''],
+            ['sudah ada duluan', '', '', 'ml', 5, '', '', '', '', ''],
+            ['', '', '', '', '', '', '', '', '', ''],
+        ];
+        $method = new \ReflectionMethod(RawMaterialResource::class, 'importMaterials');
+        $method->setAccessible(true);
+
+        foreach ([1, 2] as $run) {
+            Excel::store(new RawMaterialTestRowsExport($rows), "rm-imports/dup-{$run}.xlsx", 'local');
+            $method->invoke(null, "rm-imports/dup-{$run}.xlsx");
+        }
+
+        $this->assertSame(1, RawMaterial::whereRaw('LOWER(name) = ?', ['impor baru'])->count(), 'Nama kembar dalam file dan impor ulang dilewati.');
+        $this->assertSame(1, RawMaterial::whereRaw('LOWER(name) = ?', ['sudah ada duluan'])->count());
+        $this->assertEqualsWithDelta(10.0, (float) RawMaterial::where('name', 'Impor Baru')->value('current_stock'), 0.001);
     }
 
     public function test_excel_import_creates_materials_with_opening_stock_and_skips_bad_rows(): void

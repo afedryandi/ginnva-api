@@ -90,11 +90,32 @@ class RawMaterialMovementResourceTest extends TestCase
         $this->assertFalse(RawMaterialMovementResource::canEdit($record));
         $this->assertFalse(RawMaterialMovementResource::canDelete($record));
 
-        $this->as($this->user('kasir'));
+        $this->as($this->user('kasir', ['RawMaterialMovementResource']));
         $this->assertTrue(RawMaterialMovementResource::canViewAny());
+
+        // Akses bawaan (menu_access kosong) tidak membuka buku pergerakan stok.
+        $this->as($this->user('kasir'));
+        $this->assertFalse(RawMaterialMovementResource::canViewAny());
 
         $this->as($this->user('kasir', ['BookingResource']));
         $this->assertFalse(RawMaterialMovementResource::canViewAny());
+    }
+
+    public function test_prices_and_the_material_link_follow_the_grants(): void
+    {
+        $material = $this->material('Adhesive', 'chemical', 10);
+        $this->move($material, 'in', 10, null, 15000);
+
+        $this->as($this->user('kasir', ['RawMaterialMovementResource']));
+        $this->assertFalse(RawMaterialMovementResource::canSeeCost());
+        Livewire::test(ListRawMaterialMovements::class)->assertTableColumnHidden('unit_cost');
+        $this->assertNotContains('Harga/Satuan', (new \App\Exports\RawMaterialMovementExport(null, false))->headings());
+        $this->assertCount(8, (new \App\Exports\RawMaterialMovementExport(null, false))->map($material->movements()->first()));
+
+        $this->as($this->user('kasir', ['RawMaterialMovementResource'], ['menu_permissions' => ['RawMaterialMovementResource' => ['view']]]));
+        $this->assertTrue(RawMaterialMovementResource::canSeeCost());
+        Livewire::test(ListRawMaterialMovements::class)->assertTableColumnVisible('unit_cost');
+        $this->assertContains('Harga/Satuan', (new \App\Exports\RawMaterialMovementExport())->headings());
     }
 
     // ------------------------------------------------------------- daftar & filter
@@ -235,7 +256,7 @@ class RawMaterialMovementResourceTest extends TestCase
         $first = $this->move($material, 'in', 10);
         $latest = $this->move($material, 'out', 2);
 
-        $this->as($this->user('kasir'));
+        $this->as($this->user('kasir', ['RawMaterialMovementResource']));
         Livewire::test(ListRawMaterialMovements::class)->assertTableActionHidden('reverse', $latest);
 
         $this->as($this->user('super_admin'));

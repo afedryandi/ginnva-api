@@ -58,8 +58,7 @@ class MaterialsNeedingAttentionWidget extends BaseWidget
                     ->whereDate('expiry_date', '<=', now()->addDays(30)))
                 // Dead stock: ada stok tapi tidak ada pergerakan
                 // dalam DEAD_STOCK_DAYS hari (lihat RawMaterial::isDeadStock()).
-                ->orWhere(fn ($q) => $q->where('current_stock', '>', 0)
-                    ->where('updated_at', '<', now()->subDays(RawMaterial::DEAD_STOCK_DAYS)));
+                ->orWhere(fn ($q) => $q->deadStock());
         });
     }
 

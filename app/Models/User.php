@@ -577,8 +577,8 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
 
     public function hasMaterialAccess(): bool
     {
-        return $this->canAccessStaffArea()
-            && $this->hasMenuAccess(\App\Filament\Resources\RawMaterialResource::class);
+        // Eksplisit (bukan akses bawaan): lihat RawMaterialResource::canViewAny().
+        return $this->hasExplicitMenuAccess(\App\Filament\Resources\RawMaterialResource::class);
     }
 
     public function hasAssetAccess(): bool

@@ -39,8 +39,7 @@ class NotifyExpiringMaterials extends Command
             ->count();
 
         $deadStockCount = RawMaterial::query()
-            ->where('current_stock', '>', 0)
-            ->where('updated_at', '<', now()->subDays(RawMaterial::DEAD_STOCK_DAYS))
+            ->deadStock()
             ->needsReview()
             ->count();
 
@@ -61,7 +60,7 @@ class NotifyExpiringMaterials extends Command
         // akses menu Bahan Baku (sama pola akses dengan yang dipakai
         // widget "Perlu Perhatian" Dashboard Inventaris).
         $recipients = User::all()->filter(fn (User $user) => $user->isFullAccess()
-            || $user->hasMenuAccess(RawMaterialResource::class));
+            || $user->hasExplicitMenuAccess(RawMaterialResource::class));
 
         foreach ($recipients as $recipient) {
             Notification::make()

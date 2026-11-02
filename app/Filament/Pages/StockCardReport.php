@@ -134,7 +134,7 @@ class StockCardReport extends Page implements HasForms
     /** Link drill-down ke halaman edit Bahan Baku/Barang Habis Pakai terkait. */
     public function materialUrl(int $id): string
     {
-        return \App\Filament\Resources\RawMaterialResource::getUrl('edit', ['record' => $id]);
+        return \App\Filament\Resources\RawMaterialResource::getUrl('view', ['record' => $id]);
     }
 
     public function consumableUrl(int $id): string

@@ -102,7 +102,7 @@ class StockWriteOffResource extends Resource
                     ->description(fn (StockWriteOff $record) => $record->note ?: null)
                     // Drill-down ke halaman edit item terkait (audit 2026-09-30).
                     ->url(fn (StockWriteOff $record) => $record->writeoffable_type === 'raw_material'
-                        ? RawMaterialResource::getUrl('edit', ['record' => $record->writeoffable_id])
+                        ? RawMaterialResource::getUrl('view', ['record' => $record->writeoffable_id])
                         : ConsumableItemResource::getUrl('edit', ['record' => $record->writeoffable_id]))
                     ->color('primary'),
 

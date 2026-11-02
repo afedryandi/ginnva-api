@@ -54,12 +54,18 @@ class StaffStockApiTest extends TestCase
         parent::tearDown();
     }
 
-    private function staff(string $role = 'kasir', ?Store $store = null, ?array $menuAccess = null, bool $withStore = true): User
+    private function staff(string $role = 'kasir', ?Store $store = null, ?array $menuAccess = null, bool $withStore = true, ?array $permissions = null): User
     {
-        $user = User::create(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $withStore ? ($store ?? $this->storeA)->id : null, 'menu_access' => $menuAccess, 'is_active' => true]);
+        $user = User::create(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $withStore ? ($store ?? $this->storeA)->id : null, 'menu_access' => $menuAccess, 'menu_permissions' => $permissions, 'is_active' => true]);
         $user->assignRole($role);
 
         return $user;
+    }
+
+    /** Akun gudang: menu Bahan Baku + Barang Habis Pakai dicentang, boleh mencatat (Ubah) dan melihat harga (Lihat). */
+    private function stockStaff(): User
+    {
+        return $this->staff('kasir', null, ['RawMaterialResource', 'ConsumableItemResource'], true, ['RawMaterialResource' => ['update', 'view'], 'ConsumableItemResource' => ['update', 'view']]);
     }
 
     private function api(User $user)
@@ -98,13 +104,136 @@ class StaffStockApiTest extends TestCase
         $this->api($noMenu)->getJson('/api/staff/consumables')->assertStatus(403);
     }
 
+    public function test_material_access_is_explicit_writes_need_update_and_prices_need_view(): void
+    {
+        $material = $this->material('Adhesive', 10, 5000);
+        $material->batches()->create(['quantity' => 10, 'unit_cost' => 5000, 'received_date' => '2026-10-01']);
+        $material->recordMovement('in', 1, null, 'uji', '2026-10-02', null, 5000);
+
+        $default = $this->staff();
+        $this->api($default)->getJson('/api/staff/materials')->assertStatus(403);
+        $this->api($default)->getJson("/api/staff/materials/{$material->id}")->assertStatus(403);
+
+        $viewer = $this->staff('kasir', null, ['RawMaterialResource']);
+        $detail = $this->api($viewer)->getJson("/api/staff/materials/{$material->id}")->assertSuccessful();
+        $this->assertFalse($detail->json('can_modify'));
+        $this->assertArrayNotHasKey('unit_cost', $detail->json('data'));
+        $this->assertArrayNotHasKey('notes', $detail->json('data'));
+        $this->assertArrayNotHasKey('unit_cost', $detail->json('data.batches.0'));
+        $this->assertArrayNotHasKey('unit_cost', $detail->json('data.movements.0'));
+        $this->api($viewer)->postJson("/api/staff/materials/{$material->id}/movement", ['type' => 'in', 'quantity' => 1])->assertStatus(403);
+        $this->api($viewer)->postJson("/api/staff/materials/{$material->id}/adjust", ['actual_quantity' => 1])->assertStatus(403);
+
+        $writer = $this->staff('kasir', null, ['RawMaterialResource'], true, ['RawMaterialResource' => ['update']]);
+        $this->api($writer)->postJson("/api/staff/materials/{$material->id}/movement", ['type' => 'in', 'quantity' => 2, 'unit_cost' => 99999])
+            ->assertSuccessful()
+            ->assertJsonMissingPath('data.unit_cost');
+        $this->assertSame(0, $material->batches()->where('unit_cost', 99999)->count(), 'Harga dari akun tanpa izin Lihat diabaikan.');
+        $this->assertTrue($this->api($writer)->getJson("/api/staff/materials/{$material->id}")->json('can_modify'));
+
+        $costViewer = $this->staff('kasir', null, ['RawMaterialResource'], true, ['RawMaterialResource' => ['view']]);
+        $withCost = $this->api($costViewer)->getJson("/api/staff/materials/{$material->id}")->assertSuccessful();
+        $this->assertEquals(5000, $withCost->json('data.unit_cost'));
+        $this->assertEquals(5000, $withCost->json('data.batches.0.unit_cost'));
+    }
+
+    public function test_mobile_records_are_tagged_with_the_recorders_store_and_write_off_has_its_own_endpoint(): void
+    {
+        $material = $this->material('Adhesive', 10, 5000);
+        $user = $this->stockStaff();
+
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/movement", ['type' => 'out', 'quantity' => 1])->assertSuccessful();
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/adjust", ['actual_quantity' => 8])->assertSuccessful();
+        $this->assertSame([$this->storeA->id, $this->storeA->id], $material->movements()->pluck('store_id')->all());
+
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 3, 'reason' => 'damaged', 'note' => 'tumpah'])
+            ->assertSuccessful()
+            ->assertJsonPath('message', 'Stok terbuang dicatat.');
+        $this->assertEquals(5, (float) $material->fresh()->current_stock);
+        $writeOff = \App\Models\StockWriteOff::withoutGlobalScopes()->where('writeoffable_id', $material->id)->firstOrFail();
+        $this->assertSame(['damaged', 'tumpah'], [$writeOff->reason, $writeOff->note]);
+        $this->assertSame($this->storeA->id, $material->movements()->where('type', 'adjustment')->latest('id')->first()->store_id);
+
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 99, 'reason' => 'lost'])->assertStatus(422);
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 1, 'reason' => 'ngawur'])->assertStatus(422)->assertJsonValidationErrors('reason');
+        $this->api($user)->postJson('/api/staff/materials/999999/write-off', ['quantity' => 1, 'reason' => 'lost'])->assertNotFound();
+        $this->assertEquals(5, (float) $material->fresh()->current_stock);
+
+        $detail = $this->api($user)->getJson("/api/staff/materials/{$material->id}")->assertSuccessful();
+        $this->assertArrayHasKey('damaged', $detail->json('write_off_reasons'));
+
+        $viewer = $this->staff('kasir', null, ['RawMaterialResource']);
+        $this->api($viewer)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 1, 'reason' => 'lost'])->assertStatus(403);
+        $this->assertNull($this->api($viewer)->getJson("/api/staff/materials/{$material->id}")->json('write_off_reasons'));
+        $this->assertEquals(5, (float) $material->fresh()->current_stock);
+    }
+
+    public function test_expiry_cannot_be_earlier_than_the_received_date_and_the_purchase_unit_is_exposed(): void
+    {
+        $material = RawMaterial::create(['name' => 'Cairan', 'code' => 'RM-C1', 'unit' => 'ml', 'purchase_unit' => 'Galon', 'purchase_conversion_factor' => 3785, 'current_stock' => 0]);
+        $user = $this->stockStaff();
+
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/movement", ['type' => 'in', 'quantity' => 5, 'received_date' => '2026-10-07', 'expiry_date' => '2026-10-01'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('expiry_date')
+            ->assertJsonPath('message', 'Tanggal kedaluwarsa tidak boleh lebih awal dari tanggal masuk.');
+        $this->assertEquals(0, (float) $material->fresh()->current_stock);
+
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/movement", ['type' => 'in', 'quantity' => 5, 'received_date' => '2026-10-07', 'expiry_date' => '2026-10-07'])->assertSuccessful();
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/movement", ['type' => 'in', 'quantity' => 5, 'expiry_date' => '2027-01-01'])->assertSuccessful();
+
+        $detail = $this->api($user)->getJson("/api/staff/materials/{$material->id}")->assertSuccessful();
+        $this->assertSame('Galon', $detail->json('data.purchase_unit'));
+        $this->assertEquals(3785, $detail->json('data.purchase_conversion_factor'));
+    }
+
+    public function test_memo_and_purchase_request_holders_can_use_the_material_picker_but_nothing_else(): void
+    {
+        $material = $this->material('Adhesive', 10, 5000);
+
+        foreach (['MaterialMemoResource', 'PurchaseRequestResource'] as $menu) {
+            $picker = $this->staff('kasir', null, [$menu]);
+            $rows = $this->api($picker)->getJson('/api/staff/materials?search=Adhesive')->assertSuccessful();
+            $this->assertSame(['Adhesive'], array_column($rows->json('data'), 'name'));
+            $this->assertArrayNotHasKey('unit_cost', $rows->json('data.0'));
+            $this->assertFalse($rows->json('can_modify'));
+
+            $this->api($picker)->getJson("/api/staff/materials/{$material->id}")->assertStatus(403);
+            $this->api($picker)->postJson("/api/staff/materials/{$material->id}/movement", ['type' => 'in', 'quantity' => 1])->assertStatus(403);
+        }
+
+        $this->api($this->staff('kasir', null, ['BookingResource']))->getJson('/api/staff/materials')->assertStatus(403);
+    }
+
+    public function test_the_list_reports_the_total_and_a_summary_independent_of_the_search(): void
+    {
+        $low = $this->material('Zeta Tipis', 1);
+        $low->update(['reorder_point' => 5]);
+        $ok = $this->material('Zeta Aman', 50);
+        $ok->update(['reorder_point' => 5]);
+        $ok->batches()->create(['quantity' => 5, 'received_date' => '2026-09-01', 'expiry_date' => '2026-10-20']);
+        $before = $this->api($this->stockStaff())->getJson('/api/staff/materials?search=ZZZ-tidak-ada')->json('summary');
+
+        $response = $this->api($this->stockStaff())->getJson('/api/staff/materials?search=Zeta')->assertSuccessful();
+        $this->assertSame(2, $response->json('total'));
+        $this->assertSame(30, $response->json('limit'));
+        $this->assertTrue($response->json('can_modify'));
+        $this->assertSame($before, $response->json('summary'), 'Ringkasan tidak ikut berubah karena pencarian.');
+        $this->assertGreaterThanOrEqual(1, $response->json('summary.low'));
+        $this->assertGreaterThanOrEqual(1, $response->json('summary.expiry'));
+
+        $lowOnly = $this->api($this->stockStaff())->getJson('/api/staff/materials?filter=low&search=Zeta')->assertSuccessful();
+        $this->assertSame(1, $lowOnly->json('total'));
+        $this->assertSame(100, $lowOnly->json('limit'));
+    }
+
     public function test_search_lists_by_name_or_code_and_flags_expiry_for_materials(): void
     {
         $adhesive = $this->material('Adhesive');
         $this->material('Slip Solution');
         $adhesive->batches()->create(['quantity' => 5, 'received_date' => '2026-09-01', 'expiry_date' => '2026-10-20']);
         $adhesive->batches()->create(['quantity' => 5, 'received_date' => '2026-09-02', 'expiry_date' => '2026-12-31']);
-        $user = $this->staff();
+        $user = $this->stockStaff();
 
         $rows = collect($this->api($user)->getJson('/api/staff/materials?search=Adhesive')->assertSuccessful()->json('data'));
         $this->assertSame(['Adhesive'], $rows->pluck('name')->all());
@@ -134,7 +263,7 @@ class StaffStockApiTest extends TestCase
     {
         $material = $this->material('Adhesive', 100);
         $consumable = $this->consumable('Sarung Tangan', 100);
-        $user = $this->staff();
+        $user = $this->stockStaff();
         foreach (range(1, 22) as $i) {
             $material->recordMovement('out', 1, $user->id, "Pakai {$i}");
             $consumable->recordMovement('out', 1, $user->id, "Pakai {$i}");
@@ -159,7 +288,7 @@ class StaffStockApiTest extends TestCase
     {
         $material = $this->material('Adhesive', 10);
         $consumable = $this->consumable('Sarung Tangan', 10);
-        $user = $this->staff();
+        $user = $this->stockStaff();
 
         $this->api($user)->postJson("/api/staff/materials/{$material->id}/movement", ['type' => 'in', 'quantity' => 5, 'unit_cost' => 20000, 'received_date' => '2026-10-07', 'expiry_date' => '2027-10-07'])
             ->assertSuccessful()
@@ -176,7 +305,7 @@ class StaffStockApiTest extends TestCase
     {
         $material = $this->material('Adhesive', 2);
         $consumable = $this->consumable('Sarung Tangan', 2);
-        $user = $this->staff();
+        $user = $this->stockStaff();
 
         foreach (["/api/staff/materials/{$material->id}", "/api/staff/consumables/{$consumable->id}"] as $url) {
             $this->api($user)->postJson($url . '/movement', ['type' => 'out', 'quantity' => 5])->assertStatus(422);
@@ -198,7 +327,7 @@ class StaffStockApiTest extends TestCase
     public function test_adjusting_stock_records_the_difference_or_nothing(): void
     {
         $material = $this->material('Adhesive', 10);
-        $user = $this->staff();
+        $user = $this->stockStaff();
 
         $this->api($user)->postJson("/api/staff/materials/{$material->id}/adjust", ['actual_quantity' => 7.5, 'note' => 'Opname'])
             ->assertSuccessful()

@@ -60,6 +60,7 @@ class BatchesRelationManager extends RelationManager
                     ->label('Harga/Satuan')
                     ->money('IDR')
                     ->placeholder('—')
+                    ->visible(fn () => \App\Filament\Resources\RawMaterialResource::canSeeCost())
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('creator.name')

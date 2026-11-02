@@ -100,11 +100,11 @@ class PersediaanRingkasanReport extends Page
         }
     }
 
-    /** Link drill-down ke halaman edit item (Bahan Baku atau Barang Habis Pakai). */
+    /** Link drill-down ke halaman item (Lihat untuk Bahan Baku, Ubah untuk Barang Habis Pakai). */
     public function itemUrl(int $id, string $source): string
     {
         return $source === 'raw_material'
-            ? \App\Filament\Resources\RawMaterialResource::getUrl('edit', ['record' => $id])
+            ? \App\Filament\Resources\RawMaterialResource::getUrl('view', ['record' => $id])
             : \App\Filament\Resources\ConsumableItemResource::getUrl('edit', ['record' => $id]);
     }
 

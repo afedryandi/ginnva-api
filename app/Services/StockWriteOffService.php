@@ -70,7 +70,9 @@ class StockWriteOffService
             $reasonLabel = StockWriteOff::REASON_LABELS[$reason];
             $movementNote = "Stok terbuang ({$reasonLabel})" . ($note ? " — {$note}" : '');
 
-            $item->adjustStock($current - $quantity, $userId, $movementNote);
+            $recorder = $userId ? \App\Models\User::find($userId) : null;
+
+            $item->adjustStock($current - $quantity, $userId, $movementNote, $recorder?->store_id);
             $item->refresh();
 
             $unitCost = $item->unit_cost !== null ? (float) $item->unit_cost : null;
@@ -108,7 +110,6 @@ class StockWriteOffService
             // Penanda toko = toko pencatat (staf non-full-access). SEBELUMNYA selalu NULL, padahal daftar "Stok Terbuang" dan
             // Global Scope memfilter staf ke store_id akunnya -- staf tidak pernah melihat satu pun write-off, termasuk yang
             // ia catat sendiri. Full-access tidak terikat toko, jadi catatannya tetap NULL (terlihat oleh full-access).
-            $recorder = $userId ? \App\Models\User::find($userId) : null;
             $recorderStoreId = ($recorder && ! $recorder->isFullAccess()) ? $recorder->store_id : null;
 
             return StockWriteOff::create([

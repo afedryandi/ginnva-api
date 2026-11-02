@@ -85,7 +85,7 @@ class InventoryDashboardTest extends TestCase
         RawMaterialBatch::create(['raw_material_id' => $this->film->id, 'quantity' => 8, 'unit_cost' => 70, 'received_date' => '2026-09-01']);
 
         $this->sepi = RawMaterial::create(['name' => 'Sepi', 'code' => 'S-1', 'unit' => 'pcs', 'current_stock' => 5]);
-        DB::table('raw_materials')->where('id', $this->sepi->id)->update(['updated_at' => '2026-07-01 09:00:00']);
+        DB::table('raw_materials')->where('id', $this->sepi->id)->update(['created_at' => '2026-07-01 09:00:00', 'updated_at' => '2026-07-01 09:00:00']);
 
         RawMaterial::create(['name' => 'Aman', 'code' => 'A-1', 'unit' => 'pcs', 'current_stock' => 50, 'unit_cost' => 10, 'reorder_point' => 10]);
 

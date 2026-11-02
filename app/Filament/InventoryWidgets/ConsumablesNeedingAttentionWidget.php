@@ -48,8 +48,7 @@ class ConsumablesNeedingAttentionWidget extends BaseWidget
                 $query->where(fn ($q) => $q->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point'))
                     // Dead stock: ada stok tapi tidak ada pergerakan
                     // dalam DEAD_STOCK_DAYS hari (lihat ConsumableItem::isDeadStock()).
-                    ->orWhere(fn ($q) => $q->where('current_stock', '>', 0)
-                        ->where('updated_at', '<', now()->subDays(ConsumableItem::DEAD_STOCK_DAYS)));
+                    ->orWhere(fn ($q) => $q->deadStock());
             });
     }
 

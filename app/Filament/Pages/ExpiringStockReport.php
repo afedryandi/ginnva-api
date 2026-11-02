@@ -132,10 +132,10 @@ class ExpiringStockReport extends Page implements HasForms
         ])->columns(2)->statePath('data');
     }
 
-    /** Link drill-down ke halaman edit Bahan Baku terkait. */
+    /** Link drill-down ke halaman Lihat Bahan Baku terkait. */
     public function materialUrl(int $id): string
     {
-        return \App\Filament\Resources\RawMaterialResource::getUrl('edit', ['record' => $id]);
+        return \App\Filament\Resources\RawMaterialResource::getUrl('view', ['record' => $id]);
     }
 
     /** Log ekspor (audit Stok Kedaluwarsa 2026-09-29), konsisten dengan laporan lain. */

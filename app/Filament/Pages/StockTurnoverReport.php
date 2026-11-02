@@ -168,7 +168,7 @@ class StockTurnoverReport extends Page implements HasForms
     public function itemUrl(string $type, int $id): string
     {
         return $type === 'Bahan Baku'
-            ? \App\Filament\Resources\RawMaterialResource::getUrl('edit', ['record' => $id])
+            ? \App\Filament\Resources\RawMaterialResource::getUrl('view', ['record' => $id])
             : \App\Filament\Resources\ConsumableItemResource::getUrl('edit', ['record' => $id]);
     }
 

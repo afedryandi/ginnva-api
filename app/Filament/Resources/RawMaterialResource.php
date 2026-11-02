@@ -14,6 +14,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -39,12 +40,22 @@ class RawMaterialResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Bahan Baku';
 
+    /**
+     * Bahan baku memuat stok dan harga modal (dasar HPP), jadi tidak terbuka lewat akses bawaan akun baru (menu_access kosong):
+     * hanya akses penuh atau staf yang menunya dicentang eksplisit (audit Daftar Bahan Baku, 2026-11-02). Mengubah data dan
+     * mencatat stok butuh izin Tambah/Ubah, melihat harga butuh izin Lihat, menghapus butuh izin Hapus.
+     */
     public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
+    }
+
+    /** Boleh melihat harga modal: akses penuh atau izin "Lihat" pada menu Daftar Bahan Baku. */
+    public static function canSeeCost(): bool
     {
         $user = auth()->user();
 
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return $user !== null && ($user->isFullAccess() || $user->hasModuleAction(static::class, 'view', false));
     }
 
     /**
@@ -62,22 +73,19 @@ class RawMaterialResource extends Resource
      * table()) — canDelete()/canDeleteAny() dibatasi isFullAccess() supaya
      * konsisten dengan guard yang sudah ada itu.
      */
+    public static function canView($record): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function canCreate(): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'create', true);
+        return static::canViewAny() && auth()->user()->hasModuleAction(static::class, 'create', false);
     }
 
     public static function canEdit($record): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'update', true);
+        return static::canViewAny() && auth()->user()->hasModuleAction(static::class, 'update', false);
     }
 
     /**
@@ -86,18 +94,15 @@ class RawMaterialResource extends Resource
      */
     public static function canDelete($record): bool
     {
-        $user = auth()->user();
-
-        return $user?->isFullAccess()
-            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+        return static::canDeleteAny();
     }
 
     public static function canDeleteAny(): bool
     {
         $user = auth()->user();
 
-        return $user?->isFullAccess()
-            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+        return ($user?->isFullAccess() ?? false)
+            || (static::canViewAny() && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     public static function form(Form $form): Form
@@ -109,7 +114,14 @@ class RawMaterialResource extends Resource
                     Forms\Components\TextInput::make('name')
                         ->label('Nama Bahan')
                         ->required()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        // Bahan baru dengan nama yang sudah terdaftar ditolak (tanpa membedakan huruf besar/kecil), supaya
+                        // stok satu bahan tidak terpecah di dua baris. Bahan lama tidak dicek ulang saat diubah.
+                        ->rule(fn (?RawMaterial $record) => function (string $attribute, $value, \Closure $fail) use ($record) {
+                            if ($record === null && RawMaterial::query()->whereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $value))])->exists()) {
+                                $fail('Bahan dengan nama ini sudah terdaftar. Catat stok masuk di bahan yang ada, atau bedakan namanya (mis. tambahkan merek/ukuran).');
+                            }
+                        }),
 
                     Forms\Components\TextInput::make('code')
                         ->label('Kode Barang')
@@ -125,9 +137,15 @@ class RawMaterialResource extends Resource
 
                     Forms\Components\TextInput::make('unit')
                         ->label('Satuan Dasar (Stok & Konsumsi)')
-                        ->required()
+                        ->required(fn (?RawMaterial $record) => ! static::unitLocked($record))
                         ->maxLength(20)
-                        ->placeholder('Mis. ml, gram, meter, pcs'),
+                        ->placeholder('Mis. ml, gram, meter, pcs')
+                        // Angka stok dan riwayat disimpan tanpa satuan; mengganti satuan setelah ada riwayat mengubah arti semua angka lama.
+                        ->disabled(fn (?RawMaterial $record) => static::unitLocked($record))
+                        ->dehydrated(fn (?RawMaterial $record) => ! static::unitLocked($record))
+                        ->helperText(fn (?RawMaterial $record) => static::unitLocked($record)
+                            ? 'Terkunci karena bahan ini sudah punya riwayat stok — mengganti satuan mengubah arti semua angka lama. Kalau salah, daftarkan bahan baru dan kosongkan stok yang lama.'
+                            : null),
 
                     // Konversi satuan beli (audit Majoo f38) — opsional,
                     // murni pembantu input di "Catat Stok". Stok tetap
@@ -154,23 +172,29 @@ class RawMaterialResource extends Resource
                     // saat dibuat), TIDAK ikut sinkron begitu ada batch
                     // baru — sengaja dilabeli beda supaya admin tidak
                     // salah paham keduanya adalah field yang sama.
+                    // Saat mendaftar, tanggal ini juga menjadi tanggal masuk batch stok awal (lihat CreateRawMaterial). Sesudah itu
+                    // hanya catatan pendaftaran dan dikunci; tanggal batch berikutnya diisi lewat "Catat Stok".
                     Forms\Components\DatePicker::make('received_date')
-                        ->label('Tanggal Pendaftaran')
+                        ->label(fn (?RawMaterial $record) => $record === null ? 'Tanggal Masuk Stok Awal' : 'Tanggal Pendaftaran')
                         ->native(false)
                         ->displayFormat('d M Y')
                         ->default(now())
                         ->maxDate(now())
-                        ->required()
-                        ->helperText(fn (?RawMaterial $record) => $record !== null && $record->received_date === null
-                            ? 'Data lama belum punya tanggal ini — isi tanggal perkiraan (boleh hari ini kalau tidak tahu pastinya).'
-                            : 'Cuma catatan kapan bahan ini didaftarkan ke sistem — BUKAN tanggal batch, tidak dipakai untuk urutan FIFO. Tanggal masuk tiap batch diisi terpisah lewat "Catat Stok".'),
+                        ->required(fn (?RawMaterial $record) => $record === null || $record->received_date === null)
+                        ->disabled(fn (?RawMaterial $record) => $record !== null && $record->received_date !== null)
+                        ->helperText(fn (?RawMaterial $record) => match (true) {
+                            $record === null => 'Tanggal masuk batch stok awal (urutan FIFO). Kalau stok awal 0, ini hanya catatan tanggal pendaftaran.',
+                            $record->received_date === null => 'Data lama belum punya tanggal ini — isi tanggal perkiraan (boleh hari ini kalau tidak tahu pastinya).',
+                            default => 'Catatan kapan bahan ini didaftarkan; tidak bisa diubah. Tanggal masuk tiap batch dicatat lewat "Catat Stok".',
+                        }),
 
                     Forms\Components\TextInput::make('unit_cost')
-                        ->label('Harga per Satuan')
+                        ->label('Harga Terakhir per Satuan')
                         ->numeric()
                         ->minValue(0)
                         ->prefix('Rp')
-                        ->helperText('Opsional — untuk estimasi nilai stok.'),
+                        ->visible(fn () => static::canSeeCost())
+                        ->helperText('Opsional — dipakai menilai stok yang batch-nya belum punya harga, jadi mengubahnya ikut mengubah nilai stok itu. Harga batch baru diisi lewat "Catat Stok".'),
 
                     Forms\Components\TextInput::make('reorder_point')
                         ->label('Ambang Stok Menipis')
@@ -186,9 +210,12 @@ class RawMaterialResource extends Resource
                         ->placeholder('Belum ditentukan')
                         ->helperText('Opsional — tampil di peringatan stok menipis dan jadi isian awal Supplier saat permohonan pembelian ditandai terpenuhi.'),
 
+                    // Hanya untuk batch stok awal. Kedaluwarsa bahan yang sebenarnya dihitung dari batch yang masih ada stoknya,
+                    // jadi kolom ini tidak ditampilkan lagi saat mengubah (mengisinya tidak berpengaruh apa pun).
                     Forms\Components\DatePicker::make('expiry_date')
-                        ->label('Tanggal Kedaluwarsa')
-                        ->helperText('Opsional — kosongkan kalau bahan ini tidak punya masa pakai.'),
+                        ->label('Kedaluwarsa Stok Awal')
+                        ->visible(fn (?RawMaterial $record) => $record === null)
+                        ->helperText('Opsional — hanya untuk batch stok awal; kosongkan kalau tidak punya masa pakai. Batch berikutnya diisi lewat "Catat Stok".'),
 
                     Forms\Components\TextInput::make('current_stock')
                         ->label(fn (?RawMaterial $record) => $record === null ? 'Stok Awal' : 'Stok Saat Ini')
@@ -207,10 +234,20 @@ class RawMaterialResource extends Resource
         ]);
     }
 
+    /** Satuan dasar terkunci begitu bahan punya riwayat stok. */
+    private static function unitLocked(?RawMaterial $record): bool
+    {
+        return $record !== null && $record->movements()->exists();
+    }
+
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with('preferredSupplier:id,name'))
+            // Batch yang masih ada stoknya dimuat sekali untuk seluruh halaman (nilai stok dan kedaluwarsa dihitung dari sini,
+            // tanpa query per baris), dan tanggal pergerakan terakhir diambil sebagai subquery.
+            ->modifyQueryUsing(fn ($query) => $query
+                ->with(['preferredSupplier:id,name', 'batches' => fn ($batches) => $batches->where('quantity', '>', 0)])
+                ->withMax('movements as last_movement_at', 'created_at'))
             ->columns([
                 Tables\Columns\TextColumn::make('code')
                     ->label('Kode')
@@ -261,6 +298,7 @@ class RawMaterialResource extends Resource
                     ->label('Harga/Satuan')
                     ->money('IDR')
                     ->placeholder('—')
+                    ->visible(fn () => static::canSeeCost())
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 // BUKAN kolom expiry_date mentah — itu cuma snapshot saat
@@ -280,6 +318,22 @@ class RawMaterialResource extends Resource
                         $record->isNearExpiry() => 'warning',
                         default => 'gray',
                     }),
+
+                // Nilai dari harga tiap batch (FIFO), lihat RawMaterial::stockValue(); hanya bagi yang boleh melihat harga.
+                Tables\Columns\TextColumn::make('stock_value')
+                    ->label('Nilai Stok')
+                    ->getStateUsing(fn (RawMaterial $record) => $record->stockValue())
+                    ->money('IDR')
+                    ->description(fn (RawMaterial $record) => $record->hasUnpricedStock() ? 'Sebagian belum berharga' : null)
+                    ->visible(fn () => static::canSeeCost())
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('last_movement_at')
+                    ->label('Terakhir Bergerak')
+                    ->date('d M Y')
+                    ->placeholder('Belum pernah')
+                    ->sortable()
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Diperbarui')
@@ -312,8 +366,8 @@ class RawMaterialResource extends Resource
 
                 Tables\Filters\Filter::make('dead_stock')
                     ->label('Tidak Bergerak (' . RawMaterial::DEAD_STOCK_DAYS . '+ hari)')
-                    ->query(fn ($query) => $query->where('current_stock', '>', 0)
-                        ->where('updated_at', '<', now()->subDays(RawMaterial::DEAD_STOCK_DAYS))),
+                    // Menurut riwayat pergerakan, bukan updated_at (lihat RawMaterial::scopeDeadStock()).
+                    ->query(fn ($query) => $query->deadStock()),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('download_template')
@@ -349,105 +403,14 @@ class RawMaterialResource extends Resource
                     ->modalSubmitActionLabel('Import'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-
-                Tables\Actions\Action::make('adjust_stock')
-                    ->label('Sesuaikan Stok')
-                    ->icon('heroicon-o-scale')
-                    ->color('warning')
-                    ->form([
-                        Forms\Components\TextInput::make('actual_quantity')
-                            ->label('Hasil Hitung Fisik Sebenarnya')
-                            ->numeric()
-                            ->required()
-                            ->minValue(0)
-                            ->suffix(fn (RawMaterial $record) => $record->unit)
-                            ->helperText(fn (RawMaterial $record) => 'Stok di sistem saat ini: ' . number_format((float) $record->current_stock, 2) . ' ' . $record->unit . '. Isi jumlah hasil hitung fisik yang SEBENARNYA — selisihnya dihitung otomatis.'),
-
-                        Forms\Components\Textarea::make('note')
-                            ->label('Catatan')
-                            ->placeholder('Mis. hasil stock opname bulanan, alasan selisih (tumpah/rusak/salah catat)'),
-                    ])
-                    ->action(function (RawMaterial $record, array $data) {
-                        $movement = $record->adjustStock((float) $data['actual_quantity'], auth()->id(), $data['note'] ?? null);
-
-                        if ($movement === null) {
-                            Notification::make()
-                                ->title('Tidak ada selisih')
-                                ->body('Hasil hitung fisik sama dengan stok di sistem — tidak ada penyesuaian yang dicatat.')
-                                ->info()
-                                ->send();
-
-                            return;
-                        }
-
-                        Notification::make()
-                            ->title('Stok disesuaikan')
-                            ->body('Selisih ' . ($movement->quantity > 0 ? '+' : '') . $movement->quantity . ' ' . $record->unit . ' dicatat sebagai penyesuaian.')
-                            ->success()
-                            ->send();
-                    }),
-
-                // "Stok Terbuang" (write-off) — beda dari "Sesuaikan Stok"
-                // yang generik: ada alasan terstruktur + jurnal kerugian
-                // otomatis (6520). Lihat StockWriteOffService.
-                Tables\Actions\Action::make('write_off')
-                    ->label('Catat Stok Terbuang')
-                    ->icon('heroicon-o-trash')
-                    ->color('danger')
-                    ->modalHeading('Catat Stok Terbuang')
-                    ->form([
-                        Forms\Components\TextInput::make('quantity')
-                            ->label('Jumlah Terbuang')
-                            ->numeric()
-                            ->required()
-                            ->minValue(0.01)
-                            ->maxValue(fn (RawMaterial $record) => (float) $record->current_stock)
-                            ->suffix(fn (RawMaterial $record) => $record->unit)
-                            ->helperText(fn (RawMaterial $record) => 'Stok saat ini: ' . number_format((float) $record->current_stock, 2) . ' ' . $record->unit
-                                . (($record->unit_cost !== null && (float) $record->unit_cost > 0)
-                                    ? '. Harga modal Rp' . number_format((float) $record->unit_cost, 0, ',', '.') . '/' . $record->unit . ' — jurnal kerugian dibuat otomatis.'
-                                    : '. Harga modal belum diisi — stok tetap dikurangi, tapi jurnal kerugian dilewati.')),
-
-                        Forms\Components\Select::make('reason')
-                            ->label('Alasan')
-                            ->options(\App\Models\StockWriteOff::REASON_LABELS)
-                            ->in(array_keys(\App\Models\StockWriteOff::REASON_LABELS))
-                            ->required()
-                            ->native(false),
-
-                        Forms\Components\Textarea::make('note')
-                            ->label('Catatan (opsional)')
-                            ->rows(2)
-                            ->maxLength(255),
-                    ])
-                    ->action(function (RawMaterial $record, array $data) {
-                        try {
-                            $wo = app(\App\Services\StockWriteOffService::class)->record(
-                                $record,
-                                'raw_material',
-                                (float) $data['quantity'],
-                                $data['reason'],
-                                $data['note'] ?? null,
-                                auth()->id(),
-                            );
-
-                            Notification::make()
-                                ->title('Stok terbuang dicatat')
-                                ->body($wo->total_value !== null
-                                    ? 'Kerugian Rp' . number_format((float) $wo->total_value, 0, ',', '.') . ' diposting ke Jurnal Umum.'
-                                    : 'Stok dikurangi. Jurnal kerugian dilewati (harga modal belum diisi).')
-                                ->success()
-                                ->send();
-                        } catch (\RuntimeException $e) {
-                            Notification::make()->title('Gagal mencatat stok terbuang')->body($e->getMessage())->danger()->send();
-                        }
-                    }),
+                Tables\Actions\ViewAction::make(),
 
                 Tables\Actions\Action::make('record_movement')
                     ->label('Catat Stok')
                     ->icon('heroicon-o-arrow-path')
-                    ->color('gray')
+                    ->button()
+                    ->color('primary')
+                    ->visible(fn (RawMaterial $record) => static::canEdit($record))
                     ->form([
                         Forms\Components\Select::make('type')
                             ->label('Jenis')
@@ -482,7 +445,7 @@ class RawMaterialResource extends Resource
                             ->numeric()
                             ->prefix('Rp')
                             ->minValue(0)
-                            ->visible(fn (Forms\Get $get) => $get('type') === 'in' && $get('use_purchase_unit'))
+                            ->visible(fn (Forms\Get $get) => static::canSeeCost() && $get('type') === 'in' && $get('use_purchase_unit'))
                             ->helperText('Total harga utk seluruh jumlah di atas (bukan per satuan) — sistem otomatis hitung harga per ' . '"Satuan Dasar" dari sini.'),
 
                         Forms\Components\TextInput::make('quantity')
@@ -524,7 +487,7 @@ class RawMaterialResource extends Resource
                             ->minValue(0)
                             ->default(fn (RawMaterial $record) => $record->unit_cost)
                             ->helperText('Opsional — kosongkan untuk pakai harga terakhir tersimpan. Untuk estimasi nilai stok di Dashboard Inventaris.')
-                            ->visible(fn (Forms\Get $get) => $get('type') === 'in' && ! $get('use_purchase_unit')),
+                            ->visible(fn (Forms\Get $get) => static::canSeeCost() && $get('type') === 'in' && ! $get('use_purchase_unit')),
 
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan')
@@ -576,6 +539,109 @@ class RawMaterialResource extends Resource
                             ->success()
                             ->send();
                     }),
+
+                Tables\Actions\ActionGroup::make([
+                Tables\Actions\EditAction::make(),
+
+                Tables\Actions\Action::make('adjust_stock')
+                    ->label('Sesuaikan Stok')
+                    ->icon('heroicon-o-scale')
+                    ->color('warning')
+                    ->visible(fn (RawMaterial $record) => static::canEdit($record))
+                    ->form([
+                        Forms\Components\TextInput::make('actual_quantity')
+                            ->label('Hasil Hitung Fisik Sebenarnya')
+                            ->numeric()
+                            ->required()
+                            ->minValue(0)
+                            ->suffix(fn (RawMaterial $record) => $record->unit)
+                            ->helperText(fn (RawMaterial $record) => 'Stok di sistem saat ini: ' . number_format((float) $record->current_stock, 2) . ' ' . $record->unit . '. Isi jumlah hasil hitung fisik yang SEBENARNYA — selisihnya dihitung otomatis.'),
+
+                        Forms\Components\Textarea::make('note')
+                            ->label('Catatan')
+                            ->placeholder('Mis. hasil stock opname bulanan, alasan selisih (tumpah/rusak/salah catat)'),
+                    ])
+                    ->action(function (RawMaterial $record, array $data) {
+                        $movement = $record->adjustStock((float) $data['actual_quantity'], auth()->id(), $data['note'] ?? null);
+
+                        if ($movement === null) {
+                            Notification::make()
+                                ->title('Tidak ada selisih')
+                                ->body('Hasil hitung fisik sama dengan stok di sistem — tidak ada penyesuaian yang dicatat.')
+                                ->info()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Stok disesuaikan')
+                            ->body('Selisih ' . ($movement->quantity > 0 ? '+' : '') . $movement->quantity . ' ' . $record->unit . ' dicatat sebagai penyesuaian.')
+                            ->success()
+                            ->send();
+                    }),
+
+                // "Stok Terbuang" (write-off) — beda dari "Sesuaikan Stok"
+                // yang generik: ada alasan terstruktur + jurnal kerugian
+                // otomatis (6520). Lihat StockWriteOffService.
+                Tables\Actions\Action::make('write_off')
+                    ->label('Catat Stok Terbuang')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->visible(fn (RawMaterial $record) => static::canEdit($record))
+                    ->modalHeading('Catat Stok Terbuang')
+                    ->form([
+                        Forms\Components\TextInput::make('quantity')
+                            ->label('Jumlah Terbuang')
+                            ->numeric()
+                            ->required()
+                            ->minValue(0.01)
+                            ->maxValue(fn (RawMaterial $record) => (float) $record->current_stock)
+                            ->suffix(fn (RawMaterial $record) => $record->unit)
+                            ->helperText(fn (RawMaterial $record) => 'Stok saat ini: ' . number_format((float) $record->current_stock, 2) . ' ' . $record->unit
+                                . (! static::canSeeCost()
+                                    ? '.'
+                                    : (($record->unit_cost !== null && (float) $record->unit_cost > 0)
+                                        ? '. Harga modal Rp' . number_format((float) $record->unit_cost, 0, ',', '.') . '/' . $record->unit . ' — jurnal kerugian dibuat otomatis.'
+                                        : '. Harga modal belum diisi — stok tetap dikurangi, tapi jurnal kerugian dilewati.'))),
+
+                        Forms\Components\Select::make('reason')
+                            ->label('Alasan')
+                            ->options(\App\Models\StockWriteOff::REASON_LABELS)
+                            ->in(array_keys(\App\Models\StockWriteOff::REASON_LABELS))
+                            ->required()
+                            ->native(false),
+
+                        Forms\Components\Textarea::make('note')
+                            ->label('Catatan (opsional)')
+                            ->rows(2)
+                            ->maxLength(255),
+                    ])
+                    ->action(function (RawMaterial $record, array $data) {
+                        try {
+                            $wo = app(\App\Services\StockWriteOffService::class)->record(
+                                $record,
+                                'raw_material',
+                                (float) $data['quantity'],
+                                $data['reason'],
+                                $data['note'] ?? null,
+                                auth()->id(),
+                            );
+
+                            Notification::make()
+                                ->title('Stok terbuang dicatat')
+                                ->body(! static::canSeeCost()
+                                    ? ($wo->total_value !== null ? 'Kerugian diposting ke Jurnal Umum.' : 'Stok dikurangi.')
+                                    : ($wo->total_value !== null
+                                        ? 'Kerugian Rp' . number_format((float) $wo->total_value, 0, ',', '.') . ' diposting ke Jurnal Umum.'
+                                        : 'Stok dikurangi. Jurnal kerugian dilewati (harga modal belum diisi).'))
+                                ->success()
+                                ->send();
+                        } catch (\RuntimeException $e) {
+                            Notification::make()->title('Gagal mencatat stok terbuang')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
+                ]),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -648,16 +714,28 @@ class RawMaterialResource extends Resource
         array_shift($rows); // baris pertama = header
 
         $createdCount = 0;
-        $invalidCount = 0;
         $codeConflicts = 0;
         $seenCodesInFile = [];
+        $problems = [];
 
-        foreach ($rows as $row) {
+        // Nama yang sama (tanpa membedakan huruf besar/kecil) dengan bahan yang sudah ada atau baris sebelumnya dilewati,
+        // supaya mengimpor file yang sama dua kali tidak menggandakan bahan.
+        $knownNames = RawMaterial::query()->pluck('name')
+            ->mapWithKeys(fn ($existing) => [mb_strtolower(trim((string) $existing)) => true])
+            ->all();
+
+        foreach ($rows as $index => $row) {
+            $line = $index + 2; // baris header sudah dibuang; nomor baris di Excel mulai dari 1
+
+            if (! array_filter($row, fn ($cell) => trim((string) $cell) !== '')) {
+                continue;
+            }
+
             $name = isset($row[0]) ? trim((string) $row[0]) : '';
             $unit = isset($row[3]) ? trim((string) $row[3]) : '';
 
             if ($name === '' || $unit === '') {
-                $invalidCount++;
+                $problems[] = "Baris {$line}: Nama Bahan atau Satuan kosong";
                 continue;
             }
 
@@ -670,9 +748,16 @@ class RawMaterialResource extends Resource
             // Angka negatif tidak masuk akal untuk stok awal / ambang / harga (form manual sudah menolaknya) -- baris
             // dilewati, bukan disimpan dengan stok atau harga negatif.
             if ($initialStock < 0 || ($reorderPoint !== null && $reorderPoint < 0) || ($unitCost !== null && $unitCost < 0)) {
-                $invalidCount++;
+                $problems[] = "Baris {$line}: stok/ambang/harga negatif ({$name})";
                 continue;
             }
+
+            $nameKey = mb_strtolower($name);
+            if (isset($knownNames[$nameKey])) {
+                $problems[] = "Baris {$line}: \"{$name}\" sudah terdaftar";
+                continue;
+            }
+
             $receivedDate = static::normalizeImportedDate($row[7] ?? null) ?? now()->toDateString();
             $expiryDate = static::normalizeImportedDate($row[8] ?? null);
             $notes = isset($row[9]) ? trim((string) $row[9]) : '';
@@ -691,29 +776,41 @@ class RawMaterialResource extends Resource
                 }
             }
 
-            $material = RawMaterial::create([
-                'name' => $name,
-                'code' => $useCode,
-                'category' => $category ?: null,
-                'received_date' => $receivedDate,
-                'unit' => $unit,
-                'current_stock' => 0,
-                'reorder_point' => $reorderPoint,
-                'unit_cost' => $unitCost,
-                'expiry_date' => $expiryDate,
-                'notes' => $notes ?: null,
-                'created_by' => auth()->id(),
-            ]);
+            // Bahan dan stok awalnya satu kesatuan: kalau salah satu gagal, tidak ada yang tersimpan setengah-setengah.
+            try {
+                DB::transaction(function () use ($name, $useCode, $category, $receivedDate, $unit, $reorderPoint, $unitCost, $expiryDate, $notes, $initialStock) {
+                    $material = RawMaterial::create([
+                        'name' => $name,
+                        'code' => $useCode,
+                        'category' => $category ?: null,
+                        'received_date' => $receivedDate,
+                        'unit' => $unit,
+                        'current_stock' => 0,
+                        'reorder_point' => $reorderPoint,
+                        'unit_cost' => $unitCost,
+                        'expiry_date' => $expiryDate,
+                        'notes' => $notes ?: null,
+                        'created_by' => auth()->id(),
+                    ]);
 
-            if ($initialStock > 0) {
-                $material->recordMovement('in', $initialStock, auth()->id(), 'Stok awal dari import Excel.', $receivedDate, $expiryDate);
+                    if ($initialStock > 0) {
+                        $material->recordMovement('in', $initialStock, auth()->id(), 'Stok awal dari import Excel.', $receivedDate, $expiryDate);
+                    }
+                });
+            } catch (\Throwable $e) {
+                report($e);
+                $problems[] = "Baris {$line}: gagal disimpan ({$name})";
+                continue;
             }
 
+            $knownNames[$nameKey] = true;
             $createdCount++;
         }
 
         $bodyLines = ["{$createdCount} bahan baku berhasil didaftarkan."];
-        if ($invalidCount > 0) $bodyLines[] = "{$invalidCount} baris dilewati (Nama Bahan/Satuan kosong, atau stok/ambang/harga negatif).";
+        if ($problems !== []) {
+            $bodyLines[] = count($problems) . ' baris dilewati: ' . implode('; ', array_slice($problems, 0, 10)) . (count($problems) > 10 ? '; dan ' . (count($problems) - 10) . ' lainnya.' : '.');
+        }
         if ($codeConflicts > 0) $bodyLines[] = "{$codeConflicts} kode barang dilewati (sudah dipakai bahan lain / duplikat dalam file) — bahan tetap didaftarkan tanpa kode.";
 
         Notification::make()
@@ -765,6 +862,7 @@ class RawMaterialResource extends Resource
         return [
             'index'  => Pages\ListRawMaterials::route('/'),
             'create' => Pages\CreateRawMaterial::route('/create'),
+            'view'   => Pages\ViewRawMaterial::route('/{record}'),
             'edit'   => Pages\EditRawMaterial::route('/{record}/edit'),
         ];
     }

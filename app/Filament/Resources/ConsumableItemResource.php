@@ -261,8 +261,8 @@ class ConsumableItemResource extends Resource
 
                 Tables\Filters\Filter::make('dead_stock')
                     ->label('Tidak Bergerak (' . ConsumableItem::DEAD_STOCK_DAYS . '+ hari)')
-                    ->query(fn ($query) => $query->where('current_stock', '>', 0)
-                        ->where('updated_at', '<', now()->subDays(ConsumableItem::DEAD_STOCK_DAYS))),
+                    // Menurut riwayat pergerakan, bukan updated_at (lihat ConsumableItem::scopeDeadStock()).
+                    ->query(fn ($query) => $query->deadStock()),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('download_template')

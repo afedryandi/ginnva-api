@@ -113,8 +113,7 @@ class InventoryStatsOverview extends BaseWidget
                 ->needsReview()
                 ->count();
             $dead = RawMaterial::query()
-                ->where('current_stock', '>', 0)
-                ->where('updated_at', '<', now()->subDays(RawMaterial::DEAD_STOCK_DAYS))
+                ->deadStock()
                 ->needsReview()
                 ->count();
 
@@ -128,8 +127,7 @@ class InventoryStatsOverview extends BaseWidget
         if ($canConsumables) {
             $low = ConsumableItem::query()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->needsReview()->count();
             $dead = ConsumableItem::query()
-                ->where('current_stock', '>', 0)
-                ->where('updated_at', '<', now()->subDays(ConsumableItem::DEAD_STOCK_DAYS))
+                ->deadStock()
                 ->needsReview()
                 ->count();
 

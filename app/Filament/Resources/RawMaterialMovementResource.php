@@ -38,12 +38,21 @@ class RawMaterialMovementResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Riwayat Bahan Baku';
 
+    /**
+     * Buku pergerakan stok memuat siapa mencatat apa dan harga beli per kejadian, jadi tidak terbuka lewat akses bawaan akun baru
+     * (menu_access kosong): hanya akses penuh atau staf yang menunya dicentang eksplisit (audit Daftar Bahan Baku, 2026-11-02).
+     * Harga butuh izin "Lihat" pada menu ini.
+     */
     public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
+    }
+
+    public static function canSeeCost(): bool
     {
         $user = auth()->user();
 
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return $user !== null && ($user->isFullAccess() || $user->hasModuleAction(static::class, 'view', false));
     }
 
     public static function canCreate(): bool
@@ -80,8 +89,9 @@ class RawMaterialMovementResource extends Resource
                     ->searchable()
                     ->placeholder('— (bahan sudah dihapus)')
                     // Drill-down ke halaman edit bahan terkait (audit 2026-09-30).
-                    ->url(fn (RawMaterialMovement $record) => $record->rawMaterial
-                        ? RawMaterialResource::getUrl('edit', ['record' => $record->rawMaterial->id])
+                    // Tautan hanya bagi yang boleh membuka halaman Lihat bahan (tanpa itu berujung 403).
+                    ->url(fn (RawMaterialMovement $record) => $record->rawMaterial && RawMaterialResource::canView($record->rawMaterial)
+                        ? RawMaterialResource::getUrl('view', ['record' => $record->rawMaterial->id])
                         : null),
 
                 Tables\Columns\TextColumn::make('rawMaterial.category')
@@ -116,6 +126,7 @@ class RawMaterialMovementResource extends Resource
                     ->label('Harga/Satuan')
                     ->money('IDR')
                     ->placeholder('—')
+                    ->visible(fn () => static::canSeeCost())
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('user.name')
@@ -174,7 +185,7 @@ class RawMaterialMovementResource extends Resource
                         }
 
                         return Excel::download(
-                            new RawMaterialMovementExport($livewire->getFilteredTableQuery()),
+                            new RawMaterialMovementExport($livewire->getFilteredTableQuery(), static::canSeeCost()),
                             'riwayat-bahan-baku-' . now()->format('Ymd') . '.xlsx'
                         );
                     }),
