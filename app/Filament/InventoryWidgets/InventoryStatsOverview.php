@@ -65,6 +65,11 @@ class InventoryStatsOverview extends BaseWidget
 
     protected function getStats(): array
     {
+        // Tanpa akses ke satu pun kategori, tidak ada kartu sama sekali (bukan kartu "semua baik" yang menyesatkan).
+        if (! static::canView()) {
+            return [];
+        }
+
         $user = auth()->user();
         $isFullAccess = $user?->isFullAccess() ?? false;
 
