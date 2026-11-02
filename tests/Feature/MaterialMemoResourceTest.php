@@ -278,6 +278,7 @@ class MaterialMemoResourceTest extends TestCase
         $returned = $service::addMaterial($material, 'raw_material', $memo, 4, $admin->id, null);
         $service::returnMaterial($returned->fresh(), 1, $admin->id, $memo);
         $open = $service::addMaterial($material->fresh(), 'raw_material', $memo, 1, $admin->id, null);
+        $returned = $returned->fresh();
 
         $this->as($this->writer($this->storeA));
         $this->manager($memo)

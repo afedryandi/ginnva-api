@@ -22,9 +22,6 @@ class MaterialMemo extends Model
     // report/service) yang sebelumnya rawan lupa di-scope.
     use HasStoreScope;
 
-    // Booking tertaut ikut dimuat (nomor dan nama pelanggan) di semua respons memo.
-    protected $with = ['booking:id,booking_number,customer_name'];
-
     protected $fillable = [
         'memo_number',
         'store_id',

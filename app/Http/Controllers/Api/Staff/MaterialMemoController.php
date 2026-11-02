@@ -161,7 +161,7 @@ class MaterialMemoController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $query = MaterialMemo::query()
-            ->with(['creator:id,name', 'store:id,name'])
+            ->with(['creator:id,name', 'store:id,name', 'booking:id,booking_number,customer_name'])
             ->withCount(['items', 'items as unreturned_count' => fn ($q) => $q->whereIn('item_type', ['raw_material', 'consumable_item'])->whereNull('qty_returned')])
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('memo_number', 'like', "%{$search}%")
@@ -266,7 +266,7 @@ class MaterialMemoController extends Controller
             }
         }
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
 
         return response()->json([
             'success' => true,
@@ -280,7 +280,7 @@ class MaterialMemoController extends Controller
      */
     public function show(Request $request, int $id)
     {
-        $memo = MaterialMemo::with(['creator:id,name', 'store:id,name', 'items'])->find($id);
+        $memo = MaterialMemo::with(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name'])->find($id);
 
         if (! $memo) {
             return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
@@ -337,7 +337,7 @@ class MaterialMemoController extends Controller
         }
 
         $memo->update($validator->validated());
-        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
 
         return response()->json([
             'success' => true,
@@ -455,7 +455,7 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 404);
         }
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
 
         return response()->json([
             'success' => true,
@@ -530,7 +530,7 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
 
         return response()->json([
             'success' => true,
@@ -601,7 +601,7 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
 
         return response()->json([
             'success' => true,
@@ -656,7 +656,7 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
 
         return response()->json([
             'success' => true,
@@ -697,7 +697,7 @@ class MaterialMemoController extends Controller
         MaterialMemoStockService::reverseItem($memoItem, $request->user('api')->id, $memo);
         $memoItem->delete();
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
 
         return response()->json([
             'success' => true,
