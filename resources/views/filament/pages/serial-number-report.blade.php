@@ -62,7 +62,11 @@
                     @forelse ($result['codes'] as $code)
                         <tr class="border-b border-gray-100 dark:border-white/5">
                             <td class="whitespace-nowrap py-2 px-3 font-mono font-medium">
-                                <a href="{{ $this->scrollCodeUrl($code->id) }}" class="hover:underline" title="Lihat detail roll ini">{{ $code->code }}</a>
+                                @if ($codeUrl = $this->scrollCodeUrl($code->id))
+                                    <a href="{{ $codeUrl }}" class="hover:underline" title="Lihat detail roll ini">{{ $code->code }}</a>
+                                @else
+                                    {{ $code->code }}
+                                @endif
                             </td>
                             <td class="whitespace-nowrap py-2 px-3">{{ $code->filmProduct ? "{$code->filmProduct->sku} — {$code->filmProduct->name}" : '—' }}</td>
                             <td class="whitespace-nowrap py-2 px-3">{{ $code->store?->name ?? '—' }}</td>
@@ -114,7 +118,11 @@
                             <td class="whitespace-nowrap py-2 px-3 tabular-nums">{{ $usage->created_at->format('d M Y H:i') }}</td>
                             <td class="whitespace-nowrap py-2 px-3 font-mono">
                                 @if ($usage->scrollCode)
-                                    <a href="{{ $this->scrollCodeUrl($usage->scrollCode->id) }}" class="hover:underline" title="Lihat detail roll ini">{{ $usage->scrollCode->code }}</a>
+                                    @if ($usageCodeUrl = $this->scrollCodeUrl($usage->scrollCode->id))
+                                        <a href="{{ $usageCodeUrl }}" class="hover:underline" title="Lihat detail roll ini">{{ $usage->scrollCode->code }}</a>
+                                    @else
+                                        {{ $usage->scrollCode->code }}
+                                    @endif
                                 @else
                                     —
                                 @endif

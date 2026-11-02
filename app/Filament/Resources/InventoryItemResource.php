@@ -275,10 +275,11 @@ class InventoryItemResource extends Resource
                     // Klik langsung ke halaman detail Kode Gulungan (tab
                     // Riwayat Pemakaian dst) — sebelumnya cuma teks, staff
                     // harus cari manual sendiri di menu Kode Gulungan.
-                    ->url(fn (InventoryItem $record) => $record->scroll_code_id
+                    // Tautan hanya bagi yang boleh membuka halaman Kode Gulungan (tanpa itu berujung 403).
+                    ->url(fn (InventoryItem $record) => $record->scroll_code_id && ScrollCodeResource::canViewAny()
                         ? ScrollCodeResource::getUrl('view', ['record' => $record->scroll_code_id])
                         : null)
-                    ->color(fn (InventoryItem $record) => $record->scroll_code_id ? 'primary' : null),
+                    ->color(fn (InventoryItem $record) => $record->scroll_code_id && ScrollCodeResource::canViewAny() ? 'primary' : null),
 
                 // Status dan toko gulungan terlihat langsung di daftar (sebelumnya harus membuka barangnya satu per satu).
                 Tables\Columns\TextColumn::make('scrollCode.status')

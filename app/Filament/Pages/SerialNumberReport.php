@@ -199,10 +199,12 @@ class SerialNumberReport extends Page implements HasForms
         ])->columns($isFullAccess ? 5 : 4)->statePath('data');
     }
 
-    /** Link drill-down ke halaman detail kode serial (roll). */
-    public function scrollCodeUrl(int $id): string
+    /** Link drill-down ke halaman detail kode serial (roll); null bila akun ini tidak boleh membuka menu Kode Gulungan. */
+    public function scrollCodeUrl(int $id): ?string
     {
-        return \App\Filament\Resources\ScrollCodeResource::getUrl('view', ['record' => $id]);
+        return \App\Filament\Resources\ScrollCodeResource::canViewAny()
+            ? \App\Filament\Resources\ScrollCodeResource::getUrl('view', ['record' => $id])
+            : null;
     }
 
     /**

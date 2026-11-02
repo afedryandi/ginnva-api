@@ -53,6 +53,36 @@ class ScrollCode extends Model
     }
 
     /**
+     * Alasan gulungan ini tidak boleh dihapus lewat panel (audit Kode Gulungan, 2026-11-02): menghapusnya menghilangkan riwayat pemakaian dan
+     * mutasi (cascade), melepas tautan barang (diset null), dan membuat nomor garansi yang merujuk kodenya tanpa asal. Kosong berarti aman.
+     * Perintah scroll-codes:delete sengaja tidak memakainya (alat bersih-bersih data uji yang meminta konfirmasi eksplisit).
+     *
+     * @return array<int, string>
+     */
+    public function deleteBlockers(): array
+    {
+        $reasons = [];
+
+        if (($usages = $this->usages()->count()) > 0) {
+            $reasons[] = "{$usages} riwayat pemakaian";
+        }
+
+        if (($warranties = $this->warranties()->count()) > 0) {
+            $reasons[] = "{$warranties} garansi";
+        }
+
+        if (($transfers = $this->transfers()->count()) > 0) {
+            $reasons[] = "{$transfers} riwayat mutasi";
+        }
+
+        if ($item = $this->inventoryItem()->first(['id', 'code'])) {
+            $reasons[] = "terkait barang {$item->code}";
+        }
+
+        return $reasons;
+    }
+
+    /**
      * Sisa panjang yang seharusnya: total dikurangi riwayat pemakaian, ditambah koreksi manual admin. Null bila total belum diisi. Dipakai
      * "Cek Rekonsiliasi".
      */
