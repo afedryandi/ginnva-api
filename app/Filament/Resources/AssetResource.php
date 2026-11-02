@@ -150,12 +150,10 @@ class AssetResource extends Resource
 
                     Forms\Components\Select::make('status')
                         ->label('Status')
-                        ->options(fn (?Asset $record) => [
-                            'aktif'      => 'Aktif Dipakai',
-                            'diperbaiki' => 'Sedang Diperbaiki',
-                            'rusak'      => 'Rusak',
-                            'hilang'     => 'Hilang',
-                        ] + ($record?->status === 'dijual' ? ['dijual' => 'Dijual'] : []))
+                        ->options(fn (?Asset $record) => static::formStatusOptions($record))
+                        // Aturan eksplisit: opsi dari closure tidak otomatis dijadikan aturan validasi, dan status liar (mis. dari form yang dimanipulasi)
+                        // sebelumnya langsung menabrak kolom enum di database.
+                        ->in(fn (?Asset $record) => array_keys(static::formStatusOptions($record)))
                         // Aset yang sudah dilepas (Lepas Aset) statusnya terkunci.
                         ->disabled(fn (?Asset $record) => $record?->disposed_at !== null)
                         ->dehydrated(fn (?Asset $record) => $record?->disposed_at === null)
@@ -283,6 +281,20 @@ class AssetResource extends Resource
                         ->columnSpanFull(),
                 ]),
         ]);
+    }
+
+    /**
+     * Status yang boleh dipilih di form. "Dijual" hanya lewat Lepas Aset (supaya jurnalnya tercatat), jadi baru muncul bila aset
+     * memang sudah berstatus itu (data lama). "Hilang" boleh ditandai tanpa jurnal.
+     */
+    public static function formStatusOptions(?Asset $record): array
+    {
+        return [
+            'aktif'      => 'Aktif Dipakai',
+            'diperbaiki' => 'Sedang Diperbaiki',
+            'rusak'      => 'Rusak',
+            'hilang'     => 'Hilang',
+        ] + ($record?->status === 'dijual' ? ['dijual' => 'Dijual'] : []);
     }
 
     /** Kategori yang sudah dipakai, untuk saran isian. */

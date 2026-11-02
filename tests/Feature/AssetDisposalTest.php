@@ -296,7 +296,7 @@ class AssetDisposalTest extends TestCase
     public function test_the_dispose_button_is_not_offered_to_staff_without_full_access(): void
     {
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. A', 'name' => 'Toko A', 'is_active' => true]);
-        $staff = User::create(['name' => 'Kasir', 'email' => uniqid() . '@test.local', 'password' => 'x', 'is_active' => true, 'store_id' => $store->id]);
+        $staff = User::create(['name' => 'Kasir', 'email' => uniqid() . '@test.local', 'password' => 'x', 'is_active' => true, 'store_id' => $store->id, 'menu_access' => ['AssetResource'], 'menu_permissions' => ['AssetResource' => ['update', 'view']]]);
         $staff->assignRole('kasir');
         $this->actingAs($staff, 'web');
         $asset = $this->asset(['store_id' => $store->id]);
