@@ -79,6 +79,29 @@ class RawMaterial extends Model
      */
     public const DEAD_STOCK_DAYS = 60;
 
+    /** Batch yang masih ada stoknya kedaluwarsa SESUDAH ditinjau: kondisinya memburuk karena waktu, jadi baris dibuka kembali. */
+    protected static function reopenedReviewConditions($query): void
+    {
+        $query->orWhereHas('batches', fn ($b) => $b->where('quantity', '>', 0)
+            ->whereNotNull('expiry_date')
+            ->whereDate('expiry_date', '<', today()->toDateString())
+            ->whereRaw('raw_material_batches.expiry_date > DATE(raw_materials.reviewed_at)'));
+    }
+
+    protected function reviewReopened(): bool
+    {
+        if ($this->reviewed_at === null) {
+            return false;
+        }
+
+        return $this->batches()
+            ->where('quantity', '>', 0)
+            ->whereNotNull('expiry_date')
+            ->whereDate('expiry_date', '<', today()->toDateString())
+            ->whereDate('expiry_date', '>', $this->reviewed_at->toDateString())
+            ->exists();
+    }
+
     public function isDeadStock(): bool
     {
         return (float) $this->current_stock > 0

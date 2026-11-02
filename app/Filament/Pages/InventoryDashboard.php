@@ -3,7 +3,9 @@
 namespace App\Filament\Pages;
 
 use App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget;
+use App\Filament\InventoryWidgets\InventoryActivityOverview;
 use App\Filament\InventoryWidgets\InventoryStatsOverview;
+use App\Filament\InventoryWidgets\InventoryValueOverview;
 use App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget;
 use App\Filament\InventoryWidgets\ProblemAssetsWidget;
 use App\Models\Asset;
@@ -35,12 +37,28 @@ class InventoryDashboard extends Page
 
     protected static string $view = 'filament.pages.inventory-dashboard';
 
+    /**
+     * Dashboard ini memuat nilai rupiah seluruh stok dan aset serta tombol yang menyembunyikan baris untuk semua orang, jadi tidak
+     * terbuka lewat akses bawaan akun baru (menu_access kosong): hanya akses penuh atau staf yang menunya dicentang eksplisit.
+     * Kartu nilai rupiah butuh izin "Lihat" pada menu ini (audit Dashboard Inventaris, 2026-11-02).
+     */
     public static function canAccess(): bool
+    {
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
+    }
+
+    /** Boleh melihat menu barang ini: akses penuh atau menunya dicentang eksplisit (dipakai kartu dan tabel dashboard). */
+    public static function canSee(string $resource): bool
+    {
+        return auth()->user()?->hasExplicitMenuAccess($resource) ?? false;
+    }
+
+    /** Boleh melihat kartu nilai rupiah (stok bahan, barang habis pakai, aset): akses penuh atau izin "Lihat" pada menu ini. */
+    public static function canSeeValues(): bool
     {
         $user = auth()->user();
 
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return $user !== null && ($user->isFullAccess() || $user->hasModuleAction(static::class, 'view', false));
     }
 
     /**
@@ -62,7 +80,7 @@ class InventoryDashboard extends Page
         if (! (auth()->user()?->isFullAccess() ?? false)) {
             $assetsQuery->where('store_id', auth()->user()?->store_id);
         }
-        $assetsCount = $assetsQuery->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'))->count();
+        $assetsCount = $assetsQuery->needsReview()->count();
 
         $tableWidgets = collect([
             ['widget' => MaterialsNeedingAttentionWidget::class, 'count' => $materialsCount],
@@ -72,6 +90,8 @@ class InventoryDashboard extends Page
 
         return [
             InventoryStatsOverview::class,
+            InventoryActivityOverview::class,
+            InventoryValueOverview::class,
             ...$tableWidgets,
         ];
     }

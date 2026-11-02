@@ -11,6 +11,8 @@ use Filament\Widgets\TableWidget as BaseWidget;
 
 class ProblemAssetsWidget extends BaseWidget
 {
+    use Concerns\ManagesReview;
+
     // Audit framework 2026-09-14, "Auto-polling widget Livewire" --
     // sebelumnya ikut default Filament (poll tiap 60 detik walau
     // halaman idle), tidak perlu real-time untuk widget ini.
@@ -30,8 +32,7 @@ class ProblemAssetsWidget extends BaseWidget
     {
         $user = auth()->user();
 
-        return ($user?->isFullAccess() ?? false)
-            || ($user?->hasMenuAccess(AssetResource::class) ?? false);
+        return $user?->hasExplicitMenuAccess(AssetResource::class) ?? false;
     }
 
     public function table(Table $table): Table
@@ -49,9 +50,7 @@ class ProblemAssetsWidget extends BaseWidget
                     ! (auth()->user()?->isFullAccess() ?? false),
                     fn ($query) => $query->where('store_id', auth()->user()?->store_id)
                 )
-                // Baris yang sudah "Tandai Ditinjau" DAN belum ada
-                // perubahan lagi sejak itu disembunyikan.
-                ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'))
+                ->with('reviewedBy:id,name')
                 // "Hilang" & "Rusak" (danger) lebih mendesak daripada
                 // "Diperbaiki" (warning, sudah dalam proses) — ditaruh duluan.
                 ->orderByRaw("CASE WHEN status IN ('rusak', 'hilang') THEN 0 ELSE 1 END"))
@@ -85,22 +84,16 @@ class ProblemAssetsWidget extends BaseWidget
                     ->label('Lokasi')
                     ->placeholder('Kantor Pusat'),
 
+                static::reviewColumn(),
+
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Terakhir Diubah')
                     ->since()
                     ->tooltip(fn (Asset $record) => $record->updated_at?->format('d M Y H:i')),
             ])
+            ->filters([static::reviewFilter()])
             ->actions([
-                Tables\Actions\Action::make('acknowledge')
-                    ->label('Tandai Ditinjau')
-                    ->icon('heroicon-o-eye')
-                    ->color('gray')
-                    ->requiresConfirmation()
-                    ->modalDescription('Sembunyikan baris ini dari "Aset Bermasalah"? Akan muncul lagi otomatis kalau statusnya berubah lagi.')
-                    ->action(function (Asset $record) {
-                        $record->acknowledge(auth()->id());
-                        Notification::make()->title('Ditandai sudah ditinjau')->success()->send();
-                    }),
+                ...static::reviewActions(AssetResource::class),
             ])
             ->paginated(false)
             ->emptyStateHeading('Tidak ada aset bermasalah')

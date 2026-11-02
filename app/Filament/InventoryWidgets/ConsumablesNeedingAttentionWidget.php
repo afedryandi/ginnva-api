@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Builder;
 class ConsumablesNeedingAttentionWidget extends BaseWidget
 {
     use Concerns\OffersRestockRequest;
+    use Concerns\ManagesReview;
 
     // Audit framework 2026-09-14, "Auto-polling widget Livewire" --
     // sebelumnya ikut default Filament (poll tiap 60 detik walau
@@ -31,8 +32,7 @@ class ConsumablesNeedingAttentionWidget extends BaseWidget
     {
         $user = auth()->user();
 
-        return ($user?->isFullAccess() ?? false)
-            || ($user?->hasMenuAccess(ConsumableItemResource::class) ?? false);
+        return $user?->hasExplicitMenuAccess(ConsumableItemResource::class) ?? false;
     }
 
     /**
@@ -41,7 +41,7 @@ class ConsumablesNeedingAttentionWidget extends BaseWidget
      * Penjualan supaya angka badge itu SELALU konsisten dengan isi tabel
      * widget penuh di Dashboard Inventaris.
      */
-    public static function needingAttentionQuery(): Builder
+    public static function conditionQuery(): Builder
     {
         return ConsumableItem::query()
             ->where(function ($query) {
@@ -50,18 +50,21 @@ class ConsumablesNeedingAttentionWidget extends BaseWidget
                     // dalam DEAD_STOCK_DAYS hari (lihat ConsumableItem::isDeadStock()).
                     ->orWhere(fn ($q) => $q->where('current_stock', '>', 0)
                         ->where('updated_at', '<', now()->subDays(ConsumableItem::DEAD_STOCK_DAYS)));
-            })
-            // Baris yang sudah "Tandai Ditinjau" DAN belum ada
-            // perubahan lagi sejak itu disembunyikan.
-            ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'));
+            });
+    }
+
+    /** Baris yang perlu ditinjau: kondisi di atas dan belum (atau tidak lagi) ditinjau, lihat Acknowledgeable::scopeNeedsReview(). */
+    public static function needingAttentionQuery(): Builder
+    {
+        return static::conditionQuery()->needsReview();
     }
 
     public function table(Table $table): Table
     {
         return $table
             ->query(
-                static::needingAttentionQuery()
-                    ->with('preferredSupplier:id,name')
+                static::conditionQuery()
+                    ->with(['preferredSupplier:id,name', 'reviewedBy:id,name'])
                     // Paling menipis (selisih terbesar di bawah ambang) duluan.
                     ->orderByRaw('(reorder_point - current_stock) DESC')
             )
@@ -110,23 +113,17 @@ class ConsumablesNeedingAttentionWidget extends BaseWidget
 
                 static::openRequestColumn(),
 
+                static::reviewColumn(),
+
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Terakhir Diubah')
                     ->since()
                     ->tooltip(fn (ConsumableItem $record) => $record->updated_at?->format('d M Y H:i')),
             ])
+            ->filters([static::reviewFilter()])
             ->actions([
                 static::restockAction(),
-                Tables\Actions\Action::make('acknowledge')
-                    ->label('Tandai Ditinjau')
-                    ->icon('heroicon-o-eye')
-                    ->color('gray')
-                    ->requiresConfirmation()
-                    ->modalDescription('Sembunyikan baris ini dari "Perlu Perhatian"? Akan muncul lagi otomatis kalau ada perubahan baru (stok masuk/keluar, dst).')
-                    ->action(function (ConsumableItem $record) {
-                        $record->acknowledge(auth()->id());
-                        Notification::make()->title('Ditandai sudah ditinjau')->success()->send();
-                    }),
+                ...static::reviewActions(ConsumableItemResource::class),
             ])
             ->paginated(false)
             ->emptyStateHeading('Semua barang habis pakai dalam kondisi baik')

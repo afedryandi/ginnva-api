@@ -26,7 +26,7 @@ class NotifyAssetMaintenanceDue extends Command
         $dueAssets = Asset::query()
             ->whereNotNull('next_maintenance_date')
             ->whereDate('next_maintenance_date', '<=', now())
-            ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhereColumn('reviewed_at', '<', 'updated_at'))
+            ->needsReview()
             ->with('store:id,name')
             ->get();
 

@@ -55,10 +55,10 @@
         // Query yang SAMA dipakai widget aslinya (needingAttentionQuery(),
         // ditarik keluar dari table() masing-masing) supaya angkanya
         // tidak pernah menyimpang dari Dashboard Inventaris.
-        $materialsAttentionCount = \App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget::canView()
+        $materialsAttentionCount = \App\Filament\Pages\InventoryDashboard::canAccess() && \App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget::canView()
             ? \App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget::needingAttentionQuery()->count()
             : null;
-        $consumablesAttentionCount = \App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget::canView()
+        $consumablesAttentionCount = \App\Filament\Pages\InventoryDashboard::canAccess() && \App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget::canView()
             ? \App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget::needingAttentionQuery()->count()
             : null;
     @endphp

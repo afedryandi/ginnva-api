@@ -736,6 +736,9 @@ class GuideCatalog
                     'Pada riwayat bahan baku dan barang habis pakai, **Cek Rekonsiliasi** memeriksa apakah stok semua barang cocok dengan penjumlahan riwayat pergerakannya; selisih berarti ada data yang perlu ditelusuri.',
                 ],
                 'tips' => [
+                    'Kartu di dashboard dibagi tiga baris: **Perlu perhatian** (total, bahan baku, barang habis pakai, aset), **Aktivitas stok** (permohonan pembelian menunggu, stok terbuang bulan ini, opname terakhir, ready stock), dan **Nilai persediaan** (rupiah, hanya bagi yang punya izin Lihat). Ketuk kartu untuk membuka daftar yang sudah terfilter.',
+                    '**Tandai Ditinjau** menyembunyikan baris selama 7 hari, lalu muncul lagi. Baris juga muncul lagi lebih cepat bila datanya berubah atau bahan baku itu kedaluwarsa sesudah ditinjau. Lihat yang disembunyikan lewat filter **Tinjauan** > **Sudah ditinjau**, dan tekan **Batalkan Tinjauan** untuk menampilkannya kembali.',
+                    'Dashboard Inventaris hanya terbuka bagi akses penuh atau akun yang menunya dicentang di Hak Akses. Kartu nilai rupiah butuh izin **Lihat**, dan **Tandai Ditinjau** butuh izin **Ubah** pada menu barangnya.',
                     'Stok pada Daftar Stok masih nasional (belum per toko). "Akhir" dihitung mundur dari stok saat ini, bukan dari foto stok harian.',
                     'Riwayat pergerakan adalah jejak audit; koreksi lewat Batalkan, jangan mengubah catatan lama.',
                 ],

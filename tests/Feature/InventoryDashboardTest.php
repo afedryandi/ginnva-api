@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Filament\InventoryWidgets\ConsumablesNeedingAttentionWidget;
+use App\Filament\InventoryWidgets\InventoryActivityOverview;
 use App\Filament\InventoryWidgets\InventoryStatsOverview;
+use App\Filament\InventoryWidgets\InventoryValueOverview;
 use App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget;
 use App\Filament\InventoryWidgets\ProblemAssetsWidget;
 use App\Filament\Pages\InventoryDashboard;
@@ -60,9 +62,9 @@ class InventoryDashboardTest extends TestCase
         parent::tearDown();
     }
 
-    private function user(string $role, ?array $menuAccess = null, ?Store $store = null): User
+    private function user(string $role, ?array $menuAccess = null, ?Store $store = null, ?array $permissions = null): User
     {
-        return tap(User::create(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess, 'is_active' => true]), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess, 'menu_permissions' => $permissions, 'is_active' => true]), fn (User $u) => $u->assignRole($role));
     }
 
     private function asset(string $tag, string $status, Store $store, float $cost): Asset
@@ -104,10 +106,14 @@ class InventoryDashboardTest extends TestCase
     /** @return array<string, \Filament\Widgets\StatsOverviewWidget\Stat> */
     private function stats(): array
     {
-        $method = new \ReflectionMethod(InventoryStatsOverview::class, 'getStats');
-        $method->setAccessible(true);
+        $stats = collect();
+        foreach ([InventoryStatsOverview::class, InventoryActivityOverview::class, InventoryValueOverview::class] as $widget) {
+            $method = new \ReflectionMethod($widget, 'getStats');
+            $method->setAccessible(true);
+            $stats = $stats->merge($method->invoke(new $widget()));
+        }
 
-        return collect($method->invoke(new InventoryStatsOverview()))->keyBy(fn ($stat) => (string) $stat->getLabel())->all();
+        return $stats->keyBy(fn ($stat) => (string) $stat->getLabel())->all();
     }
 
     private function value(array $stats, string $label): mixed
@@ -123,7 +129,7 @@ class InventoryDashboardTest extends TestCase
         $this->assertTrue(InventoryDashboard::canAccess());
 
         $this->actingAs($this->user('kasir'), 'web');
-        $this->assertTrue(InventoryDashboard::canAccess());
+        $this->assertFalse(InventoryDashboard::canAccess(), 'Akun bawaan (menu_access kosong) tidak boleh membuka dashboard ini.');
 
         $this->actingAs($this->user('kasir', ['InventoryDashboard']), 'web');
         $this->assertTrue(InventoryDashboard::canAccess());
@@ -171,12 +177,18 @@ class InventoryDashboardTest extends TestCase
 
         $stats = $this->stats();
 
-        $this->assertSame(1, $this->value($stats, 'Bahan Baku Menipis'));
-        $this->assertSame(1, $this->value($stats, 'Bahan Baku Kedaluwarsa/Mendekati'));
-        $this->assertSame(1, $this->value($stats, 'Bahan Baku Tidak Bergerak'));
-        $this->assertSame(1, $this->value($stats, 'Barang Habis Pakai Menipis'));
-        $this->assertSame(0, $this->value($stats, 'Barang Habis Pakai Tidak Bergerak'));
+        // Satu kartu per kategori, dengan rincian alasannya.
+        $this->assertSame(2, $this->value($stats, 'Bahan Baku Perlu Perhatian'), 'Film (menipis + mendekati kedaluwarsa) dan Sepi.');
+        $materialText = (string) $stats['Bahan Baku Perlu Perhatian']->getDescription();
+        $this->assertStringContainsString('1 menipis', $materialText);
+        $this->assertStringContainsString('1 kedaluwarsa/mendekati', $materialText);
+        $this->assertStringContainsString('1 tidak bergerak', $materialText);
+        $this->assertSame(1, $this->value($stats, 'Barang Habis Pakai Perlu Perhatian'));
+        $this->assertStringContainsString('1 menipis', (string) $stats['Barang Habis Pakai Perlu Perhatian']->getDescription());
+        $this->assertStringNotContainsString('tidak bergerak', (string) $stats['Barang Habis Pakai Perlu Perhatian']->getDescription());
         $this->assertSame(2, $this->value($stats, 'Aset Bermasalah'));
+        $this->assertStringContainsString('1 rusak · 1 hilang', (string) $stats['Aset Bermasalah']->getDescription());
+        $this->assertSame('2 bahan · 1 barang · 2 aset', (string) $stats['Perlu Perhatian Hari Ini']->getDescription());
         // Bahan: Film (menipis + mendekati kedaluwarsa = 1 item) + Sepi; barang: Lap; aset: 2 => 5, bukan 6.
         $this->assertSame(5, $this->value($stats, 'Perlu Perhatian Hari Ini'));
     }
@@ -202,7 +214,7 @@ class InventoryDashboardTest extends TestCase
 
         $this->sepi->fresh()->acknowledge($admin->id);
         $stats = $this->stats();
-        $this->assertSame(0, $this->value($stats, 'Bahan Baku Tidak Bergerak'));
+        $this->assertStringNotContainsString('tidak bergerak', (string) $stats['Bahan Baku Perlu Perhatian']->getDescription());
         $this->assertSame(4, $this->value($stats, 'Perlu Perhatian Hari Ini'));
         $this->assertSame(1, MaterialsNeedingAttentionWidget::needingAttentionQuery()->count());
 
@@ -214,7 +226,7 @@ class InventoryDashboardTest extends TestCase
         $this->film->fresh()->update(['current_stock' => 9]);
 
         $this->assertSame(1, MaterialsNeedingAttentionWidget::needingAttentionQuery()->count());
-        $this->assertSame(1, $this->value($this->stats(), 'Bahan Baku Menipis'));
+        $this->assertStringContainsString('1 menipis', (string) $this->stats()['Bahan Baku Perlu Perhatian']->getDescription());
     }
 
     // ------------------------------------------------------------- hak akses kartu & toko
@@ -222,12 +234,12 @@ class InventoryDashboardTest extends TestCase
     public function test_cards_follow_the_menu_access_of_each_category(): void
     {
         $this->fillInventory();
-        $this->actingAs($this->user('kasir', ['InventoryDashboard', 'RawMaterialResource']), 'web');
+        $this->actingAs($this->user('kasir', ['InventoryDashboard', 'RawMaterialResource'], null, ['InventoryDashboard' => ['view']]), 'web');
 
         $labels = array_keys($this->stats());
 
         $this->assertContains('Nilai Stok Bahan Baku', $labels);
-        $this->assertContains('Bahan Baku Menipis', $labels);
+        $this->assertContains('Bahan Baku Perlu Perhatian', $labels);
         $this->assertNotContains('Nilai Aset', $labels);
         $this->assertNotContains('Aset Bermasalah', $labels);
         $this->assertNotContains('Nilai Stok Barang Habis Pakai', $labels);
@@ -237,7 +249,12 @@ class InventoryDashboardTest extends TestCase
     public function test_staff_see_only_their_store_assets(): void
     {
         $this->fillInventory();
-        $this->actingAs($this->user('kasir', null, $this->storeA), 'web');
+        $this->actingAs($this->user(
+            'kasir',
+            ['InventoryDashboard', 'InventoryItemResource', 'RawMaterialResource', 'ConsumableItemResource', 'AssetResource'],
+            $this->storeA,
+            ['InventoryDashboard' => ['view']]
+        ), 'web');
 
         $stats = $this->stats();
 
@@ -246,6 +263,150 @@ class InventoryDashboardTest extends TestCase
         // Bahan baku dan barang habis pakai tetap nasional.
         $this->assertSame('Rp 1.160', $this->value($stats, 'Nilai Stok Bahan Baku'));
         $this->assertSame(4, $this->value($stats, 'Perlu Perhatian Hari Ini'), '2 bahan + 1 barang + 1 aset toko ini.');
+    }
+
+    // ------------------------------------------------------------- audit Dashboard Inventaris A: akses eksplisit
+
+    public function test_value_cards_need_the_view_grant_but_counts_do_not(): void
+    {
+        $this->fillInventory();
+        $menu = ['InventoryDashboard', 'InventoryItemResource', 'RawMaterialResource', 'ConsumableItemResource', 'AssetResource'];
+
+        $this->actingAs($this->user('kasir', $menu), 'web');
+        $labels = array_keys($this->stats());
+        foreach (['Nilai Stok Bahan Baku', 'Nilai Stok Barang Habis Pakai', 'Nilai Aset'] as $value) {
+            $this->assertNotContains($value, $labels, 'Tanpa izin Lihat, nilai rupiah tidak tampil.');
+        }
+        $this->assertContains('Bahan Baku Perlu Perhatian', $labels);
+        $this->assertContains('Perlu Perhatian Hari Ini', $labels);
+
+        $this->actingAs($this->user('kasir', $menu, null, ['InventoryDashboard' => ['view']]), 'web');
+        $labels = array_keys($this->stats());
+        foreach (['Nilai Stok Bahan Baku', 'Nilai Stok Barang Habis Pakai', 'Nilai Aset'] as $value) {
+            $this->assertContains($value, $labels);
+        }
+
+        $this->actingAs($this->user('super_admin'), 'web');
+        $this->assertContains('Nilai Aset', array_keys($this->stats()));
+    }
+
+    public function test_default_accounts_see_no_cards_or_attention_tables(): void
+    {
+        $this->fillInventory();
+        $this->actingAs($this->user('kasir'), 'web');
+
+        $this->assertSame([], $this->stats());
+        $this->assertFalse(MaterialsNeedingAttentionWidget::canView());
+        $this->assertFalse(ConsumablesNeedingAttentionWidget::canView());
+        $this->assertFalse(ProblemAssetsWidget::canView());
+    }
+
+    public function test_acknowledge_needs_the_update_grant_on_the_items_menu(): void
+    {
+        $this->fillInventory();
+        $menu = ['InventoryDashboard', 'RawMaterialResource'];
+
+        $this->actingAs($this->user('kasir', $menu), 'web');
+        \Livewire\Livewire::test(MaterialsNeedingAttentionWidget::class)
+            ->assertTableActionHidden('acknowledge', $this->sepi->getKey());
+
+        $this->actingAs($this->user('kasir', $menu, null, ['RawMaterialResource' => ['update']]), 'web');
+        \Livewire\Livewire::test(MaterialsNeedingAttentionWidget::class)
+            ->assertTableActionVisible('acknowledge', $this->sepi->getKey());
+    }
+
+    // ------------------------------------------------------------- audit Dashboard Inventaris B: tinjauan punya batas
+
+    public function test_a_review_expires_after_the_valid_days(): void
+    {
+        $this->fillInventory();
+        $admin = $this->user('super_admin');
+        $this->actingAs($admin, 'web');
+
+        $this->sepi->fresh()->acknowledge($admin->id);
+        $this->assertFalse(MaterialsNeedingAttentionWidget::needingAttentionQuery()->pluck('id')->contains($this->sepi->id));
+
+        Carbon::setTestNow('2026-10-14 10:00:00');
+        $this->assertFalse(MaterialsNeedingAttentionWidget::needingAttentionQuery()->pluck('id')->contains($this->sepi->id), 'Hari ke-6: masih tersembunyi.');
+
+        Carbon::setTestNow('2026-10-16 10:00:01');
+        $this->assertTrue(MaterialsNeedingAttentionWidget::needingAttentionQuery()->pluck('id')->contains($this->sepi->id), 'Lewat 7 hari: muncul lagi walau datanya tidak berubah.');
+        $this->assertFalse($this->sepi->fresh()->isAcknowledged());
+    }
+
+    public function test_a_review_reopens_when_a_batch_expires_after_it_was_made(): void
+    {
+        $this->fillInventory();
+        $admin = $this->user('super_admin');
+        $this->actingAs($admin, 'web');
+
+        // Batch Film kedaluwarsa 20 Okt; ditinjau 18 Okt, saat masih "mendekati".
+        Carbon::setTestNow('2026-10-18 09:00:00');
+        $this->film->fresh()->acknowledge($admin->id);
+        $this->assertFalse(MaterialsNeedingAttentionWidget::needingAttentionQuery()->pluck('id')->contains($this->film->id));
+
+        Carbon::setTestNow('2026-10-20 09:00:00');
+        $this->assertFalse(MaterialsNeedingAttentionWidget::needingAttentionQuery()->pluck('id')->contains($this->film->id), 'Hari kedaluwarsa: belum lewat.');
+
+        Carbon::setTestNow('2026-10-21 09:00:00');
+        $this->assertTrue(MaterialsNeedingAttentionWidget::needingAttentionQuery()->pluck('id')->contains($this->film->id), 'Kedaluwarsa sesudah ditinjau: muncul lagi (baru 3 hari, datanya tidak berubah).');
+        $this->assertFalse($this->film->fresh()->isAcknowledged());
+    }
+
+    public function test_reviewed_rows_can_be_listed_with_who_and_when_and_restored(): void
+    {
+        $this->fillInventory();
+        $admin = $this->user('super_admin');
+        $this->actingAs($admin, 'web');
+        $this->sepi->fresh()->acknowledge($admin->id);
+
+        \Livewire\Livewire::test(MaterialsNeedingAttentionWidget::class)
+            ->assertCanSeeTableRecords([$this->film])
+            ->assertCanNotSeeTableRecords([$this->sepi])
+            ->filterTable('review', 'reviewed')
+            ->assertCanSeeTableRecords([$this->sepi])
+            ->assertCanNotSeeTableRecords([$this->film])
+            ->callTableAction('unacknowledge', $this->sepi->getKey());
+
+        $this->assertNull($this->sepi->fresh()->reviewed_at);
+        $this->assertTrue(MaterialsNeedingAttentionWidget::needingAttentionQuery()->pluck('id')->contains($this->sepi->id));
+    }
+
+    // ------------------------------------------------------------- audit Dashboard Inventaris C: aktivitas stok
+
+    public function test_activity_cards_follow_the_menu_access_and_show_the_last_opname(): void
+    {
+        $this->fillInventory();
+
+        $this->actingAs($this->user('kasir', ['InventoryDashboard', 'RawMaterialResource']), 'web');
+        $labels = array_keys($this->stats());
+        foreach (['Permohonan Pembelian Menunggu', 'Stok Terbuang Bulan Ini', 'Opname Terakhir', 'Produk PPF/WF Ready Stock'] as $card) {
+            $this->assertNotContains($card, $labels, 'Tanpa akses ke menunya, kartu aktivitas tidak tampil.');
+        }
+
+        $this->actingAs($this->user('super_admin'), 'web');
+        $stats = $this->stats();
+        $this->assertSame('Belum pernah', $this->value($stats, 'Opname Terakhir'));
+        $this->assertSame(0, $this->value($stats, 'Permohonan Pembelian Menunggu'));
+        $this->assertSame(0, $this->value($stats, 'Stok Terbuang Bulan Ini'));
+
+        \App\Models\StockOpname::create(['opname_number' => 'OPN-T-1', 'store_id' => $this->storeA->id, 'opname_date' => '2026-08-29']);
+        $this->assertSame('40 hari lalu', $this->value($this->stats(), 'Opname Terakhir'));
+    }
+
+    public function test_the_attention_cards_link_to_the_filtered_lists(): void
+    {
+        $this->fillInventory();
+        $this->actingAs($this->user('super_admin'), 'web');
+
+        $stats = $this->stats();
+
+        $this->assertStringContainsString('status', (string) $stats['Aset Bermasalah']->getUrl(), 'Aset bermasalah membuka daftar aset terfilter status.');
+        $this->assertStringContainsString('rusak', (string) $stats['Aset Bermasalah']->getUrl());
+        // Bahan punya tiga alasan sekaligus, jadi tautannya ke daftar penuh.
+        $this->assertStringNotContainsString('tableFilters', rawurldecode((string) $stats['Bahan Baku Perlu Perhatian']->getUrl()));
+        // Barang habis pakai hanya punya satu alasan (menipis): tautannya terfilter.
+        $this->assertStringContainsString('low_stock', rawurldecode((string) $stats['Barang Habis Pakai Perlu Perhatian']->getUrl()));
     }
 
     public function test_an_empty_inventory_reports_all_clear(): void
@@ -268,8 +429,8 @@ class InventoryDashboardTest extends TestCase
 
         $widgets = (new InventoryDashboard())->getWidgets();
 
-        $this->assertSame(InventoryStatsOverview::class, $widgets[0], 'Ringkasan selalu di atas.');
-        $this->assertSame([MaterialsNeedingAttentionWidget::class, ProblemAssetsWidget::class, ConsumablesNeedingAttentionWidget::class], array_slice($widgets, 1), 'Bahan baku (2 baris) dan aset (2) di atas barang habis pakai (1).');
+        $this->assertSame([InventoryStatsOverview::class, InventoryActivityOverview::class, InventoryValueOverview::class], array_slice($widgets, 0, 3), 'Ringkasan selalu di atas.');
+        $this->assertSame([MaterialsNeedingAttentionWidget::class, ProblemAssetsWidget::class, ConsumablesNeedingAttentionWidget::class], array_slice($widgets, 3), 'Bahan baku (2 baris) dan aset (2) di atas barang habis pakai (1).');
         $this->assertSame(1, (new InventoryDashboard())->getColumns());
     }
 
