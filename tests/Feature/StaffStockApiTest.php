@@ -481,7 +481,7 @@ class StaffStockApiTest extends TestCase
         $material = $this->material('Adhesive');
         $material->batches()->create(['quantity' => 3, 'received_date' => '2026-06-01', 'expiry_date' => '2026-09-30']);
 
-        $row = $this->api($this->staff())->getJson('/api/staff/materials?search=Adhesive')->json('data.0');
+        $row = $this->api($this->prStaff())->getJson('/api/staff/materials?search=Adhesive')->json('data.0');
 
         $this->assertTrue($row['is_expired']);
         $this->assertTrue($row['is_near_expiry']);

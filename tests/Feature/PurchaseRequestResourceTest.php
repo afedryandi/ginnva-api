@@ -728,11 +728,12 @@ class PurchaseRequestResourceTest extends TestCase
         $this->assertNotNull($old->fresh()->last_reminded_at);
         $this->assertSame(0, $service->remindPending(), 'Hari yang sama tidak diingatkan dua kali.');
 
+        // Sehari kemudian permohonan baru tadi pun sudah lewat 1 hari: keduanya diingatkan lagi.
         Carbon::setTestNow(now()->addDay()->addHour());
         $again = \Mockery::mock(\App\Services\StaffNotifier::class);
         $again->shouldReceive('toUsers')->once();
         $this->app->instance(\App\Services\StaffNotifier::class, $again);
-        $this->assertSame(1, app(\App\Services\PurchaseRequestNotifier::class)->remindPending());
+        $this->assertSame(2, app(\App\Services\PurchaseRequestNotifier::class)->remindPending());
     }
 
     // ------------------------------------------------------------- ekspor tanpa harga
