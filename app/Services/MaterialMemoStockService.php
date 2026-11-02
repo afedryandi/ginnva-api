@@ -37,9 +37,10 @@ class MaterialMemoStockService
             // Penanda cabang (Topik 4, Fase 1, 2026-09-19) -- ini SATU-
             // SATUNYA event yang benar-benar "pemakaian bahan" per
             // keputusan atasan (staff mengambil bahan dari toko $memo->
-            // store_id untuk dipasang ke booking). Alur lain (return,
-            // koreksi qty, write-off, stok awal/import) SENGAJA belum
-            // ditandai di iterasi ini -- lihat project_ppn_dp_implementation.
+            // store_id untuk dipasang ke booking). Sejak audit Daftar Bahan
+            // Baku (2026-11-02) koreksi jumlah, pengembalian, dan pembatalan
+            // baris memo juga memakai penanda cabang memo yang sama, supaya
+            // pemakaian bersih per cabang (ambil dikurangi kembali) tetap benar.
             $material->recordMovement('out', $qtyTaken, $userId, self::buildNote($memo, 'pengambilan', $conditionNotes), storeId: $memo->store_id);
 
             return MaterialMemoItem::create([
@@ -96,9 +97,13 @@ class MaterialMemoStockService
      *         parameter ini murni supaya admin yang KEBETULAN tahu harga
      *         sebenarnya bisa isi manual, bukan solusi otomatis.
      *
+     * @param  string|null  $expiryDate  Opsional, hanya untuk bahan baku: tanggal kedaluwarsa batch yang dibuat oleh pengembalian
+     *         ini. Sistem tidak menyimpan batch mana yang dulu terpakai, jadi bahan yang kembali selalu menjadi batch BARU (tanggal
+     *         masuk hari ini); tanpa tanggal ini peringatan kedaluwarsanya hilang.
+     *
      * @throws \InvalidArgumentException
      */
-    public static function returnMaterial(MaterialMemoItem $memoItem, float $qtyReturned, int $userId, MaterialMemo $memo, ?float $unitCost = null): void
+    public static function returnMaterial(MaterialMemoItem $memoItem, float $qtyReturned, int $userId, MaterialMemo $memo, ?float $unitCost = null, ?string $expiryDate = null): void
     {
         if (! in_array($memoItem->item_type, ['raw_material', 'consumable_item'], true)) {
             throw new \InvalidArgumentException('Jenis barang ini tidak punya alur pengembalian.');
@@ -118,7 +123,7 @@ class MaterialMemoStockService
             throw new \InvalidArgumentException('Barang aslinya sudah tidak ada di sistem.');
         }
 
-        DB::transaction(function () use ($material, $memoItem, $qtyReturned, $userId, $memo, $unitCost) {
+        DB::transaction(function () use ($material, $memoItem, $qtyReturned, $userId, $memo, $unitCost, $expiryDate) {
             // Lock baris memo item supaya 2 aksi "kembalikan" yang nyaris
             // bersamaan pada baris yang sama tidak bisa dobel-dobel lolos
             // dari pengecekan qty_returned !== null di atas.
@@ -134,7 +139,9 @@ class MaterialMemoStockService
                 // POSISI BERBEDA (ke-7 vs ke-5), lewat posisi biasa bisa
                 // salah masuk ke parameter lain (mis. jadi $receivedDate
                 // di RawMaterial) karena $material union type keduanya.
-                $material->recordMovement('in', $qtyReturned, $userId, self::buildNote($memo, 'pengembalian'), unitCost: $unitCost);
+                // expiryDate hanya dikenal RawMaterial::recordMovement(); barang habis pakai tidak punya batch.
+                $args = ['unitCost' => $unitCost, 'storeId' => $memo->store_id] + ($material instanceof RawMaterial && $expiryDate ? ['expiryDate' => $expiryDate] : []);
+                $material->recordMovement('in', $qtyReturned, $userId, self::buildNote($memo, 'pengembalian'), ...$args);
             }
 
             $locked->update([
@@ -175,10 +182,10 @@ class MaterialMemoStockService
             $note = self::buildNote($memo, 'koreksi jumlah');
 
             if ($delta > 0) {
-                $material->recordMovement('out', $delta, $userId, $note);
+                $material->recordMovement('out', $delta, $userId, $note, storeId: $memo->store_id);
             } else {
                 // Named argument — lihat catatan di returnMaterial().
-                $material->recordMovement('in', abs($delta), $userId, $note, unitCost: $unitCost);
+                $material->recordMovement('in', abs($delta), $userId, $note, unitCost: $unitCost, storeId: $memo->store_id);
             }
 
             $locked->update(['qty_taken' => $newQty]);
@@ -273,7 +280,7 @@ class MaterialMemoStockService
             : (float) $memoItem->qty_taken;
 
         if ($stillOut > 0) {
-            $material->recordMovement('in', $stillOut, $userId, self::buildNote($memo, 'baris dihapus'));
+            $material->recordMovement('in', $stillOut, $userId, self::buildNote($memo, 'baris dihapus'), storeId: $memo->store_id);
         }
     }
 

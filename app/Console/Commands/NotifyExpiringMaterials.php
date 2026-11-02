@@ -25,20 +25,20 @@ class NotifyExpiringMaterials extends Command
 
     public function handle(): int
     {
-        $lowStockCount = RawMaterial::query()
+        $lowStockCount = RawMaterial::query()->active()
             ->whereNotNull('reorder_point')
             ->whereColumn('current_stock', '<=', 'reorder_point')
             ->needsReview()
             ->count();
 
-        $expiryCount = RawMaterial::query()
+        $expiryCount = RawMaterial::query()->active()
             ->whereHas('batches', fn ($q) => $q->where('quantity', '>', 0)
                 ->whereNotNull('expiry_date')
                 ->whereDate('expiry_date', '<=', now()->addDays(30)))
             ->needsReview()
             ->count();
 
-        $deadStockCount = RawMaterial::query()
+        $deadStockCount = RawMaterial::query()->active()
             ->deadStock()
             ->needsReview()
             ->count();

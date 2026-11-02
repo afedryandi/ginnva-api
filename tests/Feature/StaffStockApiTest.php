@@ -232,6 +232,118 @@ class StaffStockApiTest extends TestCase
         $this->assertSame(100, $lowOnly->json('limit'));
     }
 
+    public function test_the_detail_mentions_an_approved_purchase_waiting_for_the_material(): void
+    {
+        $material = $this->material('Adhesive', 10);
+        $user = $this->stockStaff();
+
+        $this->assertNull($this->api($user)->getJson("/api/staff/materials/{$material->id}")->json('pending_purchase'));
+
+        $request = \App\Models\PurchaseRequest::create(['store_id' => $this->storeA->id, 'item_type' => 'raw_material', 'item_id' => $material->id, 'item_name' => 'Adhesive', 'unit' => 'liter', 'quantity' => 5, 'status' => 'pending', 'requested_by' => $user->id]);
+        $this->assertNull($this->api($user)->getJson("/api/staff/materials/{$material->id}")->json('pending_purchase'), 'Yang masih menunggu persetujuan tidak ditampilkan.');
+
+        $request->update(['status' => 'approved']);
+        $pending = $this->api($user)->getJson("/api/staff/materials/{$material->id}")->json('pending_purchase');
+        $this->assertSame($request->request_number, $pending['request_number']);
+
+        $viewer = $this->staff('kasir', null, ['RawMaterialResource']);
+        $this->assertNull($this->api($viewer)->getJson("/api/staff/materials/{$material->id}")->json('pending_purchase'));
+    }
+
+    public function test_staff_can_request_a_purchase_for_a_low_stock_material_from_the_detail(): void
+    {
+        $material = $this->material('Adhesive', 2);
+        $material->update(['reorder_point' => 10]);
+        $fine = $this->material('Aman', 50);
+        $fine->update(['reorder_point' => 10]);
+        $user = $this->staff('kasir', null, ['RawMaterialResource', 'PurchaseRequestResource']);
+
+        $info = $this->api($user)->getJson("/api/staff/materials/{$material->id}")->assertSuccessful()->json('restock');
+        $this->assertTrue($info['can_request']);
+        $this->assertNull($info['open_request']);
+        $this->assertEquals(8, $info['suggested_quantity']);
+        $this->assertFalse($this->api($user)->getJson("/api/staff/materials/{$fine->id}")->json('restock.can_request'));
+
+        $this->api($user)->postJson("/api/staff/materials/{$fine->id}/restock-request", ['quantity' => 5])->assertStatus(422);
+
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/restock-request", ['quantity' => 0])->assertStatus(422)->assertJsonValidationErrors('quantity');
+        $created = $this->api($user)->postJson("/api/staff/materials/{$material->id}/restock-request", ['quantity' => 8, 'note' => 'Habis minggu ini'])->assertSuccessful();
+        $purchase = \App\Models\PurchaseRequest::where('item_id', $material->id)->firstOrFail();
+        $this->assertSame($purchase->request_number, $created->json('data.request_number'));
+        $this->assertSame(['pending', $this->storeA->id, $user->id], [$purchase->status, $purchase->store_id, $purchase->requested_by]);
+
+        $after = $this->api($user)->getJson("/api/staff/materials/{$material->id}")->json('restock');
+        $this->assertFalse($after['can_request']);
+        $this->assertSame($purchase->request_number, $after['open_request']['request_number']);
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/restock-request", ['quantity' => 3])->assertStatus(422);
+        $this->assertSame(1, \App\Models\PurchaseRequest::where('item_id', $material->id)->count());
+
+        $noPurchaseMenu = $this->staff('kasir', null, ['RawMaterialResource']);
+        $this->assertNull($this->api($noPurchaseMenu)->getJson("/api/staff/materials/{$material->id}")->json('restock'));
+        $this->api($noPurchaseMenu)->postJson("/api/staff/materials/{$material->id}/restock-request", ['quantity' => 3])->assertStatus(403);
+
+        $noStore = $this->staff('kasir', null, ['RawMaterialResource', 'PurchaseRequestResource'], false);
+        $this->assertFalse($this->api($noStore)->getJson("/api/staff/materials/{$material->id}")->json('restock.can_request') ?? false);
+    }
+
+    public function test_inactive_materials_leave_the_picker_and_the_counts_but_the_detail_still_opens(): void
+    {
+        $active = $this->material('Zeta Aktif', 1);
+        $active->update(['reorder_point' => 5]);
+        $inactive = $this->material('Zeta Mati', 1);
+        $inactive->update(['reorder_point' => 5, 'is_active' => false]);
+        $user = $this->stockStaff();
+
+        $list = $this->api($user)->getJson('/api/staff/materials?search=Zeta')->assertSuccessful();
+        $this->assertSame(['Zeta Aktif'], array_column($list->json('data'), 'name'));
+        $this->assertSame(1, $list->json('total'));
+        $this->assertSame(['Zeta Aktif'], array_column($this->api($user)->getJson('/api/staff/materials?filter=low&search=Zeta')->json('data'), 'name'));
+
+        $this->api($user)->getJson("/api/staff/materials/{$inactive->id}")->assertSuccessful()->assertJsonPath('data.name', 'Zeta Mati');
+    }
+
+    public function test_the_detail_card_carries_the_supplier_and_the_nearest_expiry(): void
+    {
+        $supplier = \App\Models\Supplier::create(['name' => 'PT Kimia Jaya']);
+        $material = $this->material('Adhesive', 10);
+        $material->update(['preferred_supplier_id' => $supplier->id]);
+        $material->batches()->create(['quantity' => 5, 'received_date' => '2026-09-01', 'expiry_date' => '2026-12-31']);
+        $material->batches()->create(['quantity' => 5, 'received_date' => '2026-09-02', 'expiry_date' => '2026-11-15']);
+        $material->batches()->create(['quantity' => 0, 'received_date' => '2026-08-01', 'expiry_date' => '2026-09-01']);   // habis: diabaikan
+        $user = $this->stockStaff();
+
+        $card = $this->api($user)->getJson("/api/staff/materials/{$material->id}")->assertSuccessful()->json('card');
+        $this->assertSame('PT Kimia Jaya', $card['preferred_supplier']);
+        $this->assertSame('2026-11-15', $card['nearest_expiry_date']);
+
+        $bare = $this->material('Tanpa Pemasok', 3);
+        $empty = $this->api($user)->getJson("/api/staff/materials/{$bare->id}")->json('card');
+        $this->assertNull($empty['preferred_supplier']);
+        $this->assertNull($empty['nearest_expiry_date']);
+    }
+
+    public function test_the_api_requires_a_note_for_an_opname_above_the_materials_limit(): void
+    {
+        $material = $this->material('Adhesive', 20);
+        $material->update(['adjustment_note_threshold' => 5]);
+        $free = $this->material('Tanpa Batas', 20);
+        $user = $this->stockStaff();
+
+        $this->assertEquals(5, $this->api($user)->getJson("/api/staff/materials/{$material->id}")->json('data.adjustment_note_threshold'));
+
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/adjust", ['actual_quantity' => 10])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('note');
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/adjust", ['actual_quantity' => 10, 'note' => '   '])->assertStatus(422);
+        $this->assertEquals(20, (float) $material->fresh()->current_stock);
+
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/adjust", ['actual_quantity' => 10, 'note' => 'Tumpah'])->assertSuccessful();
+        $this->assertEquals(10, (float) $material->fresh()->current_stock);
+
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/adjust", ['actual_quantity' => 8])->assertSuccessful();
+        $this->api($user)->postJson("/api/staff/materials/{$free->id}/adjust", ['actual_quantity' => 1])->assertSuccessful();
+    }
+
     public function test_search_lists_by_name_or_code_and_flags_expiry_for_materials(): void
     {
         $adhesive = $this->material('Adhesive');

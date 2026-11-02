@@ -47,7 +47,7 @@ class MaterialsNeedingAttentionWidget extends BaseWidget
      */
     public static function conditionQuery(): Builder
     {
-        return RawMaterial::query()->where(function ($query) {
+        return RawMaterial::query()->active()->where(function ($query) {
             $query->where(fn ($q) => $q->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point'))
                 // Dihitung dari batch yang MASIH ADA stoknya, bukan
                 // kolom expiry_date induk (cuma snapshot pendaftaran,

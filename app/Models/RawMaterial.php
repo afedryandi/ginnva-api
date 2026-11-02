@@ -30,21 +30,25 @@ class RawMaterial extends Model
         'purchase_conversion_factor',
         'current_stock',
         'reorder_point',
+        'adjustment_note_threshold',
         'preferred_supplier_id',
         'unit_cost',
         'expiry_date',
         'notes',
+        'is_active',
         'created_by',
     ];
 
     protected $casts = [
         'current_stock' => 'decimal:2',
         'reorder_point' => 'decimal:2',
+        'adjustment_note_threshold' => 'decimal:2',
         'unit_cost'     => 'decimal:2',
         'purchase_conversion_factor' => 'decimal:4',
         'received_date' => 'date',
         'expiry_date'   => 'date',
         'reviewed_at'   => 'datetime',
+        'is_active'     => 'boolean',
     ];
 
     /**
@@ -107,6 +111,12 @@ class RawMaterial extends Model
      * riwayat pergerakan, BUKAN updated_at: mengganti nama, kategori, atau harga bahan ikut memperbarui updated_at dan dulu
      * membuat bahan yang sebenarnya mengendap tampak "baru bergerak". Bahan tanpa riwayat dihitung sejak tanggal dibuat.
      */
+    /** Bahan yang masih dipakai: bahan nonaktif tidak muncul di pemilih dan peringatan (stok dan riwayatnya tetap ada). */
+    public function scopeActive($query)
+    {
+        return $query->where('raw_materials.is_active', true);
+    }
+
     public function scopeDeadStock($query)
     {
         $cutoff = now()->subDays(self::DEAD_STOCK_DAYS);
@@ -117,6 +127,17 @@ class RawMaterial extends Model
                 ->from('raw_material_movements')
                 ->whereColumn('raw_material_movements.raw_material_id', 'raw_materials.id')
                 ->where('raw_material_movements.created_at', '>=', $cutoff));
+    }
+
+    /**
+     * Opname dengan hasil hitung $actual wajib disertai catatan bila selisihnya dari stok sistem lebih besar dari
+     * adjustment_note_threshold bahan ini (satuan bahan itu). Ambang kosong = aturan mati. Dicek di pintu masuk (panel dan API);
+     * adjustStock() sendiri tidak memaksa catatan karena juga dipakai Stok Terbuang, yang menulis catatannya sendiri.
+     */
+    public function adjustmentNeedsNote(float $actual): bool
+    {
+        return $this->adjustment_note_threshold !== null
+            && abs($actual - (float) $this->current_stock) > (float) $this->adjustment_note_threshold + 1e-9;
     }
 
     public function isDeadStock(): bool
@@ -495,7 +516,7 @@ class RawMaterial extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'code', 'category', 'received_date', 'unit', 'purchase_unit', 'purchase_conversion_factor', 'current_stock', 'reorder_point', 'unit_cost', 'expiry_date', 'notes'])
+            ->logOnly(['name', 'code', 'category', 'is_active', 'received_date', 'unit', 'purchase_unit', 'purchase_conversion_factor', 'current_stock', 'reorder_point', 'adjustment_note_threshold', 'unit_cost', 'expiry_date', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('raw_material')

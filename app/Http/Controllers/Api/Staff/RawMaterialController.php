@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
+use App\Filament\Resources\RawMaterialResource;
 use App\Models\RawMaterial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -59,12 +60,35 @@ class RawMaterialController extends Controller
         return null;
     }
 
+    /**
+     * Status permintaan beli untuk detail bahan: permintaan yang sedang berjalan, apakah akun ini boleh mengajukan sekarang, dan
+     * jumlah saran awal. Null bila akun tidak punya akses menu Permohonan Pembelian.
+     */
+    private function restockInfo(RawMaterial $material, Request $request): ?array
+    {
+        $user = $request->user('api');
+
+        if (! $this->authorizeAccess($request) || ! $user->hasPurchaseRequestAccess()) {
+            return null;
+        }
+
+        $service = app(\App\Services\RestockRequestService::class);
+        $open = $service->openRequest($material);
+
+        return [
+            'open_request' => $open ? ['request_number' => $open->request_number, 'status' => $open->status] : null,
+            // Akun tanpa toko (akses penuh) mengajukan dari panel, tempat toko bisa dipilih.
+            'can_request' => $material->isLowStock() && $open === null && $user->store_id !== null,
+            'suggested_quantity' => $material->reorder_point !== null ? $service->suggestedQuantity($material) : null,
+        ];
+    }
+
     /** Hanya kolom yang dipakai app; harga ikut bila boleh dilihat. Catatan internal, pembuat, dan penanda tinjauan tidak dikirim. */
     private function shape(RawMaterial $material, Request $request): RawMaterial
     {
         $cost = $this->canSeeCost($request) ? ['unit_cost'] : [];
 
-        $material->setVisible(array_merge(['id', 'name', 'code', 'category', 'unit', 'purchase_unit', 'purchase_conversion_factor', 'current_stock', 'reorder_point', 'movements', 'batches'], $cost));
+        $material->setVisible(array_merge(['id', 'name', 'code', 'category', 'unit', 'purchase_unit', 'purchase_conversion_factor', 'current_stock', 'reorder_point', 'adjustment_note_threshold', 'movements', 'batches'], $cost));
         $this->shapeMovements($material->movements, $request);
         foreach ($material->batches as $batch) {
             $batch->setVisible(array_merge(['id', 'quantity', 'received_date', 'expiry_date', 'is_adjustment'], $cost));
@@ -109,7 +133,7 @@ class RawMaterialController extends Controller
         // harus buka detail 1-1 untuk tahu. Dihitung dari koleksi yang
         // sudah dimuat (bukan panggil RawMaterial::earliestActiveExpiryDate()
         // per baris), supaya tidak N+1 query untuk 30 baris hasil.
-        $query = RawMaterial::query()
+        $query = RawMaterial::query()->active()
             ->select(['id', 'name', 'code', 'category', 'unit', 'current_stock', 'reorder_point'])
             ->with(['batches' => fn ($q) => $q->where('quantity', '>', 0)->whereNotNull('expiry_date')])
             ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('name', 'like', "%{$search}%")
@@ -146,9 +170,9 @@ class RawMaterialController extends Controller
             'limit' => $limit,
             // Ringkasan seluruh bahan (tidak terpengaruh pencarian/filter) untuk chip di atas daftar.
             'summary' => [
-                'all' => RawMaterial::query()->count(),
-                'low' => RawMaterial::query()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->count(),
-                'expiry' => RawMaterial::query()->whereHas('batches', fn ($b) => $b->where('quantity', '>', 0)
+                'all' => RawMaterial::query()->active()->count(),
+                'low' => RawMaterial::query()->active()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->count(),
+                'expiry' => RawMaterial::query()->active()->whereHas('batches', fn ($b) => $b->where('quantity', '>', 0)
                     ->whereNotNull('expiry_date')
                     ->whereDate('expiry_date', '<=', today()->addDays(30)->toDateString()))->count(),
             ],
@@ -185,6 +209,14 @@ class RawMaterialController extends Controller
             'data' => $this->shape($material, $request),
             // Dipakai app untuk menyembunyikan tombol catat/opname bagi akun yang hanya boleh melihat.
             'can_modify' => $this->canModify($request),
+            'restock' => $this->restockInfo($material, $request),
+            // Ringkasan untuk kartu atas detail: pemasok utama dan kedaluwarsa terdekat (dari batch yang masih ada stoknya).
+            'card' => [
+                'preferred_supplier' => $material->preferredSupplier?->name,
+                'nearest_expiry_date' => $material->earliestActiveExpiryDate()?->toDateString(),
+            ],
+            // Permohonan pembelian disetujui yang masih menunggu barang ini; app memintanya dicatat lewat Permohonan Pembelian.
+            'pending_purchase' => $this->canModify($request) ? RawMaterialResource::approvedPurchase($material)?->only(['request_number', 'quantity', 'unit']) : null,
             // Alasan "Catat Terbuang" (sumber tunggal: StockWriteOff::REASON_LABELS); null bila akun tidak boleh mencatat.
             'write_off_reasons' => $this->canModify($request) ? \App\Models\StockWriteOff::REASON_LABELS : null,
             // Dipakai app buat munculkan tombol "Muat Riwayat Lainnya" —
@@ -359,6 +391,17 @@ class RawMaterialController extends Controller
             ], 404);
         }
 
+        // Selisih di atas batas bahan ini wajib punya catatan alasan (batas diatur per bahan di panel; kosong = tidak ada aturan).
+        if ($material->adjustmentNeedsNote((float) $request->actual_quantity) && trim((string) $request->note) === '') {
+            $limit = rtrim(rtrim(number_format((float) $material->adjustment_note_threshold, 2, '.', ''), '0'), '.');
+
+            return response()->json([
+                'success' => false,
+                'message' => "Selisih melebihi {$limit} {$material->unit} untuk bahan ini. Isi catatan alasan selisih.",
+                'errors' => ['note' => ["Catatan wajib diisi bila selisih lebih dari {$limit} {$material->unit}."]],
+            ], 422);
+        }
+
         $movement = $material->adjustStock((float) $request->actual_quantity, $request->user('api')->id, $request->note, $request->user('api')->store_id);
 
         $material = $material->fresh();
@@ -373,6 +416,70 @@ class RawMaterialController extends Controller
                 ? 'Hasil hitung fisik sama dengan stok di sistem — tidak ada penyesuaian yang dicatat.'
                 : 'Stok disesuaikan (selisih ' . ($movement->quantity > 0 ? '+' : '') . $movement->quantity . ' ' . $material->unit . ').',
             'data' => $this->shape($material, $request),
+        ]);
+    }
+
+    /**
+     * POST /api/staff/materials/{id}/restock-request
+     *
+     * Ajukan permintaan beli untuk bahan yang stoknya menipis, tanpa pindah ke layar Permohonan Pembelian dan mencari bahannya lagi.
+     * Jalurnya sama dengan tombol di panel (RestockRequestService): menunggu persetujuan, satu bahan satu permintaan terbuka.
+     */
+    public function requestRestock(Request $request, int $id)
+    {
+        if (! $this->authorizeAccess($request)) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu Bahan Baku.'], 403);
+        }
+
+        $user = $request->user('api');
+
+        if (! $user->hasPurchaseRequestAccess()) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu Permohonan Pembelian.'], 403);
+        }
+
+        if ($user->store_id === null) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak terikat toko. Ajukan permintaan beli dari panel admin.'], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'quantity' => 'required|numeric|min:0.01|max:1000000',
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $material = RawMaterial::find($id);
+
+        if (! $material) {
+            return response()->json(['success' => false, 'message' => 'Bahan baku tidak ditemukan.'], 404);
+        }
+
+        if (! $material->isLowStock()) {
+            return response()->json(['success' => false, 'message' => 'Stok bahan ini belum di bawah ambang menipis.'], 422);
+        }
+
+        try {
+            $purchase = app(\App\Services\RestockRequestService::class)->create(
+                $material,
+                $user->store_id,
+                (float) $request->quantity,
+                $request->filled('note') ? $request->note : null,
+                $user,
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Permintaan beli {$purchase->request_number} dibuat. Menunggu persetujuan.",
+            'data' => ['request_number' => $purchase->request_number, 'status' => $purchase->status],
         ]);
     }
 

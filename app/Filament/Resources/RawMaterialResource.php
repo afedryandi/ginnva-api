@@ -20,6 +20,9 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class RawMaterialResource extends Resource
 {
+    // Tombol "Buat Permintaan Beli" (sama dengan di widget Perlu Perhatian Dashboard Inventaris).
+    use \App\Filament\InventoryWidgets\Concerns\OffersRestockRequest;
+
     protected static ?string $model = RawMaterial::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-beaker';
@@ -133,7 +136,11 @@ class RawMaterialResource extends Resource
                     Forms\Components\TextInput::make('category')
                         ->label('Kategori')
                         ->maxLength(255)
-                        ->placeholder('Mis. Adhesive, Backing Paper, Packaging'),
+                        ->placeholder('Mis. Adhesive, Backing Paper, Packaging')
+                        // Saran dari kategori yang sudah ada, dan ejaan/huruf besar-kecil disamakan dengannya saat disimpan,
+                        // supaya "adhesive" dan "Adhesive" tidak menjadi dua kategori di filter dan laporan.
+                        ->datalist(fn () => static::categoryOptions())
+                        ->dehydrateStateUsing(fn (?string $state) => static::canonicalCategory($state)),
 
                     Forms\Components\TextInput::make('unit')
                         ->label('Satuan Dasar (Stok & Konsumsi)')
@@ -202,6 +209,13 @@ class RawMaterialResource extends Resource
                         ->minValue(0)
                         ->helperText('Opsional — barang ditandai "Stok Menipis" kalau current stock ≤ angka ini.'),
 
+                    Forms\Components\TextInput::make('adjustment_note_threshold')
+                        ->label('Selisih Opname Tanpa Catatan')
+                        ->numeric()
+                        ->minValue(0)
+                        ->suffix(fn (?RawMaterial $record) => $record?->unit)
+                        ->helperText('Opsional — kalau selisih hasil hitung fisik dengan stok sistem lebih besar dari angka ini (dalam satuan bahan ini), Sesuaikan Stok/Opname wajib diberi catatan alasan. Kosongkan untuk mematikan aturan.'),
+
                     Forms\Components\Select::make('preferred_supplier_id')
                         ->label('Pemasok Utama')
                         ->relationship('preferredSupplier', 'name', fn ($query) => $query->where('is_active', true)->orderBy('name'))
@@ -227,11 +241,45 @@ class RawMaterialResource extends Resource
                             ? 'Kosongkan/isi 0 kalau belum ada stok fisik sama sekali — otomatis tercatat sebagai 1 batch (dengan tanggal masuk di atas) supaya ada jejaknya sejak awal.'
                             : 'Stok cuma bisa diubah lewat tombol "Catat Stok" di daftar — supaya selalu ada riwayatnya, tidak diedit langsung di sini.'),
 
+                    Forms\Components\Toggle::make('is_active')
+                        ->label('Aktif')
+                        ->default(true)
+                        ->helperText('Matikan untuk bahan yang tidak dipakai lagi: hilang dari pemilih Memo Bahan/Permohonan Pembelian dan dari peringatan, tetapi stok, riwayat, dan laporannya tetap ada. Bisa diaktifkan lagi kapan saja.'),
+
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
                         ->columnSpanFull(),
                 ]),
         ]);
+    }
+
+    /** Permohonan pembelian yang sudah disetujui dan masih menunggu barangnya untuk bahan ini (dari toko mana pun). */
+    public static function approvedPurchase(RawMaterial $record): ?\App\Models\PurchaseRequest
+    {
+        return \App\Models\PurchaseRequest::withoutGlobalScopes()
+            ->where('item_type', 'raw_material')
+            ->where('item_id', $record->getKey())
+            ->where('status', 'approved')
+            ->orderBy('id')
+            ->first();
+    }
+
+    /** Kategori yang sudah dipakai, untuk saran isian. */
+    public static function categoryOptions(): array
+    {
+        return RawMaterial::query()->whereNotNull('category')->where('category', '!=', '')->distinct()->orderBy('category')->pluck('category')->all();
+    }
+
+    /** Samakan kategori dengan yang sudah ada (tanpa membedakan huruf besar/kecil); kategori baru disimpan apa adanya. */
+    public static function canonicalCategory(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        return RawMaterial::query()->whereRaw('LOWER(category) = ?', [mb_strtolower($value)])->orderBy('id')->value('category') ?? $value;
     }
 
     /** Satuan dasar terkunci begitu bahan punya riwayat stok. */
@@ -328,6 +376,11 @@ class RawMaterialResource extends Resource
                     ->visible(fn () => static::canSeeCost())
                     ->toggleable(),
 
+                Tables\Columns\IconColumn::make('is_active')
+                    ->label('Aktif')
+                    ->boolean()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('last_movement_at')
                     ->label('Terakhir Bergerak')
                     ->date('d M Y')
@@ -342,6 +395,19 @@ class RawMaterialResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                // Bawaan hanya bahan aktif; pilih "Semua" atau "Nonaktif" untuk melihat bahan yang sudah tidak dipakai.
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Status')
+                    ->placeholder('Semua')
+                    ->trueLabel('Aktif')
+                    ->falseLabel('Nonaktif')
+                    ->default(true)
+                    ->queries(
+                        true: fn ($query) => $query->where('raw_materials.is_active', true),
+                        false: fn ($query) => $query->where('raw_materials.is_active', false),
+                        blank: fn ($query) => $query,
+                    ),
+
                 Tables\Filters\SelectFilter::make('category')
                     ->label('Kategori')
                     ->options(fn () => RawMaterial::query()
@@ -412,6 +478,14 @@ class RawMaterialResource extends Resource
                     ->color('primary')
                     ->visible(fn (RawMaterial $record) => static::canEdit($record))
                     ->form([
+                        // Ada permohonan pembelian disetujui untuk bahan ini: arahkan ke jalur yang menjaga stok dan permohonan tetap sejalan.
+                        Forms\Components\Placeholder::make('open_purchase')
+                            ->hiddenLabel()
+                            ->content(fn (RawMaterial $record) => ($purchase = static::approvedPurchase($record))
+                                ? "Ada permohonan pembelian disetujui untuk bahan ini ({$purchase->request_number}, {$purchase->quantity} {$purchase->unit}). Kalau ini kiriman dari permohonan itu, catat penerimaannya lewat Permohonan Pembelian > Tandai Terpenuhi (stok ikut bertambah) supaya tidak tercatat dua kali."
+                                : '')
+                            ->visible(fn (RawMaterial $record) => static::approvedPurchase($record) !== null),
+
                         Forms\Components\Select::make('type')
                             ->label('Jenis')
                             ->options(['in' => 'Masuk', 'out' => 'Keluar'])
@@ -540,6 +614,9 @@ class RawMaterialResource extends Resource
                             ->send();
                     }),
 
+                // Hanya muncul untuk bahan yang stoknya menipis, belum punya permintaan beli berjalan, dan bagi yang boleh membuat Permohonan Pembelian.
+                static::restockAction(),
+
                 Tables\Actions\ActionGroup::make([
                 Tables\Actions\EditAction::make(),
 
@@ -554,11 +631,16 @@ class RawMaterialResource extends Resource
                             ->numeric()
                             ->required()
                             ->minValue(0)
+                            ->live(onBlur: true)
                             ->suffix(fn (RawMaterial $record) => $record->unit)
                             ->helperText(fn (RawMaterial $record) => 'Stok di sistem saat ini: ' . number_format((float) $record->current_stock, 2) . ' ' . $record->unit . '. Isi jumlah hasil hitung fisik yang SEBENARNYA — selisihnya dihitung otomatis.'),
 
                         Forms\Components\Textarea::make('note')
-                            ->label('Catatan')
+                            ->label(fn (RawMaterial $record) => $record->adjustment_note_threshold !== null
+                                ? 'Catatan (wajib bila selisih lebih dari ' . rtrim(rtrim(number_format((float) $record->adjustment_note_threshold, 2, ',', '.'), '0'), ',') . ' ' . $record->unit . ')'
+                                : 'Catatan')
+                            ->required(fn (RawMaterial $record, Forms\Get $get) => is_numeric($get('actual_quantity'))
+                                && $record->adjustmentNeedsNote((float) $get('actual_quantity')))
                             ->placeholder('Mis. hasil stock opname bulanan, alasan selisih (tumpah/rusak/salah catat)'),
                     ])
                     ->action(function (RawMaterial $record, array $data) {
@@ -782,7 +864,7 @@ class RawMaterialResource extends Resource
                     $material = RawMaterial::create([
                         'name' => $name,
                         'code' => $useCode,
-                        'category' => $category ?: null,
+                        'category' => static::canonicalCategory($category),
                         'received_date' => $receivedDate,
                         'unit' => $unit,
                         'current_stock' => 0,

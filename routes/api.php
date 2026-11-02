@@ -504,6 +504,8 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:30,1');
         Route::post('/materials/{id}/write-off', [StaffRawMaterialController::class, 'writeOff'])
             ->middleware('throttle:30,1');
+        Route::post('/materials/{id}/restock-request', [StaffRawMaterialController::class, 'requestRestock'])
+            ->middleware('throttle:30,1');
 
         // Barang Habis Pakai — sama pola dengan Bahan Baku (tidak ada
         // kode fisik per unit, dicari lewat nama/kode, bukan scan QR).

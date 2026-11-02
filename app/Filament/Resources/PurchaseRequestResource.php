@@ -151,7 +151,7 @@ class PurchaseRequestResource extends Resource
                         ->required(fn (Forms\Get $get) => in_array($get('item_type'), ['raw_material', 'consumable_item']))
                         ->searchable()
                         ->options(fn (Forms\Get $get) => match ($get('item_type')) {
-                            'raw_material'    => RawMaterial::orderBy('name')->pluck('name', 'id'),
+                            'raw_material'    => RawMaterial::active()->orderBy('name')->pluck('name', 'id'),
                             'consumable_item' => ConsumableItem::orderBy('name')->pluck('name', 'id'),
                             default           => [],
                         })
@@ -207,6 +207,12 @@ class PurchaseRequestResource extends Resource
                 Tables\Columns\TextColumn::make('quantity')
                     ->label('Jumlah')
                     ->formatStateUsing(fn (PurchaseRequest $record) => rtrim(rtrim(number_format((float) $record->quantity, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : '')),
+
+                Tables\Columns\IconColumn::make('stock_recorded_at')
+                    ->label('Stok Dicatat')
+                    ->boolean()
+                    ->getStateUsing(fn (PurchaseRequest $record) => $record->stock_recorded_at !== null)
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('quantity_received')
                     ->label('Diterima')
@@ -398,6 +404,23 @@ class PurchaseRequestResource extends Resource
                             ->suffix(fn (PurchaseRequest $record) => $record->unit)
                             ->helperText('Isi sesuai barang yang benar-benar sampai. Bila kurang dari yang diminta, ajukan permohonan baru untuk sisanya.'),
 
+                        // Penerimaan sekaligus jadi stok masuk (batch baru), supaya "terpenuhi" tidak berbeda dengan stok di gudang.
+                        // Hanya bagi yang memang boleh mengubah stok barang itu; matikan bila barangnya sudah dicatat lewat Catat Stok.
+                        Forms\Components\Toggle::make('record_stock')
+                            ->label('Catat sebagai stok masuk sekarang')
+                            ->default(fn (PurchaseRequest $record) => static::canRecordStock($record))
+                            ->visible(fn (PurchaseRequest $record) => static::canRecordStock($record))
+                            ->live()
+                            ->helperText('Stok bertambah sebesar Jumlah Diterima sebagai batch baru (harga per satuan dari Total Biaya Aktual bila diisi). Matikan kalau barang ini sudah dicatat masuk lewat Catat Stok, supaya tidak tercatat dua kali.'),
+
+                        Forms\Components\DatePicker::make('expiry_date')
+                            ->label('Tanggal Kedaluwarsa Batch Ini (opsional)')
+                            ->native(false)
+                            ->displayFormat('d M Y')
+                            ->visible(fn (PurchaseRequest $record, Forms\Get $get) => $record->item_type === 'raw_material'
+                                && static::canRecordStock($record)
+                                && (bool) $get('record_stock')),
+
                         // actual_cost BARU diisi di sini (bukan saat
                         // permohonan diajukan) — harga aktual baru pasti
                         // setelah barang benar-benar dibeli, dipakai
@@ -469,6 +492,22 @@ class PurchaseRequestResource extends Resource
                                     'actual_cost'  => $data['actual_cost'] ?? null,
                                 ]);
 
+                                // Stok masuk sejumlah yang diterima, dalam transaksi yang sama: status terpenuhi dan stok selalu sejalan.
+                                if (! empty($data['record_stock']) && static::canRecordStock($locked)) {
+                                    $item = $locked->resolveItem();
+                                    $received = (float) $data['quantity_received'];
+                                    $unitCost = ! empty($data['actual_cost']) && $received > 0 ? round((float) $data['actual_cost'] / $received, 2) : null;
+                                    $note = "Permohonan {$locked->request_number} — barang diterima";
+
+                                    if ($item instanceof \App\Models\RawMaterial) {
+                                        $item->recordMovement('in', $received, auth()->id(), $note, null, ! empty($data['expiry_date']) ? (string) $data['expiry_date'] : null, $unitCost, $locked->store_id);
+                                    } else {
+                                        $item->recordMovement('in', $received, auth()->id(), $note, $unitCost, $locked->store_id);
+                                    }
+
+                                    $locked->update(['stock_recorded_at' => now()]);
+                                }
+
                                 // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): cukup tandai terpenuhi, tanpa jurnal dan tagihan.
                                 if (! $ledger) {
                                     return;
@@ -521,7 +560,11 @@ class PurchaseRequestResource extends Resource
                             );
                         }
 
-                        Notification::make()->title('Permohonan ditandai terpenuhi')->success()->send();
+                        Notification::make()
+                            ->title('Permohonan ditandai terpenuhi')
+                            ->body($record->stock_recorded_at ? 'Stok bertambah sesuai jumlah yang diterima.' : null)
+                            ->success()
+                            ->send();
                     }),
 
                 Tables\Actions\EditAction::make()
@@ -532,6 +575,27 @@ class PurchaseRequestResource extends Resource
                         && $record->status === 'pending'),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    /**
+     * "Tandai Terpenuhi" boleh sekaligus mencatat stok masuk bila barangnya masih ada, belum pernah dicatat dari permohonan ini, dan
+     * akun ini memang boleh mengubah stok barang itu (Bahan Baku / Barang Habis Pakai), sebab pemohon belum tentu punya izin itu.
+     */
+    public static function canRecordStock(PurchaseRequest $record): bool
+    {
+        if ($record->stock_recorded_at !== null || ! in_array($record->item_type, ['raw_material', 'consumable_item'], true)) {
+            return false;
+        }
+
+        $item = $record->resolveItem();
+
+        if ($item === null) {
+            return false;
+        }
+
+        return $item instanceof \App\Models\RawMaterial
+            ? \App\Filament\Resources\RawMaterialResource::canEdit($item)
+            : \App\Filament\Resources\ConsumableItemResource::canEdit($item);
     }
 
     public static function getNavigationBadge(): ?string

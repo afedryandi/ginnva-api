@@ -124,7 +124,7 @@ class ItemsRelationManager extends RelationManager
                             ->visible(fn (Forms\Get $get) => $get('item_type') === 'raw_material')
                             ->required(fn (Forms\Get $get) => $get('item_type') === 'raw_material')
                             ->searchable()
-                            ->getSearchResultsUsing(fn (string $search) => RawMaterial::where('name', 'like', "%{$search}%")
+                            ->getSearchResultsUsing(fn (string $search) => RawMaterial::active()->where('name', 'like', "%{$search}%")
                                 ->orWhere('code', 'like', "%{$search}%")
                                 ->limit(20)
                                 ->pluck('name', 'id'))
@@ -372,6 +372,15 @@ class ItemsRelationManager extends RelationManager
                             ->minValue(0)
                             ->prefix('Rp')
                             ->helperText('Kosongkan untuk pakai harga terakhir tersimpan.'),
+
+                        // Bahan baku yang kembali selalu menjadi batch baru (sistem tidak menyimpan batch asal yang dulu terpakai),
+                        // jadi kedaluwarsanya harus diisi di sini kalau bahan itu punya masa pakai.
+                        Forms\Components\DatePicker::make('expiry_date')
+                            ->label('Tanggal Kedaluwarsa (opsional)')
+                            ->native(false)
+                            ->displayFormat('d M Y')
+                            ->visible(fn () => $record->item_type === 'raw_material')
+                            ->helperText('Bahan yang dikembalikan dicatat sebagai batch baru (tanggal masuk hari ini). Isi kalau bahan ini punya masa pakai, supaya peringatan kedaluwarsanya tidak hilang.'),
                     ])
                     ->action(function (MaterialMemoItem $record, array $data) {
                         try {
@@ -381,6 +390,7 @@ class ItemsRelationManager extends RelationManager
                                 auth()->id(),
                                 $this->getOwnerRecord(),
                                 isset($data['unit_cost']) && $data['unit_cost'] !== '' ? (float) $data['unit_cost'] : null,
+                                ! empty($data['expiry_date']) ? (string) $data['expiry_date'] : null,
                             );
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()->title('Tidak bisa mencatat pengembalian')->body($e->getMessage())->danger()->send();

@@ -498,6 +498,80 @@ class RawMaterialResourceTest extends TestCase
         });
     }
 
+    // ------------------------------------------------------------- audit Daftar Bahan Baku (audit ketiga) D: aktif/nonaktif & kategori
+
+    public function test_inactive_materials_are_hidden_by_default_and_from_the_alerts_but_keep_their_stock(): void
+    {
+        $this->as($this->user('super_admin'));
+        $active = $this->material('Zeta Aktif', 2, ['reorder_point' => 10]);
+        $inactive = $this->material('Zeta Nonaktif', 2, ['reorder_point' => 10, 'is_active' => false]);
+
+        Livewire::test(ListRawMaterials::class)
+            ->searchTable('Zeta')
+            ->assertCanSeeTableRecords([$active])
+            ->assertCanNotSeeTableRecords([$inactive]);
+        Livewire::test(ListRawMaterials::class)
+            ->searchTable('Zeta')
+            ->filterTable('is_active', false)
+            ->assertCanSeeTableRecords([$inactive])
+            ->assertCanNotSeeTableRecords([$active]);
+
+        $alerts = \App\Filament\InventoryWidgets\MaterialsNeedingAttentionWidget::needingAttentionQuery();
+        $this->assertTrue((clone $alerts)->whereKey($active->id)->exists());
+        $this->assertFalse((clone $alerts)->whereKey($inactive->id)->exists(), 'Bahan nonaktif tidak memicu peringatan menipis.');
+
+        $this->assertEquals(2, (float) $inactive->fresh()->current_stock, 'Stok bahan nonaktif tetap utuh.');
+        $this->assertSame([$active->id], RawMaterial::active()->whereIn('id', [$active->id, $inactive->id])->pluck('id')->all());
+    }
+
+    public function test_a_category_is_matched_to_an_existing_one_regardless_of_case(): void
+    {
+        $this->as($this->user('super_admin'));
+        $this->material('Sudah Ada Kategori', 0, ['category' => 'Adhesive Uji']);
+
+        Livewire::test(CreateRawMaterial::class)
+            ->fillForm(['name' => 'Lem Kategori Baru', 'unit' => 'ml', 'received_date' => '2026-10-05', 'category' => ' adhesive uji '])
+            ->call('create')
+            ->assertHasNoFormErrors();
+        $this->assertSame('Adhesive Uji', RawMaterial::where('name', 'Lem Kategori Baru')->value('category'));
+
+        Livewire::test(CreateRawMaterial::class)
+            ->fillForm(['name' => 'Lem Kategori Asing', 'unit' => 'ml', 'received_date' => '2026-10-05', 'category' => 'Kategori Asing'])
+            ->call('create')
+            ->assertHasNoFormErrors();
+        $this->assertSame('Kategori Asing', RawMaterial::where('name', 'Lem Kategori Asing')->value('category'));
+        $this->assertContains('Kategori Asing', RawMaterialResource::categoryOptions());
+    }
+
+    public function test_an_opname_difference_above_the_materials_limit_needs_a_note(): void
+    {
+        $this->as($this->user('super_admin'));
+        $limited = $this->material('Zeta Berbatas', 20, ['adjustment_note_threshold' => 5]);
+        $free = $this->material('Zeta Bebas', 20);
+
+        $this->assertTrue($limited->adjustmentNeedsNote(10));
+        $this->assertFalse($limited->adjustmentNeedsNote(15), 'Selisih tepat di batas tidak wajib catatan.');
+        $this->assertFalse($free->adjustmentNeedsNote(0), 'Tanpa batas, aturan mati.');
+
+        Livewire::test(ListRawMaterials::class)
+            ->callTableAction('adjust_stock', $limited, data: ['actual_quantity' => 10, 'note' => ''])
+            ->assertHasTableActionErrors(['note' => 'required']);
+        $this->assertEquals(20, (float) $limited->fresh()->current_stock);
+
+        Livewire::test(ListRawMaterials::class)
+            ->callTableAction('adjust_stock', $limited, data: ['actual_quantity' => 10, 'note' => 'Tumpah saat dipindah'])
+            ->assertHasNoTableActionErrors();
+        $this->assertEquals(10, (float) $limited->fresh()->current_stock);
+
+        Livewire::test(ListRawMaterials::class)
+            ->callTableAction('adjust_stock', $limited->fresh(), data: ['actual_quantity' => 8, 'note' => ''])
+            ->assertHasNoTableActionErrors();
+        Livewire::test(ListRawMaterials::class)
+            ->callTableAction('adjust_stock', $free, data: ['actual_quantity' => 1, 'note' => ''])
+            ->assertHasNoTableActionErrors();
+        $this->assertEquals(1, (float) $free->fresh()->current_stock);
+    }
+
     // ------------------------------------------------------------- audit Daftar Bahan Baku B: integritas master
 
     public function test_dead_stock_follows_movements_not_updated_at(): void

@@ -39,6 +39,7 @@ class PurchaseRequest extends Model
         'reviewed_at',
         'review_note',
         'fulfilled_at',
+        'stock_recorded_at',
         'journal_entry_id',
     ];
 
@@ -48,6 +49,7 @@ class PurchaseRequest extends Model
         'actual_cost'  => 'decimal:2',
         'reviewed_at'  => 'datetime',
         'fulfilled_at' => 'datetime',
+        'stock_recorded_at' => 'datetime',
     ];
 
     /**

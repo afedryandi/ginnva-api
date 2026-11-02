@@ -26,10 +26,10 @@ class StockOverviewController extends Controller
             $activeBatch = fn ($q) => $q->where('quantity', '>', 0)->whereNotNull('expiry_date');
 
             $materials = [
-                'low' => RawMaterial::query()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->count(),
-                'expired' => RawMaterial::query()->whereHas('batches', fn ($q) => $activeBatch($q)->whereDate('expiry_date', '<', today()->toDateString()))->count(),
+                'low' => RawMaterial::query()->active()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->count(),
+                'expired' => RawMaterial::query()->active()->whereHas('batches', fn ($q) => $activeBatch($q)->whereDate('expiry_date', '<', today()->toDateString()))->count(),
                 // Mendekati = kedaluwarsa dalam 30 hari ke depan (yang sudah lewat dihitung di "expired").
-                'near_expiry' => RawMaterial::query()->whereHas('batches', fn ($q) => $activeBatch($q)
+                'near_expiry' => RawMaterial::query()->active()->whereHas('batches', fn ($q) => $activeBatch($q)
                     ->whereDate('expiry_date', '>=', today()->toDateString())
                     ->whereDate('expiry_date', '<=', today()->addDays(30)->toDateString()))->count(),
             ];

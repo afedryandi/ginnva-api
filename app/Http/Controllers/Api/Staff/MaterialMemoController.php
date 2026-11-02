@@ -370,6 +370,8 @@ class MaterialMemoController extends Controller
 
         $validator = Validator::make($request->all(), [
             'qty_returned' => ['required', 'numeric', 'min:0', 'max:1000000'],
+            // Hanya dipakai untuk bahan baku (batch baru hasil pengembalian); diabaikan untuk jenis lain.
+            'expiry_date' => ['nullable', 'date'],
         ]);
 
         if ($validator->fails()) {
@@ -381,7 +383,14 @@ class MaterialMemoController extends Controller
         }
 
         try {
-            MaterialMemoStockService::returnMaterial($memoItem, (float) $request->qty_returned, $request->user('api')->id, $memo);
+            MaterialMemoStockService::returnMaterial(
+                $memoItem,
+                (float) $request->qty_returned,
+                $request->user('api')->id,
+                $memo,
+                null,
+                $request->filled('expiry_date') ? (string) $request->expiry_date : null,
+            );
         } catch (\InvalidArgumentException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }

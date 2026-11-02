@@ -106,13 +106,13 @@ class InventoryStatsOverview extends BaseWidget
             ->color(self::severityColor($total));
 
         if ($canMaterials) {
-            $low = RawMaterial::query()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->needsReview()->count();
+            $low = RawMaterial::query()->active()->whereNotNull('reorder_point')->whereColumn('current_stock', '<=', 'reorder_point')->needsReview()->count();
             // Dihitung dari batch yang MASIH ADA stoknya (bukan kolom expiry_date induk yang cuma snapshot pendaftaran).
-            $near = RawMaterial::query()
+            $near = RawMaterial::query()->active()
                 ->whereHas('batches', fn ($q) => $q->where('quantity', '>', 0)->whereNotNull('expiry_date')->whereDate('expiry_date', '<=', now()->addDays(30)))
                 ->needsReview()
                 ->count();
-            $dead = RawMaterial::query()
+            $dead = RawMaterial::query()->active()
                 ->deadStock()
                 ->needsReview()
                 ->count();

@@ -111,6 +111,22 @@ class RestockRequestTest extends TestCase
         app(RestockRequestService::class)->create($this->material(), $this->store->id, 0, null, $this->admin);
     }
 
+    public function test_the_raw_material_list_offers_the_request_only_for_low_stock_without_an_open_request(): void
+    {
+        $low = $this->material();
+        $fine = $this->material(50, 10);
+
+        Livewire::test(\App\Filament\Resources\RawMaterialResource\Pages\ListRawMaterials::class)
+            ->assertTableActionVisible('requestPurchase', $low)
+            ->assertTableActionHidden('requestPurchase', $fine)
+            ->callTableAction('requestPurchase', $low, data: ['store_id' => $this->store->id, 'quantity' => 8, 'note' => 'Dari daftar'])
+            ->assertHasNoTableActionErrors()
+            ->assertTableActionHidden('requestPurchase', $low);
+
+        $request = PurchaseRequest::where('item_id', $low->id)->firstOrFail();
+        $this->assertSame(['pending', 8.0, $this->store->id], [$request->status, (float) $request->quantity, $request->store_id]);
+    }
+
     public function test_the_raw_material_widget_button_creates_the_request_and_then_disappears(): void
     {
         $material = $this->material();

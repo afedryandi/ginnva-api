@@ -352,6 +352,62 @@ class PurchaseRequestResourceTest extends TestCase
         Livewire::test(ListPurchaseRequests::class)->assertTableActionHidden('fulfill', $fresh);
     }
 
+    public function test_fulfilling_can_record_the_received_quantity_as_stock(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $material = $this->material();
+        $request = $this->request($this->storeA, ['item_type' => 'raw_material', 'item_id' => $material->id, 'item_name' => 'Adhesive', 'unit' => 'liter', 'quantity' => 5, 'status' => 'approved', 'requested_by' => $admin->id]);
+        $supplier = Supplier::create(['name' => 'PT Kimia Jaya']);
+
+        $this->assertTrue(PurchaseRequestResource::canRecordStock($request));
+
+        Livewire::test(ListPurchaseRequests::class)
+            ->callTableAction('fulfill', $request, data: ['quantity_received' => 4, 'actual_cost' => 200000, 'supplier_id' => $supplier->id, 'record_stock' => true, 'expiry_date' => '2027-05-01'])
+            ->assertHasNoTableActionErrors();
+
+        $fresh = $request->fresh();
+        $this->assertNotNull($fresh->stock_recorded_at);
+        $this->assertEquals(9, (float) $material->fresh()->current_stock, 'Stok 5 + 4 diterima.');
+
+        $batch = $material->batches()->latest('id')->firstOrFail();
+        $this->assertEquals(4, (float) $batch->quantity);
+        $this->assertEquals(50000, (float) $batch->unit_cost, 'Total biaya aktual dibagi jumlah diterima.');
+        $this->assertSame('2027-05-01', $batch->expiry_date->toDateString());
+
+        $movement = $material->movements()->where('type', 'in')->latest('id')->firstOrFail();
+        $this->assertSame($this->storeA->id, $movement->store_id);
+        $this->assertStringContainsString($fresh->request_number, (string) $movement->note);
+
+        $this->assertFalse(PurchaseRequestResource::canRecordStock($fresh), 'Sudah dicatat: tidak ditawarkan lagi.');
+    }
+
+    public function test_fulfilling_without_the_stock_toggle_or_the_stock_permission_leaves_the_stock_alone(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $material = $this->material();
+        $supplier = Supplier::create(['name' => 'PT Kimia Jaya']);
+        $off = $this->request($this->storeA, ['item_type' => 'raw_material', 'item_id' => $material->id, 'item_name' => 'Adhesive', 'unit' => 'liter', 'quantity' => 5, 'status' => 'approved', 'requested_by' => $admin->id]);
+
+        Livewire::test(ListPurchaseRequests::class)
+            ->callTableAction('fulfill', $off, data: ['quantity_received' => 5, 'actual_cost' => 100000, 'supplier_id' => $supplier->id, 'record_stock' => false])
+            ->assertHasNoTableActionErrors();
+        $this->assertEquals(5, (float) $material->fresh()->current_stock);
+        $this->assertNull($off->fresh()->stock_recorded_at);
+
+        // Pemohon tanpa izin mengubah stok bahan baku: toggle tidak ditawarkan dan dipaksa ikut pun diabaikan.
+        $requester = $this->user('kasir', ['PurchaseRequestResource'], $this->storeA);
+        $other = $this->request($this->storeA, ['item_type' => 'raw_material', 'item_id' => $material->id, 'item_name' => 'Adhesive', 'unit' => 'liter', 'quantity' => 3, 'status' => 'approved', 'requested_by' => $requester->id]);
+        $this->assertFalse(PurchaseRequestResource::canRecordStock($other));
+
+        $this->as($requester);
+        Livewire::test(ListPurchaseRequests::class)
+            ->callTableAction('fulfill', $other, data: ['quantity_received' => 3, 'actual_cost' => 90000, 'supplier_id' => $supplier->id, 'record_stock' => true])
+            ->assertHasNoTableActionErrors();
+        $this->assertSame('fulfilled', $other->fresh()->status);
+        $this->assertEquals(5, (float) $material->fresh()->current_stock);
+        $this->assertNull($other->fresh()->stock_recorded_at);
+    }
+
     public function test_only_the_requester_or_full_access_can_fulfill(): void
     {
         $requester = $this->user('kasir', null, $this->storeA);
