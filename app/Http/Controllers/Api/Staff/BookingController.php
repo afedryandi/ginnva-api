@@ -10,6 +10,7 @@ use App\Services\BookingCancellationService;
 use App\Services\BookingRescheduleService;
 use App\Services\ServiceReminderService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,6 +19,54 @@ use RuntimeException;
 
 class BookingController extends Controller
 {
+    /**
+     * Bidang booking yang dikirim ke installer (audit tampilan installer, 2026-11-02). Installer hanya mengerjakan di lapangan, jadi
+     * tidak menerima telepon pelanggan, nominal dan pembayaran, referral, voucher, partner, persetujuan, maupun data pembatalan.
+     * Sebelumnya seluruh model Booking ikut terkirim dan hanya aplikasi yang memilih apa yang ditampilkan.
+     */
+    private const INSTALLER_DETAIL_FIELDS = [
+        'id', 'booking_number', 'status', 'current_stage', 'secondary_stage', 'service_type',
+        'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash',
+        'preferred_date', 'preferred_time', 'duration_days', 'end_date',
+        'vehicle_size', 'vehicle_plate', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_color',
+        'customer_name', 'notes',
+    ];
+
+    private const INSTALLER_LIST_FIELDS = [
+        'id', 'booking_number', 'status', 'current_stage', 'service_type', 'preferred_date', 'duration_days', 'end_date',
+        'vehicle_plate', 'vehicle_brand', 'vehicle_model', 'customer_name',
+    ];
+
+    /** Akun yang peran utamanya installer: mereka yang memakai tampilan installer di aplikasi (sama dengan staff.role di aplikasi). */
+    private function isInstallerOnly(User $user): bool
+    {
+        return $user->primaryRoleName() === 'installer';
+    }
+
+    /** Bentuk ringkas satu booking untuk installer; $detail menambah produk, tim, dan SPK. */
+    private function installerPayload(Booking $booking, bool $detail): array
+    {
+        $data = Arr::only($booking->toArray(), $detail ? self::INSTALLER_DETAIL_FIELDS : self::INSTALLER_LIST_FIELDS);
+
+        // Nama pelanggan tanpa kontak; toko hanya nama.
+        $data['customer'] = $booking->customer ? ['id' => $booking->customer->id, 'name' => $booking->customer->name] : null;
+        $data['store'] = $booking->store ? ['id' => $booking->store->id, 'name' => $booking->store->name] : null;
+
+        if (! $detail) {
+            return $data;
+        }
+
+        $data['installers'] = $booking->installers->map(fn ($i) => ['id' => $i->id, 'name' => $i->name])->values()->all();
+        $data['spk'] = $booking->spk ? ['id' => $booking->spk->id] : null;
+        $data['film_product'] = $booking->filmProduct ? ['sku' => $booking->filmProduct->sku, 'name' => $booking->filmProduct->name] : null;
+        $data['film_products'] = $booking->filmProducts->map(fn ($p) => [
+            'position' => $p->position,
+            'film_product' => $p->filmProduct ? ['sku' => $p->filmProduct->sku, 'name' => $p->filmProduct->name] : null,
+        ])->values()->all();
+
+        return $data;
+    }
+
     /**
      * GET /api/staff/bookings
      * Scoping per role:
@@ -51,12 +100,19 @@ class BookingController extends Controller
 
         // Pencarian (nomor booking, nama/telepon customer) & filter tanggal
         // (diminta 2026-10-02). date=today|week.
+        $installerOnly = $this->isInstallerOnly($user);
+
         if ($request->filled('q')) {
             $term = '%' . addcslashes(trim($request->q), '%_\\') . '%';
-            $query->where(fn ($q) => $q->where('booking_number', 'like', $term)
-                ->orWhere('customer_name', 'like', $term)
-                ->orWhere('phone_number', 'like', $term)
-                ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $term)->orWhere('phone_number', 'like', $term)));
+            // Installer tidak mencari lewat nomor telepon (kontak pelanggan bukan datanya).
+            $query->where(fn ($q) => $installerOnly
+                ? $q->where('booking_number', 'like', $term)
+                    ->orWhere('customer_name', 'like', $term)
+                    ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $term))
+                : $q->where('booking_number', 'like', $term)
+                    ->orWhere('customer_name', 'like', $term)
+                    ->orWhere('phone_number', 'like', $term)
+                    ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $term)->orWhere('phone_number', 'like', $term)));
         }
         // Urutan stabil antar halaman (2026-10-03): tiebreaker id; antrean
         // 'pending' diurutkan dari yang PALING LAMA menunggu (triase SLA).
@@ -112,8 +168,10 @@ class BookingController extends Controller
 
         return response()->json([
             'success' => true,
-            // cancelled_by_type disembunyikan global ($hidden); staff perlu melihatnya.
-            'data'    => collect($bookings->items())->each->makeVisible('cancelled_by_type')->all(),
+            // cancelled_by_type disembunyikan global ($hidden); staff perlu melihatnya. Installer hanya menerima bidang kerja.
+            'data'    => $installerOnly
+                ? collect($bookings->items())->map(fn (Booking $b) => $this->installerPayload($b, false))->all()
+                : collect($bookings->items())->each->makeVisible('cancelled_by_type')->all(),
             'meta'    => [
                 'current_page' => $bookings->currentPage(),
                 'last_page'    => $bookings->lastPage(),
@@ -149,6 +207,8 @@ class BookingController extends Controller
             'spk:id,booking_id',
             'pendingRescheduleRequest',
             'pendingCancellationRequest',
+            'filmProduct:id,sku,name',
+            'filmProducts.filmProduct:id,sku,name',
         ])->findOrFail($id);
 
         if ($user->hasRole('installer')) {
@@ -157,6 +217,10 @@ class BookingController extends Controller
             }
         } elseif (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
             abort(403, 'Anda tidak punya akses ke booking toko lain.');
+        }
+
+        if ($this->isInstallerOnly($user)) {
+            return response()->json(['success' => true, 'data' => $this->installerPayload($booking, true)]);
         }
 
         return response()->json(['success' => true, 'data' => $booking->makeVisible('cancelled_by_type')]);
