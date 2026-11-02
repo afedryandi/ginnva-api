@@ -1160,6 +1160,19 @@ class StaffStockApiTest extends TestCase
         ]);
     }
 
+    /** Isian keuangan yang diminta server bila pembukuan internal menyala (supplier, biaya, akun aset); tak berpengaruh bila mati. */
+    private function financeFields(bool $asset = false): array
+    {
+        $this->seed(\Database\Seeders\ChartOfAccountSeeder::class);
+        $fields = ['actual_cost' => 600000, 'supplier_id' => \App\Models\Supplier::create(['name' => 'PT Pemasok ' . uniqid()])->id];
+
+        if ($asset) {
+            $fields['chart_of_account_id'] = \App\Models\ChartOfAccount::whereHas('parent', fn ($q) => $q->where('code', '1200'))->orderBy('code')->firstOrFail()->id;
+        }
+
+        return $fields;
+    }
+
     private function approvedRequest(Store $store, User $requester, array $extra = []): PurchaseRequest
     {
         return PurchaseRequest::create(array_merge(['store_id' => $store->id, 'item_type' => 'asset', 'item_name' => 'Kompresor', 'quantity' => 1, 'status' => 'approved', 'requested_by' => $requester->id], $extra));
@@ -1179,7 +1192,7 @@ class StaffStockApiTest extends TestCase
 
         $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 0])->assertStatus(422);
 
-        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 6, 'record_stock' => true, 'expiry_date' => '2027-01-31'])
+        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 6, 'record_stock' => true, 'expiry_date' => '2027-01-31'] + $this->financeFields())
             ->assertSuccessful()->assertJsonPath('data.status', 'fulfilled');
 
         $fresh = $request->fresh();
@@ -1211,7 +1224,7 @@ class StaffStockApiTest extends TestCase
         $pending = PurchaseRequest::create(['store_id' => $this->storeA->id, 'item_type' => 'asset', 'item_name' => 'Lampu', 'quantity' => 1, 'status' => 'pending', 'requested_by' => $requester->id]);
         $this->api($this->warehouse($this->storeA))->postJson("/api/staff/purchase-requests/{$pending->id}/receive", ['quantity_received' => 1])->assertStatus(422);
 
-        $this->api($requester)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 1, 'register_asset' => true])->assertSuccessful();
+        $this->api($requester)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 1, 'register_asset' => true] + $this->financeFields(true))->assertSuccessful();
         $this->assertSame('fulfilled', $request->fresh()->status);
         // Pemohon tanpa izin menambah aset: status terpenuhi, tetapi tidak ada aset yang didaftarkan.
         $this->assertSame(0, \App\Models\Asset::query()->count());
@@ -1224,7 +1237,7 @@ class StaffStockApiTest extends TestCase
 
         $this->assertTrue($this->api($gudang)->getJson('/api/staff/purchase-requests')->json('data.0.can_register_asset'));
 
-        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 2, 'register_asset' => true])->assertSuccessful();
+        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 2, 'register_asset' => true] + $this->financeFields(true))->assertSuccessful();
 
         $assets = \App\Models\Asset::query()->orderBy('name')->get();
         $this->assertSame(['Kompresor #1', 'Kompresor #2'], $assets->pluck('name')->all());
@@ -1234,6 +1247,8 @@ class StaffStockApiTest extends TestCase
 
     public function test_stock_scan_resolves_codes_and_markers_within_access(): void
     {
+        $this->getJson('/api/staff/stock-scan?code=x')->assertStatus(401);
+
         $gudang = $this->warehouse($this->storeA);
         $material = $this->material('Adhesive');
         $consumable = $this->consumable('Sarung Tangan');
@@ -1252,7 +1267,6 @@ class StaffStockApiTest extends TestCase
         $onlyConsumables = $this->staff('kasir', $this->storeA, ['ConsumableItemResource']);
         $this->api($onlyConsumables)->getJson('/api/staff/stock-scan?code=' . urlencode($material->code))->assertStatus(403);
         $this->api($onlyConsumables)->getJson('/api/staff/stock-scan?code=' . urlencode($consumable->code))->assertSuccessful();
-        $this->getJson('/api/staff/stock-scan?code=x')->assertStatus(401);
 
         // Label PDF bisa dibuat untuk bahan dengan maupun tanpa kode.
         $response = \App\Support\StockScanCode::labelsPdf(collect([$material, $noCode]), 'Label Bahan Baku');
