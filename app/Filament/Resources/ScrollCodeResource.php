@@ -444,8 +444,7 @@ class ScrollCodeResource extends Resource
                             ->whereNotNull('total_length_meters')
                             ->chunkById(100, function ($codes) use (&$mismatches) {
                                 foreach ($codes as $code) {
-                                    $usedTotal = (float) $code->usages()->sum('meters');
-                                    $expectedRemaining = round((float) $code->total_length_meters - $usedTotal, 2);
+                                    $expectedRemaining = $code->expectedRemainingLength();
                                     $diff = round((float) $code->remaining_length_meters - $expectedRemaining, 2);
 
                                     if (abs($diff) > 0.01) {
@@ -523,11 +522,12 @@ class ScrollCodeResource extends Resource
                             ->helperText('Harga beli TOTAL gulungan ini — dipakai hitung HPP & Laba Kotor di Laporan Penjualan Per Periode.'),
                     ])
                     ->action(function (ScrollCode $record, array $data) {
-                        $record->update([
-                            'total_length_meters' => $data['total_length_meters'] ?? null,
-                            'remaining_length_meters' => $data['remaining_length_meters'] ?? null,
-                            'purchase_cost' => $data['purchase_cost'] !== '' ? $data['purchase_cost'] : null,
-                        ]);
+                        // Selisih terhadap riwayat pemakaian dicatat sebagai koreksi, supaya "Cek Rekonsiliasi" tetap bersih.
+                        $record->correctLength(
+                            filled($data['total_length_meters'] ?? null) ? (float) $data['total_length_meters'] : null,
+                            filled($data['remaining_length_meters'] ?? null) ? (float) $data['remaining_length_meters'] : null
+                        );
+                        $record->update(['purchase_cost' => $data['purchase_cost'] !== '' ? $data['purchase_cost'] : null]);
 
                         Notification::make()->title('Data panjang & harga diperbarui')->success()->send();
                     }),

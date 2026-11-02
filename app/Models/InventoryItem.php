@@ -73,6 +73,46 @@ class InventoryItem extends Model
     }
 
     /**
+     * Aturan mengaitkan barang ke kode gulungan (audit Produk PPF/WF, 2026-11-02): status gulungan harus sejalan dengan status barang.
+     * Barang "Ada Stok" (di gudang) hanya boleh dikaitkan ke gulungan yang BELUM dialokasikan; barang "Sudah Keluar" hanya ke gulungan
+     * yang SUDAH dialokasikan ke toko; gulungan yang sudah Terpakai tidak boleh dikaitkan; satu gulungan satu barang. Tanpa ini, barang
+     * baru "Ada Stok" bisa dikaitkan ke gulungan toko lain, dan Catat Masuk berikutnya diam-diam mengosongkan alokasinya. Gulungan yang
+     * sudah dikaitkan sebelumnya (data lama) tidak diperiksa ulang selama tidak diganti.
+     *
+     * @return string|null pesan masalah, atau null bila boleh
+     */
+    public static function scrollCodeLinkProblem(?int $scrollCodeId, string $itemStatus, ?int $currentScrollCodeId = null, ?int $itemId = null): ?string
+    {
+        if ($scrollCodeId === null || $scrollCodeId === $currentScrollCodeId) {
+            return null;
+        }
+
+        $roll = ScrollCode::find($scrollCodeId);
+
+        if (! $roll) {
+            return 'Kode gulungan tidak ditemukan.';
+        }
+
+        if (self::where('scroll_code_id', $roll->id)->when($itemId, fn ($q) => $q->where('id', '!=', $itemId))->exists()) {
+            return "Kode gulungan {$roll->code} sudah dikaitkan ke barang lain.";
+        }
+
+        if ($roll->status === 'used') {
+            return "Kode gulungan {$roll->code} sudah ditandai habis (Terpakai), jadi tidak bisa dikaitkan ke barang.";
+        }
+
+        if ($itemStatus === 'in_stock' && $roll->status !== 'unallocated') {
+            return "Kode gulungan {$roll->code} sudah dialokasikan ke toko. Barang berstatus Ada Stok hanya bisa dikaitkan ke gulungan yang belum dialokasikan.";
+        }
+
+        if ($itemStatus === 'out' && $roll->status !== 'allocated') {
+            return "Barang ini sudah keluar dari gudang, jadi gulungannya harus sudah dialokasikan ke toko; kode gulungan {$roll->code} belum dialokasikan.";
+        }
+
+        return null;
+    }
+
+    /**
      * Kode unik untuk 1 unit fisik (kardus/gulungan) — dikodekan ke QR
      * yang ditempel ke barang. Format acak (bukan sequential) supaya
      * orang tidak bisa menebak-nebak kode kardus lain hanya dari 1 kode

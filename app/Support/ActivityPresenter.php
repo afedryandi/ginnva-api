@@ -61,7 +61,7 @@ class ActivityPresenter
         'receipt_number' => 'Nomor Kuitansi', 'transaction_number' => 'Nomor Transaksi', 'opname_number' => 'Nomor Opname',
         'memo_number' => 'Nomor Memo', 'warranty_id' => 'Garansi', 'scroll_code_id' => 'Kode Gulungan', 'vehicle_id' => 'Kendaraan',
         'shift_id' => 'Shift', 'work_schedule_id' => 'Jadwal Kerja', 'effective_to' => 'Berlaku Sampai', 'days' => 'Hari',
-        'total_length_meters' => 'Panjang Total (m)', 'remaining_length_meters' => 'Sisa Panjang (m)', 'max_usage' => 'Pemakaian Maksimum',
+        'total_length_meters' => 'Panjang Total (m)', 'remaining_length_meters' => 'Sisa Panjang (m)', 'length_adjustment_meters' => 'Koreksi Panjang (m)', 'max_usage' => 'Pemakaian Maksimum',
         'closed_at' => 'Ditutup Pada', 'net_income' => 'Laba Bersih', 'year' => 'Tahun',
     ];
 

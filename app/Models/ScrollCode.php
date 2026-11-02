@@ -20,6 +20,7 @@ class ScrollCode extends Model
         'max_usage',
         'total_length_meters',
         'remaining_length_meters',
+        'length_adjustment_meters',
         'purchase_cost',
         'allocated_at',
         'used_at',
@@ -29,6 +30,7 @@ class ScrollCode extends Model
     protected $casts = [
         'total_length_meters'     => 'decimal:2',
         'remaining_length_meters' => 'decimal:2',
+        'length_adjustment_meters' => 'decimal:2',
         'purchase_cost'           => 'decimal:2',
         'allocated_at'            => 'datetime',
         'used_at'                 => 'datetime',
@@ -48,6 +50,42 @@ class ScrollCode extends Model
         }
 
         return (float) $this->purchase_cost / (float) $this->total_length_meters;
+    }
+
+    /**
+     * Sisa panjang yang seharusnya: total dikurangi riwayat pemakaian, ditambah koreksi manual admin. Null bila total belum diisi. Dipakai
+     * "Cek Rekonsiliasi".
+     */
+    public function expectedRemainingLength(): ?float
+    {
+        if ($this->total_length_meters === null) {
+            return null;
+        }
+
+        return round((float) $this->total_length_meters - (float) $this->usages()->sum('meters') + (float) $this->length_adjustment_meters, 2);
+    }
+
+    /**
+     * Koreksi manual Total dan Sisa Panjang oleh admin. Selisih antara sisa yang diisi dan sisa menurut riwayat pemakaian disimpan sebagai
+     * length_adjustment_meters, jadi rekonsiliasi tetap bersih tanpa baris pemakaian palsu (yang akan mencemari laporan meter terpakai).
+     */
+    public function correctLength(?float $total, ?float $remaining): void
+    {
+        DB::transaction(function () use ($total, $remaining) {
+            $roll = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+
+            $adjustment = $total !== null && $remaining !== null
+                ? round($remaining - ($total - (float) $roll->usages()->sum('meters')), 2)
+                : 0.0;
+
+            $roll->update([
+                'total_length_meters' => $total,
+                'remaining_length_meters' => $remaining,
+                'length_adjustment_meters' => $adjustment,
+            ]);
+
+            $this->setRawAttributes($roll->getAttributes());
+        });
     }
 
     public function filmProduct()
@@ -253,7 +291,7 @@ class ScrollCode extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'store_id', 'total_length_meters', 'remaining_length_meters', 'max_usage', 'purchase_cost'])
+            ->logOnly(['status', 'store_id', 'total_length_meters', 'remaining_length_meters', 'length_adjustment_meters', 'max_usage', 'purchase_cost'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('scroll_code')

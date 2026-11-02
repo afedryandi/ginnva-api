@@ -68,7 +68,7 @@ class InventoryItemResourceTest extends TestCase
 
     private function user(string $role, ?array $menuAccess = null, ?Store $store = null, array $extra = []): User
     {
-        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess, 'is_active' => true], $extra)), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess ?? ($role === 'super_admin' ? null : ['InventoryItemResource']), 'menu_permissions' => $menuAccess === null && $role !== 'super_admin' ? ['InventoryItemResource' => ['create', 'update']] : null, 'is_active' => true], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
     private function as(User $user): User
@@ -108,6 +108,19 @@ class InventoryItemResourceTest extends TestCase
         $this->assertTrue(InventoryItemResource::canDelete($record));
         $this->assertTrue(InventoryItemResource::canDeleteAny());
 
+        // Akun bawaan (menu_access kosong) tidak punya akses sama sekali; pemegang menu tanpa izin aksi hanya melihat.
+        $baru = User::create(['name' => 'Baru', 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $this->storeA->id, 'is_active' => true]);
+        $baru->assignRole('kasir');
+        $this->as($baru);
+        $this->assertFalse(InventoryItemResource::canViewAny(), 'Akun bawaan tidak boleh membuka menu ini.');
+        $this->assertFalse(InventoryItemResource::canCreate());
+        $this->assertFalse(InventoryItemResource::canEdit($record));
+
+        $this->as($this->user('kasir', ['InventoryItemResource'], null, ['menu_permissions' => null]));
+        $this->assertTrue(InventoryItemResource::canViewAny());
+        $this->assertFalse(InventoryItemResource::canCreate(), 'Menu dicentang saja hanya boleh melihat.');
+        $this->assertFalse(InventoryItemResource::canEdit($record));
+
         $this->as($this->user('kasir'));
         $this->assertTrue(InventoryItemResource::canViewAny());
         $this->assertTrue(InventoryItemResource::canCreate());
@@ -122,6 +135,22 @@ class InventoryItemResourceTest extends TestCase
         $this->assertFalse(InventoryItemResource::canViewAny());
         $this->assertFalse(InventoryItemResource::canCreate());
         $this->assertFalse(InventoryItemResource::canEdit($record));
+    }
+
+    public function test_usage_and_mark_used_actions_need_the_update_grant(): void
+    {
+        $roll = $this->roll('GLN-A', $this->storeA, 'allocated', 15, 15);
+        $item = $this->item('Film Alpha', 'PPF', 'out', $roll);
+
+        $this->as($this->user('kasir', ['InventoryItemResource'], null, ['menu_permissions' => null]));
+        Livewire::test(ListInventoryItems::class)
+            ->assertTableActionHidden('record_scroll_code_usage', $item->getKey())
+            ->assertTableActionHidden('mark_scroll_code_used', $item->getKey());
+
+        $this->as($this->user('kasir'));
+        Livewire::test(ListInventoryItems::class)
+            ->assertTableActionVisible('record_scroll_code_usage', $item->getKey())
+            ->assertTableActionVisible('mark_scroll_code_used', $item->getKey());
     }
 
     // ------------------------------------------------------------- daftar
@@ -177,6 +206,70 @@ class InventoryItemResourceTest extends TestCase
         $movement = $item->movements()->first();
         $this->assertSame(['in', $admin->id], [$movement->type, $movement->user_id], 'Riwayat masuk pertama tercatat.');
         $this->assertNotNull(Activity::where('log_name', 'inventory_item')->where('subject_id', $item->id)->where('description', 'like', '%didaftarkan%')->first());
+    }
+
+    // ------------------------------------------------------------- audit Produk PPF/WF B: gulungan sejalan dengan status barang
+
+    public function test_a_new_item_can_only_be_linked_to_an_unallocated_roll(): void
+    {
+        $this->as($this->user('super_admin'));
+        $allocated = $this->roll('GLN-ALOK', $this->storeB, 'allocated');
+        $used = $this->roll('GLN-HABIS', $this->storeB, 'used');
+        $free = $this->roll('GLN-BEBAS', null, 'unallocated');
+
+        foreach (['Barang Alok' => $allocated, 'Barang Habis' => $used] as $name => $roll) {
+            Livewire::test(CreateInventoryItem::class)
+                ->fillForm(['name' => $name, 'category' => 'PPF', 'received_date' => '2026-10-07', 'scroll_code_id' => $roll->id])
+                ->call('create');
+            $this->assertDatabaseMissing('inventory_items', ['name' => $name]);
+        }
+        $this->assertSame('allocated', $allocated->fresh()->status);
+        $this->assertSame($this->storeB->id, $allocated->fresh()->store_id, 'Alokasi toko B tidak tersentuh.');
+
+        Livewire::test(CreateInventoryItem::class)
+            ->fillForm(['name' => 'Barang Bebas', 'category' => 'PPF', 'received_date' => '2026-10-07', 'scroll_code_id' => $free->id])
+            ->call('create')
+            ->assertHasNoFormErrors();
+        $this->assertSame($free->id, InventoryItem::where('name', 'Barang Bebas')->value('scroll_code_id'));
+    }
+
+    public function test_changing_the_roll_of_an_existing_item_follows_its_status_but_legacy_links_stay_editable(): void
+    {
+        $this->as($this->user('super_admin'));
+        $legacyRoll = $this->roll('GLN-LAMA', $this->storeA, 'allocated');
+        $inStock = $this->item('Ada Stok', 'PPF', 'in_stock', $legacyRoll);   // data lama: Ada Stok tapi gulungan sudah dialokasikan
+        $allocatedRoll = $this->roll('GLN-B', $this->storeB, 'allocated');
+        $freeRoll = $this->roll('GLN-FREE', null, 'unallocated');
+        $out = $this->item('Sudah Keluar', 'PPF', 'out', $this->roll('GLN-C', $this->storeA, 'allocated'));
+
+        // Mengubah kolom lain pada barang dengan tautan lama tetap boleh.
+        Livewire::test(EditInventoryItem::class, ['record' => $inStock->getKey()])->fillForm(['notes' => 'Catatan baru'])->call('save');
+        $this->assertSame('Catatan baru', $inStock->fresh()->notes);
+        $this->assertSame($legacyRoll->id, $inStock->fresh()->scroll_code_id);
+
+        // Ada Stok tidak boleh pindah ke gulungan yang sudah dialokasikan; ke yang bebas boleh.
+        Livewire::test(EditInventoryItem::class, ['record' => $inStock->getKey()])->fillForm(['scroll_code_id' => $allocatedRoll->id])->call('save');
+        $this->assertSame($legacyRoll->id, $inStock->fresh()->scroll_code_id);
+        Livewire::test(EditInventoryItem::class, ['record' => $inStock->getKey()])->fillForm(['scroll_code_id' => $freeRoll->id])->call('save');
+        $this->assertSame($freeRoll->id, $inStock->fresh()->scroll_code_id);
+
+        // Sudah Keluar sebaliknya: hanya gulungan yang sudah dialokasikan.
+        $other = $this->roll('GLN-D', null, 'unallocated');
+        $before = $out->scroll_code_id;
+        Livewire::test(EditInventoryItem::class, ['record' => $out->getKey()])->fillForm(['scroll_code_id' => $other->id])->call('save');
+        $this->assertSame($before, $out->fresh()->scroll_code_id);
+    }
+
+    public function test_the_link_rule_refuses_used_rolls_and_rolls_of_other_items(): void
+    {
+        $used = $this->roll('GLN-U', null, 'used');
+        $taken = $this->roll('GLN-T', null, 'unallocated');
+        $this->item('Pemilik', 'PPF', 'in_stock', $taken);
+
+        $this->assertStringContainsString('sudah ditandai habis', (string) InventoryItem::scrollCodeLinkProblem($used->id, 'in_stock'));
+        $this->assertStringContainsString('sudah dikaitkan ke barang lain', (string) InventoryItem::scrollCodeLinkProblem($taken->id, 'in_stock'));
+        $this->assertNull(InventoryItem::scrollCodeLinkProblem(null, 'in_stock'));
+        $this->assertNull(InventoryItem::scrollCodeLinkProblem($taken->id, 'in_stock', $taken->id), 'Tautan yang sama tidak diperiksa ulang.');
     }
 
     public function test_create_validation(): void
@@ -443,6 +536,144 @@ class InventoryItemResourceTest extends TestCase
         $this->assertNull($items['Film D']->scroll_code_id, 'Kode model tidak dikenal: barang tetap dibuat tanpa roll.');
         $this->assertFalse(ScrollCode::where('code', 'SC-ZZ')->exists());
         Storage::disk('local')->assertMissing('inv-imports/test.xlsx');
+    }
+
+    public function test_import_does_not_link_allocated_or_used_rolls(): void
+    {
+        $this->as($this->user('super_admin'));
+        Storage::fake('local');
+        $allocated = ScrollCode::create(['code' => 'SC-ALOK', 'store_id' => $this->storeB->id, 'status' => 'allocated', 'usage_count' => 0, 'total_length_meters' => 15, 'remaining_length_meters' => 15, 'allocated_at' => now()]);
+        $used = ScrollCode::create(['code' => 'SC-HABIS', 'status' => 'used', 'usage_count' => 0, 'total_length_meters' => 15, 'remaining_length_meters' => 0]);
+
+        Excel::store(new InventoryTestRowsExport([
+            ['Nama', 'Kategori', 'Kode Model', 'Kode Gulungan', 'Tanggal Masuk', 'Catatan'],
+            ['Impor Alok', 'PPF', '', 'SC-ALOK', '', ''],
+            ['Impor Habis', 'PPF', '', 'SC-HABIS', '', ''],
+        ]), 'inv-imports/alokasi.xlsx', 'local');
+
+        $method = new \ReflectionMethod(InventoryItemResource::class, 'importItems');
+        $method->setAccessible(true);
+        $method->invoke(null, 'inv-imports/alokasi.xlsx');
+
+        $this->assertNull(InventoryItem::where('name', 'Impor Alok')->value('scroll_code_id'), 'Barang tetap dibuat, tanpa gulungan yang sudah dialokasikan.');
+        $this->assertNull(InventoryItem::where('name', 'Impor Habis')->value('scroll_code_id'));
+        $this->assertSame('allocated', $allocated->fresh()->status, 'Alokasi toko B tidak terhapus oleh riwayat masuk import.');
+        $this->assertSame($this->storeB->id, $allocated->fresh()->store_id);
+        $this->assertSame('used', $used->fresh()->status);
+    }
+
+    // ------------------------------------------------------------- audit Produk PPF/WF D: kolom dan filter gulungan
+
+    public function test_the_list_shows_roll_status_and_store_and_filters_by_them(): void
+    {
+        $this->as($this->user('super_admin'));
+        $low = $this->item('Gulungan Tipis', 'PPF', 'out', $this->roll('GLN-TIPIS', $this->storeA, 'allocated', 15, 2));
+        $fresh = $this->item('Gulungan Penuh', 'PPF', 'in_stock', $this->roll('GLN-PENUH', null, 'unallocated', 15, 15));
+        $done = $this->item('Gulungan Habis', 'PPF', 'out', $this->roll('GLN-SELESAI', $this->storeB, 'used', 15, 0));
+        $none = $this->item('Tanpa Gulungan', 'Window Film', 'in_stock');
+
+        Livewire::test(ListInventoryItems::class)
+            ->assertTableColumnFormattedStateSet('scrollCode.status', 'Dialokasikan', $low)
+            ->assertTableColumnFormattedStateSet('scrollCode.status', 'Belum dialokasikan', $fresh)
+            ->assertTableColumnFormattedStateSet('scrollCode.status', 'Terpakai', $done)
+            ->assertTableColumnStateSet('scrollCode.store.name', 'Toko A', $low)
+            ->assertTableColumnStateSet('scrollCode.store.name', 'Toko B', $done);
+
+        Livewire::test(ListInventoryItems::class)->filterTable('roll_status', 'none')
+            ->assertCanSeeTableRecords([$none])->assertCanNotSeeTableRecords([$low, $fresh, $done]);
+        Livewire::test(ListInventoryItems::class)->filterTable('roll_status', 'used')
+            ->assertCanSeeTableRecords([$done])->assertCanNotSeeTableRecords([$low, $fresh, $none]);
+        Livewire::test(ListInventoryItems::class)->filterTable('roll_status', 'unallocated')
+            ->assertCanSeeTableRecords([$fresh])->assertCanNotSeeTableRecords([$low, $done, $none]);
+
+        Livewire::test(ListInventoryItems::class)->filterTable('roll_store', $this->storeA->id)
+            ->assertCanSeeTableRecords([$low])->assertCanNotSeeTableRecords([$fresh, $done, $none]);
+
+        // Sisa 2 dari 15 m (13%) menipis; gulungan penuh, yang sudah Terpakai, dan tanpa gulungan tidak.
+        Livewire::test(ListInventoryItems::class)->filterTable('low_roll', true)
+            ->assertCanSeeTableRecords([$low])->assertCanNotSeeTableRecords([$fresh, $done, $none]);
+    }
+
+    // ------------------------------------------------------------- audit Produk PPF/WF C: import dan koreksi panjang
+
+    public function test_import_validates_category_and_date_and_reports_each_problem_row(): void
+    {
+        $this->as($this->user('super_admin'));
+        Storage::fake('local');
+
+        Excel::store(new InventoryTestRowsExport([
+            ['Nama', 'Kategori', 'Kode Model', 'Kode Gulungan', 'Tanggal Masuk', 'Catatan'],
+            ['Baik Satu', 'ppf', '', '', '05/10/2026', ''],            // huruf kecil dinormalkan menjadi PPF
+            ['Baik Dua', 'Kaca Film', '', '', '', ''],                  // alias dinormalkan menjadi Window Film
+            ['Kategori Liar', 'Lainnya', '', '', '', ''],
+            ['Kategori Kosong', '', '', '', '', ''],
+            ['Tanggal Aneh', 'PPF', '', '', 'kemarin', ''],
+            ['Tanggal Depan', 'PPF', '', '', '30/12/2026', ''],
+            ['', 'PPF', '', '', '', ''],
+        ]), 'inv-imports/validasi.xlsx', 'local');
+
+        $method = new \ReflectionMethod(InventoryItemResource::class, 'importItems');
+        $method->setAccessible(true);
+        $method->invoke(null, 'inv-imports/validasi.xlsx');
+
+        $this->assertSame('PPF', InventoryItem::where('name', 'Baik Satu')->value('category'));
+        $this->assertSame('Window Film', InventoryItem::where('name', 'Baik Dua')->value('category'));
+        foreach (['Kategori Liar', 'Kategori Kosong', 'Tanggal Aneh', 'Tanggal Depan'] as $name) {
+            $this->assertDatabaseMissing('inventory_items', ['name' => $name]);
+        }
+    }
+
+    public function test_import_is_all_or_nothing_when_something_fails_midway(): void
+    {
+        $this->as($this->user('super_admin'));
+        Storage::fake('local');
+        $before = InventoryItem::count();
+
+        Excel::store(new InventoryTestRowsExport([
+            ['Nama', 'Kategori', 'Kode Model', 'Kode Gulungan', 'Tanggal Masuk', 'Catatan'],
+            ['Awal Baik', 'PPF', '', '', '', ''],
+            ['Penyebab Galat', 'PPF', '', '', '', ''],
+        ]), 'inv-imports/galat.xlsx', 'local');
+        // Simulasi galat saat menyimpan baris kedua.
+        InventoryItem::creating(function (InventoryItem $item) {
+            if ($item->name === 'Penyebab Galat') {
+                throw new \RuntimeException('simulasi galat');
+            }
+        });
+
+        $method = new \ReflectionMethod(InventoryItemResource::class, 'importItems');
+        $method->setAccessible(true);
+        $method->invoke(null, 'inv-imports/galat.xlsx');
+
+        $this->assertSame($before, InventoryItem::count(), 'Galat di tengah file membatalkan seluruh import.');
+        $this->assertDatabaseMissing('inventory_items', ['name' => 'Awal Baik']);
+    }
+
+    public function test_a_length_correction_keeps_the_reconciliation_clean_without_fake_usage_rows(): void
+    {
+        $roll = $this->roll('GLN-KOREKSI', $this->storeA, 'allocated', 15, 15);
+        $roll->recordUsage(4, null, 'dipakai');
+        $this->assertEquals(11, (float) $roll->fresh()->remaining_length_meters);
+        $this->assertEquals(11.0, $roll->fresh()->expectedRemainingLength());
+
+        // Admin menyatakan sisa fisik sebenarnya 8 m (total tetap 15): koreksi -3 m tanpa baris pemakaian baru.
+        $roll->fresh()->correctLength(15.0, 8.0);
+
+        $fresh = $roll->fresh();
+        $this->assertEquals(8, (float) $fresh->remaining_length_meters);
+        $this->assertEquals(-3.0, (float) $fresh->length_adjustment_meters);
+        $this->assertEquals(8.0, $fresh->expectedRemainingLength(), 'Rekonsiliasi cocok: 15 - 4 + (-3) = 8.');
+        $this->assertSame(1, $fresh->usages()->count(), 'Tidak ada baris pemakaian palsu.');
+        $this->assertEquals(4.0, (float) $fresh->usages()->sum('meters'));
+
+        // Pemakaian berikutnya tetap konsisten.
+        $fresh->recordUsage(2, null, 'lagi');
+        $this->assertEquals(6.0, $fresh->fresh()->expectedRemainingLength());
+        $this->assertEquals(6, (float) $fresh->fresh()->remaining_length_meters);
+
+        // Total diisi, sisa dikosongkan: tanpa koreksi.
+        $fresh->fresh()->correctLength(15.0, null);
+        $this->assertEquals(0.0, (float) $roll->fresh()->length_adjustment_meters);
     }
 
     public function test_an_unreadable_import_file_is_reported_without_creating_anything(): void

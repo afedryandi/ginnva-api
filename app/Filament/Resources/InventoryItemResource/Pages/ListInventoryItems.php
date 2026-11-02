@@ -22,6 +22,7 @@ class ListInventoryItems extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Actions\ActionGroup::make([
             Actions\Action::make('exportExcel')
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -43,6 +44,11 @@ class ListInventoryItems extends ListRecords
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);
                 }),
 
+            ])
+                ->label('Export')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->button(),
             Actions\CreateAction::make(),
         ];
     }

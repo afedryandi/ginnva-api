@@ -4,6 +4,7 @@ namespace App\Filament\Resources\InventoryItemResource\Pages;
 
 use App\Filament\Resources\InventoryItemResource;
 use App\Models\InventoryItem;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateInventoryItem extends CreateRecord
@@ -17,6 +18,13 @@ class CreateInventoryItem extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        // Barang baru "Ada Stok": gulungannya harus yang belum dialokasikan (lihat InventoryItem::scrollCodeLinkProblem()).
+        if ($problem = InventoryItem::scrollCodeLinkProblem($data['scroll_code_id'] ?? null, 'in_stock')) {
+            Notification::make()->title('Tidak bisa disimpan')->body($problem)->danger()->send();
+
+            $this->halt();
+        }
+
         $data['code'] = InventoryItem::generateCode();
         $data['status'] = 'in_stock';
         $data['created_by'] = auth()->id();

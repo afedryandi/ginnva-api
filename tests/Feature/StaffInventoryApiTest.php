@@ -42,7 +42,7 @@ class StaffInventoryApiTest extends TestCase
 
     private function staff(string $role = 'kasir', ?Store $store = null, ?array $menuAccess = null): User
     {
-        $user = User::create(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess, 'is_active' => true]);
+        $user = User::create(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => ($store ?? $this->storeA)->id, 'menu_access' => $menuAccess ?? ($role === 'super_admin' ? null : ['InventoryItemResource']), 'menu_permissions' => $menuAccess === null && $role !== 'super_admin' ? ['InventoryItemResource' => ['update']] : null, 'is_active' => true]);
         $user->assignRole($role);
 
         return $user;
@@ -95,6 +95,46 @@ class StaffInventoryApiTest extends TestCase
         $this->assertSame('in_stock', $item->fresh()->status);
     }
 
+    // ------------------------------------------------------------- audit Produk PPF/WF A: akses eksplisit dan toko
+
+    public function test_default_accounts_have_no_access_and_menu_holders_without_the_update_grant_can_only_read(): void
+    {
+        $item = $this->item('INV-1');
+        $default = User::create(['name' => 'Baru', 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $this->storeA->id, 'is_active' => true]);
+        $default->assignRole('kasir');
+        $viewOnly = $this->staff('kasir', $this->storeA, ['InventoryItemResource']);
+
+        $this->api($default)->getJson('/api/staff/inventory')->assertStatus(403);
+        $this->api($default)->getJson('/api/staff/inventory/INV-1')->assertStatus(403);
+        $this->assertFalse($default->hasPpfWfAccess(), 'Akun bawaan tidak melihat menu di aplikasi.');
+
+        $this->api($viewOnly)->getJson('/api/staff/inventory')->assertSuccessful();
+        $this->api($viewOnly)->getJson('/api/staff/inventory/INV-1')->assertSuccessful();
+        $this->api($viewOnly)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'out'])->assertStatus(403);
+        $this->api($viewOnly)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1])->assertStatus(403);
+        $this->api($viewOnly)->postJson('/api/staff/inventory/INV-1/mark-scroll-code-used')->assertStatus(403);
+        $this->assertSame('in_stock', $item->fresh()->status);
+
+        $this->assertFalse($viewOnly->hasModuleAction(\App\Filament\Resources\InventoryItemResource::class, 'update', false));
+        $this->assertTrue($this->staff('kasir')->hasModuleAction(\App\Filament\Resources\InventoryItemResource::class, 'update', false));
+    }
+
+    public function test_an_in_or_out_movement_respects_the_store_that_owns_the_roll(): void
+    {
+        $scroll = $this->scroll('GLN-B', $this->storeB, 'allocated', 15, 15);
+        $this->item('INV-1', 'Film Alpha', $scroll, 'out');
+
+        $this->api($this->staff('kasir', $this->storeA))->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'in'])
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Kode gulungan ini teralokasi ke toko lain.');
+        $this->assertSame('allocated', $scroll->fresh()->status, 'Alokasi toko B tidak boleh dikosongkan staf toko A.');
+        $this->assertSame($this->storeB->id, $scroll->fresh()->store_id);
+        $this->assertSame('out', InventoryItem::where('code', 'INV-1')->value('status'));
+
+        $this->api($this->staff('kasir', $this->storeB))->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'in'])->assertSuccessful();
+        $this->assertSame('unallocated', $scroll->fresh()->status);
+    }
+
     // ------------------------------------------------------------- pencarian & detail
 
     public function test_search_finds_by_name_code_or_the_scroll_code(): void
@@ -109,6 +149,25 @@ class StaffInventoryApiTest extends TestCase
         $this->assertSame(['Film Beta'], $names('INV-B'));
         $this->assertSame(['Film Alpha'], $names('GLN-ALPHA'));
         $this->assertEqualsCanonicalizing(['Film Alpha', 'Film Beta'], $names(''));
+    }
+
+    public function test_the_search_can_be_limited_to_stock_status_and_shows_the_roll_remaining(): void
+    {
+        $this->item('INV-A', 'Film Di Gudang', $this->scroll('GLN-A', null, 'unallocated', 15, 15), 'in_stock');
+        $this->item('INV-B', 'Film Keluar', $this->scroll('GLN-B', $this->storeA, 'allocated', 15, 6), 'out');
+        $user = $this->staff('kasir', $this->storeA);
+
+        $all = $this->api($user)->getJson('/api/staff/inventory')->assertSuccessful()->json('data');
+        $this->assertCount(2, $all);
+
+        $inStock = $this->api($user)->getJson('/api/staff/inventory?status=in_stock')->json('data');
+        $this->assertSame(['Film Di Gudang'], array_column($inStock, 'name'));
+
+        $out = $this->api($user)->getJson('/api/staff/inventory?status=out')->json('data');
+        $this->assertSame(['Film Keluar'], array_column($out, 'name'));
+        $this->assertEquals(6, (float) $out[0]['scroll_code']['remaining_length_meters'], 'Sisa panjang gulungan ikut dikirim untuk daftar.');
+
+        $this->assertCount(2, $this->api($user)->getJson('/api/staff/inventory?status=ngawur')->json('data'), 'Nilai tak dikenal diabaikan.');
     }
 
     public function test_an_unlinked_scroll_code_gets_a_helpful_hint(): void

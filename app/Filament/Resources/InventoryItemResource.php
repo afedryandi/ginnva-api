@@ -43,12 +43,14 @@ class InventoryItemResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Produk PPF/WF';
 
+    /**
+     * Produk PPF/WF menentukan stok dan pergerakan gulungan film, jadi tidak terbuka lewat akses bawaan akun baru (menu_access kosong):
+     * hanya akses penuh atau staf yang menunya dicentang eksplisit. Membuat dan mengubah (termasuk Catat Pemakaian dan Tandai Habis)
+     * masing-masing butuh izin aksi eksplisit (audit Produk PPF/WF, 2026-11-02).
+     */
     public static function canViewAny(): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+        return auth()->user()?->hasExplicitMenuAccess(static::class) ?? false;
     }
 
     /**
@@ -69,20 +71,12 @@ class InventoryItemResource extends Resource
      */
     public static function canCreate(): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'create', true);
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'create', false) ?? false);
     }
 
     public static function canEdit($record): bool
     {
-        $user = auth()->user();
-
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class)
-            && $user->hasModuleAction(static::class, 'update', true);
+        return static::canViewAny() && (auth()->user()?->hasModuleAction(static::class, 'update', false) ?? false);
     }
 
     /**
@@ -91,25 +85,22 @@ class InventoryItemResource extends Resource
      */
     public static function canDelete($record): bool
     {
-        $user = auth()->user();
-
-        return $user?->isFullAccess()
-            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+        return static::canDeleteAny();
     }
 
     public static function canDeleteAny(): bool
     {
         $user = auth()->user();
 
-        return $user?->isFullAccess()
-            || ($user?->hasMenuAccess(static::class) && $user->hasModuleAction(static::class, 'delete', false));
+        return ($user?->isFullAccess() ?? false)
+            || (static::canViewAny() && $user->hasModuleAction(static::class, 'delete', false));
     }
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
         // Eager-load scrollCode — dipakai kolom "Kode Gulungan" DAN
         // visibility tombol "Tandai Habis", hindari N+1 per baris.
-        return parent::getEloquentQuery()->with('scrollCode');
+        return parent::getEloquentQuery()->with('scrollCode.store');
     }
 
     /**
@@ -122,6 +113,16 @@ class InventoryItemResource extends Resource
      * tidak ada pengecekan ini sama sekali, staff toko A bisa beraksi
      * terhadap kode gulungan toko B lewat menu Produk PPF/WF.
      */
+    /** "Belum dialokasikan" / "Dialokasikan ke Toko A" / "Terpakai", untuk label pilihan gulungan. */
+    private static function rollStatusLabel(ScrollCode $roll): string
+    {
+        return match ($roll->status) {
+            'used' => 'Terpakai',
+            'allocated' => 'Dialokasikan' . ($roll->store?->name ? " ke {$roll->store->name}" : ''),
+            default => 'Belum dialokasikan',
+        };
+    }
+
     private static function canActOnScrollCode(?ScrollCode $scrollCode): bool
     {
         if (! $scrollCode || $scrollCode->store_id === null) {
@@ -177,18 +178,21 @@ class InventoryItemResource extends Resource
                         ->label('Kode Gulungan')
                         ->searchable()
                         ->preload()
+                        // Hanya gulungan yang sejalan dengan status barang: barang baru/Ada Stok -> belum dialokasikan; barang Sudah Keluar
+                        // -> sudah dialokasikan ke toko. Yang sudah Terpakai tidak ditawarkan. Gulungan yang sedang dikaitkan tetap muncul.
                         ->getSearchResultsUsing(fn (string $search, ?InventoryItem $record) => ScrollCode::query()
                             ->where('code', 'like', "%{$search}%")
-                            ->where(fn ($q) => $q->doesntHave('inventoryItem')
-                                ->when($record, fn ($q) => $q->orWhere('id', $record->scroll_code_id)))
-                            ->with('filmProduct')
+                            ->where(fn ($q) => $q->where(fn ($free) => $free->doesntHave('inventoryItem')
+                                ->where('status', $record?->status === 'out' ? 'allocated' : 'unallocated'))
+                                ->when($record?->scroll_code_id, fn ($q) => $q->orWhere('id', $record->scroll_code_id)))
+                            ->with(['filmProduct', 'store:id,name'])
                             ->limit(50)
                             ->get()
-                            ->mapWithKeys(fn (ScrollCode $sc) => [$sc->id => $sc->code . ' — ' . ($sc->filmProduct?->name ?? '—')]))
+                            ->mapWithKeys(fn (ScrollCode $sc) => [$sc->id => $sc->code . ' — ' . ($sc->filmProduct?->name ?? '—') . ' · ' . static::rollStatusLabel($sc)]))
                         ->getOptionLabelUsing(function ($value) {
-                            $scrollCode = ScrollCode::with('filmProduct')->find($value);
+                            $scrollCode = ScrollCode::with(['filmProduct', 'store:id,name'])->find($value);
 
-                            return $scrollCode ? $scrollCode->code . ' — ' . ($scrollCode->filmProduct?->name ?? '—') : null;
+                            return $scrollCode ? $scrollCode->code . ' — ' . ($scrollCode->filmProduct?->name ?? '—') . ' · ' . static::rollStatusLabel($scrollCode) : null;
                         })
                         // Kalau kodenya belum pernah didaftarkan (mis. belum
                         // sempat diimpor lewat menu Kode Gulungan), bisa
@@ -276,6 +280,29 @@ class InventoryItemResource extends Resource
                         : null)
                     ->color(fn (InventoryItem $record) => $record->scroll_code_id ? 'primary' : null),
 
+                // Status dan toko gulungan terlihat langsung di daftar (sebelumnya harus membuka barangnya satu per satu).
+                Tables\Columns\TextColumn::make('scrollCode.status')
+                    ->label('Status Gulungan')
+                    ->badge()
+                    ->placeholder('—')
+                    ->formatStateUsing(fn (?string $state) => match ($state) {
+                        'unallocated' => 'Belum dialokasikan',
+                        'allocated' => 'Dialokasikan',
+                        'used' => 'Terpakai',
+                        default => $state,
+                    })
+                    ->color(fn (?string $state) => match ($state) {
+                        'unallocated' => 'success',
+                        'allocated' => 'info',
+                        default => 'gray',
+                    })
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('scrollCode.store.name')
+                    ->label('Toko Gulungan')
+                    ->placeholder('—')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('scrollCode.remaining_length_meters')
                     ->label('Sisa Panjang')
                     ->placeholder('—')
@@ -285,9 +312,22 @@ class InventoryItemResource extends Resource
                     // Sama gaya dengan kolom yang sama di ScrollCodeResource
                     // — sebelumnya teks polos di sini, badge di sana.
                     ->badge()
-                    ->color(fn (InventoryItem $record) => $record->scrollCode?->total_length_meters !== null && (float) $record->scrollCode->remaining_length_meters <= 0
-                        ? 'danger'
-                        : 'info')
+                    // Merah bila habis, kuning bila sisa 20% atau kurang dari total (hampir habis), selain itu biru.
+                    ->color(function (InventoryItem $record) {
+                        $roll = $record->scrollCode;
+
+                        if ($roll?->total_length_meters === null) {
+                            return 'info';
+                        }
+
+                        if ((float) $roll->remaining_length_meters <= 0) {
+                            return 'danger';
+                        }
+
+                        return (float) $roll->total_length_meters > 0 && (float) $roll->remaining_length_meters <= (float) $roll->total_length_meters * 0.2
+                            ? 'warning'
+                            : 'info';
+                    })
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('received_date')
@@ -335,8 +375,40 @@ class InventoryItemResource extends Resource
                         'PPF' => 'PPF',
                         'Window Film' => 'Window Film',
                     ]),
+
+                Tables\Filters\SelectFilter::make('roll_status')
+                    ->label('Status Gulungan')
+                    ->options([
+                        'none' => 'Tanpa kode gulungan',
+                        'unallocated' => 'Belum dialokasikan',
+                        'allocated' => 'Dialokasikan',
+                        'used' => 'Terpakai',
+                    ])
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query, array $data) => match ($data['value'] ?? null) {
+                        'none' => $query->whereNull('scroll_code_id'),
+                        'unallocated', 'allocated', 'used' => $query->whereHas('scrollCode', fn ($roll) => $roll->where('status', $data['value'])),
+                        default => $query,
+                    }),
+
+                Tables\Filters\SelectFilter::make('roll_store')
+                    ->label('Toko Gulungan')
+                    ->options(fn () => \App\Models\Store::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query, array $data) => filled($data['value'] ?? null)
+                        ? $query->whereHas('scrollCode', fn ($roll) => $roll->where('store_id', $data['value']))
+                        : $query),
+
+                // Gulungan yang hampir habis (sisa 20% atau kurang dari total, belum ditandai Terpakai) supaya bisa dipesan ulang tepat waktu.
+                Tables\Filters\Filter::make('low_roll')
+                    ->label('Sisa gulungan menipis (≤ 20%)')
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->whereHas('scrollCode', fn ($roll) => $roll
+                        ->whereNotNull('total_length_meters')
+                        ->where('total_length_meters', '>', 0)
+                        ->where('status', '!=', 'used')
+                        ->whereRaw('remaining_length_meters <= total_length_meters * 0.2'))),
             ])
             ->headerActions([
+                // Template dan Import Excel dikelompokkan jadi satu dropdown "Import" (toolbar sebelumnya terlalu penuh).
+                Tables\Actions\ActionGroup::make([
                 Tables\Actions\Action::make('download_template')
                     ->label('Download Template')
                     ->icon('heroicon-o-document-arrow-down')
@@ -373,6 +445,11 @@ class InventoryItemResource extends Resource
                     ])
                     ->action(fn (array $data) => static::importItems($data['file']))
                     ->modalSubmitActionLabel('Import'),
+                ])
+                    ->label('Import')
+                    ->icon('heroicon-o-arrow-up-tray')
+                    ->color('gray')
+                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
 
                 // Menu "Kode Gulungan" tersendiri SENGAJA disembunyikan
                 // dari navigasi (lihat ScrollCodeResource::shouldRegisterNavigation())
@@ -493,8 +570,7 @@ class InventoryItemResource extends Resource
                             ->whereNotNull('total_length_meters')
                             ->chunkById(100, function ($codes) use (&$mismatches) {
                                 foreach ($codes as $code) {
-                                    $usedTotal = (float) $code->usages()->sum('meters');
-                                    $expectedRemaining = round((float) $code->total_length_meters - $usedTotal, 2);
+                                    $expectedRemaining = $code->expectedRemainingLength();
                                     $diff = round((float) $code->remaining_length_meters - $expectedRemaining, 2);
 
                                     if (abs($diff) > 0.01) {
@@ -558,7 +634,8 @@ class InventoryItemResource extends Resource
                     ->label('Catat Pemakaian')
                     ->icon('heroicon-o-scissors')
                     ->color('warning')
-                    ->visible(fn (InventoryItem $record) => $record->scrollCode?->total_length_meters !== null
+                    ->visible(fn (InventoryItem $record) => static::canEdit($record)
+                        && $record->scrollCode?->total_length_meters !== null
                         && $record->scrollCode->status !== 'used'
                         && static::canActOnScrollCode($record->scrollCode))
                     ->form([
@@ -629,7 +706,8 @@ class InventoryItemResource extends Resource
                     ->label('Tandai Habis')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (InventoryItem $record) => $record->scrollCode?->status === 'allocated'
+                    ->visible(fn (InventoryItem $record) => static::canEdit($record)
+                        && $record->scrollCode?->status === 'allocated'
                         && static::canActOnScrollCode($record->scrollCode))
                     ->requiresConfirmation()
                     ->modalDescription('Tandai kode gulungan barang ini sebagai habis? Kode ini tidak akan muncul lagi di pilihan saat input garansi baru.')
@@ -683,10 +761,11 @@ class InventoryItemResource extends Resource
                             ->helperText('Perkirakan sisa fisik gulungan sekarang kalau kode ini sudah pernah dipakai sebelum fitur ini ada.'),
                     ])
                     ->action(function (InventoryItem $record, array $data) {
-                        $record->scrollCode?->update([
-                            'total_length_meters' => $data['total_length_meters'] ?? null,
-                            'remaining_length_meters' => $data['remaining_length_meters'] ?? null,
-                        ]);
+                        // Selisih terhadap riwayat pemakaian dicatat sebagai koreksi, supaya "Cek Rekonsiliasi" tetap bersih.
+                        $record->scrollCode?->correctLength(
+                            filled($data['total_length_meters'] ?? null) ? (float) $data['total_length_meters'] : null,
+                            filled($data['remaining_length_meters'] ?? null) ? (float) $data['remaining_length_meters'] : null
+                        );
 
                         Notification::make()->title('Data panjang diperbarui')->success()->send();
                     }),
@@ -740,83 +819,124 @@ class InventoryItemResource extends Resource
         array_shift($rows); // baris pertama = header
 
         $createdCount = 0;
-        $invalidCount = 0;
+        $problems = [];          // "Baris N: ..." untuk baris yang dilewati
         $unknownModels = [];
         $scrollCodeConflicts = 0;
+        $scrollCodeUnavailable = 0;
         $productCache = [];
         $seenScrollCodesInFile = [];
 
-        foreach ($rows as $row) {
-            $name = isset($row[0]) ? trim((string) $row[0]) : '';
+        // Satu transaksi untuk seluruh file: galat di tengah tidak meninggalkan sebagian barang (audit Produk PPF/WF, 2026-11-02).
+        try {
+            DB::transaction(function () use ($rows, &$createdCount, &$problems, &$unknownModels, &$scrollCodeConflicts, &$scrollCodeUnavailable, &$productCache, &$seenScrollCodesInFile) {
+                foreach ($rows as $index => $row) {
+                    $line = $index + 2; // nomor baris di spreadsheet (header = baris 1)
+                    $name = isset($row[0]) ? trim((string) $row[0]) : '';
 
-            if ($name === '') {
-                $invalidCount++;
-                continue;
-            }
+                    if ($name === '') {
+                        $problems[] = "Baris {$line}: Nama kosong.";
+                        continue;
+                    }
 
-            $category = isset($row[1]) ? trim((string) $row[1]) : '';
-            $modelCode = isset($row[2]) ? trim((string) $row[2]) : '';
-            $scrollCodeValue = static::normalizeImportedScrollCode($row[3] ?? null);
-            $receivedDate = static::normalizeImportedDate($row[4] ?? null) ?? now()->toDateString();
-            $notes = isset($row[5]) ? trim((string) $row[5]) : '';
+                    if (mb_strlen($name) > 255) {
+                        $problems[] = "Baris {$line} ({$name}): Nama lebih dari 255 karakter.";
+                        continue;
+                    }
 
-            $scrollCodeId = null;
+                    $category = static::normalizeImportedCategory($row[1] ?? null);
 
-            if ($scrollCodeValue !== null) {
-                if (isset($seenScrollCodesInFile[$scrollCodeValue])) {
-                    $scrollCodeConflicts++;
-                } else {
-                    $seenScrollCodesInFile[$scrollCodeValue] = true;
-                    $existing = ScrollCode::where('code', $scrollCodeValue)->first();
+                    if ($category === null) {
+                        $problems[] = "Baris {$line} ({$name}): Kategori harus PPF atau Window Film.";
+                        continue;
+                    }
 
-                    if ($existing) {
-                        if ($existing->inventoryItem()->exists()) {
+                    $rawDate = $row[4] ?? null;
+                    $receivedDate = static::normalizeImportedDate($rawDate);
+
+                    if ($rawDate !== null && $rawDate !== '' && $receivedDate === null) {
+                        $problems[] = "Baris {$line} ({$name}): Tanggal Masuk tidak valid (format DD/MM/YYYY).";
+                        continue;
+                    }
+
+                    if ($receivedDate !== null && $receivedDate > now()->toDateString()) {
+                        $problems[] = "Baris {$line} ({$name}): Tanggal Masuk tidak boleh di masa depan.";
+                        continue;
+                    }
+
+                    $receivedDate ??= now()->toDateString();
+                    $modelCode = isset($row[2]) ? trim((string) $row[2]) : '';
+                    $scrollCodeValue = static::normalizeImportedScrollCode($row[3] ?? null);
+                    $notes = isset($row[5]) ? trim((string) $row[5]) : '';
+
+                    $scrollCodeId = null;
+
+                    if ($scrollCodeValue !== null) {
+                        if (isset($seenScrollCodesInFile[$scrollCodeValue])) {
                             $scrollCodeConflicts++;
                         } else {
-                            $scrollCodeId = $existing->id;
-                        }
-                    } elseif ($modelCode !== '') {
-                        if (! array_key_exists($modelCode, $productCache)) {
-                            $productCache[$modelCode] = FilmProduct::where('sku', 'like', "%-{$modelCode}")->first();
-                        }
-                        $product = $productCache[$modelCode];
+                            $seenScrollCodesInFile[$scrollCodeValue] = true;
+                            $existing = ScrollCode::where('code', $scrollCodeValue)->first();
 
-                        if ($product) {
-                            $defaultLength = $product->product_type === 'ppf' ? 15 : 30;
+                            if ($existing) {
+                                if ($existing->inventoryItem()->exists()) {
+                                    $scrollCodeConflicts++;
+                                } elseif ($existing->status !== 'unallocated') {
+                                    // Barang hasil import berstatus Ada Stok (di gudang): gulungan yang sudah dialokasikan atau Terpakai tidak
+                                    // boleh dikaitkan, kalau tidak alokasinya terhapus diam-diam saat riwayat masuk dicatat.
+                                    $scrollCodeUnavailable++;
+                                } else {
+                                    $scrollCodeId = $existing->id;
+                                }
+                            } elseif ($modelCode !== '') {
+                                if (! array_key_exists($modelCode, $productCache)) {
+                                    $productCache[$modelCode] = FilmProduct::where('sku', 'like', "%-{$modelCode}")->first();
+                                }
+                                $product = $productCache[$modelCode];
 
-                            $scrollCodeId = ScrollCode::create([
-                                'code' => $scrollCodeValue,
-                                'film_product_id' => $product->id,
-                                'total_length_meters' => $defaultLength,
-                                'remaining_length_meters' => $defaultLength,
-                                'status' => 'unallocated',
-                            ])->id;
-                        } else {
-                            $unknownModels[$modelCode] = ($unknownModels[$modelCode] ?? 0) + 1;
+                                if ($product) {
+                                    $defaultLength = $product->product_type === 'ppf' ? 15 : 30;
+
+                                    $scrollCodeId = ScrollCode::create([
+                                        'code' => $scrollCodeValue,
+                                        'film_product_id' => $product->id,
+                                        'total_length_meters' => $defaultLength,
+                                        'remaining_length_meters' => $defaultLength,
+                                        'status' => 'unallocated',
+                                    ])->id;
+                                } else {
+                                    $unknownModels[$modelCode] = ($unknownModels[$modelCode] ?? 0) + 1;
+                                }
+                            }
                         }
                     }
-                }
-            }
 
-            // Status dibuat 'out' dulu (bukan langsung 'in_stock') supaya
-            // recordMovement('in', ...) di bawah bisa jalan dan mencatat 1
-            // baris riwayat "Import Excel" — SEBELUMNYA status langsung
-            // di-set 'in_stock' tanpa lewat recordMovement() sama sekali,
-            // jadi barang hasil import selamanya punya riwayat keluar/masuk
-            // kosong (tidak ada jejak kapan/oleh siapa barang ini pertama
-            // tercatat masuk).
-            $item = InventoryItem::create([
-                'code' => InventoryItem::generateCode(),
-                'name' => $name,
-                'category' => $category ?: null,
-                'received_date' => $receivedDate,
-                'scroll_code_id' => $scrollCodeId,
-                'status' => 'out',
-                'notes' => $notes ?: null,
-                'created_by' => auth()->id(),
-            ]);
-            $item->recordMovement('in', auth()->id(), 'Import Excel');
-            $createdCount++;
+                    // Status dibuat 'out' dulu (bukan langsung 'in_stock') supaya recordMovement('in', ...) di bawah bisa jalan dan mencatat 1
+                    // baris riwayat "Import Excel" — supaya barang hasil import punya jejak kapan/oleh siapa pertama tercatat masuk.
+                    $item = InventoryItem::create([
+                        'code' => InventoryItem::generateCode(),
+                        'name' => $name,
+                        'category' => $category,
+                        'received_date' => $receivedDate,
+                        'scroll_code_id' => $scrollCodeId,
+                        'status' => 'out',
+                        'notes' => $notes ?: null,
+                        'created_by' => auth()->id(),
+                    ]);
+                    $item->recordMovement('in', auth()->id(), 'Import Excel');
+                    $createdCount++;
+                }
+            });
+        } catch (\Throwable $e) {
+            report($e);
+
+            Notification::make()
+                ->title('Import dibatalkan')
+                ->body('Terjadi galat di tengah import, jadi tidak ada barang yang tersimpan: ' . $e->getMessage())
+                ->danger()
+                ->persistent()
+                ->send();
+
+            return;
         }
 
         $unknownSummary = collect($unknownModels)
@@ -824,18 +944,32 @@ class InventoryItemResource extends Resource
             ->implode(', ');
 
         $bodyLines = ["{$createdCount} barang berhasil didaftarkan."];
-        if ($invalidCount > 0) $bodyLines[] = "{$invalidCount} baris dilewati (Nama Barang kosong).";
+        if ($problems !== []) {
+            $bodyLines[] = count($problems) . ' baris dilewati: ' . implode(' ', array_slice($problems, 0, 15)) . (count($problems) > 15 ? ' … dan ' . (count($problems) - 15) . ' lainnya.' : '');
+        }
         if ($scrollCodeConflicts > 0) $bodyLines[] = "{$scrollCodeConflicts} kode gulungan dilewati (sudah dipakai barang lain / duplikat dalam file).";
+        if ($scrollCodeUnavailable > 0) $bodyLines[] = "{$scrollCodeUnavailable} kode gulungan dilewati karena sudah dialokasikan ke toko atau sudah habis (barang tetap dibuat tanpa gulungan).";
         if ($unknownSummary !== '') $bodyLines[] = "Barang tetap dibuat tapi TANPA kode gulungan karena kode model tidak dikenali: {$unknownSummary}.";
 
         Notification::make()
             ->title('Import selesai')
             ->body(implode(' ', $bodyLines))
-            ->color($createdCount > 0 ? 'success' : 'warning')
+            ->color($createdCount > 0 && $problems === [] ? 'success' : 'warning')
             ->persistent()
             ->send();
     }
 
+    /** "ppf" -> PPF; "window film"/"wf"/"kaca film" -> Window Film; selain itu null (kategori form hanya dua itu). */
+    private static function normalizeImportedCategory(mixed $raw): ?string
+    {
+        $value = mb_strtolower(trim((string) $raw));
+
+        return match (true) {
+            $value === 'ppf' => 'PPF',
+            in_array($value, ['window film', 'windowfilm', 'wf', 'kaca film'], true) => 'Window Film',
+            default => null,
+        };
+    }
     /**
      * Sama seperti normalisasi di fitur import Kode Gulungan yang lama —
      * Excel/PhpSpreadsheet bisa mengembalikan kode sebagai float kalau

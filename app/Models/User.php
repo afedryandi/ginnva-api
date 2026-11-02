@@ -571,8 +571,8 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
 
     public function hasPpfWfAccess(): bool
     {
-        return $this->canAccessStaffArea()
-            && $this->hasMenuAccess(\App\Filament\Resources\InventoryItemResource::class);
+        // Eksplisit (bukan akses bawaan): lihat InventoryItemResource::canViewAny().
+        return $this->hasExplicitMenuAccess(\App\Filament\Resources\InventoryItemResource::class);
     }
 
     public function hasMaterialAccess(): bool

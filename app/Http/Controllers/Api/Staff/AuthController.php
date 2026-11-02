@@ -289,6 +289,8 @@ class AuthController extends Controller
             // cuma dicentang akses sebagian tidak lihat menu yang bakal
             // ditolak (403) begitu dibuka.
             'has_ppf_wf_access'    => $user->hasPpfWfAccess(),
+            // Boleh mencatat masuk/keluar, pemakaian meter, dan tandai habis (izin Ubah eksplisit); tanpa ini layar hanya membaca.
+            'can_modify_ppf_wf'    => $user->hasModuleAction(\App\Filament\Resources\InventoryItemResource::class, 'update', false),
             'has_material_access'  => $user->hasMaterialAccess(),
             'has_asset_access'     => $user->hasAssetAccess(),
             'has_consumable_access' => $user->hasConsumableAccess(),

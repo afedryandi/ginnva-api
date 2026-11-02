@@ -24,8 +24,25 @@ class InventoryController extends Controller
     {
         $user = $request->user('api');
 
-        return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(\App\Filament\Resources\InventoryItemResource::class);
+        // Eksplisit (bukan akses bawaan akun baru): lihat InventoryItemResource::canViewAny().
+        return $user?->hasExplicitMenuAccess(\App\Filament\Resources\InventoryItemResource::class) ?? false;
+    }
+
+    /**
+     * Mengubah data (catat masuk/keluar, pemakaian meter, tandai habis) butuh izin Ubah eksplisit selain akses menu; pemegang menu
+     * saja hanya boleh membaca. Mengembalikan respons penolakan, atau null bila boleh.
+     */
+    private function denyUnlessWrite(Request $request): ?\Illuminate\Http\JsonResponse
+    {
+        if (! $this->authorizeScan($request)) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu Inventaris.'], 403);
+        }
+
+        if (! ($request->user('api')->hasModuleAction(\App\Filament\Resources\InventoryItemResource::class, 'update', false))) {
+            return response()->json(['success' => false, 'message' => 'Akun ini hanya boleh melihat data Produk PPF/WF, tidak boleh mengubahnya.'], 403);
+        }
+
+        return null;
     }
 
     /**
@@ -71,6 +88,8 @@ class InventoryController extends Controller
             ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%")
                 ->orWhereHas('scrollCode', fn ($sq) => $sq->where('code', 'like', "%{$search}%"))))
+            // status=in_stock (di gudang) atau status=out (sudah keluar), supaya daftar 30 baris pertama tidak menyembunyikan yang dicari.
+            ->when(in_array($request->query('status'), ['in_stock', 'out'], true), fn ($q) => $q->where('status', $request->query('status')))
             ->orderBy('name')
             ->limit(30)
             ->get(['id', 'code', 'name', 'category', 'status', 'scroll_code_id']);
@@ -220,11 +239,8 @@ class InventoryController extends Controller
      */
     public function storeMovement(Request $request, string $code)
     {
-        if (! $this->authorizeScan($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Inventaris.',
-            ], 403);
+        if ($denied = $this->denyUnlessWrite($request)) {
+            return $denied;
         }
 
         $validator = Validator::make($request->all(), [
@@ -251,6 +267,16 @@ class InventoryController extends Controller
         }
 
         $user = $request->user('api');
+
+        // Gulungan yang sudah dialokasikan ke satu toko hanya boleh digerakkan staf toko itu atau akses penuh; tanpa ini staf toko lain
+        // bisa "mencatat masuk" dan mengosongkan alokasi gulungan toko lain.
+        if (! $this->canActOnScrollCode($item->scrollCode, $user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode gulungan ini teralokasi ke toko lain.',
+            ], 403);
+        }
+
         $storeId = $user->isFullAccess() ? $request->store_id : $user->store_id;
 
         if (
@@ -302,11 +328,8 @@ class InventoryController extends Controller
      */
     public function recordUsage(Request $request, string $code)
     {
-        if (! $this->authorizeScan($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Inventaris.',
-            ], 403);
+        if ($denied = $this->denyUnlessWrite($request)) {
+            return $denied;
         }
 
         $validator = Validator::make($request->all(), [
@@ -401,11 +424,8 @@ class InventoryController extends Controller
      */
     public function markScrollCodeUsed(Request $request, string $code)
     {
-        if (! $this->authorizeScan($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun ini tidak punya akses ke menu Inventaris.',
-            ], 403);
+        if ($denied = $this->denyUnlessWrite($request)) {
+            return $denied;
         }
 
         $item = InventoryItem::where('code', $code)->first();
