@@ -3,12 +3,13 @@
 namespace App\Filament\Pages;
 
 use App\Exports\StockCardReportExport;
-use App\Models\ConsumableItem;
-use App\Models\RawMaterial;
+use App\Services\StockCardService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
@@ -28,6 +29,9 @@ use Maatwebsite\Excel\Facades\Excel;
  * (Sistem tidak menyimpan snapshot stok harian — pola sama dengan
  * StockTurnoverReport.) "Masuk" = movement type 'in' + penyesuaian
  * positif; "Keluar" = type 'out' + |penyesuaian negatif|.
+ *
+ * Perhitungan ada di StockCardService (agregasi SQL, dipakai juga export, PDF, dan mobile). Audit 2026-11-03: akses eksplisit, baris
+ * total, pencarian/filter kategori/hanya yang bergerak/urutan, penanda stok menipis/nonaktif/tidak sinkron, rincian mutasi per barang.
  *
  * Stok masih NASIONAL (belum per-cabang) — kolom per-cabang menyusul
  * kalau keputusan model stok sudah turun (lihat dokumen keputusan).
@@ -63,12 +67,21 @@ class StockCardReport extends Page implements HasForms
     #[Url(as: 'jenis')]
     public ?string $jenisFilter = null;
 
+    /** Jumlah baris yang ditampilkan di layar (export selalu memuat semuanya). */
+    public int $limit = 50;
+
+    /** Rincian mutasi yang sedang dibuka: ['source' => ..., 'id' => ...]. */
+    public ?array $detailKey = null;
+
+    private ?array $resultCache = null;
+
+    /** Eksplisit (bukan akses bawaan): akun dengan menu kosong tidak ikut (audit Daftar Stok 2026-11-03). */
     public static function canAccess(): bool
     {
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public function mount(): void
@@ -82,7 +95,7 @@ class StockCardReport extends Page implements HasForms
             $this->to = $this->from;
         }
 
-        if (! in_array($this->jenisFilter, ['all', 'raw_material', 'consumable_item'], true)) {
+        if (! in_array($this->jenisFilter, StockCardService::JENIS, true)) {
             $this->jenisFilter = 'all';
         }
 
@@ -90,6 +103,10 @@ class StockCardReport extends Page implements HasForms
             'from' => $this->from,
             'to' => $this->to,
             'jenis' => $this->jenisFilter,
+            'search' => null,
+            'category' => null,
+            'only_moved' => false,
+            'sort' => 'name',
         ]);
     }
 
@@ -115,6 +132,13 @@ class StockCardReport extends Page implements HasForms
             default => null,
         };
 
+        // Filter berubah: mulai lagi dari halaman pertama dan tutup rincian.
+        if (in_array($key, ['from', 'to', 'jenis', 'search', 'category', 'only_moved', 'sort', 'preset'], true)) {
+            $this->limit = 50;
+            $this->detailKey = null;
+            $this->resultCache = null;
+        }
+
         // "Sampai" sebelum "Dari" (audit Daftar Stok 2026-09-30): sebelumnya diam-diam
         // menghasilkan hasil kosong tanpa penjelasan -- dikoreksi + diberi tahu, sama pola dengan
         // laporan Penjualan lain. TIDAK pakai minDate() reaktif di form (pernah membuat panel
@@ -131,15 +155,47 @@ class StockCardReport extends Page implements HasForms
         }
     }
 
-    /** Link drill-down ke halaman edit Bahan Baku/Barang Habis Pakai terkait. */
-    public function materialUrl(int $id): string
+    /** Link ke halaman Lihat bahan/barang, hanya bila akun ini boleh membukanya (tanpa itu berujung 403). */
+    public function itemUrl(array $row): ?string
     {
-        return \App\Filament\Resources\RawMaterialResource::getUrl('view', ['record' => $id]);
+        if ($row['source'] === 'raw_material') {
+            return \App\Filament\Resources\RawMaterialResource::canViewAny()
+                ? \App\Filament\Resources\RawMaterialResource::getUrl('view', ['record' => $row['id']])
+                : null;
+        }
+
+        return \App\Filament\Resources\ConsumableItemResource::canViewAny()
+            ? \App\Filament\Resources\ConsumableItemResource::getUrl('view', ['record' => $row['id']])
+            : null;
     }
 
-    public function consumableUrl(int $id): string
+    public function showMore(): void
     {
-        return \App\Filament\Resources\ConsumableItemResource::getUrl('view', ['record' => $id]);
+        $this->limit += 50;
+    }
+
+    public function openDetail(string $source, int $id): void
+    {
+        $this->detailKey = in_array($source, ['raw_material', 'consumable_item'], true) ? ['source' => $source, 'id' => $id] : null;
+    }
+
+    public function closeDetail(): void
+    {
+        $this->detailKey = null;
+    }
+
+    public function getDetail(): ?array
+    {
+        if ($this->detailKey === null) {
+            return null;
+        }
+
+        return app(StockCardService::class)->detail(
+            $this->detailKey['source'],
+            (int) $this->detailKey['id'],
+            Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay(),
+            Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay()
+        );
     }
 
     /** Log ekspor (audit Daftar Stok 2026-09-30), konsisten dengan laporan lain. */
@@ -221,6 +277,7 @@ class StockCardReport extends Page implements HasForms
                         $set('to', $range[1]->toDateString());
                         $this->from = $range[0]->toDateString();
                         $this->to = $range[1]->toDateString();
+                        $this->resultCache = null;
                     }
                 }),
 
@@ -236,76 +293,52 @@ class StockCardReport extends Page implements HasForms
                 ->default('all')
                 ->selectablePlaceholder(false)
                 ->live(),
+
+            TextInput::make('search')
+                ->label('Cari')
+                ->placeholder('Nama atau kode barang')
+                ->live(debounce: 500),
+
+            Select::make('category')
+                ->label('Kategori')
+                ->options(fn () => app(StockCardService::class)->categories())
+                ->searchable()
+                ->placeholder('Semua kategori')
+                ->live(),
+
+            Select::make('sort')
+                ->label('Urutan')
+                ->options(StockCardService::SORTS)
+                ->default('name')
+                ->selectablePlaceholder(false)
+                ->live(),
+
+            Toggle::make('only_moved')
+                ->label('Hanya yang bergerak di periode')
+                ->live()
+                ->inline(false),
         ])->columns(4)->statePath('data');
     }
 
     public function getResult(): array
     {
+        if ($this->resultCache !== null) {
+            return $this->resultCache;
+        }
+
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
-        $jenis = $this->data['jenis'] ?? 'all';
+        $jenis = in_array($this->data['jenis'] ?? 'all', StockCardService::JENIS, true) ? ($this->data['jenis'] ?? 'all') : 'all';
+        $sort = array_key_exists($this->data['sort'] ?? 'name', StockCardService::SORTS) ? ($this->data['sort'] ?? 'name') : 'name';
 
-        $rows = collect();
-
-        if ($jenis === 'all' || $jenis === 'raw_material') {
-            RawMaterial::query()
-                ->with(['movements' => fn ($q) => $q->where('created_at', '>=', $from)])
-                ->orderBy('name')
-                ->get()
-                ->each(fn (RawMaterial $item) => $rows->push($this->computeCard($item, 'Bahan Baku', 'raw_material', $from, $to)));
-        }
-
-        if ($jenis === 'all' || $jenis === 'consumable_item') {
-            ConsumableItem::query()
-                ->with(['movements' => fn ($q) => $q->where('created_at', '>=', $from)])
-                ->orderBy('name')
-                ->get()
-                ->each(fn (ConsumableItem $item) => $rows->push($this->computeCard($item, 'Barang Habis Pakai', 'consumable_item', $from, $to)));
-        }
-
-        return [
-            'from' => $from,
-            'to' => $to,
-            'rows' => $rows->values(),
-            'totals' => [
-                'masuk' => $rows->sum('masuk'),
-                'keluar' => $rows->sum('keluar'),
-            ],
-        ];
-    }
-
-    /**
-     * @param  RawMaterial|ConsumableItem  $item
-     */
-    private function computeCard($item, string $jenis, string $source, Carbon $from, Carbon $to): array
-    {
-        // net movement 1 baris (signed): in / adjustment(+delta) = +qty ; out = -qty
-        $net = fn ($m) => $m->type === 'out' ? -(float) $m->quantity : (float) $m->quantity;
-
-        $netAfterTo = $item->movements->where('created_at', '>', $to)->sum($net);
-        $akhir = (float) $item->current_stock - $netAfterTo;
-
-        $inPeriod = $item->movements->whereBetween('created_at', [$from, $to]);
-        $netDuring = $inPeriod->sum($net);
-        $awal = $akhir - $netDuring;
-
-        $masuk = (float) $inPeriod->where('type', 'in')->sum('quantity')
-            + (float) $inPeriod->where('type', 'adjustment')->where('quantity', '>', 0)->sum('quantity');
-        $keluar = (float) $inPeriod->where('type', 'out')->sum('quantity')
-            + (float) $inPeriod->where('type', 'adjustment')->where('quantity', '<', 0)->sum(fn ($m) => abs((float) $m->quantity));
-
-        return [
-            'id' => $item->id,
-            'source' => $source,
-            'name' => $item->name,
-            'code' => $item->code,
-            'jenis' => $jenis,
-            'unit' => $item->unit,
-            'awal' => round(max(0, $awal), 2),
-            'masuk' => round($masuk, 2),
-            'keluar' => round($keluar, 2),
-            'akhir' => round(max(0, $akhir), 2),
-            'hasMovement' => $inPeriod->isNotEmpty(),
-        ];
+        return $this->resultCache = app(StockCardService::class)->build(
+            $from,
+            $to,
+            $jenis,
+            $this->data['search'] ?? null,
+            $this->data['category'] ?? null,
+            (bool) ($this->data['only_moved'] ?? false),
+            $sort
+        );
     }
 }

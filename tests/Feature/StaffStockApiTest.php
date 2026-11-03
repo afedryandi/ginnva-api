@@ -1437,4 +1437,40 @@ class StaffStockApiTest extends TestCase
 
         $this->api($this->staff('kasir', $this->storeA, ['BookingResource']))->getJson('/api/staff/consumable-movements')->assertStatus(403);
     }
+    public function test_the_stock_card_api_follows_menu_access_and_matches_the_panel_numbers(): void
+    {
+        $film = $this->material('Film', 60);
+        $film->update(['reorder_point' => 100]);
+        $this->consumable('Lap', 6);
+        $admin = $this->staff('super_admin');
+        $film->recordMovement('in', 20, $admin->id, 'masuk', null, null, null, $this->storeA->id);
+        $film->fresh()->recordMovement('out', 5, $admin->id, 'keluar', storeId: $this->storeA->id);
+
+        $this->getJson('/api/staff/stock-card')->assertStatus(401);
+
+        $both = $this->warehouse($this->storeA);
+        $res = $this->api($both)->getJson('/api/staff/stock-card?from=2026-10-01&until=2026-10-31')->assertSuccessful();
+        $this->assertSame('all', $res->json('available_jenis'));
+        $row = collect($res->json('data'))->firstWhere('name', 'Film');
+        $this->assertEquals(75, $row['akhir'], '60 + 20 masuk - 5 keluar.');
+        $this->assertEquals(20, $row['masuk']);
+        $this->assertEquals(5, $row['keluar']);
+        $this->assertEquals(60, $row['awal'], 'Awal = Akhir - Masuk + Keluar.');
+        $this->assertTrue($row['low']);
+        $this->assertEquals(20, $res->json('totals.masuk'));
+        $this->assertArrayNotHasKey('unit_cost', $row, 'Tanpa harga.');
+
+        $this->assertSame(['Film'], array_column($this->api($both)->getJson('/api/staff/stock-card?from=2026-10-01&until=2026-10-31&only_moved=1')->json('data'), 'name'));
+        $this->assertSame(['Lap'], array_column($this->api($both)->getJson('/api/staff/stock-card?search=lap')->json('data'), 'name'));
+
+        // Hanya menu asal yang boleh: akun bahan-baku-saja tidak melihat barang habis pakai.
+        $materialsOnly = $this->staff('kasir', $this->storeA, ['RawMaterialResource']);
+        $only = $this->api($materialsOnly)->getJson('/api/staff/stock-card')->assertSuccessful();
+        $this->assertSame('raw_material', $only->json('available_jenis'));
+        $this->assertSame(['Film'], array_column($only->json('data'), 'name'));
+        $this->api($materialsOnly)->getJson('/api/staff/stock-card?jenis=consumable_item')->assertStatus(403);
+
+        $this->api($this->staff('kasir', $this->storeA, ['BookingResource']))->getJson('/api/staff/stock-card')->assertStatus(403);
+        $this->api($both)->getJson('/api/staff/stock-card?jenis=ngawur')->assertStatus(422);
+    }
 }

@@ -60,8 +60,9 @@ class ExpiringStockReport extends Page implements HasForms
     {
         $user = auth()->user();
 
+        // Eksplisit (bukan akses bawaan): akun dengan menu kosong tidak ikut (audit Daftar Stok 2026-11-03).
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public function mount(): void

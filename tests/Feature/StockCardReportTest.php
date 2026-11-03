@@ -279,6 +279,12 @@ class StockCardReportTest extends TestCase
 
         $this->actingAs($this->user('kasir', $store, ['menu_access' => ['BookingResource']]), 'web');
         $this->assertFalse(StockCardReport::canAccess());
+
+        // Akses bawaan (menu kosong) tidak membuka laporan stok (audit 2026-11-03), begitu pula dua laporan saudaranya.
+        $this->actingAs($this->user('kasir', $store), 'web');
+        $this->assertFalse(StockCardReport::canAccess());
+        $this->assertFalse(\App\Filament\Pages\ExpiringStockReport::canAccess());
+        $this->assertFalse(\App\Filament\Pages\StockTurnoverReport::canAccess());
     }
 
     // ------------------------------------------------------------- ekspor
@@ -294,9 +300,10 @@ class StockCardReportTest extends TestCase
         Excel::assertDownloaded('daftar-stok-20261008-100000.xlsx', function ($export) {
             $rows = $export->array();
 
-            return $export->headings() === ['Kode', 'Nama', 'Jenis', 'Awal', 'Masuk', 'Keluar', 'Akhir', 'Satuan']
+            return $export->headings()[3] === ['Kode', 'Nama', 'Jenis', 'Kategori', 'Status', 'Awal', 'Masuk', 'Keluar', 'Akhir', 'Satuan', 'Stok Minimum', 'Catatan']
+                && $export->headings()[1] === ['Periode: 01/10/2026 s/d 15/10/2026 · Semua jenis']
                 && count($rows) === 3
-                && in_array(['RM-FILM', 'Film', 'Bahan Baku', 100.0, 20.0, 50.0, 70.0, 'meter'], $rows, true);
+                && in_array(['RM-FILM', 'Film', 'Bahan Baku', '-', 'Aktif', 100.0, 20.0, 50.0, 70.0, 'meter', '-', ''], $rows, true);
         });
 
         $page->callAction('exportPdf')->assertFileDownloaded('daftar-stok-20261008-100000.pdf');
@@ -307,5 +314,120 @@ class StockCardReportTest extends TestCase
         $this->assertSame('stock_card', $logs[0]->properties['report']);
         $this->assertSame('2026-10-01', $logs[0]->properties['from']);
         $this->assertSame($admin->id, $logs[0]->causer_id);
+    }
+    // ------------------------------------------------------------- audit 2026-11-03
+
+    public function test_search_category_only_moved_and_sort_narrow_and_order_the_rows(): void
+    {
+        $this->stock();
+        RawMaterial::query()->where('name', 'Film')->update(['category' => 'film']);
+        RawMaterial::query()->where('name', 'Diam')->update(['category' => 'lain']);
+
+        $this->assertSame(['Film'], collect($this->report(self::RANGE + ['search' => 'RM-FILM'])['rows'])->pluck('name')->all());
+        $this->assertSame(['Diam'], collect($this->report(self::RANGE + ['category' => 'lain'])['rows'])->pluck('name')->all());
+        $this->assertSame(['Film', 'Lap'], collect($this->report(self::RANGE + ['only_moved' => true])['rows'])->pluck('name')->sort()->values()->all());
+
+        $this->assertSame(['Film', 'Lap', 'Diam'], collect($this->report(self::RANGE + ['sort' => 'keluar_desc'])['rows'])->pluck('name')->all());
+        $this->assertSame(['Lap', 'Diam', 'Film'], collect($this->report(self::RANGE + ['sort' => 'akhir_asc'])['rows'])->pluck('name')->all());
+    }
+
+    public function test_the_totals_row_is_shown_and_the_rows_are_paged(): void
+    {
+        foreach (range(1, 60) as $i) {
+            RawMaterial::create(['name' => sprintf('Bahan %02d', $i), 'code' => sprintf('RM-%02d', $i), 'unit' => 'pcs', 'current_stock' => 1]);
+        }
+
+        $page = $this->page();
+        $page->assertSee('Total 60 barang')->assertSee('Tampilkan lebih banyak (50 dari 60)')->assertDontSee('Bahan 60');
+        $page->call('showMore')->assertSee('Bahan 60')->assertDontSee('Tampilkan lebih banyak');
+    }
+
+    public function test_inactive_items_show_only_with_stock_or_movement_and_are_labelled(): void
+    {
+        $this->stock();
+        RawMaterial::create(['name' => 'Mati Kosong', 'code' => 'RM-MK', 'unit' => 'pcs', 'current_stock' => 0, 'is_active' => false]);
+        RawMaterial::create(['name' => 'Mati Berstok', 'code' => 'RM-MB', 'unit' => 'pcs', 'current_stock' => 4, 'is_active' => false]);
+
+        $names = collect($this->report()['rows'])->pluck('name')->all();
+        $this->assertNotContains('Mati Kosong', $names);
+        $this->assertContains('Mati Berstok', $names);
+        $this->assertTrue($this->row($this->report(), 'Mati Berstok')['inactive']);
+
+        $this->page()->assertSee('Mati Berstok')->assertSee('Nonaktif');
+    }
+
+    public function test_low_stock_and_inconsistent_items_are_flagged_without_clamping_to_zero(): void
+    {
+        $low = RawMaterial::create(['name' => 'Menipis', 'code' => 'RM-LOW', 'unit' => 'pcs', 'current_stock' => 2, 'reorder_point' => 5]);
+        $broken = RawMaterial::create(['name' => 'Janggal', 'code' => 'RM-BAD', 'unit' => 'pcs', 'current_stock' => 5]);
+        $this->rawMove($broken, 'in', 10, '2026-10-05 09:00:00');
+
+        $result = $this->report();
+        $this->assertTrue($this->row($result, 'Menipis')['low']);
+        $janggal = $this->row($result, 'Janggal');
+        $this->assertTrue($janggal['anomaly']);
+        $this->assertEqualsWithDelta(-5.0, $janggal['awal'], 0.001, 'Angka negatif ditampilkan apa adanya, bukan dipaksa 0.');
+        $this->assertSame(1, $result['totals']['anomalies']);
+
+        $this->page()->assertSee('1 barang punya Awal atau Akhir negatif')->assertSee('Menipis');
+    }
+
+    public function test_reversed_movements_are_ignored(): void
+    {
+        $item = RawMaterial::create(['name' => 'Film', 'code' => 'RM-FILM', 'unit' => 'meter', 'current_stock' => 10]);
+        $this->rawMove($item, 'in', 10, '2026-10-05 09:00:00');
+        $row = RawMaterialMovement::create(['raw_material_id' => $item->id, 'type' => 'in', 'quantity' => 99, 'reversed_at' => now(), 'reversed_reason' => 'Salah']);
+        DB::table('raw_material_movements')->where('id', $row->id)->update(['created_at' => '2026-10-06 09:00:00']);
+
+        $film = $this->row($this->report(), 'Film');
+
+        $this->assertEqualsWithDelta(10.0, $film['masuk'], 0.001, 'Pencatatan yang dibatalkan tidak dihitung.');
+        $this->assertEqualsWithDelta(0.0, $film['awal'], 0.001);
+    }
+
+    public function test_the_detail_shows_the_movements_with_a_running_balance(): void
+    {
+        $this->stock();
+        $film = RawMaterial::where('name', 'Film')->firstOrFail();
+
+        $page = $this->page()->call('openDetail', 'raw_material', $film->id);
+        $page->assertSee('Rincian — Film')->assertSee('Saldo awal periode')->assertSee('Saldo akhir periode');
+
+        $detail = $page->instance()->getDetail();
+        $this->assertEqualsWithDelta(100.0, $detail['awal'], 0.001);
+        $this->assertEqualsWithDelta(70.0, $detail['akhir'], 0.001);
+        $this->assertSame([70.0, 90.0, 70.0], array_column($detail['lines'], 'balance'));
+        $this->assertSame(['Keluar', 'Masuk', 'Keluar'], array_column($detail['lines'], 'type'));
+
+        $page->call('closeDetail')->assertDontSee('Rincian — Film');
+        // Mengganti filter menutup rincian.
+        $page->call('openDetail', 'raw_material', $film->id)->set('data.jenis', 'consumable_item')->assertDontSee('Rincian — Film');
+    }
+
+    public function test_item_links_only_appear_for_accounts_that_may_open_the_item(): void
+    {
+        $this->stock();
+        $film = RawMaterial::where('name', 'Film')->firstOrFail();
+        $row = ['source' => 'raw_material', 'id' => $film->id];
+
+        $onlyCard = $this->user('kasir', null, ['menu_access' => ['StockCardReport']]);
+        $this->actingAs($onlyCard, 'web');
+        $this->assertNull(Livewire::test(StockCardReport::class)->instance()->itemUrl($row));
+
+        $withMaterials = $this->user('kasir', null, ['menu_access' => ['StockCardReport', 'RawMaterialResource']]);
+        $this->actingAs($withMaterials, 'web');
+        $this->assertStringContainsString("/{$film->id}", (string) Livewire::test(StockCardReport::class)->instance()->itemUrl($row));
+    }
+
+    public function test_the_excel_export_carries_title_period_status_and_notes(): void
+    {
+        $this->stock();
+        RawMaterial::create(['name' => 'Menipis', 'code' => 'RM-LOW', 'unit' => 'pcs', 'current_stock' => 2, 'reorder_point' => 5, 'is_active' => false]);
+
+        $export = new \App\Exports\StockCardReportExport($this->report());
+        $rows = $export->array();
+
+        $this->assertSame(['Daftar Stok (Kartu Stok)'], $export->headings()[0]);
+        $this->assertContains(['RM-LOW', 'Menipis', 'Bahan Baku', '-', 'Nonaktif', 2.0, 0.0, 0.0, 2.0, 'pcs', 5.0, 'Stok menipis'], $rows);
     }
 }

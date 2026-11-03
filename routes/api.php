@@ -500,6 +500,7 @@ Route::prefix('staff')->group(function () {
         // Bahan Baku & Barang Habis Pakai — label QR dicetak dari panel (StockScanCode), scan lewat /stock-scan; ringkasan Beranda
         // (/stock-overview) merangkum stok menipis, kedaluwarsa, dan permohonan yang menunggu diterima. Dibatasi ke staff yang akun
         // Filament-nya dicentang akses menu masing-masing.
+        Route::get('/stock-card', [\App\Http\Controllers\Api\Staff\StockCardController::class, 'index']);
         Route::get('/stock-scan', [\App\Http\Controllers\Api\Staff\StockScanController::class, 'lookup'])
             ->middleware('throttle:60,1');
         Route::get('/materials', [StaffRawMaterialController::class, 'index']);
