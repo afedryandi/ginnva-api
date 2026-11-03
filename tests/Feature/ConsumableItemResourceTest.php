@@ -499,7 +499,7 @@ class ConsumableItemResourceTest extends TestCase
         $this->assertNotNull($writeOff->journal_entry_id);
 
         Livewire::test(ListConsumableItems::class)
-            ->callTableAction('write_off', $unpriced, data: ['quantity' => 5, 'reason' => 'lost'])
+            ->callTableAction('write_off', $unpriced, data: ['quantity' => 5, 'reason' => 'lost', 'note' => 'Hilang'])
             ->assertHasNoTableActionErrors();
         $this->assertEqualsWithDelta(25.0, (float) $unpriced->fresh()->current_stock, 0.001);
         $this->assertNull(StockWriteOff::latest('id')->first()->total_value);

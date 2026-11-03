@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasStoreScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Spatie\Activitylog\LogOptions;
@@ -38,13 +39,35 @@ class StockWriteOff extends Model
         'store_id',
         'journal_entry_id',
         'created_by',
+        'cancelled_at',
+        'cancelled_by',
+        'cancelled_reason',
+        'reversal_journal_entry_id',
     ];
 
     protected $casts = [
         'quantity' => 'decimal:2',
         'unit_cost' => 'decimal:2',
         'total_value' => 'decimal:2',
+        'cancelled_at' => 'datetime',
     ];
+
+    /** Alasan yang wajib disertai catatan: tanpa penjelasan, "hilang" dan "lainnya" tidak bisa ditelusuri. */
+    public const REASONS_NEEDING_NOTE = ['lost', 'other'];
+
+    /**
+     * Stok Terbuang yang DIBATALKAN disembunyikan dari kueri bawaan (ringkasan Dashboard Inventaris, total), seolah tidak pernah
+     * ada. Hanya menu Stok Terbuang dan layar daftar di aplikasi yang menampilkannya (withoutGlobalScope('effective')).
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope('effective', fn (Builder $query) => $query->whereNull($query->getModel()->getTable() . '.cancelled_at'));
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->cancelled_at !== null;
+    }
 
     public const REASON_LABELS = [
         'damaged' => 'Rusak',
@@ -100,6 +123,16 @@ class StockWriteOff extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function reversalJournalEntry(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class, 'reversal_journal_entry_id');
     }
 
     public function getActivitylogOptions(): LogOptions

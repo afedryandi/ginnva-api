@@ -104,8 +104,13 @@ class StockWriteOffResourceTest extends TestCase
         $this->assertFalse(StockWriteOffResource::canEdit($record));
         $this->assertFalse(StockWriteOffResource::canDelete($record));
 
+        // Akses eksplisit: akun dengan menu kosong (akses bawaan) tidak ikut.
         $this->as($this->user('kasir'));
+        $this->assertFalse(StockWriteOffResource::canViewAny());
+
+        $this->as($this->user('kasir', null, ['StockWriteOffResource']));
         $this->assertTrue(StockWriteOffResource::canViewAny());
+        $this->assertFalse(StockWriteOffResource::canSeeValue());
 
         $this->as($this->user('kasir', null, ['BookingResource']));
         $this->assertFalse(StockWriteOffResource::canViewAny());
@@ -117,7 +122,7 @@ class StockWriteOffResourceTest extends TestCase
         $b = $this->writeOff(['store_id' => $this->storeB->id, 'item_name' => 'Punya B']);
         $central = $this->writeOff(['store_id' => null, 'item_name' => 'Pusat']);
 
-        $this->as($this->user('kasir', $this->storeA));
+        $this->as($this->user('kasir', $this->storeA, ['StockWriteOffResource']));
         Livewire::test(ListStockWriteOffs::class)
             ->assertCanSeeTableRecords([$a])
             ->assertCanNotSeeTableRecords([$b, $central]);
@@ -207,7 +212,7 @@ class StockWriteOffResourceTest extends TestCase
 
         Livewire::test(ListStockWriteOffs::class)->assertCanSeeTableRecords([$row]);
 
-        $this->as($this->user('kasir', $this->storeB));
+        $this->as($this->user('kasir', $this->storeB, ['StockWriteOffResource']));
         Livewire::test(ListStockWriteOffs::class)->assertCanNotSeeTableRecords([$row]);
 
         $this->as($this->user('super_admin'));
@@ -220,7 +225,7 @@ class StockWriteOffResourceTest extends TestCase
         $this->as($this->user('super_admin'));
 
         Livewire::test(ListRawMaterials::class)
-            ->callTableAction('write_off', $material, data: ['quantity' => 1, 'reason' => 'lost'])
+            ->callTableAction('write_off', $material, data: ['quantity' => 1, 'reason' => 'lost', 'note' => 'Hilang saat pindah gudang'])
             ->assertHasNoTableActionErrors();
 
         $this->assertNull(StockWriteOff::withoutGlobalScopes()->firstOrFail()->store_id);
@@ -281,7 +286,7 @@ class StockWriteOffResourceTest extends TestCase
             $rows = $export->query()->get();
 
             return $rows->count() === 1
-                && $export->map($rows->first()) === ['WO-20261008-0001', '08/10/2026 10:00', 'Adhesive', 'Bahan Baku', '2.50 liter', 'Rusak', 125000.0, 'Tidak', 'Alice', 'Tumpah'];
+                && $export->map($rows->first()) === ['WO-20261008-0001', '08/10/2026 10:00', 'Adhesive', 'Bahan Baku', '2.50 liter', 'Rusak', 125000.0, 'Tidak', 'Alice', 'Tumpah', '-', 'Berlaku'];
         });
 
         $log = Activity::where('log_name', 'report_export')->latest('id')->firstOrFail();
@@ -307,5 +312,109 @@ class StockWriteOffResourceTest extends TestCase
             ->assertFileDownloaded('stok-terbuang-20261008-100000.pdf');
 
         $this->assertSame('pdf', Activity::where('log_name', 'report_export')->latest('id')->firstOrFail()->properties['format']);
+    }
+    // ------------------------------------------------------------- audit 2026-11-03
+
+    private function staffOf(Store $store, array $permissions = []): User
+    {
+        return $this->user('kasir', $store, ['StockWriteOffResource'], $permissions === [] ? [] : ['menu_permissions' => ['StockWriteOffResource' => $permissions]]);
+    }
+
+    public function test_the_value_needs_the_view_grant_in_the_list_export_and_pdf(): void
+    {
+        $this->writeOff(['store_id' => $this->storeA->id, 'total_value' => 125000]);
+
+        $this->as($this->staffOf($this->storeA));
+        $this->assertFalse(StockWriteOffResource::canSeeValue());
+        Livewire::test(ListStockWriteOffs::class)->assertTableColumnHidden('total_value')->assertSee('Kejadian Bulan Ini')->assertDontSee('Nilai Kerugian Bulan Ini');
+        $this->assertNotContains('Nilai Kerugian', (new StockWriteOffExport(null, false))->headings());
+        $this->assertCount(10, (new StockWriteOffExport(null, false))->map(StockWriteOff::first()));
+
+        $this->as($this->staffOf($this->storeA, ['view']));
+        $this->assertTrue(StockWriteOffResource::canSeeValue());
+        Livewire::test(ListStockWriteOffs::class)->assertTableColumnVisible('total_value')->assertSee('Nilai Kerugian Bulan Ini');
+        $this->assertContains('Nilai Kerugian', (new StockWriteOffExport())->headings());
+    }
+
+    public function test_only_full_access_cancels_and_a_cancelled_row_is_kept_marked_and_excluded_from_the_stats(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $material = $this->material('Adhesive', 20, 50000);
+        $record = app(\App\Services\StockWriteOffService::class)->record($material->fresh(), 'raw_material', 5, 'damaged', 'Tumpah', $admin->id);
+
+        $this->as($this->staffOf($this->storeA));
+        Livewire::test(ListStockWriteOffs::class)->assertTableActionHidden('cancel', $record);
+
+        $this->as($admin);
+        Livewire::test(ListStockWriteOffs::class)
+            ->assertTableActionVisible('cancel', $record)
+            ->callTableAction('cancel', $record, data: ['reason' => ''])
+            ->assertHasTableActionErrors(['reason' => 'required']);
+        $this->assertEquals(15, (float) $material->fresh()->current_stock);
+
+        Livewire::test(ListStockWriteOffs::class)
+            ->callTableAction('cancel', $record, data: ['reason' => 'Salah jumlah'])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertEquals(20, (float) $material->fresh()->current_stock);
+        $cancelled = StockWriteOff::withoutGlobalScope('effective')->findOrFail($record->id);
+        $this->assertSame([$admin->id, 'Salah jumlah'], [$cancelled->cancelled_by, $cancelled->cancelled_reason]);
+        $this->assertNotNull($cancelled->reversal_journal_entry_id);
+
+        Livewire::test(ListStockWriteOffs::class)
+            ->assertCanSeeTableRecords([$cancelled])
+            ->assertTableActionHidden('cancel', $cancelled)
+            ->filterTable('cancelled', false)->assertCanNotSeeTableRecords([$cancelled]);
+        Livewire::test(\App\Filament\Resources\StockWriteOffResource\Widgets\StockWriteOffStatsOverview::class)->assertSee('Kejadian Bulan Ini')->assertDontSee('250.000');
+    }
+
+    public function test_the_note_is_mandatory_for_lost_and_other_in_the_panel_form(): void
+    {
+        $material = $this->material('Adhesive', 20, 50000);
+        $this->as($this->user('super_admin'));
+
+        Livewire::test(ListRawMaterials::class)
+            ->callTableAction('write_off', $material, data: ['quantity' => 1, 'reason' => 'lost', 'note' => ''])
+            ->assertHasTableActionErrors(['note' => 'required']);
+        Livewire::test(ListRawMaterials::class)
+            ->callTableAction('write_off', $material, data: ['quantity' => 1, 'reason' => 'damaged', 'note' => ''])
+            ->assertHasNoTableActionErrors();
+    }
+
+    public function test_new_filters_period_store_and_the_detail_page(): void
+    {
+        $old = $this->writeOff(['store_id' => $this->storeA->id, 'item_name' => 'Lama', 'at' => '2026-09-01 09:00:00']);
+        $today = $this->writeOff(['store_id' => $this->storeB->id, 'item_name' => 'Baru', 'note' => 'Catatan lengkap', 'at' => '2026-10-08 08:00:00']);
+
+        $this->as($this->user('super_admin'));
+        Livewire::test(ListStockWriteOffs::class)
+            ->filterTable('period', 'today')->assertCanSeeTableRecords([$today])->assertCanNotSeeTableRecords([$old]);
+        Livewire::test(ListStockWriteOffs::class)
+            ->filterTable('store_id', $this->storeA->id)->assertCanSeeTableRecords([$old])->assertCanNotSeeTableRecords([$today]);
+
+        Livewire::test(\App\Filament\Resources\StockWriteOffResource\Pages\ViewStockWriteOff::class, ['record' => $today->getRouteKey()])
+            ->assertSuccessful()->assertSee('Baru')->assertSee('Catatan lengkap');
+
+        $this->as($this->staffOf($this->storeA));
+        try {
+            Livewire::test(\App\Filament\Resources\StockWriteOffResource\Pages\ViewStockWriteOff::class, ['record' => $today->getRouteKey()]);
+            $this->fail('Baris toko lain tidak boleh bisa dibuka.');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            $this->assertTrue(true);
+        }
+    }
+
+    public function test_the_item_link_only_appears_when_the_item_exists_and_may_be_opened(): void
+    {
+        $material = $this->material('Adhesive');
+        $linked = $this->writeOff(['writeoffable_id' => $material->id]);
+        $orphan = $this->writeOff(['writeoffable_id' => 999999]);
+
+        $this->as($this->staffOf($this->storeA));
+        $this->assertNull(StockWriteOffResource::itemUrl($linked), 'Tanpa akses menu bahan baku: tanpa tautan.');
+
+        $this->as($this->user('kasir', $this->storeA, ['StockWriteOffResource', 'RawMaterialResource']));
+        $this->assertNotNull(StockWriteOffResource::itemUrl($linked));
+        $this->assertNull(StockWriteOffResource::itemUrl($orphan), 'Barang sudah dihapus: tanpa tautan.');
     }
 }

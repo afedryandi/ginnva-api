@@ -389,7 +389,7 @@ class RawMaterialResourceTest extends TestCase
         $this->assertNotNull($writeOff->journal_entry_id, 'Kerugian Rp4.000 diposting ke jurnal.');
 
         Livewire::test(ListRawMaterials::class)
-            ->callTableAction('write_off', $unpriced, data: ['quantity' => 5, 'reason' => 'lost'])
+            ->callTableAction('write_off', $unpriced, data: ['quantity' => 5, 'reason' => 'lost', 'note' => 'Hilang'])
             ->assertHasNoTableActionErrors();
         $this->assertEqualsWithDelta(25.0, (float) $unpriced->fresh()->current_stock, 0.001, 'Stok tetap berkurang walau harga kosong.');
         $this->assertNull(StockWriteOff::latest('id')->first()->total_value);

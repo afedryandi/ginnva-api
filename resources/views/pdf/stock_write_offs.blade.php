@@ -25,7 +25,7 @@
     <table>
         <tr>
             <th>Nomor</th><th>Tanggal</th><th>Barang</th><th>Jenis</th><th class="value">Jumlah</th>
-            <th>Alasan</th><th class="value">Nilai Kerugian</th><th>Jurnal</th><th>Oleh</th><th>Catatan</th>
+            <th>Alasan</th>@if ($showValue ?? true)<th class="value">Nilai Kerugian</th><th>Jurnal</th>@endif<th>Oleh</th><th>Toko</th><th>Catatan</th><th>Status</th>
         </tr>
         @forelse ($writeOffs as $writeOff)
             <tr>
@@ -35,13 +35,17 @@
                 <td>{{ $typeLabel($writeOff->writeoffable_type) }}</td>
                 <td class="value">{{ number_format((float) $writeOff->quantity, 2, ',', '.') }} {{ $writeOff->unit }}</td>
                 <td>{{ \App\Models\StockWriteOff::REASON_LABELS[$writeOff->reason] ?? $writeOff->reason }}</td>
-                <td class="value">{{ $writeOff->total_value !== null ? number_format((float) $writeOff->total_value, 0, ',', '.') : '-' }}</td>
-                <td>{{ $writeOff->journal_entry_id ? 'Ya' : 'Tidak' }}</td>
+                @if ($showValue ?? true)
+                    <td class="value">{{ $writeOff->total_value !== null ? number_format((float) $writeOff->total_value, 0, ',', '.') : '-' }}</td>
+                    <td>{{ $writeOff->journal_entry_id ? 'Ya' : 'Tidak' }}</td>
+                @endif
                 <td>{{ $writeOff->creator?->name ?? '-' }}</td>
+                <td>{{ $writeOff->store?->name ?? '-' }}</td>
                 <td>{{ $writeOff->note ?: '-' }}</td>
+                <td>{{ $writeOff->cancelled_at ? 'Dibatalkan' : 'Berlaku' }}</td>
             </tr>
         @empty
-            <tr><td colspan="10">Belum ada stok terbuang.</td></tr>
+            <tr><td colspan="12">Belum ada stok terbuang.</td></tr>
         @endforelse
     </table>
 </body>

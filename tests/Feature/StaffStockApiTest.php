@@ -164,16 +164,16 @@ class StaffStockApiTest extends TestCase
         $writeOffMovement = $material->movements()->where('type', 'adjustment')->latest('id')->firstOrFail();
         $this->assertSame(['stock_write_off', $writeOff->id], [$writeOffMovement->source_type, $writeOffMovement->source_id], 'Pergerakan Stok Terbuang bertanda sumber.');
 
-        $this->api($user)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 99, 'reason' => 'lost'])->assertStatus(422);
+        $this->api($user)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 99, 'reason' => 'lost', 'note' => 'x'])->assertStatus(422);
         $this->api($user)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 1, 'reason' => 'ngawur'])->assertStatus(422)->assertJsonValidationErrors('reason');
-        $this->api($user)->postJson('/api/staff/materials/999999/write-off', ['quantity' => 1, 'reason' => 'lost'])->assertNotFound();
+        $this->api($user)->postJson('/api/staff/materials/999999/write-off', ['quantity' => 1, 'reason' => 'lost', 'note' => 'x'])->assertNotFound();
         $this->assertEquals(5, (float) $material->fresh()->current_stock);
 
         $detail = $this->api($user)->getJson("/api/staff/materials/{$material->id}")->assertSuccessful();
         $this->assertArrayHasKey('damaged', $detail->json('write_off_reasons'));
 
         $viewer = $this->staff('kasir', null, ['RawMaterialResource']);
-        $this->api($viewer)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 1, 'reason' => 'lost'])->assertStatus(403);
+        $this->api($viewer)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 1, 'reason' => 'lost', 'note' => 'x'])->assertStatus(403);
         $this->assertNull($this->api($viewer)->getJson("/api/staff/materials/{$material->id}")->json('write_off_reasons'));
         $this->assertEquals(5, (float) $material->fresh()->current_stock);
     }
@@ -404,11 +404,11 @@ class StaffStockApiTest extends TestCase
             ->assertJsonPath('message', 'Stok terbuang dicatat.');
         $this->assertEquals(7, (float) $item->fresh()->current_stock);
         $this->assertSame(1, \App\Models\StockWriteOff::withoutGlobalScopes()->where('writeoffable_id', $item->id)->where('writeoffable_type', 'consumable_item')->count());
-        $this->api($user)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 99, 'reason' => 'lost'])->assertStatus(422);
+        $this->api($user)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 99, 'reason' => 'lost', 'note' => 'x'])->assertStatus(422);
         $this->api($user)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 1, 'reason' => 'ngawur'])->assertStatus(422)->assertJsonValidationErrors('reason');
 
         $viewer = $this->staff('kasir', null, ['ConsumableItemResource']);
-        $this->api($viewer)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 1, 'reason' => 'lost'])->assertStatus(403);
+        $this->api($viewer)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 1, 'reason' => 'lost', 'note' => 'x'])->assertStatus(403);
         $this->assertNull($this->api($viewer)->getJson("/api/staff/consumables/{$item->id}")->json('write_off_reasons'));
     }
 
@@ -1472,5 +1472,50 @@ class StaffStockApiTest extends TestCase
 
         $this->api($this->staff('kasir', $this->storeA, ['BookingResource']))->getJson('/api/staff/stock-card')->assertStatus(403);
         $this->api($both)->getJson('/api/staff/stock-card?jenis=ngawur')->assertStatus(422);
+    }
+    public function test_write_off_requires_a_note_for_lost_and_other_and_the_list_is_scoped_and_value_gated(): void
+    {
+        $this->seed(\Database\Seeders\ChartOfAccountSeeder::class);
+        $material = $this->material('Adhesive', 20, 5000);
+        $item = $this->consumable('Lakban', 10);
+        $writer = $this->warehouse($this->storeA);
+
+        $this->api($writer)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 1, 'reason' => 'lost'])->assertStatus(422)->assertJsonValidationErrors('note');
+        $this->api($writer)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 1, 'reason' => 'other'])->assertStatus(422)->assertJsonValidationErrors('note');
+        $this->api($writer)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 1, 'reason' => 'lost', 'note' => 'Hilang di gudang'])->assertSuccessful();
+        $this->api($writer)->postJson("/api/staff/consumables/{$item->id}/write-off", ['quantity' => 1, 'reason' => 'damaged'])->assertSuccessful();
+
+        // Catatan Toko B (akses penuh mencatat tanpa toko) tidak terlihat staf Toko A.
+        $other = $this->warehouse($this->storeB);
+        $this->api($other)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 1, 'reason' => 'damaged'])->assertSuccessful();
+
+        $this->getJson('/api/staff/stock-write-offs')->assertStatus(401);
+
+        $res = $this->api($writer)->getJson('/api/staff/stock-write-offs')->assertSuccessful();
+        $this->assertSame(2, count($res->json('data')), 'Hanya toko sendiri.');
+        $this->assertFalse($res->json('show_value'));
+        $this->assertNull($res->json('data.0.value'));
+        $this->assertNull($res->json('summary.month_value'));
+        $this->assertSame(['raw_material'], array_values(array_unique(array_column($this->api($writer)->getJson('/api/staff/stock-write-offs?jenis=raw_material')->json('data'), 'jenis'))));
+        $this->assertSame(['damaged'], array_column($this->api($writer)->getJson('/api/staff/stock-write-offs?reason=damaged')->json('data'), 'reason'));
+        $this->api($writer)->getJson('/api/staff/stock-write-offs?reason=ngawur')->assertStatus(422);
+
+        $admin = $this->api($this->staff('super_admin'))->getJson('/api/staff/stock-write-offs')->assertSuccessful();
+        $this->assertSame(3, count($admin->json('data')));
+        $this->assertTrue($admin->json('show_value'));
+        $this->assertNotNull($admin->json('summary.month_value'));
+
+        // Akun bahan-baku-saja tidak melihat barang habis pakai; akun tanpa kedua menu ditolak.
+        $materialsOnly = $this->staff('kasir', $this->storeA, ['RawMaterialResource']);
+        $this->assertSame(['raw_material'], array_values(array_unique(array_column($this->api($materialsOnly)->getJson('/api/staff/stock-write-offs')->json('data'), 'jenis'))));
+        $this->api($materialsOnly)->getJson('/api/staff/stock-write-offs?jenis=consumable_item')->assertStatus(403);
+        $this->api($this->staff('kasir', $this->storeA, ['BookingResource']))->getJson('/api/staff/stock-write-offs')->assertStatus(403);
+
+        // Yang dibatalkan tetap tampil di daftar dengan penanda.
+        $record = \App\Models\StockWriteOff::withoutGlobalScopes()->where('item_name', 'Lakban')->firstOrFail();
+        app(\App\Services\StockWriteOffService::class)->cancel($record, null, 'Salah barang');
+        $cancelled = collect($this->api($writer)->getJson('/api/staff/stock-write-offs')->json('data'))->firstWhere('item_name', 'Lakban');
+        $this->assertTrue($cancelled['cancelled']);
+        $this->assertSame('Salah barang', $cancelled['cancelled_reason']);
     }
 }

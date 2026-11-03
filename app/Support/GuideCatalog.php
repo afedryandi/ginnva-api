@@ -670,7 +670,7 @@ class GuideCatalog
                 'steps' => [
                     'Lihat posisi stok di **Produk PPF/WF** (gulungan film), **Daftar Bahan Baku**, dan **Barang Habis Pakai**, serta riwayat pergerakannya di halaman Riwayat (keluar/masuk, bahan baku, barang habis pakai).',
                     'Pengambilan atau pengembalian barang untuk pekerjaan dicatat lewat **Memo Pengambilan/Pengembalian**. Pilih barang dan jumlahnya; stok ikut berubah.',
-                    'Barang rusak atau hilang dicatat di **Stok Terbuang** dengan alasan. Stok berkurang dan jejaknya tercatat.',
+                    'Barang rusak, kedaluwarsa, atau hilang dicatat lewat **Catat Stok Terbuang** dengan alasan; untuk alasan **Hilang** dan **Lainnya**, catatan wajib diisi. Stok berkurang (alasan Kedaluwarsa mengurangi batch yang sudah lewat masa pakainya lebih dulu) dan jejaknya tercatat di menu **Stok Terbuang**, lengkap dengan ringkasan bulan ini. Nilai kerugian hanya terlihat oleh akses penuh atau pemegang izin Lihat. Salah catat dibatalkan akses penuh lewat tombol **Batalkan** (alasan wajib): stok dipulihkan, jurnal dibalik bila ada, dan barisnya tetap tersimpan bertanda Dibatalkan. Di aplikasi staf, daftar Stok Terbuang dibuka dari ikon tempat sampah di layar riwayat bahan atau barang.',
                     'Hitung fisik berkala lewat **Stok Opname**: isi jumlah hasil hitung, sistem menyesuaikan stok dengan selisihnya.',
                     'Pada data Bahan Baku dan Barang Habis Pakai, isi **Pemasok Utama** (opsional) dengan supplier langganan barang itu. Namanya tampil di peringatan stok menipis dan menjadi isian awal **Supplier** saat permohonan pembelian ditandai terpenuhi.',
                 ],

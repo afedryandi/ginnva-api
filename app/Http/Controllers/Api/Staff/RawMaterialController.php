@@ -581,7 +581,8 @@ class RawMaterialController extends Controller
         $validator = Validator::make($request->all(), [
             'quantity' => 'required|numeric|min:0.01|max:1000000',
             'reason' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Models\StockWriteOff::REASON_LABELS))],
-            'note' => 'nullable|string|max:255',
+            // Catatan wajib untuk alasan Hilang dan Lainnya (audit Stok Terbuang 2026-11-03).
+            'note' => [\Illuminate\Validation\Rule::requiredIf(fn () => in_array($request->input('reason'), \App\Models\StockWriteOff::REASONS_NEEDING_NOTE, true)), 'nullable', 'string', 'max:255'],
         ]);
 
         if ($validator->fails()) {

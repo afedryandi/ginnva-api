@@ -370,11 +370,21 @@ class RawMaterial extends Model
      * — sisa yang tidak tertutup batch DIBIARKAN, current_stock (bukan
      * jumlah batch) yang tetap jadi sumber kebenaran utama.
      */
-    private static function consumeBatchesFifo(self $material, float $quantity): void
+    private static function consumeBatchesFifo(self $material, float $quantity, bool $expiredFirst = false): array
     {
         $remaining = $quantity;
+        $consumed = 0.0;
+        $cost = 0.0;
 
         $batches = $material->batches()->where('quantity', '>', 0)->lockForUpdate()->get();
+
+        // Stok Terbuang karena kedaluwarsa mengurangi batch yang sudah lewat masa pakainya lebih dulu (paling dulu kedaluwarsa),
+        // baru sisanya menurut FIFO biasa -- bukan batch bagus yang kebetulan lebih lama masuknya.
+        if ($expiredFirst) {
+            $today = now()->toDateString();
+            $expired = $batches->filter(fn ($b) => $b->expiry_date !== null && $b->expiry_date->toDateString() < $today)->sortBy(fn ($b) => $b->expiry_date->toDateString());
+            $batches = $expired->concat($batches->reject(fn ($b) => $expired->contains('id', $b->id)))->values();
+        }
 
         foreach ($batches as $batch) {
             if ($remaining <= 0) break;
@@ -382,9 +392,12 @@ class RawMaterial extends Model
             $take = min((float) $batch->quantity, $remaining);
             $batch->decrement('quantity', $take);
             $remaining = round($remaining - $take, 2);
+            $consumed += $take;
+            $cost += $take * (float) ($batch->unit_cost ?? $material->unit_cost ?? 0);
         }
-    }
 
+        return ['quantity' => $consumed, 'cost' => $cost];
+    }
     /**
      * Stock opname — staff input hasil hitung fisik SEBENARNYA, sistem
      * yang menghitung selisihnya sendiri dan mencatatnya sebagai 1
@@ -395,9 +408,9 @@ class RawMaterial extends Model
      * Return null (tidak ada movement dibuat) kalau hasil hitung sama
      * persis dengan sistem — tidak perlu bikin baris riwayat kosong.
      */
-    public function adjustStock(float $actualQuantity, ?int $userId, ?string $note = null, ?int $storeId = null, ?string $sourceType = null): ?RawMaterialMovement
+    public function adjustStock(float $actualQuantity, ?int $userId, ?string $note = null, ?int $storeId = null, ?string $sourceType = null, bool $expiredFirst = false): ?RawMaterialMovement
     {
-        return DB::transaction(function () use ($actualQuantity, $userId, $note, $storeId, $sourceType) {
+        return DB::transaction(function () use ($actualQuantity, $userId, $note, $storeId, $sourceType, $expiredFirst) {
             $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
             $rawDelta = $actualQuantity - (float) $material->current_stock;
 
@@ -422,7 +435,9 @@ class RawMaterial extends Model
                     'created_by' => $userId,
                 ]);
             } else {
-                static::consumeBatchesFifo($material, abs($delta));
+                $consumption = static::consumeBatchesFifo($material, abs($delta), $expiredFirst);
+                // Harga satuan rata-rata batch yang benar-benar dikurangi (dasar nilai kerugian Stok Terbuang).
+                $consumedUnitCost = $consumption['quantity'] > 0 && $consumption['cost'] > 0 ? round($consumption['cost'] / $consumption['quantity'], 2) : null;
             }
 
             $material->update(['current_stock' => $actualQuantity]);
@@ -430,6 +445,7 @@ class RawMaterial extends Model
             $movement = $material->movements()->create([
                 'type' => 'adjustment',
                 'quantity' => $delta,
+                'unit_cost' => $consumedUnitCost ?? null,
                 'note' => $note,
                 'source_type' => $sourceType,
                 'user_id' => $userId,

@@ -692,10 +692,12 @@ class RawMaterialResource extends Resource
                             ->options(\App\Models\StockWriteOff::REASON_LABELS)
                             ->in(array_keys(\App\Models\StockWriteOff::REASON_LABELS))
                             ->required()
+                            ->live()
                             ->native(false),
 
                         Forms\Components\Textarea::make('note')
-                            ->label('Catatan (opsional)')
+                            ->label(fn (Forms\Get $get) => in_array($get('reason'), \App\Models\StockWriteOff::REASONS_NEEDING_NOTE, true) ? 'Catatan (wajib untuk alasan ini)' : 'Catatan (opsional)')
+                            ->required(fn (Forms\Get $get) => in_array($get('reason'), \App\Models\StockWriteOff::REASONS_NEEDING_NOTE, true))
                             ->rows(2)
                             ->maxLength(255),
                     ])
