@@ -84,7 +84,8 @@ class MyAttendanceTest extends TestCase
 
     public function test_clocking_in_and_out_records_the_same_attendance_as_the_app(): void
     {
-        $user = $this->actingAs($this->staff())->user();
+        $user = $this->staff();
+        $this->actingAs($user);
 
         Livewire::test(MyAttendance::class)
             ->set('photo', $this->photo())
@@ -112,7 +113,8 @@ class MyAttendanceTest extends TestCase
 
     public function test_the_store_radius_and_a_second_clock_in_are_refused(): void
     {
-        $user = $this->actingAs($this->staff())->user();
+        $user = $this->staff();
+        $this->actingAs($user);
 
         // Sekitar 1 km dari toko, radius toko 100 m.
         Livewire::test(MyAttendance::class)
@@ -129,7 +131,8 @@ class MyAttendanceTest extends TestCase
 
     public function test_a_selfie_is_required_and_must_be_large_enough(): void
     {
-        $user = $this->actingAs($this->staff())->user();
+        $user = $this->staff();
+        $this->actingAs($user);
 
         Livewire::test(MyAttendance::class)
             ->call('submitClock', 'in', -6.2000, 106.8000)
@@ -145,7 +148,8 @@ class MyAttendanceTest extends TestCase
 
     public function test_invalid_coordinates_and_users_without_a_store_or_access_are_refused(): void
     {
-        $user = $this->actingAs($this->staff())->user();
+        $user = $this->staff();
+        $this->actingAs($user);
 
         Livewire::test(MyAttendance::class)
             ->set('photo', $this->photo())
