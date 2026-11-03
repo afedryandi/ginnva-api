@@ -25,10 +25,13 @@ class ConsumableItemMovementStatsOverview extends BaseWidget
     {
         $startOfMonth = now()->startOfMonth();
 
-        $outCount = ConsumableItemMovement::where('type', 'out')->where('created_at', '>=', $startOfMonth)->count();
-        $inCount = ConsumableItemMovement::where('type', 'in')->where('created_at', '>=', $startOfMonth)->count();
+        // Yang dibatalkan tidak dihitung (scope 'effective'), dan hanya baris yang boleh dilihat akun ini.
+        $base = fn () => ConsumableItemMovement::query()->visibleTo(auth()->user());
 
-        $topConsumed = ConsumableItemMovement::where('type', 'out')
+        $outCount = $base()->where('type', 'out')->where('created_at', '>=', $startOfMonth)->count();
+        $inCount = $base()->where('type', 'in')->where('created_at', '>=', $startOfMonth)->count();
+
+        $topConsumed = $base()->where('type', 'out')
             ->where('created_at', '>=', $startOfMonth)
             ->selectRaw('consumable_item_id, SUM(quantity) as total')
             ->groupBy('consumable_item_id')

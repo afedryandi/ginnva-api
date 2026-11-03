@@ -1401,4 +1401,40 @@ class StaffStockApiTest extends TestCase
         $this->api($this->staff('kasir', $this->storeA, ['BookingResource']))->getJson('/api/staff/material-movements')->assertStatus(403);
         $this->assertNotNull($a);
     }
+    public function test_the_consumable_history_is_scoped_filtered_cost_gated_and_shows_reversals(): void
+    {
+        $item = $this->consumable('Sarung Tangan', 10);
+        $admin = $this->staff('super_admin');
+        $item->recordMovement('in', 5, $admin->id, 'masuk A', 2000, $this->storeA->id);
+        $item->fresh()->recordMovement('out', 2, $admin->id, 'keluar B', storeId: $this->storeB->id, sourceType: 'memo', sourceId: 1);
+        $item->fresh()->adjustStock(20, $admin->id, 'opname A', $this->storeA->id);
+
+        $viewer = $this->staff('kasir', $this->storeA, ['ConsumableItemResource'], true, ['ConsumableItemResource' => ['update']]);
+        $this->getJson('/api/staff/consumable-movements')->assertStatus(401);
+
+        $res = $this->api($viewer)->getJson('/api/staff/consumable-movements')->assertSuccessful();
+        $this->assertSame(['opname A', 'masuk A'], array_column($res->json('data'), 'note'), 'Hanya baris tokonya, terbaru dulu.');
+        $this->assertNull($res->json('data.1.unit_cost'), 'Harga hanya dengan izin Lihat.');
+
+        $this->assertSame(['masuk A'], array_column($this->api($viewer)->getJson('/api/staff/consumable-movements?type=in')->json('data'), 'note'));
+        $this->assertSame(['opname A'], array_column($this->api($viewer)->getJson('/api/staff/consumable-movements?search=opname')->json('data'), 'note'));
+        $this->api($viewer)->getJson('/api/staff/consumable-movements?type=bogus')->assertStatus(422);
+
+        $priced = $this->staff('kasir', $this->storeA, ['ConsumableItemResource'], true, ['ConsumableItemResource' => ['view']]);
+        $this->assertEquals(2000, $this->api($priced)->getJson('/api/staff/consumable-movements?type=in')->json('data.0.unit_cost'));
+
+        $all = $this->api($this->staff('super_admin'))->getJson('/api/staff/consumable-movements')->json('data');
+        $this->assertCount(3, $all);
+        $this->assertSame('Memo Bahan', collect($all)->firstWhere('note', 'keluar B')['source']);
+
+        // Pembatalan: tampil sebagai dibatalkan di riwayat gabungan dan di riwayat per barang.
+        $item->fresh()->reverseLastMovement(\App\Models\ConsumableItemMovement::where('note', 'opname A')->firstOrFail(), $admin->id, 'Salah hitung');
+        $rows = collect($this->api($viewer)->getJson('/api/staff/consumable-movements')->json('data'));
+        $this->assertTrue($rows->firstWhere('note', 'opname A')['reversed']);
+
+        $perItem = collect($this->api($viewer)->getJson("/api/staff/consumables/{$item->id}/movements")->json('data'));
+        $this->assertTrue($perItem->contains(fn ($m) => ($m['note'] ?? null) === 'opname A' && $m['reversed_at'] !== null));
+
+        $this->api($this->staff('kasir', $this->storeA, ['BookingResource']))->getJson('/api/staff/consumable-movements')->assertStatus(403);
+    }
 }

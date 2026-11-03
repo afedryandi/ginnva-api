@@ -206,16 +206,32 @@ class ConsumableItem extends Model
      *
      * @throws \InvalidArgumentException kalau movement ini bukan yang terbaru.
      */
-    public function reverseLastMovement(ConsumableItemMovement $movement, ?int $userId): void
+    public function reverseLastMovement(ConsumableItemMovement $movement, ?int $userId, ?string $reason = null): void
     {
         if ($movement->consumable_item_id !== $this->id) {
             throw new \InvalidArgumentException('Baris riwayat ini bukan milik barang ini.');
         }
 
-        DB::transaction(function () use ($movement, $userId) {
-            $item = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+        if (trim((string) $reason) === '') {
+            throw new \InvalidArgumentException('Isi alasan pembatalan.');
+        }
 
-            $isLatest = ! $item->movements()->where('id', '>', $movement->id)->exists();
+        // Pergerakan dari Memo, penerimaan Permohonan, atau Stok Terbuang dibatalkan lewat dokumennya; membatalkannya di sini membuat
+        // stok berubah sementara dokumen sumbernya tidak.
+        if ($movement->source_type !== null) {
+            throw new \InvalidArgumentException('Pergerakan ini berasal dari ' . RawMaterialMovement::sourceLabel($movement->source_type) . '. Batalkan lewat dokumen sumbernya supaya stok dan dokumen tetap sinkron.');
+        }
+
+        DB::transaction(function () use ($movement, $userId, $reason) {
+            $item = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+            $locked = ConsumableItemMovement::withoutGlobalScope('effective')->whereKey($movement->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->reversed_at !== null) {
+                throw new \InvalidArgumentException('Pencatatan ini sudah dibatalkan.');
+            }
+
+            // Pergerakan yang sudah dibatalkan disembunyikan scope 'effective', jadi hanya yang masih berlaku yang dihitung "lebih baru".
+            $isLatest = ! $item->movements()->where('id', '>', $locked->id)->where('type', '!=', 'correction')->exists();
             if (! $isLatest) {
                 throw new \InvalidArgumentException('Cuma bisa membatalkan riwayat paling terakhir — sudah ada kejadian lain setelah ini.');
             }
@@ -223,28 +239,29 @@ class ConsumableItem extends Model
             // Kebalikan dari efek movement yang dibatalkan: 'in' berarti
             // stok dikurangi lagi, 'out' berarti dikembalikan, 'adjustment'
             // berarti delta-nya (boleh negatif) dibalik.
-            $reversedStock = match ($movement->type) {
-                'in' => (float) $item->current_stock - (float) $movement->quantity,
-                'out' => (float) $item->current_stock + (float) $movement->quantity,
-                'adjustment' => (float) $item->current_stock - (float) $movement->quantity,
+            $reversedStock = match ($locked->type) {
+                'in' => (float) $item->current_stock - (float) $locked->quantity,
+                'out' => (float) $item->current_stock + (float) $locked->quantity,
+                'adjustment' => (float) $item->current_stock - (float) $locked->quantity,
                 default => (float) $item->current_stock,
             };
 
             $item->update(['current_stock' => max(0, $reversedStock)]);
 
-            $movement->delete();
+            // Baris asli disimpan (siapa/kapan/berapa tetap terlihat), hanya ditandai dibatalkan dan tersembunyi dari laporan.
+            $locked->update(['reversed_at' => now(), 'reversed_by' => $userId, 'reversed_reason' => $reason]);
 
             $item->movements()->create([
                 'type' => 'correction',
                 'quantity' => 0,
-                'note' => 'Koreksi: membatalkan pencatatan "' . match ($movement->type) {
+                'note' => 'Koreksi: membatalkan pencatatan "' . match ($locked->type) {
                     'in' => 'Masuk',
                     'out' => 'Keluar',
                     'adjustment' => 'Penyesuaian (Opname)',
-                    default => $movement->type,
-                } . '" yang salah.',
+                    default => $locked->type,
+                } . '" (' . number_format((float) $locked->quantity, 2) . ', ' . ($locked->created_at?->format('d M Y H:i') ?? '-') . '). Alasan: ' . $reason,
                 'user_id' => $userId,
-                'store_id' => $movement->store_id,
+                'store_id' => $locked->store_id,
             ]);
 
             $this->setRawAttributes($item->getAttributes());

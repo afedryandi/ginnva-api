@@ -525,6 +525,7 @@ Route::prefix('staff')->group(function () {
         Route::get('/consumables', [StaffConsumableItemController::class, 'index']);
         Route::post('/consumables/bulk-adjust', [StaffConsumableItemController::class, 'bulkAdjust'])
             ->middleware('throttle:20,1');
+        Route::get('/consumable-movements', [StaffConsumableItemController::class, 'history']);
         Route::get('/consumables/{id}', [StaffConsumableItemController::class, 'show']);
         Route::get('/consumables/{id}/movements', [StaffConsumableItemController::class, 'movements']);
         Route::post('/consumables/{id}/movement', [StaffConsumableItemController::class, 'storeMovement'])

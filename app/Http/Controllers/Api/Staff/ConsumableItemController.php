@@ -87,7 +87,7 @@ class ConsumableItemController extends Controller
         $cost = $this->canSeeCost($request) ? ['unit_cost'] : [];
 
         foreach ($movements as $movement) {
-            $movement->setVisible(array_merge(['id', 'type', 'quantity', 'note', 'user', 'created_at'], $cost));
+            $movement->setVisible(array_merge(['id', 'type', 'quantity', 'note', 'user', 'store', 'reversed_at', 'reversed_reason', 'created_at'], $cost));
         }
     }
 
@@ -149,7 +149,7 @@ class ConsumableItemController extends Controller
             ], 403);
         }
 
-        $item = ConsumableItem::with(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)])->find($id);
+        $item = ConsumableItem::with(['movements' => fn ($q) => $q->withoutGlobalScope('effective')->with(['user:id,name', 'store:id,name'])->limit(20)])->find($id);
 
         if (! $item) {
             return response()->json([
@@ -171,7 +171,76 @@ class ConsumableItemController extends Controller
             // Dipakai app buat munculkan tombol "Muat Riwayat Lainnya" —
             // lihat movements() untuk endpoint paginasinya. Sama pola
             // dengan InventoryController::show().
-            'movements_has_more' => $item->movements()->count() > $item->movements->count(),
+            'movements_has_more' => $item->movements()->withoutGlobalScope('effective')->count() > $item->movements->count(),
+        ]);
+    }
+
+    /**
+     * GET /api/staff/consumable-movements?type=&search=&from=&until=&offset=
+     *
+     * Riwayat Barang Habis Pakai lintas barang (audit 2026-11-03): selama ini mobile hanya punya 20 baris terakhir per barang. Akses
+     * penuh melihat semua toko, staf lain hanya baris bertanda tokonya sendiri. Harga hanya dengan izin Lihat.
+     */
+    public function history(Request $request)
+    {
+        if (! $this->authorizeAccess($request)) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu Barang Habis Pakai.'], 403);
+        }
+
+        $validator = Validator::make($request->query(), [
+            'type' => 'nullable|in:in,out,adjustment,correction',
+            'search' => 'nullable|string|max:100',
+            'from' => 'nullable|date',
+            'until' => 'nullable|date',
+            'offset' => 'nullable|integer|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Filter tidak valid.', 'errors' => $validator->errors()], 422);
+        }
+
+        $user = $request->user('api');
+        $limit = 30;
+        $offset = (int) $request->query('offset', 0);
+        $search = trim((string) $request->query('search', ''));
+        $cost = $this->canSeeCost($request);
+
+        $query = \App\Models\ConsumableItemMovement::query()
+            ->withoutGlobalScope('effective')
+            ->visibleTo($user)
+            ->with(['consumableItem:id,name,unit,category', 'user:id,name', 'store:id,name'])
+            ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
+            ->when($request->query('from'), fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+            ->when($request->query('until'), fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
+            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->where('note', 'like', "%{$search}%")
+                ->orWhereHas('consumableItem', fn ($m) => $m->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"))));
+
+        $rows = (clone $query)->latest('created_at')->latest('id')->offset($offset)->limit($limit + 1)->get();
+
+        $today = fn () => \App\Models\ConsumableItemMovement::query()->visibleTo($user)->whereDate('created_at', today());
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows->take($limit)->map(fn ($m) => [
+                'id' => $m->id,
+                'type' => $m->type,
+                'quantity' => (float) $m->quantity,
+                'unit_cost' => $cost && $m->unit_cost !== null ? (float) $m->unit_cost : null,
+                'note' => $m->note,
+                'created_at' => $m->created_at?->toIso8601String(),
+                'reversed' => $m->reversed_at !== null,
+                'reversed_reason' => $m->reversed_reason,
+                'source' => $m->sourceText(),
+                'item' => $m->consumableItem ? ['id' => $m->consumableItem->id, 'name' => $m->consumableItem->name, 'unit' => $m->consumableItem->unit] : null,
+                'user' => $m->user ? ['name' => $m->user->name] : null,
+                'store' => $m->store ? ['name' => $m->store->name] : null,
+            ])->values(),
+            'has_more' => $rows->count() > $limit,
+            'summary' => [
+                'out_today' => $today()->where('type', 'out')->count(),
+                'in_today' => $today()->where('type', 'in')->count(),
+            ],
         ]);
     }
 
@@ -204,7 +273,8 @@ class ConsumableItemController extends Controller
         $limit = 20;
 
         $movements = $item->movements()
-            ->with('user:id,name')
+            ->withoutGlobalScope('effective')
+            ->with(['user:id,name', 'store:id,name'])
             ->latest()
             ->offset($offset)
             ->limit($limit)
@@ -213,7 +283,7 @@ class ConsumableItemController extends Controller
         return response()->json([
             'success' => true,
             'data' => tap($movements, fn ($rows) => $this->shapeMovements($rows, $request)),
-            'has_more' => $item->movements()->count() > $offset + $movements->count(),
+            'has_more' => $item->movements()->withoutGlobalScope('effective')->count() > $offset + $movements->count(),
         ]);
     }
 
@@ -278,7 +348,7 @@ class ConsumableItemController extends Controller
         return response()->json([
             'success' => true,
             'message' => $request->type === 'in' ? 'Barang masuk berhasil dicatat.' : 'Barang keluar berhasil dicatat.',
-            'data' => $this->shape($item->fresh()->load(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)]), $request),
+            'data' => $this->shape($item->fresh()->load(['movements' => fn ($q) => $q->withoutGlobalScope('effective')->with(['user:id,name', 'store:id,name'])->limit(20)]), $request),
         ]);
     }
 
@@ -337,7 +407,7 @@ class ConsumableItemController extends Controller
             'message' => $movement === null
                 ? 'Hasil hitung fisik sama dengan stok di sistem — tidak ada penyesuaian yang dicatat.'
                 : 'Stok disesuaikan (selisih ' . ($movement->quantity > 0 ? '+' : '') . $movement->quantity . ' ' . $item->unit . ').',
-            'data' => $this->shape($item->fresh()->load(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)]), $request),
+            'data' => $this->shape($item->fresh()->load(['movements' => fn ($q) => $q->withoutGlobalScope('effective')->with(['user:id,name', 'store:id,name'])->limit(20)]), $request),
         ]);
     }
 
@@ -408,7 +478,7 @@ class ConsumableItemController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Stok terbuang dicatat.',
-            'data' => $this->shape($item->fresh()->load(['movements' => fn ($q) => $q->with('user:id,name')->limit(20)]), $request),
+            'data' => $this->shape($item->fresh()->load(['movements' => fn ($q) => $q->withoutGlobalScope('effective')->with(['user:id,name', 'store:id,name'])->limit(20)]), $request),
         ]);
     }
 

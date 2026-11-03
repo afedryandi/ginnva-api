@@ -24,8 +24,8 @@ class ConsumableItemMovementExport implements FromQuery, WithHeadings, WithMappi
 
     public function query(): Builder
     {
-        return ($this->query ?? ConsumableItemMovement::query())
-            ->with(['consumableItem', 'user'])
+        return ($this->query ?? ConsumableItemMovement::query()->visibleTo(auth()->user()))
+            ->with(['consumableItem', 'user', 'store'])
             ->reorder('created_at', 'desc');
     }
 
@@ -34,6 +34,7 @@ class ConsumableItemMovementExport implements FromQuery, WithHeadings, WithMappi
         $headings = [
             'Waktu', 'Barang', 'Kategori', 'Jenis',
             'Jumlah', 'Satuan', 'Harga/Satuan', 'Dicatat Oleh', 'Catatan',
+            'Toko', 'Sumber', 'Status',
         ];
 
         return $this->withCost ? $headings : array_values(array_diff_key($headings, [6 => true]));
@@ -57,6 +58,9 @@ class ConsumableItemMovementExport implements FromQuery, WithHeadings, WithMappi
             $movement->unit_cost !== null ? number_format((float) $movement->unit_cost, 2) : '—',
             $movement->user?->name ?? '—',
             $movement->note,
+            $movement->store?->name ?? '—',
+            $movement->sourceText() ?? '—',
+            $movement->reversed_at ? 'Dibatalkan' . ($movement->reversed_reason ? ': ' . $movement->reversed_reason : '') : 'Berlaku',
         ];
 
         return $this->withCost ? $row : array_values(array_diff_key($row, [6 => true]));

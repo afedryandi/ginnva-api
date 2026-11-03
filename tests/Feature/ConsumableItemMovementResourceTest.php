@@ -68,9 +68,9 @@ class ConsumableItemMovementResourceTest extends TestCase
         return ConsumableItem::create(['name' => $name, 'code' => 'CI-' . strtoupper(uniqid()), 'category' => $category, 'unit' => 'pcs', 'current_stock' => $stock]);
     }
 
-    private function move(ConsumableItem $item, string $type, float $qty, ?User $user = null, ?float $cost = null, string $note = 'catatan', ?string $at = null): ConsumableItemMovement
+    private function move(ConsumableItem $item, string $type, float $qty, ?User $user = null, ?float $cost = null, string $note = 'catatan', ?string $at = null, ?Store $store = null): ConsumableItemMovement
     {
-        $movement = ConsumableItemMovement::create(['consumable_item_id' => $item->id, 'type' => $type, 'quantity' => $qty, 'unit_cost' => $cost, 'note' => $note, 'user_id' => $user?->id]);
+        $movement = ConsumableItemMovement::create(['consumable_item_id' => $item->id, 'type' => $type, 'quantity' => $qty, 'unit_cost' => $cost, 'note' => $note, 'user_id' => $user?->id, 'store_id' => $store?->id]);
 
         if ($at) {
             DB::table('consumable_item_movements')->where('id', $movement->id)->update(['created_at' => $at, 'updated_at' => $at]);
@@ -201,7 +201,7 @@ class ConsumableItemMovementResourceTest extends TestCase
             $rows = $export->query()->get();
 
             return $rows->count() === 1
-                && $export->map($rows->first()) === ['08/10/2026 10:00', 'Sarung Tangan', 'APD', 'Masuk', '10.00', 'pcs', '15,000.00', 'Alice', 'Beli'];
+                && $export->map($rows->first()) === ['08/10/2026 10:00', 'Sarung Tangan', 'APD', 'Masuk', '10.00', 'pcs', '15,000.00', 'Alice', 'Beli', '—', '—', 'Berlaku'];
         });
 
         $log = Activity::where('log_name', 'report_export')->latest('id')->firstOrFail();
@@ -241,8 +241,8 @@ class ConsumableItemMovementResourceTest extends TestCase
     public function test_reverse_is_for_full_access_and_the_latest_movement_only(): void
     {
         $item = $this->item('Sarung Tangan', 'umum', 10);
-        $first = $this->move($item, 'in', 10);
-        $latest = $this->move($item, 'out', 2);
+        $first = $this->move($item, 'in', 10, null, null, 'catatan', null, $this->storeA);
+        $latest = $this->move($item, 'out', 2, null, null, 'catatan', null, $this->storeA);
 
         $this->as($this->user('kasir', ['ConsumableItemMovementResource']));
         Livewire::test(ListConsumableItemMovements::class)->assertTableActionHidden('reverse', $latest);
@@ -262,11 +262,14 @@ class ConsumableItemMovementResourceTest extends TestCase
         $this->assertEquals(6, (float) $item->fresh()->current_stock);
 
         Livewire::test(ListConsumableItemMovements::class)
-            ->callTableAction('reverse', $out)
+            ->callTableAction('reverse', $out, data: ['reason' => 'Salah barang'])
             ->assertHasNoTableActionErrors();
 
         $this->assertEquals(10, (float) $item->fresh()->current_stock);
+        // Baris asli disimpan (tersembunyi dari kueri bawaan), bukan dihapus.
         $this->assertNull(ConsumableItemMovement::find($out->id));
+        $original = ConsumableItemMovement::withReversed()->findOrFail($out->id);
+        $this->assertSame(['Salah barang', $admin->id], [$original->reversed_reason, $original->reversed_by]);
         $correction = $item->movements()->where('type', 'correction')->firstOrFail();
         $this->assertEquals(0, (float) $correction->quantity);
         $this->assertSame($admin->id, $correction->user_id);
@@ -282,7 +285,7 @@ class ConsumableItemMovementResourceTest extends TestCase
         $this->assertEquals(13, (float) $item->fresh()->current_stock);
 
         Livewire::test(ListConsumableItemMovements::class)
-            ->callTableAction('reverse', $in)
+            ->callTableAction('reverse', $in, data: ['reason' => 'Salah input'])
             ->assertHasNoTableActionErrors();
 
         $this->assertEquals(5, (float) $item->fresh()->current_stock);
@@ -294,11 +297,11 @@ class ConsumableItemMovementResourceTest extends TestCase
         $item = $this->item('Sarung Tangan', 'umum', 10);
 
         $down = $item->adjustStock(7, $admin->id, 'Opname turun');
-        Livewire::test(ListConsumableItemMovements::class)->callTableAction('reverse', $down)->assertHasNoTableActionErrors();
+        Livewire::test(ListConsumableItemMovements::class)->callTableAction('reverse', $down, data: ['reason' => 'Salah hitung'])->assertHasNoTableActionErrors();
         $this->assertEquals(10, (float) $item->fresh()->current_stock);
 
         $up = $item->fresh()->adjustStock(15, $admin->id, 'Opname naik');
-        Livewire::test(ListConsumableItemMovements::class)->callTableAction('reverse', $up)->assertHasNoTableActionErrors();
+        Livewire::test(ListConsumableItemMovements::class)->callTableAction('reverse', $up, data: ['reason' => 'Salah hitung'])->assertHasNoTableActionErrors();
         $this->assertEquals(10, (float) $item->fresh()->current_stock);
     }
 
@@ -310,6 +313,133 @@ class ConsumableItemMovementResourceTest extends TestCase
         $item->fresh()->recordMovement('out', 1, $admin->id);
 
         $this->expectException(\InvalidArgumentException::class);
-        $item->fresh()->reverseLastMovement($in, $admin->id);
+        $item->fresh()->reverseLastMovement($in, $admin->id, 'Salah');
+    }
+    // ------------------------------------------------------------- audit 2026-11-03
+
+    private function staffOf(Store $store, array $extra = []): User
+    {
+        return $this->user('kasir', ['ConsumableItemMovementResource'], array_merge(['store_id' => $store->id], $extra));
+    }
+
+    public function test_staff_only_see_their_own_stores_rows_while_full_access_sees_everything(): void
+    {
+        $storeB = Store::create(['city' => 'Bandung', 'address' => 'Jl. B', 'name' => 'Toko B', 'is_active' => true]);
+        $item = $this->item('Sarung Tangan');
+        $a = $this->move($item, 'out', 3, null, null, 'toko A', null, $this->storeA);
+        $b = $this->move($item, 'out', 5, null, null, 'toko B', null, $storeB);
+        $untagged = $this->move($item, 'in', 9, null, null, 'tanpa toko');
+
+        $this->as($this->staffOf($this->storeA));
+        Livewire::test(ListConsumableItemMovements::class)
+            ->assertCanSeeTableRecords([$a])
+            ->assertCanNotSeeTableRecords([$b, $untagged])
+            ->assertTableFilterHidden('store_id');
+        Livewire::test(ConsumableItemMovementStatsOverview::class)->assertSee('3.00 pcs bulan ini')->assertDontSee('5.00');
+        $this->assertEqualsCanonicalizing([$a->id], (new ConsumableItemMovementExport())->query()->pluck('id')->all());
+
+        $this->as($this->user('super_admin'));
+        Livewire::test(ListConsumableItemMovements::class)
+            ->assertCanSeeTableRecords([$a, $b, $untagged])
+            ->assertTableFilterVisible('store_id')
+            ->filterTable('store_id', $storeB->id)
+            ->assertCanSeeTableRecords([$b])->assertCanNotSeeTableRecords([$a, $untagged]);
+
+        $this->as($this->staffOf($this->storeA, ['store_id' => null]));
+        $this->assertSame(0, ConsumableItemMovement::query()->visibleTo(auth()->user())->count());
+    }
+
+    public function test_reversing_keeps_the_row_hides_it_from_reports_and_requires_a_reason(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $item = $this->item('Sarung Tangan');
+        $in = $item->recordMovement('in', 5, $admin->id, 'Beli', 1000, $this->storeA->id);
+        $out = $item->fresh()->recordMovement('out', 3, $admin->id, 'Pakai', storeId: $this->storeA->id);
+
+        Livewire::test(ListConsumableItemMovements::class)
+            ->callTableAction('reverse', $out, data: ['reason' => ''])
+            ->assertHasTableActionErrors(['reason' => 'required']);
+        $this->assertNull($out->fresh()->reversed_at);
+
+        Livewire::test(ListConsumableItemMovements::class)->callTableAction('reverse', $out, data: ['reason' => 'Salah jumlah'])->assertHasNoTableActionErrors();
+        $this->assertEquals(5, (float) $item->fresh()->current_stock);
+
+        $this->assertNull(ConsumableItemMovement::find($out->id));
+        $hidden = ConsumableItemMovement::withReversed()->findOrFail($out->id);
+        Livewire::test(ListConsumableItemMovements::class)
+            ->assertCanSeeTableRecords([$hidden])
+            ->filterTable('reversed', false)
+            ->assertCanNotSeeTableRecords([$hidden]);
+
+        // Pembatalan berantai: Masuk yang kini jadi terakhir bisa dibatalkan.
+        $in = $in->fresh();
+        $this->assertTrue($in->isReversible());
+        Livewire::test(ListConsumableItemMovements::class)->callTableAction('reverse', $in, data: ['reason' => 'Salah beli'])->assertHasNoTableActionErrors();
+        $this->assertEquals(0, (float) $item->fresh()->current_stock);
+        $this->assertFalse($hidden->isReversible(), 'Yang sudah dibatalkan tidak bisa dibatalkan lagi.');
+
+        // Rekonsiliasi tetap bersih setelah dua pembatalan, dan pemeriksaannya tercatat di log.
+        Livewire::test(ListConsumableItemMovements::class)->callTableAction('reconcile')->assertNotified('Rekonsiliasi bersih');
+        $this->assertSame(1, Activity::where('properties->report', 'consumable_item_reconcile')->count());
+    }
+
+    public function test_movements_that_came_from_a_document_cannot_be_reversed_here(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $item = $this->item('Sarung Tangan');
+        $item->recordMovement('in', 10, $admin->id, 'Stok');
+        $fromMemo = $item->fresh()->recordMovement('out', 2, $admin->id, 'Memo', storeId: $this->storeA->id, sourceType: 'memo', sourceId: 99);
+
+        $this->assertFalse($fromMemo->isReversible());
+        $this->assertSame('Memo Bahan', $fromMemo->sourceText());
+        Livewire::test(ListConsumableItemMovements::class)->assertTableActionHidden('reverse', $fromMemo);
+
+        try {
+            $item->fresh()->reverseLastMovement($fromMemo, $admin->id, 'Coba');
+            $this->fail('Pergerakan bersumber dokumen harus ditolak.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('Memo Bahan', $e->getMessage());
+        }
+        $this->assertEquals(8, (float) $item->fresh()->current_stock);
+
+        // Alasan kosong ditolak oleh model.
+        $plain = $item->fresh()->recordMovement('in', 1, $admin->id, 'Manual');
+        $this->expectException(\InvalidArgumentException::class);
+        $item->fresh()->reverseLastMovement($plain, $admin->id, '  ');
+    }
+
+    public function test_the_detail_page_shows_the_movement_and_its_reversal_within_the_users_store(): void
+    {
+        $storeB = Store::create(['city' => 'Bandung', 'address' => 'Jl. B', 'name' => 'Toko B', 'is_active' => true]);
+        $admin = $this->as($this->user('super_admin'));
+        $item = $this->item('Sarung Tangan');
+        $item->recordMovement('in', 4, $admin->id, 'Stok');
+        $out = $item->fresh()->recordMovement('out', 1, $admin->id, 'Pakai', storeId: $this->storeA->id);
+        $item->fresh()->reverseLastMovement($out, $admin->id, 'Salah toko');
+
+        Livewire::test(\App\Filament\Resources\ConsumableItemMovementResource\Pages\ViewConsumableItemMovement::class, ['record' => $out->getRouteKey()])
+            ->assertSuccessful()->assertSee('Sarung Tangan')->assertSee('Salah toko');
+
+        $this->as($this->staffOf($storeB));
+        try {
+            Livewire::test(\App\Filament\Resources\ConsumableItemMovementResource\Pages\ViewConsumableItemMovement::class, ['record' => $out->getRouteKey()]);
+            $this->fail('Baris toko lain tidak boleh bisa dibuka.');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            $this->assertTrue(true);
+        }
+    }
+
+    public function test_new_filters_period_and_category(): void
+    {
+        $gloves = $this->item('Sarung Tangan', 'APD');
+        $tape = $this->item('Lakban', 'umum');
+        $old = $this->move($gloves, 'in', 1, null, null, 'lama', '2026-09-01 09:00:00');
+        $today = $this->move($tape, 'out', 1, null, null, 'baru', '2026-10-08 08:00:00');
+
+        $this->as($this->user('super_admin'));
+        Livewire::test(ListConsumableItemMovements::class)
+            ->filterTable('period', 'today')->assertCanSeeTableRecords([$today])->assertCanNotSeeTableRecords([$old]);
+        Livewire::test(ListConsumableItemMovements::class)
+            ->filterTable('category', 'APD')->assertCanSeeTableRecords([$old])->assertCanNotSeeTableRecords([$today]);
     }
 }

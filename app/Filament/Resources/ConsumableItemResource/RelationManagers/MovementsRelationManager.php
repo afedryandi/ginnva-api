@@ -24,6 +24,8 @@ class MovementsRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('id')
+            ->modifyQueryUsing(fn ($query) => $query->withoutGlobalScope('effective')->with(['store', 'reverser']))
+            ->recordClasses(fn ($record) => $record->reversed_at !== null ? 'opacity-60' : null)
             ->columns([
                 Tables\Columns\BadgeColumn::make('type')
                     ->label('Jenis')
@@ -54,6 +56,19 @@ class MovementsRelationManager extends RelationManager
                     ->placeholder('—')
                     ->toggleable(),
 
+                Tables\Columns\TextColumn::make('reversed_state')
+                    ->label('Status')
+                    ->state(fn ($record) => $record->reversed_at !== null ? 'Dibatalkan' : null)
+                    ->badge()
+                    ->color('gray')
+                    ->placeholder('—')
+                    ->tooltip(fn ($record) => $record->reversed_reason),
+
+                Tables\Columns\TextColumn::make('store.name')
+                    ->label('Toko')
+                    ->placeholder('—')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Dicatat Oleh')
                     ->placeholder('—'),
@@ -69,32 +84,7 @@ class MovementsRelationManager extends RelationManager
                     ->sortable(),
             ])
             ->actions([
-                // Jalan resmi kalau salah catat — lebih presisi daripada
-                // "Sesuaikan Stok" (yang butuh tahu angka hasil hitung
-                // fisik yang BENAR). Cuma untuk movement TERAKHIR.
-                Tables\Actions\Action::make('reverse')
-                    ->label('Batalkan')
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('danger')
-                    ->visible(fn (ConsumableItemMovement $record) => auth()->user()?->isFullAccess()
-                        && $record->type !== 'correction'
-                        && ! $this->getOwnerRecord()->movements()->where('id', '>', $record->id)->exists())
-                    ->requiresConfirmation()
-                    ->modalDescription('Batalkan pencatatan ini? Stok akan dikembalikan ke sebelumnya, dan baris "Koreksi" baru akan ditambahkan sebagai jejaknya. Cuma bisa untuk kejadian paling terakhir.')
-                    ->action(function (ConsumableItemMovement $record) {
-                        /** @var ConsumableItem $item */
-                        $item = $this->getOwnerRecord();
-
-                        try {
-                            $item->reverseLastMovement($record, auth()->id());
-                        } catch (\InvalidArgumentException $e) {
-                            Notification::make()->title('Tidak bisa membatalkan')->body($e->getMessage())->danger()->send();
-
-                            return;
-                        }
-
-                        Notification::make()->title('Pencatatan dibatalkan')->success()->send();
-                    }),
+                \App\Filament\Resources\ConsumableItemMovementResource::reverseAction(),
             ])
             ->defaultSort('created_at', 'desc')
             ->emptyStateHeading('Belum ada riwayat')
