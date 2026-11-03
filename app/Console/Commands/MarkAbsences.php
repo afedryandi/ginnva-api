@@ -52,6 +52,8 @@ class MarkAbsences extends Command
                 ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
                 // Direksi tidak wajib absen, jadi tidak pernah ditandai Alpha.
                 ->requiresAttendance()
+                // Sebelum Mulai Wajib Absen tidak ada Alpha.
+                ->attendanceStarted($yesterday)
                 ->get();
 
             $alreadyRecorded = Attendance::where('store_id', $store->id)

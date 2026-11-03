@@ -975,6 +975,7 @@ class GuideCatalog
                 'steps' => [
                     'Karyawan menekan **Absen Masuk** saat tiba dan **Absen Keluar** saat pulang di aplikasi staff. Absen memakai lokasi dan hanya bisa dilakukan di dalam radius toko (diatur di form Toko).',
                     'Karyawan yang belum bisa memakai aplikasi staff (mis. iPhone) bisa absen lewat **Absen Saya** di panel: ambil foto selfie, lalu tekan **Absen Masuk** atau **Absen Keluar** dan izinkan lokasi. Aturan radius toko dan selfie sama dengan aplikasi. Menu ini muncul bila admin mencentang **Absen Saya** di Hak Akses pengguna itu.',
+                    'Karyawan baru yang absensinya belum diwajibkan: isi **Mulai Wajib Absen** di form karyawan. Sebelum tanggal itu tidak ada Alpha otomatis, pengingat belum absen, atau potongan Alpha di Payroll. Kosong berarti wajib sejak **Tanggal Mulai Kerja**.',
                     'Keterlambatan dihitung dari jam buka toko, dengan toleransi keterlambatan yang diatur di form Toko. Semua karyawan mengikuti jam buka toko; Ginnva tidak memakai shift.',
                     'Kalau karyawan lupa absen, ia mengajukan koreksi di aplikasi staff; atasan menyetujui atau menolak di menu **Koreksi Absensi**.',
                     'Rekap kehadiran dilihat di **Absensi Karyawan** (panel).',

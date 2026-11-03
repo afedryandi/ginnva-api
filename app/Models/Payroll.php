@@ -378,7 +378,8 @@ class Payroll extends Model
             // Alpha: potongan = tarif per jam x jam kerja hari itu (Sabtu pendek dipotong lebih kecil dari hari penuh), ditambah denda
             // tetap per hari Alpha (nominal dari aturan). Tanpa jam kerja terisi, tarif harian seperti sebelumnya.
             $alphaRows = $attendances->where('entry_type', 'alpha')
-                ->filter(fn ($row) => ! $user->last_work_date || $row->date->lte($user->last_work_date));
+                ->filter(fn ($row) => (! $user->last_work_date || $row->date->lte($user->last_work_date))
+                    && (! $user->attendance_start_date || $row->date->gte($user->attendance_start_date)));
             $alphaDaysCount = $alphaRows->count();
             $alphaHours = 0.0;
             $alphaWage = 0.0;

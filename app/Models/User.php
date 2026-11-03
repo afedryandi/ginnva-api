@@ -57,6 +57,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'phone',
         'join_date',
         'last_work_date',
+        'attendance_start_date',
         'base_salary',
         'contract_end_date',
         'probation_end_date',
@@ -94,6 +95,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'menu_permissions' => 'array',
         'join_date' => 'date',
         'last_work_date' => 'date',
+        'attendance_start_date' => 'date',
         'base_salary' => 'decimal:2',
         'contract_end_date' => 'date',
         'probation_end_date' => 'date',
@@ -413,6 +415,17 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
     public function scopeRequiresAttendance($query)
     {
         return $query->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', self::ATTENDANCE_EXEMPT_ROLES));
+    }
+
+    /**
+     * Karyawan yang absensinya sudah berlaku pada $date (default hari ini). Kolom Mulai Wajib Absen kosong berarti berlaku sejak awal.
+     * Dipakai bersama requiresAttendance() oleh Alpha otomatis, pengingat belum absen, daftar Belum Absen, dan potongan Alpha di Payroll.
+     */
+    public function scopeAttendanceStarted($query, $date = null)
+    {
+        $day = \Illuminate\Support\Carbon::parse($date ?? today())->toDateString();
+
+        return $query->where(fn ($q) => $q->whereNull('attendance_start_date')->orWhereDate('attendance_start_date', '<=', $day));
     }
 
     /**

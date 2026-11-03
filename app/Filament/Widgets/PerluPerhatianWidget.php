@@ -275,8 +275,11 @@ class PerluPerhatianWidget extends Widget
      */
     private function countNotCheckedInToday($user, bool $isSuperAdmin): int
     {
+        // Role yang dibebaskan dari absen (Direksi) tidak dihitung, sama dengan penanda Alpha dan pengingat belum absen.
         $employeeQuery = User::where('is_active', true)
-            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'));
+            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
+            ->requiresAttendance()
+            ->attendanceStarted();
         if (! $isSuperAdmin) {
             $employeeQuery->where('store_id', $user->store_id);
         } elseif ($this->storeId) {
@@ -285,7 +288,8 @@ class PerluPerhatianWidget extends Widget
         $total = $employeeQuery->count();
 
         $presentQuery = Attendance::where('date', now()->toDateString())
-            ->whereIn('entry_type', ['clock', 'manual', 'field_duty']);
+            ->whereIn('entry_type', ['clock', 'manual', 'field_duty'])
+            ->whereHas('user', fn ($q) => $q->requiresAttendance()->attendanceStarted());
         if (! $isSuperAdmin) {
             $presentQuery->where('store_id', $user->store_id);
         } elseif ($this->storeId) {

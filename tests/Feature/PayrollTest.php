@@ -839,4 +839,16 @@ class PayrollTest extends TestCase
         $this->assertStringContainsString('2 slip gaji', $toRequester[0][2]);
         $this->assertCount(2, array_filter($pushes, fn ($p) => $p[1] === 'Gaji Sudah Dibayar'), 'Tiap karyawan tetap diberi tahu.');
     }
+    public function test_alpha_before_the_attendance_start_date_is_not_deducted(): void
+    {
+        $user = $this->user('kasir');
+        $user->update(['attendance_start_date' => '2026-09-03']);
+        $this->attend($user, '2026-09-02', 'alpha');
+        $this->attend($user, '2026-09-03', 'alpha');
+
+        $payroll = Payroll::generateForMonth($user->fresh(), $this->month);
+
+        $this->assertSame(1, $payroll->alpha_days, 'Alpha sebelum Mulai Wajib Absen diabaikan.');
+        $this->assertEquals(100000, $payroll->alpha_deduction);
+    }
 }

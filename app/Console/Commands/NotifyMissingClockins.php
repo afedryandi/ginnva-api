@@ -53,6 +53,7 @@ class NotifyMissingClockins extends Command
                 ->where(fn ($q) => $q->whereNull('last_work_date')->orWhereDate('last_work_date', '>=', $today))
                 ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
                 ->requiresAttendance()
+                ->attendanceStarted($today)
                 ->get();
 
             $alreadyClockedIn = Attendance::where('store_id', $store->id)

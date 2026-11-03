@@ -86,20 +86,25 @@ class NotCheckedInTodayWidget extends BaseWidget
         return false;
     }
 
+    /** Karyawan aktif yang wajib absen (bukan partner, bukan Direksi) dan belum punya baris absensi hari ini. */
+    public static function pendingQuery(bool $isFullAccess, ?int $storeId): \Illuminate\Database\Eloquent\Builder
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
+            ->requiresAttendance()
+            ->attendanceStarted()
+            ->when(! $isFullAccess, fn ($query) => $query->where('store_id', $storeId))
+            ->whereDoesntHave('attendances', fn ($q) => $q->whereDate('date', today()))
+            ->orderBy('name');
+    }
+
     public function table(Table $table): Table
     {
         $isFullAccess = auth()->user()?->isFullAccess() ?? false;
 
         return $table
-            ->query(User::query()
-                ->where('is_active', true)
-                ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
-                ->when(
-                    ! $isFullAccess,
-                    fn ($query) => $query->where('store_id', auth()->user()?->store_id)
-                )
-                ->whereDoesntHave('attendances', fn ($q) => $q->whereDate('date', today()))
-                ->orderBy('name'))
+            ->query(static::pendingQuery($isFullAccess, auth()->user()?->store_id))
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Karyawan')

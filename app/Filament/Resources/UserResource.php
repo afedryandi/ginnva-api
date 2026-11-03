@@ -773,6 +773,10 @@ class UserResource extends Resource
                         ->label('Tanggal Mulai Kerja')
                         ->maxDate(today()),
 
+                    Forms\Components\DatePicker::make('attendance_start_date')
+                        ->label('Mulai Wajib Absen')
+                        ->helperText('Kosongkan bila absensi wajib sejak Tanggal Mulai Kerja. Isi bila absensinya baru diberlakukan belakangan: sebelum tanggal ini tidak ada Alpha otomatis, pengingat belum absen, atau potongan Alpha di Payroll.'),
+
                     Forms\Components\Select::make('employee_type_id')
                         ->label('Tipe Karyawan')
                         ->relationship('employeeType', 'name', fn ($query) => $query->where('is_active', true))
