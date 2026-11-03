@@ -14,6 +14,7 @@ class RawMaterialBatch extends Model
         'received_date',
         'expiry_date',
         'is_adjustment',
+        'is_restoration',
         'created_by',
     ];
 
@@ -23,6 +24,7 @@ class RawMaterialBatch extends Model
         'received_date' => 'date',
         'expiry_date' => 'date',
         'is_adjustment' => 'boolean',
+        'is_restoration' => 'boolean',
     ];
 
     /**

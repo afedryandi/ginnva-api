@@ -25,8 +25,8 @@ class RawMaterialMovementExport implements FromQuery, WithHeadings, WithMapping,
 
     public function query(): Builder
     {
-        return ($this->query ?? RawMaterialMovement::query())
-            ->with(['rawMaterial', 'user'])
+        return ($this->query ?? RawMaterialMovement::query()->visibleTo(auth()->user()))
+            ->with(['rawMaterial', 'user', 'store'])
             ->reorder('created_at', 'desc');
     }
 
@@ -35,6 +35,7 @@ class RawMaterialMovementExport implements FromQuery, WithHeadings, WithMapping,
         $headings = [
             'Waktu', 'Bahan Baku', 'Kategori', 'Jenis',
             'Jumlah', 'Satuan', 'Harga/Satuan', 'Dicatat Oleh', 'Catatan',
+            'Toko', 'Sumber', 'Status',
         ];
 
         return $this->withCost ? $headings : array_values(array_diff_key($headings, [6 => true]));
@@ -58,6 +59,9 @@ class RawMaterialMovementExport implements FromQuery, WithHeadings, WithMapping,
             $movement->unit_cost !== null ? number_format((float) $movement->unit_cost, 2) : '—',
             $movement->user?->name ?? '—',
             $movement->note,
+            $movement->store?->name ?? '—',
+            $movement->sourceText() ?? '—',
+            $movement->reversed_at ? 'Dibatalkan' . ($movement->reversed_reason ? ': ' . $movement->reversed_reason : '') : 'Berlaku',
         ];
 
         return $this->withCost ? $row : array_values(array_diff_key($row, [6 => true]));

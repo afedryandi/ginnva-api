@@ -109,7 +109,7 @@ class RawMaterialStockTest extends TestCase
         $material = $this->makeMaterial(stock: 10);
         $movement = $material->recordMovement('out', 3, null, null, storeId: $store->id);
 
-        $material->reverseLastMovement($movement, null);
+        $material->reverseLastMovement($movement, null, 'Salah catat');
 
         $correction = $material->movements()->where('type', 'correction')->first();
         $this->assertEquals($store->id, $correction->store_id);

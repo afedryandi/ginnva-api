@@ -125,13 +125,13 @@ class ConsumableItem extends Model
      *
      * @throws \InvalidArgumentException kalau stok keluar melebihi stok yang tersedia.
      */
-    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?float $unitCost = null, ?int $storeId = null): ConsumableItemMovement
+    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?float $unitCost = null, ?int $storeId = null, ?string $sourceType = null, ?int $sourceId = null): ConsumableItemMovement
     {
         if ($quantity <= 0) {
             throw new \InvalidArgumentException('Jumlah harus lebih besar dari 0.');
         }
 
-        return DB::transaction(function () use ($type, $quantity, $userId, $note, $unitCost, $storeId) {
+        return DB::transaction(function () use ($type, $quantity, $userId, $note, $unitCost, $storeId, $sourceType, $sourceId) {
             $item = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
             if ($type === 'out' && $item->current_stock < $quantity) {
@@ -150,6 +150,8 @@ class ConsumableItem extends Model
                 'quantity' => $quantity,
                 'unit_cost' => $type === 'in' ? ($unitCost ?? $item->unit_cost) : null,
                 'note' => $note,
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
                 'user_id' => $userId,
                 // Penanda cabang (Topik 4, Fase 1, 2026-09-19) -- OPSIONAL,
                 // current_stock TETAP nasional. Lihat catatan sama di
@@ -166,9 +168,9 @@ class ConsumableItem extends Model
     /**
      * Sama persis pola RawMaterial::adjustStock() — stock opname.
      */
-    public function adjustStock(float $actualQuantity, ?int $userId, ?string $note = null, ?int $storeId = null): ?ConsumableItemMovement
+    public function adjustStock(float $actualQuantity, ?int $userId, ?string $note = null, ?int $storeId = null, ?string $sourceType = null): ?ConsumableItemMovement
     {
-        return DB::transaction(function () use ($actualQuantity, $userId, $note, $storeId) {
+        return DB::transaction(function () use ($actualQuantity, $userId, $note, $storeId, $sourceType) {
             $item = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
             $delta = round($actualQuantity - (float) $item->current_stock, 2);
 
@@ -182,6 +184,7 @@ class ConsumableItem extends Model
                 'type' => 'adjustment',
                 'quantity' => $delta,
                 'note' => $note,
+                'source_type' => $sourceType,
                 'user_id' => $userId,
                 'store_id' => $storeId,
             ]);

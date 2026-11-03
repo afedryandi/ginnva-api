@@ -505,6 +505,7 @@ Route::prefix('staff')->group(function () {
         Route::get('/materials', [StaffRawMaterialController::class, 'index']);
         Route::post('/materials/bulk-adjust', [StaffRawMaterialController::class, 'bulkAdjust'])
             ->middleware('throttle:20,1');
+        Route::get('/material-movements', [StaffRawMaterialController::class, 'history']);
         Route::get('/materials/{id}', [StaffRawMaterialController::class, 'show']);
         Route::get('/materials/{id}/movements', [StaffRawMaterialController::class, 'movements']);
         Route::post('/materials/{id}/movement', [StaffRawMaterialController::class, 'storeMovement'])

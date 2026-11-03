@@ -114,7 +114,7 @@ class RawMaterialController extends Controller
         $cost = $this->canSeeCost($request) ? ['unit_cost'] : [];
 
         foreach ($movements as $movement) {
-            $movement->setVisible(array_merge(['id', 'type', 'quantity', 'note', 'user', 'created_at'], $cost));
+            $movement->setVisible(array_merge(['id', 'type', 'quantity', 'note', 'user', 'store', 'reversed_at', 'reversed_reason', 'created_at'], $cost));
         }
     }
 
@@ -205,7 +205,7 @@ class RawMaterialController extends Controller
         }
 
         $material = RawMaterial::with([
-            'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'movements' => fn ($q) => $q->withoutGlobalScope('effective')->with(['user:id,name', 'store:id,name'])->limit(20),
             'batches' => fn ($q) => $q->where('quantity', '>', 0),
         ])->find($id);
 
@@ -236,7 +236,76 @@ class RawMaterialController extends Controller
             // modul ini satu-satunya dari 3 modul quantity-based/movement
             // (Inventory, Consumables, Materials) yang tidak punya
             // paginasi riwayat di mobile sama sekali.
-            'movements_has_more' => $material->movements()->count() > $material->movements->count(),
+            'movements_has_more' => $material->movements()->withoutGlobalScope('effective')->count() > $material->movements->count(),
+        ]);
+    }
+
+    /**
+     * GET /api/staff/material-movements?type=&search=&from=&until=&offset=
+     *
+     * Riwayat Bahan Baku lintas bahan (audit 2026-11-03): selama ini mobile hanya punya 20 baris terakhir per bahan. Akses penuh melihat
+     * semua toko, staf lain hanya baris bertanda tokonya sendiri. Harga hanya dengan izin Lihat.
+     */
+    public function history(Request $request)
+    {
+        if (! $this->authorizeAccess($request)) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu Bahan Baku.'], 403);
+        }
+
+        $validator = Validator::make($request->query(), [
+            'type' => 'nullable|in:in,out,adjustment,correction',
+            'search' => 'nullable|string|max:100',
+            'from' => 'nullable|date',
+            'until' => 'nullable|date',
+            'offset' => 'nullable|integer|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Filter tidak valid.', 'errors' => $validator->errors()], 422);
+        }
+
+        $user = $request->user('api');
+        $limit = 30;
+        $offset = (int) $request->query('offset', 0);
+        $search = trim((string) $request->query('search', ''));
+        $cost = $this->canSeeCost($request);
+
+        $query = \App\Models\RawMaterialMovement::query()
+            ->withoutGlobalScope('effective')
+            ->visibleTo($user)
+            ->with(['rawMaterial:id,name,unit,category', 'user:id,name', 'store:id,name'])
+            ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
+            ->when($request->query('from'), fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+            ->when($request->query('until'), fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
+            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->where('note', 'like', "%{$search}%")
+                ->orWhereHas('rawMaterial', fn ($m) => $m->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"))));
+
+        $rows = (clone $query)->latest('created_at')->latest('id')->offset($offset)->limit($limit + 1)->get();
+
+        $today = fn () => \App\Models\RawMaterialMovement::query()->visibleTo($user)->whereDate('created_at', today());
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows->take($limit)->map(fn ($m) => [
+                'id' => $m->id,
+                'type' => $m->type,
+                'quantity' => (float) $m->quantity,
+                'unit_cost' => $cost && $m->unit_cost !== null ? (float) $m->unit_cost : null,
+                'note' => $m->note,
+                'created_at' => $m->created_at?->toIso8601String(),
+                'reversed' => $m->reversed_at !== null,
+                'reversed_reason' => $m->reversed_reason,
+                'source' => $m->sourceText(),
+                'material' => $m->rawMaterial ? ['id' => $m->rawMaterial->id, 'name' => $m->rawMaterial->name, 'unit' => $m->rawMaterial->unit] : null,
+                'user' => $m->user ? ['name' => $m->user->name] : null,
+                'store' => $m->store ? ['name' => $m->store->name] : null,
+            ])->values(),
+            'has_more' => $rows->count() > $limit,
+            'summary' => [
+                'out_today' => $today()->where('type', 'out')->count(),
+                'in_today' => $today()->where('type', 'in')->count(),
+            ],
         ]);
     }
 
@@ -268,7 +337,8 @@ class RawMaterialController extends Controller
         $limit = 20;
 
         $movements = $material->movements()
-            ->with('user:id,name')
+            ->withoutGlobalScope('effective')
+            ->with(['user:id,name', 'store:id,name'])
             ->latest()
             ->offset($offset)
             ->limit($limit)
@@ -279,7 +349,7 @@ class RawMaterialController extends Controller
         return response()->json([
             'success' => true,
             'data' => $movements,
-            'has_more' => $material->movements()->count() > $offset + $movements->count(),
+            'has_more' => $material->movements()->withoutGlobalScope('effective')->count() > $offset + $movements->count(),
         ]);
     }
 
@@ -356,7 +426,7 @@ class RawMaterialController extends Controller
         // app dipakai langsung dari respons ini.
         $material = $material->fresh();
         $material->load([
-            'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'movements' => fn ($q) => $q->withoutGlobalScope('effective')->with(['user:id,name', 'store:id,name'])->limit(20),
             'batches' => fn ($q) => $q->where('quantity', '>', 0),
         ]);
 
@@ -418,7 +488,7 @@ class RawMaterialController extends Controller
 
         $material = $material->fresh();
         $material->load([
-            'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'movements' => fn ($q) => $q->withoutGlobalScope('effective')->with(['user:id,name', 'store:id,name'])->limit(20),
             'batches' => fn ($q) => $q->where('quantity', '>', 0),
         ]);
 
@@ -549,7 +619,7 @@ class RawMaterialController extends Controller
 
         $material = $material->fresh();
         $material->load([
-            'movements' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'movements' => fn ($q) => $q->withoutGlobalScope('effective')->with(['user:id,name', 'store:id,name'])->limit(20),
             'batches' => fn ($q) => $q->where('quantity', '>', 0),
         ]);
 

@@ -46,7 +46,7 @@ class MaterialMemoStockService
             // Baku (2026-11-02) koreksi jumlah, pengembalian, dan pembatalan
             // baris memo juga memakai penanda cabang memo yang sama, supaya
             // pemakaian bersih per cabang (ambil dikurangi kembali) tetap benar.
-            $material->recordMovement('out', $qtyTaken, $userId, self::buildNote($memo, 'pengambilan', $conditionNotes), storeId: $memo->store_id);
+            $material->recordMovement('out', $qtyTaken, $userId, self::buildNote($memo, 'pengambilan', $conditionNotes), storeId: $memo->store_id, sourceType: 'memo', sourceId: $memo->id);
 
             return MaterialMemoItem::create([
                 'material_memo_id' => $memo->id,
@@ -145,7 +145,7 @@ class MaterialMemoStockService
                 // salah masuk ke parameter lain (mis. jadi $receivedDate
                 // di RawMaterial) karena $material union type keduanya.
                 // expiryDate hanya dikenal RawMaterial::recordMovement(); barang habis pakai tidak punya batch.
-                $args = ['unitCost' => $unitCost, 'storeId' => $memo->store_id] + ($material instanceof RawMaterial && $expiryDate ? ['expiryDate' => $expiryDate] : []);
+                $args = ['unitCost' => $unitCost, 'storeId' => $memo->store_id, 'sourceType' => 'memo', 'sourceId' => $memo->id] + ($material instanceof RawMaterial && $expiryDate ? ['expiryDate' => $expiryDate] : []);
                 $material->recordMovement('in', $qtyReturned, $userId, self::buildNote($memo, 'pengembalian'), ...$args);
             }
 
@@ -206,10 +206,10 @@ class MaterialMemoStockService
             $movementNote = self::buildNote($memo, 'koreksi pengembalian', $note);
 
             if ($delta > 0) {
-                $args = ['storeId' => $memo->store_id] + ($material instanceof RawMaterial && $expiryDate ? ['expiryDate' => $expiryDate] : []);
+                $args = ['storeId' => $memo->store_id, 'sourceType' => 'memo', 'sourceId' => $memo->id] + ($material instanceof RawMaterial && $expiryDate ? ['expiryDate' => $expiryDate] : []);
                 $material->recordMovement('in', $delta, $userId, $movementNote, ...$args);
             } else {
-                $material->recordMovement('out', abs($delta), $userId, $movementNote, storeId: $memo->store_id);
+                $material->recordMovement('out', abs($delta), $userId, $movementNote, storeId: $memo->store_id, sourceType: 'memo', sourceId: $memo->id);
             }
 
             $locked->update([
@@ -256,10 +256,10 @@ class MaterialMemoStockService
             $note = self::buildNote($memo, 'koreksi jumlah');
 
             if ($delta > 0) {
-                $material->recordMovement('out', $delta, $userId, $note, storeId: $memo->store_id);
+                $material->recordMovement('out', $delta, $userId, $note, storeId: $memo->store_id, sourceType: 'memo', sourceId: $memo->id);
             } else {
                 // Named argument — lihat catatan di returnMaterial().
-                $material->recordMovement('in', abs($delta), $userId, $note, unitCost: $unitCost, storeId: $memo->store_id);
+                $material->recordMovement('in', abs($delta), $userId, $note, unitCost: $unitCost, storeId: $memo->store_id, sourceType: 'memo', sourceId: $memo->id);
             }
 
             $locked->update(['qty_taken' => $newQty]);
@@ -354,7 +354,7 @@ class MaterialMemoStockService
             : (float) $memoItem->qty_taken;
 
         if ($stillOut > 0) {
-            $material->recordMovement('in', $stillOut, $userId, self::buildNote($memo, 'baris dihapus'), storeId: $memo->store_id);
+            $material->recordMovement('in', $stillOut, $userId, self::buildNote($memo, 'baris dihapus'), storeId: $memo->store_id, sourceType: 'memo', sourceId: $memo->id);
         }
     }
 

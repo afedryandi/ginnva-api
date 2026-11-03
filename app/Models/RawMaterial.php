@@ -300,13 +300,13 @@ class RawMaterial extends Model
      *
      * @throws \InvalidArgumentException kalau stok keluar melebihi stok yang tersedia.
      */
-    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?string $receivedDate = null, ?string $expiryDate = null, ?float $unitCost = null, ?int $storeId = null): RawMaterialMovement
+    public function recordMovement(string $type, float $quantity, ?int $userId, ?string $note = null, ?string $receivedDate = null, ?string $expiryDate = null, ?float $unitCost = null, ?int $storeId = null, ?string $sourceType = null, ?int $sourceId = null): RawMaterialMovement
     {
         if ($quantity <= 0) {
             throw new \InvalidArgumentException('Jumlah harus lebih besar dari 0.');
         }
 
-        return DB::transaction(function () use ($type, $quantity, $userId, $note, $receivedDate, $expiryDate, $unitCost, $storeId) {
+        return DB::transaction(function () use ($type, $quantity, $userId, $note, $receivedDate, $expiryDate, $unitCost, $storeId, $sourceType, $sourceId) {
             $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
             if ($type === 'out' && $material->current_stock < $quantity) {
@@ -351,6 +351,8 @@ class RawMaterial extends Model
                 // langsung tanpa perlu buka tab Batch terpisah.
                 'unit_cost' => $type === 'in' ? ($unitCost ?? $material->unit_cost) : null,
                 'note' => $note,
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
                 'user_id' => $userId,
                 'store_id' => $storeId,
             ]);
@@ -393,9 +395,9 @@ class RawMaterial extends Model
      * Return null (tidak ada movement dibuat) kalau hasil hitung sama
      * persis dengan sistem — tidak perlu bikin baris riwayat kosong.
      */
-    public function adjustStock(float $actualQuantity, ?int $userId, ?string $note = null, ?int $storeId = null): ?RawMaterialMovement
+    public function adjustStock(float $actualQuantity, ?int $userId, ?string $note = null, ?int $storeId = null, ?string $sourceType = null): ?RawMaterialMovement
     {
-        return DB::transaction(function () use ($actualQuantity, $userId, $note, $storeId) {
+        return DB::transaction(function () use ($actualQuantity, $userId, $note, $storeId, $sourceType) {
             $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
             $rawDelta = $actualQuantity - (float) $material->current_stock;
 
@@ -429,6 +431,7 @@ class RawMaterial extends Model
                 'type' => 'adjustment',
                 'quantity' => $delta,
                 'note' => $note,
+                'source_type' => $sourceType,
                 'user_id' => $userId,
                 'store_id' => $storeId,
             ]);
@@ -458,55 +461,97 @@ class RawMaterial extends Model
      *   batch sama sekali). Staff perlu tahu ini — lihat modalDescription
      *   di RawMaterialMovementResource.
      */
-    public function reverseLastMovement(RawMaterialMovement $movement, ?int $userId): void
+    public function reverseLastMovement(RawMaterialMovement $movement, ?int $userId, ?string $reason = null): void
     {
         if ($movement->raw_material_id !== $this->id) {
             throw new \InvalidArgumentException('Baris riwayat ini bukan milik bahan ini.');
         }
 
-        DB::transaction(function () use ($movement, $userId) {
-            $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+        if (trim((string) $reason) === '') {
+            throw new \InvalidArgumentException('Isi alasan pembatalan.');
+        }
 
-            $isLatest = ! $material->movements()->where('id', '>', $movement->id)->exists();
+        // Pergerakan dari Memo, penerimaan Permohonan, atau Stok Terbuang dibatalkan lewat dokumennya; membatalkannya di sini membuat
+        // stok berubah sementara dokumen sumbernya tidak.
+        if ($movement->source_type !== null) {
+            throw new \InvalidArgumentException('Pergerakan ini berasal dari ' . RawMaterialMovement::sourceLabel($movement->source_type) . '. Batalkan lewat dokumen sumbernya supaya stok dan dokumen tetap sinkron.');
+        }
+
+        DB::transaction(function () use ($movement, $userId, $reason) {
+            $material = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
+            $locked = RawMaterialMovement::withoutGlobalScope('effective')->whereKey($movement->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->reversed_at !== null) {
+                throw new \InvalidArgumentException('Pencatatan ini sudah dibatalkan.');
+            }
+
+            // Pergerakan yang sudah dibatalkan disembunyikan scope 'effective', jadi hanya yang masih berlaku yang dihitung "lebih baru".
+            $isLatest = ! $material->movements()->where('id', '>', $locked->id)->where('type', '!=', 'correction')->exists();
             if (! $isLatest) {
                 throw new \InvalidArgumentException('Cuma bisa membatalkan riwayat paling terakhir — sudah ada kejadian lain setelah ini.');
             }
 
-            $reversedStock = match ($movement->type) {
-                'in' => (float) $material->current_stock - (float) $movement->quantity,
-                'out' => (float) $material->current_stock + (float) $movement->quantity,
-                'adjustment' => (float) $material->current_stock - (float) $movement->quantity,
+            $quantity = (float) $locked->quantity;
+
+            $reversedStock = match ($locked->type) {
+                'in' => (float) $material->current_stock - $quantity,
+                'out' => (float) $material->current_stock + $quantity,
+                'adjustment' => (float) $material->current_stock - $quantity,
                 default => (float) $material->current_stock,
             };
 
-            if ($movement->type === 'in') {
-                // reorder(): batches() sudah punya urutan received_date -- tanpa ini yang terambil batch TERTUA, bukan yang baru dibuat.
-                $latestBatch = $material->batches()->reorder('id', 'desc')->first();
-                $latestBatch?->delete();
-            }
+            if ($locked->type === 'in' || ($locked->type === 'adjustment' && $quantity > 0)) {
+                // Batch yang dibuat pergerakan ini ikut dihapus: batch terbaru dari jenis yang sama (bukan batch pemulihan). Bila batch itu
+                // sudah sempat terpakai sebagian (mis. Keluar sesudahnya sudah dibatalkan dan dipulihkan sebagai batch lain), sisanya
+                // diambil dari batch lain secara FIFO supaya jumlah batch tetap sama dengan stok.
+                $batch = $material->batches()->reorder('id', 'desc')
+                    ->where('is_restoration', false)
+                    ->where('is_adjustment', $locked->type === 'adjustment')
+                    ->first();
 
-            // Opname NAIK membuat batch "tidak diketahui asalnya" (is_adjustment); karena ini kejadian terakhir,
-            // batch itu belum pernah terpakai -- hapus supaya jumlah batch dan nilai persediaan tidak menggelembung.
-            if ($movement->type === 'adjustment' && (float) $movement->quantity > 0) {
-                $material->batches()->where('is_adjustment', true)->reorder('id', 'desc')->first()?->delete();
+                $remaining = $quantity;
+                if ($batch) {
+                    $remaining = round($quantity - (float) $batch->quantity, 2);
+                    $batch->delete();
+                }
+
+                if ($remaining > 0) {
+                    static::consumeBatchesFifo($material, $remaining);
+                }
+            } else {
+                // Keluar atau opname turun: sistem tidak menyimpan batch mana yang terpakai, jadi jumlahnya dipulihkan sebagai batch
+                // "tidak diketahui asalnya" (tanpa kedaluwarsa, tanggal masuk hari ini) -- total batch tetap sama dengan stok.
+                $restored = abs($quantity);
+                if ($restored > 0) {
+                    $material->batches()->create([
+                        'quantity' => $restored,
+                        'unit_cost' => $material->unit_cost,
+                        'received_date' => now()->toDateString(),
+                        'expiry_date' => null,
+                        'is_adjustment' => true,
+                        'is_restoration' => true,
+                        'created_by' => $userId,
+                    ]);
+                }
             }
 
             $material->update(['current_stock' => max(0, $reversedStock)]);
 
-            $movement->delete();
+            // Baris asli disimpan (siapa/kapan/berapa tetap terlihat), hanya ditandai dibatalkan dan tersembunyi dari laporan.
+            $locked->update(['reversed_at' => now(), 'reversed_by' => $userId, 'reversed_reason' => $reason]);
 
             $material->movements()->create([
                 'type' => 'correction',
                 'quantity' => 0,
-                'note' => 'Koreksi: membatalkan pencatatan "' . match ($movement->type) {
+                'note' => 'Koreksi: membatalkan pencatatan "' . match ($locked->type) {
                     'in' => 'Masuk',
                     'out' => 'Keluar',
                     'adjustment' => 'Penyesuaian (Opname)',
-                    default => $movement->type,
-                } . '" yang salah.',
+                    default => $locked->type,
+                } . '" (' . number_format($quantity, 2) . ', ' . ($locked->created_at?->format('d M Y H:i') ?? '-') . '). Alasan: ' . $reason,
                 'user_id' => $userId,
                 // Koreksi mewarisi penanda cabang movement yang dibatalkan.
-                'store_id' => $movement->store_id,
+                'store_id' => $locked->store_id,
             ]);
 
             $this->setRawAttributes($material->getAttributes());

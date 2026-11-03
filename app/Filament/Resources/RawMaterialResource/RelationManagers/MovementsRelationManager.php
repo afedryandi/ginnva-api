@@ -26,6 +26,8 @@ class MovementsRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('id')
+            ->modifyQueryUsing(fn ($query) => $query->withoutGlobalScope('effective')->with('store'))
+            ->recordClasses(fn ($record) => $record->reversed_at !== null ? 'opacity-60' : null)
             ->columns([
                 Tables\Columns\BadgeColumn::make('type')
                     ->label('Jenis')
@@ -54,6 +56,19 @@ class MovementsRelationManager extends RelationManager
                     ->money('IDR')
                     ->placeholder('—')
                     ->visible(fn () => \App\Filament\Resources\RawMaterialResource::canSeeCost())
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('reversed_state')
+                    ->label('Status')
+                    ->state(fn ($record) => $record->reversed_at !== null ? 'Dibatalkan' : null)
+                    ->badge()
+                    ->color('gray')
+                    ->placeholder('—')
+                    ->tooltip(fn ($record) => $record->reversed_reason),
+
+                Tables\Columns\TextColumn::make('store.name')
+                    ->label('Toko')
+                    ->placeholder('—')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('user.name')

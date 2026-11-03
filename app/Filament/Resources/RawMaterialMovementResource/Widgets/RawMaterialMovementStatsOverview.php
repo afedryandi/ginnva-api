@@ -26,10 +26,13 @@ class RawMaterialMovementStatsOverview extends BaseWidget
     {
         $startOfMonth = now()->startOfMonth();
 
-        $outCount = RawMaterialMovement::where('type', 'out')->where('created_at', '>=', $startOfMonth)->count();
-        $inCount = RawMaterialMovement::where('type', 'in')->where('created_at', '>=', $startOfMonth)->count();
+        // Yang dibatalkan tidak dihitung (scope 'effective'), dan hanya baris yang boleh dilihat akun ini.
+        $base = fn () => RawMaterialMovement::query()->visibleTo(auth()->user());
 
-        $topConsumed = RawMaterialMovement::where('type', 'out')
+        $outCount = $base()->where('type', 'out')->where('created_at', '>=', $startOfMonth)->count();
+        $inCount = $base()->where('type', 'in')->where('created_at', '>=', $startOfMonth)->count();
+
+        $topConsumed = $base()->where('type', 'out')
             ->where('created_at', '>=', $startOfMonth)
             ->selectRaw('raw_material_id, SUM(quantity) as total')
             ->groupBy('raw_material_id')

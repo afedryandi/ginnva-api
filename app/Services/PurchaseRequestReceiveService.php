@@ -53,9 +53,9 @@ class PurchaseRequestReceiveService
                 $note = "Permohonan {$locked->request_number} — barang diterima";
 
                 if ($item instanceof \App\Models\RawMaterial) {
-                    $item->recordMovement('in', $received, $user->id, $note, null, ! empty($data['expiry_date']) ? (string) $data['expiry_date'] : null, $unitCost, $locked->store_id);
+                    $item->recordMovement('in', $received, $user->id, $note, null, ! empty($data['expiry_date']) ? (string) $data['expiry_date'] : null, $unitCost, $locked->store_id, 'purchase_request', $locked->id);
                 } else {
-                    $item->recordMovement('in', $received, $user->id, $note, $unitCost, $locked->store_id);
+                    $item->recordMovement('in', $received, $user->id, $note, $unitCost, $locked->store_id, 'purchase_request', $locked->id);
                 }
 
                 $locked->update(['stock_recorded_at' => now()]);

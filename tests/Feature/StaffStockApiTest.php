@@ -161,6 +161,8 @@ class StaffStockApiTest extends TestCase
         $writeOff = \App\Models\StockWriteOff::withoutGlobalScopes()->where('writeoffable_id', $material->id)->firstOrFail();
         $this->assertSame(['damaged', 'tumpah'], [$writeOff->reason, $writeOff->note]);
         $this->assertSame($this->storeA->id, $material->movements()->where('type', 'adjustment')->latest('id')->first()->store_id);
+        $writeOffMovement = $material->movements()->where('type', 'adjustment')->latest('id')->firstOrFail();
+        $this->assertSame(['stock_write_off', $writeOff->id], [$writeOffMovement->source_type, $writeOffMovement->source_id], 'Pergerakan Stok Terbuang bertanda sumber.');
 
         $this->api($user)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 99, 'reason' => 'lost'])->assertStatus(422);
         $this->api($user)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 1, 'reason' => 'ngawur'])->assertStatus(422)->assertJsonValidationErrors('reason');
@@ -612,6 +614,8 @@ class StaffStockApiTest extends TestCase
         $this->assertTrue($this->api($writer)->getJson("/api/staff/memos/{$memo->id}")->json('can_modify'));
         $this->api($writer)->postJson("/api/staff/memos/{$memo->id}/items", ['item_type' => 'raw_material', 'item_id' => $material->id, 'qty_taken' => 1])->assertSuccessful();
         $this->assertEquals(9, (float) $material->fresh()->current_stock);
+        $memoMovement = $material->movements()->where('type', 'out')->latest('id')->firstOrFail();
+        $this->assertSame(['memo', $memo->id], [$memoMovement->source_type, $memoMovement->source_id], 'Pergerakan Memo bertanda sumber.');
 
         $material->update(['is_active' => false]);
         $this->api($writer)->postJson("/api/staff/memos/{$memo->id}/items", ['item_type' => 'raw_material', 'item_id' => $material->id, 'qty_taken' => 1])->assertStatus(422);
@@ -1357,5 +1361,44 @@ class StaffStockApiTest extends TestCase
         $inactive = \App\Models\Supplier::where('name', 'PT Mati')->firstOrFail();
         $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 1, 'record_stock' => true, 'supplier_id' => $inactive->id])
             ->assertStatus(422)->assertJsonValidationErrors('supplier_id');
+    }
+    public function test_the_material_history_is_scoped_filtered_cost_gated_and_shows_reversals(): void
+    {
+        $material = $this->material('Slip Solution', 10, 5000);
+        $admin = $this->staff('super_admin');
+        $a = $material->recordMovement('in', 5, $admin->id, 'masuk A', null, null, 5000, $this->storeA->id);
+        $material->fresh()->recordMovement('out', 2, $admin->id, 'keluar B', storeId: $this->storeB->id, sourceType: 'memo', sourceId: 1);
+        $material->fresh()->adjustStock(20, $admin->id, 'opname A', $this->storeA->id);
+
+        $viewer = $this->staff('kasir', $this->storeA, ['RawMaterialResource'], true, ['RawMaterialResource' => ['update']]);
+        $this->getJson('/api/staff/material-movements')->assertStatus(401);
+
+        $res = $this->api($viewer)->getJson('/api/staff/material-movements')->assertSuccessful();
+        $this->assertSame(['opname A', 'masuk A'], array_column($res->json('data'), 'note'), 'Hanya baris tokonya, terbaru dulu.');
+        $this->assertNull($res->json('data.1.unit_cost'), 'Harga hanya dengan izin Lihat.');
+        $this->assertFalse($res->json('has_more'));
+
+        $this->assertSame(['masuk A'], array_column($this->api($viewer)->getJson('/api/staff/material-movements?type=in')->json('data'), 'note'));
+        $this->assertSame(['opname A'], array_column($this->api($viewer)->getJson('/api/staff/material-movements?search=opname')->json('data'), 'note'));
+        $this->api($viewer)->getJson('/api/staff/material-movements?type=bogus')->assertStatus(422);
+
+        $priced = $this->staff('kasir', $this->storeA, ['RawMaterialResource'], true, ['RawMaterialResource' => ['view']]);
+        $this->assertEquals(5000, $this->api($priced)->getJson('/api/staff/material-movements?type=in')->json('data.0.unit_cost'));
+
+        $all = $this->api($this->staff('super_admin'))->getJson('/api/staff/material-movements')->json('data');
+        $this->assertCount(3, $all);
+        $this->assertSame('Memo Bahan', collect($all)->firstWhere('note', 'keluar B')['source']);
+
+        // Pembatalan: baris tampil sebagai dibatalkan di riwayat gabungan dan di riwayat per bahan.
+        $material->fresh()->reverseLastMovement(\App\Models\RawMaterialMovement::where('note', 'opname A')->firstOrFail(), $admin->id, 'Salah hitung');
+        $rows = collect($this->api($viewer)->getJson('/api/staff/material-movements')->json('data'));
+        $this->assertTrue($rows->firstWhere('note', 'opname A')['reversed']);
+        $this->assertSame('Salah hitung', $rows->firstWhere('note', 'opname A')['reversed_reason']);
+
+        $perMaterial = collect($this->api($viewer)->getJson("/api/staff/materials/{$material->id}/movements")->json('data'));
+        $this->assertTrue($perMaterial->contains(fn ($m) => ($m['note'] ?? null) === 'opname A' && $m['reversed_at'] !== null));
+
+        $this->api($this->staff('kasir', $this->storeA, ['BookingResource']))->getJson('/api/staff/material-movements')->assertStatus(403);
+        $this->assertNotNull($a);
     }
 }

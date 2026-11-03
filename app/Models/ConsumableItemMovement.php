@@ -17,6 +17,8 @@ class ConsumableItemMovement extends Model
         'quantity',
         'unit_cost',
         'note',
+        'source_type',
+        'source_id',
         'user_id',
     ];
 

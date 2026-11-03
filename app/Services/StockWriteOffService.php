@@ -72,7 +72,7 @@ class StockWriteOffService
 
             $recorder = $userId ? \App\Models\User::find($userId) : null;
 
-            $item->adjustStock($current - $quantity, $userId, $movementNote, $recorder?->store_id);
+            $movement = $item->adjustStock($current - $quantity, $userId, $movementNote, $recorder?->store_id, 'stock_write_off');
             $item->refresh();
 
             $unitCost = $item->unit_cost !== null ? (float) $item->unit_cost : null;
@@ -112,7 +112,7 @@ class StockWriteOffService
             // ia catat sendiri. Full-access tidak terikat toko, jadi catatannya tetap NULL (terlihat oleh full-access).
             $recorderStoreId = ($recorder && ! $recorder->isFullAccess()) ? $recorder->store_id : null;
 
-            return StockWriteOff::create([
+            $writeOff = StockWriteOff::create([
                 'write_off_number' => StockWriteOff::generateNumber(),
                 'writeoffable_type' => $itemType,
                 'writeoffable_id' => $item->id,
@@ -127,6 +127,11 @@ class StockWriteOffService
                 'journal_entry_id' => $journalId,
                 'created_by' => $userId,
             ]);
+
+            // Taut pergerakan stok ke dokumen Stok Terbuang-nya, supaya tidak bisa dibatalkan dari Riwayat Bahan Baku.
+            $movement?->update(['source_id' => $writeOff->id]);
+
+            return $writeOff;
         });
     }
 }
