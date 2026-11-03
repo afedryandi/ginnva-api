@@ -1475,6 +1475,8 @@ class StaffStockApiTest extends TestCase
     }
     public function test_write_off_requires_a_note_for_lost_and_other_and_the_list_is_scoped_and_value_gated(): void
     {
+        $this->getJson('/api/staff/stock-write-offs')->assertStatus(401);
+
         $this->seed(\Database\Seeders\ChartOfAccountSeeder::class);
         $material = $this->material('Adhesive', 20, 5000);
         $item = $this->consumable('Lakban', 10);
@@ -1488,8 +1490,6 @@ class StaffStockApiTest extends TestCase
         // Catatan Toko B (akses penuh mencatat tanpa toko) tidak terlihat staf Toko A.
         $other = $this->warehouse($this->storeB);
         $this->api($other)->postJson("/api/staff/materials/{$material->id}/write-off", ['quantity' => 1, 'reason' => 'damaged'])->assertSuccessful();
-
-        $this->getJson('/api/staff/stock-write-offs')->assertStatus(401);
 
         $res = $this->api($writer)->getJson('/api/staff/stock-write-offs')->assertSuccessful();
         $this->assertSame(2, count($res->json('data')), 'Hanya toko sendiri.');
