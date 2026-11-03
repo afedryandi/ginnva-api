@@ -275,7 +275,7 @@ class PurchaseRequestController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $approved
-                    ? 'Hanya pemohon atau staf gudang berizin Ubah yang bisa menerima barang ini.'
+                    ? 'Hanya pemohon atau staff gudang berizin Ubah yang bisa menerima barang ini.'
                     : 'Permohonan ini belum disetujui atau sudah diproses.',
             ], $approved ? 403 : 422);
         }

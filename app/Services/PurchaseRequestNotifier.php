@@ -36,7 +36,7 @@ class PurchaseRequestNotifier
             app(StaffNotifier::class)->toUsers(
                 $ids,
                 'Permohonan Pembelian Baru',
-                ($request->requester?->name ?? 'Staf') . " mengajukan {$request->item_name} ({$qty}" . ($request->unit ? " {$request->unit}" : '') . ')'
+                ($request->requester?->name ?? 'Staff') . " mengajukan {$request->item_name} ({$qty}" . ($request->unit ? " {$request->unit}" : '') . ')'
                     . ($request->store ? " untuk {$request->store->name}" : '') . ". Nomor {$request->request_number}, menunggu persetujuan."
             );
         } catch (\Throwable $e) {

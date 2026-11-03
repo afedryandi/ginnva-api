@@ -293,8 +293,8 @@ class AssetController extends Controller
         if ($request->filled('to_user_id') && ! User::find($request->to_user_id)?->canAccessStaffArea()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pemegang harus staf yang punya akses ke panel.',
-                'errors' => ['to_user_id' => ['Pemegang harus staf yang punya akses ke panel.']],
+                'message' => 'Pemegang harus staff yang punya akses ke panel.',
+                'errors' => ['to_user_id' => ['Pemegang harus staff yang punya akses ke panel.']],
             ], 422);
         }
 

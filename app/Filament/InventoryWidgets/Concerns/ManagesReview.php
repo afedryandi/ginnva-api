@@ -30,7 +30,7 @@ trait ManagesReview
         return Tables\Columns\TextColumn::make('review_info')
             ->label('Ditinjau')
             ->state(fn ($record) => $record->reviewed_at
-                ? ($record->reviewedBy?->name ?? 'Pengguna terhapus') . ', ' . $record->reviewed_at->diffForHumans()
+                ? ($record->reviewedBy?->name ?? 'User terhapus') . ', ' . $record->reviewed_at->diffForHumans()
                 : '—')
             ->visible(fn ($livewire) => ($livewire->tableFilters['review']['value'] ?? 'pending') === 'reviewed');
     }

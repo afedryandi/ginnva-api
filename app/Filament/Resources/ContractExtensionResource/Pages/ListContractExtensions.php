@@ -19,7 +19,7 @@ class ListContractExtensions extends ListRecords
                 ->color('gray')
                 ->visible(fn () => ContractExtensionResource::canCreate())
                 ->modalHeading('Angkat Jadi Karyawan Tetap')
-                ->modalDescription('Tipe karyawan diganti dan tanggal akhir kontrak dikosongkan, sehingga tidak lagi diingatkan atau dinonaktifkan otomatis. Tercatat di Histori Aktivitas dan karyawan diberi tahu.')
+                ->modalDescription('Tipe karyawan diganti dan tanggal akhir kontrak dikosongkan, sehingga tidak lagi diingatkan atau dinonaktifkan otomatis. Tercatat di Riwayat Aktivitas dan karyawan diberi tahu.')
                 ->form([
                     \Filament\Forms\Components\Select::make('user_id')
                         ->label('Karyawan')

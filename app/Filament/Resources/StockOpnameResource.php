@@ -303,7 +303,7 @@ class StockOpnameResource extends Resource
         [$typeCol, $idCol, $qtyCol, $noteCol] = [$col('jenis'), $col('id'), $col('hasil hitung'), $col('catatan')];
 
         if ($typeCol === false || $idCol === false || $qtyCol === false) {
-            return ['items' => [], 'errors' => ['Kolom "Jenis", "ID", dan "Hasil Hitung" tidak ditemukan. Pakai file dari tombol "Unduh Lembar Hitung".']];
+            return ['items' => [], 'errors' => ['Kolom "Jenis", "ID", dan "Hasil Hitung" tidak ditemukan. Pakai file dari tombol "Download Lembar Hitung".']];
         }
 
         $items = [];
@@ -501,7 +501,7 @@ class StockOpnameResource extends Resource
                     ->action(fn (array $data) => static::submitSession($data, $data['items'])),
 
                 Tables\Actions\Action::make('download_sheet')
-                    ->label('Unduh Lembar Hitung')
+                    ->label('Download Lembar Hitung')
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('gray')
                     ->form([
@@ -523,7 +523,7 @@ class StockOpnameResource extends Resource
                     }),
 
                 Tables\Actions\Action::make('import_count')
-                    ->label('Impor Hasil Hitung')
+                    ->label('Import Hasil Hitung')
                     ->icon('heroicon-o-arrow-up-tray')
                     ->color('gray')
                     ->visible(fn () => static::canSubmit())
@@ -543,9 +543,9 @@ class StockOpnameResource extends Resource
                                 'application/vnd.ms-excel',
                                 'text/csv',
                             ])
-                            ->helperText('Pakai file dari "Unduh Lembar Hitung" (Excel). Baris tanpa Hasil Hitung dilewati.'),
+                            ->helperText('Pakai file dari "Download Lembar Hitung" (Excel). Baris tanpa Hasil Hitung dilewati.'),
                     ])
-                    ->modalSubmitActionLabel('Impor')
+                    ->modalSubmitActionLabel('Import')
                     ->action(function (array $data) {
                         $path = $data['file'];
 
