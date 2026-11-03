@@ -590,6 +590,8 @@ class PurchaseRequestResource extends Resource
                             })
                             ->searchable()
                             ->required(fn () => (bool) config('features.finance'))
+                            // Membuat supplier baru butuh izin Tambah di menu Supplier, bukan sekadar bisa membuka form ini.
+                            ->createOptionAction(fn (\Filament\Forms\Components\Actions\Action $action) => $action->visible(\App\Filament\Resources\SupplierResource::canCreate()))
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('name')->label('Nama Supplier')->required()->maxLength(255),
                             ])

@@ -27,6 +27,7 @@ class PurchaseRequest extends Model
         'store_id',
         'item_type',
         'item_id',
+        'supplier_id',
         'item_name',
         'unit',
         'quantity',
@@ -75,6 +76,11 @@ class PurchaseRequest extends Model
         $short = round($this->effectiveQuantity() - (float) $this->quantity_received, 2);
 
         return $short > 0 ? $short : null;
+    }
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
     }
 
     public function store(): BelongsTo

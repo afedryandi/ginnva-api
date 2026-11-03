@@ -506,7 +506,7 @@ class UserResource extends Resource
         foreach ([
             'finance' => ['FinanceCategoryResource', 'FinanceTransactionResource', 'FinanceReport', 'TrialBalanceReport', 'LedgerReconciliationReport',
                 'PaymentAccountResource', 'CashTransferResource', 'CashBalanceReport', 'CashCountResource', 'BudgetResource', 'BudgetVsActualReport',
-                'IncomeStatementReport', 'GeneralLedgerReport', 'BalanceSheetReport', 'CashFlowReport', 'PayableResource', 'SupplierResource',
+                'IncomeStatementReport', 'GeneralLedgerReport', 'BalanceSheetReport', 'CashFlowReport', 'PayableResource',
                 'RecurringBillTemplateResource', 'ReceivableResource', 'ChartOfAccountResource', 'JournalEntryResource', 'BankStatementLineResource'],
             'k3' => ['PpeTypeResource', 'PpeIssuanceResource', 'SafetyIncidentResource'],
             'employee_training' => ['EmployeeTrainingResource'],

@@ -129,6 +129,8 @@ class RecurringBillTemplateResource extends Resource
                 ->searchable()
                 ->required()
                 ->live()
+                // Membuat supplier baru butuh izin Tambah di menu Supplier, bukan sekadar bisa membuka form ini.
+                ->createOptionAction(fn (\Filament\Forms\Components\Actions\Action $action) => $action->visible(\App\Filament\Resources\SupplierResource::canCreate()))
                 ->createOptionForm([
                     Forms\Components\TextInput::make('name')->label('Nama Supplier')->required()->maxLength(255),
                 ])

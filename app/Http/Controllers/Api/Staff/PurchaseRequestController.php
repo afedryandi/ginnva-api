@@ -287,7 +287,7 @@ class PurchaseRequestController extends Controller
             'register_asset' => ['sometimes', 'boolean'],
             'expiry_date' => ['nullable', 'date'],
             'actual_cost' => [$ledger ? 'required' : 'nullable', 'numeric', 'min:0.01', 'max:100000000000'],
-            'supplier_id' => [$ledger ? 'required' : 'nullable', 'integer', 'exists:suppliers,id'],
+            'supplier_id' => [$ledger ? 'required' : 'nullable', 'integer', \Illuminate\Validation\Rule::exists('suppliers', 'id')->where('is_active', true)],
             'due_date' => ['nullable', 'date'],
             'chart_of_account_id' => [$ledger && $purchaseRequest->item_type === 'asset' ? 'required' : 'nullable', 'integer', 'exists:chart_of_accounts,id'],
         ]);

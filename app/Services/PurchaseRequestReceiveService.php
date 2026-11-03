@@ -41,6 +41,8 @@ class PurchaseRequestReceiveService
                 'fulfilled_at' => now(),
                 'quantity_received' => $data['quantity_received'],
                 'actual_cost'  => $data['actual_cost'] ?? null,
+                // Pemasok dicatat walau Keuangan mati (tanpa tagihan), supaya ada riwayat pembelian per supplier.
+                'supplier_id' => $supplier?->id,
             ]);
 
             // Stok masuk sejumlah yang diterima, dalam transaksi yang sama: status terpenuhi dan stok selalu sejalan.

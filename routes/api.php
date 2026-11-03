@@ -567,6 +567,8 @@ Route::prefix('staff')->group(function () {
         Route::get('/purchase-requests', [StaffPurchaseRequestController::class, 'index']);
         Route::post('/purchase-requests/{id}/cancel', [StaffPurchaseRequestController::class, 'cancel'])
             ->middleware('throttle:30,1');
+        Route::get('/suppliers', [\App\Http\Controllers\Api\Staff\SupplierController::class, 'index'])
+            ->middleware('throttle:60,1');
         Route::post('/purchase-requests/{id}/receive', [StaffPurchaseRequestController::class, 'receive'])
             ->middleware('throttle:30,1');
         Route::post('/purchase-requests', [StaffPurchaseRequestController::class, 'store'])

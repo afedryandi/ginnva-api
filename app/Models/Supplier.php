@@ -8,9 +8,9 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
- * Master supplier untuk Hutang Usaha (audit 2026-09-29): 1 supplier dipakai
- * berulang supaya histori tidak terbelah oleh typo nama, plus data NPWP/rekening
- * untuk pembayaran. Tidak per-toko (supplier bersifat company-wide).
+ * Master supplier: 1 supplier dipakai berulang supaya histori tidak terbelah oleh typo nama, plus kontak dan data NPWP/rekening
+ * untuk pembayaran. Dipakai sebagai Pemasok Utama bahan/barang, pemasok barang yang diterima (Permohonan Pembelian), dan bila
+ * Keuangan menyala, Hutang Usaha. Tidak per-toko (supplier bersifat company-wide).
  */
 class Supplier extends Model
 {
@@ -59,10 +59,57 @@ class Supplier extends Model
         return $this->hasMany(RecurringBillTemplate::class);
     }
 
-    /** Dipakai di manapun (tagihan atau template rutin) -- guard hapus (audit Supplier 2026-09-29). */
+    public function purchaseRequests(): HasMany
+    {
+        return $this->hasMany(PurchaseRequest::class);
+    }
+
+    /** Bahan Baku yang menjadikan supplier ini Pemasok Utama. */
+    public function suppliedMaterials(): HasMany
+    {
+        return $this->hasMany(RawMaterial::class, 'preferred_supplier_id');
+    }
+
+    /** Barang Habis Pakai yang menjadikan supplier ini Pemasok Utama. */
+    public function suppliedConsumables(): HasMany
+    {
+        return $this->hasMany(ConsumableItem::class, 'preferred_supplier_id');
+    }
+
+    /**
+     * Alasan supplier tidak boleh dihapus (kosong = bebas): tagihan, template tagihan rutin, Pemasok Utama bahan/barang, atau
+     * permohonan pembelian yang pernah diterima darinya. Menghapusnya akan memutus taut itu diam-diam (nullOnDelete).
+     *
+     * @return list<string>
+     */
+    public function inUseReasons(): array
+    {
+        $reasons = [];
+
+        if ($this->payables()->exists()) {
+            $reasons[] = 'tagihan';
+        }
+
+        if ($this->recurringBillTemplates()->exists()) {
+            $reasons[] = 'template tagihan rutin';
+        }
+
+        $items = $this->suppliedMaterials()->count() + $this->suppliedConsumables()->count();
+        if ($items > 0) {
+            $reasons[] = "Pemasok Utama {$items} bahan/barang";
+        }
+
+        if (PurchaseRequest::withoutGlobalScopes()->where('supplier_id', $this->id)->exists()) {
+            $reasons[] = 'pemasok permohonan pembelian';
+        }
+
+        return $reasons;
+    }
+
+    /** Dipakai di manapun -- guard hapus (audit Supplier 2026-09-29, diperluas 2026-11-02). */
     public function isInUse(): bool
     {
-        return $this->payables()->exists() || $this->recurringBillTemplates()->exists();
+        return $this->inUseReasons() !== [];
     }
 
     public function getActivitylogOptions(): LogOptions

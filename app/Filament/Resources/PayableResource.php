@@ -360,6 +360,8 @@ class PayableResource extends Resource
                             ->options(fn () => Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                             ->searchable()
                             ->required()
+                            // Membuat supplier baru butuh izin Tambah di menu Supplier, bukan sekadar bisa membuka form ini.
+                            ->createOptionAction(fn (\Filament\Forms\Components\Actions\Action $action) => $action->visible(\App\Filament\Resources\SupplierResource::canCreate()))
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('name')->label('Nama Supplier')->required()->maxLength(255),
                             ])

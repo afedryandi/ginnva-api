@@ -1192,8 +1192,10 @@ class StaffStockApiTest extends TestCase
 
         $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 0])->assertStatus(422);
 
-        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 6, 'record_stock' => true, 'expiry_date' => '2027-01-31'] + $this->financeFields())
+        $fields = $this->financeFields();
+        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 6, 'record_stock' => true, 'expiry_date' => '2027-01-31'] + $fields)
             ->assertSuccessful()->assertJsonPath('data.status', 'fulfilled');
+        $this->assertSame($fields['supplier_id'], $request->fresh()->supplier_id, 'Pemasok tercatat di permohonan.');
 
         $fresh = $request->fresh();
         $this->assertSame('fulfilled', $fresh->status);
@@ -1333,5 +1335,27 @@ class StaffStockApiTest extends TestCase
 
         $this->api($this->warehouse($this->storeA))->postJson('/api/staff/consumables/bulk-adjust', ['items' => [['id' => $item->id, 'actual_quantity' => 7]]])->assertSuccessful();
         $this->assertEquals(7, (float) $item->fresh()->current_stock);
+    }
+    public function test_the_supplier_picker_lists_active_names_only_for_purchase_request_accounts(): void
+    {
+        \App\Models\Supplier::create(['name' => 'PT Aktif', 'phone' => '0211234567', 'npwp' => '123456789012345', 'bank_account_number' => '999']);
+        \App\Models\Supplier::create(['name' => 'PT Mati', 'is_active' => false]);
+        \App\Models\Supplier::create(['name' => 'CV Lain']);
+
+        $this->getJson('/api/staff/suppliers')->assertStatus(401);
+
+        $gudang = $this->warehouse($this->storeA);
+        $all = $this->api($gudang)->getJson('/api/staff/suppliers')->assertSuccessful()->json('data');
+        $this->assertSame(['CV Lain', 'PT Aktif'], array_column($all, 'name'));
+        $this->assertSame(['id', 'name'], array_keys($all[0]), 'Tanpa kontak, NPWP, atau rekening.');
+        $this->assertSame(['PT Aktif'], array_column($this->api($gudang)->getJson('/api/staff/suppliers?search=aktif')->json('data'), 'name'));
+
+        $this->api($this->staff('kasir', $this->storeA, ['BookingResource']))->getJson('/api/staff/suppliers')->assertStatus(403);
+
+        // Hanya supplier aktif yang boleh dipilih saat menerima barang.
+        $request = $this->approvedRequest($this->storeA, $gudang, ['item_type' => 'raw_material', 'item_id' => $this->material('Slip', 1)->id, 'item_name' => 'Slip', 'unit' => 'liter']);
+        $inactive = \App\Models\Supplier::where('name', 'PT Mati')->firstOrFail();
+        $this->api($gudang)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 1, 'record_stock' => true, 'supplier_id' => $inactive->id])
+            ->assertStatus(422)->assertJsonValidationErrors('supplier_id');
     }
 }
