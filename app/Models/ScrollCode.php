@@ -79,7 +79,41 @@ class ScrollCode extends Model
             $reasons[] = "terkait barang {$item->code}";
         }
 
+        if (($offcuts = $this->offcuts()->count()) > 0) {
+            $reasons[] = "{$offcuts} potongan sisa";
+        }
+
         return $reasons;
+    }
+
+    public function offcuts()
+    {
+        return $this->hasMany(ScrollCodeOffcut::class);
+    }
+
+    /**
+     * Simpan potongan sisa (wasted) dari gulungan ini: satu baris per potongan, tanpa ukuran. Bukan stok inventori dan tanpa nilai uang.
+     *
+     * @return \Illuminate\Support\Collection<int, ScrollCodeOffcut>
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function storeOffcuts(int $count, ?string $location, ?string $notes, ?int $userId, ?int $originMemoId = null): \Illuminate\Support\Collection
+    {
+        if ($count < 1 || $count > 50) {
+            throw new \InvalidArgumentException('Jumlah potongan harus antara 1 dan 50.');
+        }
+
+        return DB::transaction(function () use ($count, $location, $notes, $userId, $originMemoId) {
+            return collect(range(1, $count))->map(fn () => $this->offcuts()->create([
+                'store_id' => $this->store_id,
+                'origin_memo_id' => $originMemoId,
+                'location' => $location !== null && trim($location) !== '' ? trim($location) : null,
+                'notes' => $notes !== null && trim($notes) !== '' ? trim($notes) : null,
+                'status' => ScrollCodeOffcut::STORED,
+                'created_by' => $userId,
+            ]));
+        });
     }
 
     /**

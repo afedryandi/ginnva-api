@@ -7,6 +7,8 @@ use App\Models\InventoryItem;
 use App\Models\MaterialMemoItem;
 use App\Models\FilmProduct;
 use App\Models\RawMaterial;
+use App\Models\ScrollCode;
+use App\Models\ScrollCodeOffcut;
 use App\Services\MaterialMemoStockService;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -59,6 +61,13 @@ class ItemsRelationManager extends RelationManager
         ])->filter()->unique('id')->values();
     }
 
+    protected function scrollCodeFor(MaterialMemoItem $record): ?ScrollCode
+    {
+        $scrollCodeId = InventoryItem::find($record->item_id)?->scroll_code_id;
+
+        return $scrollCodeId ? ScrollCode::find($scrollCodeId) : null;
+    }
+
     public function table(Table $table): Table
     {
         return $table
@@ -70,16 +79,21 @@ class ItemsRelationManager extends RelationManager
                         'primary' => 'raw_material',
                         'warning' => 'consumable_item',
                         'success' => 'inventory_item',
+                        'gray' => 'offcut',
                     ])
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'raw_material' => 'Bahan Baku',
                         'consumable_item' => 'Habis Pakai',
                         'inventory_item' => 'PPF/WF',
+                        'offcut' => 'Potongan Sisa',
                         default => $state,
                     }),
                 Tables\Columns\TextColumn::make('item_name')
                     ->label('Nama Barang')
                     ->wrap(),
+                Tables\Columns\TextColumn::make('car_part')
+                    ->label('Bagian Mobil')
+                    ->placeholder('—'),
                 Tables\Columns\TextColumn::make('qty_taken')
                     ->label('Diambil')
                     ->placeholder('—')
@@ -117,6 +131,7 @@ class ItemsRelationManager extends RelationManager
                                 'raw_material' => 'Bahan Baku',
                                 'consumable_item' => 'Barang Habis Pakai',
                                 'inventory_item' => 'PPF/WF (Gulungan)',
+                                'offcut' => 'Potongan Sisa PPF (wasted)',
                             ])
                             ->required()
                             ->live(),
@@ -162,6 +177,27 @@ class ItemsRelationManager extends RelationManager
                                 return $item ? $item->name . ' (' . $item->scrollCode?->code . ')' : null;
                             }),
 
+                        Forms\Components\Select::make('offcut_id')
+                            ->label('Potongan Sisa')
+                            ->visible(fn (Forms\Get $get) => $get('item_type') === 'offcut')
+                            ->required(fn (Forms\Get $get) => $get('item_type') === 'offcut')
+                            ->helperText('Potongan yang masih tersimpan di toko memo ini. Tertera kode roll asalnya; garansi memakai kode roll itu.')
+                            ->options(fn () => ScrollCodeOffcut::stored()
+                                ->with('scrollCode:id,code')
+                                ->when($this->getOwnerRecord()->store_id, fn ($q, $storeId) => $q->where(fn ($w) => $w->where('store_id', $storeId)->orWhereNull('store_id')))
+                                ->orderBy('scroll_code_id')
+                                ->orderBy('id')
+                                ->limit(200)
+                                ->get()
+                                ->mapWithKeys(fn (ScrollCodeOffcut $o) => [$o->id => $o->label()])),
+
+                        Forms\Components\TextInput::make('car_part')
+                            ->label('Dipakai untuk Bagian Mobil')
+                            ->visible(fn (Forms\Get $get) => $get('item_type') === 'offcut')
+                            ->required(fn (Forms\Get $get) => $get('item_type') === 'offcut')
+                            ->maxLength(100)
+                            ->placeholder('mis. Dasbor, Panel pintu, Kaca film interior'),
+
                         Forms\Components\TextInput::make('qty_taken')
                             ->label('Jumlah Diambil')
                             ->visible(fn (Forms\Get $get) => in_array($get('item_type'), ['raw_material', 'consumable_item'], true))
@@ -201,6 +237,13 @@ class ItemsRelationManager extends RelationManager
                                     'consumable_item',
                                     $memo,
                                     (float) $data['qty_taken'],
+                                    $userId,
+                                    $conditionNotes,
+                                ),
+                                'offcut' => MaterialMemoStockService::addOffcut(
+                                    ScrollCodeOffcut::findOrFail($data['offcut_id']),
+                                    $memo,
+                                    (string) $data['car_part'],
                                     $userId,
                                     $conditionNotes,
                                 ),
@@ -349,6 +392,48 @@ class ItemsRelationManager extends RelationManager
                     }),
             ])
             ->actions([
+                // Roll yang selesai dikerjakan kadang menyisakan potongan besar yang disimpan gudang. Dicatat dari baris roll di memo ini
+                // supaya potongannya tertaut ke kode roll dan memo asalnya. Hanya yang berwenang mengelola Kode Gulungan.
+                Tables\Actions\Action::make('store_offcuts')
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
+                    ->label('Simpan Potongan Sisa')
+                    ->icon('heroicon-o-archive-box-arrow-down')
+                    ->color('gray')
+                    ->visible(fn (MaterialMemoItem $record) => $record->item_type === 'inventory_item'
+                        && ScrollCodeOffcut::canManage(auth()->user())
+                        && $this->scrollCodeFor($record) !== null)
+                    ->form([
+                        Forms\Components\TextInput::make('count')
+                            ->label('Jumlah Potongan yang Disimpan')
+                            ->numeric()
+                            ->integer()
+                            ->required()
+                            ->default(1)
+                            ->minValue(1)
+                            ->maxValue(50),
+                        Forms\Components\TextInput::make('location')
+                            ->label('Lokasi Simpan (opsional)')
+                            ->maxLength(100)
+                            ->placeholder('mis. Rak B2'),
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Catatan (opsional)')
+                            ->rows(2)
+                            ->maxLength(500),
+                    ])
+                    ->action(function (MaterialMemoItem $record, array $data) {
+                        $roll = $this->scrollCodeFor($record);
+
+                        try {
+                            $created = $roll->storeOffcuts((int) $data['count'], $data['location'] ?? null, $data['notes'] ?? null, auth()->id(), $this->getOwnerRecord()->id);
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()->title('Tidak bisa menyimpan potongan')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title($created->count() . ' potongan sisa disimpan dari roll ' . $roll->code)->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('return_item')
                     // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
                     ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
@@ -458,7 +543,7 @@ class ItemsRelationManager extends RelationManager
                     ->label('Koreksi Jumlah')
                     ->icon('heroicon-o-pencil')
                     ->color('warning')
-                    ->visible(fn (MaterialMemoItem $record) => $record->item_type === 'inventory_item' || $record->qty_returned === null)
+                    ->visible(fn (MaterialMemoItem $record) => $record->item_type !== 'offcut' && ($record->item_type === 'inventory_item' || $record->qty_returned === null))
                     ->form(fn (MaterialMemoItem $record) => [
                         Forms\Components\TextInput::make('qty')
                             ->label($record->item_type === 'inventory_item' ? 'Meter Dipakai (koreksi)' : 'Jumlah Diambil (koreksi)')

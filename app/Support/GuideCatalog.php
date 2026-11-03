@@ -678,6 +678,7 @@ class GuideCatalog
                     'Data stok dibatasi per toko; staff toko hanya melihat tokonya sendiri.',
                     'Riwayat pergerakan stok adalah jejak audit; jangan mengedit catatan lama, gunakan aksi koreksi yang tersedia.',
                     'Jangan menghapus memo utuh; hapus baris barang yang salah, atau hubungi admin.',
+                    '**Potongan sisa (wasted)** PPF disimpan gudang tanpa dicatat ukurannya. Dari baris roll di memo, **Simpan Potongan Sisa** mencatat jumlah potongannya (atau lewat tab **Potongan Sisa** di detail Kode Gulungan); roll yang masih menyimpan potongan diberi lencana dan filter **Punya potongan sisa**. Untuk memakainya, **Tambah Barang** di memo, pilih jenis **Potongan Sisa PPF (wasted)**, lalu isi **bagian mobil** yang dikerjakan. Potongan bukan stok dan tanpa nilai uang; garansinya memakai kode roll asal. Menghapus baris memo mengembalikan potongan ke Tersimpan, dan hanya akses penuh yang bisa menandai potongan **Dibuang**.',
                     'Memo juga dipakai untuk bahan klaim garansi: dari klaim yang disetujui, tombol **Bahan Terpakai** membuka memo booking kunjungannya, atau membuka form memo baru yang sudah terisi bila belum ada.',
                 ],
             ],

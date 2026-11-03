@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ScrollCodeResource\Pages;
+use App\Filament\Resources\ScrollCodeResource\RelationManagers\OffcutsRelationManager;
 use App\Filament\Resources\ScrollCodeResource\RelationManagers\TransfersRelationManager;
 use App\Filament\Resources\ScrollCodeResource\RelationManagers\UsagesRelationManager;
 use App\Models\FilmProduct;
@@ -127,6 +128,7 @@ class ScrollCodeResource extends Resource
                 'warranty_numbers' => \App\Models\Warranty::query()->selectRaw("GROUP_CONCAT(DISTINCT warranty_code ORDER BY warranty_code SEPARATOR ', ')")->where($rollMatch),
                 'warranty_total' => \App\Models\Warranty::query()->selectRaw('count(*)')->where($rollMatch),
                 'meter_usages_total' => \App\Models\ScrollCodeUsage::query()->selectRaw('count(*)')->whereColumn('scroll_code_usages.scroll_code_id', 'scroll_codes.id'),
+                'offcuts_stored_count' => \App\Models\ScrollCodeOffcut::query()->selectRaw('count(*)')->whereColumn('scroll_code_offcuts.scroll_code_id', 'scroll_codes.id')->where('scroll_code_offcuts.status', 'stored'),
             ]);
         $user  = auth()->user();
 
@@ -345,6 +347,14 @@ class ScrollCodeResource extends Resource
                         : 'info')
                     ->toggleable(),
 
+                Tables\Columns\TextColumn::make('offcuts_stored_count')
+                    ->label('Potongan Sisa')
+                    ->formatStateUsing(fn ($state) => (int) $state > 0 ? (int) $state . ' potongan' : null)
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('warning')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('purchase_cost')
                     ->label('Harga/Meter')
                     ->placeholder('Belum diisi')
@@ -373,6 +383,14 @@ class ScrollCodeResource extends Resource
                         'allocated'   => 'Dialokasikan',
                         'used'        => 'Terpakai',
                     ]),
+
+                // Roll yang masih menyimpan potongan sisa (wasted) di gudang.
+                Tables\Filters\Filter::make('has_offcuts')
+                    ->label('Punya potongan sisa')
+                    ->query(fn (Builder $query) => $query->whereExists(fn ($sub) => $sub->selectRaw('1')
+                        ->from('scroll_code_offcuts')
+                        ->whereColumn('scroll_code_offcuts.scroll_code_id', 'scroll_codes.id')
+                        ->where('scroll_code_offcuts.status', 'stored'))),
 
                 // Gulungan yang hampir habis (sisa 20% atau kurang dari total, belum Terpakai): untuk memesan ulang tepat waktu.
                 Tables\Filters\Filter::make('low_roll')
@@ -879,6 +897,7 @@ class ScrollCodeResource extends Resource
     {
         return [
             UsagesRelationManager::class,
+            OffcutsRelationManager::class,
             TransfersRelationManager::class,
         ];
     }

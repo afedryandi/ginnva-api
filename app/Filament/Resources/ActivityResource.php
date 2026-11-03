@@ -129,6 +129,7 @@ class ActivityResource extends Resource
     'schedule_day_override' => 'Override Jadwal Harian',
     'scheduled_price_change' => 'Perubahan Harga Terjadwal',
     'scroll_code' => 'Kode Gulungan',
+    'scroll_code_offcut' => 'Potongan Sisa Gulungan',
     'shift' => 'Shift',
     'spend_promo' => 'Promo Spend',
     'spk' => 'SPK',

@@ -66,6 +66,7 @@ class MaterialMemoItemExport implements FromQuery, WithHeadings, WithMapping, Sh
                 'raw_material' => 'Bahan Baku',
                 'consumable_item' => 'Barang Habis Pakai',
                 'inventory_item' => 'PPF/WF',
+                'offcut' => 'Potongan Sisa',
                 default => $item->item_type,
             },
             $item->item_name,
@@ -73,7 +74,7 @@ class MaterialMemoItemExport implements FromQuery, WithHeadings, WithMapping, Sh
             $item->qty_returned !== null ? "{$item->qty_returned} {$item->unit}" : '—',
             $item->qty_used !== null ? "{$item->qty_used} {$item->unit}" : '—',
             $item->meters_used !== null ? "{$item->meters_used} meter" : '—',
-            $item->condition_notes ?? '—',
+            trim($item->car_part ? "Bagian: {$item->car_part}. " . ($item->condition_notes ?? '') : ($item->condition_notes ?? '')) ?: '—',
         ];
     }
 

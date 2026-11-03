@@ -632,6 +632,10 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => 'Baris barang tidak ditemukan.'], 404);
         }
 
+        if ($memoItem->item_type === 'offcut') {
+            return response()->json(['success' => false, 'message' => 'Potongan sisa tidak punya jumlah yang bisa dikoreksi. Hapus barisnya bila salah pilih.'], 422);
+        }
+
         $isInventory = $memoItem->item_type === 'inventory_item';
         $validator = Validator::make($request->all(), [
             'qty_taken' => $isInventory ? 'nullable' : 'required|numeric|min:0.01|max:1000000',

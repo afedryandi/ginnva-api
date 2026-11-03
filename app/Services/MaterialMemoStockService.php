@@ -8,6 +8,7 @@ use App\Models\MaterialMemo;
 use App\Models\MaterialMemoItem;
 use App\Models\RawMaterial;
 use App\Models\ScrollCode;
+use App\Models\ScrollCodeOffcut;
 use App\Models\ScrollCodeUsage;
 use Illuminate\Support\Facades\DB;
 
@@ -329,9 +330,77 @@ class MaterialMemoStockService
         });
     }
 
+    /**
+     * Ambil potongan sisa (wasted) PPF untuk booking di memo ini. Potongan tidak mengubah stok maupun nilai uang; yang dicatat adalah
+     * potongan mana (tertaut ke kode roll asalnya, jadi garansi tetap bisa dilacak) dan bagian mobil yang dikerjakan.
+     *
+     * @throws \InvalidArgumentException
+     */
+    public static function addOffcut(ScrollCodeOffcut $offcut, MaterialMemo $memo, string $carPart, int $userId, ?string $conditionNotes): MaterialMemoItem
+    {
+        $carPart = trim($carPart);
+
+        if ($carPart === '') {
+            throw new \InvalidArgumentException('Bagian mobil yang dikerjakan wajib diisi.');
+        }
+
+        return DB::transaction(function () use ($offcut, $memo, $carPart, $userId, $conditionNotes) {
+            $locked = ScrollCodeOffcut::where('id', $offcut->id)->lockForUpdate()->with('scrollCode:id,code')->firstOrFail();
+
+            if ($locked->status !== ScrollCodeOffcut::STORED) {
+                throw new \InvalidArgumentException('Potongan ini sudah tidak tersimpan (terpakai atau dibuang).');
+            }
+
+            if ($memo->store_id && $locked->store_id && (int) $memo->store_id !== (int) $locked->store_id) {
+                throw new \InvalidArgumentException('Potongan ini disimpan di toko lain.');
+            }
+
+            $item = MaterialMemoItem::create([
+                'material_memo_id' => $memo->id,
+                'item_type' => 'offcut',
+                'item_id' => $locked->id,
+                'item_name' => $locked->label(),
+                'unit' => 'potong',
+                'qty_taken' => 1,
+                'condition_notes' => $conditionNotes,
+                'car_part' => $carPart,
+            ]);
+
+            $locked->update([
+                'status' => ScrollCodeOffcut::USED,
+                'used_in_memo_item_id' => $item->id,
+                'car_part' => $carPart,
+                'used_at' => now(),
+                'used_by' => $userId,
+            ]);
+
+            return $item;
+        });
+    }
+
+    private static function reverseOffcutItem(MaterialMemoItem $memoItem): void
+    {
+        DB::transaction(function () use ($memoItem) {
+            $offcut = ScrollCodeOffcut::where('id', $memoItem->item_id)->lockForUpdate()->first();
+
+            // Hanya dikembalikan bila potongan itu memang sedang dipakai oleh baris ini (bukan dibuang atau dipakai baris lain).
+            if ($offcut && $offcut->status === ScrollCodeOffcut::USED && (int) $offcut->used_in_memo_item_id === (int) $memoItem->id) {
+                $offcut->update([
+                    'status' => ScrollCodeOffcut::STORED,
+                    'used_in_memo_item_id' => null,
+                    'car_part' => null,
+                    'used_at' => null,
+                    'used_by' => null,
+                ]);
+            }
+        });
+    }
+
     public static function reverseItem(MaterialMemoItem $memoItem, ?int $userId, MaterialMemo $memo): void
     {
-        if ($memoItem->item_type === 'inventory_item') {
+        if ($memoItem->item_type === 'offcut') {
+            self::reverseOffcutItem($memoItem);
+        } elseif ($memoItem->item_type === 'inventory_item') {
             self::reverseInventoryItem($memoItem);
         } else {
             self::reverseMaterialItem($memoItem, $userId, $memo);

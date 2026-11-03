@@ -23,6 +23,7 @@ class MaterialMemoItem extends Model
         'meters_used',
         'scroll_code_usage_id',
         'condition_notes',
+        'car_part',
     ];
 
     protected $casts = [
@@ -60,7 +61,7 @@ class MaterialMemoItem extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['qty_taken', 'qty_returned', 'qty_used', 'meters_used', 'condition_notes'])
+            ->logOnly(['qty_taken', 'qty_returned', 'qty_used', 'meters_used', 'condition_notes', 'car_part'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('material_memo_item')

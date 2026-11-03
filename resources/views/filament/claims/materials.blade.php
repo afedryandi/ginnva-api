@@ -47,7 +47,7 @@
                             <tbody>
                                 @foreach ($memo->items as $item)
                                     <tr>
-                                        <td>{{ $item->item_name }}</td>
+                                        <td>{{ $item->item_name }}@if ($item->car_part) — {{ $item->car_part }}@endif</td>
                                         @if ($item->item_type === 'inventory_item')
                                             <td class="is-num">—</td>
                                             <td class="is-num">—</td>
