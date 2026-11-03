@@ -13,7 +13,7 @@ use Livewire\WithFileUploads;
 /**
  * "Absen Saya" (2026-11-03): absen masuk dan keluar dari panel untuk karyawan yang belum bisa memakai aplikasi staff (mis. iPhone sebelum
  * aplikasi iOS tersedia). Memakai jalur yang SAMA dengan aplikasi: Attendance::clockIn()/clockOut() beserta radius toko dan selfie wajib.
- * Lokasi diambil dari GPS browser dan selfie dari kamera depan (atribut capture). Browser tidak melaporkan lokasi palsu, jadi penanda
+ * Lokasi diambil dari GPS browser dan selfie dari kamera depan yang dibuka langsung di halaman (getUserMedia, tanpa pilihan galeri). Browser tidak melaporkan lokasi palsu, jadi penanda
  * is_mocked dikirim kosong, sama seperti aplikasi iOS.
  */
 class MyAttendance extends Page
