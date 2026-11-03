@@ -93,6 +93,7 @@ class ConsumableItemMovement extends Model
             'memo' => MaterialMemo::withoutGlobalScopes()->whereKey($this->source_id)->value('memo_number'),
             'purchase_request' => PurchaseRequest::withoutGlobalScopes()->whereKey($this->source_id)->value('request_number'),
             'stock_write_off' => StockWriteOff::withoutGlobalScopes()->whereKey($this->source_id)->value('write_off_number'),
+            'stock_opname' => StockOpname::withoutGlobalScopes()->whereKey($this->source_id)->value('opname_number'),
             default => null,
         };
 

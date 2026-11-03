@@ -66,7 +66,8 @@ class InventoryActivityOverview extends BaseWidget
         }
 
         if (InventoryDashboard::canSee(StockOpnameResource::class)) {
-            $last = StockOpname::query()->max('opname_date');
+            // Hanya sesi yang sudah diterapkan yang dihitung (draf belum mengubah stok, yang dibuang tidak pernah berlaku).
+            $last = StockOpname::query()->where('status', StockOpname::STATUS_APPLIED)->max('opname_date');
             $days = $last ? (int) Carbon::parse($last)->startOfDay()->diffInDays(today()) : null;
 
             $stats[] = Stat::make('Opname Terakhir', $days === null ? 'Belum pernah' : ($days === 0 ? 'Hari ini' : "{$days} hari lalu"))

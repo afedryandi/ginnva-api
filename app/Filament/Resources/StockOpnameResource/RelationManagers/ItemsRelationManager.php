@@ -56,6 +56,47 @@ class ItemsRelationManager extends RelationManager
                         default => 'gray',
                     })
                     ->badge(),
+
+                Tables\Columns\TextColumn::make('note')
+                    ->label('Catatan')
+                    ->placeholder('—')
+                    ->limit(40)
+                    ->tooltip(fn ($record) => filled($record->note) && mb_strlen($record->note) > 40 ? $record->note : null),
+
+                // Hanya untuk draf: stok sekarang dibanding stok saat dihitung. Selisih diterapkan relatif, jadi ini sekadar informasi.
+                Tables\Columns\TextColumn::make('stock_moved')
+                    ->label('Stok berubah sejak dihitung')
+                    ->state(function ($record) {
+                        if (! $this->getOwnerRecord()->isDraft()) {
+                            return null;
+                        }
+
+                        $item = $record->resolveItem();
+
+                        return $item === null ? 'Barang dihapus' : (abs((float) $item->current_stock - (float) $record->system_quantity) < 0.01
+                            ? null
+                            : ((float) $item->current_stock - (float) $record->system_quantity > 0 ? '+' : '') . number_format((float) $item->current_stock - (float) $record->system_quantity, 2) . ' ' . $record->unit);
+                    })
+                    ->placeholder('—')
+                    ->color('warning'),
+
+                Tables\Columns\TextColumn::make('applied_system_quantity')
+                    ->label('Stok saat diterapkan')
+                    ->formatStateUsing(fn ($state, $record) => number_format((float) $state, 2) . ' ' . $record->unit)
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->filters([
+                Tables\Filters\TernaryFilter::make('has_difference')
+                    ->label('Selisih')
+                    ->placeholder('Semua item')
+                    ->trueLabel('Hanya yang berselisih')
+                    ->falseLabel('Yang cocok')
+                    ->queries(
+                        true: fn ($query) => $query->where('delta', '!=', 0),
+                        false: fn ($query) => $query->where('delta', 0),
+                        blank: fn ($query) => $query,
+                    ),
             ])
             ->emptyStateHeading('Belum ada item');
     }

@@ -1291,55 +1291,6 @@ class StaffStockApiTest extends TestCase
         $this->assertNull($this->api($this->staff('kasir', $this->storeA, ['ConsumableItemResource']))->getJson('/api/staff/stock-overview')->json('data.to_receive'));
     }
 
-    public function test_bulk_adjust_saves_every_row_or_none(): void
-    {
-        $gudang = $this->warehouse($this->storeA);
-        $a = $this->material('A', 10);
-        $b = $this->material('B', 20);
-        $b->update(['adjustment_note_threshold' => 2]);
-        $c = $this->material('C', 5);
-
-        // Satu baris melewati ambang tanpa catatan: tidak ada yang tersimpan.
-        $this->api($gudang)->postJson('/api/staff/materials/bulk-adjust', ['items' => [
-            ['id' => $a->id, 'actual_quantity' => 8],
-            ['id' => $b->id, 'actual_quantity' => 12],
-        ]])->assertStatus(422)->assertJsonPath('problems.0.id', $b->id);
-        $this->assertEquals(10, (float) $a->fresh()->current_stock);
-        $this->assertEquals(20, (float) $b->fresh()->current_stock);
-
-        $response = $this->api($gudang)->postJson('/api/staff/materials/bulk-adjust', ['items' => [
-            ['id' => $a->id, 'actual_quantity' => 8],
-            ['id' => $b->id, 'actual_quantity' => 12, 'note' => 'Tumpah saat dipindah'],
-            ['id' => $c->id, 'actual_quantity' => 5],
-        ]])->assertSuccessful();
-
-        $this->assertEquals(8, (float) $a->fresh()->current_stock);
-        $this->assertEquals(12, (float) $b->fresh()->current_stock);
-        $this->assertEquals(5, (float) $c->fresh()->current_stock);
-        $this->assertSame([true, true, false], collect($response->json('data'))->pluck('adjusted')->all());
-        $this->assertEquals(-2, $response->json('data.0.delta'));
-        $this->assertSame($this->storeA->id, $a->movements()->where('type', 'adjustment')->firstOrFail()->store_id);
-        $this->assertSame('Tumpah saat dipindah', $b->movements()->where('type', 'adjustment')->firstOrFail()->note);
-    }
-
-    public function test_bulk_adjust_validates_and_needs_the_update_grant(): void
-    {
-        $a = $this->material('A', 10);
-        $item = $this->consumable('Sarung', 4);
-
-        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/materials/bulk-adjust', ['items' => []])->assertStatus(422);
-        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/materials/bulk-adjust', ['items' => [['id' => $a->id, 'actual_quantity' => 1], ['id' => $a->id, 'actual_quantity' => 2]]])->assertStatus(422);
-        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/materials/bulk-adjust', ['items' => [['id' => 999999, 'actual_quantity' => 1]]])->assertStatus(422);
-        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/materials/bulk-adjust', ['items' => [['id' => $a->id, 'actual_quantity' => -1]]])->assertStatus(422);
-
-        $viewer = $this->warehouse($this->storeA, ['view']);
-        $this->api($viewer)->postJson('/api/staff/materials/bulk-adjust', ['items' => [['id' => $a->id, 'actual_quantity' => 1]]])->assertStatus(403);
-        $this->api($viewer)->postJson('/api/staff/consumables/bulk-adjust', ['items' => [['id' => $item->id, 'actual_quantity' => 1]]])->assertStatus(403);
-        $this->assertEquals(10, (float) $a->fresh()->current_stock);
-
-        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/consumables/bulk-adjust', ['items' => [['id' => $item->id, 'actual_quantity' => 7]]])->assertSuccessful();
-        $this->assertEquals(7, (float) $item->fresh()->current_stock);
-    }
     public function test_the_supplier_picker_lists_active_names_only_for_purchase_request_accounts(): void
     {
         \App\Models\Supplier::create(['name' => 'PT Aktif', 'phone' => '0211234567', 'npwp' => '123456789012345', 'bank_account_number' => '999']);
@@ -1517,5 +1468,67 @@ class StaffStockApiTest extends TestCase
         $cancelled = collect($this->api($writer)->getJson('/api/staff/stock-write-offs')->json('data'))->firstWhere('item_name', 'Lakban');
         $this->assertTrue($cancelled['cancelled']);
         $this->assertSame('Salah barang', $cancelled['cancelled_reason']);
+    }
+    public function test_mobile_count_submits_a_blind_draft_session_scoped_to_the_store(): void
+    {
+        $this->getJson('/api/staff/stock-opnames')->assertStatus(401);
+
+        $material = $this->material('Slip', 10);
+        $material->update(['adjustment_note_threshold' => 2]);
+        $other = $this->material('Adhesive', 20);
+        $gudang = $this->warehouse($this->storeA);
+
+        // Selisih besar tanpa catatan: ditolak per baris (kunci row_{id}), tidak ada yang tersimpan.
+        $res = $this->api($gudang)->postJson('/api/staff/stock-opnames', ['items' => [
+            ['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 5],
+            ['item_type' => 'raw_material', 'item_id' => $other->id, 'actual_quantity' => 19],
+        ]])->assertStatus(422);
+        $this->assertArrayHasKey('row_' . $material->id, $res->json('errors'));
+        $this->assertSame(0, \App\Models\StockOpname::withoutGlobalScopes()->count());
+
+        $ok = $this->api($gudang)->postJson('/api/staff/stock-opnames', ['notes' => 'Rak A', 'items' => [
+            ['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 5, 'note' => 'Tumpah'],
+            ['item_type' => 'raw_material', 'item_id' => $other->id, 'actual_quantity' => 19],
+        ]])->assertStatus(201);
+
+        $this->assertSame('draft', $ok->json('data.status'));
+        $this->assertSame(2, $ok->json('data.diff_count'), 'Dua item berselisih.');
+        $this->assertEquals(10, (float) $material->fresh()->current_stock, 'Stok belum berubah.');
+        $session = \App\Models\StockOpname::withoutGlobalScopes()->firstOrFail();
+        $this->assertSame($this->storeA->id, $session->store_id);
+        $this->assertEquals(10, $ok->json('data.items.0.system'), 'Stok sistem baru terlihat setelah hasil hitung terkirim.');
+
+        // Daftar dan rincian dibatasi toko.
+        $this->assertCount(1, $this->api($gudang)->getJson('/api/staff/stock-opnames')->json('data'));
+        $this->api($gudang)->getJson("/api/staff/stock-opnames/{$session->id}")->assertSuccessful()->assertJsonPath('data.number', $session->opname_number);
+        $otherStore = $this->warehouse($this->storeB);
+        $this->assertCount(0, $this->api($otherStore)->getJson('/api/staff/stock-opnames')->json('data'));
+        $this->api($otherStore)->getJson("/api/staff/stock-opnames/{$session->id}")->assertNotFound();
+        $this->assertCount(1, $this->api($this->staff('super_admin'))->getJson('/api/staff/stock-opnames')->json('data'));
+        $this->assertCount(1, $this->api($gudang)->getJson('/api/staff/stock-opnames?status=draft')->json('data'));
+        $this->assertCount(0, $this->api($gudang)->getJson('/api/staff/stock-opnames?status=applied')->json('data'));
+    }
+
+    public function test_mobile_count_needs_the_update_grant_a_store_and_valid_items(): void
+    {
+        $material = $this->material('Slip', 10);
+        $payload = ['items' => [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 5]]];
+
+        $viewer = $this->warehouse($this->storeA, ['view']);
+        $this->api($viewer)->postJson('/api/staff/stock-opnames', $payload)->assertStatus(403);
+
+        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/stock-opnames', ['items' => []])->assertStatus(422);
+        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/stock-opnames', ['items' => [['item_type' => 'asset', 'item_id' => 1, 'actual_quantity' => 1]]])->assertStatus(422);
+        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/stock-opnames', ['items' => [['item_type' => 'raw_material', 'item_id' => 999999, 'actual_quantity' => 1]]])->assertStatus(422);
+        $this->api($this->warehouse($this->storeA))->postJson('/api/staff/stock-opnames', ['opname_date' => now()->addDays(3)->toDateString()] + $payload)->assertStatus(422);
+
+        // Akun akses penuh tanpa toko wajib memilih toko; staf tanpa toko ditolak.
+        $admin = $this->staff('super_admin', null, null, false);
+        $this->api($admin)->postJson('/api/staff/stock-opnames', $payload)->assertStatus(422);
+        $this->api($admin)->postJson('/api/staff/stock-opnames', $payload + ['store_id' => $this->storeB->id])->assertStatus(201);
+        $this->assertSame($this->storeB->id, \App\Models\StockOpname::withoutGlobalScopes()->firstOrFail()->store_id);
+        $this->api($this->staff('kasir', null, ['RawMaterialResource'], false, ['RawMaterialResource' => ['update']]))->postJson('/api/staff/stock-opnames', $payload)->assertStatus(422);
+
+        $this->api($this->staff('kasir', $this->storeA, ['BookingResource']))->getJson('/api/staff/stock-opnames')->assertStatus(403);
     }
 }

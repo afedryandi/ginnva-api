@@ -21,12 +21,15 @@ class StockOpnameItem extends Model
         'system_quantity',
         'actual_quantity',
         'delta',
+        'note',
+        'applied_system_quantity',
     ];
 
     protected $casts = [
         'system_quantity' => 'decimal:2',
         'actual_quantity' => 'decimal:2',
         'delta' => 'decimal:2',
+        'applied_system_quantity' => 'decimal:2',
     ];
 
     public function stockOpname(): BelongsTo

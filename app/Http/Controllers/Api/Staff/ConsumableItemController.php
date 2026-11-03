@@ -13,18 +13,6 @@ use Illuminate\Support\Facades\Validator;
  */
 class ConsumableItemController extends Controller
 {
-    use \App\Http\Controllers\Api\Staff\Concerns\AdjustsStockInBulk;
-
-    protected function stockModelClass(): string
-    {
-        return \App\Models\ConsumableItem::class;
-    }
-
-    protected function stockLabel(): string
-    {
-        return 'barang habis pakai';
-    }
-
     private function authorizeAccess(Request $request): bool
     {
         // Eksplisit (bukan akses bawaan): akun dengan menu_access kosong tidak ikut (audit Barang Habis Pakai, 2026-11-02).

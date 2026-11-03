@@ -19,17 +19,44 @@ class StockOpname extends Model
     use LogsActivity;
     use HasStoreScope;
 
+    public const STATUS_DRAFT = 'draft';
+
+    public const STATUS_APPLIED = 'applied';
+
+    public const STATUS_CANCELLED = 'cancelled';
+
+    public const STATUS_LABELS = [
+        self::STATUS_DRAFT => 'Draf (menunggu diterapkan)',
+        self::STATUS_APPLIED => 'Diterapkan',
+        self::STATUS_CANCELLED => 'Dibuang',
+    ];
+
     protected $fillable = [
         'opname_number',
         'store_id',
         'opname_date',
         'notes',
+        'status',
+        'snapshot_at',
+        'applied_at',
+        'applied_by',
+        'cancelled_at',
+        'cancelled_by',
+        'cancel_reason',
         'created_by',
     ];
 
     protected $casts = [
         'opname_date' => 'date',
+        'snapshot_at' => 'datetime',
+        'applied_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
+
+    public function isDraft(): bool
+    {
+        return $this->status === self::STATUS_DRAFT;
+    }
 
     public static function generateOpnameNumber(): string
     {
@@ -58,6 +85,16 @@ class StockOpname extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function applier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'applied_by');
+    }
+
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(StockOpnameItem::class);
@@ -66,7 +103,7 @@ class StockOpname extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['opname_number', 'store_id', 'opname_date', 'notes'])
+            ->logOnly(['opname_number', 'store_id', 'opname_date', 'notes', 'status'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('stock_opname');

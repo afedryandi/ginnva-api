@@ -502,11 +502,13 @@ Route::prefix('staff')->group(function () {
         // Filament-nya dicentang akses menu masing-masing.
         Route::get('/stock-write-offs', [\App\Http\Controllers\Api\Staff\StockWriteOffController::class, 'index']);
         Route::get('/stock-card', [\App\Http\Controllers\Api\Staff\StockCardController::class, 'index']);
+        Route::get('/stock-opnames', [\App\Http\Controllers\Api\Staff\StockOpnameController::class, 'index']);
+        Route::post('/stock-opnames', [\App\Http\Controllers\Api\Staff\StockOpnameController::class, 'store'])
+            ->middleware('throttle:20,1');
+        Route::get('/stock-opnames/{id}', [\App\Http\Controllers\Api\Staff\StockOpnameController::class, 'show']);
         Route::get('/stock-scan', [\App\Http\Controllers\Api\Staff\StockScanController::class, 'lookup'])
             ->middleware('throttle:60,1');
         Route::get('/materials', [StaffRawMaterialController::class, 'index']);
-        Route::post('/materials/bulk-adjust', [StaffRawMaterialController::class, 'bulkAdjust'])
-            ->middleware('throttle:20,1');
         Route::get('/material-movements', [StaffRawMaterialController::class, 'history']);
         Route::get('/materials/{id}', [StaffRawMaterialController::class, 'show']);
         Route::get('/materials/{id}/movements', [StaffRawMaterialController::class, 'movements']);
@@ -525,8 +527,6 @@ Route::prefix('staff')->group(function () {
         Route::get('/stock-overview', [\App\Http\Controllers\Api\Staff\StockOverviewController::class, 'show']);
 
         Route::get('/consumables', [StaffConsumableItemController::class, 'index']);
-        Route::post('/consumables/bulk-adjust', [StaffConsumableItemController::class, 'bulkAdjust'])
-            ->middleware('throttle:20,1');
         Route::get('/consumable-movements', [StaffConsumableItemController::class, 'history']);
         Route::get('/consumables/{id}', [StaffConsumableItemController::class, 'show']);
         Route::get('/consumables/{id}/movements', [StaffConsumableItemController::class, 'movements']);

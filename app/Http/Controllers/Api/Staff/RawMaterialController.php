@@ -10,18 +10,6 @@ use Illuminate\Support\Facades\Validator;
 
 class RawMaterialController extends Controller
 {
-    use \App\Http\Controllers\Api\Staff\Concerns\AdjustsStockInBulk;
-
-    protected function stockModelClass(): string
-    {
-        return \App\Models\RawMaterial::class;
-    }
-
-    protected function stockLabel(): string
-    {
-        return 'bahan baku';
-    }
-
     /**
      * Sama pola dengan InventoryController::authorizeScan() — dicek lewat "Akses Menu" akun Filament staff (menu Bahan Baku),
      * dan eksplisit: akun dengan akses bawaan (menu_access kosong) tidak ikut (audit Daftar Bahan Baku, 2026-11-02).
