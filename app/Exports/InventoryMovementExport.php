@@ -27,8 +27,8 @@ class InventoryMovementExport implements FromQuery, WithHeadings, WithMapping, S
 
     public function query(): Builder
     {
-        return ($this->query ?? InventoryMovement::query())
-            ->with(['inventoryItem', 'user', 'destinationStore'])
+        return ($this->query ?? InventoryMovement::query()->visibleTo(auth()->user()))
+            ->with(['inventoryItem.scrollCode:id,code', 'user', 'destinationStore', 'store'])
             ->reorder('created_at', 'desc');
     }
 
@@ -37,6 +37,7 @@ class InventoryMovementExport implements FromQuery, WithHeadings, WithMapping, S
         return [
             'Waktu', 'Kode Barang', 'Nama Barang', 'Kategori',
             'Jenis', 'Toko Tujuan', 'Dicatat Oleh', 'Catatan',
+            'Toko Pencatat', 'Kode Gulungan', 'Status',
         ];
     }
 
@@ -56,6 +57,9 @@ class InventoryMovementExport implements FromQuery, WithHeadings, WithMapping, S
             $movement->destinationStore?->name ?? '—',
             $movement->user?->name ?? '—',
             $movement->note,
+            $movement->store?->name ?? '—',
+            $movement->inventoryItem?->scrollCode?->code ?? '—',
+            $movement->reversed_at ? 'Dibatalkan' . ($movement->reversed_reason ? ': ' . $movement->reversed_reason : '') : 'Berlaku',
         ];
     }
 

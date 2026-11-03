@@ -28,10 +28,13 @@ class InventoryMovementStatsOverview extends BaseWidget
     {
         $startOfMonth = now()->startOfMonth();
 
-        $outCount = InventoryMovement::where('type', 'out')->where('created_at', '>=', $startOfMonth)->count();
-        $inCount = InventoryMovement::where('type', 'in')->where('created_at', '>=', $startOfMonth)->count();
+        // Hanya yang masih berlaku (yang dibatalkan tidak dihitung) dan hanya baris yang boleh dilihat akun ini.
+        $base = fn () => InventoryMovement::query()->visibleTo(auth()->user())->effective();
 
-        $topStore = InventoryMovement::where('type', 'out')
+        $outCount = $base()->where('type', 'out')->where('created_at', '>=', $startOfMonth)->count();
+        $inCount = $base()->where('type', 'in')->where('created_at', '>=', $startOfMonth)->count();
+
+        $topStore = $base()->where('type', 'out')
             ->where('created_at', '>=', $startOfMonth)
             ->whereNotNull('destination_store_id')
             ->selectRaw('destination_store_id, COUNT(*) as total')

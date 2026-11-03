@@ -237,12 +237,14 @@ class StaffInventoryApiTest extends TestCase
         $movement = InventoryMovement::firstOrFail();
         $this->assertSame($this->storeA->id, $movement->destination_store_id, 'Staff biasa: toko dari akunnya, kiriman store_id diabaikan.');
         $this->assertSame($user->id, $movement->user_id);
+        $this->assertSame($this->storeA->id, $movement->store_id, 'Toko pencatat tersimpan.');
         $scroll = $scroll->fresh();
         $this->assertSame(['allocated', $this->storeA->id], [$scroll->status, $scroll->store_id]);
 
         $this->api($user)->postJson('/api/staff/inventory/INV-1/movement', ['type' => 'in'])
             ->assertSuccessful()
             ->assertJsonPath('data.status', 'in_stock');
+        $this->assertSame($this->storeA->id, InventoryMovement::where('type', 'in')->firstOrFail()->store_id, 'Masuk juga mencatat toko pencatat.');
         $this->assertSame('unallocated', $scroll->fresh()->status);
     }
 

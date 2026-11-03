@@ -472,6 +472,7 @@ Route::prefix('staff')->group(function () {
         // QR langsung di tempat (mis. mencatat dari jarak jauh).
         Route::get('/inventory', [StaffInventoryController::class, 'index']);
         Route::get('/inventory/{code}', [StaffInventoryController::class, 'show']);
+        Route::get('/inventory-movements', [StaffInventoryController::class, 'history']);
         Route::get('/inventory/{code}/movements', [StaffInventoryController::class, 'movements']);
         Route::post('/inventory/{code}/movement', [StaffInventoryController::class, 'storeMovement'])
             ->middleware('throttle:30,1');

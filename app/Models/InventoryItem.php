@@ -139,6 +139,7 @@ class InventoryItem extends Model
      * @throws \InvalidArgumentException kalau transisi status tidak masuk akal
      *         (mis. "catat masuk" untuk barang yang sudah in_stock).
      *
+     * @param int|null $actorStoreId Toko akun yang mencatat (dasar pembatasan Riwayat Keluar/Masuk per toko).
      * @param int|null $storeId Toko tujuan — cuma dipakai kalau barangnya
      *        punya kode gulungan terkait DAN $type === 'out'. Untuk staff
      *        biasa ini SELALU toko staff itu sendiri (lihat
@@ -146,9 +147,9 @@ class InventoryItem extends Model
      *        dipilih manual — cuma full-access yang isi ini manual karena
      *        tidak terikat 1 toko.
      */
-    public function recordMovement(string $type, ?int $userId, ?string $note = null, ?int $storeId = null): InventoryMovement
+    public function recordMovement(string $type, ?int $userId, ?string $note = null, ?int $storeId = null, ?int $actorStoreId = null): InventoryMovement
     {
-        return DB::transaction(function () use ($type, $userId, $note, $storeId) {
+        return DB::transaction(function () use ($type, $userId, $note, $storeId, $actorStoreId) {
             $item = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
             if ($type === 'in' && $item->status === 'in_stock') {
@@ -182,6 +183,8 @@ class InventoryItem extends Model
                 // Cuma relevan untuk 'out' ("ke toko mana") — 'in' berarti
                 // balik ke gudang pusat, tidak terikat 1 toko tertentu.
                 'destination_store_id' => $type === 'out' ? $storeId : null,
+                // Toko akun yang mencatat, untuk semua jenis (Masuk tidak punya toko tujuan).
+                'store_id' => $actorStoreId,
                 'user_id' => $userId,
             ]);
 
@@ -206,16 +209,26 @@ class InventoryItem extends Model
      *         terbaru, atau movement-nya berhubungan dengan sinkronisasi
      *         status ScrollCode yang sudah berubah lagi sejak itu.
      */
-    public function reverseLastMovement(InventoryMovement $movement, ?int $userId): void
+    public function reverseLastMovement(InventoryMovement $movement, ?int $userId, ?string $reason = null): void
     {
+        if (trim((string) $reason) === '') {
+            throw new \InvalidArgumentException('Isi alasan pembatalan.');
+        }
+
         if ($movement->inventory_item_id !== $this->id) {
             throw new \InvalidArgumentException('Baris riwayat ini bukan milik barang ini.');
         }
 
-        DB::transaction(function () use ($movement, $userId) {
+        DB::transaction(function () use ($movement, $userId, $reason) {
             $item = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
-            $isLatest = ! $item->movements()->where('id', '>', $movement->id)->exists();
+            $movement = InventoryMovement::whereKey($movement->id)->lockForUpdate()->firstOrFail();
+            if ($movement->reversed_at !== null) {
+                throw new \InvalidArgumentException('Pencatatan ini sudah dibatalkan.');
+            }
+
+            // Hanya pergerakan yang masih berlaku yang dihitung "lebih baru": yang sudah dibatalkan dan baris Koreksi tidak.
+            $isLatest = ! $item->movements()->where('id', '>', $movement->id)->whereNull('reversed_at')->where('type', '!=', 'correction')->exists();
             if (! $isLatest) {
                 throw new \InvalidArgumentException('Cuma bisa membatalkan riwayat paling terakhir — sudah ada kejadian lain setelah ini.');
             }
@@ -231,16 +244,20 @@ class InventoryItem extends Model
                     $scrollCode->update(['status' => 'unallocated', 'allocated_at' => null, 'store_id' => null]);
                 } elseif ($scrollCode?->status === 'unallocated' && $movement->type === 'in') {
                     // Movement 'in' tidak menyimpan toko -- toko dikembalikan dari pencatatan 'out' sebelumnya.
-                    $previousStoreId = $item->movements()->where('type', 'out')->where('id', '<', $movement->id)->orderByDesc('id')->value('destination_store_id');
+                    $previousStoreId = $item->movements()->where('type', 'out')->whereNull('reversed_at')->where('id', '<', $movement->id)->orderByDesc('id')->value('destination_store_id');
                     $scrollCode->update(['status' => 'allocated', 'allocated_at' => now(), 'store_id' => $previousStoreId]);
                 }
             }
 
-            $movement->delete();
+            // Baris asli disimpan (siapa/kapan/ke mana tetap terlihat), hanya ditandai dibatalkan.
+            $movement->update(['reversed_at' => now(), 'reversed_by' => $userId, 'reversed_reason' => $reason]);
 
+            $actor = $userId ? User::find($userId) : null;
             $item->movements()->create([
                 'type' => 'correction',
-                'note' => 'Koreksi: membatalkan pencatatan "' . ($movement->type === 'in' ? 'Masuk' : 'Keluar') . '" yang salah.',
+                'note' => 'Koreksi: membatalkan pencatatan "' . ($movement->type === 'in' ? 'Masuk' : 'Keluar') . '" ('
+                    . ($movement->created_at?->format('d M Y H:i') ?? '-') . '). Alasan: ' . $reason,
+                'store_id' => $actor?->store_id,
                 'user_id' => $userId,
             ]);
 

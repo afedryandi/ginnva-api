@@ -41,6 +41,7 @@ class CreateInventoryItem extends CreateRecord
         $this->record->movements()->create([
             'type' => 'in',
             'note' => 'Didaftarkan lewat panel admin',
+            'store_id' => auth()->user()?->store_id,
             'user_id' => auth()->id(),
         ]);
     }

@@ -142,7 +142,7 @@ class InventoryController extends Controller
 
         $item = InventoryItem::where('code', $code)
             ->with([
-                'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name'])->limit(20),
+                'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name', 'store:id,name'])->limit(20),
                 'scrollCode.filmProduct',
                 'scrollCode.store:id,name',
                 'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
@@ -169,6 +169,76 @@ class InventoryController extends Controller
             // Dipakai app buat munculkan tombol "Muat Riwayat Lainnya" —
             // lihat movements() untuk endpoint paginasinya.
             'movements_has_more' => $item->movements()->count() > $item->movements->count(),
+        ]);
+    }
+
+    /**
+     * GET /api/staff/inventory-movements?type=&search=&from=&until=&store_id=&offset=
+     *
+     * Riwayat Keluar/Masuk lintas barang (audit 2026-11-03): selama ini mobile hanya punya 20 baris terakhir per barang setelah scan.
+     * Akses penuh melihat semua toko (boleh menyaring store_id); staf lain hanya baris tokonya sendiri (toko pencatat atau tujuan).
+     */
+    public function history(Request $request)
+    {
+        if (! $this->authorizeScan($request)) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu Inventaris.'], 403);
+        }
+
+        $validator = Validator::make($request->query(), [
+            'type' => 'nullable|in:in,out,correction',
+            'search' => 'nullable|string|max:100',
+            'from' => 'nullable|date',
+            'until' => 'nullable|date',
+            'store_id' => 'nullable|integer',
+            'offset' => 'nullable|integer|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Filter tidak valid.', 'errors' => $validator->errors()], 422);
+        }
+
+        $user = $request->user('api');
+        $limit = 30;
+        $offset = (int) $request->query('offset', 0);
+        $search = trim((string) $request->query('search', ''));
+
+        $query = \App\Models\InventoryMovement::query()
+            ->visibleTo($user)
+            ->with(['inventoryItem:id,code,name,category', 'user:id,name', 'destinationStore:id,name', 'store:id,name'])
+            ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
+            ->when($request->query('from'), fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+            ->when($request->query('until'), fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
+            ->when($user->isFullAccess() && $request->filled('store_id'), fn ($q) => $q->where(fn ($w) => $w
+                ->where('inventory_movements.store_id', (int) $request->query('store_id'))
+                ->orWhere('inventory_movements.destination_store_id', (int) $request->query('store_id'))))
+            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->where('note', 'like', "%{$search}%")
+                ->orWhereHas('inventoryItem', fn ($i) => $i->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"))));
+
+        $rows = (clone $query)->latest('created_at')->latest('id')->offset($offset)->limit($limit + 1)->get();
+        $hasMore = $rows->count() > $limit;
+
+        $today = fn () => \App\Models\InventoryMovement::query()->visibleTo($user)->effective()->whereDate('created_at', today());
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows->take($limit)->map(fn ($m) => [
+                'id' => $m->id,
+                'type' => $m->type,
+                'note' => $m->note,
+                'created_at' => $m->created_at?->toIso8601String(),
+                'reversed' => $m->reversed_at !== null,
+                'reversed_reason' => $m->reversed_reason,
+                'item' => $m->inventoryItem ? ['code' => $m->inventoryItem->code, 'name' => $m->inventoryItem->name, 'category' => $m->inventoryItem->category] : null,
+                'user' => $m->user ? ['name' => $m->user->name] : null,
+                'destination_store' => $m->destinationStore ? ['name' => $m->destinationStore->name] : null,
+                'store' => $m->store ? ['name' => $m->store->name] : null,
+            ])->values(),
+            'has_more' => $hasMore,
+            'summary' => [
+                'out_today' => $today()->where('type', 'out')->count(),
+                'in_today' => $today()->where('type', 'in')->count(),
+            ],
         ]);
     }
 
@@ -203,7 +273,7 @@ class InventoryController extends Controller
         $limit = 20;
 
         $movements = $item->movements()
-            ->with(['user:id,name', 'destinationStore:id,name'])
+            ->with(['user:id,name', 'destinationStore:id,name', 'store:id,name'])
             ->latest()
             ->offset($offset)
             ->limit($limit)
@@ -291,7 +361,7 @@ class InventoryController extends Controller
         }
 
         try {
-            $item->recordMovement($request->type, $user->id, $request->note, $storeId);
+            $item->recordMovement($request->type, $user->id, $request->note, $storeId, $user->store_id);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
@@ -305,7 +375,7 @@ class InventoryController extends Controller
         // tidak ikut dikirim, item.movements.length di app crash.
         $item = $item->fresh();
         $item->load([
-            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name'])->limit(20),
+            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name', 'store:id,name'])->limit(20),
             'scrollCode.filmProduct',
             'scrollCode.store:id,name',
             'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
@@ -400,7 +470,7 @@ class InventoryController extends Controller
         // WAJIB ikut di-reload di sini juga, kalau tidak, app mobile
         // crash karena item.movements.length dipanggil atas undefined.
         $item->load([
-            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name'])->limit(20),
+            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name', 'store:id,name'])->limit(20),
             'scrollCode.filmProduct',
             'scrollCode.store:id,name',
             'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
@@ -457,7 +527,7 @@ class InventoryController extends Controller
         });
 
         $item->load([
-            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name'])->limit(20),
+            'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name', 'store:id,name'])->limit(20),
             'scrollCode.filmProduct',
             'scrollCode.store:id,name',
             'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),

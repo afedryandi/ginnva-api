@@ -2,9 +2,7 @@
 
 namespace App\Filament\Resources\InventoryItemResource\RelationManagers;
 
-use App\Models\InventoryItem;
 use App\Models\InventoryMovement;
-use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -55,6 +53,19 @@ class MovementsRelationManager extends RelationManager
                     ->label('Dicatat Oleh')
                     ->placeholder('—'),
 
+                Tables\Columns\TextColumn::make('store.name')
+                    ->label('Toko Pencatat')
+                    ->placeholder('—')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('reversed_state')
+                    ->label('Status')
+                    ->state(fn (InventoryMovement $record) => $record->reversed_at !== null ? 'Dibatalkan' : null)
+                    ->badge()
+                    ->color('gray')
+                    ->placeholder('—')
+                    ->tooltip(fn (InventoryMovement $record) => $record->reversed_reason),
+
                 Tables\Columns\TextColumn::make('note')
                     ->label('Catatan')
                     ->placeholder('—')
@@ -66,29 +77,7 @@ class MovementsRelationManager extends RelationManager
                     ->sortable(),
             ])
             ->actions([
-                Tables\Actions\Action::make('reverse')
-                    ->label('Batalkan')
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('danger')
-                    ->visible(fn (InventoryMovement $record) => auth()->user()?->isFullAccess()
-                        && $record->type !== 'correction'
-                        && ! $this->getOwnerRecord()->movements()->where('id', '>', $record->id)->exists())
-                    ->requiresConfirmation()
-                    ->modalDescription('Batalkan pencatatan ini? Status barang akan dikembalikan ke sebelumnya, dan baris "Koreksi" baru akan ditambahkan sebagai jejaknya. Cuma bisa untuk kejadian paling terakhir.')
-                    ->action(function (InventoryMovement $record) {
-                        /** @var InventoryItem $item */
-                        $item = $this->getOwnerRecord();
-
-                        try {
-                            $item->reverseLastMovement($record, auth()->id());
-                        } catch (\InvalidArgumentException $e) {
-                            Notification::make()->title('Tidak bisa membatalkan')->body($e->getMessage())->danger()->send();
-
-                            return;
-                        }
-
-                        Notification::make()->title('Pencatatan dibatalkan')->success()->send();
-                    }),
+                \App\Filament\Resources\InventoryMovementResource::reverseAction(),
             ])
             ->defaultSort('created_at', 'desc');
     }

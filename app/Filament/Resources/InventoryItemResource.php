@@ -923,7 +923,7 @@ class InventoryItemResource extends Resource
                         'notes' => $notes ?: null,
                         'created_by' => auth()->id(),
                     ]);
-                    $item->recordMovement('in', auth()->id(), 'Import Excel');
+                    $item->recordMovement('in', auth()->id(), 'Import Excel', null, auth()->user()?->store_id);
                     $createdCount++;
                 }
             });

@@ -68,9 +68,9 @@ class InventoryMovementResourceTest extends TestCase
         return InventoryItem::create(['code' => 'INV-' . strtoupper(uniqid()), 'name' => $name, 'category' => $category, 'status' => 'in_stock', 'scroll_code_id' => $scroll?->id]);
     }
 
-    private function move(InventoryItem $item, string $type, ?User $user = null, ?Store $store = null, string $note = 'catatan', ?string $at = null): InventoryMovement
+    private function move(InventoryItem $item, string $type, ?User $user = null, ?Store $store = null, string $note = 'catatan', ?string $at = null, ?Store $actor = null): InventoryMovement
     {
-        $movement = InventoryMovement::create(['inventory_item_id' => $item->id, 'type' => $type, 'note' => $note, 'destination_store_id' => $store?->id, 'user_id' => $user?->id]);
+        $movement = InventoryMovement::create(['inventory_item_id' => $item->id, 'type' => $type, 'note' => $note, 'destination_store_id' => $store?->id, 'store_id' => $actor?->id, 'user_id' => $user?->id]);
 
         if ($at) {
             \DB::table('inventory_movements')->where('id', $movement->id)->update(['created_at' => $at, 'updated_at' => $at]);
@@ -91,8 +91,13 @@ class InventoryMovementResourceTest extends TestCase
         $this->assertFalse(InventoryMovementResource::canEdit($record));
         $this->assertFalse(InventoryMovementResource::canDelete($record));
 
+        // Akses eksplisit: akun dengan menu kosong (akses bawaan) tidak ikut.
         $this->as($this->user('kasir'));
+        $this->assertFalse(InventoryMovementResource::canViewAny());
+
+        $this->as($this->user('kasir', ['InventoryMovementResource']));
         $this->assertTrue(InventoryMovementResource::canViewAny());
+        $this->assertTrue(InventoryMovementResource::canView($record));
 
         $this->as($this->user('kasir', ['BookingResource']));
         $this->assertFalse(InventoryMovementResource::canViewAny());
@@ -195,7 +200,7 @@ class InventoryMovementResourceTest extends TestCase
             $rows = $export->query()->get();
 
             return $rows->count() === 1
-                && $export->map($rows->first()) === ['08/10/2026 10:00', $rows->first()->inventoryItem->code, 'Film Alpha', 'PPF', 'Keluar', 'Toko B', 'Alice', 'Kirim'];
+                && $export->map($rows->first()) === ['08/10/2026 10:00', $rows->first()->inventoryItem->code, 'Film Alpha', 'PPF', 'Keluar', 'Toko B', 'Alice', 'Kirim', '—', '—', 'Berlaku'];
         });
 
         $log = Activity::where('log_name', 'report_export')->latest('id')->firstOrFail();
@@ -209,10 +214,10 @@ class InventoryMovementResourceTest extends TestCase
     {
         $item = $this->item('Film Alpha');
         $first = $this->move($item, 'out', null, $this->storeA);
-        $latest = $this->move($item, 'in');
+        $latest = $this->move($item, 'in', null, null, 'catatan', null, $this->storeA);
         $item->update(['status' => 'in_stock']);
 
-        $this->as($this->user('kasir'));
+        $this->as($this->user('kasir', ['InventoryMovementResource']));
         Livewire::test(ListInventoryMovements::class)->assertTableActionHidden('reverse', $latest);
 
         $this->as($this->user('super_admin'));
@@ -233,18 +238,23 @@ class InventoryMovementResourceTest extends TestCase
         $this->assertSame($this->storeA->id, $scroll->fresh()->store_id);
 
         Livewire::test(ListInventoryMovements::class)
-            ->callTableAction('reverse', $movement)
+            ->callTableAction('reverse', $movement, data: ['reason' => 'Salah scan barang'])
             ->assertHasNoTableActionErrors();
 
         $this->assertSame('in_stock', $item->fresh()->status);
         $scroll = $scroll->fresh();
         $this->assertSame('unallocated', $scroll->status);
         $this->assertNull($scroll->store_id);
-        $this->assertNull(InventoryMovement::find($movement->id));
-        $correction = $item->movements()->firstOrFail();
-        $this->assertSame('correction', $correction->type);
+
+        // Baris asli disimpan (ditandai dibatalkan), bukan dihapus.
+        $original = InventoryMovement::findOrFail($movement->id);
+        $this->assertNotNull($original->reversed_at);
+        $this->assertSame($admin->id, $original->reversed_by);
+        $this->assertSame('Salah scan barang', $original->reversed_reason);
+        $correction = $item->movements()->where('type', 'correction')->firstOrFail();
         $this->assertSame($admin->id, $correction->user_id);
         $this->assertStringContainsString('Keluar', $correction->note);
+        $this->assertStringContainsString('Salah scan barang', $correction->note);
     }
 
     public function test_reversing_an_in_puts_the_roll_back_to_its_previous_store(): void
@@ -258,7 +268,7 @@ class InventoryMovementResourceTest extends TestCase
         $this->assertSame('unallocated', $scroll->fresh()->status);
 
         Livewire::test(ListInventoryMovements::class)
-            ->callTableAction('reverse', $in)
+            ->callTableAction('reverse', $in, data: ['reason' => 'Salah pilih jenis'])
             ->assertHasNoTableActionErrors();
 
         $this->assertSame('out', $item->fresh()->status);
@@ -275,6 +285,164 @@ class InventoryMovementResourceTest extends TestCase
         $item->fresh()->recordMovement('in', $admin->id);
 
         $this->expectException(\InvalidArgumentException::class);
-        $item->fresh()->reverseLastMovement($out, $admin->id);
+        $item->fresh()->reverseLastMovement($out, $admin->id, 'Salah');
+    }
+    // ------------------------------------------------------------- audit 2026-11-03
+
+    private function staffOf(Store $store): User
+    {
+        return $this->user('kasir', ['InventoryMovementResource'], ['store_id' => $store->id]);
+    }
+
+    public function test_staff_only_see_their_own_stores_rows_while_full_access_sees_everything(): void
+    {
+        $item = $this->item('Film Alpha');
+        $outA = $this->move($item, 'out', null, $this->storeA, 'ke A', null, $this->storeA);
+        $inA = $this->move($item, 'in', null, null, 'balik A', null, $this->storeA);
+        $outB = $this->move($item, 'out', null, $this->storeB, 'ke B', null, $this->storeB);
+        $adminOutB = $this->move($item, 'out', null, $this->storeA, 'dikirim admin ke A', null, null);
+        $legacy = $this->move($item, 'in', null, null, 'tanpa toko', null, null);
+
+        $this->as($this->staffOf($this->storeA));
+        Livewire::test(ListInventoryMovements::class)
+            ->assertCanSeeTableRecords([$outA, $inA, $adminOutB])
+            ->assertCanNotSeeTableRecords([$outB, $legacy])
+            ->assertTableFilterHidden('store_id');
+        Livewire::test(InventoryMovementStatsOverview::class)->assertSee('2 unit keluar bulan ini');
+
+        $rows = (new \App\Exports\InventoryMovementExport())->query()->get();
+        $this->assertEqualsCanonicalizing([$outA->id, $inA->id, $adminOutB->id], $rows->pluck('id')->all());
+
+        $this->as($this->user('super_admin'));
+        Livewire::test(ListInventoryMovements::class)
+            ->assertCanSeeTableRecords([$outA, $inA, $outB, $adminOutB, $legacy])
+            ->assertTableFilterVisible('store_id')
+            ->filterTable('store_id', $this->storeB->id)
+            ->assertCanSeeTableRecords([$outB])->assertCanNotSeeTableRecords([$outA, $inA]);
+
+        // Akun tanpa toko dan bukan akses penuh tidak melihat apa pun.
+        $this->as($this->user('kasir', ['InventoryMovementResource'], ['store_id' => null]));
+        $this->assertSame(0, InventoryMovement::query()->visibleTo(auth()->user())->count());
+    }
+
+    public function test_recording_a_movement_stores_the_acting_store_for_every_type(): void
+    {
+        $item = $this->item('Film Alpha');
+        $actor = $this->user('kasir');
+
+        $out = $item->recordMovement('out', $actor->id, 'kirim', $this->storeB->id, $this->storeA->id);
+        $in = $item->fresh()->recordMovement('in', $actor->id, 'balik', null, $this->storeA->id);
+
+        $this->assertSame([$this->storeB->id, $this->storeA->id], [$out->destination_store_id, $out->store_id]);
+        $this->assertNull($in->destination_store_id);
+        $this->assertSame($this->storeA->id, $in->store_id, 'Masuk kini punya toko pencatat.');
+    }
+
+    public function test_reversing_keeps_the_row_requires_a_reason_and_allows_a_chain(): void
+    {
+        $item = $this->item('Film Alpha');
+        $admin = $this->as($this->user('super_admin'));
+        $out = $item->recordMovement('out', $admin->id, 'kirim', $this->storeA->id);
+        $in = $item->fresh()->recordMovement('in', $admin->id, 'balik');
+
+        // Alasan wajib.
+        Livewire::test(ListInventoryMovements::class)
+            ->callTableAction('reverse', $in, data: ['reason' => ''])
+            ->assertHasTableActionErrors(['reason' => 'required']);
+        $this->assertNull($in->fresh()->reversed_at);
+
+        Livewire::test(ListInventoryMovements::class)
+            ->callTableAction('reverse', $in, data: ['reason' => 'Salah scan'])
+            ->assertHasNoTableActionErrors();
+        $this->assertSame('out', $item->fresh()->status);
+
+        // Yang sudah dibatalkan tidak bisa dibatalkan lagi, dan baris sebelumnya kini jadi yang terakhir yang berlaku.
+        $in = $in->fresh();
+        $this->assertTrue($in->isReversed());
+        $this->assertFalse($in->isReversible());
+        $this->assertTrue($out->fresh()->isReversible());
+        Livewire::test(ListInventoryMovements::class)
+            ->assertTableActionHidden('reverse', $in)
+            ->assertTableActionVisible('reverse', $out->fresh())
+            ->callTableAction('reverse', $out->fresh(), data: ['reason' => 'Salah kirim']);
+        $this->assertSame('in_stock', $item->fresh()->status);
+        $this->assertSame(2, $item->movements()->where('type', 'correction')->count());
+
+        // Ringkasan hanya menghitung yang masih berlaku.
+        Livewire::test(InventoryMovementStatsOverview::class)->assertSee('Keluar Bulan Ini')->assertDontSee('Toko A');
+
+        // Filter dibatalkan.
+        Livewire::test(ListInventoryMovements::class)
+            ->filterTable('reversed', true)->assertCanSeeTableRecords([$in, $out->fresh()])
+            ->filterTable('reversed', false)->assertCanNotSeeTableRecords([$in, $out->fresh()]);
+    }
+
+    public function test_the_model_refuses_a_blank_reason_and_a_second_reversal(): void
+    {
+        $item = $this->item('Film Alpha');
+        $admin = $this->user('super_admin');
+        $out = $item->recordMovement('out', $admin->id, null, $this->storeA->id);
+
+        try {
+            $item->fresh()->reverseLastMovement($out, $admin->id, '  ');
+            $this->fail('Alasan kosong harus ditolak.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('alasan', $e->getMessage());
+        }
+
+        $item->fresh()->reverseLastMovement($out, $admin->id, 'Salah');
+        $this->expectException(\InvalidArgumentException::class);
+        $item->fresh()->reverseLastMovement($out->fresh(), $admin->id, 'Lagi');
+    }
+
+    public function test_the_detail_page_shows_the_movement_roll_and_reversal(): void
+    {
+        $scroll = ScrollCode::create(['code' => 'SC-VIEW-1', 'status' => 'unallocated', 'usage_count' => 0, 'total_length_meters' => 15, 'remaining_length_meters' => 15]);
+        $item = $this->item('Film Alpha', 'PPF', $scroll);
+        $admin = $this->as($this->user('super_admin'));
+        $out = $item->recordMovement('out', $admin->id, 'Kirim ke A', $this->storeA->id, $this->storeA->id);
+        $item->fresh()->reverseLastMovement($out, $admin->id, 'Salah toko');
+
+        Livewire::test(\App\Filament\Resources\InventoryMovementResource\Pages\ViewInventoryMovement::class, ['record' => $out->getRouteKey()])
+            ->assertSuccessful()
+            ->assertSee('SC-VIEW-1')
+            ->assertSee('Salah toko');
+
+        $this->as($this->user('kasir', ['InventoryMovementResource'], ['store_id' => $this->storeB->id]));
+        try {
+            Livewire::test(\App\Filament\Resources\InventoryMovementResource\Pages\ViewInventoryMovement::class, ['record' => $out->getRouteKey()]);
+            $this->fail('Baris toko lain tidak boleh bisa dibuka.');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            $this->assertTrue(true);
+        }
+    }
+
+    public function test_the_mobile_history_is_scoped_filtered_and_needs_inventory_access(): void
+    {
+        $item = $this->item('Film Alpha');
+        $this->move($item, 'out', null, $this->storeA, 'ke A', '2026-10-08 09:00:00', $this->storeA);
+        $this->move($item, 'in', null, null, 'balik A', '2026-10-01 09:00:00', $this->storeA);
+        $this->move($item, 'out', null, $this->storeB, 'ke B', '2026-10-08 08:00:00', $this->storeB);
+
+        $staff = $this->user('kasir', ['InventoryItemResource'], ['store_id' => $this->storeA->id]);
+        $this->getJson('/api/staff/inventory-movements')->assertStatus(401);
+
+        $all = $this->actingAs($staff, 'api')->getJson('/api/staff/inventory-movements')->assertSuccessful();
+        $this->assertSame(['ke A', 'balik A'], array_column($all->json('data'), 'note'));
+        $this->assertSame(['out_today' => 1, 'in_today' => 0], $all->json('summary'));
+        $this->assertFalse($all->json('has_more'));
+
+        $this->assertSame(['balik A'], array_column($this->actingAs($staff, 'api')->getJson('/api/staff/inventory-movements?type=in')->json('data'), 'note'));
+        $this->assertSame(['ke A'], array_column($this->actingAs($staff, 'api')->getJson('/api/staff/inventory-movements?from=2026-10-05')->json('data'), 'note'));
+        $this->assertSame(['balik A'], array_column($this->actingAs($staff, 'api')->getJson('/api/staff/inventory-movements?search=balik')->json('data'), 'note'));
+        // Staf tidak bisa mengintip toko lain lewat store_id.
+        $this->assertSame(['ke A', 'balik A'], array_column($this->actingAs($staff, 'api')->getJson('/api/staff/inventory-movements?store_id=' . $this->storeB->id)->json('data'), 'note'));
+        $this->actingAs($staff, 'api')->getJson('/api/staff/inventory-movements?type=bogus')->assertStatus(422);
+
+        $admin = $this->user('super_admin');
+        $this->assertCount(3, $this->actingAs($admin, 'api')->getJson('/api/staff/inventory-movements')->json('data'));
+        $this->assertSame(['ke B'], array_column($this->actingAs($admin, 'api')->getJson('/api/staff/inventory-movements?store_id=' . $this->storeB->id)->json('data'), 'note'));
+
+        $this->actingAs($this->user('kasir', ['BookingResource'], ['store_id' => $this->storeA->id]), 'api')->getJson('/api/staff/inventory-movements')->assertStatus(403);
     }
 }
