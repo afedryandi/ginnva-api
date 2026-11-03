@@ -88,4 +88,14 @@ return [
     'employee_checklists' => (bool) env('FEATURE_EMPLOYEE_CHECKLISTS', false),
     'installer_utilization' => (bool) env('FEATURE_INSTALLER_UTILIZATION', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Master Resep (keputusan pemilik 2026-11-03: tidak diperlukan)
+    |--------------------------------------------------------------------------
+    | Mati bawaan: menu Master Resep (bahan standar per produk) tidak tampil di panel dan tombol "Isi dari Master Resep" di Memo hilang.
+    | Memo tetap diisi manual, dan stok tetap berkurang lewat Memo. Kode dan tabel resep tetap ada; data lama tidak dihapus.
+    | Untuk menyalakan lagi isi FEATURE_MASTER_RESEP=true di .env.
+    */
+    'master_resep' => (bool) env('FEATURE_MASTER_RESEP', false),
+
 ];

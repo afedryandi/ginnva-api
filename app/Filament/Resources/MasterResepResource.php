@@ -50,6 +50,11 @@ class MasterResepResource extends Resource
 
     public static function canViewAny(): bool
     {
+        // Fitur dimatikan (FEATURE_MASTER_RESEP, keputusan 2026-11-03): menu tidak tampil dan tidak bisa dibuka lewat URL.
+        if (! config('features.master_resep')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)

@@ -243,7 +243,7 @@ class ItemsRelationManager extends RelationManager
                     ->label('Isi dari Master Resep')
                     ->icon('heroicon-o-beaker')
                     ->color('info')
-                    ->visible(fn () => $this->recipeSourceProducts()
+                    ->visible(fn () => config('features.master_resep') && $this->recipeSourceProducts()
                         ->contains(fn (FilmProduct $p) => $p->recipeItems()
                             ->whereIn('item_type', ['raw_material', 'consumable_item'])
                             ->where('standard_qty', '>', 0)

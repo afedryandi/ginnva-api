@@ -512,6 +512,7 @@ class UserResource extends Resource
             'employee_training' => ['EmployeeTrainingResource'],
             'performance_reviews' => ['PerformanceReviewResource'],
             'salary_grades' => ['SalaryGradeResource'],
+            'master_resep' => ['MasterResepResource'],
             'employee_checklists' => ['EmployeeChecklistItemResource', 'ChecklistTemplateResource'],
             'work_schedules' => ['ShiftResource', 'WorkScheduleResource'],
         ] as $feature => $moduleKeys) {

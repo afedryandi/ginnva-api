@@ -313,4 +313,34 @@ class MasterResepResourceTest extends TestCase
         $this->assertStringContainsString('Premium Wash', $html);
         $this->assertStringNotContainsString('premium_wash', $html);
     }
+    // ------------------------------------------------------------- fitur dimatikan (keputusan 2026-11-03)
+
+    public function test_the_menu_is_hidden_and_closed_when_the_feature_is_switched_off(): void
+    {
+        config(['features.master_resep' => false]);
+
+        $this->actingAs($this->user('super_admin'), 'web');
+        $this->assertFalse(MasterResepResource::canViewAny());
+        $this->assertFalse(MasterResepResource::canEdit(new FilmProduct()));
+
+        // Data resep tetap utuh, hanya tidak dapat dibuka.
+        $product = $this->product('RES-OFF');
+        $this->recipe($product, 'raw_material', $this->cairan->id, 'Cairan Slip', 'ml', 50);
+        $this->assertSame(1, $product->recipeItems()->count());
+
+        config(['features.master_resep' => true]);
+        $this->assertTrue(MasterResepResource::canViewAny());
+    }
+
+    public function test_the_memo_fill_button_and_the_guide_step_follow_the_switch(): void
+    {
+        $guideSteps = fn () => collect(\App\Support\GuideCatalog::all())->firstWhere('id', 'katalog-produk')['steps'];
+
+        config(['features.master_resep' => true]);
+        $this->assertTrue(collect($guideSteps())->contains(fn ($s) => str_contains($s, '**Master Resep**')));
+
+        config(['features.master_resep' => false]);
+        $this->assertFalse(collect($guideSteps())->contains(fn ($s) => str_contains($s, '**Master Resep**')));
+        $this->assertStringNotContainsString('resep bahan standar', collect(\App\Support\GuideCatalog::all())->firstWhere('id', 'katalog-produk')['summary']);
+    }
 }
