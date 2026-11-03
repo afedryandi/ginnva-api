@@ -23,8 +23,8 @@
                 (err) => {
                     this.busy = false;
                     this.error = err.code === 1
-                        ? 'Izin lokasi ditolak. Aktifkan lokasi untuk Safari di Pengaturan iPhone, lalu coba lagi.'
-                        : 'Lokasi belum bisa ditentukan. Pindah ke tempat terbuka lalu coba lagi.';
+                        ? 'Izin lokasi ditolak. Buka pengaturan izin situs di browser ini, ubah Lokasi menjadi Izinkan, lalu muat ulang halaman dan coba lagi.'
+                        : 'Lokasi belum bisa ditentukan. Pastikan lokasi perangkat aktif dan pindah ke tempat terbuka, lalu coba lagi.';
                 },
                 { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
             );
@@ -79,7 +79,7 @@
                 </div>
 
                 <div class="pu-muted pu-small">
-                    Kalau absen ditolak karena lokasi, pastikan lokasi iPhone aktif dan Anda berada di toko. Kalau lupa absen, ajukan koreksi lewat
+                    Kalau absen ditolak karena lokasi, pastikan lokasi perangkat aktif, browser diizinkan memakai lokasi, dan Anda berada di toko. Kalau lupa absen, ajukan koreksi lewat
                     aplikasi staff atau hubungi atasan.
                 </div>
             @endif
