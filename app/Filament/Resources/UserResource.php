@@ -582,7 +582,9 @@ class UserResource extends Resource
         return Forms\Components\Tabs::make('Modul')
             ->tabs($schema)
             ->columnSpanFull()
-            ->visible(fn (Forms\Get $get) => $get('access_mode') === 'limited');
+            ->visible(fn (Forms\Get $get) => $get('access_mode') === 'limited')
+            // Tab tersembunyi saat Akses penuh; kotak yang tadinya tercentang tetap ikut disimpan (pindah ke Akses penuh sudah mengosongkannya).
+            ->dehydratedWhenHidden();
     }
 
     /** Pilihan "Akses penuh / Dibatasi" beserta ringkasan jumlah modul yang dipilih. */

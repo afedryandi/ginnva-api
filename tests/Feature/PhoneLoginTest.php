@@ -151,12 +151,13 @@ class PhoneLoginTest extends TestCase
         $user = $this->staff(['email' => 'admin@ginnva.test', 'phone' => '081234567890'], 'super_admin');
 
         Livewire::test(Login::class)->fillForm(['email' => '+62 812-3456-7890', 'password' => self::PASSWORD])->call('authenticate')->assertHasNoFormErrors();
-        $this->assertAuthenticatedAs($user);
+        // Guard bawaan aplikasi adalah 'api' (JWT); panel admin memakai 'web'.
+        $this->assertAuthenticatedAs($user, 'web');
 
-        auth()->logout();
+        auth('web')->logout();
 
         Livewire::test(Login::class)->fillForm(['email' => 'admin@ginnva.test', 'password' => self::PASSWORD])->call('authenticate')->assertHasNoFormErrors();
-        $this->assertAuthenticatedAs($user);
+        $this->assertAuthenticatedAs($user, 'web');
     }
 
     public function test_the_admin_panel_refuses_a_wrong_password_and_an_unknown_number(): void
@@ -165,6 +166,6 @@ class PhoneLoginTest extends TestCase
 
         Livewire::test(Login::class)->fillForm(['email' => '081234567890', 'password' => 'SalahBanget1'])->call('authenticate')->assertHasFormErrors(['email']);
         Livewire::test(Login::class)->fillForm(['email' => '12', 'password' => self::PASSWORD])->call('authenticate')->assertHasFormErrors(['email']);
-        $this->assertGuest();
+        $this->assertGuest('web');
     }
 }

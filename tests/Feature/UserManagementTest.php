@@ -576,7 +576,9 @@ class UserManagementTest extends TestCase
 
         $this->postJson('/api/staff/auth/login', ['email' => 'sm@ginnva.test', 'password' => 'salah'])->assertStatus(401);
         $this->postJson('/api/staff/auth/login', ['email' => 'tidak@ada.test', 'password' => 'Rahasia123'])->assertStatus(401);
-        $this->postJson('/api/staff/auth/login', ['email' => 'bukan-email', 'password' => 'x'])->assertStatus(422);
+        // Isian bukan email dibaca sebagai No. HP (login dengan No. HP), jadi yang tidak dikenal ditolak 401; tanpa isian sama sekali 422.
+        $this->postJson('/api/staff/auth/login', ['email' => 'bukan-email', 'password' => 'x'])->assertStatus(401);
+        $this->postJson('/api/staff/auth/login', ['password' => 'x'])->assertStatus(422);
     }
 
     public function test_detect_role_tells_staff_from_customers(): void
