@@ -119,7 +119,7 @@ class TransactionApprovalTest extends TestCase
         $this->assertSame('pending', $request->status);
         $this->assertMatchesRegularExpression('/^APR-\d{6}-[A-Z0-9]{4}$/', $request->request_number);
         $this->assertSame($this->store->id, $request->store_id);
-        $this->assertSame(['amount' => 500000, 'notes' => 'DP awal'], $request->payload);
+        $this->assertSame(['amount' => 500000, 'notes' => 'DP awal', 'method' => null], $request->payload);
         $this->assertSame(1, $admin->notifications()->get()->filter(fn ($n) => str_starts_with($n->data['title'], 'Menunggu persetujuan'))->count());
         $this->assertSame(0, $staff->notifications()->get()->filter(fn ($n) => str_starts_with($n->data['title'], 'Menunggu persetujuan'))->count());
     }
@@ -134,7 +134,7 @@ class TransactionApprovalTest extends TestCase
 
         $this->assertSame(['transaction_amount', 'amount_received', 'referral_code', 'payment_method'], array_keys($referral->payload));
         $this->assertSame('pending', $referral->status);
-        $this->assertSame(['amount', 'reason'], array_keys($refund->payload));
+        $this->assertSame(['amount', 'reason', 'method'], array_keys($refund->payload));
     }
 
     public function test_invalid_amounts_are_refused(): void

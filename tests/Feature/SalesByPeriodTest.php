@@ -143,6 +143,7 @@ class SalesByPeriodTest extends TestCase
 
     public function test_monthly_buckets_and_range_edges(): void
     {
+        Carbon::setTestNow('2026-11-15 10:00:00');   // setelah akhir rentang, supaya hari yang belum lewat tidak dipotong
         $this->sale(1, '2026-08-01');
         $this->sale(10, '2026-08-31');
         $this->sale(100, '2026-09-15');
@@ -220,6 +221,7 @@ class SalesByPeriodTest extends TestCase
 
     public function test_a_very_long_range_is_clamped_and_flags_too_many_rows(): void
     {
+        Carbon::setTestNow('2026-11-15 10:00:00');   // setelah akhir rentang, supaya hari yang belum lewat tidak dipotong
         $result = $this->report(['from' => '2020-01-01', 'to' => '2026-10-31', 'granularity' => 'harian']);
 
         $this->assertTrue($result['rangeClamped']);

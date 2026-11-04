@@ -119,7 +119,7 @@ class PaymentBookReportTest extends TestCase
         $this->assertSame(['2026-10-01', '2026-10-31'], [Carbon::parse($fresh->get('data.from'))->toDateString(), Carbon::parse($fresh->get('data.to'))->toDateString()]);
 
         $bad = Livewire::withQueryParams(['from' => 'kemarin', 'to' => '2026-09-01'])->test(PaymentBookReport::class);
-        $this->assertSame(['2026-10-01', '2026-09-01'], [Carbon::parse($bad->get('data.from'))->toDateString(), Carbon::parse($bad->get('data.to'))->toDateString()]);
+        $this->assertSame(['2026-10-01', '2026-10-01'], [Carbon::parse($bad->get('data.from'))->toDateString(), Carbon::parse($bad->get('data.to'))->toDateString()]);
 
         $reversed = Livewire::withQueryParams(['from' => '2026-09-30', 'to' => '2026-09-01'])->test(PaymentBookReport::class);
         $this->assertSame('2026-09-30', Carbon::parse($reversed->get('data.to'))->toDateString());

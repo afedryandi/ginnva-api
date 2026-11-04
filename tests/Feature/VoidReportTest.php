@@ -344,7 +344,7 @@ class VoidReportTest extends TestCase
         $plain = $this->cancel($this->booking(), '2026-10-03 09:00:00');
         $noShow = $this->booking();
         $this->actingAs($this->admin(), 'web');
-        $noShow->update(['no_show_at' => '2026-10-04 09:00:00']);
+        $noShow->forceFill(['no_show_at' => '2026-10-04 09:00:00'])->saveQuietly();
         $this->cancel($noShow->fresh(), '2026-10-04 09:00:00', 'staff', null, 'Pelanggan tidak datang (no-show)');
 
         $result = $this->report();
