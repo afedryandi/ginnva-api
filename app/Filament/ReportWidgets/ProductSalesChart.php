@@ -76,15 +76,28 @@ class ProductSalesChart extends ChartWidget
         $bookings = Booking::query()
             ->soldBetween($start->toDateString(), $end->toDateString())
             ->where('transaction_amount', '>', 0)
-            ->whereNotNull('film_product_id')
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->with(['journalEntry:id,entry_date', 'filmProduct:id,name'])
-            ->get(['transaction_amount', 'journal_entry_id', 'sale_date', 'film_product_id']);
+            ->with(['journalEntry:id,entry_date', 'saleLines'])
+            ->get(['id', 'transaction_amount', 'journal_entry_id', 'sale_date', 'film_product_id', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash']);
+
+        // Nilai tiap booking dibagi ke SKU menurut rincian harganya (sama dengan tabel di halaman); yang belum ber-SKU tidak punya garis.
+        $entries = [];
+        foreach ($bookings as $booking) {
+            foreach (\App\Services\ProductSalesAllocator::allocate($booking, (float) $booking->transaction_amount) as $share) {
+                if ($share['product_id'] === null) {
+                    continue;
+                }
+
+                $entries[] = ['product_id' => $share['product_id'], 'date' => $booking->sale_day?->toDateString(), 'amount' => $share['amount']];
+            }
+        }
+        $entries = collect($entries);
+        $productNames = \App\Models\FilmProduct::withTrashed()->whereIn('id', $entries->pluck('product_id')->unique()->all())->pluck('name', 'id');
 
         // Top N produk by total revenue dalam rentang ini -- urutan
         // dataset & warnanya ditentukan dari sini.
-        $topProductIds = $bookings->groupBy('film_product_id')
-            ->map(fn ($group) => (float) $group->sum('transaction_amount'))
+        $topProductIds = $entries->groupBy('product_id')
+            ->map(fn ($group) => (float) $group->sum('amount'))
             ->sortDesc()
             ->take(self::TOP_N)
             ->keys();
@@ -98,15 +111,13 @@ class ProductSalesChart extends ChartWidget
 
         $palette = ['#ED1651', '#2563eb', '#f59e0b', '#16a34a', '#7c3aed', '#0891b2'];
 
-        $datasets = $topProductIds->values()->map(function ($productId, $index) use ($bookings, $start, $end, $palette) {
-            $productBookings = $bookings->where('film_product_id', $productId);
-            $name = $productBookings->first()?->filmProduct?->name ?? '—';
+        $datasets = $topProductIds->values()->map(function ($productId, $index) use ($entries, $productNames, $start, $end, $palette) {
+            $name = $productNames[$productId] ?? '—';
 
             $byDate = [];
-            foreach ($productBookings as $booking) {
-                $date = $booking->sale_day?->toDateString();
-                if (! $date) continue;
-                $byDate[$date] = ($byDate[$date] ?? 0) + (float) $booking->transaction_amount;
+            foreach ($entries->where('product_id', $productId) as $entry) {
+                if (! $entry['date']) continue;
+                $byDate[$entry['date']] = ($byDate[$entry['date']] ?? 0) + $entry['amount'];
             }
 
             $data = [];

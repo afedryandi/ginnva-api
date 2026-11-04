@@ -209,11 +209,11 @@ class GuideCatalog
             [
                 'id' => 'booking',
                 'title' => 'Booking: dari masuk sampai selesai',
-                'summary' => "Alur satu booking untuk keempat layanan ({$services}) dari pesanan sampai serah terima. Langkah di lapangan dikerjakan di aplikasi staff; pengaturan dan pencatatan penjualan di panel.",
+                'summary' => "Alur satu booking untuk keempat layanan ({$services}) dari pesanan sampai serah terima. Langkah di lapangan dikerjakan di aplikasi karyawan; pengaturan dan pencatatan penjualan di panel.",
                 'menus' => ['BookingResource', 'CapacityCalendar', 'BookingServiceTypeResource'],
                 'steps' => [
-                    "Pesanan masuk. Pelanggan memesan lewat aplikasi: pilih layanan, toko, dan tanggal (untuk Detailing dan Premium Wash wajib memilih jam). Staff juga bisa membuatnya di panel untuk pelanggan dari WhatsApp atau yang datang langsung. Status **Pending**; toko diharapkan merespons dalam {$sla} jam.",
-                    'Konfirmasi di aplikasi staff (Store Manager, direksi, super admin, atau staff toko dengan akses menu Booking seperti Leader installer): periksa kapasitas, isi lama pengerjaan (hari kerja) bila perlu, lalu **Konfirmasi Booking**. Status menjadi **Confirmed** dan slot toko terkunci. Bila ada installer yang cuti atau libur pada tanggal itu, muncul peringatan (tidak memblokir konfirmasi).',
+                    "Pesanan masuk. Pelanggan memesan lewat aplikasi: pilih layanan, toko, dan tanggal (untuk Detailing dan Premium Wash wajib memilih jam). Karyawan juga bisa membuatnya di panel untuk pelanggan dari WhatsApp atau yang datang langsung. Status **Pending**; toko diharapkan merespons dalam {$sla} jam.",
+                    'Konfirmasi di aplikasi karyawan (Store Manager, direksi, super admin, atau karyawan toko dengan akses menu Booking seperti Leader installer): periksa kapasitas, isi lama pengerjaan (hari kerja) bila perlu, lalu **Konfirmasi Booking**. Status menjadi **Confirmed** dan slot toko terkunci. Bila ada installer yang cuti atau libur pada tanggal itu, muncul peringatan (tidak memblokir konfirmasi).',
                     'Store Manager atau direksi menugaskan installer yang mengerjakan (satu atau lebih). Penugasan tercatat di riwayat aktivitas.',
                     'Saat unit datang, ambil foto penerimaan kendaraan dari empat sudut (depan, belakang, kiri, kanan) dan foto kerusakan yang sudah ada (maksimal 10, wajib diberi keterangan). Leader installer membuat **SPK** (inspeksi kendaraan) sebelum pengerjaan; installer melengkapinya dari booking yang ditugaskan kepadanya.',
                     "Progres dikirim lewat **chat booking** per tahap (boleh dengan foto); pelanggan mendapat notifikasi di setiap tahap. Tahap hanya bisa maju. Kaca Film: {$kacaFilmStages}. PPF: {$ppfStages}. Booking Kaca Film + PPF punya dua jalur tahap. Tahap bersama untuk semua layanan: {$sharedStages}. Detailing dan Premium Wash tidak punya tahap pengerjaan: setelah dikerjakan langsung ke Quality Check.",
@@ -226,18 +226,18 @@ class GuideCatalog
                     'Kewajiban lulus QC dan mencatat serah terima sebelum booking boleh diselesaikan bisa dinyalakan admin sistem. Bila menyala dan syaratnya belum terpenuhi, tombol Selesaikan Booking menolak dengan pesan yang menjelaskan apa yang kurang.',
                     "Kapasitas ada dua jenis. Layanan berat (PPF, Kaca Film) dihitung per hari; layanan ringan (Detailing, Premium Wash) dihitung per jam dengan slot {$slots}. Booking campuran dihitung sebagai berat. Tanggal yang penuh atau toko libur tidak bisa dipilih. Kapasitas harian diatur di Kalender Kapasitas & Libur; kapasitas per slot jam diatur di form Toko.",
                     'Yang boleh chat dengan pelanggan: leader installer, store manager, dan direksi. Installer tidak ikut chat.',
-                    'Pelanggan bisa mengajukan ganti tanggal atau pembatalan; staff menyetujui atau menolak di kartu pengajuan pada booking. Staff juga bisa memindahkan tanggal lewat **Ubah Jadwal**.',
+                    'Pelanggan bisa mengajukan ganti tanggal atau pembatalan; karyawan menyetujui atau menolak di kartu pengajuan pada booking. Karyawan juga bisa memindahkan tanggal lewat **Ubah Jadwal**.',
                     'Pelanggan tidak datang: Store Manager atau akses penuh dapat menandai tidak datang bila booking sudah Confirmed, tanggalnya sudah tiba, dan pengerjaan belum dimulai. Booking menjadi **Cancelled**, slot terlepas, dan DP yang sudah diterima dikembalikan penuh.',
                     'Pelanggan menerima pengingat otomatis H-2, H-1, dan pagi hari-H. Teks kebijakan pembatalan yang tampil di aplikasi diatur admin di Operasional, Teks Aplikasi.',
                     'Booking yang sudah dibatalkan atau selesai tidak bisa diaktifkan lagi.',
-                    'Layar foto penerimaan, Quality Check, dan serah terima ada di aplikasi staff versi terbaru. Bila tidak terlihat di aplikasi Anda, perbarui aplikasi staff.',
+                    'Layar foto penerimaan, Quality Check, dan serah terima ada di aplikasi karyawan versi terbaru. Bila tidak terlihat di aplikasi Anda, perbarui aplikasi karyawan.',
                     'Pelanggan yang datang lagi: di daftar Booking pakai **Duplikat (pelanggan datang lagi)**. Form Buat Booking terisi data pelanggan, kendaraan, toko, dan layanan; tanggal, jam, harga, pembayaran, DP, dan installer diisi baru. Belum ada yang tersimpan sampai Anda menekan Buat.',
                 ],
             ],
             [
                 'id' => 'layanan-ppf',
                 'title' => 'Layanan PPF: langkah di sistem',
-                'summary' => 'Yang dikerjakan staff di sistem untuk satu pekerjaan PPF, dari pesanan sampai garansi dan maintenance. Alur umum ada di panduan Booking; di sini hanya hal yang khusus PPF.',
+                'summary' => 'Yang dikerjakan karyawan di sistem untuk satu pekerjaan PPF, dari pesanan sampai garansi dan maintenance. Alur umum ada di panduan Booking; di sini hanya hal yang khusus PPF.',
                 'menus' => ['BookingResource', 'WarrantyResource', 'InventoryItemResource'],
                 'steps' => [
                     'PPF adalah layanan berat: memakai kapasitas harian toko dan bisa berlangsung beberapa hari. Saat **Konfirmasi Booking**, isi lama pengerjaan (hari kerja); sistem memeriksa seluruh hari kerja dalam rentang itu, dan tanggal mulai yang hari lanjutannya penuh tidak bisa dipilih.',
@@ -259,7 +259,7 @@ class GuideCatalog
             [
                 'id' => 'layanan-kaca-film',
                 'title' => 'Layanan Kaca Film: langkah di sistem',
-                'summary' => 'Yang dikerjakan staff di sistem untuk satu pekerjaan Kaca Film, dari pesanan sampai garansi. Alur umum ada di panduan Booking; di sini hanya hal yang khusus Kaca Film.',
+                'summary' => 'Yang dikerjakan karyawan di sistem untuk satu pekerjaan Kaca Film, dari pesanan sampai garansi. Alur umum ada di panduan Booking; di sini hanya hal yang khusus Kaca Film.',
                 'menus' => ['BookingResource', 'WarrantyResource', 'InventoryItemResource'],
                 'steps' => [
                     'Kaca Film adalah layanan berat: memakai kapasitas harian toko. Saat **Konfirmasi Booking**, isi lama pengerjaan (hari kerja) bila perlu.',
@@ -280,7 +280,7 @@ class GuideCatalog
             [
                 'id' => 'layanan-detailing',
                 'title' => 'Layanan Detailing: langkah di sistem',
-                'summary' => 'Yang dikerjakan staff di sistem untuk satu pekerjaan Detailing. Detailing adalah layanan ringan dengan jalur yang lebih singkat daripada PPF dan Kaca Film.',
+                'summary' => 'Yang dikerjakan karyawan di sistem untuk satu pekerjaan Detailing. Detailing adalah layanan ringan dengan jalur yang lebih singkat daripada PPF dan Kaca Film.',
                 'menus' => ['BookingResource', 'BookingServiceTypeResource'],
                 'steps' => [
                     "Detailing adalah layanan ringan: pelanggan wajib memilih jam, kapasitas dihitung per jam (slot {$slots}; jumlah per slot diatur di form Toko), dan tidak memakai kapasitas harian layanan berat. Harga paket tetap untuk semua ukuran kendaraan.",
@@ -301,7 +301,7 @@ class GuideCatalog
             [
                 'id' => 'layanan-premium-wash',
                 'title' => 'Layanan Premium Wash: langkah di sistem',
-                'summary' => 'Yang dikerjakan staff di sistem untuk satu pekerjaan Premium Wash. Seperti Detailing, ini layanan ringan dengan jalur singkat.',
+                'summary' => 'Yang dikerjakan karyawan di sistem untuk satu pekerjaan Premium Wash. Seperti Detailing, ini layanan ringan dengan jalur singkat.',
                 'menus' => ['BookingResource', 'BookingServiceTypeResource'],
                 'steps' => [
                     "Premium Wash adalah layanan ringan: pelanggan wajib memilih jam, kapasitas dihitung per jam (slot {$slots}; jumlah per slot diatur di form Toko), dan tidak memakai kapasitas harian layanan berat. Harga paket tetap untuk semua ukuran kendaraan.",
@@ -324,17 +324,17 @@ class GuideCatalog
                 'summary' => 'Mencatat nilai penjualan sebuah booking yang sudah selesai: harga per layanan, pembayaran yang diterima, DP, voucher, dan kode referral.',
                 'menus' => ['BookingResource', 'SalesResource'],
                 'steps' => [
-                    'Syaratnya booking sudah **Completed**. Di panel, buka daftar Booking dan pilih aksi **Proses Referral** pada booking itu. Biasanya dikerjakan kasir atau admin, bukan installer. Aplikasi staff versi terbaru punya **Catat Penjualan** dengan aturan persetujuan yang sama.',
+                    'Syaratnya booking sudah **Completed**. Di panel, buka daftar Booking dan pilih aksi **Proses Referral** pada booking itu. Biasanya dikerjakan kasir atau admin, bukan installer. Aplikasi karyawan versi terbaru punya **Catat Penjualan** dengan aturan persetujuan yang sama.',
                     'Isi **Rincian Harga per Layanan**: satu baris per layanan atau produk (jenis layanan, produk, bagian atau keterangan, jumlah, harga satuan, potongan baris). Pendapatan per jenis layanan di laporan mengikuti nilai baris ini; tanpa rincian, nilai dibagi rata antar jenis layanan. Untuk booking yang wajib rincian, form menolak bila belum ada baris bernilai.',
                     'Isi **Nominal Transaksi**: angka bersih setelah voucher, promo, atau nego. Selisihnya dengan jumlah rincian dianggap potongan. Nominal ini juga dasar poin referral (1 poin per Rp10.000).',
                     'Isi **Pembayaran diterima**. Boleh lebih dari satu baris (mis. sebagian tunai, sebagian transfer): pilih metode dan nominal. Jumlah pembayaran ditambah DP yang terpakai tidak boleh melebihi Nominal Transaksi; sisanya tercatat sebagai sisa tagihan (Belum Lunas) di booking. Hapus semua baris bila belum ada pembayaran.',
                     'Isi bila ada: **Ukuran Kendaraan** (dasar menghitung nego harga), **Promo Total Pembelian**, **Kode Voucher** (otomatis ditandai Terpakai), dan **Kode Referral Partner**.',
-                    'Simpan. Untuk staff tanpa akses penuh, pengajuan menunggu persetujuan akses penuh dan belum berlaku (lihat panduan Approval). Untuk akses penuh, nominal dan tanggal penjualan tersimpan, lalu booking masuk ke laporan penjualan.',
+                    'Simpan. Untuk karyawan tanpa akses penuh, pengajuan menunggu persetujuan akses penuh dan belum berlaku (lihat panduan Approval). Untuk akses penuh, nominal dan tanggal penjualan tersimpan, lalu booking masuk ke laporan penjualan.',
                 ],
                 'tips' => [
                     "Nego harga hingga {$negotiationMax}% dari harga acuan matriks boleh tanpa persetujuan; lebih dari itu perlu persetujuan.",
                     'Uang muka dicatat lewat **Catat Uang Muka (DP)** (isi nominal dan **Metode Pembayaran**); DP yang tidak terpakai dikembalikan lewat **Kembalikan Sisa DP**. DP yang terpakai otomatis mengurangi sisa tagihan saat Proses Referral.',
-                    'Refund dilakukan lewat **Proses Refund** pada booking; untuk staff tanpa akses penuh refund menunggu persetujuan.',
+                    'Refund dilakukan lewat **Proses Refund** pada booking; untuk karyawan tanpa akses penuh refund menunggu persetujuan.',
                     'Sisa tagihan yang belum dibayar tampil di booking dan laporan penjualan; pelunasan dan pembukuannya dilakukan di Accurate.',
                     'Salah mengisi kode referral? Kosongkan kolomnya lalu simpan untuk menghapusnya.',
                 ],
@@ -345,7 +345,7 @@ class GuideCatalog
                 'summary' => 'Form inspeksi dan perintah kerja untuk satu booking: data kendaraan, daftar pekerjaan, perlengkapan, dan kerusakan yang sudah ada sebelum pengerjaan.',
                 'menus' => ['SpkResource'],
                 'steps' => [
-                    'Buat SPK dari booking yang sudah Dikonfirmasi dan belum punya SPK (satu booking satu SPK). Yang bisa membuat SPK baru: leader installer, Store Manager, direksi, dan super admin. Installer dan staff lain dengan akses menu melengkapi SPK yang sudah ada, termasuk dari aplikasi staff.',
+                    'Buat SPK dari booking yang sudah Dikonfirmasi dan belum punya SPK (satu booking satu SPK). Yang bisa membuat SPK baru: leader installer, Store Manager, direksi, dan super admin. Installer dan karyawan lain dengan akses menu melengkapi SPK yang sudah ada, termasuk dari aplikasi karyawan.',
                     'Di tab **Informasi** lengkapi data pelanggan dan kendaraan (nama, telepon, alamat, no. polisi, no. rangka, merek, tahun, jenis, kilometer, BBM, battery) serta **Jam Masuk**. Sebagian data terisi otomatis dari booking.',
                     'Di tab **Checklist** daftar Uraian Pekerjaan, Extra Services, dan Perlengkapan Kendaraan sudah terisi daftar bawaan (mis. PPF, Kaca Film, STNK, Ban Serep). Centang yang sesuai; tambah atau hapus baris bila perlu.',
                     'Di tab **Kondisi Kendaraan** tandai kerusakan yang sudah ada pada diagram kendaraan dengan kode: C (cat luka atau belang), B (baret dalam), P (penyok), G (kaca baret atau retak), M (komponen hilang), OS (over spray), lengkap dengan catatan. Ini bukti kondisi unit sebelum dikerjakan.',
@@ -356,23 +356,23 @@ class GuideCatalog
                 'tips' => [
                     'Nomor SPK dibuat otomatis oleh sistem.',
                     'Daftar bawaan checklist bisa ditambah atau dikurangi per SPK tanpa memengaruhi SPK lain.',
-                    'Menghapus SPK hanya boleh akses penuh atau staff yang diberi hak hapus.',
+                    'Menghapus SPK hanya boleh akses penuh atau karyawan yang diberi hak hapus.',
                 ],
             ],
             [
                 'id' => 'quotation-lead',
                 'title' => 'Quotation (Lead): menindaklanjuti calon pelanggan',
-                'summary' => 'Permintaan penawaran dari aplikasi atau website masuk sebagai lead. Tugas staff: menghubungi, mencatat perkembangan, dan menetapkan hasilnya.',
+                'summary' => 'Permintaan penawaran dari aplikasi atau website masuk sebagai lead. Tugas karyawan: menghubungi, mencatat perkembangan, dan menetapkan hasilnya.',
                 'menus' => ['QuotationResource'],
                 'steps' => [
-                    'Lead baru berstatus New dan muncul sebagai angka badge di menu. Lead dari website yang belum punya toko diteruskan ke akun akses penuh dan staff yang punya akses menu Quotation.',
+                    'Lead baru berstatus New dan muncul sebagai angka badge di menu. Lead dari website yang belum punya toko diteruskan ke akun akses penuh dan karyawan yang punya akses menu Quotation.',
                     'Hubungi calon pelanggan lewat tombol **WhatsApp** atau **Telepon** di baris lead. Setelah dihubungi, ubah statusnya lewat **Ubah Status**: New, lalu Contacted, lalu Closed atau Cancelled.',
-                    'Isi **Penanggung Jawab** (staff yang menangani), **Kanal Masuk** (dari mana lead datang: WhatsApp, telepon, datang langsung, dan sebagainya), dan periksa **Produk Diminati** serta catatan pelanggan.',
+                    'Isi **Penanggung Jawab** (karyawan yang menangani), **Kanal Masuk** (dari mana lead datang: WhatsApp, telepon, datang langsung, dan sebagainya), dan periksa **Produk Diminati** serta catatan pelanggan.',
                     'Setelah ada kepastian, tetapkan **Hasil**: Deal bila lead sudah jadi pelanggan, booking, atau partner; Tidak Jadi bila batal. Untuk Tidak Jadi, **Alasan Tidak Jadi** wajib dipilih (harga di atas anggaran, memilih penyedia lain, tidak merespons lagi, belum butuh atau menunda, lokasi terlalu jauh, layanan tidak sesuai kebutuhan, atau lainnya).',
                 ],
                 'tips' => [
-                    'Lead berstatus New yang belum ditindaklanjuti lebih dari 24 jam memicu pengingat otomatis ke staff.',
-                    'Kolom **Direspons Setelah** menunjukkan berapa lama lead menunggu sampai staff merespons; dipakai laporan kecepatan respons.',
+                    'Lead berstatus New yang belum ditindaklanjuti lebih dari 24 jam memicu pengingat otomatis ke karyawan.',
+                    'Kolom **Direspons Setelah** menunjukkan berapa lama lead menunggu sampai karyawan merespons; dipakai laporan kecepatan respons.',
                     'Hasil dan alasan tercatat di riwayat lead; pilih alasan yang paling mendekati supaya laporan bisa mengelompokkannya.',
                 ],
             ],
@@ -417,7 +417,7 @@ class GuideCatalog
                 'summary' => 'Mengatur berapa pekerjaan berat yang boleh masuk per hari, dan menutup tanggal tertentu (libur, renovasi, acara) supaya pelanggan tidak bisa memilihnya.',
                 'menus' => ['CapacityCalendar'],
                 'steps' => [
-                    'Buka **Kalender Kapasitas & Libur** (grup Operasional). Admin memilih toko di pojok kanan atas; staff toko otomatis terkunci ke tokonya. Angka di tiap tanggal adalah booking yang menempati dibagi kapasitas harian layanan berat.',
+                    'Buka **Kalender Kapasitas & Libur** (grup Operasional). Admin memilih toko di pojok kanan atas; karyawan toko otomatis terkunci ke tokonya. Angka di tiap tanggal adalah booking yang menempati dibagi kapasitas harian layanan berat.',
                     'Klik tanggal (hari ini atau ke depan). Isi **Kapasitas** lalu **Simpan**. Nyalakan **Pakai kapasitas bawaan toko** untuk menghapus pengaturan manual tanggal itu. Untuk banyak tanggal sekaligus pakai **Atur Kapasitas Rentang**.',
                     'Menutup satu tanggal penuh (libur, renovasi, acara): klik tanggalnya, nyalakan **Tutup tanggal ini**, isi **Alasan (opsional)**, lalu **Simpan**. Tanggal yang ditutup tampil bergaris abu-abu bertuliskan Ditutup, tidak bisa dipilih pelanggan di aplikasi, dan kapasitasnya tidak berlaku.',
                     'Menutup beberapa hari sekaligus: **Tutup Rentang Tanggal**, isi **Dari Tanggal**, **Sampai Tanggal**, dan **Alasan (opsional)**. Booking yang sudah ada di rentang itu ditampilkan sebagai peringatan dan tidak dibatalkan. Tanggal yang sudah ditutup dilewati, tanggal lampau tidak bisa ditutup, dan satu kali paling banyak 120 hari.',
@@ -437,8 +437,8 @@ class GuideCatalog
                 'summary' => 'Review yang diberikan pelanggan setelah booking selesai, dan tindak lanjut untuk review yang kurang baik.',
                 'menus' => ['StoreReviewResource'],
                 'steps' => [
-                    'Setelah booking selesai, pelanggan memberi review di aplikasi: **Sentimen**, **Aspek yang Disebut**, dan **Komentar**. Staff tidak membuat review; menu ini hanya untuk membaca dan menindaklanjuti.',
-                    'Review negatif otomatis mengirim pemberitahuan ke akun akses penuh dan ke staff toko itu yang punya akses menu Review Toko. Staff tanpa akses menu itu, atau dari toko lain, tidak diberi tahu.',
+                    'Setelah booking selesai, pelanggan memberi review di aplikasi: **Sentimen**, **Aspek yang Disebut**, dan **Komentar**. Karyawan tidak membuat review; menu ini hanya untuk membaca dan menindaklanjuti.',
+                    'Review negatif otomatis mengirim pemberitahuan ke akun akses penuh dan ke karyawan toko itu yang punya akses menu Review Toko. Karyawan tanpa akses menu itu, atau dari toko lain, tidak diberi tahu.',
                     'Buka review, hubungi pelanggan bila perlu, lalu tekan **Tandai Ditindaklanjuti** dan isi **Catatan Tindak Lanjut**.',
                     'Gunakan filter **Sudah Ditindaklanjuti** untuk melihat review yang masih terbuka.',
                 ],
@@ -468,10 +468,10 @@ class GuideCatalog
                 'summary' => 'Dari menerbitkan garansi sampai jadwal maintenance berulang dan kunjungan pelanggan.',
                 'menus' => ['WarrantyResource', 'BookingReworkResource'],
                 'steps' => [
-                    'Garansi dibuat staff atau didaftarkan pelanggan di aplikasi. Garansi dari pelanggan menunggu **review**; saat disetujui, pelanggan mendapat poin registrasi garansi.',
+                    'Garansi dibuat karyawan atau didaftarkan pelanggan di aplikasi. Garansi dari pelanggan menunggu **review**; saat disetujui, pelanggan mendapat poin registrasi garansi.',
                     'Untuk PPF, isi **Kuota Maintenance** (berapa kali boleh datang) dan **Interval** (jarak bulan antar kunjungan). Sistem menghitung tanggal kunjungan berikutnya sendiri.',
                     'Sekitar 7 hari sebelum jadwal, pelanggan menerima notifikasi **Konfirmasi Kedatangan**. Pelanggan bisa konfirmasi, memilih tanggal lain, atau menolak.',
-                    'Staff atau sales boleh menghubungi pelanggan lebih dulu (mis. lewat WhatsApp) lalu memakai aksi **Buatkan Booking** di tab Jadwal Maintenance garansi tersebut.',
+                    'Karyawan atau sales boleh menghubungi pelanggan lebih dulu (mis. lewat WhatsApp) lalu memakai aksi **Buatkan Booking** di tab Jadwal Maintenance garansi tersebut.',
                     'Pelanggan yang datang tanpa jadwal dicatat lewat **Catat Kunjungan Maintenance**. Setiap kunjungan mengurangi kuota.',
                     'Klaim after-sales dicatat di tab **Riwayat Klaim After-Sales** pada garansi yang sudah disetujui QA: pilih **Kategori After-Sales** dan tulis keluhan. Akses penuh memutuskan **Pass** atau **Reject** (Reject wajib memakai alasan); pelanggan mendapat notifikasi.',
                     '**Pekerjaan Ulang** (grup Setelah Layanan) mencatat booking yang perlu dikerjakan ulang: pilih **Booking** dan **Sumber**, isi **Apa yang perlu diperbaiki** dan **Catatan pembinaan (opsional)**. Installer yang bertugas pada booking itu otomatis ikut terhitung. Isi **Selesai dikerjakan ulang** saat pekerjaan selesai. Dipakai laporan Kompetensi Installer untuk pembinaan, bukan dasar potongan gaji atau komisi.',
@@ -494,7 +494,7 @@ class GuideCatalog
                 'summary' => 'Menyusun katalog tukar poin, termasuk voucher diskon, dan memakai voucher di transaksi.',
                 'menus' => ['RewardResource', 'RewardRedemptionResource'],
                 'steps' => [
-                    'Buka **Katalog Reward** dan buat reward baru. Pilih jenis **Barang/Layanan** (diproses staff) atau **Voucher Diskon**.',
+                    'Buka **Katalog Reward** dan buat reward baru. Pilih jenis **Barang/Layanan** (diproses karyawan) atau **Voucher Diskon**.',
                     'Untuk voucher, isi nominal diskon dan masa berlaku (hari sejak ditukar), lalu harga poin dan stok. Reward langsung muncul di katalog pelanggan.',
                     'Pelanggan menukar poin. Untuk voucher, kode unik (GNV-...) langsung terbit di **Voucher Saya**. Untuk barang, penukaran masuk ke **Klaim Reward** dan menunggu diproses.',
                     'Saat pelanggan memakai voucher, pilih **Kode Voucher** di form **Proses Referral** pada booking (lihat panduan Penjualan). Nominal diskon dipotong dan voucher berstatus Terpakai.',
@@ -512,12 +512,12 @@ class GuideCatalog
                 'summary' => 'Aksi sensitif yang harus disetujui atasan sebelum berlaku.',
                 'menus' => ['TransactionApprovalRequestResource', 'FinanceTransactionApprovalRequestResource', 'FinanceTransactionResource', 'FinanceSettingsPage'],
                 'steps' => [
-                    'Staff mengajukan aksi (refund, Proses Referral, atau Catat Uang Muka). Pengajuan masuk ke **Persetujuan Transaksi** dengan status menunggu.',
+                    'Karyawan mengajukan aksi (refund, Proses Referral, atau Catat Uang Muka). Pengajuan masuk ke **Persetujuan Transaksi** dengan status menunggu.',
                     'Atasan membuka daftar yang sesuai, memeriksa rinciannya, lalu **Setujui** atau **Tolak**.',
                     'Aksi baru dijalankan setelah disetujui. Yang ditolak tidak mengubah data apa pun.',
                 ],
                 'tips' => [
-                    'Refund, referral, dan uang muka dari staff non-akses-penuh wajib disetujui akses penuh.',
+                    'Refund, referral, dan uang muka dari karyawan non-akses-penuh wajib disetujui akses penuh.',
                     'Semua keputusan tercatat di Riwayat Aktivitas (siapa dan kapan).',
                 ],
             ],
@@ -528,7 +528,7 @@ class GuideCatalog
                 'menus' => ['FinanceTransactionResource', 'FinanceCategoryResource'],
                 'steps' => [
                     'Buka Transaksi Keuangan dan buat transaksi baru: pilih **Tipe** (pemasukan atau pengeluaran), **Kategori**, isi **Nominal**, **Toko**, **Rekening Kas/Bank** (dari mana uang keluar atau ke mana uang masuk), **Tanggal Transaksi**, dan **Keterangan**. Lampirkan **Bukti/Nota (opsional)** berupa foto atau PDF maksimal 5 MB.',
-                    'Pemasukan langsung dicatat dan menjadi jurnal. Pengeluaran dari staff tanpa akses penuh tidak langsung dicatat: masuk antrean persetujuan (staff, Store Manager, lalu direksi; lihat panduan Approval) dan baru menjadi jurnal setelah disetujui.',
+                    'Pemasukan langsung dicatat dan menjadi jurnal. Pengeluaran dari karyawan tanpa akses penuh tidak langsung dicatat: masuk antrean persetujuan (karyawan, Store Manager, lalu direksi; lihat panduan Approval) dan baru menjadi jurnal setelah disetujui.',
                     'Pengeluaran kecil dari rekening Kas Kecil dicatat dengan memilih rekening itu. Sampai batas per bukti yang diatur di Rekening Kas & Bank, karyawan toko yang sama atau pemegang kas tidak perlu menunggu persetujuan direksi.',
                     'Kolom **No. Jurnal** menunjukkan jurnal dari transaksi itu; **Belum terposting ke jurnal** menandai transaksi yang belum punya jurnal.',
                     'Akses penuh yang mengubah transaksi yang sudah punya jurnal wajib mengisi **Alasan Perubahan**; menghapusnya wajib mengisi **Alasan Penghapusan**. Keduanya tercatat.',
@@ -541,7 +541,7 @@ class GuideCatalog
                     'Data identik (nominal, kategori, toko, tanggal, keterangan) dari akun yang sama dalam 10 menit terakhir ditolak, untuk mencegah klik ganda. Cek daftar bila sudah merasa mengirim.',
                     'Pengeluaran dari rekening Kas Kecil ditolak bila nominalnya melebihi saldo kas kecil itu.',
                     'Pencatatan nilai penjualan booking tidak dilakukan di sini; gunakan Proses Referral (lihat panduan Penjualan).',
-                    'Duplikat tidak melewati aturan lain: pengeluaran dari staff tetap masuk antrean persetujuan, dan data identik dalam 10 menit tetap ditolak.',
+                    'Duplikat tidak melewati aturan lain: pengeluaran dari karyawan tetap masuk antrean persetujuan, dan data identik dalam 10 menit tetap ditolak.',
                 ],
             ],
             [
@@ -566,7 +566,7 @@ class GuideCatalog
             [
                 'id' => 'jurnal-bagan-akun',
                 'title' => 'Jurnal Umum dan Bagan Akun',
-                'summary' => 'Membuat dan mengoreksi jurnal manual serta mengelola struktur akun. Hanya akses penuh; staff toko memakai Transaksi Keuangan yang lebih sederhana.',
+                'summary' => 'Membuat dan mengoreksi jurnal manual serta mengelola struktur akun. Hanya akses penuh; karyawan toko memakai Transaksi Keuangan yang lebih sederhana.',
                 'menus' => ['JournalEntryResource', 'ChartOfAccountResource'],
                 'steps' => [
                     '**Bagan Akun**: tiap akun punya kode, nama, klasifikasi, dan saldo normal. **Akun Induk (opsional)** hanya bisa memilih akun header dengan klasifikasi yang sama. Matikan **Bisa Diposting Transaksi** untuk akun header (pembungkus seperti "Aset Lancar") yang tidak boleh menerima transaksi langsung.',
@@ -593,7 +593,7 @@ class GuideCatalog
                     'Koreksi lewat **Batalkan Pembayaran** (jurnal pembayaran dibalik dan tagihan kembali berstatus belum atau sebagian dibayar) atau **Batalkan Tagihan** (jurnal pengakuan dibalik dan tagihan tidak bisa dibayar lagi). Keduanya meminta **Alasan**. Nominal tagihan yang sudah tercatat tidak diedit karena jurnalnya terkunci.',
                     '**Supplier** adalah master yang dipakai tagihan: isi nama, NPWP (15 atau 16 digit tanpa titik atau strip, opsional), kontak, dan rekening pembayaran. Supplier yang sudah punya tagihan tidak bisa dihapus; nonaktifkan, dan supplier nonaktif tidak muncul di pilihan tagihan baru.',
                     '**Template Tagihan Rutin** membuat tagihan berulang otomatis tiap bulan (mis. sewa): isi **Nama Template**, **Supplier / Penerima**, **Akun Beban (Debit)** (kreditnya selalu akun 2110 Hutang Usaha), **Nominal per Periode**, **Tanggal Generate Tiap Bulan** (bila bulan itu tidak punya tanggalnya, jatuh ke tanggal terakhir bulan itu), dan **Mulai Generate Dari**. Opsional: **Berakhir Pada**, **Maksimal Jumlah Tagihan**, dan **Jeda Sampai**. **Jalankan Sekarang** membuat tagihan seketika; **Lewati Bulan Berikutnya** melewatkan satu bulan; nonaktifkan untuk menghentikannya tanpa menghapus riwayat.',
-                    '**Umur Hutang** dan **Umur Piutang** mengelompokkan sisa tagihan aktif menurut keterlambatan dari jatuh tempo, per supplier atau per pelanggan. Staff toko otomatis dibatasi ke tokonya; akses penuh bisa memilih toko atau "Pusat / Tanpa Toko". Bisa diekspor ke Excel atau PDF.',
+                    '**Umur Hutang** dan **Umur Piutang** mengelompokkan sisa tagihan aktif menurut keterlambatan dari jatuh tempo, per supplier atau per pelanggan. Karyawan toko otomatis dibatasi ke tokonya; akses penuh bisa memilih toko atau "Pusat / Tanpa Toko". Bisa diekspor ke Excel atau PDF.',
                     'Di atas tabel Umur Piutang ada bagian **Perputaran Piutang dan Hari Penagihan**. Pilih **Periode Perputaran Piutang** (30 sampai 365 hari terakhir): sistem menampilkan **Piutang Terbit**, **Dibayar**, **Rata-rata Piutang**, **Perputaran Piutang**, dan **Hari Penagihan**. Makin kecil Hari Penagihan, makin cepat piutang tertagih.',
                 ],
                 'tips' => [
@@ -658,7 +658,7 @@ class GuideCatalog
                 'tips' => [
                     'Memilih toko tidak mencakup jurnal pusat (tanpa toko, mis. gaji pusat atau penyusutan). Pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan pilihan toko untuk semuanya.',
                     'Laporan keuangan menghitung hanya jurnal yang sudah diposting.',
-                    'Menu ini terbuka untuk akses penuh; staff lain bisa diberi izin lihat lewat Hak Akses Detail, dan staff yang punya toko dikunci ke tokonya.',
+                    'Menu ini terbuka untuk akses penuh; karyawan lain bisa diberi izin lihat lewat Hak Akses Detail, dan karyawan yang punya toko dikunci ke tokonya.',
                     'Saldo Kas & Bank, Anggaran vs Realisasi, dan Rekonsiliasi Sub-Buku juga punya tombol **Export ke Excel** dan **Export ke PDF** di kanan atas, mengikuti pilihan bulan dan toko yang sedang tampil. Angka di Excel berupa angka biasa sehingga bisa dijumlahkan.',
                 ],
             ],
@@ -670,12 +670,12 @@ class GuideCatalog
                 'steps' => [
                     'Lihat posisi stok di **Produk PPF/WF** (gulungan film), **Daftar Bahan Baku**, dan **Barang Habis Pakai**, serta riwayat pergerakannya di halaman Riwayat (keluar/masuk, bahan baku, barang habis pakai).',
                     'Pengambilan atau pengembalian barang untuk pekerjaan dicatat lewat **Memo Pengambilan/Pengembalian**. Pilih barang dan jumlahnya; stok ikut berubah.',
-                    'Barang rusak, kedaluwarsa, atau hilang dicatat lewat **Catat Stok Terbuang** dengan alasan; untuk alasan **Hilang** dan **Lainnya**, catatan wajib diisi. Stok berkurang (alasan Kedaluwarsa mengurangi batch yang sudah lewat masa pakainya lebih dulu) dan jejaknya tercatat di menu **Stok Terbuang**, lengkap dengan ringkasan bulan ini. Nilai kerugian hanya terlihat oleh akses penuh atau pemegang izin Lihat. Salah catat dibatalkan akses penuh lewat tombol **Batalkan** (alasan wajib): stok dipulihkan, jurnal dibalik bila ada, dan barisnya tetap tersimpan bertanda Dibatalkan. Di aplikasi staff, daftar Stok Terbuang dibuka dari ikon tempat sampah di layar riwayat bahan atau barang.',
-                    'Hitung fisik berkala lewat **Stok Opname**, dalam dua tahap. Tahap 1: staff berizin Tambah menekan **Buat Sesi Stok Opname** (atau **Import Hasil Hitung** dari lembar Excel yang diunduh lewat **Download Lembar Hitung**) dan mengisi **Hasil Hitung Fisik**; stok sistem sengaja tidak ditampilkan (hitung buta) dan stok BELUM berubah, sesi tersimpan sebagai draf. Selisih besar wajib diberi **Catatan**. Tahap 2: akses penuh meninjau selisih di halaman sesi lalu menekan **Terapkan**; selisih diterapkan ke stok terkini, jadi barang yang keluar atau masuk setelah dihitung tidak merusak hasilnya. Draf yang tidak jadi dipakai dibuang lewat **Buang Draf**. Sesi yang sudah diterapkan tidak dibatalkan, tetapi dikoreksi dengan menghitung ulang. Tanggal opname tidak boleh di masa depan. Di aplikasi staff, layar **Hitung** (ikon papan di menu Bahan Baku dan Barang Habis Pakai) mengirim hasil hitung sebagai draf yang sama, dan daftar sesinya ada di ikon daftar.',
+                    'Barang rusak, kedaluwarsa, atau hilang dicatat lewat **Catat Stok Terbuang** dengan alasan; untuk alasan **Hilang** dan **Lainnya**, catatan wajib diisi. Stok berkurang (alasan Kedaluwarsa mengurangi batch yang sudah lewat masa pakainya lebih dulu) dan jejaknya tercatat di menu **Stok Terbuang**, lengkap dengan ringkasan bulan ini. Nilai kerugian hanya terlihat oleh akses penuh atau pemegang izin Lihat. Salah catat dibatalkan akses penuh lewat tombol **Batalkan** (alasan wajib): stok dipulihkan, jurnal dibalik bila ada, dan barisnya tetap tersimpan bertanda Dibatalkan. Di aplikasi karyawan, daftar Stok Terbuang dibuka dari ikon tempat sampah di layar riwayat bahan atau barang.',
+                    'Hitung fisik berkala lewat **Stok Opname**, dalam dua tahap. Tahap 1: karyawan berizin Tambah menekan **Buat Sesi Stok Opname** (atau **Import Hasil Hitung** dari lembar Excel yang diunduh lewat **Download Lembar Hitung**) dan mengisi **Hasil Hitung Fisik**; stok sistem sengaja tidak ditampilkan (hitung buta) dan stok BELUM berubah, sesi tersimpan sebagai draf. Selisih besar wajib diberi **Catatan**. Tahap 2: akses penuh meninjau selisih di halaman sesi lalu menekan **Terapkan**; selisih diterapkan ke stok terkini, jadi barang yang keluar atau masuk setelah dihitung tidak merusak hasilnya. Draf yang tidak jadi dipakai dibuang lewat **Buang Draf**. Sesi yang sudah diterapkan tidak dibatalkan, tetapi dikoreksi dengan menghitung ulang. Tanggal opname tidak boleh di masa depan. Di aplikasi karyawan, layar **Hitung** (ikon papan di menu Bahan Baku dan Barang Habis Pakai) mengirim hasil hitung sebagai draf yang sama, dan daftar sesinya ada di ikon daftar.',
                     'Pada data Bahan Baku dan Barang Habis Pakai, isi **Pemasok Utama** (opsional) dengan supplier langganan barang itu. Namanya tampil di peringatan stok menipis dan menjadi isian awal **Supplier** saat permohonan pembelian ditandai terpenuhi.',
                 ],
                 'tips' => [
-                    'Data stok dibatasi per toko; staff toko hanya melihat tokonya sendiri.',
+                    'Data stok dibatasi per toko; karyawan toko hanya melihat tokonya sendiri.',
                     'Riwayat pergerakan stok adalah jejak audit; jangan mengedit catatan lama, gunakan aksi koreksi yang tersedia.',
                     'Jangan menghapus memo utuh; hapus baris barang yang salah, atau hubungi admin.',
                     '**Potongan sisa (wasted)** PPF disimpan gudang tanpa dicatat ukurannya. Dari baris roll di memo, **Simpan Potongan Sisa** mencatat jumlah potongannya (atau lewat tab **Potongan Sisa** di detail Kode Gulungan); roll yang masih menyimpan potongan diberi lencana dan filter **Punya potongan sisa**. Untuk memakainya, **Tambah Barang** di memo, pilih jenis **Potongan Sisa PPF (wasted)**, lalu isi **bagian mobil** yang dikerjakan. Potongan bukan stok dan tanpa nilai uang; garansinya memakai kode roll asal. Menghapus baris memo mengembalikan potongan ke Tersimpan, dan hanya akses penuh yang bisa menandai potongan **Dibuang**.',
@@ -699,7 +699,7 @@ class GuideCatalog
                     'Sistem mengisi status aset (Dijual atau Hilang) beserta tanggal dan hasil pelepasannya. Pembukuan laba atau rugi pelepasan dilakukan di Accurate.',
                 ],
                 'tips' => [
-                    'Data aset dibatasi per toko; staff toko hanya melihat aset tokonya.',
+                    'Data aset dibatasi per toko; karyawan toko hanya melihat aset tokonya.',
                     'Aset baru yang dibeli lewat Permohonan Pembelian belum otomatis menjadi baris Aset; tambahkan sendiri di sini.',
                     'Satu aset hanya bisa dilepas satu kali, dan tidak bisa dibatalkan dari tombolnya.',
                     'Nilai Buku Saat Ini adalah perkiraan garis lurus dari harga beli, umur ekonomis, dan nilai residu; pembukuan resmi penyusutan dilakukan di Accurate.',
@@ -711,7 +711,7 @@ class GuideCatalog
                 'summary' => 'Mengajukan pembelian bahan, barang habis pakai, atau aset; persetujuan; sampai ditandai terpenuhi.',
                 'menus' => ['PurchaseRequestResource', 'SupplierResource'],
                 'steps' => [
-                    'Staff membuat permohonan di **Permohonan Pembelian**: pilih **Toko / Workshop**, **Jenis Barang** (Bahan Baku, Barang Habis Pakai, atau Aset Baru), **Barang** (atau **Nama Barang / Aset yang Diminta** untuk aset baru), **Jumlah**, dan **Alasan / Catatan**. Permohonan masih bisa diubah selama statusnya menunggu.',
+                    'Karyawan membuat permohonan di **Permohonan Pembelian**: pilih **Toko / Workshop**, **Jenis Barang** (Bahan Baku, Barang Habis Pakai, atau Aset Baru), **Barang** (atau **Nama Barang / Aset yang Diminta** untuk aset baru), **Jumlah**, dan **Alasan / Catatan**. Permohonan masih bisa diubah selama statusnya menunggu.',
                     'Hanya akses penuh (super admin atau direksi) yang menekan **Setujui** atau **Tolak** (isi **Alasan Ditolak**). Permohonan yang sudah diproses terkunci; bila dua orang menekan bersamaan, yang kedua mendapat pemberitahuan "sudah diproses".',
                     'Setelah barang diterima, catat dulu masuknya lewat **Catat Stok** pada barangnya, baru tekan **Tandai Terpenuhi**. Aksi ini bisa dilakukan akses penuh atau pengaju permohonan.',
                     'Saat **Tandai Terpenuhi** isi **Supplier** dan **Total Biaya Aktual** bila perlu (keduanya opsional; supplier baru bisa dibuat langsung di sini). Pembukuan pembelian dilakukan di Accurate.',
@@ -721,7 +721,7 @@ class GuideCatalog
                 ],
                 'tips' => [
                     'Menandai terpenuhi TIDAK menambah stok; stok hanya bertambah lewat Catat Stok.',
-                    'Staff toko hanya melihat permohonan tokonya sendiri.',
+                    'Karyawan toko hanya melihat permohonan tokonya sendiri.',
                     'Jumlah Diterima dan Total Biaya Aktual hanya catatan pemantauan; tidak ada jurnal atau tagihan yang dibuat di sini.',
                 ],
             ],
@@ -732,7 +732,7 @@ class GuideCatalog
                 'menus' => ['InventoryDashboard', 'StockCardReport', 'InventoryMovementResource', 'RawMaterialMovementResource', 'ConsumableItemMovementResource'],
                 'steps' => [
                     '**Dashboard Inventaris** merangkum yang perlu tindakan: **Bahan Baku Perlu Perhatian** (stok di bawah titik pesan ulang, kedaluwarsa dalam 30 hari, atau lama tidak bergerak, 60 hari), **Barang Habis Pakai Perlu Perhatian**, dan **Aset Bermasalah** (rusak, diperbaiki, hilang). Tekan **Tandai Ditinjau** setelah item diperiksa; item muncul lagi bila datanya berubah. Pada barang yang stoknya menipis, tekan **Buat Permintaan Beli**: pilih **Toko / Workshop**, periksa **Jumlah** (terisi selisih ambang dan stok), lalu simpan. Permintaan masuk ke **Permohonan Pembelian** berstatus menunggu, kolom **Permintaan Beli** menampilkan nomornya, dan tombolnya hilang selama permintaan itu masih berjalan.',
-                    '**Daftar Stok** (Kartu Stok) menampilkan Awal, Masuk, Keluar, dan Akhir per bahan baku dan barang habis pakai untuk satu rentang tanggal. Atur dengan **Periode Cepat**, **Dari**, **Sampai**, **Jenis**, **Cari**, **Kategori**, **Urutan**, dan **Hanya yang bergerak di periode**. Baris **Total** menjumlah Masuk dan Keluar; **Rincian** pada tiap barang membuka mutasi periode itu beserta saldo berjalan. Penanda **Menipis**, **Nonaktif**, dan angka merah (stok dan riwayat tidak sinkron, cek Rekonsiliasi) membantu menemukan yang perlu ditangani. Hasilnya bisa diunduh lewat **Export ke Excel** atau **Export ke PDF**. Di aplikasi staff, ikon grafik di menu Bahan Baku dan Barang Habis Pakai membuka **Rekap Stok** dengan angka yang sama.',
+                    '**Daftar Stok** (Kartu Stok) menampilkan Awal, Masuk, Keluar, dan Akhir per bahan baku dan barang habis pakai untuk satu rentang tanggal. Atur dengan **Periode Cepat**, **Dari**, **Sampai**, **Jenis**, **Cari**, **Kategori**, **Urutan**, dan **Hanya yang bergerak di periode**. Baris **Total** menjumlah Masuk dan Keluar; **Rincian** pada tiap barang membuka mutasi periode itu beserta saldo berjalan. Penanda **Menipis**, **Nonaktif**, dan angka merah (stok dan riwayat tidak sinkron, cek Rekonsiliasi) membantu menemukan yang perlu ditangani. Hasilnya bisa diunduh lewat **Export ke Excel** atau **Export ke PDF**. Di aplikasi karyawan, ikon grafik di menu Bahan Baku dan Barang Habis Pakai membuka **Rekap Stok** dengan angka yang sama.',
                     '**Riwayat Keluar/Masuk** (produk film), **Riwayat Bahan Baku**, dan **Riwayat Barang Habis Pakai** adalah daftar pergerakan lintas semua barang; saring dengan **Dari Tanggal** dan **Sampai Tanggal**, dan download lewat **Export Excel**. Daftar ini hanya untuk dibaca; catatan baru dibuat dari aksi pada barangnya atau pemindaian QR di aplikasi.',
                     'Salah catat? Akses penuh bisa menekan **Batalkan** pada baris tersebut. Stok kembali ke sebelumnya dan baris "Koreksi" ditambahkan sebagai jejak. Pembatalan hanya bisa untuk kejadian PALING TERAKHIR barang itu.',
                     'Pada riwayat bahan baku dan barang habis pakai, **Cek Rekonsiliasi** memeriksa apakah stok semua barang cocok dengan penjumlahan riwayat pergerakannya; selisih berarti ada data yang perlu ditelusuri.',
@@ -754,7 +754,7 @@ class GuideCatalog
                     'Di **Daftar Produk** isi **SKU**, **Nama Produk**, **Tipe Produk**, dan **Posisi Kaca**. Harga bisa flat lewat **Harga Jual (Dasar / Flat)** (satu harga untuk semua ukuran, mis. Panoramic) atau berbeda per ukuran lewat bagian **Harga Jual per Ukuran Kendaraan** (pilih **Ukuran Kendaraan** lalu **Harga Jual**). Bila kedua-duanya diisi, harga per ukuran yang dipakai.',
                     'Harga khusus untuk grup pelanggan tertentu (mis. Member atau Korporat) diisi di bagian **Harga Khusus per Grup Pelanggan**: pilih **Grup Pelanggan**, lalu harganya. Pelanggan harus sudah dimasukkan ke grupnya (lihat panduan Pelanggan).',
                     '**Aktif (tampil di pilihan quotation)** menentukan apakah produk muncul di pilihan quotation. Matikan untuk produk yang sudah tidak dijual; riwayat lama tetap utuh. Produk yang masih dipakai kode gulungan tidak bisa dihapus: nonaktifkan saja, atau habiskan dulu gulungannya.',
-                    '**Wajib Lacak Roll (Batch Number)**: bila aktif, booking dengan produk ini tidak bisa ditandai selesai sebelum staff mencatat gulungan yang dipakai lewat Catat Pemakaian di menu Produk PPF/WF.',
+                    '**Wajib Lacak Roll (Batch Number)**: bila aktif, booking dengan produk ini tidak bisa ditandai selesai sebelum karyawan mencatat gulungan yang dipakai lewat Catat Pemakaian di menu Produk PPF/WF.',
                     'Harga massal: download dengan **Download Template Import**, isi Excel, lalu **Import Excel**. Kolom kosong tidak mengubah data yang ada, dan SKU yang tidak ditemukan dilewati (import tidak membuat produk baru). Hasil tiap import tercatat di **Riwayat Import Produk**; tekan **Lihat Detail** untuk membaca baris yang dilewati atau error.',
                     ...(config('features.master_resep') ? ['**Master Resep** mencatat bahan standar untuk satu kali pemasangan tiap produk (pilih produk, lalu isi **Bahan** dan **Jumlah** di bagian **Bahan Standar per 1x Pemasangan**). Resep hanya berisi kuantitas, bukan harga atau HPP, dan dipakai sebagai acuan perkiraan bahan serta perencanaan stok. Produk dibuat di Daftar Produk; Master Resep hanya mengisi resepnya.'] : []),
                     'Daftar Produk bisa diekspor lewat **Export ke Excel** atau **Export ke PDF**.',
@@ -796,7 +796,7 @@ class GuideCatalog
                     'Baris yang sudah tersimpan tidak bisa diubah atau dihapus. Bila ada kesalahan atau perlu pemberian khusus (mis. bonus permintaan maaf), akses penuh mencatat entri baru: pilih **Pelanggan**, **Tipe**, **Jumlah Poin**, dan isi **Keterangan** yang jelas. Entri koreksi inilah jejak auditnya.',
                     '**Riwayat Poin Partner** bekerja sama: entri baru bisa dicatat, tetapi tidak bisa diubah atau dihapus. Setiap entri langsung menambah atau mengurangi saldo poin partner.',
                     '**Promo Total Pembelian** membuat potongan flat Rupiah untuk booking yang nilai kotornya mencapai ambang. Isi **Nama Promo**, **Minimal Pembelian (kotor)**, **Potongan Harga**, **Mulai Berlaku**, **Berakhir** (kosong berarti tanpa batas), dan **Deskripsi**. Matikan **Aktif** untuk menghentikan.',
-                    'Promo ini diterapkan MANUAL oleh staff di form Booking (kolom Promo Total Pembelian); sistem tidak memasangnya otomatis.',
+                    'Promo ini diterapkan MANUAL oleh karyawan di form Booking (kolom Promo Total Pembelian); sistem tidak memasangnya otomatis.',
                 ],
                 'tips' => [
                     'Poin belum punya masa kedaluwarsa; pemberian bonus perlu terukur.',
@@ -827,12 +827,12 @@ class GuideCatalog
                 'summary' => 'Membaca ringkasan penjualan, tren per periode, per outlet, per jasa dan produk, uang masuk, refund, dan booking yang dibatalkan.',
                 'menus' => ['SalesSummaryReport', 'SalesByPeriodReport', 'SalesByOutletReport', 'LayananReport', 'JenisOrderReport', 'ProductSalesReport', 'PaymentBookReport', 'RefundReport', 'VoidReport'],
                 'steps' => [
-                    'Cara umum: pilih rentang lewat **Periode Cepat** atau **Dari** dan **Sampai**, lalu **Toko** atau **Toko** bila tersedia. Staff toko hanya melihat tokonya; pilihan toko khusus akses penuh. Hampir semua laporan bisa diunduh lewat **Export ke Excel** atau **Export ke PDF**.',
+                    'Cara umum: pilih rentang lewat **Periode Cepat** atau **Dari** dan **Sampai**, lalu **Toko** atau **Toko** bila tersedia. Karyawan toko hanya melihat tokonya; pilihan toko khusus akses penuh. Hampir semua laporan bisa diunduh lewat **Export ke Excel** atau **Export ke PDF**.',
                     'Penjualan dihitung dari booking yang penjualannya sudah diproses lewat Proses Referral (tanggal penjualannya tercatat). Booking yang selesai tetapi belum diproses tidak ikut; **Ringkasan Penjualan** menampilkan peringatan jumlah booking seperti itu dengan tautan langsung ke daftarnya.',
                     '**Ringkasan Penjualan** menyusun penjualan kotor, biaya promosi (voucher dan promo total pembelian), pengembalian, sampai penjualan bersih; nominal penjualan kotor sudah setelah potongan promo. Pakai **Bandingkan Dengan** (periode sebelumnya yang sama panjang, atau periode yang sama tahun lalu) untuk melihat naik turunnya.',
                     '**Penjualan Per Periode** menampilkan satu baris per periode untuk melihat tren; atur dengan **Kelompokkan Per** (bawaannya Bulanan; bisa Harian atau Mingguan). Nyalakan **Sembunyikan periode tanpa transaksi** untuk memangkas baris kosong. Kolomnya: **Transaksi**, **Penjualan**, ' . (config('features.finance') ? '**Diterima**, **Piutang**, ' : '') . '**Pengembalian**, dan **Komisi**, dengan baris Total di bawahnya.',
                     '**Penjualan Outlet** membandingkan toko: **Penjualan (bersih)**, **Pengembalian**, ' . (config('features.finance') ? '**Rata-rata/Transaksi**, dan **Piutang** per outlet' : 'dan **Rata-rata/Transaksi** per outlet') . ', dengan baris Total di bawahnya. Outlet nonaktif hanya tampil bila punya transaksi pada rentang itu.',
-                    '**Laporan Jasa** merekap per jenis layanan (jumlah dan pendapatan, juga per toko)' . (config('features.report_jenis_order') ? '; **Laporan Jenis Order** menampilkan data yang sama dengan nama menu yang berbeda' : '') . '. **Penjualan Produk** merinci per SKU: **Jumlah**, **Penjualan**, **Refund**, **Komisi**, **HPP**, dan **Laba Kotor**. Booking yang belum diisi SKU-nya terkumpul di baris "Belum Diisi SKU", jadi lengkapi SKU agar angkanya akurat.',
+                    '**Laporan Jasa** merekap per jenis layanan (Kaca Film, PPF, Detailing, Premium Wash): **Jumlah**, **Pendapatan**, **Rata-rata**, **Pengembalian**, dan **Bersih**, ditambah tabel per toko yang merinci pendapatan tiap jenis. Transaksi berjenis ganda dibagi menurut rincian harga dan terhitung di tiap jenisnya; grafik mengikuti Dari, Sampai, dan Toko di atasnya' . (config('features.report_jenis_order') ? '; **Laporan Jenis Order** menampilkan data yang sama dengan nama menu yang berbeda' : '') . '. **Penjualan Produk** merinci per SKU: **Jumlah Transaksi**, **Penjualan**, **Refund**, dan **Komisi**. Nilai tiap transaksi dibagi ke produknya menurut Rincian Harga per Layanan, dan transaksi berproduk ganda dihitung di tiap produknya. Baris tanpa SKU terkumpul di "Belum Diisi SKU" per jenis layanan, jadi pilih produknya (wajib untuk PPF dan Kaca Film) saat mencatat penjualan agar angkanya akurat.',
                     '**Buku Pembayaran** mendaftar semua uang masuk dari booking dalam satu rentang: uang muka (DP) dan pembayaran saat penjualan diproses, lengkap dengan **Metode**' . (config('features.finance') ? ' dan rekeningnya' : '') . '. Pakai **Periode Cepat** atau **Dari** dan **Sampai**; nomor booking bisa diklik, dan ada baris Total. DP yang dicatat sebelum kolom metode ada tampil "—" di kolom Metode. Laporan ini hanya membaca dan tidak menyalin data.',
                     '**Laporan Refund** mendaftar uang yang dikembalikan ke pelanggan: refund penjualan (parsial boleh) dan **Refund DP** saat booking dibatalkan, dengan **Metode**, **Alasan**, **Diproses Oleh**, dan **Disetujui Oleh**. Kolom **Sisa Setelah Refund** menunjukkan nilai transaksi yang masih tersisa, dan "Penuh" berarti sudah habis di-refund. Refund diproses lewat Proses Refund di Booking: **Metode Pengembalian** dan **Alasan Refund** wajib diisi, dan refund dari staf menunggu persetujuan akses penuh. Refund lama tanpa metode tampil "—".',
                     '**Laporan Pembatalan** merekap booking yang dibatalkan dalam satu rentang, termasuk pelanggan yang tidak datang (kolom **Jenis**), beserta **Dibatalkan Oleh** dan **Alasan**. Ringkasan di atas tabel menghitung pembatalan menurut alasan dan pelaku. **DP Belum Dikembalikan** seharusnya Rp0 karena DP dikembalikan otomatis saat booking dibatalkan; bila ada angkanya, cek booking tersebut. Data lama tanpa alasan tercatat memakai pelaku log sebagai pengganti.',
@@ -909,7 +909,7 @@ class GuideCatalog
                 'summary' => 'Menindaklanjuti calon pelanggan dan calon mitra dari website dan aplikasi, mencatat hasilnya, mengelola partner, dan membaca kecepatan respons.',
                 'menus' => ['ProductInquiryResource', 'PartnershipInquiryResource', 'PartnerResource', 'LeadFunnelReport'],
                 'steps' => [
-                    'Inquiry masuk dari formulir website atau aplikasi sebagai **Inquiry Produk** (lead berstatus baru). Lead dari WhatsApp, telepon, atau datang langsung dicatat staff lewat **Catat Lead Manual**; kanalnya dipilih di **Kanal Masuk**.',
+                    'Inquiry masuk dari formulir website atau aplikasi sebagai **Inquiry Produk** (lead berstatus baru). Lead dari WhatsApp, telepon, atau datang langsung dicatat karyawan lewat **Catat Lead Manual**; kanalnya dipilih di **Kanal Masuk**.',
                     'Buka lead, isi **Penanggung Jawab**, hubungi calon pelanggan, lalu ubah **Status Follow-up**. Catat perkembangan di **Catatan Internal Sales**. Waktu respons pertama tercatat otomatis saat status pertama kali berubah dari baru.',
                     'Setelah ada kepastian, isi **Hasil**: Deal bila lead sudah jadi pelanggan, booking, atau partner; Tidak Jadi bila batal. Untuk Tidak Jadi, pilih **Alasan Tidak Jadi** agar laporan bisa mengelompokkan sebabnya.',
                     '**Kemitraan & Sales Referral** berisi pengajuan jadi mitra dari website. Penanganannya sama: **Penanggung Jawab**, **Status**, **Hasil**, dan **Alasan Tidak Jadi**. Untuk pengajuan yang disetujui, tekan **Jadikan Partner**, lalu isi **Nama Partner / Usaha**, **Email (untuk login)** (wajib bila pemohon tidak mencantumkan email), dan **Password Awal**. Password awal disampaikan ke partner secara manual; ia bisa menggantinya lewat fitur lupa password di aplikasi.',
@@ -917,7 +917,7 @@ class GuideCatalog
                     '**Dasbor Lead** merangkum corong lead dari quotation, inquiry produk, dan kemitraan dalam rentang **Dari** dan **Sampai** (saring dengan **Jenis Lead**): berapa lead masuk, sudah direspons, median waktu respons, berapa dalam target, deal, tidak jadi, masih terbuka, dan tingkat deal. Rinciannya per jenis lead, per kanal, dan per kampanye (utm_campaign), ditambah alasan tidak jadi.',
                 ],
                 'tips' => [
-                    'Lead baru yang belum ditindak melewati target (bawaan 24 jam) memicu pengingat harian ke penanggung jawab, atau ke staff yang punya akses menu bila belum ada penanggung jawab.',
+                    'Lead baru yang belum ditindak melewati target (bawaan 24 jam) memicu pengingat harian ke penanggung jawab, atau ke karyawan yang punya akses menu bila belum ada penanggung jawab.',
                     'Lead lama sebelum fitur ini belum punya waktu respons, jadi tampil sebagai belum ditindak sampai statusnya diperbarui. Rapikan lead lama agar pengingat tidak ramai.',
                     'Lead dari website dan aplikasi mengisi kanal dan kampanye otomatis; lead manual hanya punya kanal.',
                 ],
@@ -962,7 +962,7 @@ class GuideCatalog
                 'summary' => 'Mencatat angka yang dipakai dalam pemasaran (TSER, UV, VLT, garansi) beserta buktinya, supaya perusahaan terlindungi bila diragukan.',
                 'menus' => ['ProductClaimResource'],
                 'steps' => [
-                    'Staff menyusun klaim di **Klaim & Bukti**: isi **Seri / Produk** (mis. A70, H70, atau "Umum" untuk yang berlaku ke semua), **Jenis Klaim**, **Teks yang Tampil**, dan **Nilai** persis seperti yang akan dipakai (mis. "61%" atau "10 tahun").',
+                    'Karyawan menyusun klaim di **Klaim & Bukti**: isi **Seri / Produk** (mis. A70, H70, atau "Umum" untuk yang berlaku ke semua), **Jenis Klaim**, **Teks yang Tampil**, dan **Nilai** persis seperti yang akan dipakai (mis. "61%" atau "10 tahun").',
                     'Lampirkan bukti lewat **Berkas Bukti (laporan uji / sertifikat)** (PDF, JPG, atau PNG, maksimal 5 MB), atau isi **Catatan Sumber** bila tidak ada berkas, serta **Tanggal Uji / Dokumen**. Angka hanya bisa disetujui bila ada berkas bukti atau catatan sumber, dan tanggalnya jelas.',
                     'Hanya akses penuh yang menekan **Setujui**; angka itu dicatat sebagai terbukti dan boleh dipakai di materi pemasaran. **Tarik** menandai angka tidak boleh lagi dipakai. Mengubah klaim yang sudah disetujui mengembalikannya ke draft.',
                 ],
@@ -973,14 +973,14 @@ class GuideCatalog
             [
                 'id' => 'absensi',
                 'title' => 'Absensi Karyawan',
-                'summary' => 'Karyawan absen lewat aplikasi staff; atasan memeriksa dan menyetujui koreksi.',
+                'summary' => 'Karyawan absen lewat aplikasi karyawan; atasan memeriksa dan menyetujui koreksi.',
                 'menus' => ['MyAttendance', 'AttendanceResource', 'AttendanceCorrectionRequestResource'],
                 'steps' => [
-                    'Karyawan menekan **Absen Masuk** saat tiba dan **Absen Keluar** saat pulang di aplikasi staff. Absen memakai lokasi dan hanya bisa dilakukan di dalam radius toko (diatur di form Toko).',
-                    'Karyawan yang belum bisa memakai aplikasi staff (mis. iPhone) bisa absen lewat **Absen Saya** di panel: ambil foto selfie, lalu tekan **Absen Masuk** atau **Absen Keluar** dan izinkan lokasi. Aturan radius toko dan selfie sama dengan aplikasi. Menu ini muncul bila admin mencentang **Absen Saya** di Hak Akses pengguna itu.',
+                    'Karyawan menekan **Absen Masuk** saat tiba dan **Absen Keluar** saat pulang di aplikasi karyawan. Absen memakai lokasi dan hanya bisa dilakukan di dalam radius toko (diatur di form Toko).',
+                    'Karyawan yang belum bisa memakai aplikasi karyawan (mis. iPhone) bisa absen lewat **Absen Saya** di panel: ambil foto selfie, lalu tekan **Absen Masuk** atau **Absen Keluar** dan izinkan lokasi. Aturan radius toko dan selfie sama dengan aplikasi. Menu ini muncul bila admin mencentang **Absen Saya** di Hak Akses pengguna itu.',
                     'Karyawan baru yang absensinya belum diwajibkan: isi **Mulai Wajib Absen** di form karyawan. Sebelum tanggal itu tidak ada Alpha otomatis, pengingat belum absen, atau potongan Alpha di Payroll. Kosong berarti wajib sejak **Tanggal Mulai Kerja**.',
                     'Keterlambatan dihitung dari jam buka toko, dengan toleransi keterlambatan yang diatur di form Toko. Semua karyawan mengikuti jam buka toko; Ginnva tidak memakai shift.',
-                    'Kalau karyawan lupa absen, ia mengajukan koreksi di aplikasi staff; atasan menyetujui atau menolak di menu **Koreksi Absensi**.',
+                    'Kalau karyawan lupa absen, ia mengajukan koreksi di aplikasi karyawan; atasan menyetujui atau menolak di menu **Koreksi Absensi**.',
                     'Rekap kehadiran dilihat di **Absensi Karyawan** (panel).',
                 ],
                 'tips' => [
@@ -991,17 +991,17 @@ class GuideCatalog
             [
                 'id' => 'karyawan-akun',
                 'title' => 'Karyawan: akun, role, dan akses menu',
-                'summary' => 'Membuat akun karyawan, menentukan role dan toko, mengisi data personalia, mengatur akses menu, dan menonaktifkan akun.',
+                'summary' => 'Membuat akun karyawan, menentukan jabatan dan toko, mengisi data personalia, mengatur akses menu, dan menonaktifkan akun.',
                 'menus' => ['UserResource', 'RoleResource', 'EmployeeTypeResource'],
                 'steps' => [
                     'Buat akun di **User** (semua akun di sini adalah karyawan; partner dan pelanggan tidak termasuk). Isi **Nama**, **Email** dan/atau **No. HP** (salah satunya wajib; karyawan tanpa email masuk dengan No. HP, yang harus unik), **No. Karyawan**, **Tanggal Mulai Kerja**, **Password**, dan **Konfirmasi Password**.',
-                    'Pilih **Role**. Super admin dan direksi berakses penuh. Store manager dan installer wajib memilih **Toko**; tanpa toko, akun tidak bisa mengakses booking atau chat toko mana pun. Installer tidak bisa login ke panel, hanya lewat aplikasi staff. Role baru (mis. hrd, warehouse_staff) dibuat sendiri di **Role & Divisi** tanpa developer; nama role memakai huruf kecil dan garis bawah.',
+                    'Pilih **Jabatan**. Super admin dan direksi berakses penuh. Store manager dan installer wajib memilih **Toko**; tanpa toko, akun tidak bisa mengakses booking atau chat toko mana pun. Installer tidak bisa login ke panel, hanya lewat aplikasi karyawan. Jabatan baru (mis. hrd, warehouse_staff) dibuat sendiri di **Jabatan & Divisi** tanpa developer; nama jabatan memakai huruf kecil dan garis bawah. Hanya Super Admin, Direksi, Store Manager, Spv Finance, Installer Leader, Installer, dan Partner yang membawa wewenang bawaan; jabatan lain hanya nama.',
                     'Isi data personalia: **Tipe Karyawan**, **Gaji Pokok** (dasar Penggajian bulanan), **Masa Percobaan Berakhir** (kosongkan bila tidak ada; maksimal 3 bulan untuk PKWTT dan PKWT tidak boleh ada masa percobaan), serta **Tanggal Berakhir Kontrak** untuk kontrak pertama. Perpanjangan berikutnya dicatat lewat menu **Perpanjang Kontrak**, bukan diedit di sini. NIK, NPWP, BPJS, kontak darurat, dan rekening gaji juga diisi di bagian ini.',
-                    'Bagian **Akses Menu & Hak Akses Detail** hanya untuk role staff atau divisi. Pilih **Akses penuh** (semua menu; paling aman bila belum yakin) atau **Dibatasi ke modul tertentu**. Pada Dibatasi, buka tab (Booking, Penjualan, Laporan, Inventori, Karyawan, dan seterusnya) lalu hidupkan modul yang boleh dibuka; angka di tab menunjukkan jumlah modul terpilih, dan **Pilih semua** / **Kosongkan** mengisi satu tab sekaligus. Setelah modul menyala, kotak **Lihat, Buat, Ubah, Hapus** muncul di sebelahnya dan hanya MENAMBAH izin; **Void** hanya ada untuk Booking dan Surat Peringatan. Dibatasi tanpa satu modul pun ditolak. **Salin akses dari karyawan lain** mengisi semuanya sekaligus.',
+                    'Bagian **Akses Menu & Hak Akses Detail** hanya untuk karyawan panel (jabatan selain Super Admin, Direksi, Installer, dan Partner). Pilih **Akses penuh** (semua menu; paling aman bila belum yakin) atau **Dibatasi ke modul tertentu**. Pada Dibatasi, buka tab (Booking, Penjualan, Laporan, Inventori, Karyawan, dan seterusnya) lalu hidupkan modul yang boleh dibuka; angka di tab menunjukkan jumlah modul terpilih, dan **Pilih semua** / **Kosongkan** mengisi satu tab sekaligus. Setelah modul menyala, kotak **Lihat, Buat, Ubah, Hapus** muncul di sebelahnya dan hanya MENAMBAH izin; **Void** hanya ada untuk Booking dan Surat Peringatan. Dibatasi tanpa satu modul pun ditolak. **Salin akses dari karyawan lain** mengisi semuanya sekaligus.',
                     'Karyawan pindah toko: ubah **Toko** dan isi **Alasan Perpindahan Toko (opsional)**; perpindahan tercatat di riwayat karir.',
                     'Karyawan resign atau cuti panjang: pakai **Nonaktifkan** (mematikan **Akun Aktif**) untuk mencabut akses login panel dan aplikasi tanpa menghapus riwayat. Akun yang punya riwayat HR (absensi, cuti, gaji, surat peringatan, kontrak) tidak bisa dihapus permanen, dan penghapusan massal melewatinya.',
                     '**Tipe Karyawan** adalah daftar status kepegawaian yang Anda definisikan sendiri (mis. Tetap, Kontrak, Freelance, Magang). **Memiliki Tanggal Berakhir** menentukan apakah Tanggal Berakhir Kontrak wajib diisi untuk tipe itu. Tipe yang masih dipakai karyawan tidak bisa dihapus; nonaktifkan saja.',
-                    'Karyawan yang aksesnya sama dengan rekan lain: di bagian akses (hanya terlihat oleh akses penuh), pilih **Salin akses dari karyawan lain**. Kotak modul dan hak detail terisi sesuai karyawan itu; Role dan Toko tidak ikut. Periksa, lalu tekan Simpan, karena belum tersimpan sebelum itu. Bila yang dipilih berakses penuh, semua kotak dikosongkan (artinya akses penuh).',
+                    'Karyawan yang aksesnya sama dengan rekan lain: di bagian akses (hanya terlihat oleh akses penuh), pilih **Salin akses dari karyawan lain**. Kotak modul dan hak detail terisi sesuai karyawan itu; Jabatan dan Toko tidak ikut. Periksa, lalu tekan Simpan, karena belum tersimpan sebelum itu. Bila yang dipilih berakses penuh, semua kotak dikosongkan (artinya akses penuh).',
                 ],
                 'tips' => [
                     'Kolom Status Kontrak di daftar User membantu melihat kontrak yang akan berakhir; ringkasannya juga muncul di Dasbor HR.',
@@ -1014,7 +1014,7 @@ class GuideCatalog
                 'summary' => 'Memproses pengajuan izin dan cuti, mengatur jenis dan batasnya, mencatat perpanjangan kontrak, dan menerbitkan surat peringatan.',
                 'menus' => ['LeaveRequestResource', 'LeaveTypeResource', 'ContractExtensionResource', 'WarningLetterResource'],
                 'steps' => [
-                    'Karyawan mengajukan izin atau cuti lewat aplikasi staff, atau HR mengisinya di **Izin & Cuti**: **Karyawan**, **Jenis**, **Dari Tanggal**, **Sampai Tanggal**, **Alasan**, dan **Lampiran** (mis. surat dokter). Wajib atau tidaknya lampiran mengikuti aturan jenis yang dipilih.',
+                    'Karyawan mengajukan izin atau cuti lewat aplikasi karyawan, atau HR mengisinya di **Izin & Cuti**: **Karyawan**, **Jenis**, **Dari Tanggal**, **Sampai Tanggal**, **Alasan**, dan **Lampiran** (mis. surat dokter). Wajib atau tidaknya lampiran mengikuti aturan jenis yang dipilih.',
                     'Atasan menekan **Setujui** atau **Tolak** (isi **Alasan Ditolak**). Karyawan mendapat pemberitahuan atas keputusannya.',
                     '**Jenis Izin & Cuti** mengatur tiap jenis: **Maksimal hari per pengajuan** (kosong berarti batas umum 30 hari), **Wajib lampiran mulai (hari)**, dan **Memotong jatah cuti tahunan** (aktifkan hanya untuk Cuti Tahunan; cuti khusus seperti menikah atau melahirkan tidak memotong jatah). Angka bawaan hanyalah titik awal dan perlu disesuaikan dengan Peraturan Perusahaan. Jenis yang sudah dipakai pengajuan tidak bisa dihapus; nonaktifkan.',
                     '**Perpanjang Kontrak**: pilih **Karyawan**, isi **Tanggal Berakhir Kontrak Baru** (harus lebih baru dari tanggal akhir yang berlaku) dan **Catatan (opsional)**. Riwayat perpanjangan tersimpan dengan tanggal **Sebelumnya** dan **Diperpanjang Sampai**.',
@@ -1092,12 +1092,12 @@ class GuideCatalog
             ],
             [
                 'id' => 'installer-mulai',
-                'title' => 'Installer: mulai memakai aplikasi staff',
+                'title' => 'Installer: mulai memakai aplikasi karyawan',
                 'audience' => 'installer',
                 'summary' => 'Apa saja yang ada di aplikasi untuk installer, apa yang menjadi tugas Anda di sana, dan apa yang dipegang leader atau Store Manager.',
                 'menus' => [],
                 'steps' => [
-                    'Masuk lewat aplikasi staff dengan email atau No. HP, dan password dari admin. Installer tidak memakai panel web; semuanya lewat aplikasi. Lupa password? Pakai fitur lupa password di layar masuk (butuh email), atau minta admin; yang masuk dengan No. HP tanpa email meminta admin mengatur ulang. Ganti password lewat nama Anda di bagian atas **Beranda**.',
+                    'Masuk lewat aplikasi karyawan dengan email atau No. HP, dan password dari admin. Installer tidak memakai panel web; semuanya lewat aplikasi. Lupa password? Pakai fitur lupa password di layar masuk (butuh email), atau minta admin; yang masuk dengan No. HP tanpa email meminta admin mengatur ulang. Ganti password lewat nama Anda di bagian atas **Beranda**.',
                     'Bilah bawah berisi **Beranda**, **Absensi**, **Booking**, **Gaji**, dan **Profil**. Menu lain ada sebagai kotak di Beranda: **Surat Perintah Kerja**, **Kotak Masuk**, **Slip Gaji**, **K3 & Penilaian**, **Peraturan & Kebijakan**, dan **Panduan**.',
                     'Pekerjaan Anda muncul di **Booking Toko** dan **Surat Perintah Kerja**, hanya untuk booking yang DITUGASKAN kepada Anda, bukan seluruh booking toko. Saat leader menugaskan atau mencopot Anda dari sebuah booking, Anda menerima pemberitahuan "Penugasan Instalasi Baru" atau "Penugasan Dicabut"; riwayatnya ada di **Kotak Masuk**. Periksa kotak masuk di awal hari.',
                     'Yang dipegang leader installer, Store Manager, atau atasan, bukan installer: konfirmasi dan pembatalan booking, chat dengan pelanggan, foto penerimaan, Quality Check, serah terima, dan penugasan installer. Layar-layar itu ditolak untuk akun installer; hubungi leader bila ada kendala di lapangan.',
@@ -1173,11 +1173,11 @@ class GuideCatalog
                 'steps' => [
                     '**Riwayat Notifikasi** (pelanggan) dan **Riwayat Notifikasi Partner** mendaftar pesan yang dikirim admin: **Judul**, **Isi**, **Target**, **Deep Link**, **Dikirim Oleh**, dan **Dikirim**. Saring dengan **Broadcast saja** atau **Targeted saja**, serta **Dari Tanggal** dan **Sampai Tanggal**.',
                     '**Log Pengiriman** menjawab "apakah notifikasi ini sampai ke orang itu": satu baris per perangkat dengan **Penerima**, **Judul**, **Hasil**, dan **Keterangan**. Hasilnya: Menunggu kuitansi, Terkirim, Gagal, Token mati, atau Tidak diketahui. Hasil "Menunggu kuitansi" berubah sendiri setelah kuitansi Expo diperiksa (**Kuitansi Diperiksa**). Token mati berarti aplikasi sudah dihapus atau perangkat tidak lagi terdaftar; itu bukan kesalahan pesan.',
-                    '**Katalog Notifikasi** adalah daftar baca-saja semua titik di sistem yang mengirim push, beserta penerimanya (pelanggan atau staff) dan apakah staff juga mendapat catatan di lonceng panel. Pakai untuk menjawab "notifikasi ini datang dari mana".',
+                    '**Katalog Notifikasi** adalah daftar baca-saja semua titik di sistem yang mengirim push, beserta penerimanya (pelanggan atau karyawan) dan apakah karyawan juga mendapat catatan di lonceng panel. Pakai untuk menjawab "notifikasi ini datang dari mana".',
                 ],
                 'tips' => [
                     'Log Pengiriman dibersihkan otomatis setelah 90 hari.',
-                    'Pelanggan selalu mendapat baris di kotak masuk aplikasinya; staff punya Kotak Masuk sendiri di aplikasi staff.',
+                    'Pelanggan selalu mendapat baris di kotak masuk aplikasinya; karyawan punya Kotak Masuk sendiri di aplikasi karyawan.',
                 ],
             ],
             [
@@ -1191,9 +1191,9 @@ class GuideCatalog
                     'Kapasitas: **Kapasitas Instalasi / Hari (Default)** untuk PPF dan Kaca Film (nilai awal saat booking dikonfirmasi, masih bisa diubah per booking), **Kapasitas Layanan Ringan / Jam** untuk Detailing dan Premium Wash, serta **Jumlah Slot Detailing** dan **Jumlah Slot Instalasi & QC** untuk laporan utilisasi zona. Toko yang belum diisi slotnya dilewati laporan itu.',
                     'Absensi: **Radius Absen (meter)** (kosong berarti 150 m) dan **Toleransi Pengingat Absen & Pulang Cepat (menit)** (kosong berarti 15 menit). Toleransi ini hanya untuk pengingat dan bukan dasar potongan telat; aturan potongan ada di Aturan Potongan Absensi.',
                     '**Jam Operasional**: satu baris per kelompok hari dengan **Jam Buka**, **Jam Tutup**, dan istirahat **Mulai Istirahat (opsional)** serta **Selesai Istirahat (opsional)** bila ada; tandai hari **Libur** bila tutup. Jam istirahat dikurangi dari jam kerja efektif untuk potongan Alpha per jam.',
-                    'Toko yang sudah punya data (booking, staff, installer, garansi) tidak bisa dihapus: matikan **Aktif (tampil di web publik)**.',
+                    'Toko yang sudah punya data (booking, karyawan, installer, garansi) tidak bisa dihapus: matikan **Aktif (tampil di web publik)**.',
                     '**Kendaraan** adalah katalog yang muncul di aplikasi dan formulir: **Merek**, **Tipe / Model**, **Varian**, **Kategori Ukuran** (S, M, L, XL, XXL; menentukan harga), dan **Tipe Bodi**. Satu merek+model sebaiknya hanya punya satu ukuran; ukuran ganda membuat harga ambigu. Kendaraan yang tidak ditawarkan lagi dinonaktifkan lewat **Nonaktifkan**, bukan dihapus; riwayat penawaran dan kendaraan pelanggan tetap utuh.',
-                    '**Luas Kaca** menyimpan luas kaca (m2) per merek+model: **Depan**, **Samping**, **Belakang**, **Sunroof**, dan **Total**, untuk menghitung kebutuhan bahan dan harga kaca film. Samakan penulisan merek dan modelnya dengan menu Kendaraan agar terhubung (kolom **Di katalog**). Hanya akses penuh yang mengubah data ini dan menjalankan **Import dari Google Sheet**; staff lain hanya melihat, kecuali diberi izin aksi.',
+                    '**Luas Kaca** menyimpan luas kaca (m2) per merek+model: **Depan**, **Samping**, **Belakang**, **Sunroof**, dan **Total**, untuk menghitung kebutuhan bahan dan harga kaca film. Samakan penulisan merek dan modelnya dengan menu Kendaraan agar terhubung (kolom **Di katalog**). Hanya akses penuh yang mengubah data ini dan menjalankan **Import dari Google Sheet**; karyawan lain hanya melihat, kecuali diberi izin aksi.',
                     'Saat import, baca **Pratinjau** dulu. Bawaannya hanya menambah baris baru; aktifkan **Perbarui juga baris yang nilainya berbeda dari data di sistem** bila memang ingin menimpa data yang ada.',
                 ],
                 'tips' => [
@@ -1206,10 +1206,10 @@ class GuideCatalog
                 'summary' => 'Menelusuri perubahan data dan kejadian keamanan akun, melihat nilai sebelum dan sesudah, dan mengekspornya.',
                 'menus' => ['ActivityResource'],
                 'steps' => [
-                    'Menu ini hanya untuk akses penuh, atau staff yang kotak **Riwayat Aktivitas** dicentang secara eksplisit di Akses Menu akunnya (mis. supervisor Finance atau IT). Akun dengan akses menu kosong (semua menu) TIDAK otomatis melihatnya karena isinya sensitif.',
-                    'Daftar menampilkan **Waktu (WIB)**, **Pelaku**, **Modul**, **Aksi**, **Asal** (Panel Admin, Aplikasi Staff, Aplikasi Pelanggan, API, Web, atau Sistem), **Objek**, dan **Deskripsi**. Tab **Semua**, **Perubahan Berisiko** (mis. gaji, akses, periode, harga, hapus), dan **Keamanan Akun** (masuk gagal, ganti dan reset password) menyempitkan tampilan.',
+                    'Menu ini hanya untuk akses penuh, atau karyawan yang kotak **Riwayat Aktivitas** dicentang secara eksplisit di Akses Menu akunnya (mis. supervisor Finance atau IT). Akun dengan akses menu kosong (semua menu) TIDAK otomatis melihatnya karena isinya sensitif.',
+                    'Daftar menampilkan **Waktu (WIB)**, **Pelaku**, **Modul**, **Aksi**, **Asal** (Panel Admin, Aplikasi Karyawan, Aplikasi Pelanggan, API, Web, atau Sistem), **Objek**, dan **Deskripsi**. Tab **Semua**, **Perubahan Berisiko** (mis. gaji, akses, periode, harga, hapus), dan **Keamanan Akun** (masuk gagal, ganti dan reset password) menyempitkan tampilan.',
                     'Saring dengan **Modul**, **Pelaku**, **Pelaku (Pelanggan)**, **Asal**, **Dari Tanggal (WIB)** dan **Sampai Tanggal (WIB)**, atau **Objek** (**Jenis Objek** dan **Nomor Objek**) untuk menelusuri riwayat satu data, mis. satu booking.',
-                    'Buka sebuah baris untuk melihat **Email Pelaku**, **Alamat IP**, **Perangkat**, **Alasan** (bila diisi), serta **Nilai Sebelumnya** dan **Nilai Baru** per kolom. IP dan perangkat hanya dicatat untuk staff, bukan pelanggan.',
+                    'Buka sebuah baris untuk melihat **Email Pelaku**, **Alamat IP**, **Perangkat**, **Alasan** (bila diisi), serta **Nilai Sebelumnya** dan **Nilai Baru** per kolom. IP dan perangkat hanya dicatat untuk karyawan, bukan pelanggan.',
                     "Export hasil filter lewat **Export ke Excel** (maksimal {$exportMax} baris; persempit rentang bila lebih). Export itu sendiri tercatat sebagai kejadian di riwayat.",
                 ],
                 'tips' => [
@@ -1246,12 +1246,12 @@ class GuideCatalog
                 'summary' => 'Yang Anda putuskan setiap hari untuk satu toko: booking, absensi, pengeluaran, dan persetujuan, serta batas wewenang Anda dibanding Leader dan akses penuh.',
                 'menus' => [],
                 'steps' => [
-                    'Lingkup Anda adalah SATU toko: booking, absensi, pengeluaran, dan pengajuan yang Anda lihat hanya milik tokonya. Hal yang diputuskan Anda dan akses penuh (direksi, super admin) tersebar di aplikasi staff dan panel; panduan ini merangkum yang paling sering dan batasnya.',
+                    'Lingkup Anda adalah SATU toko: booking, absensi, pengeluaran, dan pengajuan yang Anda lihat hanya milik tokonya. Hal yang diputuskan Anda dan akses penuh (direksi, super admin) tersebar di aplikasi karyawan dan panel; panduan ini merangkum yang paling sering dan batasnya.',
                     'Awal hari: buka **Kotak Masuk** dan **Booking Toko**. Booking baru berstatus Pending perlu direspons dalam batas jam yang ditetapkan sistem; Anda mendapat pengingat otomatis bila ada yang tertunda. Tekan **Konfirmasi Booking** (periksa kapasitas dan lama pengerjaan), atau gunakan **Ubah Jadwal** bila tanggalnya perlu digeser (alasan wajib untuk booking Confirmed). Pengajuan ganti jadwal dan pembatalan dari pelanggan dijawab di kartu pengajuan pada booking: **Setujui** atau **Tolak** (alasan penolakan dikirim ke pelanggan).',
-                    'Sebagian wewenang booking hanya milik Anda dan akses penuh, tidak dimiliki Leader maupun staff lain: **Batalkan Booking** (alasan wajib untuk booking Confirmed), **Tandai Tidak Datang** (hanya bila booking Confirmed, tanggalnya sudah tiba, dan pengerjaan belum dimulai; DP yang sudah diterima dikembalikan penuh), **Koreksi Tahap** (alasan wajib; tidak mengirim notifikasi ke pelanggan), serta menyetujui pembatalan dari pelanggan.',
+                    'Sebagian wewenang booking hanya milik Anda dan akses penuh, tidak dimiliki Leader maupun karyawan lain: **Batalkan Booking** (alasan wajib untuk booking Confirmed), **Tandai Tidak Datang** (hanya bila booking Confirmed, tanggalnya sudah tiba, dan pengerjaan belum dimulai; DP yang sudah diterima dikembalikan penuh), **Koreksi Tahap** (alasan wajib; tidak mengirim notifikasi ke pelanggan), serta menyetujui pembatalan dari pelanggan.',
                     'Tugaskan installer di **Assignment Booking**, pastikan SPK dan foto penerimaan dibuat Leader atau Anda, dan periksa hasil kerja lewat **Quality Check**. Anda boleh memeriksa unit yang tidak Anda kerjakan sendiri.',
                     'Absensi: koreksi absensi karyawan tokonya diputuskan di menu **Koreksi Absensi** di panel dengan **Setujui** atau **Tolak**. Anda tidak bisa menyetujui koreksi yang Anda ajukan sendiri. Izin dan cuti tokonya juga Anda putuskan di menu **Izin & Cuti** (kecuali milik Anda sendiri).',
-                    'Keuangan di aplikasi: layar **Keuangan** menampilkan Saldo Kas, ringkasan hari ini (pengeluaran tercatat), dan piutang lewat jatuh tempo. Catat pengeluaran lewat **Catat Pengeluaran** dan hitung kas laci lewat **Hitung Kas**. Pengajuan pengeluaran dari staff tokonya muncul di **Persetujuan Pengeluaran**; tekan **Setujui** atau **Tolak Pengajuan**. Pengajuan Anda sendiri langsung naik ke direksi.',
+                    'Keuangan di aplikasi: layar **Keuangan** menampilkan Saldo Kas, ringkasan hari ini (pengeluaran tercatat), dan piutang lewat jatuh tempo. Catat pengeluaran lewat **Catat Pengeluaran** dan hitung kas laci lewat **Hitung Kas**. Pengajuan pengeluaran dari karyawan tokonya muncul di **Persetujuan Pengeluaran**; tekan **Setujui** atau **Tolak Pengajuan**. Pengajuan Anda sendiri langsung naik ke direksi.',
                     'Batas persetujuan pengeluaran: secara bawaan setelah Anda setuju, pengajuan tetap naik ke direksi. Bila akses penuh mengisi batas di **Pengaturan Keuangan**, pengeluaran sampai nominal itu langsung dicatat setelah Anda menyetujuinya. Anda tidak boleh menyetujui pengajuan yang Anda ajukan sendiri.',
                     'Refund dan Proses Referral: Anda bisa mengajukannya, tetapi baru berlaku setelah akses penuh menyetujuinya di **Persetujuan Transaksi**. Anda hanya melihat pengajuan tokonya.',
                 ],
@@ -1267,7 +1267,7 @@ class GuideCatalog
                 'summary' => 'Yang Anda kerjakan harian, mingguan, dan akhir bulan di panel, dan hal-hal yang sengaja hanya boleh dilakukan direksi atau akses penuh.',
                 'menus' => [],
                 'steps' => [
-                    'Akses Anda diatur admin lewat Akses Menu akun Anda. Bagan Akun, Jurnal Umum, Rekonsiliasi Bank, dan Penggajian hanya berlaku untuk role Spv Finance; mencentang menu itu untuk role lain tidak membukanya. Anda bekerja lintas toko dan melihat jurnal seluruh perusahaan. Hak membuat, mengubah, menghapus, dan memposting TIDAK ada bawaan; tiap hak itu harus diberikan admin di Hak Akses Detail. Tanpa hak itu, Anda hanya melihat.',
+                    'Akses Anda diatur admin lewat Akses Menu akun Anda. Bagan Akun, Jurnal Umum, Rekonsiliasi Bank, dan Penggajian hanya berlaku untuk jabatan Spv Finance; mencentang menu itu untuk role lain tidak membukanya. Anda bekerja lintas toko dan melihat jurnal seluruh perusahaan. Hak membuat, mengubah, menghapus, dan memposting TIDAK ada bawaan; tiap hak itu harus diberikan admin di Hak Akses Detail. Tanpa hak itu, Anda hanya melihat.',
                     'Harian: periksa **Transaksi Keuangan** toko (kategori, rekening, nota), lalu **Rekonsiliasi Bank** (import mutasi dan cocokkan dengan transaksi), dan pantau Hutang Usaha dan Piutang Usaha yang jatuh tempo. Persetujuan pengeluaran toko berjalan lewat Store Manager lalu direksi; itu bukan keputusan Anda.',
                     '**Jurnal Umum**: jurnal manual dibuat sebagai draft dan harus seimbang. Anda tidak bisa memposting atau membalik jurnal yang Anda buat sendiri; minta orang lain yang berhak (direksi atau Spv Finance lain dengan hak ubah) memprosesnya. Direksi diberi tahu setiap kali Spv Finance memposting jurnal. Jurnal otomatis (booking, transaksi keuangan, penyusutan, DP) dibalik lewat modul asalnya, bukan dari sini.',
                     'Akhir bulan, penggajian: pastikan **Kelengkapan Data Karyawan** beres, jalankan **Generate Payroll Bulanan** untuk bulan yang sudah selesai penuh, isi **Komponen Gaji**, lalu tekan **Ajukan Pembayaran**. Anda tidak bisa menandai dibayar sendiri: direksi yang menekan **Setujui & Tandai Dibayar**, dan baru saat itu gaji diposting ke Jurnal Umum.',
@@ -1286,8 +1286,8 @@ class GuideCatalog
                 'summary' => 'Urutan kerja HR dari karyawan baru sampai kontrak, cuti, disiplin, K3, dan peraturan, serta hal-hal yang hanya boleh dilakukan akses penuh atau role lain.',
                 'menus' => [],
                 'steps' => [
-                    'Di sistem tidak ada role "HR": tugas HR dijalankan akun yang menu Karyawannya dicentang admin di Akses Menu. Panduan ini muncul bagi akun yang menu Izin & Cuti, Riwayat Kontrak, Surat Peringatan, atau Peraturan & Kebijakan-nya dicentang secara eksplisit.',
-                    'Yang TIDAK bisa Anda lakukan, karena sengaja hanya untuk pihak lain: membuat atau mengubah akun, role, dan tipe karyawan (hanya akses penuh); mencabut persetujuan izin atau cuti yang sudah diberikan (hanya akses penuh); menyetujui koreksi absensi (Store Manager toko itu atau akses penuh); serta menjalankan penggajian (Spv Finance atau akses penuh). Bila tombol tidak muncul, itu pemisahan tugas, bukan error.',
+                    'Di sistem tidak ada jabatan "HR": tugas HR dijalankan akun yang menu Karyawannya dicentang admin di Akses Menu. Panduan ini muncul bagi akun yang menu Izin & Cuti, Riwayat Kontrak, Surat Peringatan, atau Peraturan & Kebijakan-nya dicentang secara eksplisit.',
+                    'Yang TIDAK bisa Anda lakukan, karena sengaja hanya untuk pihak lain: membuat atau mengubah akun, jabatan, dan tipe karyawan (hanya akses penuh); mencabut persetujuan izin atau cuti yang sudah diberikan (hanya akses penuh); menyetujui koreksi absensi (Store Manager toko itu atau akses penuh); serta menjalankan penggajian (Spv Finance atau akses penuh). Bila tombol tidak muncul, itu pemisahan tugas, bukan error.',
                     'Karyawan baru: minta akses penuh membuat akunnya di User (tipe karyawan, tanggal mulai, kontrak, toko). Setelah itu Anda memastikan peraturan yang wajib diterima sudah terbit dan memeriksa **Kelengkapan Data Karyawan** sampai butir yang wajib beres, karena data itu dipakai gaji dan absensi.',
                     'Setiap hari mulai dari **Dasbor HR**: kontrak dan masa percobaan yang akan berakhir, data belum lengkap, peraturan belum diterima, APD jatuh tempo, sertifikat kedaluwarsa, kejadian K3 terbuka, dan karyawan yang belum dinilai. Kerjakan yang paling dekat jatuh tempo lebih dulu.',
                     '**Izin & Cuti**: Anda dapat mencatatkan pengajuan atas nama karyawan dan mengubahnya selama masih menunggu, tetapi keputusan **Setujui** atau **Tolak** ada pada akses penuh, Store Manager, dan Spv Finance toko itu (kecuali pengajuan mereka sendiri); ingatkan mereka bila pengajuan menumpuk. Aturan tiap jenis (maksimal hari, lampiran, memotong jatah) diatur di Jenis Izin & Cuti.',
@@ -1299,7 +1299,7 @@ class GuideCatalog
                 ],
                 'tips' => [
                     'Akun yang menu Karyawannya kosong (semua menu) tidak otomatis melihat panduan ini; panduan hanya muncul bila menunya dicentang eksplisit.',
-                    'Panduan menu per menu ada di Karyawan: akun, role, dan akses menu; Izin, cuti, kontrak, dan surat peringatan; K3, pelatihan, penilaian kinerja, dan pekerjaan ulang; serta Peraturan perusahaan dan checklist karyawan.',
+                    'Panduan menu per menu ada di Karyawan: akun, jabatan, dan akses menu; Izin, cuti, kontrak, dan surat peringatan; K3, pelatihan, penilaian kinerja, dan pekerjaan ulang; serta Peraturan perusahaan dan checklist karyawan.',
                 ],
             ],
             [
@@ -1309,7 +1309,7 @@ class GuideCatalog
                 'summary' => 'Dari pesanan yang masuk sampai penjualan dicatat dan kas dihitung, serta hal-hal yang hanya boleh dilakukan Store Manager atau akses penuh.',
                 'menus' => [],
                 'steps' => [
-                    'Admin/kasir toko adalah staff toko tanpa role khusus: akun dengan menu Booking atau Invoice yang dicentang admin. Yang Anda lihat dibatasi ke toko Anda, dan di chat booking nama Anda tampil sebagai "Admin Toko" diikuti nama tokonya. Panduan ini muncul bagi akun yang menu Booking atau Invoice-nya dicentang eksplisit.',
+                    'Admin/kasir toko adalah karyawan toko tanpa jabatan khusus: akun dengan menu Booking atau Invoice yang dicentang admin. Yang Anda lihat dibatasi ke toko Anda, dan di chat booking nama Anda tampil sebagai "Admin Toko" diikuti nama tokonya. Panduan ini muncul bagi akun yang menu Booking atau Invoice-nya dicentang eksplisit.',
                     'Pesanan masuk: booking dari aplikasi muncul sebagai Pending. Pelanggan dari WhatsApp, telepon, atau yang datang langsung Anda buatkan booking-nya di panel (pilih layanan; Detailing dan Premium Wash wajib memilih jam; tanggal yang penuh atau toko libur tidak bisa dipilih). Respons booking Pending dalam batas jam yang ditetapkan sistem; Anda mendapat pengingat otomatis bila ada yang tertunda. Calon pelanggan yang meminta penawaran masuk di Quotation (Lead): hubungi, catat, dan tetapkan hasilnya.',
                     'Hari pelaksanaan: pantau status booking toko dan jawab pesan pelanggan di chat booking bila Anda punya akses menu Booking. Penugasan installer, Quality Check, dan serah terima dipegang Leader atau Store Manager (lihat panduan Booking).',
                     'Setelah booking **Completed**, catat penjualannya lewat **Proses Referral**: isi rincian harga per layanan, nominal transaksi, pembayaran yang diterima, voucher, promo, dan kode referral. Karena Anda bukan akses penuh, pengajuannya MENUNGGU persetujuan akses penuh dan belum berlaku sampai disetujui.',
@@ -1330,11 +1330,11 @@ class GuideCatalog
                 'menus' => ['GuideNoteResource'],
                 'steps' => [
                     'Direksi (CEO, CCO, CFO) setara dengan super admin: akses penuh ke semua menu dan semua toko, tanpa pembatasan Akses Menu. Tidak ada hak khusus per jabatan; keputusan keuangan dan karyawan dipegang semua akun akses penuh. Banyak tombol di sistem sengaja hanya muncul untuk Anda.',
-                    'Antrian keputusan, lewat notifikasi dan menu terkait: **Persetujuan Transaksi** (refund, referral, dan DP dari staff), **Penggajian** (**Setujui & Tandai Dibayar** atau **Tolak Pengajuan** untuk pengajuan Spv Finance), **Izin & Cuti** (**Setujui** atau **Tolak**), **Permohonan Pembelian**, installer baru yang menunggu review (**Aktifkan** atau tolak), dan **Klaim & Bukti**.',
+                    'Antrian keputusan, lewat notifikasi dan menu terkait: **Persetujuan Transaksi** (refund, referral, dan DP dari karyawan), **Penggajian** (**Setujui & Tandai Dibayar** atau **Tolak Pengajuan** untuk pengajuan Spv Finance), **Izin & Cuti** (**Setujui** atau **Tolak**), **Permohonan Pembelian**, installer baru yang menunggu review (**Aktifkan** atau tolak), dan **Klaim & Bukti**.',
                     'Pemisahan tugas: Anda tidak bisa menyetujui pengajuan yang Anda ajukan sendiri (transaksi). Pengajuan penggajian datang dari Spv Finance. Bila Anda perlu mengajukan sesuatu, minta akses penuh lain yang memutuskannya.',
                     'Booking: Anda melihat semua toko dan memiliki wewenang Store Manager (membatalkan booking, menandai tidak datang, mengoreksi tahap). Anda juga bisa ditunjuk sebagai Direksi Pemantau pada sebuah booking untuk ikut memantau progresnya.',
-                    'Pengaturan yang hanya Anda pegang: **Profil Perusahaan** (identitas di kop invoice), akun karyawan, role, dan Akses Menu di User, Aturan Potongan Absensi, Checklist QC, serta import Master Data. Atur hak tambahan seperti Void dan Hapus untuk staff di Hak Akses Detail, dan beri hak itu seperlunya.',
-                    '**Catatan Panduan** (menu Lainnya) untuk menambah catatan perusahaan di bawah panduan tertentu tanpa menunggu rilis, mis. aturan toko, batas, atau kebijakan. Satu catatan per panduan; tampil di halaman Panduan dan aplikasi staff, dan setiap perubahan tercatat di Riwayat Aktivitas. Jangan menulis password atau data pribadi di sana.',
+                    'Pengaturan yang hanya Anda pegang: **Profil Perusahaan** (identitas di kop invoice), akun karyawan, jabatan, dan Akses Menu di User, Aturan Potongan Absensi, Checklist QC, serta import Master Data. Atur hak tambahan seperti Void dan Hapus untuk karyawan di Hak Akses Detail, dan beri hak itu seperlunya.',
+                    '**Catatan Panduan** (menu Lainnya) untuk menambah catatan perusahaan di bawah panduan tertentu tanpa menunggu rilis, mis. aturan toko, batas, atau kebijakan. Satu catatan per panduan; tampil di halaman Panduan dan aplikasi karyawan, dan setiap perubahan tercatat di Riwayat Aktivitas. Jangan menulis password atau data pribadi di sana.',
                     'Pengawasan: **Riwayat Aktivitas** (tab Perubahan Berisiko dan Keamanan Akun) menunjukkan siapa mengubah apa, termasuk gaji, akses, harga, dan periode; Dasbor Lead untuk kecepatan tindak lanjut calon pelanggan; Dasbor HR untuk kontrak, data, dan K3; serta laporan penjualan.',
                 ],
                 'tips' => [
@@ -1349,7 +1349,7 @@ class GuideCatalog
                 'summary' => 'Arti kartu dan grafik di Dashboard utama, dan cara memakai Dashboard Penjualan (harian, mingguan, bulanan).',
                 'menus' => ['DashboardHome', 'SalesDashboard'],
                 'steps' => [
-                    'Dashboard utama terbuka untuk semua staff, tetapi kartu dan grafiknya mengikuti akses menu Anda. Staff toko selalu melihat tokonya sendiri. Akses penuh dengan lebih dari satu toko dapat memilih **Semua toko** atau satu toko; pilihan itu ikut tersimpan di alamat halaman.',
+                    'Dashboard utama terbuka untuk semua karyawan, tetapi kartu dan grafiknya mengikuti akses menu Anda. Karyawan toko selalu melihat tokonya sendiri. Akses penuh dengan lebih dari satu toko dapat memilih **Semua toko** atau satu toko; pilihan itu ikut tersimpan di alamat halaman.',
                     "Mulai dari **Perlu Perhatian**: tiap kartu menghitung pekerjaan yang menunggu tindakan, yaitu Garansi Hampir Kedaluwarsa (30 hari ke depan), Garansi Menunggu Review QA, Booking Pending Lewat SLA (belum dikonfirmasi lewat batas {$sla} jam), Pengajuan Jadwal Ulang Menunggu, Pengajuan Pembatalan Menunggu, Booking Lewat Tanggal (dikonfirmasi tapi belum dikerjakan), Booking Belum Lunas (Bulan Ini), dan Karyawan Belum Absen Hari Ini. Angka nol berarti beres; tindak lanjuti lewat menu yang bersangkutan.",
                     '**Pendapatan Booking**: Pendapatan Hari Ini (dibanding kemarin), Pendapatan Bulan Ini (dibanding bulan lalu), Rata-rata Nilai Booking, Sudah Diterima (Bulan Ini), dan Piutang (Bulan Ini). Angka ini hanya menghitung booking yang penjualannya SUDAH diproses, jadi penjualan yang masih menunggu persetujuan atau belum diproses belum masuk.',
                     '**Booking** menampilkan Booking Hari Ini, Garansi Aktif, Menunggu Review QA, Garansi Hampir Kedaluwarsa, dan Quotation Baru (7 Hari). Grafik di bawahnya: Tren Pendapatan Harian (bulan ini dibanding bulan lalu), Pendapatan per Kategori dan per Metode Pembayaran (bulan ini), Tren Pengajuan Garansi, Garansi per Toko, Tren Quotation, Grafik Jenis Order, dan Grafik Penjualan Outlet.',

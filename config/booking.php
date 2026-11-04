@@ -13,6 +13,10 @@
 return [
     'show_prices' => (bool) env('BOOKING_SHOW_PRICES', false),
 
+    // Rincian harga: baris PPF dan Kaca Film wajib memilih produk (SKU) supaya laporan Penjualan Produk akurat. Detailing dan Premium Wash
+    // boleh tanpa SKU. phpunit.xml mematikannya agar tes lama yang membuat baris tanpa SKU tetap jalan; tes aturan ini menyalakannya sendiri.
+    'sale_line_sku_required' => (bool) env('BOOKING_SALE_LINE_SKU_REQUIRED', true),
+
     'light_slots' => [
         '09:00 - 11:00',
         '11:00 - 13:00',

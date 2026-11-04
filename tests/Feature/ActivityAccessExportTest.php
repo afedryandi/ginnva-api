@@ -240,7 +240,7 @@ class ActivityAccessExportTest extends TestCase
         $this->assertSame('Keamanan Akun', $mapped[3]);
         $this->assertSame('Gagal Masuk', $mapped[4]);
         $this->assertSame("'+Percobaan masuk", $mapped[6]);
-        $this->assertSame(['Aplikasi Staff', '10.0.0.5', 'GinnvaStaff/1.2'], [$mapped[7], $mapped[8], $mapped[9]]);
+        $this->assertSame(['Aplikasi Karyawan', '10.0.0.5', 'GinnvaStaff/1.2'], [$mapped[7], $mapped[8], $mapped[9]]);
         $this->assertSame('Aktif: ya', $mapped[10]);
         $this->assertSame('Aktif: tidak', $mapped[11]);
         $this->assertSame('plain', ActivityLogExport::safe('plain'));

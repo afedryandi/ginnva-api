@@ -24,7 +24,7 @@ class Tooltips
     {
         return match ($state) {
             'app'      => 'Pelanggan memesan sendiri lewat aplikasi.',
-            'whatsapp' => 'Dibuatkan staff setelah pelanggan menghubungi lewat WhatsApp.',
+            'whatsapp' => 'Dibuatkan karyawan setelah pelanggan menghubungi lewat WhatsApp.',
             'walk_in'  => 'Pelanggan datang langsung ke toko.',
             default    => null,
         };
@@ -87,7 +87,7 @@ class Tooltips
     public static function rewardRedemptionStatus(?string $state): ?string
     {
         return match ($state) {
-            'pending'   => 'Menunggu diproses staff (reward barang atau layanan).',
+            'pending'   => 'Menunggu diproses karyawan (reward barang atau layanan).',
             'fulfilled' => 'Sudah diproses. Untuk reward voucher: voucher sudah terbit di akun pelanggan.',
             'cancelled' => 'Dibatalkan: poin pelanggan dikembalikan.',
             default     => null,
@@ -98,7 +98,7 @@ class Tooltips
     {
         return match ($state) {
             'new'       => 'Permintaan penawaran baru masuk, belum dihubungi.',
-            'contacted' => 'Sudah dihubungi (follow up) oleh staff.',
+            'contacted' => 'Sudah dihubungi (follow up) oleh karyawan.',
             'closed'    => 'Selesai: penawaran ditutup.',
             'cancelled' => 'Permintaan penawaran dibatalkan.',
             default     => null,

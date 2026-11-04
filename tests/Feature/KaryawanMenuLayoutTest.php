@@ -93,7 +93,7 @@ class KaryawanMenuLayoutTest extends TestCase
 
     public function test_menu_names_are_clear(): void
     {
-        $this->assertSame('Role & Divisi', RoleResource::getNavigationLabel());
+        $this->assertSame('Jabatan & Divisi', RoleResource::getNavigationLabel());
         $this->assertSame('Kelengkapan Data Karyawan', EmployeeDataCompletenessReport::getNavigationLabel());
         $this->assertSame('Riwayat Kontrak', ContractExtensionResource::getNavigationLabel());
         $this->assertSame('Checklist Masuk & Keluar', EmployeeChecklistItemResource::getNavigationLabel());

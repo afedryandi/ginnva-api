@@ -35,7 +35,7 @@ class NotificationCatalogPage extends Page
 
     public const AUDIENCE_LABELS = [
         'pelanggan' => 'Pelanggan',
-        'staf_toko' => 'Staff toko (dan super admin)',
+        'staf_toko' => 'Karyawan toko (dan super admin)',
         'pengguna' => 'User tertentu (mis. penerima persetujuan, karyawan yang bersangkutan)',
         'pemantau' => 'Direksi pemantau booking',
     ];

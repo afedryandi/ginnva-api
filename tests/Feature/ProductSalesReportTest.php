@@ -6,12 +6,14 @@ use App\Exports\ProductSalesReportExport;
 use App\Filament\Pages\ProductSalesReport;
 use App\Filament\ReportWidgets\ProductSalesChart;
 use App\Models\Booking;
+use App\Models\BookingSaleLine;
 use App\Models\Customer;
 use App\Models\FilmProduct;
 use App\Models\Store;
 use App\Models\Technician;
 use App\Models\User;
 use App\Services\BookingPostingService;
+use App\Services\BookingSaleLineService;
 use App\Services\RefundService;
 use Database\Seeders\ChartOfAccountSeeder;
 use Filament\Facades\Filament;
@@ -28,7 +30,8 @@ use Tests\TestCase;
 
 /**
  * Penjualan Produk (per SKU): pengelompokan menurut varian produk, baris "Belum Diisi SKU" (selalu paling bawah,
- * ikut total), refund dan komisi diatribusikan ke SKU booking, Laba Kotor yang bisa direkonsiliasi (kolom Komisi),
+ * ikut total, dirinci per jenis layanan), nilai dibagi menurut rincian harga (booking lama menurut SKU utama), refund dan komisi dibagi
+ * proporsional, tanpa HPP/Laba Kotor,
  * persentase, cakupan toko, isi Excel (angka tetap angka) / PDF + log ekspor, dan grafik.
  * "Hari ini" dibekukan di 8 Oktober 2026.
  */
@@ -135,9 +138,9 @@ class ProductSalesReportTest extends TestCase
         $result = $this->report();
         $rows = $result['rows'];
 
-        $this->assertSame(['PPF Premium', 'Kaca Tint', 'Detailing Interior', 'Belum Diisi SKU'], $rows->pluck('name')->all(), 'Baris tanpa SKU selalu di bawah walau nilainya lebih besar dari Detailing.');
+        $this->assertSame(['PPF Premium', 'Kaca Tint', 'Detailing Interior', 'Belum Diisi SKU — PPF'], $rows->pluck('name')->all(), 'Baris tanpa SKU selalu di bawah walau nilainya lebih besar dari Detailing.');
         $this->assertSame(['PPF-1', 'WF-1', 'DT-1', '—'], $rows->pluck('sku')->all());
-        $this->assertSame(['PPF', 'Kaca Film', 'Detailing', '—'], $rows->pluck('type')->all());
+        $this->assertSame(['PPF', 'Kaca Film', 'Detailing', 'PPF'], $rows->pluck('type')->all());
         $this->assertSame([2, 1, 1, 1], $rows->pluck('count')->all());
         $this->assertEquals([1500000.0, 400000.0, 200000.0, 300000.0], $rows->pluck('revenue')->all());
         $this->assertSame(5, $result['totalCount']);
@@ -152,7 +155,7 @@ class ProductSalesReportTest extends TestCase
         $rows = $result['rows']->keyBy('name');
 
         $this->assertEqualsWithDelta(62.5, $rows['PPF Premium']['revenuePct'], 0.001);
-        $this->assertEqualsWithDelta(12.5, $rows['Belum Diisi SKU']['revenuePct'], 0.001);
+        $this->assertEqualsWithDelta(12.5, $rows['Belum Diisi SKU — PPF']['revenuePct'], 0.001);
         $this->assertEqualsWithDelta(100.0, $result['rows']->sum('revenuePct'), 0.0001);
         $this->assertEqualsWithDelta(100.0, $result['rows']->sum('countPct'), 0.0001);
         $this->assertSame(1, $result['unassignedCount']);
@@ -178,7 +181,7 @@ class ProductSalesReportTest extends TestCase
         $this->assertEquals(110.0, $this->report()['grossRevenue']);
     }
 
-    // ------------------------------------------------------------- refund, komisi, laba kotor
+    // ------------------------------------------------------------- refund dan komisi
 
     public function test_refunds_are_attributed_to_the_sku_of_the_refunded_booking_including_unassigned_ones(): void
     {
@@ -190,7 +193,7 @@ class ProductSalesReportTest extends TestCase
         $rows = $result['rows']->keyBy('name');
 
         $this->assertEquals([1, 100000.0], [$rows['PPF Premium']['refundCount'], $rows['PPF Premium']['refundAmount']]);
-        $this->assertEquals([1, 50000.0], [$rows['Belum Diisi SKU']['refundCount'], $rows['Belum Diisi SKU']['refundAmount']], 'Booking tanpa SKU: refund masuk baris yang sama dengan penjualannya.');
+        $this->assertEquals([1, 50000.0], [$rows['Belum Diisi SKU — PPF']['refundCount'], $rows['Belum Diisi SKU — PPF']['refundAmount']], 'Booking tanpa SKU: refund masuk baris yang sama dengan penjualannya.');
         $this->assertEquals(0, $rows['Kaca Tint']['refundCount']);
         $this->assertEquals(150000.0, $result['totalRefundAmount']);
         $this->assertEquals(2250000.0, $result['totalRevenue'], 'Headline bersih = kotor − refund.');
@@ -208,7 +211,7 @@ class ProductSalesReportTest extends TestCase
         $this->assertEquals(0.0, $this->report(['from' => '2026-10-01', 'to' => '2026-10-31'])['totalRefundAmount']);
     }
 
-    public function test_commission_is_shown_and_gross_profit_reconciles_with_it(): void
+    public function test_commission_is_attributed_to_the_sku_and_there_is_no_cogs_or_gross_profit(): void
     {
         $bookings = $this->october();
         $withRate = $this->user('kasir', $this->storeA, ['name' => 'Installer Bertarif']);
@@ -227,9 +230,10 @@ class ProductSalesReportTest extends TestCase
         $this->assertFalse($rows['PPF Premium']['hasUnratedJob']);
         $this->assertTrue($rows['Kaca Tint']['hasUnratedJob'], 'Installer tanpa tarif ditandai.');
         $this->assertEquals(0.0, $rows['Kaca Tint']['commission']);
-        $this->assertEquals(1500000.0 - 100000.0 - 100000.0 - 0.0, $rows['PPF Premium']['grossProfit'], 'Penjualan − Komisi − Refund − HPP.');
         $this->assertEquals(100000.0, $result['totalCommission']);
-        $this->assertEquals($rows->sum('grossProfit'), $result['totalGrossProfit']);
+        $this->assertArrayNotHasKey('grossProfit', $rows['PPF Premium'], 'HPP dan Laba Kotor dihapus (HPP dipegang Accurate).');
+        $this->assertArrayNotHasKey('cogs', $rows['PPF Premium']);
+        $this->assertArrayNotHasKey('totalGrossProfit', $result);
     }
 
     // ------------------------------------------------------------- toko & akses
@@ -305,13 +309,14 @@ class ProductSalesReportTest extends TestCase
         $export = new ProductSalesReportExport($this->report());
         $rows = collect($export->array())->keyBy(fn ($r) => $r[0]);
 
-        $this->assertSame(['Produk', 'SKU', 'Jenis Produk', 'Jumlah', 'Jumlah %', 'Penjualan', 'Penjualan %', 'Jumlah Refund', 'Refund', 'Komisi', 'HPP', 'Laba Kotor'], $export->headings());
+        $this->assertSame(['Produk', 'SKU', 'Jenis Produk', 'Jumlah Transaksi', 'Jumlah %', 'Penjualan', 'Penjualan %', 'Jumlah Refund', 'Refund', 'Komisi'], $export->headings());
+        $this->assertSame(['Total', 5, 2400000.0], [$rows['Total'][0], $rows['Total'][3], $rows['Total'][5]], 'Baris Total di ujung.');
         foreach ($rows as $row) {
             $this->assertCount(count($export->headings()), $row);
         }
         $this->assertEquals(['PPF Premium', 'PPF-1', 'PPF', 2, 40.0, 1500000.0], array_slice($rows['PPF Premium'], 0, 6), 'Jumlah % = 2 dari 5 transaksi.');
         $this->assertSame(62.5, $rows['PPF Premium'][6], 'Persentase berupa angka.');
-        $this->assertEquals([0.0, 0.0, 1500000.0], [$rows['PPF Premium'][9], $rows['PPF Premium'][10], $rows['PPF Premium'][11]]);
+        $this->assertEquals(0.0, $rows['PPF Premium'][9]);
         $this->assertSame('0 *', $rows['Kaca Tint'][9], 'Komisi belum lengkap ditandai bintang.');
     }
 
@@ -325,7 +330,9 @@ class ProductSalesReportTest extends TestCase
             ->assertSee('Rp2.400.000')
             ->assertSee('Komisi')
             ->assertSee('Belum Diisi SKU')
-            ->assertSee('1 dari 5 transaksi (20.0%) belum diisi varian produk')
+            ->assertSee('1 dari 5 transaksi (20.0%) punya nilai yang belum diisi produk (SKU)-nya')
+            ->assertDontSee('HPP')
+            ->assertDontSee('Laba Kotor')
             ->assertSee('PPF Premium');
     }
 
@@ -341,7 +348,7 @@ class ProductSalesReportTest extends TestCase
         $this->assertEquals(1500000.0, $result['rows']->firstWhere('name', 'PPF Premium')['revenue'], 'Seluruh nilai tetap di produk utama.');
         $this->assertEquals(2400000.0, $result['grossRevenue'], 'Total tidak berubah.');
 
-        $this->page()->assertSee('1 transaksi (senilai Rp1.000.000) memakai lebih dari satu produk');
+        $this->page()->assertSee('1 transaksi lama (senilai Rp1.000.000) memakai lebih dari satu produk');
     }
 
     public function test_no_multi_product_notice_when_none_exist(): void
@@ -392,5 +399,122 @@ class ProductSalesReportTest extends TestCase
         $this->assertSame(['PPF Premium', 'Kaca Tint', 'Detailing Interior'], array_keys($datasets->all()), 'Urut penjualan tertinggi; booking tanpa SKU tidak punya garis.');
         $this->assertCount(7, $data['labels']);
         $this->assertEquals([0, 0, 1000000.0, 500000.0, 0, 0, 0], $datasets['PPF Premium']['data']);
+    }
+
+    // ------------------------------------------------------------- rincian harga per layanan
+
+    private function line(Booking $booking, string $type, ?FilmProduct $product, float $price): void
+    {
+        BookingSaleLine::create(['booking_id' => $booking->id, 'service_type' => $type, 'film_product_id' => $product?->id, 'quantity' => 1, 'unit_price' => $price, 'discount_amount' => 0]);
+    }
+
+    public function test_a_booking_with_sale_lines_is_split_across_its_products_by_line_value(): void
+    {
+        $booking = $this->sale(900000, '2026-10-03', $this->storeA, $this->ppf, ['product_kaca_film' => true]);
+        $this->line($booking, 'ppf', $this->ppf, 700000);
+        $this->line($booking, 'kaca_film', $this->film, 300000);
+
+        $result = $this->report();
+        $rows = $result['rows']->keyBy('name');
+
+        // Nominal bersih 900.000 (setelah nego) dibagi 70/30 menurut nilai baris.
+        $this->assertEquals(630000.0, $rows['PPF Premium']['revenue']);
+        $this->assertEquals(270000.0, $rows['Kaca Tint']['revenue']);
+        $this->assertEquals(900000.0, $result['grossRevenue'], 'Total tidak berubah.');
+        $this->assertSame(1, $result['totalCount']);
+        $this->assertSame(2, $result['slotCount'], 'Satu transaksi dihitung di tiap produknya.');
+        $this->assertSame([1, 1], [$rows['PPF Premium']['count'], $rows['Kaca Tint']['count']]);
+        $this->assertSame(0, $result['multiProductCount'], 'Booking dengan rincian tidak lagi ditandai sebagai produk ganda yang belum pasti.');
+    }
+
+    public function test_lines_without_a_sku_are_grouped_per_service_and_count_as_unassigned(): void
+    {
+        $booking = $this->sale(1000000, '2026-10-03', $this->storeA);
+        $this->line($booking, 'ppf', $this->ppf, 600000);
+        $this->line($booking, 'detailing', null, 400000);
+
+        $result = $this->report();
+        $rows = $result['rows']->keyBy('name');
+
+        $this->assertEquals(600000.0, $rows['PPF Premium']['revenue']);
+        $this->assertEquals(400000.0, $rows['Belum Diisi SKU — Detailing']['revenue']);
+        $this->assertTrue($rows['Belum Diisi SKU — Detailing']['unassigned']);
+        $this->assertSame('Belum Diisi SKU — Detailing', $result['rows']->last()['name'], 'Baris tanpa SKU di bawah.');
+        $this->assertSame(1, $result['unassignedCount']);
+        $this->assertEquals(400000.0, $result['unassignedRevenue']);
+    }
+
+    public function test_refunds_follow_the_same_split_as_the_sale(): void
+    {
+        $booking = $this->sale(1000000, '2026-10-03', $this->storeA, $this->ppf, ['product_kaca_film' => true]);
+        $this->line($booking, 'ppf', $this->ppf, 750000);
+        $this->line($booking, 'kaca_film', $this->film, 250000);
+        app(RefundService::class)->process($booking->fresh(), 100000, null, null);
+
+        $rows = $this->report()['rows']->keyBy('name');
+
+        $this->assertEquals([75000.0, 1], [$rows['PPF Premium']['refundAmount'], $rows['PPF Premium']['refundCount']]);
+        $this->assertEquals([25000.0, 1], [$rows['Kaca Tint']['refundAmount'], $rows['Kaca Tint']['refundCount']]);
+    }
+
+    public function test_commission_is_split_in_proportion_to_each_products_value(): void
+    {
+        $booking = $this->sale(1000000, '2026-10-03', $this->storeA, $this->ppf, ['product_kaca_film' => true]);
+        $this->line($booking, 'ppf', $this->ppf, 800000);
+        $this->line($booking, 'kaca_film', $this->film, 200000);
+        $installer = $this->user('kasir', $this->storeA);
+        Technician::create(['store_id' => $this->storeA->id, 'user_id' => $installer->id, 'name' => 'Installer', 'status' => 'active', 'commission_amount' => 100000]);
+        $booking->installers()->attach($installer->id);
+
+        $result = $this->report();
+        $rows = $result['rows']->keyBy('name');
+
+        $this->assertEquals(80000.0, $rows['PPF Premium']['commission']);
+        $this->assertEquals(20000.0, $rows['Kaca Tint']['commission']);
+        $this->assertEquals(100000.0, $result['totalCommission'], 'Jumlah komisi tidak berubah oleh pembagian.');
+    }
+
+    public function test_the_chart_follows_the_sale_lines(): void
+    {
+        $booking = $this->sale(1000000, '2026-10-03', $this->storeA, $this->ppf, ['product_kaca_film' => true]);
+        $this->line($booking, 'ppf', $this->ppf, 600000);
+        $this->line($booking, 'kaca_film', $this->film, 400000);
+        $this->actingAs($this->admin(), 'web');
+
+        $chart = Livewire::test(ProductSalesChart::class, ['from' => '2026-10-01', 'to' => '2026-10-04', 'storeId' => null]);
+        $method = new ReflectionMethod(ProductSalesChart::class, 'getData');
+        $method->setAccessible(true);
+        $datasets = collect($method->invoke($chart->instance())['datasets'])->keyBy('label');
+
+        $this->assertEquals([0, 0, 600000.0, 0], $datasets['PPF Premium']['data']);
+        $this->assertEquals([0, 0, 400000.0, 0], $datasets['Kaca Tint']['data']);
+    }
+
+    // ------------------------------------------------------------- SKU wajib pada rincian
+
+    public function test_ppf_and_window_film_lines_need_a_product_when_the_rule_is_on_but_other_services_do_not(): void
+    {
+        config(['booking.sale_line_sku_required' => true]);
+        $service = app(BookingSaleLineService::class);
+
+        foreach (['ppf', 'kaca_film'] as $type) {
+            try {
+                $service->normalize([['service_type' => $type, 'unit_price' => 500000]]);
+                $this->fail("Baris {$type} tanpa SKU harus ditolak.");
+            } catch (\RuntimeException $e) {
+                $this->assertStringContainsString('pilih produk (SKU)', $e->getMessage());
+            }
+        }
+
+        $this->assertCount(1, $service->normalize([['service_type' => 'ppf', 'film_product_id' => $this->ppf->id, 'unit_price' => 500000]]));
+        $this->assertCount(1, $service->normalize([['service_type' => 'detailing', 'unit_price' => 200000]]));
+        $this->assertCount(1, $service->normalize([['service_type' => 'premium_wash', 'unit_price' => 100000]]));
+    }
+
+    public function test_the_rule_can_be_switched_off(): void
+    {
+        config(['booking.sale_line_sku_required' => false]);
+
+        $this->assertCount(1, app(BookingSaleLineService::class)->normalize([['service_type' => 'ppf', 'unit_price' => 500000]]));
     }
 }

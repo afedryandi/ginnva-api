@@ -18,6 +18,9 @@ use RuntimeException;
  */
 class BookingSaleLineService
 {
+    /** Jenis layanan yang barisnya wajib punya produk (SKU) bila config('booking.sale_line_sku_required') menyala. */
+    public const SKU_REQUIRED_TYPES = ['ppf', 'kaca_film'];
+
     /** Booking ini wajib punya rincian harga saat nominal diproses? */
     public static function isRequiredFor(Booking $booking): bool
     {
@@ -57,6 +60,10 @@ class BookingSaleLineService
 
             if (! is_numeric($price) || (float) $price < 0) {
                 throw new RuntimeException("Baris {$n}: harga satuan harus berupa angka nol atau lebih.");
+            }
+
+            if (config('booking.sale_line_sku_required') && in_array($type, self::SKU_REQUIRED_TYPES, true) && empty($row['film_product_id'])) {
+                throw new RuntimeException("Baris {$n}: pilih produk (SKU) untuk layanan " . BookingSaleLine::SERVICE_TYPES[$type] . '.');
             }
 
             $quantity = $row['quantity'] ?? 1;

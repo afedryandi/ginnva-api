@@ -449,7 +449,7 @@ class BookingResource extends Resource
                         ->searchable()
                         ->preload()
                         ->live()
-                        ->helperText('Produk UTAMA booking ini — diisi staff toko saat booking dikonfirmasi. Kalau booking ini pakai lebih dari 1 varian produk (mis. kaca depan beda dari kaca samping/belakang), tambahkan sisanya di "Produk Tambahan per Bagian" di bawah.'),
+                        ->helperText('Produk UTAMA booking ini — diisi karyawan toko saat booking dikonfirmasi. Kalau booking ini pakai lebih dari 1 varian produk (mis. kaca depan beda dari kaca samping/belakang), tambahkan sisanya di "Produk Tambahan per Bagian" di bawah.'),
 
                     // Produk TAMBAHAN per bagian kendaraan -- keputusan
                     // atasan 2026-09-19 (Topik 3): 1 booking BISA pakai
@@ -689,7 +689,7 @@ class BookingResource extends Resource
                     Forms\Components\Select::make('status')
                         ->label('Status')
                         ->helperText(fn (?Booking $record) => $record?->status === 'confirmed'
-                            ? '"Selesai" baru bisa dipilih setelah tahap Quality Check ditandai lewat mobile staff.'
+                            ? '"Selesai" baru bisa dipilih setelah tahap Quality Check ditandai lewat aplikasi karyawan.'
                             : null)
                         ->disableOptionWhen(fn (string $value, ?Booking $record) => $value === 'completed'
                             && $record?->status === 'confirmed'
@@ -942,7 +942,7 @@ class BookingResource extends Resource
                         ->visible(fn (Booking $record) => $record->status === 'cancelled')
                         ->formatStateUsing(fn (?string $state, Booking $record) => trim(
                             ($state ?: 'Tanpa alasan')
-                            . ($record->cancelled_by_type ? ' — oleh ' . ['customer' => 'customer', 'staff' => 'staff', 'system' => 'sistem'][$record->cancelled_by_type] : '')
+                            . ($record->cancelled_by_type ? ' — oleh ' . ['customer' => 'customer', 'staff' => 'karyawan', 'system' => 'sistem'][$record->cancelled_by_type] : '')
                             . ($record->cancelled_at ? ', ' . $record->cancelled_at->format('d M Y H:i') : '')
                         ))
                         ->columnSpanFull(),
@@ -1044,6 +1044,12 @@ class BookingResource extends Resource
                 ]);
             }
         }
+    }
+
+    /** Baris rincian harga jenis ini wajib punya produk (SKU)? Lihat config('booking.sale_line_sku_required'). */
+    public static function saleLineSkuRequired(?string $serviceType): bool
+    {
+        return (bool) config('booking.sale_line_sku_required') && in_array($serviceType, \App\Services\BookingSaleLineService::SKU_REQUIRED_TYPES, true);
     }
 
     public static function table(Table $table): Table
@@ -1181,7 +1187,7 @@ class BookingResource extends Resource
                     ->limit(40)
                     ->tooltip(fn (Booking $record) => $record->cancel_reason)
                     ->description(fn (Booking $record) => $record->cancelled_by_type
-                        ? 'oleh ' . (['customer' => 'customer', 'staff' => 'staff', 'system' => 'sistem'][$record->cancelled_by_type] ?? $record->cancelled_by_type)
+                        ? 'oleh ' . (['customer' => 'customer', 'staff' => 'karyawan', 'system' => 'sistem'][$record->cancelled_by_type] ?? $record->cancelled_by_type)
                         : null)
                     ->toggleable(isToggledHiddenByDefault: true),
 
@@ -1246,7 +1252,7 @@ class BookingResource extends Resource
                     ->label('Dibatalkan oleh')
                     ->options([
                         'customer' => 'Pelanggan',
-                        'staff'    => 'Staff',
+                        'staff'    => 'Karyawan',
                         'system'   => 'Sistem',
                     ]),
 
@@ -1433,10 +1439,12 @@ class BookingResource extends Resource
                                     ->live()
                                     ->required(),
                                 Forms\Components\Select::make('film_product_id')
-                                    ->label('Produk (opsional)')
+                                    ->label(fn (Forms\Get $get) => self::saleLineSkuRequired($get('service_type')) ? 'Produk (SKU)' : 'Produk (opsional)')
                                     ->options(fn () => \App\Models\FilmProduct::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                                     ->searchable()
-                                    ->native(false),
+                                    ->native(false)
+                                    ->required(fn (Forms\Get $get) => self::saleLineSkuRequired($get('service_type')))
+                                    ->helperText(fn (Forms\Get $get) => self::saleLineSkuRequired($get('service_type')) ? 'Wajib untuk PPF dan Kaca Film: dipakai laporan Penjualan Produk.' : null),
                                 Forms\Components\TextInput::make('position')->label('Bagian / keterangan')->maxLength(80),
                                 Forms\Components\TextInput::make('quantity')->label('Jumlah')->numeric()->minValue(0.01)->default(1)->live(onBlur: true)->required(),
                                 Forms\Components\TextInput::make('unit_price')->label('Harga satuan')->numeric()->minValue(0)->prefix('Rp')->live(onBlur: true)->required(),

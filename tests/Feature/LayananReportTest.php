@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Exports\LayananReportExport;
 use App\Filament\Pages\JenisOrderReport;
 use App\Filament\Pages\LayananReport;
+use App\Filament\Widgets\LayananChart;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Store;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Maatwebsite\Excel\Facades\Excel;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionMethod;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -169,8 +171,8 @@ class LayananReportTest extends TestCase
         $this->assertEquals(2200001.0, $result['totalRevenue']);
         $this->assertEqualsWithDelta(2200001.0 / 5, $result['avgRevenue'], 0.001);
         $this->assertSame(['Toko A', 'Toko B'], array_keys($result['byStore']), 'Urut pendapatan tertinggi.');
-        $this->assertEquals(['count' => 3, 'revenue' => 1500000.0], $result['byStore']['Toko A']);
-        $this->assertEquals(['count' => 2, 'revenue' => 800001.0], $result['byStore']['Toko B']);
+        $this->assertEquals([3, 1500000.0, 100000.0, 1400000.0], [$result['byStore']['Toko A']['count'], $result['byStore']['Toko A']['revenue'], $result['byStore']['Toko A']['refund'], $result['byStore']['Toko A']['net']]);
+        $this->assertEquals([2, 800001.0, 0.0, 800001.0], [$result['byStore']['Toko B']['count'], $result['byStore']['Toko B']['revenue'], $result['byStore']['Toko B']['refund'], $result['byStore']['Toko B']['net']]);
     }
 
     public function test_refunds_follow_the_day_processed_even_when_the_start_date_has_a_time(): void
@@ -282,38 +284,54 @@ class LayananReportTest extends TestCase
     // ------------------------------------------------------------- ekspor & tampilan
 
     #[DataProvider('pages')]
-    public function test_excel_has_the_page_title_all_type_rows_and_the_store_rows(string $class, string $title): void
+    public function test_excel_has_the_page_title_all_type_rows_the_store_rows_and_totals(string $class, string $title): void
     {
-        $this->october();
+        $bookings = $this->october();
+        app(RefundService::class)->process($bookings['ppf'], 100000, null, null);
         $rows = (new LayananReportExport($this->report($class), $title))->array();
         $by = collect($rows)->keyBy(fn ($r) => $r[0] ?? '');
 
         $this->assertSame([$title], $rows[0]);
         $this->assertSame(['Periode', '01 Oct 2026 - 31 Oct 2026'], $rows[1]);
-        $this->assertSame(5, $by['Transaksi'][1]);
+        $this->assertSame(5, $by['Jumlah Transaksi'][1]);
         // Nominal berupa ANGKA (bisa dijumlah di Excel), bukan teks berformat; selisih <= 0,51 = pembulatan 0,5 lama.
         $money = function ($value, float $expected, string $message = '') {
             $this->assertIsFloat($value, $message);
             $this->assertEqualsWithDelta($expected, $value, 0.51, $message);
         };
         $money($by['Total Pendapatan (kotor)'][1], 2300001);
-        $money($by['Total Pendapatan (bersih)'][1], 2300001);
-        $this->assertSame(0.0, $by['Pengembalian'][1], 'Tanpa refund = 0, bukan teks "-".');
+        $money($by['Total Pendapatan (bersih)'][1], 2200001);
+        $money($by['Pengembalian'][1], -100000);
+
+        // Baris jenis: [jenis, jumlah, jumlah %, pendapatan, pendapatan %, rata-rata, pengembalian, bersih]
         $this->assertSame(3, $by['PPF'][1]);
         $money($by['PPF'][3], 1350001);
         $this->assertIsFloat($by['PPF'][2], 'Persentase berupa angka.');
         $this->assertIsFloat($by['PPF'][4]);
+        $money($by['PPF'][6], -100000);
+        $money($by['PPF'][7], 1250001);
         $this->assertSame(2, $by['Kaca Film'][1]);
         $money($by['Kaca Film'][3], 700001);
         $this->assertSame(2, $by['Detailing'][1]);
         $money($by['Detailing'][3], 250000);
         $this->assertSame(0, $by['Premium Wash'][1]);
         $this->assertSame(0.0, $by['Premium Wash'][3]);
-        $this->assertSame(0, $by['Lainnya (tanpa jenis)'][1]);
+        $this->assertArrayNotHasKey('Lainnya (tanpa jenis)', $by->all(), 'Baris Lainnya hanya ada bila ada isinya.');
+
+        // Baris Total (jenis) lalu Total (toko): keyBy menyimpan yang terakhir, jadi cari lewat posisi.
+        $totals = collect($rows)->filter(fn ($r) => ($r[0] ?? '') === 'Total')->values();
+        $this->assertCount(2, $totals, 'Satu Total di tabel jenis, satu di tabel toko.');
+        $this->assertSame(7, $totals[0][1], 'Total slot jenis: PPF 3 + Kaca Film 2 + Detailing 2.');
+        $money($totals[0][7], 2200001);
+        $this->assertSame(5, $totals[1][1], 'Total toko = jumlah transaksi.');
+
+        // Baris toko: [toko, jumlah, Kaca Film, PPF, Detailing, Premium Wash, pendapatan, pengembalian, bersih]
         $this->assertSame(3, $by['Toko A'][1]);
-        $money($by['Toko A'][2], 1500000);
+        $money($by['Toko A'][6], 1500000);
+        $money($by['Toko A'][7], -100000);
+        $money($by['Toko A'][8], 1400000);
         $this->assertSame(2, $by['Toko B'][1]);
-        $money($by['Toko B'][2], 800001);
+        $money($by['Toko B'][6], 800001);
     }
 
     #[DataProvider('pages')]
@@ -326,7 +344,9 @@ class LayananReportTest extends TestCase
             ->assertSuccessful()
             ->assertSee('Detailing')
             ->assertSee('Premium Wash')
-            ->assertSee('Lainnya')
+            ->assertDontSee('Lainnya')
+            ->assertSee('Rata-rata per Transaksi')
+            ->assertSee('Pengembalian')
             ->assertSee('Rp2.200.001')
             ->assertSee('Per Toko')
             ->assertSee('Toko A');
@@ -357,5 +377,69 @@ class LayananReportTest extends TestCase
         $this->october();
         $this->page(JenisOrderReport::class)->callAction('exportPdf')->assertHasNoActionErrors();
         $this->page(LayananReport::class)->callAction('exportPdf')->assertHasNoActionErrors();
+    }
+
+    // ------------------------------------------------------------- pengembalian, toko per jenis, Lainnya, grafik
+
+    public function test_refunds_are_split_by_type_and_store_so_the_net_columns_add_up_to_the_headline(): void
+    {
+        $bookings = $this->october();
+        app(RefundService::class)->process($bookings['both'], 100000, null, null);
+
+        $result = $this->report(LayananReport::class);
+
+        // PPF + Kaca Film dibagi rata: 50.000 ke masing-masing jenis, dan 100.000 ke Toko B.
+        $this->assertEquals(50000.0, $result['byType']['ppf']['refund']);
+        $this->assertEquals(50000.0, $result['byType']['kaca_film']['refund']);
+        $this->assertEquals(0.0, $result['byType']['detailing']['refund']);
+        $this->assertEquals(100000.0, $result['byStore']['Toko B']['refund']);
+        $this->assertEqualsWithDelta($result['totalRevenue'], array_sum(array_column($result['byType'], 'net')), 0.01, 'Bersih per jenis berjumlah sama dengan headline.');
+        $this->assertEqualsWithDelta($result['totalRevenue'], array_sum(array_column($result['byStore'], 'net')), 0.01, 'Bersih per toko berjumlah sama dengan headline.');
+    }
+
+    public function test_each_store_row_breaks_revenue_down_by_service_type(): void
+    {
+        $this->october();
+
+        $stores = $this->report(LayananReport::class)['byStore'];
+
+        $this->assertEquals(1050000.0, $stores['Toko A']['types']['ppf'], 'PPF 1.000.000 + setengah dari PPF + Detailing 100.000.');
+        $this->assertEquals(400000.0, $stores['Toko A']['types']['kaca_film']);
+        $this->assertEquals(50000.0, $stores['Toko A']['types']['detailing']);
+        $this->assertEquals(200000.0, $stores['Toko B']['types']['detailing']);
+        $this->assertEquals(300000.5, $stores['Toko B']['types']['ppf']);
+        $this->assertEqualsWithDelta($stores['Toko A']['revenue'], array_sum($stores['Toko A']['types']), 0.01);
+    }
+
+    public function test_the_other_row_and_column_appear_only_when_a_booking_has_no_type(): void
+    {
+        $this->sale(90000, '2026-10-04', $this->storeA, ['product_ppf' => false]);
+
+        $this->page(LayananReport::class)->assertSee('Lainnya')->assertSee('Rp90.000');
+        $export = (new LayananReportExport($this->report(LayananReport::class)))->array();
+        $this->assertContains('Lainnya (tanpa jenis)', array_column($export, 0));
+    }
+
+    public function test_the_page_has_total_rows_and_the_chart_follows_the_range_and_all_four_types(): void
+    {
+        $this->october();
+        $this->page(LayananReport::class)->assertSee('Total');
+
+        $this->actingAs($this->admin(), 'web');
+        $chart = Livewire::test(LayananChart::class, ['from' => '2026-10-01', 'to' => '2026-10-07', 'storeId' => null]);
+        $method = new ReflectionMethod(LayananChart::class, 'getData');
+        $method->setAccessible(true);
+        $data = $method->invoke($chart->instance());
+        $datasets = collect($data['datasets'])->keyBy('label');
+
+        $this->assertSame(['Kaca Film', 'PPF', 'Detailing', 'Premium Wash'], array_keys($datasets->all()));
+        $this->assertCount(7, $data['labels'], 'Mengikuti Dari/Sampai halaman, bukan 14/30/90 hari.');
+        $this->assertEquals([0, 0, 1000000.0, 0, 300000.5, 0, 50000.0], $datasets['PPF']['data']);
+        $this->assertEquals([0, 0, 0, 400000.0, 300000.5, 0, 0], $datasets['Kaca Film']['data']);
+        $this->assertEquals([0, 0, 0, 0, 0, 200000.0, 50000.0], $datasets['Detailing']['data']);
+
+        $storeB = Livewire::test(LayananChart::class, ['from' => '2026-10-01', 'to' => '2026-10-07', 'storeId' => $this->storeB->id]);
+        $dataB = $method->invoke($storeB->instance());
+        $this->assertEquals([0, 0, 0, 0, 300000.5, 0, 0], collect($dataB['datasets'])->keyBy('label')['PPF']['data'], 'Mengikuti filter toko.');
     }
 }

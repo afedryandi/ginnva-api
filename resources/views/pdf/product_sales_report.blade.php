@@ -31,15 +31,13 @@
                 <th>Produk</th>
                 <th>SKU</th>
                 <th>Jenis Produk</th>
-                <th>Jumlah</th>
+                <th>Jumlah Transaksi</th>
                 <th>Jumlah %</th>
                 <th>Penjualan</th>
                 <th>Penjualan %</th>
                 <th>Jumlah Refund</th>
                 <th>Refund</th>
                 <th>Komisi</th>
-                <th>HPP</th>
-                <th>Laba Kotor</th>
             </tr>
         </thead>
         <tbody>
@@ -55,24 +53,20 @@
                     <td>{{ $row['refundCount'] > 0 ? $row['refundCount'] : '-' }}</td>
                     <td>{{ $row['refundAmount'] > 0 ? '(' . $rupiah($row['refundAmount']) . ')' : '-' }}</td>
                     <td>{{ $row['commission'] > 0 ? '(' . $rupiah($row['commission']) . ')' : '-' }}{{ $row['hasUnratedJob'] ? ' *' : '' }}</td>
-                    <td>{{ $row['cogs'] > 0 ? '(' . $rupiah($row['cogs']) . ')' : '-' }}{{ $row['hasMissingCost'] ? ' *' : '' }}</td>
-                    <td>{{ $rupiah($row['grossProfit']) }}</td>
                 </tr>
             @endforeach
             <tr class="total">
                 <td colspan="3">Total</td>
-                <td>{{ number_format($result['totalCount'], 0, ',', '.') }}</td>
+                <td>{{ number_format($result['slotCount'], 0, ',', '.') }}</td>
                 <td></td>
                 <td>{{ $rupiah($result['grossRevenue']) }}</td>
-                <td colspan="2"></td>
-                <td>{{ $rupiah($result['totalCommission']) }}</td>
-                <td>{{ $rupiah($result['totalCogs']) }}</td>
-                <td>{{ $rupiah($result['totalGrossProfit']) }}</td>
+                <td></td>
+                <td></td>
+                <td>{{ $result['totalRefundAmount'] > 0 ? '(' . $rupiah($result['totalRefundAmount']) . ')' : '-' }}</td>
+                <td>{{ $result['totalCommission'] > 0 ? '(' . $rupiah($result['totalCommission']) . ')' : '-' }}</td>
             </tr>
         </tbody>
     </table>
-    @if ($result['hasMissingCost'])
-        <p style="margin-top: 10px; font-size: 9px; color: #9ca3af;">* = ada bahan pada baris itu belum diisi harga belinya — HPP & Laba Kotor baris itu minimum.</p>
-    @endif
+    <p style="margin-top: 10px; font-size: 9px; color: #9ca3af;">Transaksi berproduk ganda dihitung di tiap produknya. * = ada installer yang komisinya belum diatur.</p>
 </body>
 </html>

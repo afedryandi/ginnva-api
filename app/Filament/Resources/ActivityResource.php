@@ -125,7 +125,7 @@ class ActivityResource extends Resource
     'report_export' => 'Export Laporan',
     'reward' => 'Reward',
     'reward_redemption' => 'Klaim Reward',
-    'role' => 'Role & Divisi',
+    'role' => 'Jabatan & Divisi',
     'schedule_day_override' => 'Override Jadwal Harian',
     'scheduled_price_change' => 'Perubahan Harga Terjadwal',
     'scroll_code' => 'Kode Gulungan',

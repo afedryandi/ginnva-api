@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Filament\Pages\LayananReport;
 use App\Models\Booking;
 use Filament\Widgets\ChartWidget;
+use Illuminate\Support\Carbon;
 
 /**
  * "Grafik Jenis Order" — diminta 2026-09-09, analog grafik tren di
@@ -56,9 +57,19 @@ class LayananChart extends ChartWidget
      */
     public ?int $storeId = null;
 
-    public function mount(?int $storeId = null): void
+    /**
+     * Rentang dari halaman Laporan Jasa (Dari/Sampai). Kosong = dipakai di Dashboard utama dengan pilihan 14/30/90 hari sendiri.
+     * Diisi lewat @livewire(..., ['from' => ..., 'to' => ..., 'storeId' => ...]) supaya grafik mengikuti filter halaman.
+     */
+    public ?string $from = null;
+
+    public ?string $to = null;
+
+    public function mount(?int $storeId = null, ?string $from = null, ?string $to = null): void
     {
         $this->storeId = $storeId;
+        $this->from = $from;
+        $this->to = $to;
     }
 
     public static function canView(): bool
@@ -68,6 +79,11 @@ class LayananChart extends ChartWidget
 
     protected function getFilters(): ?array
     {
+        // Di halaman laporan rentangnya dari filter halaman, jadi pilihan hari tidak ditampilkan.
+        if ($this->from) {
+            return null;
+        }
+
         return [
             '14' => '14 Hari Terakhir',
             '30' => '30 Hari Terakhir',
@@ -77,9 +93,14 @@ class LayananChart extends ChartWidget
 
     protected function getData(): array
     {
-        $days = (int) ($this->filter ?? 30);
-        $start = now()->subDays($days - 1)->startOfDay();
-        $end = now()->endOfDay();
+        if ($this->from) {
+            $start = Carbon::parse($this->from)->startOfDay();
+            $end = Carbon::parse($this->to ?? $this->from)->endOfDay();
+        } else {
+            $days = (int) ($this->filter ?? 30);
+            $start = now()->subDays($days - 1)->startOfDay();
+            $end = now()->endOfDay();
+        }
 
         // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit Laporan Jenis
         // Order): grafik ini SEBELUMNYA SAMA SEKALI TIDAK ADA scoping
@@ -95,62 +116,59 @@ class LayananChart extends ChartWidget
             ->with(['journalEntry:id,entry_date', 'saleLines'])
             ->get(['id', 'transaction_amount', 'journal_entry_id', 'sale_date', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
 
-        $kacaFilmByDate = [];
-        $ppfByDate = [];
+        // Empat jenis layanan, masing-masing satu garis (sebelumnya hanya Kaca Film dan PPF). "Lainnya" (booking tanpa jenis) tidak digambar.
+        $byDate = ['kaca_film' => [], 'ppf' => [], 'detailing' => [], 'premium_wash' => []];
 
         foreach ($bookings as $booking) {
             $date = $booking->sale_day?->toDateString();
             if (! $date) continue;
 
             // Pembagian per jenis SAMA dengan Jurnal Umum (BookingRevenueSplitter): menurut rincian harga bila ada, bagi rata bila tidak.
-            $shares = \App\Services\BookingRevenueSplitter::shares($booking, (float) $booking->transaction_amount);
-
-            if (isset($shares['ppf'])) {
-                $ppfByDate[$date] = ($ppfByDate[$date] ?? 0) + $shares['ppf'];
-            }
-            if (isset($shares['kaca_film'])) {
-                $kacaFilmByDate[$date] = ($kacaFilmByDate[$date] ?? 0) + $shares['kaca_film'];
+            foreach (\App\Services\BookingRevenueSplitter::shares($booking, (float) $booking->transaction_amount) as $typeKey => $portion) {
+                if (isset($byDate[$typeKey])) {
+                    $byDate[$typeKey][$date] = ($byDate[$typeKey][$date] ?? 0) + $portion;
+                }
             }
         }
 
         $labels = [];
-        $kacaFilmData = [];
-        $ppfData = [];
+        $series = ['kaca_film' => [], 'ppf' => [], 'detailing' => [], 'premium_wash' => []];
 
         $cursor = $start->copy();
         while ($cursor->lte($end)) {
             $key = $cursor->toDateString();
             $labels[] = $cursor->format('d M');
-            $kacaFilmData[] = $kacaFilmByDate[$key] ?? 0;
-            $ppfData[] = $ppfByDate[$key] ?? 0;
+            foreach ($series as $typeKey => $_) {
+                $series[$typeKey][] = $byDate[$typeKey][$key] ?? 0;
+            }
             $cursor->addDay();
         }
 
+        $styles = [
+            'kaca_film' => ['Kaca Film', '#2563eb', 'rgba(37, 99, 235, 0.1)'],
+            'ppf' => ['PPF', '#ED1651', 'rgba(237, 22, 81, 0.1)'],
+            'detailing' => ['Detailing', '#16a34a', 'rgba(22, 163, 74, 0.1)'],
+            'premium_wash' => ['Premium Wash', '#f59e0b', 'rgba(245, 158, 11, 0.1)'],
+        ];
+
+        $datasets = [];
+        foreach ($styles as $typeKey => [$label, $color, $fillColor]) {
+            $datasets[] = [
+                'label' => $label,
+                'data' => $series[$typeKey],
+                'borderColor' => $color,
+                'backgroundColor' => $fillColor,
+                'pointRadius' => 2,
+                'tension' => 0.3,
+                'fill' => false,
+            ];
+        }
+
         return [
-            'datasets' => [
-                [
-                    'label' => 'Kaca Film',
-                    'data' => $kacaFilmData,
-                    'borderColor' => '#2563eb',
-                    'backgroundColor' => 'rgba(37, 99, 235, 0.1)',
-                    'pointRadius' => 2,
-                    'tension' => 0.3,
-                    'fill' => true,
-                ],
-                [
-                    'label' => 'PPF',
-                    'data' => $ppfData,
-                    'borderColor' => '#ED1651',
-                    'backgroundColor' => 'rgba(237, 22, 81, 0.1)',
-                    'pointRadius' => 2,
-                    'tension' => 0.3,
-                    'fill' => true,
-                ],
-            ],
+            'datasets' => $datasets,
             'labels' => $labels,
         ];
     }
-
     protected function getType(): string
     {
         return 'line';

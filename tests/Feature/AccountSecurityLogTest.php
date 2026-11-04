@@ -252,11 +252,11 @@ class AccountSecurityLogTest extends TestCase
             ->assertCanSeeTableRecords([$record])
             ->assertTableColumnFormattedStateSet('log_name', 'Keamanan Akun', record: $record)
             ->assertTableColumnFormattedStateSet('event', 'Masuk', record: $record)
-            ->assertTableColumnStateSet('source', 'Aplikasi Staff', record: $record);
+            ->assertTableColumnStateSet('source', 'Aplikasi Karyawan', record: $record);
 
         Livewire::test(ViewActivity::class, ['record' => $log->getRouteKey()])
             ->assertSuccessful()
-            ->assertSee('Aplikasi Staff')
+            ->assertSee('Aplikasi Karyawan')
             ->assertSee('127.0.0.1')
             ->assertSee('GinnvaStaff/1.2');
     }

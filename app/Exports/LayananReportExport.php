@@ -2,16 +2,17 @@
 
 namespace App\Exports;
 
+use App\Filament\Pages\LayananReport;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithStyles;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Export "Laporan Jasa" / "Laporan Jenis Order" (LayananReport /
- * JenisOrderReport — logic sama, cuma nama menu beda) — audit
- * 2026-09-11, temuan B. $title dipakai supaya file export dari halaman
- * "Laporan Jenis Order" tidak keliru bertuliskan "Laporan Jasa".
+ * Export "Laporan Jasa" / "Laporan Jenis Order" (LayananReport / JenisOrderReport — logic sama, cuma nama menu beda). $title dipakai
+ * supaya file export dari halaman "Laporan Jenis Order" tidak keliru bertuliskan "Laporan Jasa".
+ *
+ * Susunan lembar dibangun SEKALI di layout() (baris + nomor baris tiap blok), lalu dipakai array() dan styles(), jadi format sel tidak
+ * lagi bergantung pada nomor baris yang ditulis tangan.
  */
 class LayananReportExport implements FromArray, WithStyles
 {
@@ -19,62 +20,96 @@ class LayananReportExport implements FromArray, WithStyles
 
     public function array(): array
     {
+        return $this->layout()['rows'];
+    }
+
+    /**
+     * @return array{rows: array<int, array<int, mixed>>, money: list<string>, pct: list<string>}
+     *         money/pct = rentang sel (mis. "D13:D18") yang diberi format rupiah / persen
+     */
+    private function layout(): array
+    {
         $r = $this->result;
-        // Semua nominal ditulis sebagai ANGKA (bukan teks berformat) supaya bisa dijumlahkan/difilter di Excel;
-        // tampilan ribuan/kurung/persen diatur lewat format sel di styles(). Pengembalian bernilai negatif.
+        // Semua nominal ditulis sebagai ANGKA (bukan teks berformat) supaya bisa dijumlahkan/difilter di Excel; tampilan diatur lewat
+        // format sel di styles(). Pengembalian bernilai negatif.
         $number = fn ($n) => round((float) $n, 2);
+        $labels = LayananReport::TYPE_LABELS;
+        $typeKeys = array_values(array_filter(array_keys($labels), fn ($key) => $key !== 'lainnya' || $r['byType']['lainnya']['count'] > 0));
+        $storeTypeKeys = array_values(array_filter($typeKeys, fn ($key) => $key !== 'lainnya' || array_sum(array_column(array_column($r['byStore'], 'types'), 'lainnya')) > 0));
 
         $rows = [
             [$this->title],
             ['Periode', $r['from']->format('d M Y') . ' - ' . $r['to']->format('d M Y')],
             [],
             ['RINGKASAN'],
-            ['Transaksi', $r['totalCount']],
+            ['Jumlah Transaksi', $r['totalCount']],
             ['Total Pendapatan (bersih)', $number($r['totalRevenue'])],
             ['Pengembalian', (float) $r['refund'] > 0 ? -$number($r['refund']) : 0.0],
             ['Total Pendapatan (kotor)', $number($r['grossRevenue'])],
-            ['Rata-rata per Jasa', $number($r['avgRevenue'])],
+            ['Rata-rata per Transaksi', $number($r['avgRevenue'])],
             [],
-            ['PER JENIS SERVIS (kotor, belum dikurangi pengembalian)'],
-            ['Jenis', 'Jumlah', 'Jumlah %', 'Pendapatan', 'Pendapatan %'],
-            ['Kaca Film', $r['byType']['kaca_film']['count'], round($r['byType']['kaca_film']['countPct'], 1), $number($r['byType']['kaca_film']['revenue']), round($r['byType']['kaca_film']['revenuePct'], 1)],
-            ['PPF', $r['byType']['ppf']['count'], round($r['byType']['ppf']['countPct'], 1), $number($r['byType']['ppf']['revenue']), round($r['byType']['ppf']['revenuePct'], 1)],
-            ['Detailing', $r['byType']['detailing']['count'], round($r['byType']['detailing']['countPct'], 1), $number($r['byType']['detailing']['revenue']), round($r['byType']['detailing']['revenuePct'], 1)],
-            ['Premium Wash', $r['byType']['premium_wash']['count'], round($r['byType']['premium_wash']['countPct'], 1), $number($r['byType']['premium_wash']['revenue']), round($r['byType']['premium_wash']['revenuePct'], 1)],
-            ['Lainnya (tanpa jenis)', $r['byType']['lainnya']['count'], round($r['byType']['lainnya']['countPct'], 1), $number($r['byType']['lainnya']['revenue']), round($r['byType']['lainnya']['revenuePct'], 1)],
-            [],
-            ['PER TOKO'],
-            ['Toko', 'Jumlah', 'Pendapatan'],
         ];
+        $money = ['B6:B9'];
+        $pct = [];
 
+        // ---- Per jenis layanan
+        $rows[] = ['PER JENIS LAYANAN (pendapatan kotor; Pengembalian dan Bersih dibagi dengan proporsi yang sama)'];
+        $rows[] = ['Jenis', 'Jumlah', 'Jumlah %', 'Pendapatan', 'Pendapatan %', 'Rata-rata', 'Pengembalian', 'Bersih'];
+        $first = count($rows) + 1;
+        foreach ($typeKeys as $key) {
+            $row = $r['byType'][$key];
+            $rows[] = [$labels[$key], $row['count'], round($row['countPct'], 1), $number($row['revenue']), round($row['revenuePct'], 1), $number($row['avg']), $row['refund'] > 0 ? -$number($row['refund']) : 0.0, $number($row['net'])];
+        }
+        $rows[] = ['Total', $r['slotCount'], '', $number($r['grossRevenue']), '', '', (float) $r['refund'] > 0 ? -$number($r['refund']) : 0.0, $number($r['totalRevenue'])];
+        $last = count($rows);
+        $pct[] = "C{$first}:C{$last}";
+        $pct[] = "E{$first}:E{$last}";
+        $money[] = "D{$first}:D{$last}";
+        $money[] = "F{$first}:H{$last}";
+        $typeTotalRow = $last;
+        $rows[] = [];
+
+        // ---- Per toko
+        $rows[] = ['PER TOKO (pendapatan kotor menurut jenis layanan)'];
+        $rows[] = array_merge(['Toko', 'Jumlah'], array_map(fn ($key) => $labels[$key], $storeTypeKeys), ['Pendapatan', 'Pengembalian', 'Bersih']);
+        $storeFirst = count($rows) + 1;
         foreach ($r['byStore'] as $storeName => $row) {
-            $rows[] = [$storeName, $row['count'], $number($row['revenue'])];
+            $rows[] = array_merge(
+                [$storeName, $row['count']],
+                array_map(fn ($key) => $number($row['types'][$key]), $storeTypeKeys),
+                [$number($row['revenue']), $row['refund'] > 0 ? -$number($row['refund']) : 0.0, $number($row['net'])]
+            );
         }
 
-        return $rows;
+        if (count($r['byStore']) > 0) {
+            $rows[] = array_merge(
+                ['Total', $r['totalCount']],
+                array_map(fn ($key) => $number(array_sum(array_column(array_column($r['byStore'], 'types'), $key))), $storeTypeKeys),
+                [$number($r['grossRevenue']), (float) $r['refund'] > 0 ? -$number($r['refund']) : 0.0, $number($r['totalRevenue'])]
+            );
+            $lastColumn = chr(ord('A') + 1 + count($storeTypeKeys) + 3); // Toko, Jumlah, jenis…, Pendapatan, Pengembalian, Bersih
+            $money[] = 'C' . $storeFirst . ':' . $lastColumn . count($rows);
+        }
+
+        return ['rows' => $rows, 'money' => $money, 'pct' => $pct, 'typeTotalRow' => $typeTotalRow, 'storeTotalRow' => count($r['byStore']) > 0 ? count($rows) : null];
     }
 
-    /**
-     * Nomor baris HARDCODED mengikuti urutan array(): ringkasan nominal di B6:B9, tabel jenis di baris 13-17
-     * (C & E persen, D rupiah), tabel toko mulai baris 21 (C rupiah). Ubah array() => sesuaikan di sini.
-     */
     public function styles(Worksheet $sheet): array
     {
-        $money = '#,##0;(#,##0);"-"';
-        $pct = '0.0';
+        $layout = $this->layout();
         $format = fn (string $code) => ['numberFormat' => ['formatCode' => $code]];
 
-        $styles = [
-            1 => ['font' => ['bold' => true, 'size' => 14]],
-            'B6:B9' => $format($money),
-            'C13:C17' => $format($pct),
-            'D13:D17' => $format($money),
-            'E13:E17' => $format($pct),
-        ];
+        $styles = [1 => ['font' => ['bold' => true, 'size' => 14]]];
 
-        $storeCount = count($this->result['byStore']);
-        if ($storeCount > 0) {
-            $styles['C21:C' . (20 + $storeCount)] = $format($money);
+        foreach ($layout['money'] as $range) {
+            $styles[$range] = $format('#,##0;(#,##0);"-"');
+        }
+        foreach ($layout['pct'] as $range) {
+            $styles[$range] = $format('0.0');
+        }
+
+        foreach (array_filter([$layout['typeTotalRow'], $layout['storeTotalRow']]) as $row) {
+            $styles[$row] = ['font' => ['bold' => true]];
         }
 
         return $styles;

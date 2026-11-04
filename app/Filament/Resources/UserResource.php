@@ -355,6 +355,21 @@ class UserResource extends Resource
     }
 
     /**
+     * Pilihan Jabatan di form User: id => nama yang mudah dibaca; jabatan bawaan yang membawa wewenang diberi tanda. "partner" tidak
+     * ditawarkan (dikelola di menu Partner).
+     *
+     * @return array<int, string>
+     */
+    public static function roleOptions(): array
+    {
+        return \Spatie\Permission\Models\Role::where('name', '!=', 'partner')->orderBy('name')->get()
+            ->mapWithKeys(fn ($role) => [
+                $role->id => (string) str($role->name)->replace('_', ' ')->title() . (isset(RoleResource::DESCRIPTIONS[$role->name]) ? ' (wewenang bawaan)' : ''),
+            ])
+            ->all();
+    }
+
+    /**
      * Toggle per MODUL (bukan lagi 1 CheckboxList per grup) — diubah
      * 2026-09-23 supaya "Akses Menu" & "Hak Akses Detail" bisa digabung
      * jadi 1 tampilan (centang modul -> langsung muncul checklist CRUD-
@@ -755,7 +770,7 @@ class UserResource extends Resource
             ->dehydrated(false)
             ->columnSpanFull()
             ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
-            ->helperText('Mengisi kotak modul dan hak detail di bawah sesuai karyawan yang dipilih, lalu tinggal diubah seperlunya. Role dan Toko tidak ikut disalin. Baru berlaku setelah Anda menekan Simpan.')
+            ->helperText('Mengisi kotak modul dan hak detail di bawah sesuai karyawan yang dipilih, lalu tinggal diubah seperlunya. Jabatan dan Toko tidak ikut disalin. Baru berlaku setelah Anda menekan Simpan.')
             ->afterStateUpdated(function ($state, Forms\Set $set) {
                 $source = $state ? User::find($state) : null;
 
@@ -833,12 +848,13 @@ class UserResource extends Resource
                         ->dehydrated(),
 
                     Forms\Components\Select::make('roles')
-                        ->label('Role')
+                        ->label('Jabatan')
+                        ->helperText('Jabatan karyawan. Store Manager, Spv Finance, Installer Leader, Installer, Direksi, dan Super Admin (bertanda "wewenang bawaan") membawa wewenang tertentu; jabatan lain hanya nama, dan menu yang boleh dibuka diatur di Akses Menu di bawah.')
                         ->relationship('roles', 'name')
                         // "partner" sengaja tidak ditawarkan di sini — akun
                         // mitra referral dibuat & dikelola lewat menu Partner
                         // (PartnerResource), bukan dari menu User internal ini.
-                        ->options(fn () => \Spatie\Permission\Models\Role::where('name', '!=', 'partner')->pluck('name', 'id'))
+                        ->options(fn () => self::roleOptions())
                         ->multiple()
                         ->preload()
                         // Bikin role baru langsung dari sini kalau divisinya
@@ -847,15 +863,15 @@ class UserResource extends Resource
                         // ke-set sama seperti role lain (lihat RoleResource).
                         ->createOptionForm([
                             Forms\Components\TextInput::make('name')
-                                ->label('Nama Role Baru')
+                                ->label('Nama Jabatan Baru')
                                 ->required()
                                 ->unique(table: 'roles', column: 'name')
                                 ->regex('/^[a-z_]+$/')
                                 ->validationMessages([
                                     'regex' => 'Huruf kecil & underscore saja, contoh: warehouse_staff.',
-                                    'unique' => 'Nama role ini sudah digunakan, pakai nama lain.',
+                                    'unique' => 'Nama jabatan ini sudah digunakan, pakai nama lain.',
                                 ])
-                                ->helperText('Contoh: hrd, warehouse_staff, sales_admin.'),
+                                ->helperText('Contoh: hrd, warehouse_staff, sales_admin. Jabatan baru hanya nama; tidak membawa wewenang bawaan.'),
                             Forms\Components\Hidden::make('guard_name')->default('web'),
                         ])
                         // Jalur cepat ini TIDAK lewat halaman CreateRole sama
@@ -881,7 +897,7 @@ class UserResource extends Resource
                         ->helperText('super_admin/direksi: akses penuh. store_manager & installer: wajib pilih Toko di bawah (installer tidak bisa login ke panel ini, hanya via mobile app).'),
 
                     Forms\Components\Select::make('store_id')
-                        ->label('Toko (khusus role yang terikat 1 toko)')
+                        ->label('Toko (khusus jabatan yang terikat 1 toko)')
                         ->relationship('store', 'name')
                         ->searchable()
                         ->preload()
@@ -909,7 +925,7 @@ class UserResource extends Resource
                                     ->where('name', 'partner')
                                     ->exists();
                                 if ($isPartner) {
-                                    $fail('Role Partner tidak boleh terikat ke satu Toko — partner adalah akun bisnis company-wide, bukan staff toko. Kosongkan field ini.');
+                                    $fail('Jabatan Partner tidak boleh terikat ke satu Toko — partner adalah akun bisnis company-wide, bukan karyawan toko. Kosongkan field ini.');
                                 }
                             },
                         ])
@@ -1115,7 +1131,7 @@ class UserResource extends Resource
             // jangan boleh ubah") — kalau nanti perlu itu, butuh mekanisme
             // terpisah, bukan checklist yang sama.
             Forms\Components\Section::make('Akses Menu & Hak Akses Detail')
-                ->description('Khusus role staff/divisi. Pilih Akses penuh, atau batasi ke modul tertentu lalu centang modulnya di tab. Kotak Lihat/Buat/Ubah/Hapus di sebelah modul hanya MENAMBAH izin: Lihat, Buat, dan Ubah tetap jalan seperti biasa, sedangkan Hapus (dan Void) baru aktif bila dicentang. Menu yang fiturnya dimatikan tidak ditampilkan, izinnya yang sudah tersimpan tetap dijaga.')
+                ->description('Khusus karyawan panel (jabatan selain Super Admin, Direksi, Installer, dan Partner). Pilih Akses penuh, atau batasi ke modul tertentu lalu centang modulnya di tab. Kotak Lihat/Buat/Ubah/Hapus di sebelah modul hanya MENAMBAH izin: Lihat, Buat, dan Ubah tetap jalan seperti biasa, sedangkan Hapus (dan Void) baru aktif bila dicentang. Menu yang fiturnya dimatikan tidak ditampilkan, izinnya yang sudah tersimpan tetap dijaga.')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
                 ->schema(array_merge(
                     self::accessModeFields(),
@@ -1153,11 +1169,13 @@ class UserResource extends Resource
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('roles.name')
-                    ->label('Role')
+                    ->label('Jabatan')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'super_admin', 'direksi' => 'danger',
-                        'store_manager' => 'warning',
+                    // Warna menandai jabatan bawaan yang membawa wewenang; jabatan bebas buatan admin abu-abu.
+                    ->color(fn (string $state): string => match (true) {
+                        in_array($state, ['super_admin', 'direksi'], true) => 'danger',
+                        $state === 'store_manager' => 'warning',
+                        isset(RoleResource::DESCRIPTIONS[$state]) => 'info',
                         default => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => str($state)->replace('_', ' ')->title()),
@@ -1220,7 +1238,7 @@ class UserResource extends Resource
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('roles')
-                    ->label('Role')
+                    ->label('Jabatan')
                     ->relationship('roles', 'name'),
 
                 Tables\Filters\SelectFilter::make('store_id')

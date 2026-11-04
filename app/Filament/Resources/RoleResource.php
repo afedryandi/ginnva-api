@@ -45,11 +45,11 @@ class RoleResource extends Resource
 
     protected static ?int $navigationSort = 600;
 
-    protected static ?string $navigationLabel = 'Role & Divisi';
+    protected static ?string $navigationLabel = 'Jabatan & Divisi';
 
-    protected static ?string $modelLabel = 'Role';
+    protected static ?string $modelLabel = 'Jabatan';
 
-    protected static ?string $pluralModelLabel = 'Role & Divisi';
+    protected static ?string $pluralModelLabel = 'Jabatan & Divisi';
 
     /**
      * Nama role yang dipakai langsung di kode sebagai penentu wewenang. spv_finance (Penggajian, pengajuan pembayaran, keputusan izin/cuti)
@@ -59,7 +59,7 @@ class RoleResource extends Resource
     public const PROTECTED_ROLES = ['super_admin', 'direksi', 'installer', 'partner', 'store_manager', 'spv_finance', 'installer_leader'];
 
     /** Teks untuk role selain yang dikenal sistem: hanya label, tanpa wewenang bawaan. */
-    public const GENERIC_DESCRIPTION = 'Label jabatan. Akses menu diatur per akun di menu User.';
+    public const GENERIC_DESCRIPTION = 'Hanya nama jabatan. Akses menu diatur per akun di menu User.';
 
     /** Apa yang dikaitkan sistem dengan role tertentu (ditulis dari yang dibaca kode). */
     public const DESCRIPTIONS = [
@@ -110,10 +110,10 @@ class RoleResource extends Resource
     {
         return $form->schema([
             Forms\Components\TextInput::make('name')
-                ->label('Nama Role')
+                ->label('Nama Jabatan')
                 ->required()
                 ->unique(ignoreRecord: true)
-                ->helperText('Pakai huruf kecil & underscore, contoh: finance, hrd, warehouse_staff. Nama ini yang muncul di dropdown Role saat bikin akun User. Role baru hanya label jabatan: akses menu tiap orang diatur di menu User, bukan di sini.')
+                ->helperText('Pakai huruf kecil & underscore, contoh: finance, hrd, warehouse_staff. Nama ini yang muncul di pilihan Jabatan saat bikin akun User. Jabatan baru hanya nama: akses menu tiap orang diatur di menu User, bukan di sini.')
                 ->regex('/^[a-z_]+$/')
                 // Tanpa pesan custom, rule 'unique' bawaan Laravel tampil
                 // dalam Bahasa Inggris ("The name has already been
@@ -122,7 +122,7 @@ class RoleResource extends Resource
                 // Ditemukan dari testing live checklist Role/Divisi.
                 ->validationMessages([
                     'regex' => 'Hanya huruf kecil dan underscore, tanpa spasi (mis. "warehouse_staff").',
-                    'unique' => 'Nama role ini sudah digunakan, pakai nama lain.',
+                    'unique' => 'Nama jabatan ini sudah digunakan, pakai nama lain.',
                 ]),
 
             Forms\Components\Hidden::make('guard_name')
@@ -135,7 +135,7 @@ class RoleResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
-                    ->label('Nama Role')
+                    ->label('Nama Jabatan')
                     ->formatStateUsing(fn (string $state): string => str($state)->replace('_', ' ')->title())
                     ->searchable()
                     ->sortable(),
@@ -162,7 +162,7 @@ class RoleResource extends Resource
                     ->trueColor('gray')
                     ->falseColor('success')
                     ->tooltip(fn (Role $record) => in_array($record->name, self::PROTECTED_ROLES, true)
-                        ? 'Nama role ini dipakai langsung oleh sistem; mengubah atau menghapusnya akan merusak wewenang terkait.'
+                        ? 'Nama jabatan ini dipakai langsung oleh sistem; mengubah atau menghapusnya akan merusak wewenang terkait.'
                         : null),
 
                 Tables\Columns\TextColumn::make('created_at')

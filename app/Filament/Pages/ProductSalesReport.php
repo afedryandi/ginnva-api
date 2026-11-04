@@ -4,9 +4,12 @@ namespace App\Filament\Pages;
 
 use App\Exports\ProductSalesReportExport;
 use App\Models\Booking;
+use App\Models\BookingSaleLine;
 use App\Models\FilmProduct;
 use App\Models\Refund;
 use App\Models\Store;
+use App\Models\Technician;
+use App\Services\ProductSalesAllocator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
@@ -21,28 +24,14 @@ use Livewire\Attributes\Url;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
- * "Penjualan Produk" — diminta 2026-09-09, analog "Penjualan Produk"
- * Majoo. AWALNYA (audit Majoo 2026-09-08) grup "Laporan Produk" secara
- * keseluruhan ditandai tidak relevan (departemen/kategori/ekstra/paket
- * ala katalog retail) -- itu BENAR untuk sub-item lainnya, TAPI keliru
- * untuk "Penjualan Produk" murni: itu breakdown per SKU, dan itu PERSIS
- * yang sudah disiapkan infrastrukturnya lewat Booking.film_product_id
- * (lihat migrasi 2026_09_08_000001, ditambahkan untuk "Produk
- * Terlaris"). Dikoreksi 2026-09-09 setelah user tunjukkan screenshot —
- * bahkan di data Majoo sendiri kolom Departemen/Kategori kosong ("-")
- * untuk produk Ginnva, konfirmasi itu memang bukan intinya.
+ * "Penjualan Produk" -- penjualan per SKU (varian produk) dalam 1 rentang tanggal penjualan diproses.
  *
- * KETERBATASAN PENTING: film_product_id di Booking OPSIONAL dan BARU
- * ditambahkan -- booking lama (dan booking baru yang belum diisi staff)
- * TIDAK punya nilai ini. Baris "Belum Diisi SKU" di laporan ini
- * mengelompokkan booking yang sudah masuk pendapatan tapi belum
- * ditandai produk spesifiknya -- BUKAN dihilangkan dari total, supaya
- * total Penjualan Produk tetap sama dengan total Penjualan sungguhan.
- * Akurasi laporan ini akan membaik seiring staff mulai konsisten isi
- * field "Varian Produk (SKU)" di form Booking.
+ * Nominal tiap booking dibagi ke SKU menurut RINCIAN HARGA per layanan (booking_sale_lines) lewat ProductSalesAllocator, sama dengan
+ * pembagian pendapatan per jenis di Laporan Jasa. Baris tanpa SKU tampil per jenis layanan ("Belum Diisi SKU -- PPF"); booking lama tanpa
+ * rincian memakai SKU utama booking. Satu transaksi dihitung di setiap produknya; total nilai tetap sama dengan penjualan sebenarnya.
+ * Refund dibagi dengan proporsi yang sama (menurut hari refund diproses); komisi installer dibagi sebanding nilai tiap SKU.
  *
- * Sumber pendapatan SAMA PERSIS dengan laporan Penjualan lain
- * (whereHas('journalEntry'), transaction_amount > 0).
+ * HPP dan Laba Kotor tidak ada di sini (HPP dipegang Accurate, keputusan pemilik 2026-11-04), sejajar Penjualan Per Periode.
  */
 class ProductSalesReport extends Page implements HasForms
 {
@@ -277,124 +266,127 @@ class ProductSalesReport extends Page implements HasForms
         // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini refund sebelum jam itu di hari pertama tidak terhitung.
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
-
-        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): halaman ini
-        // SEBELUMNYA SAMA SEKALI TIDAK ADA scoping toko (bahkan tidak
-        // ada pengecekan auth()->user() sama sekali) — manajer toko
-        // manapun melihat breakdown SKU company-wide.
-        // GAP DIPERBAIKI 2026-09-29: full-access sebelumnya tidak bisa mempersempit ke 1 cabang --
-        // sekarang filter 'store_id' di form dipakai kalau full-access memilihnya.
         $storeId = $this->effectiveStoreId();
 
         $bookings = Booking::query()
             ->soldBetween($from->toDateString(), $to->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->with(['filmProduct:id,sku,name,product_type', 'installers:id'])
+            ->with(['installers:id', 'saleLines'])
             ->withCount('filmProducts')
             ->get(['id', 'transaction_amount', 'film_product_id', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash']);
 
-        // HPP + Komisi per booking (audit Majoo f14, "Laporan
-        // per-layanan lengkap ... + HPP + Laba Kotor") -- "Laba Kotor"
-        // di sini SAMA formula dengan SalesByPeriodReport (Penjualan −
-        // Komisi − Refund − HPP), supaya istilah ini konsisten artinya
-        // di seluruh laporan Penjualan, cuma levelnya per-SKU di sini.
-        // Lihat BookingCogsService untuk rincian & batasan perkiraan HPP.
-        // Komisi dihitung lewat Technician::commissionForBooking() (audit
-        // Majoo f34, flat ATAU per-jenis-layanan).
-        $cogsByBookingId = app(\App\Services\BookingCogsService::class)->forBookings($bookings->pluck('id')->all());
-        $technicianByUserId = \App\Models\Technician::query()->whereNotNull('user_id')->with('serviceRates')->get()->keyBy('user_id');
+        $technicianByUserId = Technician::query()->whereNotNull('user_id')->with('serviceRates')->get()->keyBy('user_id');
 
-        $totalRevenue = (float) $bookings->sum('transaction_amount');
-        $totalCount = $bookings->count();
+        // Tiap booking dibagi ke SKU menurut rincian harganya (ProductSalesAllocator). Satu transaksi dihitung di SETIAP produknya.
+        $buckets = [];
+        $unassignedBookings = 0;
+        $legacyMultiCount = 0;
+        $legacyMultiRevenue = 0.0;
 
-        // Refund per produk (diminta 2026-09-09, sekarang bisa dihitung
-        // berkat fitur Refund) -- di-atribusikan ke film_product_id
-        // BOOKING yang di-refund (bukan tanggal booking-nya), rentang
-        // filter berdasarkan created_at refund itu sendiri, konsisten
-        // dengan RefundReport. Booking yang belum diisi SKU -> masuk
-        // bucket "Belum Diisi SKU" juga, sama seperti penjualannya.
-        $refunds = Refund::query()
-            ->whereBetween('created_at', [$from, $to])
-            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
-            ->with('booking:id,film_product_id')
-            ->get(['amount', 'booking_id']);
+        foreach ($bookings as $booking) {
+            $amount = (float) $booking->transaction_amount;
+            $shares = ProductSalesAllocator::allocate($booking, $amount);
+            $hasUnassigned = false;
 
-        $refundByProductId = $refunds->groupBy(fn (Refund $r) => $r->booking?->film_product_id)
-            ->map(fn ($group) => ['count' => $group->count(), 'amount' => (float) $group->sum('amount')]);
+            foreach ($shares as $key => $share) {
+                $buckets[$key] ??= [
+                    'product_id' => $share['product_id'], 'service' => $share['service'], 'count' => 0, 'revenue' => 0.0,
+                    'refundCount' => 0, 'refundAmount' => 0.0, 'commission' => 0.0, 'hasUnratedJob' => false,
+                ];
+                $buckets[$key]['count']++;
+                $buckets[$key]['revenue'] += $share['amount'];
 
-        $rows = $bookings->groupBy('film_product_id')
-            ->map(function ($group, $filmProductId) use ($refundByProductId, $cogsByBookingId, $technicianByUserId) {
-                $filmProduct = $group->first()->filmProduct;
-                $refundRow = $refundByProductId->get($filmProductId ?: null, ['count' => 0, 'amount' => 0.0]);
-
-                $cogs = 0.0;
-                $hasMissingCost = false;
-                $commission = 0.0;
-                $hasUnratedJob = false;
-
-                foreach ($group as $booking) {
-                    $bookingCogs = $cogsByBookingId[$booking->id] ?? ['cost' => 0.0, 'hasMissingCost' => false];
-                    $cogs += $bookingCogs['cost'];
-                    if ($bookingCogs['hasMissingCost']) {
-                        $hasMissingCost = true;
-                    }
-
-                    foreach ($booking->installers as $installer) {
-                        $technician = $technicianByUserId->get($installer->id);
-                        $bookingCommission = $technician?->commissionForBooking($booking);
-                        if ($bookingCommission !== null) {
-                            $commission += $bookingCommission;
-                        } else {
-                            $hasUnratedJob = true;
-                        }
+                // Komisi installer booking dibagi sebanding dengan bagian nilai tiap SKU.
+                $ratio = $amount > 0 ? $share['amount'] / $amount : 0.0;
+                foreach ($booking->installers as $installer) {
+                    $commission = $technicianByUserId->get($installer->id)?->commissionForBooking($booking);
+                    if ($commission !== null) {
+                        $buckets[$key]['commission'] += $commission * $ratio;
+                    } else {
+                        $buckets[$key]['hasUnratedJob'] = true;
                     }
                 }
 
-                $revenue = (float) $group->sum('transaction_amount');
+                if ($share['product_id'] === null) {
+                    $hasUnassigned = true;
+                }
+            }
+
+            if ($hasUnassigned) {
+                $unassignedBookings++;
+            }
+
+            // Produk tambahan lama (booking_film_products) tidak punya harga: hanya booking TANPA rincian yang masih terdampak.
+            $isLegacy = (bool) (array_values($shares)[0]['legacy'] ?? false);
+            if ($isLegacy && $booking->film_products_count > 0) {
+                $legacyMultiCount++;
+                $legacyMultiRevenue += $amount;
+            }
+        }
+
+        // Refund dibagi dengan proporsi yang sama dengan penjualan booking-nya; rentang menurut hari refund diproses.
+        $refunds = Refund::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
+            ->with(['booking' => fn ($q) => $q->select('id', 'transaction_amount', 'film_product_id', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash')->with('saleLines')])
+            ->get(['amount', 'booking_id']);
+
+        foreach ($refunds as $refund) {
+            if (! $refund->booking) {
+                continue;
+            }
+
+            foreach (ProductSalesAllocator::allocate($refund->booking, (float) $refund->amount) as $key => $share) {
+                $buckets[$key] ??= [
+                    'product_id' => $share['product_id'], 'service' => $share['service'], 'count' => 0, 'revenue' => 0.0,
+                    'refundCount' => 0, 'refundAmount' => 0.0, 'commission' => 0.0, 'hasUnratedJob' => false,
+                ];
+                $buckets[$key]['refundCount']++;
+                $buckets[$key]['refundAmount'] += $share['amount'];
+            }
+        }
+
+        $products = FilmProduct::withTrashed()->whereIn('id', collect($buckets)->pluck('product_id')->filter()->unique()->all())->get(['id', 'sku', 'name', 'product_type'])->keyBy('id');
+        $serviceLabels = BookingSaleLine::SERVICE_TYPES;
+
+        $totalRevenue = (float) array_sum(array_column($buckets, 'revenue'));
+        $slotCount = (int) array_sum(array_column($buckets, 'count'));
+        $totalCount = $bookings->count();
+
+        $rows = collect($buckets)
+            ->map(function (array $b, string $key) use ($products, $serviceLabels, $totalRevenue, $slotCount) {
+                $product = $b['product_id'] ? $products->get($b['product_id']) : null;
+                $serviceText = collect(explode('+', $b['service']))->filter()->map(fn ($s) => $serviceLabels[$s] ?? $s)->implode(' + ');
 
                 return [
-                    'product' => $filmProduct,
-                    'sku' => $filmProduct?->sku ?? '—',
-                    'name' => $filmProduct?->name ?? 'Belum Diisi SKU',
-                    'type' => match ($filmProduct?->product_type) {
+                    'key' => $key,
+                    'product' => $product,
+                    'sku' => $product?->sku ?? '—',
+                    'name' => $product?->name ?? ($b['product_id'] ? 'Produk Dihapus' : 'Belum Diisi SKU' . ($serviceText !== '' ? ' — ' . $serviceText : '')),
+                    'type' => match ($product?->product_type) {
                         'window_film' => 'Kaca Film',
                         'ppf' => 'PPF',
                         'detailing' => 'Detailing',
                         'premium_wash' => 'Premium Wash',
                         'color_change' => 'Ganti Warna',
-                        default => '—',
+                        default => $serviceText !== '' ? $serviceText : '—',
                     },
-                    'count' => $group->count(),
-                    'revenue' => $revenue,
-                    'refundCount' => $refundRow['count'],
-                    'refundAmount' => $refundRow['amount'],
-                    'commission' => $commission,
-                    'hasUnratedJob' => $hasUnratedJob,
-                    'cogs' => $cogs,
-                    'hasMissingCost' => $hasMissingCost,
-                    'grossProfit' => $revenue - $commission - $refundRow['amount'] - $cogs,
+                    'unassigned' => $b['product_id'] === null,
+                    'count' => $b['count'],
+                    'countPct' => $slotCount > 0 ? $b['count'] / $slotCount * 100 : 0,
+                    'revenue' => round($b['revenue'], 2),
+                    'revenuePct' => $totalRevenue > 0 ? $b['revenue'] / $totalRevenue * 100 : 0,
+                    'refundCount' => $b['refundCount'],
+                    'refundAmount' => round($b['refundAmount'], 2),
+                    'commission' => round($b['commission'], 2),
+                    'hasUnratedJob' => $b['hasUnratedJob'],
                 ];
             })
-            ->sortByDesc(fn ($row) => $row['product'] === null ? -1 : $row['revenue']) // "Belum Diisi SKU" selalu di bawah, biar tidak dikira produk terlaris
+            // "Belum Diisi SKU" selalu di bawah, biar tidak dikira produk terlaris.
+            ->sortBy([['unassigned', 'asc'], ['revenue', 'desc']])
             ->values();
 
-        $rows = $rows->map(function ($row) use ($totalRevenue, $totalCount) {
-            $row['revenuePct'] = $totalRevenue > 0 ? $row['revenue'] / $totalRevenue * 100 : 0;
-            $row['countPct'] = $totalCount > 0 ? $row['count'] / $totalCount * 100 : 0;
-
-            return $row;
-        });
-
-        $unassignedCount = $bookings->whereNull('film_product_id')->count();
-
-        // Headline net + footnote (audit 2026-09-11) — SEBELUMNYA
-        // "Total Penjualan Produk" gross dengan "Total Refund" sebagai
-        // kartu terpisah (user harus hitung sendiri net-nya). Sekarang
-        // konsisten dengan laporan Penjualan lain: headline = bersih.
-        // Baris per-produk TETAP gross apa adanya (refund tidak selalu
-        // bisa diatribusikan 1:1 ke SKU kalau booking-nya "Belum Diisi
-        // SKU"), kolom "Refund" per baris tetap ada untuk transparansi.
         $totalRefundAmount = (float) $refunds->sum('amount');
 
         return [
@@ -403,20 +395,19 @@ class ProductSalesReport extends Page implements HasForms
             'storeId' => $storeId,
             'rows' => $rows,
             'totalCount' => $totalCount,
+            // Jumlah baris produk (satu transaksi berproduk ganda terhitung di tiap produknya), penyebut "Jumlah %".
+            'slotCount' => $slotCount,
+            // Headline bersih (setelah refund); baris per produk tetap kotor, kolom Refund tersendiri.
             'totalRevenue' => $totalRevenue - $totalRefundAmount,
             'grossRevenue' => $totalRevenue,
             'totalRefundAmount' => $totalRefundAmount,
-            'unassignedCount' => $unassignedCount,
-            'unassignedPct' => $totalCount > 0 ? $unassignedCount / $totalCount * 100 : 0,
-            // Booking dengan produk TAMBAHAN (booking_film_products): seluruh nilainya tetap dihitung ke produk utama
-            // (film_product_id), karena belum ada harga per produk. Atribusi tepat menunggu rincian harga per layanan
-            // (rancangan Penjualan Fase 1). Dilaporkan terang-terangan supaya baris per produk tidak dibaca sebagai pasti.
-            'multiProductCount' => $bookings->where('film_products_count', '>', 0)->count(),
-            'multiProductRevenue' => (float) $bookings->where('film_products_count', '>', 0)->sum('transaction_amount'),
-            'totalCogs' => $rows->sum('cogs'),
-            'totalCommission' => $rows->sum('commission'),
-            'totalGrossProfit' => $rows->sum('grossProfit'),
-            'hasMissingCost' => $rows->contains('hasMissingCost', true),
+            'unassignedCount' => $unassignedBookings,
+            'unassignedPct' => $totalCount > 0 ? $unassignedBookings / $totalCount * 100 : 0,
+            'unassignedRevenue' => (float) $rows->where('unassigned', true)->sum('revenue'),
+            // Booking lama tanpa rincian harga yang punya produk tambahan: seluruh nilainya masih ke produk utama.
+            'multiProductCount' => $legacyMultiCount,
+            'multiProductRevenue' => $legacyMultiRevenue,
+            'totalCommission' => (float) $rows->sum('commission'),
         ];
     }
 }

@@ -9,8 +9,8 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Export "Penjualan Produk" (ProductSalesReport) — audit 2026-09-11,
- * temuan B.
+ * Export "Penjualan Produk" (ProductSalesReport): satu baris per SKU, baris Total di ujung. Angka tetap numerik; hanya komisi yang
+ * belum lengkap (installer tanpa tarif) berubah jadi teks bertanda " *".
  */
 class ProductSalesReportExport implements FromArray, WithHeadings, WithStyles
 {
@@ -22,21 +22,19 @@ class ProductSalesReportExport implements FromArray, WithHeadings, WithStyles
             'Produk',
             'SKU',
             'Jenis Produk',
-            'Jumlah',
+            'Jumlah Transaksi',
             'Jumlah %',
             'Penjualan',
             'Penjualan %',
             'Jumlah Refund',
             'Refund',
             'Komisi',
-            'HPP',
-            'Laba Kotor',
         ];
     }
 
     public function array(): array
     {
-        return collect($this->result['rows'])
+        $rows = collect($this->result['rows'])
             ->map(fn (array $row) => [
                 $row['name'],
                 $row['sku'],
@@ -48,18 +46,21 @@ class ProductSalesReportExport implements FromArray, WithHeadings, WithStyles
                 round($row['revenuePct'], 1),
                 $row['refundCount'],
                 $row['refundAmount'],
-                // Angka tetap numerik; hanya baris yang datanya belum lengkap berubah jadi teks bertanda " *".
                 $row['hasUnratedJob'] ? $row['commission'] . ' *' : $row['commission'],
-                $row['hasMissingCost'] ? $row['cogs'] . ' *' : $row['cogs'],
-                $row['grossProfit'],
             ])
             ->values()
             ->all();
+
+        if ($rows !== []) {
+            $rows[] = ['Total', '', '', (int) $this->result['slotCount'], '', (float) $this->result['grossRevenue'], '', '', (float) $this->result['totalRefundAmount'], (float) $this->result['totalCommission']];
+        }
+
+        return $rows;
     }
 
     public function styles(Worksheet $sheet): array
     {
-        return [
+        $styles = [
             1 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => [
@@ -68,5 +69,11 @@ class ProductSalesReportExport implements FromArray, WithHeadings, WithStyles
                 ],
             ],
         ];
+
+        if (count($this->result['rows']) > 0) {
+            $styles[count($this->result['rows']) + 2] = ['font' => ['bold' => true]];
+        }
+
+        return $styles;
     }
 }

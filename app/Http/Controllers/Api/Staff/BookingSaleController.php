@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Staff;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingSaleLine;
+use App\Models\FilmProduct;
 use App\Models\PaymentAccount;
 use App\Services\BookingRevenueSplitter;
 use App\Services\BookingSaleLineService;
@@ -124,6 +125,7 @@ class BookingSaleController extends Controller
             'down_payment_outstanding' => (float) $booking->outstanding_down_payment,
             'sale_lines' => $booking->saleLines->map(fn ($l) => [
                 'service_type' => $l->service_type,
+                'film_product_id' => $l->film_product_id,
                 'position' => $l->position,
                 'quantity' => (float) $l->quantity,
                 'unit_price' => (float) $l->unit_price,
@@ -137,6 +139,20 @@ class BookingSaleController extends Controller
             ])->values(),
             'suggested_service_types' => BookingRevenueSplitter::productKeys($booking),
             'service_types' => BookingSaleLine::SERVICE_TYPES,
+            // Pilihan produk (SKU) per baris: dipakai laporan Penjualan Produk. Jenis layanan yang wajib punya SKU dikirim di sku_required_types.
+            'products' => FilmProduct::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'sku', 'product_type'])->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'sku' => $p->sku,
+                'service_type' => match ($p->product_type) {
+                    'window_film' => 'kaca_film',
+                    'detailing' => 'detailing',
+                    'premium_wash' => 'premium_wash',
+                    default => 'ppf',
+                },
+            ])->values(),
+            'suggested_product_id' => $booking->film_product_id,
+            'sku_required_types' => config('booking.sale_line_sku_required') ? BookingSaleLineService::SKU_REQUIRED_TYPES : [],
             'methods' => Booking::PAYMENT_METHOD_LABELS,
             'accounts' => $accounts,
         ];

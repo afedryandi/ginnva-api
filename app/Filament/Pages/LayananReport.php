@@ -6,6 +6,7 @@ use App\Exports\LayananReportExport;
 use App\Models\Booking;
 use App\Models\Refund;
 use App\Models\Store;
+use App\Services\BookingRevenueSplitter;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
@@ -21,16 +22,11 @@ use Livewire\Attributes\Url;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
- * "Laporan Jasa" — diminta 2026-09-08, analog "Laporan Jasa" Majoo
- * (rekap servis terjual per jenis/periode). Ginnva bisnis JASA instalasi
- * (bukan jual barang eceran), jadi "jasa" di sini = booking yang sudah
- * tercatat sebagai pendapatan (sama filter dengan SalesResource/
- * BookingRevenueStatsWidget — whereHas('journalEntry'), supaya SELALU
- * konsisten dengan Jurnal Umum). Beda dari SalesResource (daftar
- * transaksi satu-satu): ini AGREGAT per jenis servis & per toko, sama
- * pola report Keuangan (custom Page + form rentang tanggal + Blade
- * view). Pembagian booking multi-jenis SAMA PERSIS dengan
- * BookingRevenueSplitter (Jurnal Umum).
+ * "Laporan Jasa" -- rekap penjualan per jenis layanan (Kaca Film, PPF, Detailing, Premium Wash, Lainnya) dan per toko pada rentang tanggal
+ * penjualan diproses. Sumbernya booking yang sudah tercatat sebagai penjualan (sama dengan SalesResource); bukan daftar transaksi satu per
+ * satu melainkan agregat. Pembagian booking berjenis ganda memakai BookingRevenueSplitter (menurut rincian harga per layanan, bagi rata bila
+ * tidak ada rincian), sama dengan Jurnal Umum. Refund dibagi dengan proporsi yang sama, jadi tabel per jenis dan per toko punya kolom
+ * Pengembalian dan Bersih yang berjumlah sama dengan headline. JenisOrderReport (tersembunyi) memakai kelas ini apa adanya.
  */
 class LayananReport extends Page implements HasForms
 {
@@ -263,13 +259,22 @@ class LayananReport extends Page implements HasForms
                     $pdf = Pdf::loadView('pdf.layanan_report', [
                         'result' => $result,
                         'title' => static::$navigationLabel ?? 'Laporan Jasa',
-                    ])->setPaper('a4', 'portrait');
+                    ])->setPaper('a4', 'landscape');
                     $filename = $slug . '-' . now()->format('Ymd-His') . '.pdf';
 
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);
                 }),
         ];
     }
+
+    /** Jenis layanan di laporan, urut tampil. 'lainnya' = booking tanpa jenis sama sekali. */
+    public const TYPE_LABELS = [
+        'kaca_film' => 'Kaca Film',
+        'ppf' => 'PPF',
+        'detailing' => 'Detailing',
+        'premium_wash' => 'Premium Wash',
+        'lainnya' => 'Lainnya (tanpa jenis)',
+    ];
 
     public function getResult(): array
     {
@@ -280,79 +285,87 @@ class LayananReport extends Page implements HasForms
         // keduanya konsisten scope ke cabang yang sama.
         $storeId = $this->effectiveStoreId();
 
-        $query = Booking::query()
+        $bookings = Booking::query()
             ->with('store')
             ->soldBetween($from->toDateString(), $to->toDateString())
             ->where('transaction_amount', '>', 0)
-            // store_id di bookings NOT NULL (migrasi create_bookings_table)
-            // — orWhereNull() dulu di sini itu dead code, dibersihkan
-            // 2026-09-11 (audit) sama pola dengan P1 SalesDashboard.
-            ->when($storeId, fn ($q) => $q->where('store_id', $storeId));
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->with('saleLines')
+            ->get(['id', 'store_id', 'transaction_amount', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
 
-        $bookings = $query->with('saleLines')->get(['id', 'store_id', 'transaction_amount', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
-
-        // BUG DIPERBAIKI 2026-09-11 (ditemukan saat audit): "Total
-        // Pendapatan" SEBELUMNYA gross, tidak dikurangi refund — beda
-        // dari Dashboard/Ringkasan/Per Periode/Outlet yang konsisten
-        // pakai angka bersih. Refund TIDAK tertaut ke jenis produk
-        // tertentu (cuma ke booking), jadi TIDAK didistribusikan ke
-        // byType/byStore (itu tetap gross apa adanya per baris) — cukup
-        // dikurangkan di headline "Total Pendapatan" + footnote gross,
-        // pola sama SalesDashboard.
-        $refundTotal = (float) Refund::query()
+        // Refund dibagi ke jenis layanan dan toko booking-nya dengan proporsi yang sama dengan penjualannya (BookingRevenueSplitter),
+        // jadi tabel per jenis dan per toko bisa menunjukkan angka bersih yang berjumlah sama dengan headline. Rentang menurut hari
+        // refund diproses.
+        $refunds = Refund::query()
             ->whereBetween('created_at', [$from, $to])
             ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
-            ->sum('amount');
+            ->with(['booking' => fn ($q) => $q->select('id', 'store_id', 'transaction_amount', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash')->with(['saleLines', 'store:id,name'])])
+            ->get(['id', 'amount', 'booking_id']);
+        $refundTotal = (float) $refunds->sum('amount');
 
-        // Empat jenis layanan + 'lainnya' (booking tanpa jenis sama sekali). Pembagiannya DIAMBIL dari
-        // BookingRevenueSplitter::shares() -- aturan yang sama dengan Jurnal Umum (bagi rata kalau lebih dari satu jenis),
-        // jadi persentase selalu berjumlah 100% dan tidak menyimpang dari pembukuan.
-        $byType = [
-            'kaca_film' => ['count' => 0, 'revenue' => 0.0],
-            'ppf' => ['count' => 0, 'revenue' => 0.0],
-            'detailing' => ['count' => 0, 'revenue' => 0.0],
-            'premium_wash' => ['count' => 0, 'revenue' => 0.0],
-            'lainnya' => ['count' => 0, 'revenue' => 0.0],
-        ];
+        $emptyTypes = fn () => array_fill_keys(array_keys(self::TYPE_LABELS), 0.0);
+        $byType = [];
+        foreach (array_keys(self::TYPE_LABELS) as $typeKey) {
+            $byType[$typeKey] = ['count' => 0, 'revenue' => 0.0, 'refund' => 0.0];
+        }
+        $newStore = fn () => ['count' => 0, 'revenue' => 0.0, 'refund' => 0.0, 'types' => $emptyTypes()];
         $byStore = [];
         $totalRevenue = 0.0;
 
         foreach ($bookings as $booking) {
             $amount = (float) $booking->transaction_amount;
             $totalRevenue += $amount;
-            foreach (\App\Services\BookingRevenueSplitter::shares($booking, $amount) as $typeKey => $portion) {
-                $byType[$typeKey]['count']++;
-                $byType[$typeKey]['revenue'] += $portion;
-            }
-
             $storeName = $booking->store?->name ?? 'Tanpa Toko';
-            $byStore[$storeName] ??= ['count' => 0, 'revenue' => 0.0];
+            $byStore[$storeName] ??= $newStore();
             $byStore[$storeName]['count']++;
             $byStore[$storeName]['revenue'] += $amount;
+
+            // Pembagian per jenis SAMA dengan Jurnal Umum: menurut rincian harga bila ada, bagi rata bila tidak.
+            foreach (BookingRevenueSplitter::shares($booking, $amount) as $typeKey => $portion) {
+                $byType[$typeKey]['count']++;
+                $byType[$typeKey]['revenue'] += $portion;
+                $byStore[$storeName]['types'][$typeKey] += $portion;
+            }
         }
 
-        uasort($byStore, fn ($a, $b) => $b['revenue'] <=> $a['revenue']);
+        foreach ($refunds as $refund) {
+            if (! $refund->booking) {
+                continue;
+            }
 
-        // Persentase (diminta 2026-09-09, analog "Jumlah Transaksi %"/
-        // "Penjualan %" di Laporan Jenis Order Majoo). Penyebut jumlah
-        // pakai TOTAL jumlah slot jenis (bukan totalCount) karena
-        // booking Kaca Film+PPF terhitung di KEDUA jenis (bukan cuma 1
-        // booking 1 jenis kayak "Jenis Order" Majoo) -- supaya 2
-        // persentase count tetap jumlah 100%, bukan 200%. Penyebut
-        // revenue pakai totalRevenue asli (split 50/50 sudah pas jumlah
-        // ke totalRevenue, tidak ada double count).
+            $storeName = $refund->booking->store?->name ?? 'Tanpa Toko';
+            $byStore[$storeName] ??= $newStore();
+            $byStore[$storeName]['refund'] += (float) $refund->amount;
+
+            foreach (BookingRevenueSplitter::shares($refund->booking, (float) $refund->amount) as $typeKey => $portion) {
+                $byType[$typeKey]['refund'] += $portion;
+            }
+        }
+
+        // Persentase: penyebut jumlah memakai TOTAL jumlah slot jenis (bukan totalCount) karena booking berjenis ganda terhitung di tiap
+        // jenisnya, supaya persentase jumlah tetap berjumlah 100%. Penyebut pendapatan memakai total sebenarnya.
         $typeCountTotal = array_sum(array_column($byType, 'count'));
         foreach ($byType as $key => $row) {
             $byType[$key]['countPct'] = $typeCountTotal > 0 ? $row['count'] / $typeCountTotal * 100 : 0;
             $byType[$key]['revenuePct'] = $totalRevenue > 0 ? $row['revenue'] / $totalRevenue * 100 : 0;
+            $byType[$key]['avg'] = $row['count'] > 0 ? $row['revenue'] / $row['count'] : 0.0;
+            $byType[$key]['net'] = $row['revenue'] - $row['refund'];
         }
+
+        foreach ($byStore as $name => $row) {
+            $byStore[$name]['net'] = $row['revenue'] - $row['refund'];
+        }
+        uasort($byStore, fn ($a, $b) => $b['revenue'] <=> $a['revenue']);
 
         $netRevenue = $totalRevenue - $refundTotal;
 
         return [
             'from' => $from,
             'to' => $to,
+            'storeId' => $storeId,
             'totalCount' => $bookings->count(),
+            // Jumlah slot jenis (transaksi berjenis ganda terhitung di tiap jenisnya), penyebut "Jumlah %" dan baris Total.
+            'slotCount' => (int) $typeCountTotal,
             'totalRevenue' => $netRevenue,
             'grossRevenue' => $totalRevenue,
             'refund' => $refundTotal,
