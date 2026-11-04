@@ -43,10 +43,15 @@ class RefundService
      *         pendapatan (belum "Proses Referral"), nominal refund <= 0,
      *         atau melebihi sisa yang bisa di-refund.
      */
-    public function process(Booking $booking, float $amount, ?string $reason, ?int $userId): Refund
+    public function process(Booking $booking, float $amount, ?string $reason, ?int $userId, ?string $method = null, ?int $approvedBy = null): Refund
     {
         if ($amount <= 0) {
             throw new RuntimeException('Nominal refund harus lebih dari Rp 0.');
+        }
+
+        // Metode diwajibkan oleh form panel; di sini opsional supaya pemanggil lain (tes, data demo) tetap jalan, tetapi nilai yang diisi harus dikenal.
+        if ($method !== null && ! isset(Booking::PAYMENT_METHOD_LABELS[$method])) {
+            throw new RuntimeException('Metode pengembalian refund tidak dikenal.');
         }
 
         // Audit framework 2026-09-14, "Integritas transaksi finansial"
@@ -60,7 +65,7 @@ class RefundService
         // baris pertama mengunci booking ini supaya refund kedua HARUS
         // menunggu refund pertama commit dulu sebelum mulai menghitung
         // ulang sisa yang benar.
-        return DB::transaction(function () use ($booking, $amount, $reason, $userId) {
+        return DB::transaction(function () use ($booking, $amount, $reason, $userId, $method, $approvedBy) {
             $booking = Booking::query()->where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
             // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): booking tidak punya jurnal, jadi "sudah diproses" berarti nominal
@@ -93,10 +98,12 @@ class RefundService
                     'refund_number' => Refund::generateRefundNumber(),
                     'booking_id' => $booking->id,
                     'amount' => $amount,
+                    'method' => $method,
                     'receivable_reduced' => 0,
                     'reason' => $reason,
                     'journal_entry_id' => null,
                     'created_by' => $userId,
+                    'approved_by' => $approvedBy,
                 ]);
 
                 $this->notifyCustomer($booking, $amount);
@@ -210,10 +217,12 @@ class RefundService
                 'refund_number' => $refundNumber,
                 'booking_id' => $booking->id,
                 'amount' => $amount,
+                'method' => $method,
                 'receivable_reduced' => $reduce,
                 'reason' => $reason,
                 'journal_entry_id' => $entry->id,
                 'created_by' => $userId,
+                'approved_by' => $approvedBy,
             ]);
 
             // Audit Notifikasi 2026-10-01: SEBELUMNYA customer tidak pernah

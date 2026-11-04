@@ -29,7 +29,7 @@ use Maatwebsite\Excel\Facades\Excel;
  *
  * Status yang ditampilkan: 'confirmed' & 'pending' (yang benar-benar
  * "reservasi aktif") -- 'completed' sudah tercover laporan Penjualan,
- * 'cancelled' sudah tercover Laporan Void, supaya tidak tumpang tindih.
+ * 'cancelled' sudah tercover Laporan Pembatalan, supaya tidak tumpang tindih.
  */
 class ReservationReport extends Page implements HasForms
 {

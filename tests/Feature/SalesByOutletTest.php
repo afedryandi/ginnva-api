@@ -61,7 +61,7 @@ class SalesByOutletTest extends TestCase
 
     private function user(string $role, ?Store $store = null, array $extra = []): User
     {
-        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id], $extra)), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id, 'menu_access' => ['SalesByOutletReport']], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
     private function admin(): User
@@ -293,9 +293,11 @@ class SalesByOutletTest extends TestCase
         $rows = $export->array();
 
         $this->assertSame(['Outlet', 'Transaksi', 'Penjualan (bersih)', 'Penjualan %', 'Pengembalian', 'Produk', 'Produk %', 'Rata-rata/Transaksi', 'Produk/Transaksi', 'Piutang'], $export->headings());
+        $this->assertCount(4, $rows, 'Tiga outlet ditambah baris Total.');
         $this->assertEquals(['Toko A', 2, 1500000.0, 85.7, 0.0, 3, 50.0, 750000.0, 1.5, 400000.0], $rows[0]);
         $this->assertEquals(['Toko B', 1, 250000.0, 14.3, 50000.0, 3, 50.0, 250000.0, 3.0, 0.0], $rows[1]);
         $this->assertEquals(['Toko C', 0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0], $rows[2]);
+        $this->assertEquals(['Total', 3, 1750000.0, 100.0, 50000.0, 6, 100.0, round(1750000 / 3), 2.0, 400000.0], $rows[3]);
     }
 
     public function test_page_shows_totals_rows_banners_and_links_only_for_outlets_with_sales(): void
@@ -369,5 +371,37 @@ class SalesByOutletTest extends TestCase
         $method->setAccessible(true);
 
         $this->assertSame(['Toko B'], array_column($method->invoke($chart->instance())['datasets'], 'label'));
+    }
+    public function test_inactive_outlets_appear_only_when_they_have_sales_or_refunds_in_the_range(): void
+    {
+        $closed = Store::create(['city' => 'Bogor', 'address' => 'Jl. D', 'name' => 'Toko Tutup', 'is_active' => false]);
+        $this->october();
+
+        $without = $this->report();
+        $this->assertSame(['Toko A', 'Toko B', 'Toko C'], $without['rows']->pluck('store.name')->all(), 'Outlet nonaktif tanpa data tidak muncul.');
+
+        $this->sale(120000, '2026-10-06', $closed);
+        $with = $this->report();
+        $this->assertContains('Toko Tutup', $with['rows']->pluck('store.name')->all(), 'Outlet nonaktif dengan penjualan tetap muncul.');
+    }
+
+    public function test_without_the_finance_module_the_receivable_column_is_gone_and_the_totals_row_shows(): void
+    {
+        config(['features.finance' => false]);
+        $customer = Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(10000000, 99999999)]);
+        Booking::create([
+            'booking_number' => 'BKG-OFF-' . strtoupper(uniqid()), 'customer_id' => $customer->id, 'store_id' => $this->storeA->id, 'service_type' => 'PPF',
+            'product_ppf' => true, 'preferred_date' => '2026-10-03', 'status' => 'completed', 'transaction_amount' => 1000000,
+            'amount_received' => 400000, 'sale_date' => '2026-10-03',
+        ]);
+
+        $page = $this->page();
+        $page->assertSee('Rekap per Outlet')->assertSee('Total')->assertDontSee('Piutang')->assertDontSee('Laba Kotor');
+        $result = $page->instance()->getResult();
+        $this->assertEquals(1000000.0, $result['totalRevenue']);
+
+        $headings = (new SalesByOutletExport($result))->headings();
+        $this->assertNotContains('Piutang', $headings);
+        $this->assertCount(count($headings), (new SalesByOutletExport($result))->array()[0]);
     }
 }

@@ -59,7 +59,7 @@ class SalesDetailTest extends TestCase
 
     private function user(string $role, ?Store $store = null, array $extra = []): User
     {
-        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id], $extra)), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id, 'menu_access' => ['SalesResource']], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
     private function admin(): User
@@ -156,20 +156,17 @@ class SalesDetailTest extends TestCase
         $paid = $this->sale(1000000);
         $unpaid = $this->sale(1000000, overrides: ['amount_received' => 400000]);
         $assumedPaid = $this->sale(500000, overrides: ['amount_received' => null]);
-        $void = $this->sale(300000);
-        DB::table('bookings')->where('id', $void->id)->update(['status' => 'cancelled']);
 
         $page = $this->list();
         $page->assertTableColumnStateSet('payment_status', 'Lunas', $paid)
             ->assertTableColumnStateSet('payment_status', 'Belum Lunas', $unpaid)
             ->assertTableColumnStateSet('payment_status', 'Lunas', $assumedPaid)
-            ->assertTableColumnStateSet('payment_status', 'Void', Booking::find($void->id))
             ->assertTableColumnStateSet('outstanding', 600000.0, $unpaid)
             ->assertTableColumnStateSet('outstanding', 0.0, $assumedPaid)
             ->assertTableColumnFormattedStateSet('outstanding', 'Rp600.000', $unpaid)
             ->assertTableColumnFormattedStateSet('outstanding', '—', $paid)
             ->assertTableColumnFormattedStateSet('amount_received', 'Rp500.000', $assumedPaid, )
-            ->assertTableColumnStateSet('invoice_number', 'INV/' . $paid->booking_number, $paid)
+            ->assertTableColumnStateSet('booking_number', $paid->booking_number, $paid)
             ->assertTableColumnStateSet('journalEntry.entry_number', $paid->journalEntry->entry_number, $paid);
     }
 
@@ -184,7 +181,6 @@ class SalesDetailTest extends TestCase
         $this->list()->searchTable('Santoso')->assertCanSeeTableRecords([$budi])->assertCanNotSeeTableRecords([$siti, $other]);
         $this->list()->searchTable('Siti Walkin')->assertCanSeeTableRecords([$siti])->assertCanNotSeeTableRecords([$budi, $other]);
         $this->list()->searchTable($other->booking_number)->assertCanSeeTableRecords([$other])->assertCanNotSeeTableRecords([$budi, $siti]);
-        $this->list()->searchTable('INV/' . substr($budi->booking_number, 0, 12))->assertCanSeeTableRecords([$budi]);
     }
 
     // ------------------------------------------------------------- filter
@@ -194,12 +190,9 @@ class SalesDetailTest extends TestCase
         $paid = $this->sale(1000000);
         $unpaid = $this->sale(1000000, overrides: ['amount_received' => 400000]);
         $tiny = $this->sale(1000000, overrides: ['amount_received' => 999999.995]);
-        $void = $this->sale(300000);
-        DB::table('bookings')->where('id', $void->id)->update(['status' => 'cancelled']);
 
-        $this->list()->filterTable('payment_status', 'lunas')->assertCanSeeTableRecords([$paid, $tiny])->assertCanNotSeeTableRecords([$unpaid, $void]);
-        $this->list()->filterTable('payment_status', 'belum_lunas')->assertCanSeeTableRecords([$unpaid])->assertCanNotSeeTableRecords([$paid, $tiny, $void]);
-        $this->list()->filterTable('payment_status', 'void')->assertCanSeeTableRecords([$void])->assertCanNotSeeTableRecords([$paid, $unpaid]);
+        $this->list()->filterTable('payment_status', 'lunas')->assertCanSeeTableRecords([$paid, $tiny])->assertCanNotSeeTableRecords([$unpaid]);
+        $this->list()->filterTable('payment_status', 'belum_lunas')->assertCanSeeTableRecords([$unpaid])->assertCanNotSeeTableRecords([$paid, $tiny]);
     }
 
     public function test_quick_period_presets(): void
@@ -248,15 +241,11 @@ class SalesDetailTest extends TestCase
         $this->sale(1000000, overrides: ['amount_received' => 400000]);
         $this->sale(1000000, overrides: ['amount_received' => 999999.995]);
         $this->sale(500000, overrides: ['amount_received' => null]);
-        $void = $this->sale(300000);
-        DB::table('bookings')->where('id', $void->id)->update(['status' => 'cancelled']);
         $this->sale(250000, '2026-09-10');
 
         $all = SalesDetailStatsWidget::aggregate(SalesResource::getEloquentQuery());
-        $this->assertSame(6, $all['total_count']);
-        $this->assertEquals(4050000.0, $all['total_revenue']);
-        $this->assertSame(1, $all['void_count']);
-        $this->assertEquals(300000.0, $all['void_amount']);
+        $this->assertSame(5, $all['total_count']);
+        $this->assertEquals(3750000.0, $all['total_revenue']);
         $this->assertSame(1, $all['belum_lunas_count']);
         $this->assertEquals(600000.0, $all['belum_lunas_amount']);
         $this->assertSame(4, $all['lunas_count']);
@@ -264,9 +253,9 @@ class SalesDetailTest extends TestCase
 
         $page = $this->list()->filterTable('period_preset', 'this_month');
         $filtered = SalesDetailStatsWidget::aggregate($page->instance()->getFilteredTableQuery());
-        $this->assertSame(5, $filtered['total_count'], 'Kartu mengikuti filter, bukan total seluruh data.');
-        $this->assertEquals(3800000.0, $filtered['total_revenue']);
-        $page->assertSee('Total Invoice')->assertSee('Rp3.800.000')->assertSee('Belum Lunas')->assertSee('Rp600.000');
+        $this->assertSame(4, $filtered['total_count'], 'Kartu mengikuti filter, bukan total seluruh data.');
+        $this->assertEquals(3500000.0, $filtered['total_revenue']);
+        $page->assertSee('Total Penjualan')->assertSee('Rp3.500.000')->assertSee('Belum Lunas')->assertSee('Rp600.000')->assertDontSee('Void');
     }
 
     // ------------------------------------------------------------- aksi
@@ -321,14 +310,14 @@ class SalesDetailTest extends TestCase
 
         $mapped = $export->map($row);
 
-        $this->assertSame('INV/' . $booking->booking_number, $mapped[0]);
-        $this->assertSame('Budi Aplikasi', $mapped[2]);
-        $this->assertSame('Toko A', $mapped[3]);
-        $this->assertSame('PPF + Detailing', $mapped[4]);
-        $this->assertSame([1000000.0, 50000.0, 400000.0, 600000.0, 'Belum Lunas'], array_slice($mapped, 5, 5));
-        $this->assertSame('2026-10-03', $mapped[11]);
-        $this->assertSame($booking->journalEntry->entry_number, $mapped[12]);
-        $this->assertSame(['No. Invoice', 'No. Booking', 'Pelanggan', 'Toko', 'Produk', 'Nilai Transaksi', 'Potongan Promo', 'Diterima', 'Sisa Tagihan', 'Status', 'Waktu Order', 'Waktu Bayar', 'No. Jurnal'], $export->headings());
+        $this->assertSame($booking->booking_number, $mapped[0]);
+        $this->assertSame('Budi Aplikasi', $mapped[1]);
+        $this->assertSame('Toko A', $mapped[2]);
+        $this->assertSame('PPF + Detailing', $mapped[3]);
+        $this->assertSame([1000000.0, 50000.0, 400000.0, 600000.0, 'Belum Lunas'], array_slice($mapped, 4, 5));
+        $this->assertSame('2026-10-03', $mapped[10]);
+        $this->assertSame($booking->journalEntry->entry_number, $mapped[11]);
+        $this->assertSame(['No. Booking', 'Pelanggan', 'Toko', 'Produk', 'Nilai Transaksi', 'Potongan Promo', 'Diterima', 'Sisa Tagihan', 'Status', 'Waktu Order', 'Tanggal Penjualan', 'No. Jurnal'], $export->headings());
     }
 
     public function test_pdf_export_downloads_logs_and_renders_empty_results(): void
@@ -356,5 +345,32 @@ class SalesDetailTest extends TestCase
 
         $this->actingAs($this->user('kasir', $this->storeA, ['menu_access' => ['BookingResource']]), 'web');
         $this->assertFalse((bool) SalesResource::canViewAny());
+    }
+    public function test_without_the_finance_module_the_receivable_columns_cards_and_export_columns_are_hidden(): void
+    {
+        config(['features.finance' => false]);
+        $customer = Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(10000000, 99999999)]);
+        $booking = Booking::create([
+            'booking_number' => 'BKG-OFF-' . strtoupper(uniqid()), 'customer_id' => $customer->id, 'store_id' => $this->storeA->id, 'service_type' => 'PPF',
+            'product_ppf' => true, 'preferred_date' => '2026-10-03', 'status' => 'completed', 'transaction_amount' => 1000000,
+            'amount_received' => 400000, 'sale_date' => '2026-10-03',
+        ]);
+
+        $page = $this->list();
+        $page->assertCanSeeTableRecords([$booking])
+            ->assertTableColumnHidden('amount_received')
+            ->assertTableColumnHidden('outstanding')
+            ->assertTableColumnHidden('payment_status')
+            ->assertTableFilterHidden('payment_status')
+            ->assertSee('Total Penjualan')
+            ->assertDontSee('Belum Lunas')
+            ->assertDontSee('Total Diterima');
+
+        $headings = (new SalesExport(SalesResource::getEloquentQuery()))->headings();
+        $this->assertSame(['No. Booking', 'Pelanggan', 'Toko', 'Produk', 'Nilai Transaksi', 'Potongan Promo', 'Waktu Order', 'Tanggal Penjualan'], $headings);
+        $this->assertCount(count($headings), (new SalesExport())->map($booking));
+
+        config(['features.finance' => true]);
+        $this->list()->assertTableColumnVisible('outstanding')->assertTableFilterVisible('payment_status');
     }
 }

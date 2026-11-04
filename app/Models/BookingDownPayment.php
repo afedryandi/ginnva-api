@@ -19,6 +19,7 @@ class BookingDownPayment extends Model
     protected $fillable = [
         'booking_id',
         'payment_account_id',
+        'method',
         'amount',
         'received_at',
         'notes',
@@ -78,7 +79,7 @@ class BookingDownPayment extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['booking_id', 'amount', 'received_at', 'notes', 'refunded_at'])
+            ->logOnly(['booking_id', 'amount', 'method', 'received_at', 'notes', 'refunded_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }

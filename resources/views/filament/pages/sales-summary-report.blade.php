@@ -1,4 +1,29 @@
 <x-filament-panels::page>
+    {{-- Panel memakai CSS Filament yang sudah dikompilasi, jadi class Tailwind yang tidak dipakai bawaan Filament tidak berefek. Gaya di bawah
+         menggantikannya untuk halaman ini (pita judul, banner, warna angka, jarak sel). Grid memakai style inline di elemennya. --}}
+    @once
+        <style>
+            .sd-up { color: #15803d; } .sd-warn { color: #b45309; }
+            .dark .sd-up { color: #4ade80; } .dark .sd-warn { color: #fbbf24; }
+            .sd-num { font-variant-numeric: tabular-nums; }
+            .sd-banner { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid; border-radius: 8px; font-size: 14px; text-decoration: none; }
+            .sd-banner svg { flex-shrink: 0; }
+            .sd-banner-warn { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+            .sd-banner-warn:hover { background: #fef3c7; }
+            .dark .sd-banner-warn { background: rgba(245, 158, 11, .1); border-color: rgba(245, 158, 11, .3); color: #fcd34d; }
+            .dark .sd-banner-warn:hover { background: rgba(245, 158, 11, .2); }
+            .ss-band { padding: 8px 12px; border-radius: 8px 8px 0 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+            .ss-band-ok { background: #f0fdf4; color: #15803d; }
+            .ss-band-warn { background: #fffbeb; color: #b45309; }
+            .ss-band-info { background: #fef2f2; color: #b91c1c; }
+            .dark .ss-band-ok { background: rgba(34, 197, 94, .1); color: #4ade80; }
+            .dark .ss-band-warn { background: rgba(245, 158, 11, .1); color: #fbbf24; }
+            .dark .ss-band-info { background: rgba(239, 68, 68, .1); color: #f87171; }
+            .ss-cell-l { padding: .5rem .75rem .5rem 0; } .ss-cell-r { padding: .5rem 0 .5rem .75rem; text-align: right; }
+            .py-10 { padding-top: 2.5rem; padding-bottom: 2.5rem; }
+        </style>
+    @endonce
+
     <x-filament::section>
         {{ $this->form }}
     </x-filament::section>
@@ -25,14 +50,14 @@
     @if ($result['pendingCount'] > 0)
         <a
             href="{{ \App\Filament\Resources\BookingResource::getUrl('index', ['tableFilters' => ['selesai_belum_diproses' => ['isActive' => true]]]) }}"
-            class="flex items-center gap-2 rounded-lg border border-warning-300 bg-warning-50 px-3 py-2 text-sm text-warning-800 transition hover:bg-warning-100 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300 dark:hover:bg-warning-500/20"
+            class="sd-banner sd-banner-warn"
         >
-            <x-heroicon-o-exclamation-triangle class="h-4 w-4 flex-shrink-0" />
+            <x-heroicon-o-exclamation-triangle class="h-4 w-4" />
             <span>
                 <strong class="font-semibold">{{ number_format($result['pendingCount'], 0, ',', '.') }} booking</strong>
                 sudah selesai tapi belum diproses ke pendapatan — nominalnya belum masuk laporan ini.
             </span>
-            <x-heroicon-o-arrow-right class="ml-auto h-4 w-4 flex-shrink-0" />
+            <x-heroicon-o-arrow-right class="ml-auto h-4 w-4" />
         </a>
     @endif
 
@@ -43,7 +68,7 @@
                 <x-heroicon-o-document-magnifying-glass class="h-10 w-10 text-gray-300 dark:text-gray-600" />
                 <p class="text-sm font-medium text-gray-600 dark:text-gray-300">Belum ada penjualan tercatat untuk periode ini.</p>
                 <p class="max-w-md text-xs text-gray-500 dark:text-gray-400">
-                    Angka baru muncul setelah booking selesai diproses lewat "Proses Referral" ke Jurnal Umum.
+                    Angka baru muncul setelah booking selesai diproses lewat "Proses Referral"{{ config('features.finance') ? ' ke Jurnal Umum' : '' }}.
                     @if ($result['pendingCount'] > 0)
                         Ada {{ number_format($result['pendingCount'], 0, ',', '.') }} booking selesai yang menunggu diproses (lihat peringatan di atas).
                     @endif
@@ -55,13 +80,13 @@
         <p class="text-xs text-gray-500 dark:text-gray-400">Pembanding: {{ $result['compareLabel'] }}</p>
     @endif
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px">
         <x-filament::section>
             <div class="flex items-center justify-between">
                 <div class="text-xs text-gray-500 dark:text-gray-400">Total Penjualan Bersih</div>
                 <a href="{{ $this->salesUrl() }}" class="text-xs text-primary-600 hover:underline" title="Lihat Detail Penjualan">Detail →</a>
             </div>
-            <div class="mt-1 text-2xl font-bold tabular-nums text-success-600 dark:text-success-400">{{ $rupiah($result['netSales']) }}</div>
+            <div class="mt-1 text-2xl font-bold sd-num sd-up">{{ $rupiah($result['netSales']) }}</div>
             @if ($compare)
                 <div class="mt-1 text-xs text-gray-400">vs {{ $rupiah($compare['net']) }} ({{ $delta($result['netSales'], $compare['net']) ?? '—' }})</div>
             @endif
@@ -69,55 +94,34 @@
 
         <x-filament::section>
             <div class="text-xs text-gray-500 dark:text-gray-400">Jumlah Transaksi</div>
-            <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($result['bookingCount'], 0, ',', '.') }}</div>
+            <div class="mt-1 text-2xl font-bold sd-num">{{ number_format($result['bookingCount'], 0, ',', '.') }}</div>
             @if ($compare)
                 <div class="mt-1 text-xs text-gray-400">vs {{ number_format($compare['count'], 0, ',', '.') }} ({{ $delta($result['bookingCount'], $compare['count']) ?? '—' }})</div>
             @endif
         </x-filament::section>
 
         <x-filament::section>
-            <div class="text-xs text-gray-500 dark:text-gray-400">Promo Voucher Terpakai</div>
-            <div class="mt-1 text-2xl font-bold tabular-nums text-warning-600 dark:text-warning-400">({{ $rupiah($result['voucherDiscount']) }})</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Biaya Promosi (Voucher + Promo)</div>
+            <div class="mt-1 text-2xl font-bold sd-num sd-warn">({{ $rupiah($result['promoTotal']) }})</div>
         </x-filament::section>
     </div>
 
     <x-filament::section>
         <x-slot name="heading">Rincian Ringkasan Penjualan</x-slot>
         <x-slot name="description">
-            Baris bertanda "Tidak berlaku" memang bukan bagian dari bisnis jasa Ginnva (bukan resto/marketplace).
-            Baris bertanda "Belum tersedia" butuh data atau keputusan bisnis yang belum ada di sistem — bukan Rp 0.
+            Penjualan Kotor adalah nominal transaksi yang sudah setelah potongan promo dan voucher, jadi Biaya Promosi di bawah ditampilkan
+            sebagai informasi dan tidak dikurangkan lagi. Voucher dihitung menurut tanggal dipakai; Promo Total Pembelian menurut tanggal penjualan diproses.
         </x-slot>
 
-        <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px">
             {{-- PENDAPATAN --}}
             <div>
-                <div class="rounded-t-lg bg-success-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-success-700 dark:bg-success-500/10 dark:text-success-400">
-                    Pendapatan
-                </div>
+                <div class="ss-band ss-band-ok">Pendapatan</div>
                 <table class="w-full text-sm">
                     <tbody>
-                        <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3">Penjualan Kotor</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($result['grossSales']) }}</td>
-                        </tr>
-                        <tr class="border-b border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500">
-                            <td class="py-2 pr-3 italic">Ongkos Kirim</td>
-                            <td class="py-2 pl-3 text-right italic">Tidak berlaku</td>
-                        </tr>
-                        <tr class="border-b border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500">
-                            <td class="py-2 pr-3 italic">Biaya Pelayanan / MDR</td>
-                            <td class="py-2 pl-3 text-right italic">Tidak berlaku</td>
-                        </tr>
-                        <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3">
-                                Pajak (PPN 11%)
-                                <span class="block text-xs font-normal text-gray-400 dark:text-gray-500">sudah termasuk dalam Penjualan Kotor</span>
-                            </td>
-                            <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($result['ppnAmount']) }}</td>
-                        </tr>
                         <tr class="font-bold">
-                            <td class="py-2 pr-3">Total Pendapatan</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($result['grossSales']) }}</td>
+                            <td class="ss-cell-l">Penjualan Kotor</td>
+                            <td class="ss-cell-r sd-num">{{ $rupiah($result['grossSales']) }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -125,22 +129,20 @@
 
             {{-- BIAYA PROMOSI --}}
             <div>
-                <div class="rounded-t-lg bg-warning-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
-                    Biaya Promosi
-                </div>
+                <div class="ss-band ss-band-warn">Biaya Promosi</div>
                 <table class="w-full text-sm">
                     <tbody>
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3">Promo Voucher</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">({{ $rupiah($result['voucherDiscount']) }})</td>
+                            <td class="ss-cell-l">Promo Voucher</td>
+                            <td class="ss-cell-r sd-num">({{ $rupiah($result['voucherDiscount']) }})</td>
                         </tr>
-                        <tr class="border-b border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500">
-                            <td class="py-2 pr-3 italic">Reward Poin (nilai Rp)</td>
-                            <td class="py-2 pl-3 text-right italic">Belum tersedia</td>
+                        <tr class="border-b border-gray-100 dark:border-white/5">
+                            <td class="ss-cell-l">Promo Total Pembelian</td>
+                            <td class="ss-cell-r sd-num">({{ $rupiah($result['spendPromoDiscount']) }})</td>
                         </tr>
                         <tr class="font-bold">
-                            <td class="py-2 pr-3">Total Biaya Promosi</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">({{ $rupiah($result['voucherDiscount']) }})</td>
+                            <td class="ss-cell-l">Total Biaya Promosi</td>
+                            <td class="ss-cell-r sd-num">({{ $rupiah($result['promoTotal']) }})</td>
                         </tr>
                     </tbody>
                 </table>
@@ -148,49 +150,20 @@
 
             {{-- PENJUALAN BERSIH --}}
             <div>
-                <div class="rounded-t-lg bg-primary-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-primary-700 dark:bg-primary-500/10 dark:text-primary-400">
-                    Penjualan Bersih
-                </div>
+                <div class="ss-band ss-band-info">Penjualan Bersih</div>
                 <table class="w-full text-sm">
                     <tbody>
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3">Total Penjualan</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($result['grossSales']) }}</td>
+                            <td class="ss-cell-l">Total Penjualan</td>
+                            <td class="ss-cell-r sd-num">{{ $rupiah($result['grossSales']) }}</td>
                         </tr>
                         <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3">Pengembalian (Refund)</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">{{ $result['refund'] > 0 ? '(' . $rupiah($result['refund']) . ')' : '—' }}</td>
+                            <td class="ss-cell-l">Pengembalian (Refund)</td>
+                            <td class="ss-cell-r sd-num">{{ $result['refund'] > 0 ? '(' . $rupiah($result['refund']) . ')' : '—' }}</td>
                         </tr>
                         <tr class="font-bold">
-                            <td class="py-2 pr-3">Total Penjualan Bersih</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($result['netSales']) }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            {{-- LABA KOTOR --}}
-            <div>
-                <div class="rounded-t-lg bg-gray-100 px-3 py-2 text-xs font-bold uppercase tracking-wide text-gray-600 dark:bg-white/5 dark:text-gray-300">
-                    Laba Kotor
-                </div>
-                <table class="w-full text-sm">
-                    <tbody>
-                        <tr class="border-b border-gray-100 dark:border-white/5">
-                            <td class="py-2 pr-3">Penjualan Bersih</td>
-                            <td class="py-2 pl-3 text-right tabular-nums">{{ $rupiah($result['netSales']) }}</td>
-                        </tr>
-                        <tr class="border-b border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500">
-                            <td class="py-2 pr-3 italic">HPP (Harga Pokok Penjualan)</td>
-                            <td class="py-2 pl-3 text-right italic">Belum tersedia — biaya bahan belum dikaitkan per booking</td>
-                        </tr>
-                        <tr class="border-b border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500">
-                            <td class="py-2 pr-3 italic">Komisi Partner</td>
-                            <td class="py-2 pl-3 text-right italic">Belum tersedia</td>
-                        </tr>
-                        <tr class="font-bold text-gray-400 dark:text-gray-500">
-                            <td class="py-2 pr-3 italic">Total Laba Kotor</td>
-                            <td class="py-2 pl-3 text-right italic">Belum tersedia — perlu HPP untuk akurat</td>
+                            <td class="ss-cell-l">Total Penjualan Bersih</td>
+                            <td class="ss-cell-r sd-num">{{ $rupiah($result['netSales']) }}</td>
                         </tr>
                     </tbody>
                 </table>

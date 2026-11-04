@@ -4,19 +4,14 @@ namespace App\Filament\ReportWidgets;
 
 use App\Filament\Pages\SalesByPeriodReport;
 use App\Models\Booking;
-use App\Models\Refund;
-use App\Models\Technician;
-use App\Services\BookingCogsService;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
 
 /**
  * "Grafik Penjualan Per Periode" — diminta 2026-09-09, analog grafik
- * multi-metrik di halaman Penjualan Per Periode Majoo. 4 garis:
- * Penjualan, Transaksi, Produk, Laba Kotor -- "Laba Kotor" ditambahkan
- * 2026-09-22 (audit Majoo f7/f8) setelah HPP film tersedia lewat
- * ScrollCode::costPerMeter() (lihat BookingCogsService), formula SAMA
- * PERSIS dengan tabel SalesByPeriodReport supaya konsisten.
+ * multi-metrik di halaman Penjualan Per Periode Majoo. 3 garis:
+ * Penjualan, Transaksi, Produk. Garis Laba Kotor dihapus 2026-11-04 (keputusan pemilik: HPP dipegang Accurate). Tanggal penjualan
+ * dibaca lewat Booking::sale_day (jurnal bila Keuangan menyala, selain itu sale_date), sama dengan tabel di bawahnya.
  *
  * "Toggle metrik" ala Majoo TIDAK perlu dikoding manual — itu perilaku
  * BAWAAN Chart.js (klik label di legend otomatis show/hide dataset
@@ -87,16 +82,8 @@ class SalesByPeriodChart extends ChartWidget
             ->soldBetween($start->toDateString(), $end->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->with(['journalEntry:id,entry_date', 'installers:id'])
-            ->get(['id', 'transaction_amount', 'journal_entry_id', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
-
-        // "Laba Kotor" (audit Majoo f7/f8) — SAMA formula dengan
-        // SalesByPeriodReport (Penjualan − Komisi − Pengembalian − HPP),
-        // supaya garis di grafik ini konsisten dengan tabel di bawahnya.
-        // Komisi lewat Technician::commissionForBooking() (audit Majoo
-        // f34, flat ATAU per-jenis-layanan).
-        $technicianByUserId = Technician::query()->whereNotNull('user_id')->with('serviceRates')->get()->keyBy('user_id');
-        $cogsByBookingId = app(BookingCogsService::class)->forBookings($bookings->pluck('id')->all());
+            ->with(['journalEntry:id,entry_date'])
+            ->get(['id', 'transaction_amount', 'journal_entry_id', 'sale_date', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash']);
 
         $buckets = [];
         $order = [];
@@ -105,14 +92,15 @@ class SalesByPeriodChart extends ChartWidget
         while ($cursor->lte($end)) {
             [$key, $label, $bucketEnd] = SalesByPeriodReport::periodKeyFor($cursor, $granularity);
             if (! isset($buckets[$key])) {
-                $buckets[$key] = ['label' => $label, 'revenue' => 0.0, 'count' => 0, 'products' => 0, 'commission' => 0.0, 'cogs' => 0.0, 'refund' => 0.0];
+                $buckets[$key] = ['label' => $label, 'revenue' => 0.0, 'count' => 0, 'products' => 0];
                 $order[] = $key;
             }
             $cursor = $bucketEnd->copy()->addDay();
         }
 
         foreach ($bookings as $booking) {
-            $entryDate = $booking->journalEntry?->entry_date;
+            // Tanggal penjualan: tanggal jurnal bila Keuangan menyala, selain itu sale_date (sebelumnya hanya jurnal, jadi grafik kosong saat mati).
+            $entryDate = $booking->sale_day;
             if (! $entryDate) continue;
 
             [$key] = SalesByPeriodReport::periodKeyFor(Carbon::parse($entryDate), $granularity);
@@ -122,33 +110,12 @@ class SalesByPeriodChart extends ChartWidget
             $buckets[$key]['count']++;
             $buckets[$key]['products'] += $booking->salesProductCount();
 
-            foreach ($booking->installers as $installer) {
-                $technician = $technicianByUserId->get($installer->id);
-                $commission = $technician?->commissionForBooking($booking);
-                if ($commission !== null) {
-                    $buckets[$key]['commission'] += $commission;
-                }
-            }
-
-            $buckets[$key]['cogs'] += $cogsByBookingId[$booking->id]['cost'] ?? 0.0;
-        }
-
-        $refunds = Refund::query()
-            ->whereBetween('created_at', [$start, $end])
-            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
-            ->get(['amount', 'created_at']);
-
-        foreach ($refunds as $refund) {
-            [$key] = SalesByPeriodReport::periodKeyFor($refund->created_at, $granularity);
-            if (! isset($buckets[$key])) continue;
-            $buckets[$key]['refund'] += (float) $refund->amount;
         }
 
         $labels = array_map(fn ($key) => $buckets[$key]['label'], $order);
         $revenueData = array_map(fn ($key) => $buckets[$key]['revenue'], $order);
         $countData = array_map(fn ($key) => $buckets[$key]['count'], $order);
         $productsData = array_map(fn ($key) => $buckets[$key]['products'], $order);
-        $grossProfitData = array_map(fn ($key) => $buckets[$key]['revenue'] - $buckets[$key]['commission'] - $buckets[$key]['refund'] - $buckets[$key]['cogs'], $order);
 
         return [
             'datasets' => [
@@ -180,17 +147,6 @@ class SalesByPeriodChart extends ChartWidget
                     'yAxisID' => 'y1',
                     'pointRadius' => 2,
                     'borderDash' => [4, 4],
-                    'tension' => 0.3,
-                    'fill' => false,
-                ],
-                [
-                    'label' => 'Laba Kotor (Rp)',
-                    'data' => $grossProfitData,
-                    'borderColor' => '#16a34a',
-                    'backgroundColor' => 'transparent',
-                    'yAxisID' => 'y',
-                    'pointRadius' => 2,
-                    'borderDash' => [2, 2],
                     'tension' => 0.3,
                     'fill' => false,
                 ],

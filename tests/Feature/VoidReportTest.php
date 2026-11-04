@@ -21,7 +21,7 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * Laporan Void (booking yang dibatalkan): sumber data (log perubahan status ke "cancelled"), rentang tanggal
+ * Laporan Pembatalan (booking yang dibatalkan): sumber data (kolom cancelled_at; booking lama lewat log perubahan status), rentang tanggal
  * inklusif termasuk hari pertama berjam, cakupan toko, label "dibatalkan oleh" (customer / staf / sistem /
  * data lama), nama pelanggan & produk, potensi pendapatan hilang, isi Excel (judul kolom sejajar dengan data),
  * PDF, tampilan halaman, dan log ekspor. "Hari ini" dibekukan di 8 Oktober 2026.
@@ -54,7 +54,7 @@ class VoidReportTest extends TestCase
 
     private function user(string $role, ?Store $store = null, array $extra = []): User
     {
-        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id], $extra)), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id, 'menu_access' => ['VoidReport']], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
     private function admin(): User
@@ -114,7 +114,7 @@ class VoidReportTest extends TestCase
 
         $result = $this->report();
 
-        $this->assertSame([$second->id, $first->id], $result['events']->pluck('subject.id')->all(), 'Terbaru dulu.');
+        $this->assertSame([$second->id, $first->id], $result['rows']->pluck('booking.id')->all(), 'Terbaru dulu.');
         $this->assertSame(2, $result['totalCount']);
         $this->assertEquals(1500000.0, $result['totalLostRevenue']);
     }
@@ -136,7 +136,7 @@ class VoidReportTest extends TestCase
         $this->cancel($this->booking(), '2026-09-30 23:59:00');
         $this->cancel($this->booking(), '2026-11-01 00:00:00');
 
-        $ids = fn (array $r) => $r['events']->pluck('subject.id')->sort()->values()->all();
+        $ids = fn (array $r) => $r['rows']->pluck('booking.id')->sort()->values()->all();
 
         $this->assertSame([$early->id, $last->id], $ids($this->report(['from' => '2026-10-01', 'to' => '2026-10-31'])));
         $this->assertSame([$early->id, $last->id], $ids($this->report(['from' => '2026-10-01 10:00:00', 'to' => '2026-10-31'])), 'Pembatalan jam 08:00 di hari pertama ikut walau "Dari" berjam 10:00.');
@@ -150,7 +150,7 @@ class VoidReportTest extends TestCase
 
         $result = $this->report();
 
-        $this->assertSame([$kept->id], $result['events']->pluck('subject.id')->all());
+        $this->assertSame([$kept->id], $result['rows']->pluck('booking.id')->all());
     }
 
     // ------------------------------------------------------------- cakupan toko
@@ -160,11 +160,11 @@ class VoidReportTest extends TestCase
         $a = $this->cancel($this->booking($this->storeA), '2026-10-03 09:00:00');
         $b = $this->cancel($this->booking($this->storeB), '2026-10-04 09:00:00');
 
-        $this->assertEqualsCanonicalizing([$a->id, $b->id], $this->report()['events']->pluck('subject.id')->all());
-        $this->assertSame([$b->id], $this->report(['store_id' => $this->storeB->id])['events']->pluck('subject.id')->all());
+        $this->assertEqualsCanonicalizing([$a->id, $b->id], $this->report()['rows']->pluck('booking.id')->all());
+        $this->assertSame([$b->id], $this->report(['store_id' => $this->storeB->id])['rows']->pluck('booking.id')->all());
 
         $staff = $this->user('kasir', $this->storeA);
-        $this->assertSame([$a->id], $this->report(['store_id' => $this->storeB->id], $staff)['events']->pluck('subject.id')->all(), 'Staff tidak bisa melihat toko lain.');
+        $this->assertSame([$a->id], $this->report(['store_id' => $this->storeB->id], $staff)['rows']->pluck('booking.id')->all(), 'Staff tidak bisa melihat toko lain.');
     }
 
     public function test_an_account_without_a_store_sees_nothing(): void
@@ -190,7 +190,7 @@ class VoidReportTest extends TestCase
         $legacy->update(['status' => 'cancelled']);   // jalur lama: tanpa kolom cancelled_by_*
         Carbon::setTestNow('2026-10-08 10:00:00');
 
-        $labels = $this->report()['events']->mapWithKeys(fn ($e) => [$e->subject->id => $e->subject->cancelledByLabel($e->causer?->name)]);
+        $labels = $this->report()['rows']->mapWithKeys(fn ($r) => [$r['booking']->id => $r['by']]);
 
         $this->assertSame('Pelanggan', $labels[$byCustomer->id]);
         $this->assertSame('Rina Kasir', $labels[$byStaff->id]);
@@ -205,7 +205,7 @@ class VoidReportTest extends TestCase
         $deleted = $this->cancel($this->booking(null, [], 'Akan Dihapus'), '2026-10-05 09:00:00');
         $deleted->customer->delete();
 
-        $rows = $this->report()['events']->mapWithKeys(fn ($e) => [$e->subject->id => [$e->subject->display_customer_name, $e->subject->salesProductLabel()]]);
+        $rows = $this->report()['rows']->mapWithKeys(fn ($r) => [$r['booking']->id => [$r['booking']->display_customer_name, $r['booking']->salesProductLabel()]]);
 
         $this->assertSame(['Budi Aplikasi', 'PPF + Detailing'], $rows[$viaApp->id]);
         $this->assertSame(['Pak Walk-in', 'Premium Wash'], $rows[$walkIn->id]);
@@ -266,18 +266,19 @@ class VoidReportTest extends TestCase
         $export = new VoidReportExport($this->report());
         $rows = $export->array();
 
-        $this->assertSame(['No. Booking', 'Tanggal Order', 'Tanggal Dibatalkan', 'Pelanggan', 'Toko', 'Layanan', 'Dibatalkan Oleh', 'Alasan', 'Nilai Transaksi'], $export->headings());
+        $this->assertSame(['No. Booking', 'Tanggal Order', 'Tanggal Dibatalkan', 'Jenis', 'Pelanggan', 'Toko', 'Layanan', 'Dibatalkan Oleh', 'Alasan', 'Nilai Transaksi', 'DP Belum Dikembalikan'], $export->headings());
         $this->assertCount(count($export->headings()), $rows[0], 'Tiap baris harus sebanyak judul kolom (dulu judul "Alasan" hilang).');
         $this->assertSame('2026-10-03 09:30', $rows[0][2]);
-        $this->assertSame(['Budi Aplikasi', 'Toko A', 'PPF + Detailing'], array_slice($rows[0], 3, 3));
-        $this->assertSame(['Salah jadwal', 750000.0], array_slice($rows[0], 7, 2));
+        $this->assertSame(['Dibatalkan', 'Budi Aplikasi', 'Toko A', 'PPF + Detailing'], array_slice($rows[0], 3, 4));
+        $this->assertSame(['Salah jadwal', 750000.0, 0.0], array_slice($rows[0], 8, 3));
+        $this->assertSame(['Total', 750000.0, 0.0], [$rows[1][0], $rows[1][9], $rows[1][10]], 'Baris Total di ujung.');
     }
 
     public function test_excel_uses_a_dash_for_a_missing_reason(): void
     {
         $this->cancel($this->booking(), '2026-10-03 09:00:00', 'customer', null, null);
 
-        $this->assertSame('-', (new VoidReportExport($this->report()))->array()[0][7]);
+        $this->assertSame('-', (new VoidReportExport($this->report()))->array()[0][8]);
     }
 
     public function test_page_shows_the_rows_totals_links_and_the_empty_state(): void
@@ -307,7 +308,7 @@ class VoidReportTest extends TestCase
         $page->callAction('exportExcel')->assertHasNoActionErrors();
         $page->callAction('exportPdf')->assertHasNoActionErrors();
 
-        Excel::assertDownloaded('laporan-void-20261008-100000.xlsx');
+        Excel::assertDownloaded('laporan-pembatalan-20261008-100000.xlsx');
         $logs = Activity::where('log_name', 'report_export')->where('causer_id', $staff->id)->get();
         $this->assertCount(2, $logs);
         $this->assertSame([$this->storeA->id, $this->storeA->id], $logs->map(fn ($l) => $l->properties['store_id'])->all());
@@ -319,5 +320,78 @@ class VoidReportTest extends TestCase
 
         $this->cancel($this->booking(null, ['product_premium_wash' => true]), '2026-10-03 09:00:00');
         $this->page()->callAction('exportPdf')->assertHasNoActionErrors();
+    }
+
+    // ------------------------------------------------------------- sumber kolom, no-show, DP, ringkasan
+
+    public function test_the_report_reads_the_booking_columns_so_a_purged_activity_log_does_not_hide_it(): void
+    {
+        $booking = $this->cancel($this->booking(), '2026-10-03 09:00:00');
+        Activity::query()->delete();
+
+        $this->assertSame([$booking->id], $this->report()['rows']->pluck('booking.id')->all());
+    }
+
+    public function test_a_booking_is_not_listed_twice_when_it_has_both_the_column_and_a_log(): void
+    {
+        $this->cancel($this->booking(), '2026-10-03 09:00:00');
+
+        $this->assertSame(1, $this->report()['totalCount']);
+    }
+
+    public function test_a_no_show_is_marked_and_counted_separately(): void
+    {
+        $plain = $this->cancel($this->booking(), '2026-10-03 09:00:00');
+        $noShow = $this->booking();
+        $this->actingAs($this->admin(), 'web');
+        $noShow->update(['no_show_at' => '2026-10-04 09:00:00']);
+        $this->cancel($noShow->fresh(), '2026-10-04 09:00:00', 'staff', null, 'Pelanggan tidak datang (no-show)');
+
+        $result = $this->report();
+
+        $this->assertSame(2, $result['totalCount']);
+        $this->assertSame(1, $result['noShowCount']);
+        $this->assertSame(['Dibatalkan', 'Tidak datang'], [$result['rows']->firstWhere('booking.id', $plain->id)['kind'], $result['rows']->firstWhere('booking.id', $noShow->id)['kind']]);
+    }
+
+    public function test_only_down_payments_not_yet_refunded_on_a_cancelled_booking_are_flagged(): void
+    {
+        $stuck = $this->booking();
+        DB::table('booking_down_payments')->insert(['booking_id' => $stuck->id, 'amount' => 300000, 'received_at' => '2026-10-02', 'created_at' => now(), 'updated_at' => now()]);
+        $refunded = $this->booking();
+        DB::table('booking_down_payments')->insert(['booking_id' => $refunded->id, 'amount' => 200000, 'received_at' => '2026-10-02', 'refunded_at' => '2026-10-03 09:00:00', 'created_at' => now(), 'updated_at' => now()]);
+        $this->cancel($stuck, '2026-10-03 09:00:00');
+        $this->cancel($refunded, '2026-10-03 09:00:00');
+
+        $result = $this->report();
+
+        $this->assertEquals(300000.0, $result['openDpTotal']);
+        $this->assertSame(1, $result['openDpCount']);
+        $this->assertEquals(300000.0, $result['rows']->firstWhere('booking.id', $stuck->id)['dp_open']);
+        $this->page()->assertSee('DP Belum Dikembalikan')->assertSee('Rp300.000')->assertSee('Ada 1 booking batal yang DP-nya belum dikembalikan');
+    }
+
+    public function test_the_summary_groups_by_reason_and_by_who_cancelled(): void
+    {
+        $this->cancel($this->booking(), '2026-10-03 09:00:00', 'customer', null, 'Salah jadwal');
+        $this->cancel($this->booking(), '2026-10-04 09:00:00', 'customer', null, 'Salah jadwal');
+        $this->cancel($this->booking(), '2026-10-05 09:00:00', 'staff', null, null);
+
+        $result = $this->report();
+
+        $this->assertSame(['Salah jadwal' => 2, 'Tanpa alasan' => 1], $result['byReason']->all());
+        $this->assertSame(['Pelanggan' => 2, 'Staf' => 1], $result['byActor']->all());
+    }
+
+    public function test_many_distinct_reasons_collapse_into_others(): void
+    {
+        foreach (range(1, 10) as $i) {
+            $this->cancel($this->booking(), '2026-10-03 09:00:00', 'customer', null, "Alasan {$i}");
+        }
+
+        $reasons = $this->report()['byReason'];
+
+        $this->assertCount(9, $reasons);
+        $this->assertSame(2, $reasons['Lainnya']);
     }
 }

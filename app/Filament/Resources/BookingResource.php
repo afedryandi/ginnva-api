@@ -1313,7 +1313,14 @@ class BookingResource extends Resource
                             ->numeric()
                             ->minValue(0.01)
                             ->required()
-                            ->helperText('Bebas diisi sesuai kesepakatan dengan pelanggan -- dicatat sebagai Pendapatan Diterima Dimuka, BUKAN pendapatan jasa.'),
+                            ->helperText(config('features.finance')
+                                ? 'Bebas diisi sesuai kesepakatan dengan pelanggan -- dicatat sebagai Pendapatan Diterima Dimuka, BUKAN pendapatan jasa.'
+                                : 'Bebas diisi sesuai kesepakatan dengan pelanggan. DP bukan pendapatan jasa dan dipakai otomatis melunasi pembayaran saat Proses Referral.'),
+                        Forms\Components\Select::make('method')
+                            ->label('Metode Pembayaran')
+                            ->options(\App\Models\Booking::PAYMENT_METHOD_LABELS)
+                            ->required()
+                            ->helperText('Cara pelanggan membayar DP; dipakai Buku Pembayaran untuk rekap per metode.'),
                         Forms\Components\Textarea::make('notes')
                             ->label('Catatan (opsional)')
                             ->rows(2)
@@ -1329,7 +1336,8 @@ class BookingResource extends Resource
                                     $record,
                                     (float) $data['amount'],
                                     $data['notes'] ?: null,
-                                    auth()->id()
+                                    auth()->id(),
+                                    $data['method'] ?? null
                                 );
                             } catch (RuntimeException $e) {
                                 Notification::make()
@@ -1355,7 +1363,9 @@ class BookingResource extends Resource
                                 $record,
                                 (float) $data['amount'],
                                 $data['notes'] ?: null,
-                                auth()->id()
+                                auth()->id(),
+                                null,
+                                $data['method'] ?? null
                             );
                         } catch (RuntimeException $e) {
                             Notification::make()
@@ -1687,8 +1697,14 @@ class BookingResource extends Resource
                             ->minValue(0.01)
                             ->required()
                             ->helperText('Bisa parsial (sebagian dari nilai transaksi)' . (config('features.finance') ? ' — otomatis bikin jurnal balik pendapatan + kas di Jurnal Umum.' : '.')),
+                        Forms\Components\Select::make('method')
+                            ->label('Metode Pengembalian')
+                            ->options(\App\Models\Booking::PAYMENT_METHOD_LABELS)
+                            ->required()
+                            ->helperText('Cara uang dikembalikan ke pelanggan; tampil di Laporan Refund.'),
                         Forms\Components\Textarea::make('reason')
                             ->label('Alasan Refund')
+                            ->required()
                             ->rows(2)
                             ->maxLength(500),
                     ])
@@ -1702,7 +1718,8 @@ class BookingResource extends Resource
                                     $record,
                                     (float) $data['amount'],
                                     $data['reason'] ?: null,
-                                    auth()->id()
+                                    auth()->id(),
+                                    $data['method'] ?? null
                                 );
                             } catch (RuntimeException $e) {
                                 Notification::make()
@@ -1728,7 +1745,8 @@ class BookingResource extends Resource
                                 $record,
                                 (float) $data['amount'],
                                 $data['reason'] ?: null,
-                                auth()->id()
+                                auth()->id(),
+                                $data['method'] ?? null
                             );
                         } catch (RuntimeException $e) {
                             Notification::make()

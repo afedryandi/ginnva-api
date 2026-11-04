@@ -57,7 +57,7 @@ class RefundReportTest extends TestCase
 
     private function user(string $role, ?Store $store = null, array $extra = []): User
     {
-        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id], $extra)), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id, 'menu_access' => ['RefundReport']], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
     private function admin(): User
@@ -113,7 +113,7 @@ class RefundReportTest extends TestCase
 
         $result = $this->report();
 
-        $this->assertSame([$second->id, $first->id], $result['refunds']->pluck('id')->all());
+        $this->assertSame([$second->id, $first->id], $result['rows']->pluck('id')->all());
         $this->assertSame(2, $result['totalCount']);
         $this->assertEquals(150000.0, $result['totalAmount']);
         $this->assertEquals(150000.0, $result['totalCash']);
@@ -127,7 +127,7 @@ class RefundReportTest extends TestCase
         $this->refund($this->sale(1000000), 4000, '2026-09-30 23:59:00');
         $this->refund($this->sale(1000000), 8000, '2026-11-01 00:00:00');
 
-        $ids = fn (array $r) => $r['refunds']->pluck('id')->sort()->values()->all();
+        $ids = fn (array $r) => $r['rows']->pluck('id')->sort()->values()->all();
 
         $this->assertSame([$early->id, $last->id], $ids($this->report(['from' => '2026-10-01', 'to' => '2026-10-31'])));
         $this->assertSame([$early->id, $last->id], $ids($this->report(['from' => '2026-10-01 10:00:00', 'to' => '2026-10-31'])), 'Refund jam 08:00 di hari pertama ikut walau "Dari" berjam 10:00.');
@@ -142,16 +142,16 @@ class RefundReportTest extends TestCase
         $receivableOnly = $this->refund($this->sale(1000000, null, ['amount_received' => 600000]), 300000, '2026-10-04 09:00:00');
         $mixed = $this->refund($this->sale(1000000, null, ['amount_received' => 600000]), 500000, '2026-10-05 09:00:00');
 
-        $rows = $this->report()['refunds']->keyBy('id');
+        $rows = $this->report()['rows']->keyBy('id');
 
-        $this->assertSame('Tunai', $rows[$cashOnly->id]->payment_method_label);
-        $this->assertEquals(100000.0, $rows[$cashOnly->id]->cash_portion);
-        $this->assertSame('Kurangi Piutang', $rows[$receivableOnly->id]->payment_method_label);
-        $this->assertEquals(0.0, $rows[$receivableOnly->id]->cash_portion);
-        $this->assertEquals(300000.0, $rows[$receivableOnly->id]->receivable_portion);
-        $this->assertSame('Tunai + Kurangi Piutang', $rows[$mixed->id]->payment_method_label);
-        $this->assertEquals(100000.0, $rows[$mixed->id]->cash_portion);
-        $this->assertEquals(400000.0, $rows[$mixed->id]->receivable_portion);
+        $this->assertSame('Tunai', $rows[$cashOnly->id]['method_label']);
+        $this->assertEquals(100000.0, $rows[$cashOnly->id]['cash']);
+        $this->assertSame('Kurangi Piutang', $rows[$receivableOnly->id]['method_label']);
+        $this->assertEquals(0.0, $rows[$receivableOnly->id]['cash']);
+        $this->assertEquals(300000.0, $rows[$receivableOnly->id]['receivable']);
+        $this->assertSame('Tunai + Kurangi Piutang', $rows[$mixed->id]['method_label']);
+        $this->assertEquals(100000.0, $rows[$mixed->id]['cash']);
+        $this->assertEquals(400000.0, $rows[$mixed->id]['receivable']);
 
         $result = $this->report();
         $this->assertEquals(900000.0, $result['totalAmount']);
@@ -166,11 +166,11 @@ class RefundReportTest extends TestCase
         $a = $this->refund($this->sale(1000000, $this->storeA), 1000);
         $b = $this->refund($this->sale(1000000, $this->storeB), 2000);
 
-        $this->assertEqualsCanonicalizing([$a->id, $b->id], $this->report()['refunds']->pluck('id')->all());
-        $this->assertSame([$b->id], $this->report(['store_id' => $this->storeB->id])['refunds']->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([$a->id, $b->id], $this->report()['rows']->pluck('id')->all());
+        $this->assertSame([$b->id], $this->report(['store_id' => $this->storeB->id])['rows']->pluck('id')->all());
 
         $staff = $this->user('kasir', $this->storeA);
-        $this->assertSame([$a->id], $this->report(['store_id' => $this->storeB->id], $staff)['refunds']->pluck('id')->all(), 'Staff tidak bisa melihat toko lain.');
+        $this->assertSame([$a->id], $this->report(['store_id' => $this->storeB->id], $staff)['rows']->pluck('id')->all(), 'Staff tidak bisa melihat toko lain.');
     }
 
     public function test_an_account_without_a_store_sees_nothing(): void
@@ -227,7 +227,7 @@ class RefundReportTest extends TestCase
         $deleted = $this->refund($deletedBooking, 3000, '2026-10-05 09:00:00');
         $deletedBooking->customer->delete();
 
-        $names = $this->report()['refunds']->mapWithKeys(fn ($r) => [$r->id => $r->booking?->display_customer_name]);
+        $names = $this->report()['rows']->mapWithKeys(fn ($r) => [$r['id'] => $r['booking']?->display_customer_name]);
 
         $this->assertSame('Budi Aplikasi', $names[$viaApp->id]);
         $this->assertSame('Pak Walk-in', $names[$walkIn->id]);
@@ -236,31 +236,33 @@ class RefundReportTest extends TestCase
 
     // ------------------------------------------------------------- ekspor & tampilan
 
-    public function test_excel_columns_line_up_and_the_method_matches_the_page(): void
+    public function test_excel_columns_line_up_with_a_total_row_and_the_method_matches_the_page(): void
     {
         $processor = $this->user('kasir', $this->storeA, ['name' => 'Rina Kasir']);
         $this->refund($this->sale(1000000), 100000, '2026-10-03 09:30:00', $processor, 'Pelanggan batal');
         $this->refund($this->sale(1000000, null, ['amount_received' => 600000]), 300000, '2026-10-04 09:00:00', null, null);
 
-        $result = $this->report();
-        $export = new RefundReportExport($result);
+        $export = new RefundReportExport($this->report());
         $rows = $export->array();
+        $headings = $export->headings();
 
-        $this->assertSame(['No. Refund', 'Tanggal', 'No. Booking', 'Pelanggan', 'Toko', 'Metode Pembayaran', 'Diproses Oleh', 'No. Jurnal', 'Alasan', 'Nominal'], $export->headings());
-        $this->assertCount(2, $rows);
+        $this->assertSame(['No. Refund', 'Tanggal', 'Jenis', 'No. Booking', 'Pelanggan', 'Toko', 'Metode', 'Diproses Oleh', 'Disetujui Oleh', 'No. Jurnal', 'Alasan', 'Nominal', 'Sisa Setelah Refund'], $headings);
+        $this->assertCount(3, $rows, 'Dua refund + baris Total.');
         foreach ($rows as $row) {
-            $this->assertCount(count($export->headings()), $row);
+            $this->assertCount(count($headings), $row);
         }
 
-        $byAmount = collect($rows)->keyBy(fn ($r) => $r[9]);
-        $this->assertSame('Tunai', $byAmount[100000.0][5]);
-        $this->assertSame('Kurangi Piutang', $byAmount[300000.0][5], 'Dulu selalu "Tunai" di Excel.');
-        $this->assertSame(['Budi', 'Toko A', 'Tunai', 'Rina Kasir'], [$byAmount[100000.0][3], $byAmount[100000.0][4], $byAmount[100000.0][5], $byAmount[100000.0][6]]);
-        $this->assertStringStartsWith('JE-', $byAmount[100000.0][7]);
-        $this->assertSame('Pelanggan batal', $byAmount[100000.0][8]);
-        $this->assertSame('-', $byAmount[300000.0][6], 'Tanpa pemroses.');
-        $this->assertSame('-', $byAmount[300000.0][8], 'Tanpa alasan.');
-        $this->assertSame('2026-10-03 09:30', $byAmount[100000.0][1]);
+        $col = fn (string $name) => array_search($name, $headings, true);
+        $byAmount = collect([$rows[0], $rows[1]])->keyBy(fn ($r) => $r[$col('Nominal')]);
+        $this->assertSame('Tunai', $byAmount[100000.0][$col('Metode')]);
+        $this->assertSame('Kurangi Piutang', $byAmount[300000.0][$col('Metode')], 'Dulu selalu "Tunai" di Excel.');
+        $this->assertSame(['Refund Penjualan', 'Budi', 'Toko A', 'Rina Kasir'], [$byAmount[100000.0][$col('Jenis')], $byAmount[100000.0][$col('Pelanggan')], $byAmount[100000.0][$col('Toko')], $byAmount[100000.0][$col('Diproses Oleh')]]);
+        $this->assertStringStartsWith('JE-', $byAmount[100000.0][$col('No. Jurnal')]);
+        $this->assertSame('Pelanggan batal', $byAmount[100000.0][$col('Alasan')]);
+        $this->assertSame('-', $byAmount[300000.0][$col('Diproses Oleh')], 'Tanpa pemroses.');
+        $this->assertSame('-', $byAmount[300000.0][$col('Alasan')], 'Tanpa alasan.');
+        $this->assertSame('2026-10-03 09:30', $byAmount[100000.0][$col('Tanggal')]);
+        $this->assertSame(['Total', 400000.0], [$rows[2][0], $rows[2][$col('Nominal')]]);
     }
 
     public function test_page_shows_totals_methods_and_links(): void
@@ -270,9 +272,9 @@ class RefundReportTest extends TestCase
 
         $this->page()
             ->assertSuccessful()
-            ->assertSee('Total Refund')
+            ->assertSee('Total Uang Dikembalikan')
             ->assertSee('Rp500.000')
-            ->assertSee('Refund Tunai (Kas Keluar)')
+            ->assertSee('Kas Keluar')
             ->assertSee('Rp100.000')
             ->assertSee('Pengurang Piutang')
             ->assertSee('Rp400.000')
@@ -283,7 +285,7 @@ class RefundReportTest extends TestCase
             ->assertSee($refund->journalEntry->entry_number);
 
         $this->assertStringContainsString('/bookings/' . $booking->id, $this->page()->instance()->bookingUrl($booking->id));
-        $this->page(['from' => '2026-01-01', 'to' => '2026-01-31'])->assertSee('Tidak ada refund pada rentang ini.');
+        $this->page(['from' => '2026-01-01', 'to' => '2026-01-31'])->assertSee('Tidak ada pengembalian pada rentang ini.');
     }
 
     public function test_exports_download_and_the_log_records_the_effective_store(): void
@@ -308,5 +310,101 @@ class RefundReportTest extends TestCase
 
         $this->refund($this->sale(1000000, null, ['amount_received' => 600000]), 500000);
         $this->page()->callAction('exportPdf')->assertHasNoActionErrors();
+    }
+
+    // ------------------------------------------------------------- metode, penyetuju, refund DP, ringkasan
+
+    public function test_a_refund_keeps_its_method_and_an_unknown_method_is_refused(): void
+    {
+        $viaTransfer = app(RefundService::class)->process($this->sale(1000000), 100000, 'Batal', null, 'transfer');
+        DB::table('refunds')->where('id', $viaTransfer->id)->update(['created_at' => '2026-10-05 09:00:00']);
+
+        $this->assertSame('Transfer Bank', $this->report()['rows']->firstWhere('id', $viaTransfer->id)['method_label']);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Metode pengembalian refund tidak dikenal');
+        app(RefundService::class)->process($this->sale(1000000), 100000, 'Batal', null, 'bitcoin');
+    }
+
+    public function test_the_approver_is_listed_only_when_a_request_was_approved(): void
+    {
+        $admin = $this->admin();
+        $staff = $this->user('kasir', $this->storeA);
+        $direct = app(RefundService::class)->process($this->sale(1000000), 100000, 'Langsung', $admin->id, 'tunai');
+        $approved = app(RefundService::class)->process($this->sale(1000000), 200000, 'Diajukan', $staff->id, 'tunai', $admin->id);
+        DB::table('refunds')->whereIn('id', [$direct->id, $approved->id])->update(['created_at' => '2026-10-05 09:00:00']);
+
+        $rows = $this->report()['rows']->keyBy('id');
+
+        $this->assertNull($rows[$direct->id]['approved_by']);
+        $this->assertSame($admin->name, $rows[$approved->id]['approved_by']);
+        $this->assertSame($staff->name, $rows[$approved->id]['by']);
+    }
+
+    public function test_the_remaining_value_after_each_refund_and_full_refunds_are_marked(): void
+    {
+        $booking = $this->sale(1000000);
+        $first = $this->refund($booking, 400000, '2026-10-03 09:00:00');
+        $second = $this->refund($booking->fresh(), 600000, '2026-10-04 09:00:00');
+
+        $rows = $this->report()['rows']->keyBy('id');
+
+        $this->assertEquals(600000.0, $rows[$first->id]['remaining']);
+        $this->assertEquals(0.0, $rows[$second->id]['remaining']);
+        $this->page()->assertSee('Penuh')->assertSee('Rp600.000');
+    }
+
+    public function test_refunded_down_payments_join_the_list_without_touching_sales_refunds(): void
+    {
+        $booking = $this->sale(1000000);
+        $this->refund($booking, 100000, '2026-10-03 09:00:00');
+
+        $cancelled = Booking::create([
+            'booking_number' => 'BKG-DP-' . strtoupper(uniqid()), 'customer_id' => $booking->customer_id, 'store_id' => $this->storeA->id,
+            'service_type' => 'PPF', 'product_ppf' => true, 'preferred_date' => '2026-10-20', 'status' => 'cancelled',
+        ]);
+        DB::table('booking_down_payments')->insert(['booking_id' => $cancelled->id, 'amount' => 300000, 'method' => 'transfer', 'received_at' => '2026-10-02', 'refunded_at' => '2026-10-06 09:00:00', 'created_at' => now(), 'updated_at' => now()]);
+        $stillHeld = Booking::create([
+            'booking_number' => 'BKG-DP-' . strtoupper(uniqid()), 'customer_id' => $booking->customer_id, 'store_id' => $this->storeA->id,
+            'service_type' => 'PPF', 'product_ppf' => true, 'preferred_date' => '2026-10-21', 'status' => 'confirmed',
+        ]);
+        DB::table('booking_down_payments')->insert(['booking_id' => $stillHeld->id, 'amount' => 500000, 'received_at' => '2026-10-02', 'created_at' => now(), 'updated_at' => now()]);
+
+        $result = $this->report();
+
+        $this->assertSame(2, $result['totalCount']);
+        $this->assertEquals(400000.0, $result['totalAmount']);
+        $this->assertEquals(100000.0, $result['salesAmount']);
+        $this->assertEquals(300000.0, $result['dpAmount']);
+        $dp = $result['rows']->firstWhere('kind', 'Refund DP');
+        $this->assertSame(['Transfer Bank', 'Booking dibatalkan', null], [$dp['method_label'], $dp['reason'], $dp['remaining']]);
+        $this->page()->assertSee('Refund DP')->assertSee('Rp300.000');
+    }
+
+    public function test_the_summary_groups_by_reason_and_store(): void
+    {
+        $this->refund($this->sale(1000000, $this->storeA), 1000, '2026-10-03 09:00:00', null, 'Salah jadwal');
+        $this->refund($this->sale(1000000, $this->storeA), 2000, '2026-10-04 09:00:00', null, 'Salah jadwal');
+        $this->refund($this->sale(1000000, $this->storeB), 4000, '2026-10-05 09:00:00', null, 'Hasil kurang puas');
+
+        $result = $this->report();
+
+        $this->assertSame(['Salah jadwal' => 2, 'Hasil kurang puas' => 1], $result['byReason']->all());
+        $this->assertEquals(['Toko A' => 3000.0, 'Toko B' => 4000.0], $result['byStore']->sortKeys()->all());
+    }
+
+    public function test_without_the_finance_module_receivable_and_journal_wording_is_gone(): void
+    {
+        config(['features.finance' => false]);
+        $this->refund($this->sale(1000000), 100000, '2026-10-03 09:00:00');
+
+        $this->page()
+            ->assertSee('Rata-rata per Pengembalian')
+            ->assertDontSee('Pengurang Piutang')
+            ->assertDontSee('No. Jurnal');
+
+        $export = new RefundReportExport($this->report());
+        $this->assertNotContains('No. Jurnal', $export->headings());
+        $this->assertCount(count($export->headings()), $export->array()[0]);
     }
 }

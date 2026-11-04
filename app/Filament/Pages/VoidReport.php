@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Exports\VoidReportExport;
 use App\Models\Booking;
+use App\Models\BookingDownPayment;
 use App\Models\Store;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
@@ -20,36 +21,18 @@ use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Activitylog\Models\Activity;
 
 /**
- * "Laporan Void" — diminta 2026-09-09, analog "Laporan Void" Majoo:
- * rekap booking yang DIBATALKAN (status berubah jadi 'cancelled') dalam
- * 1 rentang tanggal.
+ * "Laporan Pembatalan" (kelas tetap VoidReport supaya kunci izin Hak Akses tidak berubah) -- rekap booking yang DIBATALKAN dalam
+ * 1 rentang tanggal, termasuk yang ditandai pelanggan tidak datang (no-show).
  *
- * "Dibatalkan oleh" & alasan diambil dari kolom Booking (cancelled_by_type,
- * cancel_reason; sejak 2026-10-05), fallback ke pelaku log untuk data lama.
- * Setiap perubahan status sudah otomatis tercatat di activity_log lewat
- * LogsActivity (lihat Booking::getActivitylogOptions(), logOnlyDirty)
- * — sama sumber data yang dipakai ActivityResource ("Aktivitas"). Jadi
- * "kapan dibatalkan" & "siapa yang membatalkan" DIAMBIL DARI LOG,
- * bukan dari kolom Booking langsung, supaya tidak perlu migrasi kolom
- * baru untuk data yang sebenarnya sudah tercatat.
+ * Sumber: kolom Booking (cancelled_at, cancel_reason, cancelled_by_type, no_show_at; sejak 2026-10-05), sehingga laporan tidak
+ * bergantung pada riwayat aktivitas yang bisa dibersihkan. Booking lama yang dibatalkan SEBELUM kolom itu ada (cancelled_at kosong)
+ * ditemukan lewat log perubahan status ke 'cancelled' dan "dibatalkan oleh"-nya memakai pelaku log.
  *
- * "Potensi kehilangan pendapatan" dihitung dari transaction_amount
- * booking SAAT INI (bukan snapshot nilai transaksi persis di detik
- * dibatalkan) -- untuk booking yang batal SEBELUM transaction_amount
- * pernah diisi, nilainya 0 (memang belum ada nilai transaksi yang
- * hilang). Ini pendekatan yang sama dipakai laporan lain yang membaca
- * kondisi Booking saat ini, bukan histori nilai per field.
+ * "Nilai transaksi" memakai transaction_amount booking SAAT INI; booking yang batal sebelum nilai pernah diisi bernilai 0.
+ * "DP belum dikembalikan" = uang muka booking batal yang masih tercatat di tangan toko. Pembatalan mengembalikan semua DP otomatis,
+ * jadi angka > 0 berarti ada yang tersangkut dan perlu dicek.
  *
- * CATATAN: halaman ini BUKAN dead-code seperti badge "Void" di
- * SalesResource (yang scope dasarnya whereHas('journalEntry') —
- * booking cancelled tidak pernah punya jurnal, jadi badge itu tidak
- * pernah muncul). Laporan ini baca dari activity_log, independen dari
- * jurnal, jadi BERFUNGSI NORMAL.
- *
- * Scoping toko (audit 2026-09-11, temuan I) — SEBELUMNYA di-scope di
- * PHP (tarik SEMUA histori pembatalan company-wide ke memori dulu, baru
- * filter Collection per toko). Sekarang di-scope di SQL lewat
- * whereHasMorph (subject Booking punya store_id), DB yang filter.
+ * Scoping toko di SQL (kolom store_id booking, atau whereHasMorph untuk jalur log), bukan di PHP.
  */
 class VoidReport extends Page implements HasForms
 {
@@ -61,9 +44,9 @@ class VoidReport extends Page implements HasForms
 
     protected static ?string $navigationGroup = 'Laporan Penjualan';
 
-    protected static ?string $navigationLabel = 'Laporan Void';
+    protected static ?string $navigationLabel = 'Laporan Pembatalan';
 
-    protected static ?string $title = 'Laporan Void';
+    protected static ?string $title = 'Laporan Pembatalan';
 
     protected static ?int $navigationSort = 8;
 
@@ -87,7 +70,7 @@ class VoidReport extends Page implements HasForms
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public function mount(): void
@@ -208,10 +191,6 @@ class VoidReport extends Page implements HasForms
     }
 
     /**
-     * "Ekspor Laporan" (audit 2026-09-11, temuan B) — pola sama laporan
-     * Penjualan lain.
-     */
-    /**
      * Toko yang BENAR-BENAR berlaku: full-access memilih (null = semua cabang), staf toko dikunci ke tokonya,
      * dan staf tanpa toko dikunci ke -1 (tidak cocok toko mana pun) -- bukan null yang berarti semua cabang.
      * Dipakai getResult() dan log ekspor supaya keduanya merujuk toko yang sama.
@@ -229,14 +208,14 @@ class VoidReport extends Page implements HasForms
         return $user?->store_id ?? -1;
     }
 
-    /** Log ekspor (audit Laporan Void 2026-09-29), konsisten dengan laporan lain. */
+    /** Log ekspor, konsisten dengan laporan lain. */
     private function logExport(string $format): void
     {
         try {
             activity('report_export')
                 ->causedBy(auth()->user())
                 ->withProperties(['report' => 'void', 'format' => $format, 'from' => $this->data['from'] ?? null, 'to' => $this->data['to'] ?? null, 'store_id' => $this->effectiveStoreId()])
-                ->log('Export Laporan Void (' . $format . ')');
+                ->log('Export Laporan Pembatalan (' . $format . ')');
         } catch (\Throwable $e) {
             report($e);
         }
@@ -254,7 +233,7 @@ class VoidReport extends Page implements HasForms
 
                     return Excel::download(
                         new VoidReportExport($this->getResult()),
-                        'laporan-void-' . now()->format('Ymd-His') . '.xlsx'
+                        'laporan-pembatalan-' . now()->format('Ymd-His') . '.xlsx'
                     );
                 }),
 
@@ -267,7 +246,7 @@ class VoidReport extends Page implements HasForms
 
                     $result = $this->getResult();
                     $pdf = Pdf::loadView('pdf.void_report', ['result' => $result])->setPaper('a4', 'landscape');
-                    $filename = 'laporan-void-' . now()->format('Ymd-His') . '.pdf';
+                    $filename = 'laporan-pembatalan-' . now()->format('Ymd-His') . '.pdf';
 
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);
                 }),
@@ -281,36 +260,78 @@ class VoidReport extends Page implements HasForms
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
         $storeId = $this->effectiveStoreId();
 
-        $events = Activity::query()
+        $current = Booking::query()
+            ->where('status', 'cancelled')
+            ->whereNotNull('cancelled_at')
+            ->whereBetween('cancelled_at', [$from, $to])
+            ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->with(['store:id,name', 'customer'])
+            ->get()
+            ->map(fn (Booking $b) => ['booking' => $b, 'cancelled_at' => $b->cancelled_at, 'fallback' => null]);
+
+        // Booking lama (sebelum kolom cancelled_at ada): waktu & pelaku dari log perubahan status ke 'cancelled'.
+        $legacy = Activity::query()
             ->where('subject_type', Booking::class)
-            // logOnlyDirty berarti kalau 'status' muncul di
-            // properties->attributes, itu PASTI perubahan status (bukan
-            // field lain yang kebetulan ikut ter-log) -- dan nilai
-            // barunya 'cancelled'.
+            // logOnlyDirty: 'status' di properties->attributes PASTI perubahan status, dan nilai barunya 'cancelled'.
             ->where('properties->attributes->status', 'cancelled')
             ->whereBetween('created_at', [$from, $to])
-            // Scope toko di SQL (audit 2026-09-11, temuan I) — subject
-            // Booking punya store_id, whereHasMorph push filter ke DB
-            // ketimbang tarik semua histori company-wide ke PHP dulu.
-            ->when($storeId, fn ($q) => $q->whereHasMorph(
-                'subject',
-                [Booking::class],
-                fn ($q2) => $q2->where('store_id', $storeId)
-            ))
+            ->when($storeId, fn ($q) => $q->whereHasMorph('subject', [Booking::class], fn ($q2) => $q2->where('store_id', $storeId)))
             ->with(['causer', 'subject' => fn ($q) => $q->with(['store:id,name', 'customer'])])
-            ->orderByDesc('created_at')
             ->get()
-            ->filter(fn (Activity $activity) => $activity->subject !== null)
+            ->filter(fn (Activity $a) => $a->subject !== null && $a->subject->status === 'cancelled' && $a->subject->cancelled_at === null)
+            ->unique('subject_id')
+            ->map(fn (Activity $a) => ['booking' => $a->subject, 'cancelled_at' => $a->created_at, 'fallback' => $a->causer?->name]);
+
+        $merged = $current->concat($legacy);
+
+        $openDp = BookingDownPayment::query()
+            ->whereIn('booking_id', $merged->map(fn (array $r) => $r['booking']->id)->all())
+            ->whereNull('refunded_at')
+            ->selectRaw('booking_id, SUM(amount - refunded_amount) as total')
+            ->groupBy('booking_id')
+            ->pluck('total', 'booking_id');
+
+        $rows = $merged
+            ->map(function (array $r) use ($openDp) {
+                /** @var Booking $booking */
+                $booking = $r['booking'];
+
+                return [
+                    'booking' => $booking,
+                    'cancelled_at' => $r['cancelled_at'],
+                    'kind' => $booking->no_show_at !== null ? 'Tidak datang' : 'Dibatalkan',
+                    'by' => $booking->cancelledByLabel($r['fallback']),
+                    'actor' => match ($booking->cancelled_by_type) {
+                        'customer' => 'Pelanggan',
+                        'staff' => 'Staf',
+                        'system' => 'Sistem (otomatis)',
+                        default => 'Tidak tercatat (data lama)',
+                    },
+                    'reason' => $booking->cancel_reason,
+                    'amount' => (float) ($booking->transaction_amount ?? 0),
+                    'dp_open' => (float) ($openDp[$booking->id] ?? 0),
+                ];
+            })
+            ->sortByDesc(fn (array $r) => $r['cancelled_at']->getTimestamp())
             ->values();
 
-        $totalLostRevenue = $events->sum(fn (Activity $activity) => (float) ($activity->subject->transaction_amount ?? 0));
+        $reasons = $rows->groupBy(fn (array $r) => $r['reason'] ?: 'Tanpa alasan')->map->count()->sortDesc();
+        if ($reasons->count() > 8) {
+            $others = $reasons->slice(8)->sum();
+            $reasons = $reasons->take(8)->put('Lainnya', $others);
+        }
 
         return [
             'from' => $from,
             'to' => $to,
-            'events' => $events,
-            'totalCount' => $events->count(),
-            'totalLostRevenue' => $totalLostRevenue,
+            'rows' => $rows,
+            'totalCount' => $rows->count(),
+            'noShowCount' => $rows->where('kind', 'Tidak datang')->count(),
+            'totalLostRevenue' => $rows->sum('amount'),
+            'openDpTotal' => $rows->sum('dp_open'),
+            'openDpCount' => $rows->where('dp_open', '>', 0)->count(),
+            'byReason' => $reasons,
+            'byActor' => $rows->groupBy('actor')->map->count()->sortDesc(),
         ];
     }
 }

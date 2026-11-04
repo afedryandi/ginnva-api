@@ -12,6 +12,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
@@ -88,7 +89,7 @@ class SalesByPeriodReport extends Page implements HasForms
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public function mount(): void
@@ -103,7 +104,7 @@ class SalesByPeriodReport extends Page implements HasForms
         }
 
         if (! in_array($this->granularity, ['harian', 'mingguan', 'bulanan'], true)) {
-            $this->granularity = 'harian';
+            $this->granularity = 'bulanan';
         }
 
         // Filter cabang (audit 2026-09-29, sejajar SalesSummaryReport) -- staff toko TIDAK PERNAH
@@ -118,6 +119,7 @@ class SalesByPeriodReport extends Page implements HasForms
             'to' => $this->to,
             'granularity' => $this->granularity,
             'store_id' => $this->storeId,
+            'hide_empty' => false,
         ]);
     }
 
@@ -213,7 +215,7 @@ class SalesByPeriodReport extends Page implements HasForms
                     'bulanan' => 'Bulanan',
                 ])
                 ->required()
-                ->default('harian')
+                ->default('bulanan')
                 ->live(),
             // Filter cabang (audit 2026-09-29) -- cuma untuk full-access, sama pola dengan
             // SalesSummaryReport. Staff toko tidak lihat field ini sama sekali.
@@ -223,7 +225,10 @@ class SalesByPeriodReport extends Page implements HasForms
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
-        ])->columns($isFullAccess ? 5 : 4)->statePath('data');
+            Toggle::make('hide_empty')
+                ->label('Sembunyikan periode tanpa transaksi')
+                ->live(),
+        ])->columns(3)->statePath('data');
     }
 
     /** Link drill-down ke Detail Penjualan untuk 1 baris periode. */
@@ -316,7 +321,16 @@ class SalesByPeriodReport extends Page implements HasForms
         // startOfDay(): nilai DatePicker bisa membawa jam; tanpa ini refund sebelum jam itu di hari pertama tidak terhitung.
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
-        $granularity = $this->data['granularity'] ?? 'harian';
+        $granularity = $this->data['granularity'] ?? 'bulanan';
+
+        // Hari yang belum terjadi tidak dibuatkan baris: rentang bawaan berakhir di akhir bulan, dan baris Rp 0 untuk hari esok membuat tren
+        // tampak sepi (keputusan audit 2026-11-04).
+        if ($to->gt(now())) {
+            $to = now()->endOfDay();
+        }
+        if ($from->gt($to)) {
+            $from = $to->copy()->startOfDay();
+        }
 
         // Hard cap rentang tanggal (audit framework 2026-09-14,
         // "Agregasi laporan di level database") — laporan ini menarik
@@ -365,11 +379,6 @@ class SalesByPeriodReport extends Page implements HasForms
             ->get()
             ->keyBy('user_id');
 
-        // HPP per booking (audit Majoo f7, "Kolom Laba Kotor") — film +
-        // bahan pendukung, lihat BookingCogsService untuk rincian &
-        // batasan perkiraannya.
-        $cogsByBookingId = app(\App\Services\BookingCogsService::class)->forBookings($bookings->pluck('id')->all());
-
         $buckets = [];
 
         // Inisialisasi semua slot periode dalam rentang DULU (bukan cuma
@@ -382,7 +391,6 @@ class SalesByPeriodReport extends Page implements HasForms
             $buckets[$key] ??= [
                 'label' => $label, 'revenue' => 0.0, 'received' => 0.0, 'outstanding' => 0.0,
                 'count' => 0, 'products' => 0, 'commission' => 0.0, 'hasUnratedJob' => false, 'refund' => 0.0,
-                'cogs' => 0.0, 'hasMissingCost' => false,
                 // Batas bucket ini (diclamp ke rentang laporan) -- dipakai drill-down ke Detail
                 // Penjualan (audit 2026-09-29).
                 'bucketFrom' => $cursor->copy()->toDateString(),
@@ -421,11 +429,6 @@ class SalesByPeriodReport extends Page implements HasForms
                 }
             }
 
-            $cogs = $cogsByBookingId[$booking->id] ?? ['cost' => 0.0, 'hasMissingCost' => false];
-            $buckets[$key]['cogs'] += $cogs['cost'];
-            if ($cogs['hasMissingCost']) {
-                $buckets[$key]['hasMissingCost'] = true;
-            }
         }
 
         // Refund -- SEKARANG dihitung sungguhan (diminta 2026-09-09,
@@ -442,37 +445,32 @@ class SalesByPeriodReport extends Page implements HasForms
             $buckets[$key]['refund'] += (float) $refund->amount;
         }
 
-        // "Laba Kotor" = Penjualan − Komisi − Pengembalian − HPP (audit
-        // Majoo f7) — dihitung SETELAH refund masuk supaya baris ini
-        // tersedia untuk setiap bucket.
-        foreach ($buckets as $key => $bucket) {
-            $buckets[$key]['grossProfit'] = $bucket['revenue'] - $bucket['commission'] - $bucket['refund'] - $bucket['cogs'];
-        }
+        // HPP dan Laba Kotor DIHAPUS 2026-11-04 (keputusan pemilik): HPP dipegang Accurate. Total di bawah dihitung dari SEMUA periode,
+        // sedangkan baris tampilan boleh menyembunyikan periode tanpa transaksi.
+        $rows = ! empty($this->data['hide_empty'])
+            ? array_filter($buckets, fn (array $b) => $b['count'] > 0 || $b['refund'] > 0)
+            : $buckets;
 
         return [
             'from' => $from,
             'to' => $to,
             'granularity' => $granularity,
             'storeId' => $storeId,
-            'rows' => $buckets,
+            'rows' => $rows,
+            'hideEmpty' => ! empty($this->data['hide_empty']),
             'totalRevenue' => array_sum(array_column($buckets, 'revenue')),
             'totalCount' => array_sum(array_column($buckets, 'count')),
             'totalProducts' => array_sum(array_column($buckets, 'products')),
-            'totalCogs' => array_sum(array_column($buckets, 'cogs')),
-            'totalGrossProfit' => array_sum(array_column($buckets, 'grossProfit')),
-            // Banner "HPP belum lengkap" (audit Majoo f7) — muncul kalau
-            // ADA booking dalam rentang ini yang pakai gulungan film
-            // tanpa Harga Beli, atau bahan pendukung tanpa unit_cost.
-            // Laba Kotor tetap ditampilkan (bukan disembunyikan), cuma
-            // ditandai sebagai perkiraan minimum (HPP yang belum lengkap
-            // dihitung Rp 0, jadi Laba Kotor sungguhan bisa lebih rendah).
-            'hasMissingCost' => (bool) array_sum(array_map(fn ($b) => $b['hasMissingCost'] ? 1 : 0, $buckets)),
+            'totalReceived' => array_sum(array_column($buckets, 'received')),
+            'totalOutstanding' => array_sum(array_column($buckets, 'outstanding')),
+            'totalRefund' => array_sum(array_column($buckets, 'refund')),
+            'totalCommission' => array_sum(array_column($buckets, 'commission')),
             // Banner "booking selesai belum diproses" (audit 2026-09-11,
             // temuan C) — sama konsep dgn laporan Penjualan lain.
             'pendingCount' => app(SalesSnapshotService::class)->pendingCount($storeId),
             // Guard rentang sangat panjang (audit 2026-09-11, temuan G) —
             // advisory saja, TIDAK memotong data.
-            'tooManyBuckets' => count($buckets) > self::TOO_MANY_BUCKETS_THRESHOLD,
+            'tooManyBuckets' => count($rows) > self::TOO_MANY_BUCKETS_THRESHOLD,
             'rangeClamped' => $rangeClamped,
         ];
     }

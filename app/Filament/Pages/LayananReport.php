@@ -76,7 +76,7 @@ class LayananReport extends Page implements HasForms
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public function mount(): void

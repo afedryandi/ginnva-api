@@ -12,14 +12,20 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Forms\Set;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Livewire\Attributes\Url;
 
 /**
  * "Buku Pembayaran" (Penjualan Fase 2, 2026-11-11): satu daftar semua uang masuk dari booking dalam satu rentang tanggal, dari tiga tempat
  * yang sudah ada: uang muka (DP), pembayaran saat penjualan diproses, dan pelunasan piutang booking. Hanya membaca; tidak menyalin data.
  * Toko dibatasi seperti laporan Penjualan lain: staf toko hanya melihat tokonya sendiri.
+ *
+ * 2026-11-04 (audit): kolom Rekening hanya ada bila modul Keuangan menyala; DP kini mencatat Metode (DP lama tanpa metode tampil "—");
+ * ada Periode Cepat, filter tersimpan di URL, nomor booking bisa diklik, dan baris Total.
  */
 class PaymentBookReport extends Page implements HasForms
 {
@@ -42,21 +48,78 @@ class PaymentBookReport extends Page implements HasForms
 
     public ?array $data = [];
 
+    #[Url(as: 'from')]
+    public ?string $from = null;
+
+    #[Url(as: 'to')]
+    public ?string $to = null;
+
+    #[Url(as: 'cabang')]
+    public ?int $storeId = null;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public function mount(): void
     {
+        // Nilai dari URL tidak dipercaya mentah-mentah: tanggal rusak jatuh ke bawaan, "sampai" sebelum "dari" disamakan, dan staf toko
+        // tidak bisa memilih toko lain lewat alamat.
+        $this->from = $this->queryDateOrDefault($this->from, now()->startOfMonth());
+        $this->to = $this->queryDateOrDefault($this->to, now()->endOfMonth());
+
+        if (Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+        }
+
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            $this->storeId = null;
+        }
+
         $this->form->fill([
-            'from' => now()->startOfMonth()->toDateString(),
-            'to' => now()->endOfMonth()->toDateString(),
-            'store_id' => null,
+            'from' => $this->from,
+            'to' => $this->to,
+            'store_id' => $this->storeId,
         ]);
+    }
+
+    private function queryDateOrDefault(mixed $value, Carbon $default): string
+    {
+        if (! is_string($value) || $value === '') {
+            return $default->toDateString();
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return $default->toDateString();
+        }
+    }
+
+    /** Cerminkan perubahan form ke properti #[Url] supaya alamat halaman ikut berubah (bisa dibagikan dan bertahan saat refresh). */
+    public function updatedData(mixed $value, string $key): void
+    {
+        match ($key) {
+            'from' => $this->from = $value,
+            'to' => $this->to = $value,
+            'store_id' => $this->storeId = $value ? (int) $value : null,
+            default => null,
+        };
+
+        if (in_array($key, ['from', 'to'], true) && $this->from && $this->to && Carbon::parse($this->to)->lt(Carbon::parse($this->from))) {
+            $this->to = $this->from;
+            $this->data['to'] = $this->from;
+
+            Notification::make()
+                ->title('Tanggal "Sampai" tidak boleh sebelum "Dari"')
+                ->body('Diset sama dengan tanggal "Dari".')
+                ->warning()
+                ->send();
+        }
     }
 
     public function form(Form $form): Form
@@ -64,6 +127,34 @@ class PaymentBookReport extends Page implements HasForms
         $isFullAccess = auth()->user()?->isFullAccess() ?? false;
 
         return $form->schema([
+            Select::make('preset')
+                ->label('Periode Cepat')
+                ->options([
+                    'today' => 'Hari ini',
+                    'this_month' => 'Bulan ini',
+                    'last_month' => 'Bulan lalu',
+                    'this_quarter' => 'Kuartal ini',
+                    'ytd' => 'Tahun ini (s.d. hari ini)',
+                ])
+                ->placeholder('Pilih untuk mengisi tanggal otomatis')
+                ->live()
+                ->afterStateUpdated(function (?string $state, Set $set) {
+                    $range = match ($state) {
+                        'today' => [now(), now()],
+                        'this_month' => [now()->startOfMonth(), now()->endOfMonth()],
+                        'last_month' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+                        'this_quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+                        'ytd' => [now()->startOfYear(), now()],
+                        default => null,
+                    };
+
+                    if ($range) {
+                        $set('from', $range[0]->toDateString());
+                        $set('to', $range[1]->toDateString());
+                        $this->from = $range[0]->toDateString();
+                        $this->to = $range[1]->toDateString();
+                    }
+                }),
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             Select::make('store_id')
@@ -72,7 +163,7 @@ class PaymentBookReport extends Page implements HasForms
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
-        ])->columns($isFullAccess ? 3 : 2)->statePath('data');
+        ])->columns($isFullAccess ? 4 : 3)->statePath('data');
     }
 
     protected function getHeaderActions(): array
@@ -83,28 +174,49 @@ class PaymentBookReport extends Page implements HasForms
     protected function reportExportData(): array
     {
         $result = $this->getResult();
+        $finance = (bool) config('features.finance');
         $storeName = ($this->data['store_id'] ?? null) && (auth()->user()?->isFullAccess() ?? false)
             ? Store::whereKey($this->data['store_id'])->value('name')
             : null;
+
+        // Kolom Rekening hanya ada bila modul Keuangan menyala (tanpa Keuangan memang tidak ada rekening).
+        $headings = ['Tanggal', 'Jenis', 'Referensi', 'Pelanggan', 'Metode'];
+        $totals = ['', 'Total', '', '', ''];
+
+        if ($finance) {
+            $headings[] = 'Rekening';
+            $totals[] = '';
+        }
+
+        $amountIndex = count($headings);
+        array_push($headings, 'Nominal', 'Catatan');
+        array_push($totals, $result['total'], '');
 
         return [
             'key' => 'buku-pembayaran',
             'title' => 'Buku Pembayaran',
             'subtitle' => $result['from']->translatedFormat('d F Y') . ' - ' . $result['to']->translatedFormat('d F Y') . ' · ' . ($storeName ? "Toko {$storeName}" : 'Semua toko'),
-            'headings' => ['Tanggal', 'Jenis', 'Referensi', 'Pelanggan', 'Metode', 'Akun', 'Jumlah', 'Catatan'],
-            'rows' => $result['rows']->map(fn (array $r) => [
-                $r['date']?->format('d/m/Y') ?? '—',
-                $r['kind'],
-                $r['reference'],
-                $r['customer'],
-                $r['method'],
-                $r['account'],
-                $r['amount'],
-                $r['note'],
-            ])->all(),
-            'totals' => ['', 'Total', '', '', '', '', $result['total'], ''],
-            'right' => [6],
-            'note' => 'Uang muka yang sudah dikembalikan ditampilkan tetapi tidak dihitung dalam total.',
+            'headings' => $headings,
+            'rows' => $result['rows']->map(function (array $r) use ($finance) {
+                $line = [
+                    $r['date']?->format('d/m/Y') ?? '—',
+                    $r['kind'],
+                    $r['reference'],
+                    $r['customer'],
+                    $r['method'],
+                ];
+
+                if ($finance) {
+                    $line[] = $r['account'];
+                }
+
+                array_push($line, $r['amount'], $r['note']);
+
+                return $line;
+            })->all(),
+            'totals' => $totals,
+            'right' => [$amountIndex],
+            'note' => 'Uang muka yang sudah dikembalikan ditampilkan tetapi tidak dihitung dalam total. Pengembalian dana (refund) tidak termasuk; lihat Laporan Refund.',
         ];
     }
 
@@ -120,6 +232,12 @@ class PaymentBookReport extends Page implements HasForms
         }
 
         return $user?->store_id ?? -1;
+    }
+
+    /** Tautan ke booking untuk baris DP dan pembayaran saat selesai. */
+    public function bookingUrl(int $bookingId): string
+    {
+        return \App\Filament\Resources\BookingResource::getUrl('view', ['record' => $bookingId]);
     }
 
     /**
@@ -148,9 +266,10 @@ class PaymentBookReport extends Page implements HasForms
             ->each(fn (BookingDownPayment $dp) => $rows->push([
                 'date' => $dp->received_at,
                 'kind' => 'Uang Muka (DP)',
+                'booking_id' => $dp->booking_id,
                 'reference' => $dp->booking?->booking_number ?? '—',
                 'customer' => $dp->booking?->display_customer_name ?? '—',
-                'method' => '—',
+                'method' => $dp->method ? ($methods[$dp->method] ?? $dp->method) : '—',
                 'account' => $dp->paymentAccount?->name ?? 'Kas di Tangan',
                 'amount' => (float) $dp->amount,
                 'note' => $dp->refunded_at ? 'Dikembalikan' : null,
@@ -164,6 +283,7 @@ class PaymentBookReport extends Page implements HasForms
             ->each(fn (BookingSettlementPayment $p) => $rows->push([
                 'date' => $p->paid_at,
                 'kind' => 'Pembayaran saat selesai',
+                'booking_id' => $p->booking_id,
                 'reference' => $p->booking?->booking_number ?? '—',
                 'customer' => $p->booking?->display_customer_name ?? '—',
                 'method' => $methods[$p->method] ?? $p->method,
@@ -181,6 +301,7 @@ class PaymentBookReport extends Page implements HasForms
             ->each(fn (ReceivablePayment $p) => $rows->push([
                 'date' => $p->payment_date,
                 'kind' => 'Pelunasan piutang',
+                'booking_id' => null,
                 'reference' => $p->receipt_number ?: ($p->receivable?->receivable_number ?? '—'),
                 'customer' => $p->receivable?->customer_name ?? '—',
                 'method' => '—',

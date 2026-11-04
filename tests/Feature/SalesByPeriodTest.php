@@ -61,7 +61,7 @@ class SalesByPeriodTest extends TestCase
 
     private function user(string $role, ?Store $store = null, array $extra = []): User
     {
-        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id], $extra)), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id, 'menu_access' => ['SalesByPeriodReport']], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
     private function admin(): User
@@ -133,12 +133,11 @@ class SalesByPeriodTest extends TestCase
     {
         $this->sale(100000, '2026-10-06');
 
-        $rows = $this->report(['from' => '2026-09-30', 'to' => '2026-10-12', 'granularity' => 'mingguan'])['rows'];
+        $rows = $this->report(['from' => '2026-09-30', 'to' => '2026-10-07', 'granularity' => 'mingguan'])['rows'];
 
-        $this->assertSame(['2026-09-28', '2026-10-05', '2026-10-12'], array_keys($rows));
+        $this->assertSame(['2026-09-28', '2026-10-05'], array_keys($rows));
         $this->assertSame(['2026-09-30', '2026-10-04'], [$rows['2026-09-28']['bucketFrom'], $rows['2026-09-28']['bucketTo']], 'Awal dijepit ke rentang laporan.');
-        $this->assertSame(['2026-10-05', '2026-10-11'], [$rows['2026-10-05']['bucketFrom'], $rows['2026-10-05']['bucketTo']]);
-        $this->assertSame(['2026-10-12', '2026-10-12'], [$rows['2026-10-12']['bucketFrom'], $rows['2026-10-12']['bucketTo']], 'Akhir dijepit ke rentang laporan.');
+        $this->assertSame(['2026-10-05', '2026-10-07'], [$rows['2026-10-05']['bucketFrom'], $rows['2026-10-05']['bucketTo']], 'Akhir dijepit ke rentang laporan.');
         $this->assertSame(1, $rows['2026-10-05']['count']);
     }
 
@@ -192,7 +191,7 @@ class SalesByPeriodTest extends TestCase
         $this->assertEquals(0.0, $outside['rows']['2026-10']['refund']);
     }
 
-    public function test_commission_gross_profit_and_the_unrated_flag(): void
+    public function test_commission_totals_and_the_unrated_flag(): void
     {
         $withRate = $this->user('kasir', $this->storeA, ['name' => 'Installer Bertarif']);
         $noRate = $this->user('kasir', $this->storeA, ['name' => 'Installer Tanpa Tarif']);
@@ -212,9 +211,9 @@ class SalesByPeriodTest extends TestCase
         $this->assertEquals(100000.0, $row['commission'], 'Installer bertarif: 2 booking × 50.000; installer tanpa tarif tidak disumkan.');
         $this->assertTrue($row['hasUnratedJob']);
         $this->assertEquals(20000.0, $row['refund']);
-        $this->assertEquals(1700000.0 - 100000.0 - 20000.0 - 0.0, $row['grossProfit']);
-        $this->assertEquals($row['grossProfit'], $result['totalGrossProfit']);
-        $this->assertFalse($result['hasMissingCost']);
+        $this->assertEquals(100000.0, $result['totalCommission']);
+        $this->assertEquals(20000.0, $result['totalRefund']);
+        $this->assertArrayNotHasKey('grossProfit', $row, 'HPP dan Laba Kotor dihapus (HPP dipegang Accurate).');
     }
 
     // ------------------------------------------------------------- batas & toko
@@ -263,10 +262,10 @@ class SalesByPeriodTest extends TestCase
         $this->actingAs($this->admin(), 'web');
 
         $fresh = Livewire::test(SalesByPeriodReport::class);
-        $this->assertSame(['2026-08-01', '2026-10-31', 'harian'], [Carbon::parse($fresh->get('data.from'))->toDateString(), Carbon::parse($fresh->get('data.to'))->toDateString(), $fresh->get('data.granularity')]);
+        $this->assertSame(['2026-08-01', '2026-10-31', 'bulanan'], [Carbon::parse($fresh->get('data.from'))->toDateString(), Carbon::parse($fresh->get('data.to'))->toDateString(), $fresh->get('data.granularity')]);
 
         $bad = Livewire::withQueryParams(['from' => 'kemarin', 'to' => '2026-09-01', 'granularitas' => 'tahunan'])->test(SalesByPeriodReport::class);
-        $this->assertSame('harian', $bad->get('data.granularity'));
+        $this->assertSame('bulanan', $bad->get('data.granularity'));
         $this->assertSame(['2026-08-01', '2026-09-01'], [Carbon::parse($bad->get('data.from'))->toDateString(), Carbon::parse($bad->get('data.to'))->toDateString()], 'from rusak jadi default (1 Agu), to yang valid dipertahankan.');
 
         $reversed = Livewire::withQueryParams(['from' => '2026-09-30', 'to' => '2026-09-01'])->test(SalesByPeriodReport::class);
@@ -324,14 +323,17 @@ class SalesByPeriodTest extends TestCase
         $export = new SalesByPeriodExport($result);
         $rows = $export->array();
 
-        $this->assertSame(['Periode', 'Transaksi', 'Penjualan', 'Diterima', 'Piutang', 'Produk', 'Pengembalian', 'Komisi', 'HPP', 'Laba Kotor', 'Penjualan/Transaksi', 'Produk/Transaksi'], $export->headings());
-        $this->assertCount(3, $rows);
+        $this->assertSame(['Periode', 'Transaksi', 'Penjualan', 'Diterima', 'Piutang', 'Produk', 'Pengembalian', 'Komisi', 'Penjualan/Transaksi', 'Produk/Transaksi', 'Catatan'], $export->headings());
+        $this->assertCount(4, $rows, 'Tiga periode ditambah baris Total.');
         $this->assertSame(['03 Oct 2026', 1, 1000000.0, 1000000.0, 0.0, 2, 0.0], array_slice($rows[0], 0, 7));
         $this->assertSame(50000.0, $rows[0][7], 'Komisi lengkap tetap angka.');
-        $this->assertSame(0.0, $rows[0][8]);
-        $this->assertSame([1000000.0, 2.0], [$rows[0][10], $rows[0][11]]);
-        $this->assertSame('0 *', $rows[1][7], 'Installer tanpa tarif: ditandai bintang.');
-        $this->assertSame([0, 0.0, 0], [$rows[2][1], $rows[2][2], $rows[2][10]], 'Periode kosong: nol, bukan error.');
+        $this->assertSame([1000000.0, 2.0, ''], [$rows[0][8], $rows[0][9], $rows[0][10]]);
+        $this->assertSame(0.0, $rows[1][7], 'Komisi tetap angka walau installer tanpa tarif.');
+        $this->assertStringContainsString('Komisi belum lengkap', $rows[1][10]);
+        $this->assertSame([0, 0.0, 0], [$rows[2][1], $rows[2][2], $rows[2][8]], 'Periode kosong: nol, bukan error.');
+        $this->assertSame('Total', $rows[3][0]);
+        $this->assertSame(2, $rows[3][1]);
+        $this->assertEquals(1400000.0, $rows[3][2]);
     }
 
     // ------------------------------------------------------------- tampilan, PDF, grafik
@@ -394,5 +396,52 @@ class SalesByPeriodTest extends TestCase
         $this->assertEquals([1500000.0], $datasets['Penjualan (Rp)']['data']);
         $this->assertSame([2], $datasets['Transaksi']['data']);
         $this->assertSame([4], $datasets['Produk']['data']);
+    }
+    public function test_days_that_have_not_happened_yet_get_no_rows(): void
+    {
+        $this->sale(100000, '2026-10-03');
+
+        $result = $this->report(['from' => '2026-10-06', 'to' => '2026-10-31', 'granularity' => 'harian']);
+
+        $this->assertSame(['2026-10-06', '2026-10-07', '2026-10-08'], array_keys($result['rows']));
+        $this->assertSame('2026-10-08', $result['to']->toDateString());
+    }
+
+    public function test_empty_periods_can_be_hidden_without_changing_the_totals(): void
+    {
+        $this->sale(100000, '2026-10-03');
+        $range = ['from' => '2026-10-01', 'to' => '2026-10-05', 'granularity' => 'harian'];
+
+        $shown = $this->report($range);
+        $hidden = $this->report($range + ['hide_empty' => true]);
+
+        $this->assertCount(5, $shown['rows']);
+        $this->assertSame(['2026-10-03'], array_keys($hidden['rows']));
+        $this->assertEquals($shown['totalRevenue'], $hidden['totalRevenue']);
+        $this->assertSame($shown['totalCount'], $hidden['totalCount']);
+    }
+
+    public function test_without_the_finance_module_the_receivable_columns_are_gone_and_the_chart_still_fills(): void
+    {
+        config(['features.finance' => false]);
+        $customer = Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(10000000, 99999999)]);
+        Booking::create([
+            'booking_number' => 'BKG-OFF-' . strtoupper(uniqid()), 'customer_id' => $customer->id, 'store_id' => $this->storeA->id, 'service_type' => 'PPF',
+            'product_ppf' => true, 'preferred_date' => '2026-10-03', 'status' => 'completed', 'transaction_amount' => 1000000,
+            'amount_received' => 400000, 'sale_date' => '2026-10-03',
+        ]);
+
+        $page = $this->page(['from' => '2026-10-01', 'to' => '2026-10-05', 'granularity' => 'harian']);
+        $page->assertSee('Rekap per Periode')->assertDontSee('Piutang')->assertDontSee('Diterima');
+        $this->assertEquals(1000000.0, $page->instance()->getResult()['totalRevenue']);
+        $this->assertSame(['Periode', 'Transaksi', 'Penjualan', 'Produk', 'Pengembalian', 'Komisi', 'Penjualan/Transaksi', 'Produk/Transaksi', 'Catatan'], (new SalesByPeriodExport($page->instance()->getResult()))->headings());
+
+        $chart = Livewire::test(SalesByPeriodChart::class, ['from' => '2026-10-01', 'to' => '2026-10-31', 'granularity' => 'bulanan', 'storeId' => null]);
+        $method = new ReflectionMethod(SalesByPeriodChart::class, 'getData');
+        $method->setAccessible(true);
+        $datasets = collect($method->invoke($chart->instance())['datasets'])->keyBy('label');
+
+        $this->assertEquals([1000000.0], $datasets['Penjualan (Rp)']['data'], 'Grafik membaca sale_date saat Keuangan mati (sebelumnya kosong).');
+        $this->assertArrayNotHasKey('Laba Kotor (Rp)', $datasets->all(), 'Seri Laba Kotor dihapus.');
     }
 }

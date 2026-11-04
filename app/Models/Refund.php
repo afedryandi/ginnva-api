@@ -15,10 +15,12 @@ class Refund extends Model
         'refund_number',
         'booking_id',
         'amount',
+        'method',
         'receivable_reduced',
         'reason',
         'journal_entry_id',
         'created_by',
+        'approved_by',
     ];
 
     protected $casts = [
@@ -52,10 +54,15 @@ class Refund extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['refund_number', 'booking_id', 'amount', 'reason'])
+            ->logOnly(['refund_number', 'booking_id', 'amount', 'method', 'reason', 'approved_by'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }

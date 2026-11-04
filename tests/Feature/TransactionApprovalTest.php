@@ -276,6 +276,21 @@ class TransactionApprovalTest extends TestCase
         );
     }
 
+    public function test_an_approved_refund_keeps_the_requested_method_and_records_the_approver(): void
+    {
+        $staff = $this->staff();
+        $admin = $this->admin();
+        $booking = $this->postedBooking(1000000);
+        $request = $this->service->submitRefund($booking, 100000, 'Salah jadwal', $staff->id, 'transfer');
+
+        $this->service->approve($request, $admin->id);
+
+        $refund = $booking->refunds()->firstOrFail();
+        $this->assertSame('transfer', $refund->method);
+        $this->assertSame($staff->id, $refund->created_by);
+        $this->assertSame($admin->id, $refund->approved_by);
+    }
+
     // ------------------------------------------------------------- kegagalan eksekusi
 
     public function test_a_refund_larger_than_the_remaining_amount_cannot_be_approved_and_leaves_no_trace(): void

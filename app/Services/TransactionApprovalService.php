@@ -39,11 +39,12 @@ class TransactionApprovalService
         return $request;
     }
 
-    public function submitRefund(Booking $booking, float $amount, ?string $reason, int $requestedBy): TransactionApprovalRequest
+    public function submitRefund(Booking $booking, float $amount, ?string $reason, int $requestedBy, ?string $method = null): TransactionApprovalRequest
     {
         $request = $this->createRequest($booking, 'refund', [
             'amount' => $amount,
             'reason' => $reason,
+            'method' => $method,
         ], $requestedBy);
 
         $this->notifyFullAccess($booking, $request);
@@ -57,11 +58,12 @@ class TransactionApprovalService
      * (audit framework 2026-09-14, "semua nominal wajib approval"), DP
      * tetap uang sungguhan yang keluar/masuk meskipun bukan pendapatan.
      */
-    public function submitDownPayment(Booking $booking, float $amount, ?string $notes, int $requestedBy): TransactionApprovalRequest
+    public function submitDownPayment(Booking $booking, float $amount, ?string $notes, int $requestedBy, ?string $method = null): TransactionApprovalRequest
     {
         $request = $this->createRequest($booking, 'booking_down_payment', [
             'amount' => $amount,
             'notes' => $notes,
+            'method' => $method,
         ], $requestedBy);
 
         $this->notifyFullAccess($booking, $request);
@@ -88,8 +90,8 @@ class TransactionApprovalService
             // dan nominal divalidasi (audit Persetujuan Transaksi 2026-09-29).
             $allowed = [
                 'booking_referral' => ['transaction_amount', 'amount_received', 'referral_code', 'spend_promo_id', 'spend_promo_discount', 'voucher_claim_id', 'payment_method', 'vehicle_size', 'sale_lines', 'settlement_payments'],
-                'refund' => ['amount', 'reason'],
-                'booking_down_payment' => ['amount', 'notes'],
+                'refund' => ['amount', 'reason', 'method'],
+                'booking_down_payment' => ['amount', 'notes', 'method'],
             ][$type] ?? [];
             $payload = array_intersect_key($payload, array_flip($allowed));
 
@@ -189,8 +191,8 @@ class TransactionApprovalService
                 array_diff_key($p, array_flip(['transaction_amount', 'amount_received'])),
                 $actor->id
             ),
-            'refund' => $this->submitRefund($booking, (float) ($p['amount'] ?? 0), $p['reason'] ?? null, $actor->id),
-            'booking_down_payment' => $this->submitDownPayment($booking, (float) ($p['amount'] ?? 0), $p['notes'] ?? null, $actor->id),
+            'refund' => $this->submitRefund($booking, (float) ($p['amount'] ?? 0), $p['reason'] ?? null, $actor->id, $p['method'] ?? null),
+            'booking_down_payment' => $this->submitDownPayment($booking, (float) ($p['amount'] ?? 0), $p['notes'] ?? null, $actor->id, $p['method'] ?? null),
             default => throw new RuntimeException('Jenis pengajuan tidak dikenal.'),
         };
 
@@ -315,14 +317,18 @@ class TransactionApprovalService
                     $booking,
                     (float) $locked->payload['amount'],
                     $locked->payload['reason'] ?? null,
-                    $locked->requested_by // pemohon asli tercatat sebagai created_by Refund, approver tercatat di kolom decided_by request ini
+                    $locked->requested_by, // pemohon asli tercatat sebagai created_by Refund
+                    $locked->payload['method'] ?? null,
+                    $approvedBy // penyetuju tercatat juga di Refund (approved_by), selain di decided_by request ini
                 );
             } elseif ($locked->type === 'booking_down_payment') {
                 app(DownPaymentService::class)->receive(
                     $booking,
                     (float) $locked->payload['amount'],
                     $locked->payload['notes'] ?? null,
-                    $locked->requested_by // sama pola dengan refund di atas -- pemohon asli tercatat sebagai created_by DP
+                    $locked->requested_by, // sama pola dengan refund di atas -- pemohon asli tercatat sebagai created_by DP
+                    null,
+                    $locked->payload['method'] ?? null
                 );
             }
 

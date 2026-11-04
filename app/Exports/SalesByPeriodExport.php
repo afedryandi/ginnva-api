@@ -15,6 +15,9 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * FromQuery) karena sumbernya hasil agregasi getResult(), pola sama
  * dengan SalesSummaryExport — baris di file SAMA PERSIS dengan yang
  * tampil di layar untuk rentang/granularitas yang sama.
+ *
+ * 2026-11-04: kolom HPP dan Laba Kotor dihapus (HPP dipegang Accurate); kolom Diterima dan Piutang hanya ada bila modul Keuangan menyala;
+ * semua nominal tetap ANGKA (tanda "belum lengkap" pindah ke kolom Catatan, bukan teks di sel angka); ada baris Total di akhir.
  */
 class SalesByPeriodExport implements FromArray, WithHeadings, WithStyles
 {
@@ -22,42 +25,60 @@ class SalesByPeriodExport implements FromArray, WithHeadings, WithStyles
 
     public function headings(): array
     {
-        return [
-            'Periode',
-            'Transaksi',
-            'Penjualan',
-            'Diterima',
-            'Piutang',
-            'Produk',
-            'Pengembalian',
-            'Komisi',
-            'HPP',
-            'Laba Kotor',
-            'Penjualan/Transaksi',
-            'Produk/Transaksi',
-        ];
+        $headings = ['Periode', 'Transaksi', 'Penjualan'];
+
+        if (config('features.finance')) {
+            array_push($headings, 'Diterima', 'Piutang');
+        }
+
+        array_push($headings, 'Produk', 'Pengembalian', 'Komisi', 'Penjualan/Transaksi', 'Produk/Transaksi', 'Catatan');
+
+        return $headings;
     }
 
     public function array(): array
     {
-        return collect($this->result['rows'])
-            ->map(fn (array $row) => [
-                $row['label'],
-                $row['count'],
-                $row['revenue'],
-                $row['received'],
-                $row['outstanding'],
+        $finance = (bool) config('features.finance');
+
+        $rows = collect($this->result['rows'])->map(function (array $row) use ($finance) {
+            $line = [$row['label'], $row['count'], $row['revenue']];
+
+            if ($finance) {
+                array_push($line, $row['received'], $row['outstanding']);
+            }
+
+            array_push(
+                $line,
                 $row['products'],
                 $row['refund'],
-                // Angka tetap numerik; hanya baris yang datanya belum lengkap berubah jadi teks bertanda " *".
-                $row['hasUnratedJob'] ? $row['commission'] . ' *' : $row['commission'],
-                $row['hasMissingCost'] ? $row['cogs'] . ' *' : $row['cogs'],
-                $row['grossProfit'],
+                $row['commission'],
                 $row['count'] > 0 ? round($row['revenue'] / $row['count']) : 0,
                 $row['count'] > 0 ? round($row['products'] / $row['count'], 2) : 0,
-            ])
-            ->values()
-            ->all();
+                $row['hasUnratedJob'] ? 'Komisi belum lengkap (ada installer tanpa tarif)' : ''
+            );
+
+            return $line;
+        })->values()->all();
+
+        $total = ['Total', $this->result['totalCount'], $this->result['totalRevenue']];
+
+        if ($finance) {
+            array_push($total, $this->result['totalReceived'], $this->result['totalOutstanding']);
+        }
+
+        array_push(
+            $total,
+            $this->result['totalProducts'],
+            $this->result['totalRefund'],
+            $this->result['totalCommission'],
+            $this->result['totalCount'] > 0 ? round($this->result['totalRevenue'] / $this->result['totalCount']) : 0,
+            $this->result['totalCount'] > 0 ? round($this->result['totalProducts'] / $this->result['totalCount'], 2) : 0,
+            ''
+        );
+
+        $rows[] = $total;
+
+        return $rows;
     }
 
     public function styles(Worksheet $sheet): array

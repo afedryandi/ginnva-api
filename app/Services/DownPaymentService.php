@@ -40,13 +40,19 @@ class DownPaymentService
      *         bukan DP lagi; setelah dibatalkan, tidak relevan menerima
      *         uang baru untuk booking yang batal.
      */
-    public function receive(Booking $booking, float $amount, ?string $notes, ?int $userId, ?int $paymentAccountId = null): BookingDownPayment
+    public function receive(Booking $booking, float $amount, ?string $notes, ?int $userId, ?int $paymentAccountId = null, ?string $method = null): BookingDownPayment
     {
         if ($amount <= 0) {
             throw new RuntimeException('Nominal DP harus lebih dari Rp 0.');
         }
 
-        return DB::transaction(function () use ($booking, $amount, $notes, $userId, $paymentAccountId) {
+        // Metode (tunai/transfer/QRIS/EDC) wajib diisi lewat form panel; di sini opsional supaya pemanggil lain (tes, data demo) tetap jalan,
+        // tetapi nilai yang diisi harus dikenal.
+        if ($method !== null && ! isset(Booking::PAYMENT_METHOD_LABELS[$method])) {
+            throw new RuntimeException('Metode pembayaran DP tidak dikenal.');
+        }
+
+        return DB::transaction(function () use ($booking, $amount, $notes, $userId, $paymentAccountId, $method) {
             $locked = Booking::query()->where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
             if (in_array($locked->status, ['completed', 'cancelled'], true)) {
@@ -58,6 +64,7 @@ class DownPaymentService
                 return BookingDownPayment::create([
                     'booking_id' => $locked->id,
                     'payment_account_id' => null,
+                    'method' => $method,
                     'amount' => $amount,
                     'received_at' => now()->toDateString(),
                     'notes' => $notes,
@@ -103,6 +110,7 @@ class DownPaymentService
             return BookingDownPayment::create([
                 'booking_id' => $locked->id,
                 'payment_account_id' => $paymentAccount?->id,
+                'method' => $method,
                 'amount' => $amount,
                 'received_at' => now()->toDateString(),
                 'notes' => $notes,

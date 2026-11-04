@@ -15,14 +15,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  *
  * BUKAN FromQuery (halaman ini bukan Filament Table, hasilnya array
  * hasil agregasi dari getResult()) — pakai FromArray, baris-barisnya
- * MENIRU PERSIS apa yang tampil di layar, termasuk baris "Tidak
- * berlaku"/"Belum tersedia" apa adanya (BUKAN dikonversi jadi 0 atau
- * dikosongkan) supaya file Excel-nya tidak menyesatkan kalau dibuka
- * terpisah tanpa konteks halaman webnya.
- *
- * Baris "Pajak (PPN)" SEJAK 2026-09-19 pakai angka sungguhan (lihat
- * getResult() SalesSummaryReport & Booking::applyPpnBreakdown()) --
- * bukan lagi "Belum tersedia".
+ * MENIRU PERSIS apa yang tampil di layar. Baris Pajak (PPN), blok Laba Kotor, dan baris "Tidak berlaku"/"Belum tersedia" dihapus
+ * 2026-11-04 (lihat SalesSummaryReport).
  */
 class SalesSummaryExport implements FromArray, WithStyles, WithColumnFormatting
 {
@@ -44,28 +38,20 @@ class SalesSummaryExport implements FromArray, WithStyles, WithColumnFormatting
             [],
             ['PENDAPATAN'],
             ['Penjualan Kotor', $number($r['grossSales'])],
-            ['Ongkos Kirim', 'Tidak berlaku'],
-            ['Biaya Pelayanan / MDR', 'Tidak berlaku'],
-            ['Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)', $number($r['ppnAmount'])],
-            ['Total Pendapatan', $number($r['grossSales'])],
             [],
             ['BIAYA PROMOSI'],
             ['Promo Voucher', $negative($r['voucherDiscount'])],
-            ['Reward Poin (nilai Rp)', 'Belum tersedia'],
-            ['Total Biaya Promosi', $negative($r['voucherDiscount'])],
+            ['Promo Total Pembelian', $negative($r['spendPromoDiscount'])],
+            ['Total Biaya Promosi', $negative($r['promoTotal'])],
             [],
             ['PENJUALAN BERSIH'],
             ['Total Penjualan', $number($r['grossSales'])],
             ['Pengembalian (Refund)', $negative($r['refund'])],
             ['Total Penjualan Bersih', $number($r['netSales'])],
             [],
-            ['LABA KOTOR'],
-            ['Penjualan Bersih', $number($r['netSales'])],
-            ['HPP (Harga Pokok Penjualan)', 'Belum tersedia'],
-            ['Komisi Partner', 'Belum tersedia'],
-            ['Total Laba Kotor', 'Belum tersedia — perlu HPP untuk akurat'],
-            [],
             ['Jumlah Transaksi', $r['bookingCount']],
+            [],
+            ['Catatan', 'Penjualan Kotor adalah nominal transaksi yang sudah setelah potongan promo dan voucher, jadi Biaya Promosi tidak dikurangkan lagi.'],
         ];
     }
 
@@ -87,13 +73,11 @@ class SalesSummaryExport implements FromArray, WithStyles, WithColumnFormatting
         return [
             1 => ['font' => ['bold' => true, 'size' => 14]],
             'A4' => ['font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']]],
-            'A11' => ['font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']]],
-            'A16' => ['font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']]],
-            'A21' => ['font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']]],
+            'A7' => ['font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']]],
+            'A12' => ['font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']]],
             'A4:B4' => ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '166534']]],
-            'A11:B11' => ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '854D0E']]],
-            'A16:B16' => ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1D4ED8']]],
-            'A21:B21' => ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '374151']]],
+            'A7:B7' => ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '854D0E']]],
+            'A12:B12' => ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1D4ED8']]],
         ];
     }
 }

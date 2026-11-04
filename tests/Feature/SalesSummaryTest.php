@@ -59,7 +59,7 @@ class SalesSummaryTest extends TestCase
 
     private function user(string $role, ?Store $store = null, array $extra = []): User
     {
-        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id], $extra)), fn (User $u) => $u->assignRole($role));
+        return tap(User::create(array_merge(['name' => ucfirst($role) . ' ' . uniqid(), 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $store?->id, 'menu_access' => ['SalesSummaryReport']], $extra)), fn (User $u) => $u->assignRole($role));
     }
 
     private function admin(): User
@@ -132,7 +132,8 @@ class SalesSummaryTest extends TestCase
         $result = $this->page()->instance()->getResult();
 
         $this->assertEquals(1800000.0, $result['grossSales']);
-        $this->assertEquals(178200.0, $result['ppnAmount']);
+        $this->assertEquals(0.0, $result['spendPromoDiscount']);
+        $this->assertEquals(75000.0, $result['promoTotal']);
         $this->assertEquals(75000.0, $result['voucherDiscount']);
         $this->assertEquals(200000.0, $result['refund']);
         $this->assertEquals(1600000.0, $result['netSales']);
@@ -336,12 +337,13 @@ class SalesSummaryTest extends TestCase
         $this->assertSame(['Ringkasan Penjualan'], $rows[0]);
         $this->assertSame(['Periode', '01 Oct 2026 - 31 Oct 2026'], $rows[1]);
         $this->assertSame(1800000.0, $by['Penjualan Kotor'][1], 'Angka sungguhan, bukan teks berformat.');
-        $this->assertSame('Tidak berlaku', $by['Ongkos Kirim'][1]);
-        $this->assertSame(178200.0, $by['Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)'][1]);
+        $this->assertSame(0.0, $by['Promo Total Pembelian'][1]);
+        $this->assertArrayNotHasKey('Ongkos Kirim', $by->all());
+        $this->assertArrayNotHasKey('Pajak (PPN 11%, sudah termasuk dalam Penjualan Kotor)', $by->all());
         $this->assertSame(-50000.0, $by['Promo Voucher'][1], 'Pengurang bernilai negatif (tampil dalam kurung lewat format kolom).');
         $this->assertSame(-200000.0, $by['Pengembalian (Refund)'][1]);
         $this->assertSame(1600000.0, $by['Total Penjualan Bersih'][1]);
-        $this->assertSame('Belum tersedia', $by['HPP (Harga Pokok Penjualan)'][1]);
+        $this->assertArrayNotHasKey('HPP (Harga Pokok Penjualan)', $by->all());
         $this->assertSame(3, $by['Jumlah Transaksi'][1]);
     }
 
@@ -359,7 +361,7 @@ class SalesSummaryTest extends TestCase
 
         // styles() memakai nomor baris tetap: pastikan baris-baris itu memang judul seksinya.
         $styles = $export->styles(new Worksheet());
-        foreach ([4 => 'PENDAPATAN', 11 => 'BIAYA PROMOSI', 16 => 'PENJUALAN BERSIH', 21 => 'LABA KOTOR'] as $row => $title) {
+        foreach ([4 => 'PENDAPATAN', 7 => 'BIAYA PROMOSI', 12 => 'PENJUALAN BERSIH'] as $row => $title) {
             $this->assertSame([$title], $rows[$row - 1], "Baris {$row} harus judul {$title}");
             $this->assertArrayHasKey("A{$row}", $styles);
         }
@@ -380,8 +382,10 @@ class SalesSummaryTest extends TestCase
             ->assertSee('Pembanding: 01 Sep 2026 – 30 Sep 2026')
             ->assertSee('vs Rp750.000')
             ->assertSee('+140,0%')
-            ->assertSee('Tidak berlaku')
-            ->assertSee('Belum tersedia');
+            ->assertSee('Promo Total Pembelian')
+            ->assertDontSee('Tidak berlaku')
+            ->assertDontSee('Belum tersedia')
+            ->assertDontSee('Laba Kotor');
     }
 
     public function test_page_empty_state_and_pending_banner(): void
@@ -418,5 +422,31 @@ class SalesSummaryTest extends TestCase
 
         $this->october();
         $this->page(['compare' => 'prev_year'])->callAction('exportPdf')->assertHasNoActionErrors();
+    }
+    public function test_the_purchase_promo_joins_the_promotion_cost_by_the_day_the_sale_was_processed(): void
+    {
+        [$a1, , $b1] = $this->october();
+        \Illuminate\Support\Facades\DB::table('bookings')->where('id', $a1->id)->update(['spend_promo_discount' => 30000]);
+        \Illuminate\Support\Facades\DB::table('bookings')->where('id', $b1->id)->update(['spend_promo_discount' => 20000]);
+        $this->voucherUse($a1, 50000, '2026-10-03 11:00:00');
+        $this->actingAs($this->admin(), 'web');
+
+        $all = $this->page()->instance()->getResult();
+        $this->assertEquals(50000.0, $all['spendPromoDiscount']);
+        $this->assertEquals(100000.0, $all['promoTotal']);
+
+        $this->assertEquals(30000.0, $this->page(['store_id' => $this->storeA->id])->instance()->getResult()['spendPromoDiscount']);
+        $this->assertEquals(0.0, $this->page(['from' => '2026-09-01', 'to' => '2026-09-30'])->instance()->getResult()['spendPromoDiscount'], 'Penjualan di luar periode tidak ikut.');
+    }
+
+    public function test_without_the_finance_module_the_empty_state_does_not_mention_the_journal(): void
+    {
+        config(['features.finance' => false]);
+        $this->actingAs($this->admin(), 'web');
+
+        $this->page()->assertSee('Proses Referral')->assertDontSee('Jurnal Umum');
+
+        config(['features.finance' => true]);
+        $this->page()->assertSee('Jurnal Umum');
     }
 }

@@ -26,7 +26,7 @@ use Filament\Widgets\ChartWidget;
  */
 class SalesByOutletChart extends ChartWidget
 {
-    protected static ?string $heading = 'Grafik Penjualan Outlet';
+    protected static ?string $heading = 'Grafik Penjualan Outlet (sebelum pengembalian)';
 
     protected static ?string $pollingInterval = null;
 
@@ -65,8 +65,16 @@ class SalesByOutletChart extends ChartWidget
         $user = auth()->user();
         $isFullAccess = $user?->isFullAccess() ?? false;
 
+        // Outlet nonaktif hanya ikut bila punya penjualan pada rentang ini (sama dengan tabel di halaman Penjualan Outlet).
+        $soldStoreIds = Booking::query()
+            ->soldBetween($start->toDateString(), $end->toDateString())
+            ->where('transaction_amount', '>', 0)
+            ->distinct()
+            ->pluck('store_id');
+
         $stores = Store::query()
             ->when(! $isFullAccess, fn ($q) => $q->where('id', $user?->store_id))
+            ->where(fn ($q) => $q->where('is_active', true)->orWhereIn('id', $soldStoreIds))
             ->orderBy('name')
             ->get(['id', 'name']);
 

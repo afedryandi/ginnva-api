@@ -20,6 +20,9 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * hasil export SELALU konsisten dengan filter yang sedang aktif di
  * layar (rentang tanggal, toko) — bukan query independen yang menarik
  * semua data.
+ *
+ * Kolom piutang (Diterima, Sisa Tagihan, Status) dan No. Jurnal hanya ada bila modul Keuangan menyala, sama dengan layar.
+ * Nomor turunan "INV/<no. booking>" dan status Void dihapus 2026-11-04 (lihat SalesResource).
  */
 class SalesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 {
@@ -33,21 +36,26 @@ class SalesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 
     public function headings(): array
     {
-        return [
-            'No. Invoice',
+        $headings = [
             'No. Booking',
             'Pelanggan',
             'Toko',
             'Produk',
             'Nilai Transaksi',
             'Potongan Promo',
-            'Diterima',
-            'Sisa Tagihan',
-            'Status',
-            'Waktu Order',
-            'Waktu Bayar',
-            'No. Jurnal',
         ];
+
+        if (config('features.finance')) {
+            array_push($headings, 'Diterima', 'Sisa Tagihan', 'Status');
+        }
+
+        array_push($headings, 'Waktu Order', 'Tanggal Penjualan');
+
+        if (config('features.finance')) {
+            $headings[] = 'No. Jurnal';
+        }
+
+        return $headings;
     }
 
     /**
@@ -58,25 +66,26 @@ class SalesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         $received = $booking->amount_received !== null ? (float) $booking->amount_received : (float) $booking->transaction_amount;
         $outstanding = max(0, (float) $booking->transaction_amount - $received);
 
-        $status = $booking->status === 'cancelled'
-            ? 'Void'
-            : ($outstanding > 0.009 ? 'Belum Lunas' : 'Lunas');
-
-        return [
-            'INV/' . $booking->booking_number,
+        $row = [
             $booking->booking_number,
             $booking->display_customer_name,
             $booking->store?->name ?? '-',
             $booking->salesProductLabel() ?? '-',
             (float) $booking->transaction_amount,
             (float) ($booking->spend_promo_discount ?? 0),
-            $received,
-            $outstanding,
-            $status,
-            optional($booking->created_at)->format('Y-m-d H:i'),
-            optional($booking->sale_day)->format('Y-m-d'),
-            $booking->journalEntry?->entry_number ?? '-',
         ];
+
+        if (config('features.finance')) {
+            array_push($row, $received, $outstanding, $outstanding > 0.009 ? 'Belum Lunas' : 'Lunas');
+        }
+
+        array_push($row, optional($booking->created_at)->format('Y-m-d H:i'), optional($booking->sale_day)->format('Y-m-d'));
+
+        if (config('features.finance')) {
+            $row[] = $booking->journalEntry?->entry_number ?? '-';
+        }
+
+        return $row;
     }
 
     public function styles(Worksheet $sheet): array

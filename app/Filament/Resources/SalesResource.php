@@ -62,7 +62,7 @@ class SalesResource extends Resource
         $user = auth()->user();
 
         return $user?->canAccessStaffArea()
-            && $user->hasMenuAccess(static::class);
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public static function getEloquentQuery(): Builder
@@ -102,21 +102,12 @@ class SalesResource extends Resource
                 'stats' => \App\Filament\Widgets\SalesDetailStatsWidget::aggregate($livewire->getFilteredTableQuery()),
             ]))
             ->columns([
-                // No. Invoice diturunkan dari booking_number (sama dengan
-                // yang dipakai di PDF "Cetak Invoice") — tidak ada tabel/
-                // nomor invoice terpisah. Analog "Daftar Invoice" Majoo.
-                Tables\Columns\TextColumn::make('invoice_number')
-                    ->label('No. Invoice')
-                    ->state(fn (Booking $record) => 'INV/' . $record->booking_number)
-                    // Awalan "INV/" hanya tampilan (nomor tersimpan BKG-...): dibuang supaya nomor yang disalin dari kolom ini
-                    // bisa langsung ditempel ke kotak cari.
-                    ->searchable(query: fn (Builder $query, string $search) => $query->where('booking_number', 'like', '%' . preg_replace('/^\s*INV\//i', '', $search) . '%'))
-                    ->weight('bold'),
-
+                // No. Booking jadi kolom utama (keputusan pemilik 2026-11-04): nomor turunan "INV/<no. booking>" dihapus karena berbeda
+                // dari nomor di menu Invoice, sehingga satu penjualan tampak punya dua nomor invoice.
                 Tables\Columns\TextColumn::make('booking_number')
                     ->label('No. Booking')
                     ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->weight('bold'),
 
                 // display_customer_name (bukan kolom mentah customer_name): booking dari aplikasi menyimpan nama di
                 // relasi customer, dan pelanggan yang dihapus tampil "Pelanggan Terhapus" (kebijakan PII) -- sama
@@ -169,11 +160,13 @@ class SalesResource extends Resource
                 // pembayaran sama sekali.
                 Tables\Columns\TextColumn::make('amount_received')
                     ->label('Diterima')
+                    ->visible(fn () => (bool) config('features.finance'))
                     ->formatStateUsing(fn (?string $state, Booking $record) => 'Rp' . number_format((float) ($state ?? $record->transaction_amount), 0, ',', '.'))
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('outstanding')
                     ->label('Sisa Tagihan')
+                    ->visible(fn () => (bool) config('features.finance'))
                     ->state(function (Booking $record) {
                         $received = $record->amount_received ?? $record->transaction_amount;
 
@@ -183,21 +176,20 @@ class SalesResource extends Resource
                     ->color(fn (float $state) => $state > 0 ? 'danger' : 'gray')
                     ->toggleable(),
 
+                // Piutang dicatat di Accurate saat modul Keuangan mati, jadi status pembayaran dan kolom terkait hanya tampil bila modul menyala.
+                // Tidak ada status Void: booking yang dibatalkan tidak mungkin sudah diproses penjualannya (lihat Laporan Pembatalan).
                 Tables\Columns\TextColumn::make('payment_status')
                     ->label('Status')
+                    ->visible(fn () => (bool) config('features.finance'))
                     ->badge()
                     ->state(function (Booking $record): string {
-                        if ($record->status === 'cancelled') {
-                            return 'Void';
-                        }
                         $received = $record->amount_received ?? $record->transaction_amount;
 
                         return ((float) $record->transaction_amount - (float) $received) > 0.009 ? 'Belum Lunas' : 'Lunas';
                     })
                     ->color(fn (string $state) => match ($state) {
-                        'Lunas' => 'success',
                         'Belum Lunas' => 'warning',
-                        default => 'danger',
+                        default => 'success',
                     }),
 
                 // Analog "Waktu Order" vs "Waktu Bayar" Majoo (diminta
@@ -212,14 +204,14 @@ class SalesResource extends Resource
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('journalEntry.entry_date')
-                    ->label('Waktu Bayar')
+                    ->label('Tanggal Penjualan')
                     ->date('d M Y')
                     ->visible(fn () => (bool) config('features.finance'))
                     ->sortable(),
 
                 // Tanpa modul Keuangan (FEATURE_FINANCE mati) tanggal penjualan disimpan di booking sendiri.
                 Tables\Columns\TextColumn::make('sale_date')
-                    ->label('Waktu Bayar')
+                    ->label('Tanggal Penjualan')
                     ->date('d M Y')
                     ->visible(fn () => ! config('features.finance'))
                     ->sortable(),
@@ -260,7 +252,7 @@ class SalesResource extends Resource
                     }),
 
                 Tables\Filters\Filter::make('entry_date')
-                    ->label('Rentang Tanggal Tercatat')
+                    ->label('Tanggal Penjualan')
                     ->form([
                         Forms\Components\DatePicker::make('from')->label('Dari'),
                         Forms\Components\DatePicker::make('until')->label('Sampai'),
@@ -292,10 +284,10 @@ class SalesResource extends Resource
 
                 Tables\Filters\SelectFilter::make('payment_status')
                     ->label('Status Pembayaran')
+                    ->visible(fn () => (bool) config('features.finance'))
                     ->options([
                         'lunas' => 'Lunas',
                         'belum_lunas' => 'Belum Lunas',
-                        'void' => 'Void',
                     ])
                     // Ambang toleransi 0.009 DISAMAKAN dengan badge/kolom Sisa Tagihan/widget
                     // statistik/Excel (audit Detail Penjualan 2026-09-29) -- sebelumnya filter ini
@@ -303,11 +295,8 @@ class SalesResource extends Resource
                     // float) bisa tampil "Lunas" di badge tapi ikut muncul saat difilter "Belum
                     // Lunas", atau sebaliknya hilang saat difilter "Lunas".
                     ->query(fn (Builder $query, array $data) => match ($data['value'] ?? null) {
-                        'void' => $query->where('status', 'cancelled'),
-                        'belum_lunas' => $query->where('status', '!=', 'cancelled')
-                            ->whereRaw('(transaction_amount - COALESCE(amount_received, transaction_amount)) > 0.009'),
-                        'lunas' => $query->where('status', '!=', 'cancelled')
-                            ->whereRaw('(transaction_amount - COALESCE(amount_received, transaction_amount)) <= 0.009'),
+                        'belum_lunas' => $query->whereRaw('(transaction_amount - COALESCE(amount_received, transaction_amount)) > 0.009'),
+                        'lunas' => $query->whereRaw('(transaction_amount - COALESCE(amount_received, transaction_amount)) <= 0.009'),
                         default => $query,
                     }),
             ])

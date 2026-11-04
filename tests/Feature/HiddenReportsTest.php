@@ -58,12 +58,12 @@ class HiddenReportsTest extends TestCase
         config(['features.finance' => false]);
         $without = (new RefundReportExport(['refunds' => []]))->headings();
         $this->assertNotContains('No. Jurnal', $without);
-        $this->assertCount(9, $without);
+        $this->assertCount(12, $without);
 
         config(['features.finance' => true]);
         $with = (new RefundReportExport(['refunds' => []]))->headings();
         $this->assertContains('No. Jurnal', $with);
-        $this->assertCount(10, $with);
+        $this->assertCount(13, $with);
     }
     public function test_the_peak_time_reports_close_with_their_switch(): void
     {

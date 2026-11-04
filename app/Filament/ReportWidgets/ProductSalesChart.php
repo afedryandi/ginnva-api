@@ -79,7 +79,7 @@ class ProductSalesChart extends ChartWidget
             ->whereNotNull('film_product_id')
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->with(['journalEntry:id,entry_date', 'filmProduct:id,name'])
-            ->get(['transaction_amount', 'journal_entry_id', 'film_product_id']);
+            ->get(['transaction_amount', 'journal_entry_id', 'sale_date', 'film_product_id']);
 
         // Top N produk by total revenue dalam rentang ini -- urutan
         // dataset & warnanya ditentukan dari sini.
@@ -104,7 +104,7 @@ class ProductSalesChart extends ChartWidget
 
             $byDate = [];
             foreach ($productBookings as $booking) {
-                $date = $booking->journalEntry?->entry_date?->toDateString();
+                $date = $booking->sale_day?->toDateString();
                 if (! $date) continue;
                 $byDate[$date] = ($byDate[$date] ?? 0) + (float) $booking->transaction_amount;
             }

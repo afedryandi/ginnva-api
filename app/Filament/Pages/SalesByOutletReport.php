@@ -80,7 +80,7 @@ class SalesByOutletReport extends Page implements HasForms
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public function mount(): void
@@ -291,7 +291,7 @@ class SalesByOutletReport extends Page implements HasForms
         $stores = Store::query()
             ->when($storeId, fn ($q) => $q->where('id', $storeId))
             ->orderBy('name')
-            ->get(['id', 'name'])
+            ->get(['id', 'name', 'is_active'])
             ->map(function (Store $store) use ($aggByStoreId, $refundByStoreId) {
                 $agg = $aggByStoreId->get($store->id);
                 $count = (int) ($agg->cnt ?? 0);
@@ -314,6 +314,9 @@ class SalesByOutletReport extends Page implements HasForms
                     'productsPerTransaction' => $count > 0 ? $products / $count : 0,
                 ];
             })
+            // Outlet nonaktif hanya tampil bila punya penjualan atau pengembalian pada rentang ini (keputusan audit 2026-11-04); outlet aktif
+            // tanpa transaksi tetap tampil sebagai baris Rp 0.
+            ->filter(fn (array $row) => $row['store']->is_active || $row['count'] > 0 || $row['refund'] > 0)
             ->sortByDesc('revenue')
             ->values();
 
@@ -321,6 +324,8 @@ class SalesByOutletReport extends Page implements HasForms
         $totalRefund = $stores->sum('refund');
         $totalCount = $stores->sum('count');
         $totalProducts = $stores->sum('products');
+        $totalReceived = $stores->sum('received');
+        $totalOutstanding = $stores->sum('outstanding');
 
         // Persentase kontribusi tiap outlet terhadap total -- dihitung
         // di sini (bukan di view) supaya konsisten kalau totalnya 0
@@ -342,6 +347,8 @@ class SalesByOutletReport extends Page implements HasForms
             'totalRefund' => $totalRefund,
             'totalCount' => $totalCount,
             'totalProducts' => $totalProducts,
+            'totalReceived' => $totalReceived,
+            'totalOutstanding' => $totalOutstanding,
             // Banner "booking selesai belum diproses" (audit 2026-09-11,
             // temuan C) — sama konsep dengan laporan Penjualan lain.
             'pendingCount' => app(SalesSnapshotService::class)->pendingCount($storeId),

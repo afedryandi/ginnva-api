@@ -18,6 +18,8 @@
 <body>
     @php
         $rupiah = fn ($n) => 'Rp' . number_format((float) $n, 0, ',', '.');
+        // Diterima dan Piutang hanya ada bila modul Keuangan menyala. HPP dan Laba Kotor dihapus 2026-11-04 (HPP dipegang Accurate).
+        $financeOn = (bool) config('features.finance');
     @endphp
 
     <h1>Penjualan Per Periode</h1>
@@ -32,13 +34,13 @@
                 <th>Periode</th>
                 <th>Transaksi</th>
                 <th>Penjualan</th>
-                <th>Diterima</th>
-                <th>Piutang</th>
+                @if ($financeOn)
+                    <th>Diterima</th>
+                    <th>Piutang</th>
+                @endif
                 <th>Produk</th>
                 <th>Pengembalian</th>
                 <th>Komisi</th>
-                <th>HPP</th>
-                <th>Laba Kotor</th>
             </tr>
         </thead>
         <tbody>
@@ -47,30 +49,31 @@
                     <td>{{ $row['label'] }}</td>
                     <td>{{ number_format($row['count'], 0, ',', '.') }}</td>
                     <td>{{ $rupiah($row['revenue']) }}</td>
-                    <td>{{ $rupiah($row['received']) }}</td>
-                    <td>{{ $row['outstanding'] > 0 ? $rupiah($row['outstanding']) : '-' }}</td>
+                    @if ($financeOn)
+                        <td>{{ $rupiah($row['received']) }}</td>
+                        <td>{{ $row['outstanding'] > 0 ? $rupiah($row['outstanding']) : '-' }}</td>
+                    @endif
                     <td>{{ number_format($row['products'], 0, ',', '.') }}</td>
                     <td>{{ $row['refund'] > 0 ? '(' . $rupiah($row['refund']) . ')' : '-' }}</td>
                     <td>{{ $row['commission'] > 0 ? $rupiah($row['commission']) : '-' }}{{ $row['hasUnratedJob'] ? ' *' : '' }}</td>
-                    <td>{{ $row['cogs'] > 0 ? '(' . $rupiah($row['cogs']) . ')' : '-' }}{{ $row['hasMissingCost'] ? ' †' : '' }}</td>
-                    <td>{{ $rupiah($row['grossProfit']) }}</td>
                 </tr>
             @endforeach
             <tr class="total">
                 <td>Total</td>
                 <td>{{ number_format($result['totalCount'], 0, ',', '.') }}</td>
                 <td>{{ $rupiah($result['totalRevenue']) }}</td>
-                <td colspan="2"></td>
+                @if ($financeOn)
+                    <td>{{ $rupiah($result['totalReceived']) }}</td>
+                    <td>{{ $result['totalOutstanding'] > 0 ? $rupiah($result['totalOutstanding']) : '-' }}</td>
+                @endif
                 <td>{{ number_format($result['totalProducts'], 0, ',', '.') }}</td>
-                <td></td>
-                <td></td>
-                <td>{{ $rupiah($result['totalCogs']) }}</td>
-                <td>{{ $rupiah($result['totalGrossProfit']) }}</td>
+                <td>{{ $result['totalRefund'] > 0 ? '(' . $rupiah($result['totalRefund']) . ')' : '-' }}</td>
+                <td>{{ $result['totalCommission'] > 0 ? $rupiah($result['totalCommission']) : '-' }}</td>
             </tr>
         </tbody>
     </table>
 
     <p class="footnote">* = ada installer yang komisinya belum diatur (menu Installer) pada periode itu — nominal Komisi belum mencerminkan semua pekerjaan.</p>
-    <p class="footnote">† = ada bahan (gulungan film/bahan pendukung) yang belum diisi harga belinya — HPP baris itu minimum, Laba Kotor sungguhan bisa lebih rendah.</p>
+    <p class="footnote">Pengembalian dikelompokkan menurut tanggal refund diproses, bukan tanggal penjualannya.</p>
 </body>
 </html>

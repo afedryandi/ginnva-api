@@ -12,6 +12,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Export "Penjualan Outlet" (SalesByOutletReport) — audit 2026-09-11,
  * temuan B. FromArray karena sumbernya hasil agregasi getResult(), pola
  * sama SalesSummaryExport/SalesByPeriodExport.
+ *
+ * 2026-11-04: kolom Piutang hanya ada bila modul Keuangan menyala (saat mati, piutang dicatat di Accurate), dan ada baris Total di akhir.
  */
 class SalesByOutletExport implements FromArray, WithHeadings, WithStyles
 {
@@ -19,7 +21,7 @@ class SalesByOutletExport implements FromArray, WithHeadings, WithStyles
 
     public function headings(): array
     {
-        return [
+        $headings = [
             'Outlet',
             'Transaksi',
             'Penjualan (bersih)',
@@ -29,27 +31,62 @@ class SalesByOutletExport implements FromArray, WithHeadings, WithStyles
             'Produk %',
             'Rata-rata/Transaksi',
             'Produk/Transaksi',
-            'Piutang',
         ];
+
+        if (config('features.finance')) {
+            $headings[] = 'Piutang';
+        }
+
+        return $headings;
     }
 
     public function array(): array
     {
-        return collect($this->result['rows'])
-            ->map(fn (array $row) => [
-                $row['store']->name,
-                $row['count'],
-                $row['revenue'],
-                round($row['revenuePct'], 1), // angka (kolom berjudul %), bukan teks, supaya bisa dijumlah/difilter
-                $row['refund'],
-                $row['products'],
-                round($row['productsPct'], 1),
-                round($row['avg']),
-                round($row['productsPerTransaction'], 2),
-                $row['outstanding'],
-            ])
+        $finance = (bool) config('features.finance');
+
+        $rows = collect($this->result['rows'])
+            ->map(function (array $row) use ($finance) {
+                $line = [
+                    $row['store']->name,
+                    $row['count'],
+                    $row['revenue'],
+                    round($row['revenuePct'], 1), // angka (kolom berjudul %), bukan teks, supaya bisa dijumlah/difilter
+                    $row['refund'],
+                    $row['products'],
+                    round($row['productsPct'], 1),
+                    round($row['avg']),
+                    round($row['productsPerTransaction'], 2),
+                ];
+
+                if ($finance) {
+                    $line[] = $row['outstanding'];
+                }
+
+                return $line;
+            })
             ->values()
             ->all();
+
+        $count = $this->result['totalCount'];
+        $total = [
+            'Total',
+            $count,
+            $this->result['totalRevenue'],
+            $this->result['totalRevenue'] > 0 ? 100.0 : 0.0,
+            $this->result['totalRefund'],
+            $this->result['totalProducts'],
+            $this->result['totalProducts'] > 0 ? 100.0 : 0.0,
+            $count > 0 ? round($this->result['totalRevenue'] / $count) : 0,
+            $count > 0 ? round($this->result['totalProducts'] / $count, 2) : 0,
+        ];
+
+        if ($finance) {
+            $total[] = $this->result['totalOutstanding'];
+        }
+
+        $rows[] = $total;
+
+        return $rows;
     }
 
     public function styles(Worksheet $sheet): array

@@ -63,7 +63,7 @@ class SalesDetailStatsWidget extends StatsOverviewWidget
      * filter). Ambang "belum lunas" (selisih > 0.009) direplikasi PERSIS
      * dengan logika PHP yang dipakai kolom 'payment_status' & SalesExport.
      *
-     * @return array{total_count:int, total_revenue:float, total_received:float, void_count:int, void_amount:float, belum_lunas_count:int, belum_lunas_amount:float, lunas_count:int, lunas_amount:float}
+     * @return array{total_count:int, total_revenue:float, total_received:float, belum_lunas_count:int, belum_lunas_amount:float, lunas_count:int, lunas_amount:float}
      */
     public static function aggregate(Builder $query): array
     {
@@ -79,21 +79,15 @@ class SalesDetailStatsWidget extends StatsOverviewWidget
                 . ' COALESCE(SUM(bookings.transaction_amount), 0) as total_revenue,'
                 . ' COALESCE(SUM(COALESCE(bookings.amount_received, bookings.transaction_amount)), 0) as total_received,'
 
-                . ' COUNT(CASE WHEN bookings.status = \'cancelled\' THEN 1 END) as void_count,'
-                . ' COALESCE(SUM(CASE WHEN bookings.status = \'cancelled\' THEN bookings.transaction_amount ELSE 0 END), 0) as void_amount,'
 
-                . ' COUNT(CASE WHEN bookings.status != \'cancelled\''
-                . ' AND (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) > 0.009'
+                . ' COUNT(CASE WHEN (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) > 0.009'
                 . ' THEN 1 END) as belum_lunas_count,'
-                . ' COALESCE(SUM(CASE WHEN bookings.status != \'cancelled\''
-                . ' AND (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) > 0.009'
+                . ' COALESCE(SUM(CASE WHEN (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) > 0.009'
                 . ' THEN (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) ELSE 0 END), 0) as belum_lunas_amount,'
 
-                . ' COUNT(CASE WHEN bookings.status != \'cancelled\''
-                . ' AND (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) <= 0.009'
+                . ' COUNT(CASE WHEN (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) <= 0.009'
                 . ' THEN 1 END) as lunas_count,'
-                . ' COALESCE(SUM(CASE WHEN bookings.status != \'cancelled\''
-                . ' AND (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) <= 0.009'
+                . ' COALESCE(SUM(CASE WHEN (bookings.transaction_amount - COALESCE(bookings.amount_received, bookings.transaction_amount)) <= 0.009'
                 . ' THEN bookings.transaction_amount ELSE 0 END), 0) as lunas_amount'
             )
             ->toBase()
@@ -103,8 +97,6 @@ class SalesDetailStatsWidget extends StatsOverviewWidget
             'total_count' => (int) $agg->total_count,
             'total_revenue' => (float) $agg->total_revenue,
             'total_received' => (float) $agg->total_received,
-            'void_count' => (int) $agg->void_count,
-            'void_amount' => (float) $agg->void_amount,
             'belum_lunas_count' => (int) $agg->belum_lunas_count,
             'belum_lunas_amount' => (float) $agg->belum_lunas_amount,
             'lunas_count' => (int) $agg->lunas_count,
@@ -119,17 +111,14 @@ class SalesDetailStatsWidget extends StatsOverviewWidget
         $rupiah = fn ($n) => 'Rp' . number_format((float) $n, 0, ',', '.');
 
         return [
-            Stat::make('Total Invoice', $rupiah($agg['total_revenue']))
-                ->description(number_format($agg['total_count'], 0, ',', '.') . ' invoice'),
+            Stat::make('Total Penjualan', $rupiah($agg['total_revenue']))
+                ->description(number_format($agg['total_count'], 0, ',', '.') . ' transaksi'),
             Stat::make('Lunas', $rupiah($agg['lunas_amount']))
-                ->description(number_format($agg['lunas_count'], 0, ',', '.') . ' invoice')
+                ->description(number_format($agg['lunas_count'], 0, ',', '.') . ' transaksi')
                 ->color('success'),
             Stat::make('Belum Lunas', $rupiah($agg['belum_lunas_amount']))
-                ->description(number_format($agg['belum_lunas_count'], 0, ',', '.') . ' invoice')
+                ->description(number_format($agg['belum_lunas_count'], 0, ',', '.') . ' transaksi')
                 ->color($agg['belum_lunas_count'] > 0 ? 'warning' : 'gray'),
-            Stat::make('Void', $rupiah($agg['void_amount']))
-                ->description(number_format($agg['void_count'], 0, ',', '.') . ' invoice')
-                ->color($agg['void_count'] > 0 ? 'danger' : 'gray'),
             Stat::make('Total Diterima', $rupiah($agg['total_received'])),
         ];
     }

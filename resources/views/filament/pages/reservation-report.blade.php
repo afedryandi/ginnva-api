@@ -74,7 +74,7 @@
         <x-slot name="heading">Daftar Reservasi</x-slot>
         <x-slot name="description">
             Diurutkan berdasarkan tanggal diinginkan. Booking berstatus "completed" sudah tercover Laporan Penjualan,
-            "cancelled" sudah tercover Laporan Void — tidak ditampilkan lagi di sini supaya tidak tumpang tindih
+            "cancelled" sudah tercover Laporan Pembatalan — tidak ditampilkan lagi di sini supaya tidak tumpang tindih
             (stat card "Dibuat/Selesai/Dibatalkan" di atas TETAP menghitung semua status, sesuai definisi Majoo).
         </x-slot>
 

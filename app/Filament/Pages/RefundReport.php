@@ -3,6 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Exports\RefundReportExport;
+use App\Models\Booking;
+use App\Models\BookingDownPayment;
 use App\Models\Refund;
 use App\Models\Store;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -19,16 +21,14 @@ use Livewire\Attributes\Url;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
- * "Laporan Refund" — diminta 2026-09-09, analog "Laporan Refund" Majoo.
- * SEBELUMNYA blocked total (tidak ada mekanisme refund sama sekali) --
- * dibangun setelah aturan dikonfirmasi user: refund bisa PARSIAL, tiap
- * refund WAJIB bikin jurnal kontra otomatis (lihat RefundService, aksi
- * "Proses Refund" di BookingResource).
+ * "Laporan Refund" -- daftar uang yang dikembalikan ke pelanggan dalam 1 rentang tanggal (menurut hari diproses).
  *
- * Data di sini murni membaca tabel refunds (sumber kebenaran terpisah
- * dari Booking.transaction_amount) -- SalesSummaryReport/
- * SalesByPeriodReport/SalesByOutletReport ikut diperbarui memakai
- * sumber yang SAMA supaya "Pengembalian" konsisten di semua laporan.
+ * Dua jenis baris: "Refund Penjualan" (tabel refunds, lewat aksi Proses Refund -- parsial boleh, berkali-kali, wajib punya alasan dan
+ * metode pengembalian, dan mencatat penyetujunya bila diajukan staf) dan "Refund DP" (uang muka yang dikembalikan saat booking dibatalkan
+ * atau sisa DP yang tidak terpakai). Dengan begitu total uang keluar ke pelanggan utuh.
+ *
+ * Penjualan Ringkasan/Per Periode/Outlet memakai tabel refunds yang SAMA untuk "Pengembalian"; refund DP bukan pengurang penjualan
+ * (DP bukan pendapatan), jadi hanya muncul di sini.
  */
 class RefundReport extends Page implements HasForms
 {
@@ -66,7 +66,7 @@ class RefundReport extends Page implements HasForms
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public function mount(): void
@@ -259,51 +259,118 @@ class RefundReport extends Page implements HasForms
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
         $storeId = $this->effectiveStoreId();
+        $finance = (bool) config('features.finance');
 
         $refunds = Refund::query()
             ->whereBetween('created_at', [$from, $to])
             ->with([
-                'booking:id,booking_number,customer_id,customer_name,store_id',
+                'booking:id,booking_number,customer_id,customer_name,store_id,transaction_amount',
                 'booking.store:id,name',
                 'booking.customer',
                 'creator:id,name',
-                // BUG DIPERBAIKI 2026-09-11: deskripsi halaman ("klik
-                // No. Jurnal untuk lihat detailnya") menjanjikan kolom
-                // ini, tapi SEBELUMNYA tidak pernah di-eager-load ATAU
-                // ditampilkan di tabel sama sekali.
+                'approver:id,name',
                 'journalEntry:id,entry_number',
             ])
             ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
-            ->orderByDesc('created_at')
             ->get();
 
-        // BUG DIPERBAIKI 2026-09-29: kolom "Metode Pembayaran" SEBELUMNYA selalu hardcode "Tunai"
-        // untuk semua baris, dan deskripsi halaman menulis RefundService "SELALU" kredit Kas. Sejak
-        // audit Piutang Usaha, RefundService bisa mengurangi Piutang (refunds.receivable_reduced)
-        // dulu sebelum kas keluar -- jadi "Tunai" saja sudah tidak akurat. Dihitung per baris di sini
-        // supaya blade tidak perlu tahu detail kolomnya, dan dipakai juga untuk breakdown total.
-        $refunds->each(function (Refund $refund) {
-            $receivableReduced = (float) ($refund->receivable_reduced ?? 0);
-            $amount = (float) $refund->amount;
-            $cashPortion = round($amount - $receivableReduced, 2);
+        // Sisa nilai transaksi SETELAH tiap refund = nilai transaksi dikurangi refund booking itu sampai (dan termasuk) refund ini.
+        $history = Refund::query()
+            ->whereIn('booking_id', $refunds->pluck('booking_id')->unique()->all())
+            ->orderBy('id')
+            ->get(['id', 'booking_id', 'amount'])
+            ->groupBy('booking_id');
 
-            $refund->payment_method_label = match (true) {
-                $receivableReduced <= 0 => 'Tunai',
-                $cashPortion <= 0 => 'Kurangi Piutang',
-                default => 'Tunai + Kurangi Piutang',
+        $rows = $refunds->map(function (Refund $refund) use ($history, $finance) {
+            $receivable = (float) ($refund->receivable_reduced ?? 0);
+            $amount = (float) $refund->amount;
+            $cash = max(round($amount - $receivable, 2), 0);
+            $methodName = $refund->method ? (Booking::PAYMENT_METHOD_LABELS[$refund->method] ?? $refund->method) : null;
+
+            // Refund lama (tanpa metode): dengan Keuangan menyala dianggap Tunai seperti dulu; saat mati metodenya memang tidak tercatat.
+            $label = match (true) {
+                $receivable <= 0 => $methodName ?? ($finance ? 'Tunai' : '—'),
+                $cash <= 0 => 'Kurangi Piutang',
+                default => ($methodName ?? 'Tunai') . ' + Kurangi Piutang',
             };
-            $refund->cash_portion = max($cashPortion, 0);
-            $refund->receivable_portion = $receivableReduced;
+
+            $remaining = $refund->booking
+                ? round((float) $refund->booking->transaction_amount - (float) $history->get($refund->booking_id, collect())->where('id', '<=', $refund->id)->sum('amount'), 2)
+                : null;
+
+            return [
+                'id' => $refund->id,
+                'kind' => 'Refund Penjualan',
+                'number' => $refund->refund_number,
+                'date' => $refund->created_at,
+                'booking' => $refund->booking,
+                'method_label' => $label,
+                'by' => $refund->creator?->name,
+                'approved_by' => $refund->approver?->name,
+                'journal' => $refund->journalEntry?->entry_number,
+                'reason' => $refund->reason,
+                'amount' => $amount,
+                'cash' => $cash,
+                'receivable' => $receivable,
+                'remaining' => $remaining,
+            ];
         });
+
+        // Pengembalian DP (otomatis saat booking dibatalkan, atau sisa DP yang tidak terpakai) juga uang keluar ke pelanggan.
+        // Tanggalnya refunded_at; sisa DP sebagian (DP sudah terpakai sebagian) tidak punya refunded_at, jadi memakai updated_at.
+        $dpRows = BookingDownPayment::query()
+            ->where(function ($q) use ($from, $to) {
+                $q->whereBetween('refunded_at', [$from, $to])
+                    ->orWhere(fn ($q2) => $q2->whereNull('refunded_at')->where('refunded_amount', '>', 0)->whereBetween('updated_at', [$from, $to]));
+            })
+            ->when($storeId, fn ($q) => $q->whereHas('booking', fn ($q2) => $q2->where('store_id', $storeId)))
+            ->with(['booking:id,booking_number,customer_id,customer_name,store_id,status', 'booking.store:id,name', 'booking.customer', 'refundJournalEntry:id,entry_number'])
+            ->get()
+            ->map(function (BookingDownPayment $dp) use ($finance) {
+                $amount = $dp->refunded_at
+                    ? ((float) $dp->refunded_amount > 0 ? (float) $dp->refunded_amount : (float) $dp->amount)
+                    : (float) $dp->refunded_amount;
+
+                return [
+                    'id' => $dp->id,
+                    'kind' => 'Refund DP',
+                    'number' => null,
+                    'date' => $dp->refunded_at ?? $dp->updated_at,
+                    'booking' => $dp->booking,
+                    'method_label' => $dp->method ? (Booking::PAYMENT_METHOD_LABELS[$dp->method] ?? $dp->method) : '—',
+                    'by' => null,
+                    'approved_by' => null,
+                    'journal' => $finance ? $dp->refundJournalEntry?->entry_number : null,
+                    'reason' => $dp->booking?->status === 'cancelled' ? 'Booking dibatalkan' : 'Sisa DP tidak terpakai',
+                    'amount' => $amount,
+                    'cash' => $amount,
+                    'receivable' => 0.0,
+                    'remaining' => null,
+                ];
+            });
+
+        $all = $rows->concat($dpRows)->sortByDesc(fn (array $r) => $r['date']->getTimestamp())->values();
+
+        $byReason = $all->groupBy(fn (array $r) => $r['reason'] ?: 'Tanpa alasan')->map(fn ($g) => $g->count())->sortDesc();
+        if ($byReason->count() > 8) {
+            $others = $byReason->slice(8)->sum();
+            $byReason = $byReason->take(8)->put('Lainnya', $others);
+        }
 
         return [
             'from' => $from,
             'to' => $to,
-            'refunds' => $refunds,
-            'totalAmount' => (float) $refunds->sum('amount'),
-            'totalCount' => $refunds->count(),
-            'totalCash' => (float) $refunds->sum('cash_portion'),
-            'totalReceivableReduced' => (float) $refunds->sum('receivable_portion'),
+            'rows' => $all,
+            'totalAmount' => (float) $all->sum('amount'),
+            'totalCount' => $all->count(),
+            'salesAmount' => (float) $rows->sum('amount'),
+            'salesCount' => $rows->count(),
+            'dpAmount' => (float) $dpRows->sum('amount'),
+            'dpCount' => $dpRows->count(),
+            'totalCash' => (float) $all->sum('cash'),
+            'totalReceivableReduced' => (float) $all->sum('receivable'),
+            'byReason' => $byReason,
+            'byStore' => $all->groupBy(fn (array $r) => $r['booking']?->store?->name ?? '—')->map(fn ($g) => (float) $g->sum('amount'))->sortDesc(),
         ];
     }
 }

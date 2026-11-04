@@ -7,12 +7,10 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use Spatie\Activitylog\Models\Activity;
 
 /**
- * Export "Laporan Void" (VoidReport) — audit 2026-09-11, temuan B.
- * FromArray karena sumbernya Collection hasil getResult() (activity_log
- * + relasi Booking), bukan Eloquent Builder biasa.
+ * Export "Laporan Pembatalan" (VoidReport). FromArray karena sumbernya hasil getResult(), bukan Eloquent Builder biasa.
+ * Baris terakhir = Total (dibuat hanya bila ada data).
  */
 class VoidReportExport implements FromArray, WithHeadings, WithStyles
 {
@@ -24,40 +22,50 @@ class VoidReportExport implements FromArray, WithHeadings, WithStyles
             'No. Booking',
             'Tanggal Order',
             'Tanggal Dibatalkan',
+            'Jenis',
             'Pelanggan',
             'Toko',
             'Layanan',
             'Dibatalkan Oleh',
             'Alasan',
             'Nilai Transaksi',
+            'DP Belum Dikembalikan',
         ];
     }
 
     public function array(): array
     {
-        return collect($this->result['events'])
-            ->map(function (Activity $event) {
-                $booking = $event->subject;
+        $rows = collect($this->result['rows'])
+            ->map(function (array $row) {
+                $booking = $row['booking'];
 
                 return [
                     $booking->booking_number,
                     optional($booking->created_at)->format('Y-m-d H:i'),
-                    $event->created_at->format('Y-m-d H:i'),
+                    $row['cancelled_at']->format('Y-m-d H:i'),
+                    $row['kind'],
                     $booking->display_customer_name,
                     $booking->store?->name ?? '-',
                     $booking->salesProductLabel() ?? '-',
-                    $booking->cancelledByLabel($event->causer?->name),
-                    $booking->cancel_reason ?? '-',
-                    (float) $booking->transaction_amount,
+                    $row['by'],
+                    $row['reason'] ?? '-',
+                    $row['amount'],
+                    $row['dp_open'],
                 ];
             })
             ->values()
             ->all();
+
+        if ($rows !== []) {
+            $rows[] = ['Total', '', '', '', '', '', '', '', '', (float) $this->result['totalLostRevenue'], (float) $this->result['openDpTotal']];
+        }
+
+        return $rows;
     }
 
     public function styles(Worksheet $sheet): array
     {
-        return [
+        $styles = [
             1 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => [
@@ -66,5 +74,11 @@ class VoidReportExport implements FromArray, WithHeadings, WithStyles
                 ],
             ],
         ];
+
+        if (count($this->result['rows']) > 0) {
+            $styles[count($this->result['rows']) + 2] = ['font' => ['bold' => true]];
+        }
+
+        return $styles;
     }
 }

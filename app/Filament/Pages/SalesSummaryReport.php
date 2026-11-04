@@ -39,13 +39,9 @@ use Barryvdh\DomPDF\Facade\Pdf;
  * ditandai "Belum tersedia" — TIDAK ADA satu pun angka yang ditebak/
  * dipaksa jadi Rp 0 supaya terlihat lengkap seperti tiruan Majoo.
  *
- * PPN (2026-09-19): keputusan sudah turun (Topik 1, "Keputusan-PPN-DP-
- * Produk-Stok-Ginnva.docx") — harga inclusive 11%, berlaku booking baru
- * saja. Baris "Pajak (PPN)" SEKARANG angka sungguhan (SUM(ppn_amount)
- * booking dalam periode ini, lihat Booking::applyPpnBreakdown()) — TAPI
- * booking lama sebelum fitur ini aktif tetap punya ppn_amount NULL
- * (tidak dihitung ulang retroaktif sesuai keputusan), jadi angkanya
- * cuma mencerminkan booking yang sudah "menyentuh" fitur ini.
+ * Baris Pajak (PPN) DIHAPUS 2026-11-04 (keputusan pemilik): pajak ditangani Accurate, dan nilai PPN hanya ada di booking baru sehingga
+ * angkanya tidak pernah lengkap. Blok Laba Kotor dan baris "Tidak berlaku"/"Belum tersedia" juga dihapus: HPP dan laba dipegang Accurate.
+ * Biaya Promosi memuat Voucher (menurut tanggal dipakai) dan Promo Total Pembelian (menurut tanggal penjualan diproses).
  *
  * Sumber kebenaran pendapatan (gross/refund/net/jumlah transaksi) SEJAK
  * 2026-09-11 pakai App\Services\SalesSnapshotService — SAMA PERSIS yang
@@ -110,7 +106,7 @@ class SalesSummaryReport extends Page implements HasForms
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public function mount(): void
@@ -356,19 +352,13 @@ class SalesSummaryReport extends Page implements HasForms
             ->get()
             ->sum(fn (VoucherClaim $claim) => $claim->appliedDiscount());
 
-        // PPN (Topik 1, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx"
-        // 2026-09-19) -- filter booking SAMA PERSIS dengan
-        // SalesSnapshotService::summarize() (sudah ada jurnal pendapatan
-        // di periode ini + transaction_amount > 0 + scope toko) supaya
-        // konsisten dengan grossSales, TAPI SUM(ppn_amount) -- booking
-        // lama yang ppn_amount-nya masih null otomatis tidak menyumbang
-        // apa pun ke total ini (bukan error, memang belum "menyentuh"
-        // fitur PPN sesuai keputusan "berlaku booking baru saja").
-        $ppnAmount = (float) Booking::query()
+        // Promo Total Pembelian: potongan yang tersimpan di booking yang penjualannya diproses pada periode ini, dengan filter booking yang
+        // SAMA dengan SalesSnapshotService::summarize() (sold + nominal > 0 + toko), jadi konsisten dengan Penjualan Kotor.
+        $spendPromoDiscount = (float) Booking::query()
             ->soldBetween($from->toDateString(), $to->toDateString())
             ->where('transaction_amount', '>', 0)
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
-            ->sum('ppn_amount');
+            ->sum('spend_promo_discount');
 
         [$prevFrom, $prevTo] = $this->comparisonRange($from, $to);
         $compare = $prevFrom ? $snapshotService->summarize($prevFrom, $prevTo, $storeId) : null;
@@ -378,8 +368,9 @@ class SalesSummaryReport extends Page implements HasForms
             'to' => $to,
             'storeId' => $storeId,
             'grossSales' => $snapshot['revenue'],
-            'ppnAmount' => $ppnAmount,
             'voucherDiscount' => $voucherDiscount,
+            'spendPromoDiscount' => $spendPromoDiscount,
+            'promoTotal' => $voucherDiscount + $spendPromoDiscount,
             'refund' => $snapshot['refund'],
             'netSales' => $snapshot['net'],
             'bookingCount' => $snapshot['count'],

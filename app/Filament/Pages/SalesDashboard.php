@@ -94,7 +94,7 @@ class SalesDashboard extends Page
         // Omzet toko: hanya akses penuh atau yang dicentang eksplisit. Daftar menu yang masih kosong (belum diatur) TIDAK otomatis
         // membuka halaman ini, berbeda dari menu lain (keputusan pemilik 2026-11-04).
         return ($user?->canAccessStaffArea() ?? false)
-            && ($user->isFullAccess() || (is_array($user->menu_access) && $user->hasMenuAccess(static::class)));
+            && $user->hasExplicitMenuAccess(static::class);
     }
 
     public function mount(): void
