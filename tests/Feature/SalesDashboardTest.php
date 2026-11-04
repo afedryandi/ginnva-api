@@ -353,7 +353,7 @@ class SalesDashboardTest extends TestCase
         $this->assertSame([$this->storeA->id => 'Toko A', $this->storeB->id => 'Toko B'], $page->instance()->getStoreOptions(), 'Toko nonaktif tidak ditawarkan.');
         $this->assertArrayNotHasKey($inactive->id, $page->instance()->getStoreOptions());
 
-        $this->actingAs($this->user('kasir', $this->storeA), 'web');
+        $this->actingAs($this->user('kasir', $this->storeA, ['menu_access' => ['SalesDashboard']]), 'web');
         $staff = Livewire::withQueryParams(['periode' => 'bulanan', 'cabang' => (string) $this->storeB->id])->test(SalesDashboard::class);
         $this->assertSame($this->storeA->id, $staff->instance()->effectiveStoreId(), 'Parameter toko diabaikan.');
         $this->assertEquals(1500000.0, $staff->instance()->getResult()['current']['revenue']);
@@ -438,7 +438,7 @@ class SalesDashboardTest extends TestCase
     public function test_the_page_renders_for_store_staff_with_the_charts(): void
     {
         $this->october();
-        $this->actingAs($this->user('kasir', $this->storeA), 'web');
+        $this->actingAs($this->user('kasir', $this->storeA, ['menu_access' => ['SalesDashboard']]), 'web');
 
         Livewire::test(SalesDashboard::class)->call('setPeriod', 'bulanan')->assertSuccessful()->assertSee('Rp1.500.000');
     }
