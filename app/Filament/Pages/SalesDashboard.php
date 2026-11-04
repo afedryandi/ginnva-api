@@ -91,8 +91,10 @@ class SalesDashboard extends Page
         // Permission SENDIRI (bukan lagi ikut BookingResource) — angka omzet
         // adalah data manajemen, tidak semua orang yang bisa input jadwal
         // booking perlu melihatnya. Diatur di "Akses Menu" akun user.
+        // Omzet toko: hanya akses penuh atau yang dicentang eksplisit. Daftar menu yang masih kosong (belum diatur) TIDAK otomatis
+        // membuka halaman ini, berbeda dari menu lain (keputusan pemilik 2026-11-04).
         return ($user?->canAccessStaffArea() ?? false)
-            && $user->hasMenuAccess(static::class);
+            && ($user->isFullAccess() || (is_array($user->menu_access) && $user->hasMenuAccess(static::class)));
     }
 
     public function mount(): void

@@ -17,8 +17,8 @@ use Illuminate\Support\Carbon;
  * pemakai lain (mis. endpoint mobile) angkanya dijamin identik.
  *
  * Definisi "pendapatan" identik dengan seluruh laporan Penjualan lain:
- * booking yang benar-benar sudah diproses ke Jurnal Umum
- * (sold() + transaction_amount > 0), dikurangi refund
+ * booking yang benar-benar sudah diproses lewat "Proses Referral"
+ * (sold(): jurnal bila modul Keuangan menyala, selain itu sale_date; transaction_amount > 0), dikurangi refund
  * yang diproses pada periode itu (by Refund.created_at) → "Penjualan
  * Bersih" di Laba-Rugi. Tidak ada angka yang ditebak / dipaksa jadi 0.
  */

@@ -231,7 +231,7 @@ class SalesDashboardTest extends TestCase
         $this->assertTrue(SalesDashboard::canAccess());
 
         $this->actingAs($this->user('kasir', $this->storeA), 'web');
-        $this->assertTrue(SalesDashboard::canAccess());
+        $this->assertFalse(SalesDashboard::canAccess(), 'Daftar menu yang belum diatur tidak otomatis membuka omzet toko.');
 
         $this->actingAs($this->user('kasir', $this->storeA, ['menu_access' => ['SalesDashboard']]), 'web');
         $this->assertTrue(SalesDashboard::canAccess());
@@ -441,5 +441,36 @@ class SalesDashboardTest extends TestCase
         $this->actingAs($this->user('kasir', $this->storeA), 'web');
 
         Livewire::test(SalesDashboard::class)->call('setPeriod', 'bulanan')->assertSuccessful()->assertSee('Rp1.500.000');
+    }
+    public function test_without_the_finance_module_the_journal_and_receivable_wording_is_gone(): void
+    {
+        config(['features.finance' => false]);
+        $customer = Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(10000000, 99999999)]);
+        Booking::create([
+            'booking_number' => 'BKG-TEST-' . uniqid(), 'customer_id' => $customer->id, 'store_id' => $this->storeA->id, 'service_type' => 'PPF',
+            'product_ppf' => true, 'preferred_date' => '2026-10-08', 'status' => 'completed', 'transaction_amount' => 1000000,
+            'amount_received' => 600000, 'sale_date' => '2026-10-08',
+        ]);
+        $this->actingAs($this->admin(), 'web');
+
+        Livewire::test(SalesDashboard::class)->call('setPeriod', 'bulanan')
+            ->assertSee('Total Penjualan')
+            ->assertSee('Rp1.000.000')
+            ->assertDontSee('Jurnal Umum')
+            ->assertDontSee('Laba-Rugi')
+            ->assertDontSee('Penjualan Belum Dibayar')
+            ->assertDontSee('Penjualan Terbayar');
+    }
+
+    public function test_with_the_finance_module_the_receivable_cards_and_journal_wording_stay(): void
+    {
+        config(['features.finance' => true]);
+        $this->october();
+        $this->actingAs($this->admin(), 'web');
+
+        Livewire::test(SalesDashboard::class)->call('setPeriod', 'bulanan')
+            ->assertSee('Penjualan Belum Dibayar (Piutang)')
+            ->assertSee('Penjualan Terbayar')
+            ->assertSee('Jurnal Umum');
     }
 }

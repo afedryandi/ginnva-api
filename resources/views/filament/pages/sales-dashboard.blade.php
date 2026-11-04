@@ -1,9 +1,36 @@
 <x-filament-panels::page>
+    {{-- Panel memakai CSS Filament yang sudah dikompilasi, jadi class Tailwind yang tidak dipakai bawaan Filament tidak berefek. Gaya di bawah
+         menggantikannya untuk halaman ini (warna naik/turun, banner, angka tabular, beberapa jarak). Grid memakai style inline di elemennya. --}}
+    @once
+        <style>
+            .sd-up { color: #15803d; } .sd-down { color: #b91c1c; } .sd-warn { color: #b45309; }
+            .dark .sd-up { color: #4ade80; } .dark .sd-down { color: #f87171; } .dark .sd-warn { color: #fbbf24; }
+            .sd-num { font-variant-numeric: sd-num; }
+            .sd-caps { text-transform: uppercase; letter-spacing: .05em; }
+            .sd-noshrink { flex-shrink: 0; }
+            .sd-rank { background: #f3f4f6; color: #6b7280; font-size: 11px; font-weight: 700; }
+            .dark .sd-rank { background: rgba(255, 255, 255, .1); color: #9ca3af; }
+            .sd-banner { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid; border-radius: 8px; font-size: 14px; text-decoration: none; }
+            .sd-banner svg { flex-shrink: 0; }
+            .sd-banner-warn { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+            .sd-banner-warn:hover { background: #fef3c7; }
+            .dark .sd-banner-warn { background: rgba(245, 158, 11, .1); border-color: rgba(245, 158, 11, .3); color: #fcd34d; }
+            .dark .sd-banner-warn:hover { background: rgba(245, 158, 11, .2); }
+            .sd-banner-ok { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+            .dark .sd-banner-ok { background: rgba(34, 197, 94, .1); border-color: rgba(34, 197, 94, .3); color: #4ade80; }
+            .sd-banner-bad { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+            .dark .sd-banner-bad { background: rgba(239, 68, 68, .1); border-color: rgba(239, 68, 68, .3); color: #f87171; }
+            .mt-4 { margin-top: 1rem; } .py-10 { padding-top: 2.5rem; padding-bottom: 2.5rem; } .py-1\.5 { padding-top: .375rem; padding-bottom: .375rem; }
+            .gap-1\.5 { gap: .375rem; } .gap-0\.5 { gap: .125rem; } .h-3\.5 { height: .875rem; } .w-3\.5 { width: .875rem; }
+        </style>
+    @endonce
     @php
         $result = $this->getResult();
         $current = $result['current'];
         $previous = $result['previous'];
         $rupiah = fn ($n) => 'Rp' . number_format($n, 0, ',', '.');
+        // Modul Keuangan mati (Accurate 5): piutang, jurnal, dan laba-rugi bukan bagian sistem ini, jadi kartunya disembunyikan dan teksnya disesuaikan.
+        $financeOn = (bool) config('features.finance');
         $avgOf = fn ($total, $count) => $count > 0 ? $total / $count : 0;
 
         // Angka BERSIH = tercatat − pengembalian (refund). Ini yang jadi
@@ -66,14 +93,14 @@
     @if ($result['pendingCount'] > 0)
         <a
             href="{{ \App\Filament\Resources\BookingResource::getUrl('index', ['tableFilters' => ['selesai_belum_diproses' => ['isActive' => true]]]) }}"
-            class="flex items-center gap-2 rounded-lg border border-warning-300 bg-warning-50 px-3 py-2 text-sm text-warning-800 transition hover:bg-warning-100 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300 dark:hover:bg-warning-500/20"
+            class="sd-banner sd-banner-warn"
         >
-            <x-heroicon-o-exclamation-triangle class="h-4 w-4 flex-shrink-0" />
+            <x-heroicon-o-exclamation-triangle class="h-4 w-4 sd-noshrink" />
             <span>
                 <strong class="font-semibold">{{ number_format($result['pendingCount'], 0, ',', '.') }} booking</strong>
                 sudah selesai tapi belum diproses ke pendapatan — nominalnya belum masuk angka di bawah.
             </span>
-            <x-heroicon-o-arrow-right class="ml-auto h-4 w-4 flex-shrink-0" />
+            <x-heroicon-o-arrow-right class="ml-auto h-4 w-4 sd-noshrink" />
         </a>
     @endif
 
@@ -112,7 +139,7 @@
             >
                 <x-heroicon-o-chevron-left class="h-4 w-4" />
             </button>
-            <span class="min-w-[9rem] text-center text-sm font-medium">
+            <span class="text-center text-sm font-medium" style="display: inline-block; min-width: 9rem">
                 <span wire:loading.remove wire:target="setPeriod, goPrev, goNext, referenceDate, storeId">{{ $this->getRangeLabel() }}</span>
                 <span wire:loading wire:target="setPeriod, goPrev, goNext, referenceDate, storeId" class="inline-flex items-center justify-center gap-1.5 text-gray-400 dark:text-gray-500">
                     <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -171,64 +198,66 @@
                 <x-heroicon-o-document-magnifying-glass class="h-10 w-10 text-gray-300 dark:text-gray-600" />
                 <p class="text-sm font-medium text-gray-600 dark:text-gray-300">Belum ada penjualan tercatat untuk {{ $this->getRangeLabel() }}.</p>
                 <p class="max-w-md text-xs text-gray-500 dark:text-gray-400">
-                    Angka baru muncul setelah booking selesai diproses lewat "Proses Referral" ke Jurnal Umum.
+                    Angka baru muncul setelah booking selesai diproses lewat "Proses Referral"{{ $financeOn ? ' ke Jurnal Umum' : '' }}.
                     @if ($result['pendingCount'] > 0)
                         Ada {{ number_format($result['pendingCount'], 0, ',', '.') }} booking selesai yang menunggu diproses (lihat peringatan di atas).
                     @endif
                 </p>
             </div>
         @else
-        <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px">
             <div>
-                <x-metric-label tooltip="Booking yang sudah tercatat ke Jurnal Umum, dikurangi refund periode ini. Sama dengan 'Penjualan Bersih' di Laba-Rugi.">Total Penjualan</x-metric-label>
+                <x-metric-label :tooltip="$financeOn ? 'Booking yang sudah tercatat ke Jurnal Umum, dikurangi refund periode ini. Sama dengan Penjualan Bersih di Laba-Rugi.' : 'Booking yang penjualannya sudah diproses lewat Proses Referral, dikurangi pengembalian periode ini.'">Total Penjualan</x-metric-label>
                 @php $c = $change($currentNet, $previousNet); @endphp
                 @if ($c)
-                    <span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'text-success-600 dark:text-success-400' : 'text-danger-600 dark:text-danger-400' }}">
+                    <span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'sd-up' : 'sd-down' }}">
                         @if ($c['up']) <x-heroicon-m-arrow-up class="h-3 w-3" /> @else <x-heroicon-m-arrow-down class="h-3 w-3" /> @endif
                         {{ $c['value'] }}%
                     </span>
                 @endif
-                <a href="{{ $drillUrl }}" class="mt-1 block text-3xl font-bold tabular-nums hover:text-primary-600 hover:underline dark:hover:text-primary-400">{{ $rupiah($currentNet) }}</a>
+                <a href="{{ $drillUrl }}" class="mt-1 block text-3xl font-bold sd-num hover:text-primary-600 hover:underline dark:hover:text-primary-400">{{ $rupiah($currentNet) }}</a>
                 @if ($current['refund'] > 0)
-                    <div class="mt-1 text-xs text-danger-600 dark:text-danger-400">setelah pengembalian {{ $rupiah($current['refund']) }} (kotor {{ $rupiah($current['revenue']) }})</div>
+                    <div class="mt-1 text-xs sd-down">setelah pengembalian {{ $rupiah($current['refund']) }} (kotor {{ $rupiah($current['revenue']) }})</div>
                 @endif
                 <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">Akumulasi dari Awal Bulan {{ $rupiah($result['monthToDateRevenue']) }}</div>
                 <div class="text-xs text-gray-500 dark:text-gray-400">Proyeksi Bulan Ini {{ $rupiah($result['projection']) }}</div>
             </div>
 
+            @if ($financeOn)
             <div>
                 <x-metric-label tooltip="transaction_amount − amount_received untuk booking periode ini. amount_received kosong dianggap lunas penuh.">Penjualan Belum Dibayar (Piutang)</x-metric-label>
-                <a href="{{ $drillUrl }}" class="mt-1 block text-2xl font-bold tabular-nums hover:underline {{ $current['outstanding'] > 0 ? 'text-danger-600 dark:text-danger-400' : '' }}">{{ $rupiah($current['outstanding']) }}</a>
+                <a href="{{ $drillUrl }}" class="mt-1 block text-2xl font-bold sd-num hover:underline {{ $current['outstanding'] > 0 ? 'sd-down' : '' }}">{{ $rupiah($current['outstanding']) }}</a>
                 <div class="mt-3">
                     <x-metric-label tooltip="amount_received yang sudah diterima dari booking periode ini (transaction_amount penuh kalau kolom kosong).">Penjualan Terbayar</x-metric-label>
                 </div>
-                <div class="mt-1 text-xl font-semibold tabular-nums text-success-600 dark:text-success-400">{{ $rupiah($current['received']) }}</div>
+                <div class="mt-1 text-xl font-semibold sd-num sd-up">{{ $rupiah($current['received']) }}</div>
             </div>
+            @endif
 
-            <div class="grid grid-cols-2 gap-4">
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
                 <div>
                     <x-metric-label tooltip="Jumlah booking yang tercatat sebagai pendapatan periode ini (lunas maupun masih piutang).">Transaksi</x-metric-label>
                     @php $c = $change($current['count'], $previous['count']); @endphp
-                    @if ($c)<span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'text-success-600 dark:text-success-400' : 'text-danger-600 dark:text-danger-400' }}">@if ($c['up'])<x-heroicon-m-arrow-up class="h-3 w-3" />@else<x-heroicon-m-arrow-down class="h-3 w-3" />@endif{{ $c['value'] }}%</span>@endif
-                    <a href="{{ $drillUrl }}" class="block text-lg font-bold tabular-nums hover:text-primary-600 hover:underline dark:hover:text-primary-400">{{ number_format($current['count'], 0, ',', '.') }}</a>
+                    @if ($c)<span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'sd-up' : 'sd-down' }}">@if ($c['up'])<x-heroicon-m-arrow-up class="h-3 w-3" />@else<x-heroicon-m-arrow-down class="h-3 w-3" />@endif{{ $c['value'] }}%</span>@endif
+                    <a href="{{ $drillUrl }}" class="block text-lg font-bold sd-num hover:text-primary-600 hover:underline dark:hover:text-primary-400">{{ number_format($current['count'], 0, ',', '.') }}</a>
                 </div>
                 <div>
                     <x-metric-label tooltip="Total Penjualan dibagi Transaksi — rata-rata nilai per booking periode ini.">Penjualan per Transaksi</x-metric-label>
                     @php $c = $change($currentAvg, $previousAvg); @endphp
-                    @if ($c)<span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'text-success-600 dark:text-success-400' : 'text-danger-600 dark:text-danger-400' }}">@if ($c['up'])<x-heroicon-m-arrow-up class="h-3 w-3" />@else<x-heroicon-m-arrow-down class="h-3 w-3" />@endif{{ $c['value'] }}%</span>@endif
-                    <div class="text-lg font-bold tabular-nums">{{ $rupiah($currentAvg) }}</div>
+                    @if ($c)<span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'sd-up' : 'sd-down' }}">@if ($c['up'])<x-heroicon-m-arrow-up class="h-3 w-3" />@else<x-heroicon-m-arrow-down class="h-3 w-3" />@endif{{ $c['value'] }}%</span>@endif
+                    <div class="text-lg font-bold sd-num">{{ $rupiah($currentAvg) }}</div>
                 </div>
                 <div>
                     <x-metric-label tooltip="Jumlah jenis produk/jasa periode ini. Satu booking Kaca Film + PPF + Detailing dihitung 3.">Produk Terjual</x-metric-label>
                     @php $c = $change($current['productsSold'], $previous['productsSold']); @endphp
-                    @if ($c)<span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'text-success-600 dark:text-success-400' : 'text-danger-600 dark:text-danger-400' }}">@if ($c['up'])<x-heroicon-m-arrow-up class="h-3 w-3" />@else<x-heroicon-m-arrow-down class="h-3 w-3" />@endif{{ $c['value'] }}%</span>@endif
-                    <div class="text-lg font-bold tabular-nums">{{ number_format($current['productsSold'], 0, ',', '.') }}</div>
+                    @if ($c)<span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'sd-up' : 'sd-down' }}">@if ($c['up'])<x-heroicon-m-arrow-up class="h-3 w-3" />@else<x-heroicon-m-arrow-down class="h-3 w-3" />@endif{{ $c['value'] }}%</span>@endif
+                    <div class="text-lg font-bold sd-num">{{ number_format($current['productsSold'], 0, ',', '.') }}</div>
                 </div>
                 <div>
                     <x-metric-label tooltip="Produk Terjual dibagi Transaksi — rata-rata jumlah produk per booking periode ini.">Produk per Transaksi</x-metric-label>
                     @php $c = $change($currentProductAvg, $previousProductAvg); @endphp
-                    @if ($c)<span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'text-success-600 dark:text-success-400' : 'text-danger-600 dark:text-danger-400' }}">@if ($c['up'])<x-heroicon-m-arrow-up class="h-3 w-3" />@else<x-heroicon-m-arrow-down class="h-3 w-3" />@endif{{ $c['value'] }}%</span>@endif
-                    <div class="text-lg font-bold tabular-nums">{{ number_format($currentProductAvg, 2, ',', '.') }}</div>
+                    @if ($c)<span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'sd-up' : 'sd-down' }}">@if ($c['up'])<x-heroicon-m-arrow-up class="h-3 w-3" />@else<x-heroicon-m-arrow-down class="h-3 w-3" />@endif{{ $c['value'] }}%</span>@endif
+                    <div class="text-lg font-bold sd-num">{{ number_format($currentProductAvg, 2, ',', '.') }}</div>
                 </div>
             </div>
         </div>
@@ -237,15 +266,11 @@
             @php
                 $up = $result['growthDelta'] >= 0;
             @endphp
-            <div @class([
-                'mt-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                'bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400' => $up,
-                'bg-danger-50 text-danger-700 dark:bg-danger-500/10 dark:text-danger-400' => ! $up,
-            ])>
+            <div @class(['sd-banner', 'sd-banner-ok' => $up, 'sd-banner-bad' => ! $up]) style="margin-top: 16px">
                 @if ($up)
-                    <x-heroicon-o-arrow-trending-up class="h-4 w-4 flex-shrink-0" />
+                    <x-heroicon-o-arrow-trending-up class="h-4 w-4 sd-noshrink" />
                 @else
-                    <x-heroicon-o-arrow-trending-down class="h-4 w-4 flex-shrink-0" />
+                    <x-heroicon-o-arrow-trending-down class="h-4 w-4 sd-noshrink" />
                 @endif
                 <span>
                     Penjualan bulan ini {{ $up ? 'meningkat' : 'menurun' }} senilai
@@ -264,28 +289,28 @@
             @if ($kpis['count'] === 0)
                 <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Belum ada penjualan tercatat pada periode ini.</p>
             @else
-                <div class="mt-3 grid gap-4 md:grid-cols-3">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 12px">
                     <div>
                         <x-metric-label tooltip="Booking yang punya lebih dari satu jenis layanan (mis. PPF + Kaca Film, atau layanan + Premium Wash) dibagi seluruh transaksi periode ini.">Transaksi Multi-Layanan</x-metric-label>
-                        <div class="mt-1 text-lg font-bold tabular-nums">{{ $pct($kpis['multi_service']['pct']) }}</div>
+                        <div class="mt-1 text-lg font-bold sd-num">{{ $pct($kpis['multi_service']['pct']) }}</div>
                         <div class="text-xs text-gray-500 dark:text-gray-400">{{ $kpis['multi_service']['count'] }} dari {{ $kpis['count'] }} transaksi</div>
                     </div>
                     <div>
                         <x-metric-label tooltip="Pelanggan periode ini yang sebelumnya pernah punya penjualan tercatat, dibagi seluruh pelanggan periode ini. Memperhitungkan semua toko.">Pelanggan Kembali</x-metric-label>
-                        <div class="mt-1 text-lg font-bold tabular-nums">{{ $pct($kpis['customers']['pct']) }}</div>
+                        <div class="mt-1 text-lg font-bold sd-num">{{ $pct($kpis['customers']['pct']) }}</div>
                         <div class="text-xs text-gray-500 dark:text-gray-400">{{ $kpis['customers']['returning'] }} dari {{ $kpis['customers']['total'] }} pelanggan</div>
                     </div>
                     <div>
                         <x-metric-label tooltip="Voucher + promo total pembelian + potongan baris dan nego, dibagi nilai sebelum potongan. Potongan baris/nego hanya terhitung untuk booking yang punya rincian harga.">Potongan Diberikan</x-metric-label>
-                        <div class="mt-1 text-lg font-bold tabular-nums">{{ $rupiah($kpis['discounts']['total']) }} <span class="text-xs font-normal text-gray-500 dark:text-gray-400">({{ $pct($kpis['discounts']['pct_of_gross']) }})</span></div>
+                        <div class="mt-1 text-lg font-bold sd-num">{{ $rupiah($kpis['discounts']['total']) }} <span class="text-xs font-normal text-gray-500 dark:text-gray-400">({{ $pct($kpis['discounts']['pct_of_gross']) }})</span></div>
                         <div class="text-xs text-gray-500 dark:text-gray-400">Voucher {{ $rupiah($kpis['discounts']['voucher']) }} · Promo {{ $rupiah($kpis['discounts']['promo']) }} · Potongan/nego {{ $rupiah($kpis['discounts']['other']) }}</div>
                     </div>
                 </div>
 
-                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 16px">
                     <div>
-                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Penjualan per Jenis Layanan</div>
-                        <table class="mt-2 w-full text-sm tabular-nums">
+                        <div class="text-xs font-semibold sd-caps text-gray-500 dark:text-gray-400">Penjualan per Jenis Layanan</div>
+                        <table class="mt-2 w-full text-sm sd-num">
                             @foreach ($kpis['by_type'] as $row)
                                 <tr class="border-b border-gray-100 last:border-0 dark:border-white/5">
                                     <td class="py-1 pe-3">{{ $row['label'] }}</td>
@@ -298,8 +323,8 @@
                     </div>
                     @if (count($kpis['by_store']) > 1)
                         <div>
-                            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Penjualan per Toko</div>
-                            <table class="mt-2 w-full text-sm tabular-nums">
+                            <div class="text-xs font-semibold sd-caps text-gray-500 dark:text-gray-400">Penjualan per Toko</div>
+                            <table class="mt-2 w-full text-sm sd-num">
                                 @foreach ($kpis['by_store'] as $row)
                                     <tr class="border-b border-gray-100 last:border-0 dark:border-white/5">
                                         <td class="py-1 pe-3">{{ $row['name'] }}</td>
@@ -327,9 +352,13 @@
                 Cara baca angka
             </summary>
             <div class="space-y-2 border-t border-gray-200 px-3 py-3 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                <p><strong class="text-gray-700 dark:text-gray-200">Total Penjualan</strong> — jumlah <code>transaction_amount</code> dari booking yang sudah tercatat ke Jurnal Umum (sudah lewat "Proses Referral"), dikurangi nominal refund yang diproses pada periode ini. Sama definisi dengan "Penjualan Bersih" di Ringkasan Penjualan &amp; Laba-Rugi. Booking selesai yang belum diproses tidak ikut; booking dibatalkan tidak mungkin masuk (tidak punya jurnal).</p>
+                <p><strong class="text-gray-700 dark:text-gray-200">Total Penjualan</strong> — jumlah <code>transaction_amount</code> dari booking {{ $financeOn ? 'yang sudah tercatat ke Jurnal Umum (sudah lewat "Proses Referral")' : 'yang penjualannya sudah diproses lewat "Proses Referral"' }}, dikurangi nominal refund yang diproses pada periode ini. Sama definisi dengan "Penjualan Bersih" di Ringkasan Penjualan{{ $financeOn ? ' &amp; Laba-Rugi' : '' }}. Booking selesai yang belum diproses tidak ikut; booking dibatalkan tidak mungkin masuk (tidak punya jurnal).</p>
+                @if ($financeOn)
                 <p><strong class="text-gray-700 dark:text-gray-200">Piutang</strong> — <code>transaction_amount − amount_received</code>. Kolom <code>amount_received</code> yang kosong dianggap lunas penuh, jadi hanya booking yang eksplisit belum lunas yang masuk sini.</p>
+                @endif
+                @if ($financeOn)
                 <p><strong class="text-gray-700 dark:text-gray-200">Penjualan Terbayar</strong> — <code>amount_received</code> yang sudah diterima (atau <code>transaction_amount</code> penuh kalau kolom kosong).</p>
+                @endif
                 <p><strong class="text-gray-700 dark:text-gray-200">Transaksi</strong> — jumlah booking yang tercatat sebagai pendapatan periode ini, lunas maupun masih piutang.</p>
                 <p><strong class="text-gray-700 dark:text-gray-200">Produk Terjual</strong> — jumlah jenis produk/jasa yang tercakup. Satu booking dengan Kaca Film + PPF + Detailing sekaligus dihitung 3, sesuai flag <code>product_kaca_film</code> / <code>product_ppf</code> / <code>product_detailing</code>.</p>
                 <p><strong class="text-gray-700 dark:text-gray-200">Akumulasi dari Awal Bulan</strong> &amp; <strong class="text-gray-700 dark:text-gray-200">Proyeksi Bulan Ini</strong> — selalu dihitung dari bulan kalender berjalan, tidak mengikuti filter periode di atas.</p>
@@ -360,12 +389,12 @@
                     @foreach ($ranking as $i => $row)
                         <div class="flex items-center justify-between gap-3 py-2 text-sm">
                             <div class="flex items-center gap-2 min-w-0">
-                                <span class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-bold text-gray-500 dark:bg-white/10 dark:text-gray-400">{{ $i + 1 }}</span>
+                                <span class="flex h-5 w-5 sd-noshrink items-center justify-center rounded-full sd-rank">{{ $i + 1 }}</span>
                                 <span class="truncate font-medium">{{ $row['name'] }}</span>
                             </div>
-                            <div class="flex flex-shrink-0 items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                            <div class="flex sd-noshrink items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                                 <span>{{ number_format($row['jobCount'], 0, ',', '.') }} job</span>
-                                <span class="font-semibold tabular-nums text-gray-700 dark:text-gray-200">{{ $rupiah($row['salesTotal']) }}</span>
+                                <span class="font-semibold sd-num text-gray-700 dark:text-gray-200">{{ $rupiah($row['salesTotal']) }}</span>
                             </div>
                         </div>
                     @endforeach
@@ -412,7 +441,7 @@
             @if ($materialsAttentionCount !== null)
                 <span @class([
                     'inline-flex items-center gap-1',
-                    'text-warning-600 dark:text-warning-400' => $materialsAttentionCount > 0,
+                    'sd-warn' => $materialsAttentionCount > 0,
                     'text-gray-400 dark:text-gray-500' => $materialsAttentionCount === 0,
                 ])>
                     <x-heroicon-o-beaker class="h-4 w-4" />
@@ -422,14 +451,14 @@
             @if ($consumablesAttentionCount !== null)
                 <span @class([
                     'inline-flex items-center gap-1',
-                    'text-warning-600 dark:text-warning-400' => $consumablesAttentionCount > 0,
+                    'sd-warn' => $consumablesAttentionCount > 0,
                     'text-gray-400 dark:text-gray-500' => $consumablesAttentionCount === 0,
                 ])>
                     <x-heroicon-o-cube class="h-4 w-4" />
                     {{ number_format($consumablesAttentionCount, 0, ',', '.') }} barang habis pakai
                 </span>
             @endif
-            <x-heroicon-o-arrow-right class="ml-auto h-4 w-4 flex-shrink-0 text-gray-400" />
+            <x-heroicon-o-arrow-right class="ml-auto h-4 w-4 sd-noshrink text-gray-400" />
         </a>
     @endif
 </x-filament-panels::page>
