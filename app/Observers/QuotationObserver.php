@@ -62,10 +62,10 @@ class QuotationObserver
             ->get()
             ->filter(fn (User $u) => $u->isRestrictedStaff() && $u->hasQuotationAccess());
 
-        $recipients = $staff->pluck('email');
+        $recipients = $staff->pluck('email')->filter()->values();
 
         if ($recipients->isEmpty()) {
-            $recipients = User::role(['super_admin', 'direksi'])->pluck('email');
+            $recipients = User::role(['super_admin', 'direksi'])->pluck('email')->filter()->values();
         }
 
         if ($recipients->isNotEmpty()) {

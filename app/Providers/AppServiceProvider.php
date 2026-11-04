@@ -71,7 +71,7 @@ class AppServiceProvider extends ServiceProvider
             if ($event->guard === 'web') {
                 \App\Support\AccountSecurityLog::loginFailed(
                     'staff',
-                    (string) ($event->credentials['email'] ?? '—'),
+                    (string) ($event->credentials['email'] ?? $event->credentials['phone_digits'] ?? '—'),
                     $event->user ? 'sandi salah' : 'akun tidak ditemukan',
                     $event->user instanceof \App\Models\User ? $event->user : null
                 );

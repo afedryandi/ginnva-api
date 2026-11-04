@@ -115,6 +115,50 @@ class UserResource extends Resource
                 'InvoiceResource' => 'Invoice',
                 'SpkResource' => 'SPK',
             ],
+            // Halaman laporan yang dijaga menu_access tetapi dulu TIDAK punya kotak di sini, jadi staf yang dibatasi mustahil diberi
+            // aksesnya (hanya akses penuh yang bisa). Grup berawalan "Laporan " tampil sebagai satu tab "Laporan" berisi sub-bagian.
+            // Laporan omzet (Ringkasan, Per Periode, Outlet, Buku Pembayaran, Refund, Pembatalan, Jasa, Penjualan Produk, Perputaran
+            // Stok, Stok Kedaluwarsa) butuh kotak ini dicentang secara eksplisit (User::hasExplicitMenuAccess).
+            'Laporan Penjualan' => [
+                'SalesSummaryReport' => 'Ringkasan Penjualan',
+                'SalesByPeriodReport' => 'Penjualan Per Periode',
+                'SalesByOutletReport' => 'Penjualan Outlet',
+                'PaymentBookReport' => 'Buku Pembayaran',
+                'RefundReport' => 'Laporan Refund',
+                'VoidReport' => 'Laporan Pembatalan',
+                'LayananReport' => 'Laporan Jasa',
+                'ProductSalesReport' => 'Penjualan Produk',
+            ],
+            'Laporan Jasa & Operasional' => [
+                'BookingServiceLevelReport' => 'Laporan SLA & Tidak Datang',
+                'JobDurationReport' => 'Proses Order',
+                'JobDurationByServiceReport' => 'Proses Produk',
+                'ReservationReport' => 'Laporan Reservasi',
+                'ReservationUtilizationReport' => 'Laporan Reservasi & Utilisasi',
+                'BayZoneUtilizationReport' => 'Utilisasi Zona/Bay',
+                'TechnicianServiceDurationReport' => 'Durasi Servis Installer',
+                'TechnicianUtilizationReport' => 'Utilisasi Installer',
+                'CapacityCalendar' => 'Kalender Kapasitas & Libur',
+                'CustomerSatisfactionReport' => 'Kepuasan Pelanggan',
+                'PeakSalesTimeReport' => 'Waktu Teramai Penjualan',
+                'PeakProductTimeReport' => 'Waktu Teramai Produk',
+            ],
+            'Laporan Persediaan' => [
+                'ExpiringStockReport' => 'Stok Kedaluwarsa',
+                'StockTurnoverReport' => 'Perputaran Stok',
+                'PersediaanRingkasanReport' => 'Ringkasan Persediaan',
+                'PersediaanDetailReport' => 'Detail Persediaan',
+                'SerialNumberReport' => 'Serial Number',
+            ],
+            'Laporan Pelanggan & Promo' => [
+                'CustomerReport' => 'Laporan Pelanggan',
+                'PointReport' => 'Laporan Poin',
+                'PromoLoyaltyReport' => 'Laporan Promo',
+            ],
+            'Laporan Karyawan' => [
+                'AttendanceReport' => 'Laporan Absensi',
+                'WorkScheduleCalendarReport' => 'Jadwal Kerja Karyawan',
+            ],
             'Penjualan' => [
                 // Cluster "Produk" di bawah grup top-nav "Penjualan"
                 // (2026-09-10). FilmProductResource dipindah kemari dari
@@ -214,6 +258,10 @@ class UserResource extends Resource
                 'SupplierResource' => 'Supplier',
                 'RecurringBillTemplateResource' => 'Template Tagihan Rutin',
                 'ReceivableResource' => 'Piutang Usaha',
+                'FinanceDashboard' => 'Dasbor Keuangan',
+                'MonthlyIncomeStatementReport' => 'Laba Rugi Bulanan',
+                'PayableAgingReport' => 'Umur Hutang',
+                'ReceivableAgingReport' => 'Umur Piutang',
                 // ChartOfAccountResource, JournalEntryResource &
                 // BankStatementLineResource dibuka 2026-09-24 (keputusan
                 // user) — TAPI beda dari resource lain di grup ini, akses
@@ -270,6 +318,8 @@ class UserResource extends Resource
                 // 2026-09-10, diganti matriks harga (film_product_prices).
             ],
             'Sistem' => [
+                'TransactionApprovalRequestResource' => 'Persetujuan Transaksi',
+                'FinanceTransactionApprovalRequestResource' => 'Persetujuan Pengeluaran',
                 // Hak lihat + ekspor Histori Aktivitas untuk staf non-full-access (mis. Spv Finance / Spv IT), keputusan 2026-10-21.
                 'ActivityResource' => 'Riwayat Aktivitas',
                 'CustomerNotificationResource' => 'Riwayat Notifikasi',
@@ -321,6 +371,9 @@ class UserResource extends Resource
 
     public static function mergeMenuAccessFields(array $data): array
     {
+        // Pilihan "Akses penuh / Dibatasi" hanya untuk tampilan form; yang disimpan tetap hasil kotak modul (kosong = NULL = akses penuh).
+        unset($data['access_mode']);
+
         $merged = [];
         foreach (self::menuAccessOptions() as $options) {
             foreach (array_keys($options) as $moduleKey) {
@@ -345,6 +398,9 @@ class UserResource extends Resource
     public static function splitMenuAccessIntoFields(array $data): array
     {
         $selected = $data['menu_access'] ?? [];
+
+        // Mode akses di form: kosong = akses penuh (arti menu_access NULL), selain itu dibatasi ke modul terpilih.
+        $data['access_mode'] = empty($selected) ? 'full' : 'limited';
 
         foreach (self::menuAccessOptions() as $options) {
             foreach (array_keys($options) as $moduleKey) {
@@ -421,52 +477,174 @@ class UserResource extends Resource
         return $data;
     }
 
-    /**
-     * Bagi $items jadi 2 TUMPUKAN independen (bukan berpasangan per
-     * baris) — ditambahkan 2026-09-23 karena grid biasa (->columns(2)
-     * + auto-placement) memaksa baris berikutnya nunggu baris tertinggi
-     * kelar dulu utk KEDUA kolom, jadi begitu 1 modul di-expand (checklist
-     * CRUD-nya muncul), modul-modul SETELAHNYA di kolom manapun ikut
-     * turun mengikuti tinggi modul yang expand itu — bukan cuma modul di
-     * kolom yang sama. Dengan membagi rata jadi 2 Group terpisah (separuh
-     * pertama vs separuh kedua, masing-masing 1 kolom penuh), tiap Group
-     * menumpuk sendiri secara independen — modul di Group lain tidak
-     * pernah ikut bergeser walau modul di Group ini expand.
-     */
-    private static function twoColumnStacks(array $items, \Closure $render): array
-    {
-        $rendered = collect($items)->map($render)->values()->all();
+    /** Hanya modul ini yang benar-benar memakai aksi Void; di modul lain kotaknya tidak berefek, jadi tidak ditawarkan. */
+    private const VOID_MODULES = ['BookingResource', 'WarningLetterResource'];
 
-        if (count($rendered) < 2) {
-            return $rendered;
+    /**
+     * Pilihan aksi tambahan satu modul. Void yang sudah tersimpan di modul lain tetap ditawarkan (agar tidak hilang atau gagal validasi
+     * saat form disimpan).
+     *
+     * @return array<string, string>
+     */
+    private static function moduleActionOptions(string $moduleKey, ?User $record = null): array
+    {
+        $actions = self::MODULE_ACTIONS;
+        $savedVoid = in_array('void', $record?->menu_permissions[$moduleKey] ?? [], true);
+
+        if (! in_array($moduleKey, self::VOID_MODULES, true) && ! $savedVoid) {
+            unset($actions['void']);
         }
 
-        $half = (int) ceil(count($rendered) / 2);
-
-        return [
-            Forms\Components\Group::make(array_slice($rendered, 0, $half))->columnSpan(1),
-            Forms\Components\Group::make(array_slice($rendered, $half))->columnSpan(1),
-        ];
+        return $actions;
     }
 
-    private static function moduleAccessGroup(string $label, string $moduleKey): Forms\Components\Group
+    /** Semua kunci modul, termasuk yang menunya disembunyikan saklar fitur. */
+    private static function allModuleKeys(): array
+    {
+        return collect(self::menuAccessOptions())->flatMap(fn (array $options) => array_keys($options))->values()->all();
+    }
+
+    /** Satu baris modul: sakelar akses di kiri; setelah menyala, kotak aksi tambahan muncul sejajar di kanan. */
+    private static function moduleRow(string $label, string $moduleKey): Forms\Components\Grid
     {
         $toggleKey = self::moduleAccessFieldKey($moduleKey);
 
-        return Forms\Components\Group::make([
-            Forms\Components\Toggle::make($toggleKey)
-                ->label($label)
-                ->live(),
+        return Forms\Components\Grid::make(['default' => 1, 'md' => 12])
+            ->extraAttributes(['style' => 'padding: .4rem 0; border-bottom: 1px solid rgba(107, 114, 128, .2)'])
+            ->schema([
+                Forms\Components\Toggle::make($toggleKey)
+                    ->label($label)
+                    ->live()
+                    ->columnSpan(['md' => 5]),
 
-            Forms\Components\CheckboxList::make(self::menuPermissionFieldKey($moduleKey))
-                ->label('Hak Akses: ' . $label)
-                ->options(self::MODULE_ACTIONS)
-                ->bulkToggleable()
-                ->columns(1)
-                ->visible(fn (Forms\Get $get) => (bool) $get($toggleKey)),
-        ]);
+                Forms\Components\CheckboxList::make(self::menuPermissionFieldKey($moduleKey))
+                    ->hiddenLabel()
+                    ->options(fn (?User $record) => self::moduleActionOptions($moduleKey, $record))
+                    ->columns(['default' => 2, 'md' => 5])
+                    ->visible(fn (Forms\Get $get) => (bool) $get($toggleKey))
+                    ->columnSpan(['md' => 7]),
+            ]);
     }
 
+    /**
+     * Tab per grup menu. Grup berawalan "Laporan " digabung jadi satu tab "Laporan" berisi sub-bagian. Tiap tab punya lencana jumlah modul
+     * terpilih dan tombol Pilih semua / Kosongkan.
+     */
+    private static function accessTabs(): Forms\Components\Tabs
+    {
+        $tabs = [];
+        foreach (self::visibleMenuAccessOptions() as $group => $options) {
+            $tabs[str_starts_with($group, 'Laporan ') ? 'Laporan' : $group][$group] = $options;
+        }
+
+        $schema = [];
+        foreach ($tabs as $tabName => $groups) {
+            $keys = collect($groups)->flatMap(fn (array $options) => array_keys($options))->values()->all();
+            $slug = Str::slug($tabName, '_');
+
+            $content = [
+                Forms\Components\Actions::make([
+                    Forms\Components\Actions\Action::make("select_all_{$slug}")
+                        ->label('Pilih semua di tab ini')
+                        ->color('gray')
+                        ->size('sm')
+                        ->action(function (Forms\Set $set) use ($keys) {
+                            foreach ($keys as $moduleKey) {
+                                $set(self::moduleAccessFieldKey($moduleKey), true);
+                            }
+                        }),
+                    Forms\Components\Actions\Action::make("clear_{$slug}")
+                        ->label('Kosongkan tab ini')
+                        ->color('gray')
+                        ->size('sm')
+                        ->action(function (Forms\Set $set) use ($keys) {
+                            foreach ($keys as $moduleKey) {
+                                $set(self::moduleAccessFieldKey($moduleKey), false);
+                                $set(self::menuPermissionFieldKey($moduleKey), []);
+                            }
+                        }),
+                ]),
+            ];
+
+            foreach ($groups as $group => $options) {
+                $rows = collect($options)->map(fn (string $label, string $moduleKey) => self::moduleRow($label, $moduleKey))->values()->all();
+
+                $content[] = $tabName === 'Laporan'
+                    ? Forms\Components\Section::make(trim(substr($group, strlen('Laporan '))))->compact()->schema($rows)
+                    : Forms\Components\Group::make($rows);
+            }
+
+            $schema[] = Forms\Components\Tabs\Tab::make($tabName)
+                ->badge(fn (Forms\Get $get) => collect($keys)->filter(fn ($moduleKey) => (bool) $get(self::moduleAccessFieldKey($moduleKey)))->count() ?: null)
+                ->schema($content);
+        }
+
+        return Forms\Components\Tabs::make('Modul')
+            ->tabs($schema)
+            ->columnSpanFull()
+            ->visible(fn (Forms\Get $get) => $get('access_mode') === 'limited');
+    }
+
+    /** Pilihan "Akses penuh / Dibatasi" beserta ringkasan jumlah modul yang dipilih. */
+    private static function accessModeFields(): array
+    {
+        return [
+            Forms\Components\Radio::make('access_mode')
+                ->label('Akses menu')
+                ->options([
+                    'full' => 'Akses penuh',
+                    'limited' => 'Dibatasi ke modul tertentu',
+                ])
+                ->descriptions([
+                    'full' => 'Dapat membuka semua menu yang tersedia untuk perannya. Paling aman bila belum yakin.',
+                    'limited' => 'Hanya modul yang dipilih di tab di bawah yang tampil.',
+                ])
+                ->default('full')
+                ->live()
+                ->columnSpanFull()
+                ->afterStateUpdated(function (?string $state, Forms\Set $set) {
+                    // Akses penuh berarti tidak ada daftar modul sama sekali: kotak yang tadi dicentang dikosongkan supaya tidak tersimpan.
+                    if ($state !== 'full') {
+                        return;
+                    }
+
+                    foreach (self::allModuleKeys() as $moduleKey) {
+                        $set(self::moduleAccessFieldKey($moduleKey), false);
+                        $set(self::menuPermissionFieldKey($moduleKey), []);
+                    }
+                })
+                ->rules([
+                    fn (Forms\Get $get) => function (string $attribute, $value, \Closure $fail) use ($get) {
+                        if ($value !== 'limited') {
+                            return;
+                        }
+
+                        foreach (self::allModuleKeys() as $moduleKey) {
+                            if ($get(self::moduleAccessFieldKey($moduleKey))) {
+                                return;
+                            }
+                        }
+
+                        $fail('Pilih minimal satu modul, atau ubah ke Akses penuh.');
+                    },
+                ]),
+
+            Forms\Components\Placeholder::make('access_summary')
+                ->hiddenLabel()
+                ->columnSpanFull()
+                ->content(function (Forms\Get $get) {
+                    if (($get('access_mode') ?? 'full') !== 'limited') {
+                        return 'Akses penuh: tidak ada pembatasan modul.';
+                    }
+
+                    $chosen = collect(self::allModuleKeys())->filter(fn ($moduleKey) => (bool) $get(self::moduleAccessFieldKey($moduleKey)))->count();
+
+                    return $chosen === 0
+                        ? 'Belum ada modul dipilih. Centang minimal satu modul di tab di bawah.'
+                        : "{$chosen} modul dipilih; menu lainnya tidak tampil untuk karyawan ini.";
+                }),
+        ];
+    }
     /**
      * Nilai field form "Akses Menu & Hak Akses Detail" milik $source (kotak modul + kotak Lihat/Buat/Ubah/Hapus/Void),
      * dalam bentuk field sementara yang dipakai form ini. Role dan Toko SENGAJA tidak ikut: itu identitas akun, bukan akses.
@@ -508,7 +686,8 @@ class UserResource extends Resource
             'finance' => ['FinanceCategoryResource', 'FinanceTransactionResource', 'FinanceReport', 'TrialBalanceReport', 'LedgerReconciliationReport',
                 'PaymentAccountResource', 'CashTransferResource', 'CashBalanceReport', 'CashCountResource', 'BudgetResource', 'BudgetVsActualReport',
                 'IncomeStatementReport', 'GeneralLedgerReport', 'BalanceSheetReport', 'CashFlowReport', 'PayableResource',
-                'RecurringBillTemplateResource', 'ReceivableResource', 'ChartOfAccountResource', 'JournalEntryResource', 'BankStatementLineResource'],
+                'RecurringBillTemplateResource', 'ReceivableResource', 'ChartOfAccountResource', 'JournalEntryResource', 'BankStatementLineResource',
+                'FinanceDashboard', 'MonthlyIncomeStatementReport', 'PayableAgingReport', 'ReceivableAgingReport', 'FinanceTransactionApprovalRequestResource'],
             'k3' => ['PpeTypeResource', 'PpeIssuanceResource', 'SafetyIncidentResource'],
             'employee_training' => ['EmployeeTrainingResource'],
             'performance_reviews' => ['PerformanceReviewResource'],
@@ -608,17 +787,38 @@ class UserResource extends Resource
                         ->required()
                         ->maxLength(255),
 
+                    // Email boleh kosong bila No. HP diisi (karyawan masuk dengan No. HP); salah satunya wajib supaya akun punya cara masuk.
                     Forms\Components\TextInput::make('email')
                         ->label('Email')
                         ->email()
-                        ->required()
+                        ->required(fn (\Filament\Forms\Get $get) => blank($get('phone')))
+                        ->live(onBlur: true)
                         ->unique(ignoreRecord: true)
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->helperText('Boleh dikosongkan bila No. HP diisi. Tanpa email, lupa password diatur ulang oleh admin.'),
 
                     Forms\Components\TextInput::make('phone')
                         ->label('No. HP')
                         ->tel()
-                        ->maxLength(255),
+                        ->required(fn (\Filament\Forms\Get $get) => blank($get('email')))
+                        ->live(onBlur: true)
+                        ->rule(fn (?User $record) => function (string $attribute, $value, \Closure $fail) use ($record) {
+                            $digits = \App\Support\PhoneNumber::digits($value);
+
+                            if (! $digits) {
+                                $fail('No. HP tidak valid (9 sampai 20 angka).');
+
+                                return;
+                            }
+
+                            $taken = User::where('phone_digits', $digits)->when($record, fn ($q) => $q->whereKeyNot($record->getKey()))->exists();
+
+                            if ($taken) {
+                                $fail('No. HP ini sudah dipakai karyawan lain.');
+                            }
+                        })
+                        ->maxLength(255)
+                        ->helperText('Bisa dipakai untuk masuk (panel dan aplikasi) selain email. Ditulis 0812…, 62812…, atau +62812… dianggap sama.'),
 
                     Forms\Components\Toggle::make('is_active')
                         ->label('Akun Aktif')
@@ -913,29 +1113,16 @@ class UserResource extends Resource
             // jangan boleh ubah") — kalau nanti perlu itu, butuh mekanisme
             // terpisah, bukan checklist yang sama.
             Forms\Components\Section::make('Akses Menu & Hak Akses Detail')
-                ->description('Khusus role staff/divisi. Tidak mencentang apa pun = akses penuh ke semua menu (paling aman bila belum yakin). Centang modul untuk membatasi user hanya ke modul itu; kotak Lihat/Buat/Ubah/Hapus/Void yang muncul hanya MENAMBAH izin, tidak mencabut aksi lain. Kosong = Lihat/Buat/Ubah jalan seperti biasa, Hapus & Void belum aktif. Menu yang fiturnya dimatikan tidak ditampilkan, izinnya yang sudah tersimpan tetap dijaga.')
+                ->description('Khusus role staff/divisi. Pilih Akses penuh, atau batasi ke modul tertentu lalu centang modulnya di tab. Kotak Lihat/Buat/Ubah/Hapus di sebelah modul hanya MENAMBAH izin: Lihat, Buat, dan Ubah tetap jalan seperti biasa, sedangkan Hapus (dan Void) baru aktif bila dicentang. Menu yang fiturnya dimatikan tidak ditampilkan, izinnya yang sudah tersimpan tetap dijaga.')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
-                ->columns(2)
                 ->schema(array_merge(
+                    self::accessModeFields(),
                     [self::copyAccessField()],
                     self::hiddenAccessFields(),
-                    self::twoColumnStacks(
-                        self::visibleMenuAccessOptions(),
-                        fn (array $options, string $group) => Forms\Components\Section::make($group)
-                            ->columnSpan(1)
-                            ->columns(2)
-                            ->schema(
-                                self::twoColumnStacks(
-                                    $options,
-                                    fn (string $label, string $moduleKey) => static::moduleAccessGroup($label, $moduleKey)
-                                )
-                            )
-                            ->collapsed()
-                    )
+                    [self::accessTabs()]
                 )),
         ]);
     }
-
     public static function table(Table $table): Table
     {
         return $table
@@ -953,8 +1140,15 @@ class UserResource extends Resource
 
                 Tables\Columns\TextColumn::make('email')
                     ->label('Email')
+                    ->placeholder('—')
                     ->searchable()
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('phone')
+                    ->label('No. HP')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('roles.name')
                     ->label('Role')

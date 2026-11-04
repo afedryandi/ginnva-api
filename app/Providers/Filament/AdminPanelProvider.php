@@ -25,9 +25,9 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
+            ->login(\App\Filament\Auth\Login::class)
             ->passwordReset()
-            ->profile()
+            ->profile(\App\Filament\Auth\EditProfile::class)
             // Logo diganti dari teks "Ginnva Admin" ke logo hexagon "G"
             // asli (diminta user 2026-09-15). Sumber:
             // C:\Users\Antony\Documents\Ginnva\Company Profile\ginnva-favicon-logo.png

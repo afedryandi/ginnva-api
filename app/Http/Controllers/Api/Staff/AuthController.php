@@ -41,26 +41,39 @@ class AuthController extends Controller
      */
     public function detectRole(Request $request)
     {
-        $request->validate(['email' => 'required|email']);
+        $identifier = $this->loginIdentifier($request);
 
-        $isStaff = User::where('email', $request->email)->exists();
+        // Email: bukan staf berarti pelanggan (masuk dengan OTP email). No. HP: hanya karyawan yang bisa masuk dengan nomor; nomor yang
+        // tidak dikenal dijawab "unknown" supaya aplikasi menyarankan pelanggan memakai email.
+        if (\App\Support\PhoneNumber::looksLikeEmail($identifier)) {
+            return response()->json(['role' => User::findByLogin($identifier) ? 'staff' : 'customer']);
+        }
 
-        return response()->json(['role' => $isStaff ? 'staff' : 'customer']);
+        return response()->json(['role' => User::findByLogin($identifier) ? 'staff' : 'unknown']);
+    }
+
+    /** Isian login: "login" (email atau No. HP). Aplikasi lama masih mengirim "email". */
+    private function loginIdentifier(Request $request): string
+    {
+        $request->validate([
+            'login' => 'required_without:email|nullable|string|max:255',
+            'email' => 'required_without:login|nullable|string|max:255',
+        ]);
+
+        return trim((string) ($request->input('login') ?: $request->input('email')));
     }
 
     public function login(Request $request)
     {
-        $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required|string',
-        ]);
+        $request->validate(['password' => 'required|string']);
+        $identifier = $this->loginIdentifier($request);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::findByLogin($identifier);
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
-            \App\Support\AccountSecurityLog::loginFailed('staff', (string) $request->email, $user ? 'sandi salah' : 'akun tidak ditemukan', $user);
+            \App\Support\AccountSecurityLog::loginFailed('staff', $identifier, $user ? 'sandi salah' : 'akun tidak ditemukan', $user);
 
-            return response()->json(['success' => false, 'message' => 'Email atau password salah.'], 401);
+            return response()->json(['success' => false, 'message' => 'Email/No. HP atau password salah.'], 401);
         }
 
         // Akun staff yang dinonaktifkan admin (User::is_active, lihat menu
@@ -69,7 +82,7 @@ class AuthController extends Controller
         // Filament, diduplikasi di sini karena guard 'api' tidak lewat
         // canAccessPanel() sama sekali.
         if (! $user->is_active) {
-            \App\Support\AccountSecurityLog::loginFailed('staff', (string) $request->email, 'akun nonaktif', $user);
+            \App\Support\AccountSecurityLog::loginFailed('staff', $identifier, 'akun nonaktif', $user);
 
             return response()->json([
                 'success' => false,
@@ -164,7 +177,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Jika email terdaftar sebagai akun staff, kode verifikasi telah dikirim.',
+            'message' => 'Jika email terdaftar sebagai akun staff, kode verifikasi telah dikirim. Karyawan yang masuk dengan No. HP tanpa email: hubungi admin untuk mengatur ulang password.',
         ]);
     }
 
@@ -258,6 +271,7 @@ class AuthController extends Controller
             'id'       => $user->id,
             'name'     => $user->name,
             'email'    => $user->email,
+            'phone'    => $user->phone,
             // Role utama (prioritas tertinggi) untuk pengecekan di aplikasi, dan semua role untuk label jabatan.
             'role'     => $user->primaryRoleName(),
             'roles'    => $user->getRoleNames()->sort()->values()->all(),

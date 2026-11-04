@@ -140,6 +140,6 @@ class EditUser extends EditRecord
             ->causedBy(auth()->user())
             ->performedOn($this->record)
             ->withProperties(['old' => ['roles' => $before], 'attributes' => ['roles' => $after]])
-            ->log("Role user \"{$this->record->name}\" ({$this->record->email}) diubah");
+            ->log("Role user \"{$this->record->name}\" ({$this->record->loginLabel()}) diubah");
     }
 }

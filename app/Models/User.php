@@ -37,6 +37,13 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
      */
     protected static function booted(): void
     {
+        // No. HP dalam bentuk baku (628…) untuk login dengan No. HP dan pemeriksaan nomor kembar; selalu mengikuti kolom phone.
+        static::saving(function (User $user) {
+            if ($user->isDirty('phone') || ! array_key_exists('phone_digits', $user->getAttributes())) {
+                $user->phone_digits = \App\Support\PhoneNumber::digits($user->phone);
+            }
+        });
+
         static::updated(function (User $user) {
             if ($user->wasChanged('store_id')) {
                 EmployeeCareerHistory::create([
@@ -48,6 +55,43 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
                 ]);
             }
         });
+    }
+
+    /** Email kosong disimpan NULL (bukan ''), supaya banyak karyawan tanpa email tidak bentrok di indeks unik. */
+    public function setEmailAttribute(?string $value): void
+    {
+        $this->attributes['email'] = filled($value) ? trim($value) : null;
+    }
+
+    public function setPhoneAttribute(?string $value): void
+    {
+        $this->attributes['phone'] = filled($value) ? trim($value) : null;
+    }
+
+    /**
+     * Cari akun staf dari isian kolom login: email bila mengandung "@", selain itu No. HP (cocok walau ditulis 0812…, 62812…, atau +62…).
+     */
+    public static function findByLogin(string $identifier): ?self
+    {
+        $identifier = trim($identifier);
+
+        if ($identifier === '') {
+            return null;
+        }
+
+        if (\App\Support\PhoneNumber::looksLikeEmail($identifier)) {
+            return static::where('email', $identifier)->first();
+        }
+
+        $digits = \App\Support\PhoneNumber::digits($identifier);
+
+        return $digits ? static::where('phone_digits', $digits)->first() : null;
+    }
+
+    /** Penanda akun untuk teks log: email, atau No. HP bila tanpa email. */
+    public function loginLabel(): string
+    {
+        return $this->email ?: ($this->phone ?: ('#' . $this->getKey()));
     }
 
     protected $fillable = [
@@ -659,9 +703,9 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
             ->dontSubmitEmptyLogs()
             ->useLogName('user')
             ->setDescriptionForEvent(fn (string $eventName) => match ($eventName) {
-                'created' => "User \"{$this->name}\" ({$this->email}) dibuat",
-                'updated' => "User \"{$this->name}\" ({$this->email}) diubah",
-                'deleted' => "User \"{$this->name}\" ({$this->email}) dihapus",
+                'created' => "User \"{$this->name}\" ({$this->loginLabel()}) dibuat",
+                'updated' => "User \"{$this->name}\" ({$this->loginLabel()}) diubah",
+                'deleted' => "User \"{$this->name}\" ({$this->loginLabel()}) dihapus",
                 default   => "User \"{$this->name}\" — {$eventName}",
             });
     }
