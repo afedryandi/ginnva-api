@@ -384,10 +384,27 @@ class UserResource extends Resource
         return 'menu_access_' . Str::slug($moduleKey, '_');
     }
 
+    /**
+     * Satu-satunya modul yang dibuka pada mode "Hanya aplikasi": karyawan yang tidak memerlukan panel (HP tidak bisa menjalankan aplikasi,
+     * mis. iPhone, tetap bisa absen lewat Absen Saya). Disimpan sebagai daftar modul biasa, jadi tidak ada arti baru pada menu_access.
+     */
+    public const APP_ONLY_MODULE = 'MyAttendance';
+
     public static function mergeMenuAccessFields(array $data): array
     {
-        // Pilihan "Akses penuh / Dibatasi" hanya untuk tampilan form; yang disimpan tetap hasil kotak modul (kosong = NULL = akses penuh).
+        // Pilihan "Akses penuh / Dibatasi / Hanya aplikasi" hanya untuk tampilan form; yang disimpan tetap hasil kotak modul
+        // (kosong = NULL = akses penuh). Hanya aplikasi = hanya modul Absen Saya, tanpa hak tambahan.
+        $mode = $data['access_mode'] ?? null;
         unset($data['access_mode']);
+
+        if ($mode === 'app_only') {
+            foreach (array_keys($data) as $key) {
+                if (str_starts_with($key, 'menu_permissions_') || str_starts_with($key, 'menu_access_')) {
+                    unset($data[$key]);
+                }
+            }
+            $data[self::moduleAccessFieldKey(self::APP_ONLY_MODULE)] = true;
+        }
 
         $merged = [];
         foreach (self::menuAccessOptions() as $options) {
@@ -414,8 +431,13 @@ class UserResource extends Resource
     {
         $selected = $data['menu_access'] ?? [];
 
-        // Mode akses di form: kosong = akses penuh (arti menu_access NULL), selain itu dibatasi ke modul terpilih.
-        $data['access_mode'] = empty($selected) ? 'full' : 'limited';
+        // Mode akses di form: kosong = akses penuh (arti menu_access NULL); hanya Absen Saya tanpa hak tambahan = hanya aplikasi;
+        // selain itu dibatasi ke modul terpilih.
+        $data['access_mode'] = match (true) {
+            empty($selected) => 'full',
+            $selected === [self::APP_ONLY_MODULE] && empty($data['menu_permissions']) => 'app_only',
+            default => 'limited',
+        };
 
         foreach (self::menuAccessOptions() as $options) {
             foreach (array_keys($options) as $moduleKey) {
@@ -611,23 +633,30 @@ class UserResource extends Resource
                 ->options([
                     'full' => 'Akses penuh',
                     'limited' => 'Dibatasi ke modul tertentu',
+                    'app_only' => 'Hanya aplikasi (panel: Absen Saya saja)',
                 ])
                 ->descriptions([
-                    'full' => 'Dapat membuka semua menu yang tersedia untuk perannya. Paling aman bila belum yakin.',
+                    'full' => 'Dapat membuka semua menu yang tersedia untuk jabatannya. Paling aman bila belum yakin.',
                     'limited' => 'Hanya modul yang dipilih di tab di bawah yang tampil.',
+                    'app_only' => 'Untuk karyawan yang tidak perlu panel. Absen, izin, dan slip gaji lewat aplikasi karyawan; di panel hanya halaman Absen Saya.',
                 ])
                 ->default('full')
                 ->live()
                 ->columnSpanFull()
                 ->afterStateUpdated(function (?string $state, Forms\Set $set) {
-                    // Akses penuh berarti tidak ada daftar modul sama sekali: kotak yang tadi dicentang dikosongkan supaya tidak tersimpan.
-                    if ($state !== 'full') {
+                    // Akses penuh tidak punya daftar modul, dan Hanya aplikasi hanya punya Absen Saya: kotak yang tadi dicentang dikosongkan
+                    // supaya tidak ikut tersimpan.
+                    if (! in_array($state, ['full', 'app_only'], true)) {
                         return;
                     }
 
                     foreach (self::allModuleKeys() as $moduleKey) {
                         $set(self::moduleAccessFieldKey($moduleKey), false);
                         $set(self::menuPermissionFieldKey($moduleKey), []);
+                    }
+
+                    if ($state === 'app_only') {
+                        $set(self::moduleAccessFieldKey(self::APP_ONLY_MODULE), true);
                     }
                 })
                 ->rules([
@@ -650,6 +679,10 @@ class UserResource extends Resource
                 ->hiddenLabel()
                 ->columnSpanFull()
                 ->content(function (Forms\Get $get) {
+                    if (($get('access_mode') ?? 'full') === 'app_only') {
+                        return 'Hanya aplikasi: karyawan ini memakai aplikasi karyawan; di panel hanya halaman Absen Saya yang bisa dibuka.';
+                    }
+
                     if (($get('access_mode') ?? 'full') !== 'limited') {
                         return 'Akses penuh: tidak ada pembatasan modul.';
                     }
@@ -662,6 +695,7 @@ class UserResource extends Resource
                 }),
         ];
     }
+
     /**
      * Nilai field form "Akses Menu & Hak Akses Detail" milik $source (kotak modul + kotak Lihat/Buat/Ubah/Hapus/Void),
      * dalam bentuk field sementara yang dipakai form ini. Role dan Toko SENGAJA tidak ikut: itu identitas akun, bukan akses.
@@ -1131,7 +1165,7 @@ class UserResource extends Resource
             // jangan boleh ubah") — kalau nanti perlu itu, butuh mekanisme
             // terpisah, bukan checklist yang sama.
             Forms\Components\Section::make('Akses Menu & Hak Akses Detail')
-                ->description('Khusus karyawan panel (jabatan selain Super Admin, Direksi, Installer, dan Partner). Pilih Akses penuh, atau batasi ke modul tertentu lalu centang modulnya di tab. Kotak Lihat/Buat/Ubah/Hapus di sebelah modul hanya MENAMBAH izin: Lihat, Buat, dan Ubah tetap jalan seperti biasa, sedangkan Hapus (dan Void) baru aktif bila dicentang. Menu yang fiturnya dimatikan tidak ditampilkan, izinnya yang sudah tersimpan tetap dijaga.')
+                ->description('Khusus karyawan panel (jabatan selain Super Admin, Direksi, Installer, dan Partner). Pilih Akses penuh, batasi ke modul tertentu lalu centang modulnya di tab, atau Hanya aplikasi bagi karyawan yang tidak perlu panel. Kotak Lihat/Buat/Ubah/Hapus di sebelah modul hanya MENAMBAH izin: Lihat, Buat, dan Ubah tetap jalan seperti biasa, sedangkan Hapus (dan Void) baru aktif bila dicentang. Menu yang fiturnya dimatikan tidak ditampilkan, izinnya yang sudah tersimpan tetap dijaga.')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
                 ->schema(array_merge(
                     self::accessModeFields(),

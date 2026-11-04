@@ -275,7 +275,7 @@ class RoleManagementTest extends TestCase
         }
 
         Livewire::test(ListRoles::class)->assertSuccessful()
-            ->assertSee('Role hanya label jabatan')
+            ->assertSee('Jabatan hanya nama')
             ->assertSee('Pemimpin tim installer')
             ->assertSee(RoleResource::GENERIC_DESCRIPTION)
             ->assertSee('Tidak bisa dihapus selama masih dipakai')

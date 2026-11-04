@@ -161,4 +161,59 @@ class UserAccessFormTest extends TestCase
         $holder = $this->user('kasir', ['menu_access' => ['InvoiceResource'], 'menu_permissions' => ['InvoiceResource' => ['void']]]);
         $this->assertArrayHasKey('void', $options('InvoiceResource', $holder));
     }
+
+    // ------------------------------------------------------------- Hanya aplikasi
+
+    public function test_a_user_limited_to_my_attendance_only_opens_in_the_app_only_mode(): void
+    {
+        $appOnly = $this->user('kasir', ['menu_access' => ['MyAttendance']]);
+        $limited = $this->user('kasir', ['menu_access' => ['MyAttendance', 'BookingResource']]);
+        $withRights = $this->user('kasir', ['menu_access' => ['MyAttendance'], 'menu_permissions' => ['MyAttendance' => ['delete']]]);
+
+        Livewire::test(EditUser::class, ['record' => $appOnly->getKey()])->assertSet('data.access_mode', 'app_only');
+        Livewire::test(EditUser::class, ['record' => $limited->getKey()])->assertSet('data.access_mode', 'limited');
+        Livewire::test(EditUser::class, ['record' => $withRights->getKey()])->assertSet('data.access_mode', 'limited');
+    }
+
+    public function test_choosing_app_only_saves_only_my_attendance_and_closes_every_other_menu(): void
+    {
+        $user = $this->user('kasir', ['menu_access' => ['BookingResource', 'InvoiceResource'], 'menu_permissions' => ['BookingResource' => ['delete']]]);
+
+        Livewire::test(EditUser::class, ['record' => $user->getKey()])
+            ->set('data.access_mode', 'app_only')
+            ->assertSet($this->toggle('BookingResource'), false)
+            ->assertSet($this->toggle('MyAttendance'), true)
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $user->refresh();
+        $this->assertSame(['MyAttendance'], $user->menu_access);
+        $this->assertNull($user->menu_permissions);
+        $this->assertTrue($user->hasMenuAccess(\App\Filament\Pages\MyAttendance::class));
+        $this->assertFalse($user->hasMenuAccess(\App\Filament\Resources\BookingResource::class));
+        $this->assertFalse($user->hasExplicitMenuAccess(\App\Filament\Pages\SalesSummaryReport::class), 'Laporan omzet tetap tertutup.');
+        $this->assertTrue($user->canAccessPanel(Filament::getPanel('admin')), 'Masih bisa membuka panel untuk Absen Saya.');
+    }
+
+    public function test_app_only_survives_a_second_save_without_turning_into_full_access(): void
+    {
+        $user = $this->user('kasir', ['menu_access' => ['MyAttendance']]);
+
+        Livewire::test(EditUser::class, ['record' => $user->getKey()])->call('save')->assertHasNoFormErrors();
+
+        $this->assertSame(['MyAttendance'], $user->fresh()->menu_access);
+    }
+
+    public function test_copying_an_app_only_colleague_switches_the_mode_too(): void
+    {
+        $source = $this->user('kasir', ['menu_access' => ['MyAttendance']]);
+        $target = $this->user('kasir');
+
+        Livewire::test(EditUser::class, ['record' => $target->getKey()])
+            ->set('data.copy_access_from', $source->getKey())
+            ->assertSet('data.access_mode', 'app_only')
+            ->call('save');
+
+        $this->assertSame(['MyAttendance'], $target->fresh()->menu_access);
+    }
 }
