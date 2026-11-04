@@ -811,8 +811,10 @@ class GuideCatalog
                 'steps' => [
                     'Semua laporan memakai **Periode Cepat** atau **Dari** dan **Sampai**; sebagian punya **Toko**. Hasil bisa diunduh lewat **Export ke Excel** atau **Export ke PDF**.',
                     '**Kepuasan Pelanggan** merangkum review toko per toko: **Total Review**, **Positif**, dan **Negatif**. Dasarnya review yang diisi pelanggan setelah booking selesai.',
-                    '**Waktu Teramai Penjualan** menunjukkan hari dalam seminggu yang paling ramai: **Penjualan (Rp)**, **Transaksi**, **Produk**, dan **Pelanggan** (pelanggan unik per hari). Hari dihitung dari tanggal pendapatan tercatat.',
-                    '**Waktu Teramai Produk** memecahnya per produk dan hari. Booking yang belum diisi SKU-nya masuk ke baris "Belum Diisi SKU", jadi lengkapi SKU agar angkanya akurat.',
+                    ...(config('features.report_peak_time') ? [
+                        '**Waktu Teramai Penjualan** menunjukkan hari dalam seminggu yang paling ramai: **Penjualan (Rp)**, **Transaksi**, **Produk**, dan **Pelanggan** (pelanggan unik per hari). Hari dihitung dari tanggal pendapatan tercatat.',
+                        '**Waktu Teramai Produk** memecahnya per produk dan hari. Booking yang belum diisi SKU-nya masuk ke baris "Belum Diisi SKU", jadi lengkapi SKU agar angkanya akurat.',
+                    ] : []),
                     '**Perputaran Stok** menunjukkan kecepatan pemakaian bahan baku dan barang habis pakai: **Terpakai**, **Rata-rata Stok**, **Perputaran Stok**, **Konsumsi/Hari**, dan **Estimasi Habis**. Rata-rata stok disederhanakan dari stok awal dan akhir periode; stok awal dihitung mundur dari stok saat ini.',
                 ],
                 'tips' => [
@@ -830,7 +832,7 @@ class GuideCatalog
                     '**Ringkasan Penjualan** menyusun pendapatan sampai penjualan bersih dan laba kotor. Pakai **Bandingkan Dengan** (periode sebelumnya yang sama panjang, atau periode yang sama tahun lalu) untuk melihat naik turunnya.',
                     '**Penjualan Per Periode** menampilkan satu baris per periode untuk melihat tren; atur dengan **Kelompokkan Per** (Harian, Mingguan, atau Bulanan). Kolomnya: **Transaksi**, **Penjualan**, **Diterima**, **Piutang**, **Pengembalian**, **Komisi**, **HPP**, dan **Laba Kotor**.',
                     '**Penjualan Outlet** membandingkan toko: **Penjualan (bersih)**, **Pengembalian**, **Rata-rata/Transaksi**, dan **Piutang** per outlet.',
-                    '**Laporan Jasa** merekap per jenis layanan (jumlah dan pendapatan, juga per toko); **Laporan Jenis Order** menampilkan data yang sama dengan nama menu yang berbeda. **Penjualan Produk** merinci per SKU: **Jumlah**, **Penjualan**, **Refund**, **Komisi**, **HPP**, dan **Laba Kotor**. Booking yang belum diisi SKU-nya terkumpul di baris "Belum Diisi SKU", jadi lengkapi SKU agar angkanya akurat.',
+                    '**Laporan Jasa** merekap per jenis layanan (jumlah dan pendapatan, juga per toko)' . (config('features.report_jenis_order') ? '; **Laporan Jenis Order** menampilkan data yang sama dengan nama menu yang berbeda' : '') . '. **Penjualan Produk** merinci per SKU: **Jumlah**, **Penjualan**, **Refund**, **Komisi**, **HPP**, dan **Laba Kotor**. Booking yang belum diisi SKU-nya terkumpul di baris "Belum Diisi SKU", jadi lengkapi SKU agar angkanya akurat.',
                     '**Buku Pembayaran** mendaftar semua uang masuk dari booking dalam satu rentang: uang muka (DP) dan pembayaran saat penjualan diproses, lengkap dengan **Metode**. Laporan ini hanya membaca dan tidak menyalin data.',
                     '**Laporan Refund** mendaftar refund (parsial boleh) dengan **No. Refund**, **Metode Pembayaran**, dan **Alasan**. Refund diproses lewat Proses Refund di Booking, bukan di sini.',
                     '**Laporan Void** merekap booking yang dibatalkan beserta **Dibatalkan Oleh** dan **Alasan**. Data lama tanpa alasan tercatat memakai pelaku log sebagai pengganti.',
@@ -867,7 +869,7 @@ class GuideCatalog
                 'steps' => [
                     '**Laporan Pelanggan** membandingkan pelanggan baru dan berulang untuk periode terpilih: **Booking (Periode Ini)**, **Belanja (Periode Ini)**, **Total Belanja (Sepanjang Waktu)**, **Kunjungan Terakhir**, dan rata-rata per bulan. Hanya pelanggan yang punya akun yang dihitung.',
                     '**Laporan Poin** merinci harian: **Poin Didapat**, **Poin Ditukar**, dan nilai Rupiahnya. Laporan ini nasional, tidak dipisah per toko.',
-                    '**Laporan Promo** memuat performa Promo Total Pembelian dan potongan yang diterapkan, voucher (**Diklaim**, **Dipakai**, **Tingkat Pakai**, **Sisa Stok**), serta reward (**Ditukar**, **Terpenuhi**, **Poin Terpakai**). **Laporan Voucher** menampilkan data voucher yang sama; "voucher" di Ginnva adalah voucher.',
+                    '**Laporan Promo** memuat performa Promo Total Pembelian dan potongan yang diterapkan, voucher (**Diklaim**, **Dipakai**, **Tingkat Pakai**, **Sisa Stok**), serta reward (**Ditukar**, **Terpenuhi**, **Poin Terpakai**).' . (config('features.report_voucher') ? ' **Laporan Voucher** menampilkan data voucher yang sama; "voucher" di Ginnva adalah voucher.' : '') . '',
                 ],
                 'tips' => [
                     'Poin belum punya masa kedaluwarsa, jadi saldo yang beredar terus bertambah; pantau lewat Laporan Poin.',
@@ -880,7 +882,7 @@ class GuideCatalog
                 'menus' => ['PersediaanRingkasanReport', 'PersediaanDetailReport', 'ExpiringStockReport'],
                 'steps' => [
                     '**Lap. Ringkasan Persediaan** menilai stok saat ini per barang: **Kuantitas**, **Satuan**, **Harga Modal**, dan **Total Nilai Persediaan**. Ini posisi hari ini, bukan per tanggal tertentu.',
-                    '**Lap. Detail Persediaan** merinci pergerakan stok bahan baku dan barang habis pakai dalam rentang **Dari** dan **Sampai**: **Jenis**, **Jumlah**, **Harga Beli**, **Oleh**, dan **Catatan**.',
+                    ...(config('features.report_persediaan_detail') ? ['**Lap. Detail Persediaan** merinci pergerakan stok bahan baku dan barang habis pakai dalam rentang **Dari** dan **Sampai**: **Jenis**, **Jumlah**, **Harga Beli**, **Oleh**, dan **Catatan**.'] : []),
                     '**Laporan Stok Kedaluwarsa** mendaftar batch bahan baku dengan **Tanggal Kedaluwarsa** di rentang yang dipilih: **Sisa Qty**, **Nilai**, dan **Status**. Berbeda dari widget Dashboard Inventaris yang hanya menunjukkan 30 hari ke depan.',
                 ],
                 'tips' => [

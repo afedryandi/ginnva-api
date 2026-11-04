@@ -34,7 +34,9 @@
                 <th>Toko</th>
                 <th>Metode Pembayaran</th>
                 <th>Diproses Oleh</th>
-                <th>No. Jurnal</th>
+                @if (config('features.finance'))
+                    <th>No. Jurnal</th>
+                @endif
                 <th>Alasan</th>
                 <th class="value">Nominal</th>
             </tr>
@@ -49,7 +51,9 @@
                     <td>{{ $refund->booking?->store?->name ?? '-' }}</td>
                     <td>{{ $refund->payment_method_label }}</td>
                     <td>{{ $refund->creator?->name ?? '-' }}</td>
-                    <td>{{ $refund->journalEntry?->entry_number ?? '-' }}</td>
+                    @if (config('features.finance'))
+                        <td>{{ $refund->journalEntry?->entry_number ?? '-' }}</td>
+                    @endif
                     <td>{{ $refund->reason ?: '-' }}</td>
                     <td class="value">{{ $rupiah((float) $refund->amount) }}</td>
                 </tr>

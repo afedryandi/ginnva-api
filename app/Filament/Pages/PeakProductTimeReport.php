@@ -67,6 +67,11 @@ class PeakProductTimeReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
+        // Disembunyikan bawaan (FEATURE_REPORT_PEAK_TIME): mengukur tanggal Proses Referral, bukan keramaian toko.
+        if (! config('features.report_peak_time')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)

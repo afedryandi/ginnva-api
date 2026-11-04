@@ -37,10 +37,11 @@
         <x-slot name="description">
             @if (config('features.finance'))
                 Tiap refund otomatis punya jurnal kontra di Jurnal Umum — klik No. Jurnal untuk lihat detailnya.
+                "Metode Pembayaran": refund bisa mengurangi Piutang Usaha dulu sebelum kas keluar, jadi kolom ini menampilkan
+                "Tunai", "Kurangi Piutang", atau kombinasi keduanya sesuai porsi masing-masing.
+            @else
+                Daftar pengembalian dana pelanggan pada rentang ini beserta nominal, alasan, dan siapa yang memprosesnya.
             @endif
-            "Metode Pembayaran" (audit 2026-09-29): refund bisa mengurangi Piutang Usaha dulu sebelum kas keluar
-            (lihat RefundService) — kolom ini sekarang menampilkan "Tunai", "Kurangi Piutang", atau kombinasi
-            keduanya sesuai porsi masing-masing, bukan selalu "Tunai".
         </x-slot>
 
         <div class="overflow-x-auto">

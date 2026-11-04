@@ -18,7 +18,7 @@ class RefundReportExport implements FromArray, WithHeadings, WithStyles
 
     public function headings(): array
     {
-        return [
+        $headings = [
             'No. Refund',
             'Tanggal',
             'No. Booking',
@@ -30,12 +30,15 @@ class RefundReportExport implements FromArray, WithHeadings, WithStyles
             'Alasan',
             'Nominal',
         ];
+
+        // Nomor jurnal hanya ada bila modul Keuangan menyala.
+        return config('features.finance') ? $headings : array_values(array_diff($headings, ['No. Jurnal']));
     }
 
     public function array(): array
     {
         return collect($this->result['refunds'])
-            ->map(fn (Refund $refund) => [
+            ->map(fn (Refund $refund) => array_values(array_filter([
                 $refund->refund_number,
                 $refund->created_at->format('Y-m-d H:i'),
                 $refund->booking?->booking_number ?? '-',
@@ -44,10 +47,10 @@ class RefundReportExport implements FromArray, WithHeadings, WithStyles
                 // Label dihitung RefundReport::getResult() (Tunai / Kurangi Piutang / gabungan), sama dengan layar.
                 $refund->payment_method_label ?? 'Tunai',
                 $refund->creator?->name ?? '-',
-                $refund->journalEntry?->entry_number ?? '-',
+                config('features.finance') ? ($refund->journalEntry?->entry_number ?? '-') : null,
                 $refund->reason ?: '-',
                 (float) $refund->amount,
-            ])
+            ], fn ($cell) => $cell !== null)))
             ->values()
             ->all();
     }

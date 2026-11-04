@@ -35,4 +35,10 @@ class JenisOrderReport extends LayananReport
     // 101 -- band grup 'Laporan Jasa' (lihat catatan sistem band di
     // ProductSalesReport.php, diperbaiki 2026-09-09).
     protected static ?int $navigationSort = 101;
+
+    // Disembunyikan bawaan (FEATURE_REPORT_JENIS_ORDER): isinya sama dengan Laporan Jasa.
+    public static function canAccess(): bool
+    {
+        return (bool) config('features.report_jenis_order') && parent::canAccess();
+    }
 }

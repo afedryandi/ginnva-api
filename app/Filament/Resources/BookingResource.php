@@ -1368,7 +1368,7 @@ class BookingResource extends Resource
                         }
 
                         Notification::make()
-                            ->title('DP berhasil dicatat & jurnal Pendapatan Diterima Dimuka dibuat.')
+                            ->title(config('features.finance') ? 'DP berhasil dicatat & jurnal Pendapatan Diterima Dimuka dibuat.' : 'DP berhasil dicatat.')
                             ->success()
                             ->send();
                     }),
@@ -1385,7 +1385,7 @@ class BookingResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Kembalikan Sisa DP?')
                     ->modalDescription(fn (Booking $record) => 'Rp' . number_format($record->outstanding_down_payment, 0, ',', '.')
-                        . ' dari DP tidak terpakai melunasi pembayaran. Jurnal: Dr Pendapatan Diterima Dimuka (2140) / Kr Kas.')
+                        . ' dari DP tidak terpakai melunasi pembayaran.' . (config('features.finance') ? ' Jurnal: Dr Pendapatan Diterima Dimuka (2140) / Kr Kas.' : ''))
                     ->action(function (Booking $record) {
                         try {
                             $total = app(\App\Services\DownPaymentService::class)->refundUnusedRemainder($record, auth()->id());
@@ -1395,7 +1395,7 @@ class BookingResource extends Resource
                             return;
                         }
 
-                        Notification::make()->title('Sisa DP Rp' . number_format($total, 0, ',', '.') . ' dikembalikan & jurnal dibuat.')->success()->send();
+                        Notification::make()->title('Sisa DP Rp' . number_format($total, 0, ',', '.') . ' dikembalikan' . (config('features.finance') ? ' & jurnal dibuat.' : '.'))->success()->send();
                     }),
 
                 // Nominal transaksi & kode referral partner SENGAJA diproses
@@ -1538,7 +1538,7 @@ class BookingResource extends Resource
                             })
                             ->addActionLabel('Tambah pembayaran')
                             ->reorderable(false)
-                            ->helperText('Boleh lebih dari satu (mis. sebagian tunai, sebagian transfer). Hapus semua baris bila belum ada pembayaran; sisanya jadi Piutang Usaha.'),
+                            ->helperText('Boleh lebih dari satu (mis. sebagian tunai, sebagian transfer). Hapus semua baris bila belum ada pembayaran; sisanya ' . (config('features.finance') ? 'jadi Piutang Usaha.' : 'belum terbayar.')),
 
                         Forms\Components\Placeholder::make('settlement_summary')
                             ->label('Ringkasan pembayaran')
@@ -1556,7 +1556,7 @@ class BookingResource extends Resource
                                 }
 
                                 return $remaining > 0.009
-                                    ? $text . ' — sisa ' . $rp($remaining) . ' akan dicatat sebagai Piutang Usaha.'
+                                    ? $text . ' — sisa ' . $rp($remaining) . (config('features.finance') ? ' akan dicatat sebagai Piutang Usaha.' : ' belum terbayar.')
                                     : ($remaining < -0.009 ? $text . ' — MELEBIHI nominal transaksi, tidak bisa disimpan.' : $text . ' — lunas.');
                             }),
 
@@ -1686,7 +1686,7 @@ class BookingResource extends Resource
                             ->numeric()
                             ->minValue(0.01)
                             ->required()
-                            ->helperText('Bisa parsial (sebagian dari nilai transaksi) — otomatis bikin jurnal balik pendapatan + kas di Jurnal Umum.'),
+                            ->helperText('Bisa parsial (sebagian dari nilai transaksi)' . (config('features.finance') ? ' — otomatis bikin jurnal balik pendapatan + kas di Jurnal Umum.' : '.')),
                         Forms\Components\Textarea::make('reason')
                             ->label('Alasan Refund')
                             ->rows(2)
@@ -1741,7 +1741,7 @@ class BookingResource extends Resource
                         }
 
                         Notification::make()
-                            ->title('Refund berhasil diproses & jurnal kontra dibuat.')
+                            ->title(config('features.finance') ? 'Refund berhasil diproses & jurnal kontra dibuat.' : 'Refund berhasil diproses.')
                             ->success()
                             ->send();
                     }),

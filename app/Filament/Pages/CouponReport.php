@@ -21,4 +21,10 @@ class CouponReport extends PromoLoyaltyReport
     // 202 -- band grup 'Laporan Promo & Loyalti' (lihat catatan sistem
     // band di ProductSalesReport.php).
     protected static ?int $navigationSort = 202;
+
+    // Disembunyikan bawaan (FEATURE_REPORT_VOUCHER): isinya sama dengan Laporan Promo.
+    public static function canAccess(): bool
+    {
+        return (bool) config('features.report_voucher') && parent::canAccess();
+    }
 }

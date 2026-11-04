@@ -428,7 +428,7 @@ class TransactionApprovalService
         foreach ($recipients as $recipient) {
             Notification::make()
                 ->title("Menunggu persetujuan: {$label}")
-                ->body("Booking {$booking->booking_number} — perlu persetujuan Anda sebelum diposting ke Jurnal Umum.")
+                ->body("Booking {$booking->booking_number} — perlu persetujuan Anda sebelum " . (config('features.finance') ? 'diposting ke Jurnal Umum.' : 'diproses.'))
                 ->warning()
                 ->sendToDatabase($recipient);
         }

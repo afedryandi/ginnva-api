@@ -98,4 +98,20 @@ return [
     */
     'master_resep' => (bool) env('FEATURE_MASTER_RESEP', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Laporan kembar (keputusan pemilik 2026-11-04)
+    |--------------------------------------------------------------------------
+    | Mati bawaan. Laporan Jenis Order = isi sama dengan Laporan Jasa, Laporan Voucher = isi sama dengan Laporan Promo, dan
+    | Lap. Detail Persediaan tumpang tindih dengan Daftar Stok serta Riwayat Bahan Baku/Barang Habis Pakai. Kode dan data tetap ada.
+    | Untuk menyalakan lagi isi FEATURE_REPORT_JENIS_ORDER, FEATURE_REPORT_VOUCHER, atau FEATURE_REPORT_PERSEDIAAN_DETAIL=true di .env.
+    */
+    'report_jenis_order' => (bool) env('FEATURE_REPORT_JENIS_ORDER', false),
+    'report_voucher' => (bool) env('FEATURE_REPORT_VOUCHER', false),
+    'report_persediaan_detail' => (bool) env('FEATURE_REPORT_PERSEDIAAN_DETAIL', false),
+
+    // Waktu Teramai Penjualan dan Waktu Teramai Produk (keputusan pemilik 2026-11-04): mengukur tanggal Proses Referral, bukan keramaian toko.
+    // Keramaian terlihat di Kalender Kapasitas dan Reservasi & Utilisasi. Untuk menyalakan lagi isi FEATURE_REPORT_PEAK_TIME=true.
+    'report_peak_time' => (bool) env('FEATURE_REPORT_PEAK_TIME', false),
+
 ];

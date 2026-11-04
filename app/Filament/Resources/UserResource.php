@@ -514,6 +514,10 @@ class UserResource extends Resource
             'performance_reviews' => ['PerformanceReviewResource'],
             'salary_grades' => ['SalaryGradeResource'],
             'master_resep' => ['MasterResepResource'],
+            'report_jenis_order' => ['JenisOrderReport'],
+            'report_voucher' => ['CouponReport'],
+            'report_persediaan_detail' => ['PersediaanDetailReport'],
+            'report_peak_time' => ['PeakSalesTimeReport', 'PeakProductTimeReport'],
             'employee_checklists' => ['EmployeeChecklistItemResource', 'ChecklistTemplateResource'],
             'work_schedules' => ['ShiftResource', 'WorkScheduleResource'],
         ] as $feature => $moduleKeys) {

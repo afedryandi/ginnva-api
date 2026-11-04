@@ -249,9 +249,9 @@ class TransactionApprovalRequestResource extends Resource
                     // Jurnal Umum" walau referral juga memberi poin dan DP dicatat
                     // sebagai Pendapatan Diterima Dimuka.
                     ->modalDescription(fn (TransactionApprovalRequest $record) => $record->summaryLine() . '. ' . match ($record->type) {
-                        'booking_referral' => 'Nominal transaksi booking akan diperbarui dan diposting ke Jurnal Umum, serta poin referral diberikan kalau ada kode referral.',
-                        'refund' => 'Refund akan diposting ke Jurnal Umum (kas keluar ke pelanggan).',
-                        'booking_down_payment' => 'DP akan dicatat sebagai Pendapatan Diterima Dimuka (belum pendapatan) di Jurnal Umum.',
+                        'booking_referral' => 'Nominal transaksi booking akan diperbarui' . (config('features.finance') ? ' dan diposting ke Jurnal Umum' : '') . ', serta poin referral diberikan kalau ada kode referral.',
+                        'refund' => config('features.finance') ? 'Refund akan diposting ke Jurnal Umum (kas keluar ke pelanggan).' : 'Refund akan dicatat (uang dikembalikan ke pelanggan).',
+                        'booking_down_payment' => config('features.finance') ? 'DP akan dicatat sebagai Pendapatan Diterima Dimuka (belum pendapatan) di Jurnal Umum.' : 'DP akan dicatat sebagai uang muka booking.',
                         default => 'Pengajuan akan dieksekusi.',
                     })
                     ->action(function (TransactionApprovalRequest $record) {

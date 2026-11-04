@@ -13,6 +13,11 @@ Fitur yang tidak dipakai disembunyikan dengan saklar, bukan dihapus: kode dan da
 | `FEATURE_INSTALLER_UTILIZATION` | Utilisasi Installer (jam pekerjaannya estimasi; Durasi Servis memakai jam nyata SPK) | 2026-10-29, audit modul Karyawan |
 | `FEATURE_WORK_SCHEDULES` | Shift, Jadwal Kerja, kalender jadwal (sejak 2026-10-29 juga tertutup dari akses langsung) | 2026-10-12 |
 | `FEATURE_ADMIN_TOUR` | Tur pengenalan panel | 2026-10-12 |
+| `FEATURE_MASTER_RESEP` | Master Resep dan tombol Isi dari Master Resep di Memo (memo tetap diisi manual) | 2026-11-03 |
+| `FEATURE_REPORT_JENIS_ORDER` | Laporan Jenis Order (isi sama dengan Laporan Jasa) | 2026-11-04 |
+| `FEATURE_REPORT_VOUCHER` | Laporan Voucher (isi sama dengan Laporan Promo) | 2026-11-04 |
+| `FEATURE_REPORT_PEAK_TIME` | Waktu Teramai Penjualan dan Waktu Teramai Produk (mengukur tanggal Proses Referral, bukan keramaian toko) | 2026-11-04 |
+| `FEATURE_REPORT_PERSEDIAAN_DETAIL` | Lap. Detail Persediaan (tumpang tindih dengan Daftar Stok dan Riwayat Bahan Baku/Barang Habis Pakai) | 2026-11-04 |
 
 Saklar K3, Penilaian Kinerja, dan Pelatihan Karyawan menutup menunya dari akses (`canViewAny()` false, termasuk lewat alamat langsung) dan juga:
 - layar "K3 & Penilaian" di aplikasi staf (`has_safety_access` false; endpoint `/api/staff/safety` mengirim daftar kosong untuk bagian yang mati, dan pengakuan penilaian ditolak 404);

@@ -99,9 +99,12 @@ class BookingSaleProcessor
                 throw new SaleProcessingException('Pengajuan tidak bisa dibuat', $e->getMessage());
             }
 
+            // Tanpa modul Keuangan tidak ada jurnal: yang menunggu persetujuan adalah pemrosesan penjualannya.
+            $afterApproval = config('features.finance') ? 'diposting ke Jurnal Umum.' : 'diproses.';
+
             $message = $referencePrice !== null
-                ? 'Diskon melebihi ' . Booking::NEGOTIATION_DISCOUNT_MAX_PCT . '% dari harga acuan — permintaan ini dikirim ke admin/direksi untuk disetujui sebelum diposting ke Jurnal Umum.'
-                : 'Permintaan Proses Referral untuk booking ini sudah dikirim ke admin/direksi untuk disetujui sebelum diposting ke Jurnal Umum.';
+                ? 'Diskon melebihi ' . Booking::NEGOTIATION_DISCOUNT_MAX_PCT . '% dari harga acuan — permintaan ini dikirim ke admin/direksi untuk disetujui sebelum ' . $afterApproval
+                : 'Permintaan Proses Referral untuk booking ini sudah dikirim ke admin/direksi untuk disetujui sebelum ' . $afterApproval;
 
             return ['status' => 'pending', 'messages' => [], 'message' => $message];
         }

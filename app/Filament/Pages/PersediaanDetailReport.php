@@ -58,6 +58,11 @@ class PersediaanDetailReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
+        // Disembunyikan bawaan (FEATURE_REPORT_PERSEDIAAN_DETAIL): tumpang tindih dengan Daftar Stok dan Riwayat Bahan Baku/Barang Habis Pakai.
+        if (! config('features.report_persediaan_detail')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)
