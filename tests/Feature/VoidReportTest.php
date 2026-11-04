@@ -380,7 +380,7 @@ class VoidReportTest extends TestCase
         $result = $this->report();
 
         $this->assertSame(['Salah jadwal' => 2, 'Tanpa alasan' => 1], $result['byReason']->all());
-        $this->assertSame(['Pelanggan' => 2, 'Staf' => 1], $result['byActor']->all());
+        $this->assertSame(['Pelanggan' => 2, 'Karyawan' => 1], $result['byActor']->all());
     }
 
     public function test_many_distinct_reasons_collapse_into_others(): void

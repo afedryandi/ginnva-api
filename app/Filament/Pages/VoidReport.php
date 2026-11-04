@@ -303,7 +303,7 @@ class VoidReport extends Page implements HasForms
                     'by' => $booking->cancelledByLabel($r['fallback']),
                     'actor' => match ($booking->cancelled_by_type) {
                         'customer' => 'Pelanggan',
-                        'staff' => 'Staf',
+                        'staff' => 'Karyawan',
                         'system' => 'Sistem (otomatis)',
                         default => 'Tidak tercatat (data lama)',
                     },
