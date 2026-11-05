@@ -246,6 +246,61 @@ class CustomerResource extends Resource
             ]));
     }
 
+    /** Atur Grup untuk satu pelanggan, tanpa harus memilih lewat aksi massal. */
+    public static function setGroupTableAction(): Tables\Actions\Action
+    {
+        return Tables\Actions\Action::make('setGroup')
+            ->label('Atur Grup')
+            ->icon('heroicon-o-user-group')
+            ->color('gray')
+            ->visible(fn (Customer $record) => ! $record->deleted_at && static::canEdit($record))
+            ->form([
+                Forms\Components\Select::make('customer_group_id')
+                    ->label('Grup Pelanggan')
+                    ->options(fn () => \App\Models\CustomerGroup::where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
+                    ->in(fn () => \App\Models\CustomerGroup::where('is_active', true)->pluck('id')->all())
+                    ->placeholder('Tidak ada grup')
+                    ->native(false),
+            ])
+            ->fillForm(fn (Customer $record): array => ['customer_group_id' => $record->customer_group_id])
+            ->action(function (Customer $record, array $data) {
+                $record->update(['customer_group_id' => $data['customer_group_id'] ?: null]);
+
+                Notification::make()->title('Grup pelanggan diperbarui')->success()->send();
+            });
+    }
+
+    /**
+     * Koreksi No. WhatsApp yang salah ketik. Hanya nomor, bukan email: email dipakai pelanggan untuk login dan
+     * diverifikasi lewat OTP, jadi diubahnya harus oleh pemilik akun sendiri. Format sama dengan di app (angka saja, tanpa 0 atau +
+     * di depan) dan nomor harus belum dipakai pelanggan lain.
+     */
+    public static function changePhoneTableAction(): Tables\Actions\Action
+    {
+        return Tables\Actions\Action::make('changePhone')
+            ->label('Ubah No. WhatsApp')
+            ->icon('heroicon-o-phone')
+            ->color('gray')
+            ->visible(fn (Customer $record) => ! $record->deleted_at && static::canEdit($record))
+            ->form(fn (Customer $record): array => [
+                Forms\Components\TextInput::make('phone_number')
+                    ->label('No. WhatsApp')
+                    ->required()
+                    ->regex('/^[1-9][0-9]{7,14}$/')
+                    ->unique(table: 'customers', column: 'phone_number', ignorable: $record)
+                    ->validationMessages([
+                        'regex' => 'Isi angka saja (8-15 digit) tanpa 0 atau + di depan, mis. 81234567890.',
+                        'unique' => 'Nomor ini sudah dipakai pelanggan lain.',
+                    ]),
+            ])
+            ->fillForm(fn (Customer $record): array => ['phone_number' => $record->phone_number])
+            ->action(function (Customer $record, array $data) {
+                $record->update(['phone_number' => $data['phone_number']]);
+
+                Notification::make()->title('No. WhatsApp diperbarui')->success()->send();
+            });
+    }
+
     public static function setReferralTableAction(): Tables\Actions\Action
     {
         return Tables\Actions\Action::make('setReferral')
@@ -363,7 +418,7 @@ class CustomerResource extends Resource
         // deleted_at di resource ini tidak pernah terpakai. Daftar default-nya tetap hanya akun aktif (lihat filter).
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([SoftDeletingScope::class])
-            ->with(['referredBy', 'referredByPartner']);
+            ->with(['referredBy', 'referredByPartner', 'customerGroup:id,name']);
     }
 
     public static function table(Table $table): Table
@@ -394,7 +449,21 @@ class CustomerResource extends Resource
                 Tables\Columns\TextColumn::make('phone_number')
                     ->label('No. WhatsApp')
                     ->placeholder('—')
-                    ->searchable(),
+                    // Nomor tersimpan tanpa angka 0/62 di depan; admin biasa mengetik 0812… atau +62 812….
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        $digits = preg_replace('/\D/', '', $search);
+                        $local = preg_replace('/^(0|62)/', '', $digits);
+
+                        return $query->where(fn (Builder $q) => $q
+                            ->where('phone_number', 'like', "%{$search}%")
+                            ->when($local !== '', fn (Builder $q2) => $q2->orWhere('phone_number', 'like', "%{$local}%")));
+                    }),
+
+                Tables\Columns\TextColumn::make('customerGroup.name')
+                    ->label('Grup')
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('gray'),
 
                 Tables\Columns\TextColumn::make('gender')
                     ->label('Jenis Kelamin')
@@ -452,6 +521,10 @@ class CustomerResource extends Resource
                     ->placeholder('Semua')
                     ->trueLabel('Setuju')
                     ->falseLabel('Belum setuju'),
+                Tables\Filters\SelectFilter::make('customer_group_id')
+                    ->label('Grup Pelanggan')
+                    ->options(fn () => \App\Models\CustomerGroup::orderBy('sort_order')->pluck('name', 'id'))
+                    ->placeholder('Semua'),
                 Tables\Filters\TernaryFilter::make('deleted_at')
                     ->label('Status Akun')
                     ->placeholder('Semua')
@@ -489,6 +562,8 @@ class CustomerResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 static::personalDataTableAction(),
+                static::setGroupTableAction(),
+                static::changePhoneTableAction(),
                 static::setReferralTableAction(),
                 // Hapus = jalur yang SAMA dengan "Hapus Akun" di app (CustomerAccountDeletionService): data pribadi
                 // dianonimkan, bukan sekadar disembunyikan. Booking & garansi tetap utuh.
@@ -567,6 +642,8 @@ class CustomerResource extends Resource
     public static function getRelations(): array
     {
         return [
+            \App\Filament\Resources\CustomerResource\RelationManagers\BookingsRelationManager::class,
+            \App\Filament\Resources\CustomerResource\RelationManagers\WarrantiesRelationManager::class,
             \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
         ];
     }

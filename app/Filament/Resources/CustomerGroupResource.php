@@ -105,6 +105,15 @@ class CustomerGroupResource extends Resource
                 ->label('Deskripsi (opsional)')
                 ->rows(2),
 
+            Forms\Components\TextInput::make('discount_percent')
+                ->label('Diskon (%)')
+                ->numeric()
+                ->minValue(0)
+                ->maxValue(100)
+                ->default(0)
+                ->suffix('%')
+                ->helperText('Dipotong dari harga normal produk (menurut ukuran kendaraan) bagi pelanggan grup ini. Produk yang punya harga khusus (tab Harga Khusus Produk) memakai harga khusus itu, bukan diskon ini. 0 = tanpa diskon.'),
+
             Forms\Components\TextInput::make('sort_order')
                 ->label('Urutan')
                 ->numeric()
@@ -138,6 +147,11 @@ class CustomerGroupResource extends Resource
                     ->label('Deskripsi')
                     ->limit(50)
                     ->placeholder('—'),
+
+                Tables\Columns\TextColumn::make('discount_percent')
+                    ->label('Diskon')
+                    ->formatStateUsing(fn ($state) => (float) $state > 0 ? rtrim(rtrim(number_format((float) $state, 2, ',', '.'), '0'), ',') . '%' : '—')
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('customers_count')
                     ->label('Jumlah Pelanggan')
@@ -219,6 +233,13 @@ class CustomerGroupResource extends Resource
                         ->deselectRecordsAfterCompletion(),
                 ]),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            \App\Filament\Resources\CustomerGroupResource\RelationManagers\GroupPricesRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

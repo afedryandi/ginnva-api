@@ -19,12 +19,14 @@ class CustomerGroup extends Model
     protected $fillable = [
         'name',
         'description',
+        'discount_percent',
         'is_active',
         'sort_order',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'discount_percent' => 'decimal:2',
         'sort_order' => 'integer',
     ];
 
@@ -41,7 +43,7 @@ class CustomerGroup extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'description', 'is_active', 'sort_order'])
+            ->logOnly(['name', 'description', 'discount_percent', 'is_active', 'sort_order'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('customer_group')

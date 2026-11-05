@@ -15,13 +15,13 @@ class CustomerExport implements FromQuery, WithHeadings, WithMapping, ShouldAuto
 {
     public function query(): Builder
     {
-        return Customer::withCount(['warranties', 'bookings'])->orderBy('created_at', 'desc');
+        return Customer::with('customerGroup:id,name')->withCount(['warranties', 'bookings'])->orderBy('created_at', 'desc');
     }
 
     public function headings(): array
     {
         return [
-            'Nama', 'Email', 'No. WhatsApp', 'Jenis Kelamin', 'Alamat',
+            'Nama', 'Email', 'No. WhatsApp', 'Grup Pelanggan', 'Jenis Kelamin', 'Alamat',
             'Email Terverifikasi', 'Jumlah Garansi', 'Jumlah Booking',
             'Terdaftar Pada',
         ];
@@ -33,6 +33,7 @@ class CustomerExport implements FromQuery, WithHeadings, WithMapping, ShouldAuto
             $customer->name ?? '—',
             $customer->email,
             $customer->phone_number ?? '—',
+            $customer->customerGroup?->name ?? '—',
             Customer::GENDER_LABELS[$customer->gender] ?? '—',
             $customer->address ?? '—',
             $customer->email_verified_at?->format('d/m/Y H:i') ?? 'Belum',

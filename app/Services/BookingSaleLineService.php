@@ -120,7 +120,7 @@ class BookingSaleLineService
 
             foreach ($rows as $index => $row) {
                 $product = $row['film_product_id'] ? FilmProduct::withTrashed()->with(['prices', 'groupPrices'])->find($row['film_product_id']) : null;
-                $reference = $product ? PriceCalculator::priceFor($product, $booking->vehicle_size) : null;
+                $reference = $product ? PriceCalculator::priceFor($product, $booking->vehicle_size, $booking->customer?->customer_group_id) : null;
 
                 BookingSaleLine::create($row + [
                     'booking_id' => $booking->id,

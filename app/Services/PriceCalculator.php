@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CustomerGroup;
 use App\Models\FilmProduct;
 
 /**
@@ -18,10 +19,11 @@ use App\Models\FilmProduct;
  *
  * priceFor(): kalau $customerGroupId diisi DAN produk ini punya harga
  * khusus utk grup itu (FilmProduct::groupPrices, audit Majoo f40) →
- * pakai itu, MENANG atas matriks ukuran & base_price (harga grup SENGAJA
- * flat, bukan per-ukuran lagi, supaya tetap sederhana). Kalau tidak ada
- * override grup: cari baris ukuran → fallback ke base_price → null
- * kalau semuanya kosong (UI tampilkan "Belum diisi", bukan Rp 0 palsu).
+ * pakai itu, MENANG atas matriks ukuran & base_price (harga khusus SENGAJA
+ * flat, bukan per-ukuran). Kalau tidak ada override: harga normal (baris
+ * ukuran → fallback ke base_price), dikurangi diskon persen grup
+ * (CustomerGroup::discount_percent) bila ada; null kalau semuanya kosong
+ * (UI tampilkan "Belum diisi", bukan Rp 0 palsu).
  *
  * Tabel `price_rules` / menu "Koefisien Harga" DITINGGALKAN (di-hide
  * lagi) — digantikan matriks ini.
@@ -40,6 +42,23 @@ class PriceCalculator
             }
         }
 
+        $normal = self::normalPrice($product, $vehicleSize);
+
+        // Tanpa harga khusus produk: diskon persen grup (bila ada) dipotong dari harga normal menurut ukuran kendaraan.
+        if ($customerGroupId !== null && $normal !== null) {
+            $discount = (float) (CustomerGroup::query()->whereKey($customerGroupId)->value('discount_percent') ?? 0);
+
+            if ($discount > 0) {
+                return (float) round($normal * (1 - $discount / 100));
+            }
+        }
+
+        return $normal;
+    }
+
+    /** Harga normal (tanpa grup): baris ukuran bila ada, selain itu harga dasar; null bila keduanya kosong. */
+    private static function normalPrice(FilmProduct $product, ?string $vehicleSize): ?float
+    {
         if ($vehicleSize !== null) {
             $row = $product->prices->firstWhere('vehicle_size', $vehicleSize);
 

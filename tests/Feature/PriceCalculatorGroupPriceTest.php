@@ -73,4 +73,24 @@ class PriceCalculatorGroupPriceTest extends TestCase
 
         $this->assertEquals(1_000_000.0, PriceCalculator::priceFor($product->fresh(), null, null));
     }
+
+    public function test_group_discount_percent_applies_when_no_specific_price(): void
+    {
+        $product = FilmProduct::create(['sku' => 'PPF-TEST-05', 'name' => 'PPF Test 5', 'product_type' => 'ppf', 'base_price' => 1_000_000]);
+        $product->prices()->create(['vehicle_size' => 'L', 'price' => 1_200_000]);
+        $group = CustomerGroup::create(['name' => 'Member', 'discount_percent' => 10]);
+
+        // Diskon dipotong dari harga normal menurut ukuran kendaraan.
+        $this->assertEquals(1_080_000.0, PriceCalculator::priceFor($product->fresh(), 'L', $group->id));
+        $this->assertEquals(900_000.0, PriceCalculator::priceFor($product->fresh(), null, $group->id));
+    }
+
+    public function test_specific_group_price_beats_group_discount(): void
+    {
+        $product = FilmProduct::create(['sku' => 'PPF-TEST-06', 'name' => 'PPF Test 6', 'product_type' => 'ppf', 'base_price' => 1_000_000]);
+        $group = CustomerGroup::create(['name' => 'Korporat 2', 'discount_percent' => 10]);
+        $product->groupPrices()->create(['customer_group_id' => $group->id, 'price' => 950_000]);
+
+        $this->assertEquals(950_000.0, PriceCalculator::priceFor($product->fresh(), null, $group->id));
+    }
 }

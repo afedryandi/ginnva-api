@@ -73,7 +73,7 @@ class BookingSaleProcessor
         $referralCode = ($input['referral_code'] ?? null) ?: null;
         $vehicleSize = array_key_exists('vehicle_size', $input) ? ($input['vehicle_size'] ?: null) : $record->vehicle_size;
 
-        $referencePrice = $record->film_product_id ? PriceCalculator::priceFor($record->filmProduct, $vehicleSize) : null;
+        $referencePrice = $record->film_product_id ? PriceCalculator::priceFor($record->filmProduct, $vehicleSize, $record->customer?->customer_group_id) : null;
         $withinNegotiationCap = Booking::isWithinNegotiationCap($referencePrice, $entered);
 
         if (! $actor->isFullAccess() && ! $withinNegotiationCap) {

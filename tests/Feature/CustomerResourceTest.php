@@ -413,6 +413,54 @@ class CustomerResourceTest extends TestCase
         $export = new CustomerExport();
         $rows = $export->query()->get();
         $this->assertCount(1, $rows, 'Akun yang dihapus tidak ikut diekspor.');
-        $this->assertSame(['Budi Santoso', 'budi.santoso@test.local', $rows->first()->phone_number, 'Laki-Laki', 'Jl. Merdeka 1', 'Belum', 0, 0, '08/10/2026 10:00'], $export->map($rows->first()));
+        $this->assertSame(['Budi Santoso', 'budi.santoso@test.local', $rows->first()->phone_number, '—', 'Laki-Laki', 'Jl. Merdeka 1', 'Belum', 0, 0, '08/10/2026 10:00'], $export->map($rows->first()));
+    }
+    public function test_search_finds_customer_by_phone_written_with_leading_zero(): void
+    {
+        $this->as($this->user('super_admin'));
+        $a = $this->customer('Cari Satu', ['phone_number' => '81234567890']);
+        $b = $this->customer('Cari Dua', ['phone_number' => '85599998888']);
+
+        Livewire::test(ListCustomers::class)
+            ->searchTable('0812 3456 7890')
+            ->assertCanSeeTableRecords([$a])
+            ->assertCanNotSeeTableRecords([$b]);
+    }
+
+    public function test_group_filter_and_single_row_group_action(): void
+    {
+        $this->as($this->user('super_admin'));
+        $group = CustomerGroup::create(['name' => 'Member']);
+        $in = $this->customer('Anggota', ['customer_group_id' => $group->id]);
+        $out = $this->customer('Biasa');
+
+        Livewire::test(ListCustomers::class)
+            ->filterTable('customer_group_id', $group->id)
+            ->assertCanSeeTableRecords([$in])
+            ->assertCanNotSeeTableRecords([$out]);
+
+        Livewire::test(ListCustomers::class)
+            ->callTableAction('setGroup', $out, data: ['customer_group_id' => $group->id])
+            ->assertHasNoTableActionErrors();
+        $this->assertSame($group->id, $out->fresh()->customer_group_id);
+    }
+
+    public function test_admin_can_correct_phone_but_not_to_a_number_in_use(): void
+    {
+        $this->as($this->user('super_admin'));
+        $a = $this->customer('Telepon A', ['phone_number' => '81111111111']);
+        $this->customer('Telepon B', ['phone_number' => '82222222222']);
+
+        Livewire::test(ListCustomers::class)
+            ->callTableAction('changePhone', $a, data: ['phone_number' => '82222222222'])
+            ->assertHasTableActionErrors(['phone_number']);
+        Livewire::test(ListCustomers::class)
+            ->callTableAction('changePhone', $a, data: ['phone_number' => '0812345678'])
+            ->assertHasTableActionErrors(['phone_number']);
+        Livewire::test(ListCustomers::class)
+            ->callTableAction('changePhone', $a, data: ['phone_number' => '83333333333'])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertSame('83333333333', $a->fresh()->phone_number);
     }
 }
