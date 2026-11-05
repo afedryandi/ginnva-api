@@ -245,7 +245,7 @@ class ScheduledPriceChangeResource extends Resource
                     ->color('info')
                     ->visible(fn (ScheduledPriceChange $record) => (auth()->user()?->isFullAccess() ?? false) && $record->canBeReverted())
                     ->requiresConfirmation()
-                    ->modalDescription('Harga yang diubah perubahan ini dikembalikan ke nilai sebelumnya. Harga yang sudah diubah lagi sesudahnya (manual, impor, atau perubahan lain) dilewati. Booking dan invoice yang sudah dibuat tidak terpengaruh.')
+                    ->modalDescription('Harga yang diubah perubahan ini dikembalikan ke nilai sebelumnya. Harga yang sudah diubah lagi sesudahnya (manual, import, atau perubahan lain) dilewati. Booking dan invoice yang sudah dibuat tidak terpengaruh.')
                     ->action(function (ScheduledPriceChange $record) {
                         $result = app(ScheduledPriceChangeService::class)->revert($record, auth()->id());
 
