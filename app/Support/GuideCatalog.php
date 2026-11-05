@@ -392,7 +392,7 @@ class GuideCatalog
                     'Invoice hanya bisa diubah selama berstatus draft atau belum dibayar. Yang sudah Lunas atau Void tidak bisa diedit; koreksi lewat Void lalu buat invoice baru.',
                     'Invoice adalah dokumen tagihan: tidak menghitung pajak atau PPN. Penjualan booking dicatat lewat **Catat Penjualan** (lihat panduan Penjualan).',
                     'Nomor invoice dibuat otomatis per toko dan hari.',
-                    'Kaki invoice menampilkan nama perusahaan, NPWP, dan alamat dari menu **Profil Perusahaan** di Sistem (diisi akses penuh; NPWP 15 atau 16 angka). Bila kosong, hanya nama bawaan yang tampil. Invoice tetap bukan Faktur Pajak.',
+                    'Kaki invoice menampilkan nama perusahaan, NPWP, KLU, dan alamat dari menu **Profil Perusahaan** di Sistem (diisi akses penuh; NPWP 15 atau 16 angka dan disimpan dalam format baku). **Pratinjau Invoice** menunjukkan hasilnya sebelum disimpan, dan **Riwayat Perubahan** membuka siapa yang terakhir mengubahnya. Bila kosong, hanya nama bawaan yang tampil. Invoice tetap bukan Faktur Pajak.',
                 ],
             ],
             [
@@ -1211,8 +1211,8 @@ class GuideCatalog
                 'steps' => [
                     'Menu ini hanya untuk akses penuh, atau karyawan yang kotak **Riwayat Aktivitas** dicentang secara eksplisit di Akses Menu akunnya (mis. supervisor Finance atau IT). Akun dengan akses menu kosong (semua menu) TIDAK otomatis melihatnya karena isinya sensitif.',
                     'Daftar menampilkan **Waktu (WIB)**, **Pelaku**, **Modul**, **Aksi**, **Asal** (Panel Admin, Aplikasi Karyawan, Aplikasi Pelanggan, API, Web, atau Sistem), **Objek**, dan **Deskripsi**. Tab **Semua**, **Perubahan Berisiko** (mis. gaji, akses, periode, harga, hapus), dan **Keamanan Akun** (masuk gagal, ganti dan reset password) menyempitkan tampilan.',
-                    'Saring dengan **Modul**, **Pelaku**, **Pelaku (Pelanggan)**, **Asal**, **Dari Tanggal (WIB)** dan **Sampai Tanggal (WIB)**, atau **Objek** (**Jenis Objek** dan **Nomor Objek**) untuk menelusuri riwayat satu data, mis. satu booking.',
-                    'Buka sebuah baris untuk melihat **Email Pelaku**, **Alamat IP**, **Perangkat**, **Alasan** (bila diisi), serta **Nilai Sebelumnya** dan **Nilai Baru** per kolom. IP dan perangkat hanya dicatat untuk karyawan, bukan pelanggan.',
+                    'Saring dengan **Modul**, **Pelaku**, **Pelaku (Pelanggan)**, **Asal**, **Aksi** (dibuat, diubah, dihapus, masuk, dan seterusnya), **Rentang Cepat** (Hari ini, 7 hari terakhir, 30 hari terakhir), **Dari Tanggal (WIB)** dan **Sampai Tanggal (WIB)**, atau **Objek** (**Jenis Objek** dan **Nomor Objek**) untuk menelusuri riwayat satu data, mis. satu booking. Kotak cari Deskripsi juga mengenali nama modul dan nomor objek ("12" atau "#12").',
+                    'Buka sebuah baris untuk melihat **Email Pelaku**, **Alamat IP**, **Perangkat**, **Alasan** (bila diisi), serta **Nilai Sebelumnya** dan **Nilai Baru** per kolom. **Riwayat Objek** membuka semua aktivitas pada data yang sama. Bagi karyawan non-akses-penuh, nilai gaji, rentang gaji, dan data rekening atau NPWP pemasok tampil "(disembunyikan)" di layar dan export. IP dan perangkat hanya dicatat untuk karyawan, bukan pelanggan.',
                     "Export hasil filter lewat **Export ke Excel** (maksimal {$exportMax} baris; persempit rentang bila lebih). Export itu sendiri tercatat sebagai kejadian di riwayat.",
                 ],
                 'tips' => [

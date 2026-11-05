@@ -147,7 +147,7 @@
 
     @php($company = \App\Models\FinanceSetting::companyProfile())
     <div class="footer">
-        <strong>{{ $company['name'] }}</strong>@if ($company['npwp']) &middot; NPWP {{ $company['npwp'] }}@endif @if ($company['address'])<br>{{ $company['address'] }}@endif<br>
+        <strong>{{ $company['name'] }}</strong>@if ($company['npwp']) &middot; NPWP {{ $company['npwp'] }}@endif @if ($company['klu']) &middot; KLU {{ $company['klu'] }}@endif @if ($company['address'])<br>{{ $company['address'] }}@endif<br>
         Dicetak {{ now()->translatedFormat('d F Y H:i') }} — dokumen ini bukan Faktur Pajak.
     </div>
 

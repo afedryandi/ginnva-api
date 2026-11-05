@@ -187,12 +187,26 @@ class ActivityPresenter
     public static function rows(mixed $values): array
     {
         $rows = [];
+        $mask = ! (auth()->user()?->isFullAccess() ?? false);
 
         foreach (is_array($values) ? $values : [] as $key => $value) {
-            $rows[self::label((string) $key)] = self::value((string) $key, $value);
+            $rows[self::label((string) $key)] = $mask && in_array((string) $key, self::SENSITIVE_KEYS, true)
+                ? self::MASKED
+                : self::value((string) $key, $value);
         }
 
         return $rows;
+    }
+
+    /** Kolom yang nilainya hanya boleh dibaca akses penuh: gaji, rentang gaji, dan data rekening/NPWP pemasok. */
+    public const SENSITIVE_KEYS = ['base_salary', 'min_salary', 'max_salary', 'bank_account_number', 'bank_account_name', 'npwp'];
+
+    public const MASKED = '(disembunyikan)';
+
+    /** Jenis aksi dan labelnya, untuk filter Aksi. @return array<string, string> */
+    public static function eventOptions(): array
+    {
+        return self::EVENT_LABELS;
     }
 
     /** Tanggal ISO atau Y-m-d menjadi teks WIB; tanggal tanpa jam (tengah malam di zona aplikasi) tampil tanpa jam. */

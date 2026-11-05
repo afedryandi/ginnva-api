@@ -3,6 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Models\FinanceSetting;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -75,7 +77,7 @@ class FinanceSettingsPage extends Page implements HasForms
             'expense_manager_limit' => FinanceSetting::get(FinanceSetting::EXPENSE_MANAGER_LIMIT),
             'company_name' => FinanceSetting::get(FinanceSetting::COMPANY_NAME),
             'company_address' => FinanceSetting::get(FinanceSetting::COMPANY_ADDRESS),
-            'company_npwp' => FinanceSetting::get(FinanceSetting::COMPANY_NPWP),
+            'company_npwp' => FinanceSetting::formatNpwp(FinanceSetting::get(FinanceSetting::COMPANY_NPWP)),
             'company_klu' => FinanceSetting::get(FinanceSetting::COMPANY_KLU),
         ]);
     }
@@ -83,6 +85,10 @@ class FinanceSettingsPage extends Page implements HasForms
     public function form(Form $form): Form
     {
         return $form->schema([
+            Placeholder::make('last_change')
+                ->hiddenLabel()
+                ->content(fn () => $this->lastChangeText()),
+
             Section::make('Profil perusahaan')
                 ->description('Identitas badan usaha yang tercetak di invoice. Kosongkan bila belum ingin ditampilkan; nama bawaan tetap dipakai.')
                 ->columns(2)
@@ -94,7 +100,7 @@ class FinanceSettingsPage extends Page implements HasForms
                     TextInput::make('company_npwp')
                         ->label('NPWP')
                         ->maxLength(30)
-                        ->helperText('15 atau 16 angka; titik dan strip boleh.')
+                        ->helperText('15 atau 16 angka; titik dan strip boleh. Disimpan dan dicetak dalam format baku.')
                         ->rule(fn () => function (string $attribute, $value, \Closure $fail) {
                             if (filled($value) && ! FinanceSetting::isValidNpwp($value)) {
                                 $fail('NPWP harus 15 atau 16 angka.');
@@ -122,6 +128,47 @@ class FinanceSettingsPage extends Page implements HasForms
         ])->statePath('data');
     }
 
+    /** Siapa dan kapan terakhir mengubah (dari Riwayat Aktivitas). */
+    private function lastChangeText(): string
+    {
+        $last = \Spatie\Activitylog\Models\Activity::query()->where('log_name', 'finance_setting')->with('causer')->latest('id')->first();
+
+        if (! $last) {
+            return 'Belum pernah diubah. Dokumen memakai nilai bawaan.';
+        }
+
+        return 'Terakhir diubah ' . $last->created_at->timezone(\App\Support\ActivityPresenter::TIMEZONE)->format('d M Y H:i') . ' WIB oleh ' . ($last->causer?->name ?? 'sistem') . '.';
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('preview')
+                ->label('Pratinjau Invoice')
+                ->icon('heroicon-o-eye')
+                ->color('gray')
+                ->modalHeading('Pratinjau kaki invoice')
+                ->modalDescription('Seperti yang tercetak di invoice, memakai isian saat ini (belum perlu disimpan).')
+                ->modalContent(fn () => view('filament.pages.company-profile-preview', [
+                    'profile' => [
+                        'name' => trim((string) ($this->data['company_name'] ?? '')) ?: FinanceSetting::DEFAULT_COMPANY_NAME,
+                        'npwp' => FinanceSetting::formatNpwp($this->data['company_npwp'] ?? null),
+                        'klu' => trim((string) ($this->data['company_klu'] ?? '')) ?: null,
+                        'address' => trim((string) ($this->data['company_address'] ?? '')) ?: null,
+                    ],
+                ]))
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Tutup'),
+
+            Action::make('history')
+                ->label('Riwayat Perubahan')
+                ->icon('heroicon-o-clock')
+                ->color('gray')
+                ->visible(fn () => \App\Filament\Resources\ActivityResource::canViewAny())
+                ->url(fn () => \App\Filament\Resources\ActivityResource::getUrl('index', ['tableFilters' => ['log_name' => ['value' => 'finance_setting']]])),
+        ];
+    }
+
     public function save(): void
     {
         $value = $this->data['expense_manager_limit'] ?? null;
@@ -139,6 +186,13 @@ class FinanceSettingsPage extends Page implements HasForms
             FinanceSetting::COMPANY_KLU => 'company_klu',
         ] as $key => $field) {
             $text = trim((string) ($this->data[$field] ?? ''));
+
+            // NPWP disimpan dalam bentuk baku supaya tampil seragam di semua invoice.
+            if ($field === 'company_npwp') {
+                $text = (string) FinanceSetting::formatNpwp($text);
+                $this->data[$field] = $text === '' ? null : $text;
+            }
+
             FinanceSetting::set($key, $text === '' ? null : $text);
         }
 

@@ -153,7 +153,7 @@
     </div>
 
     <div class="footer">
-        <strong>{{ $company['name'] }}</strong>@if ($company['npwp']) &middot; NPWP {{ $company['npwp'] }}@endif @if ($company['address'])<br>{{ $company['address'] }}@endif<br>
+        <strong>{{ $company['name'] }}</strong>@if ($company['npwp']) &middot; NPWP {{ $company['npwp'] }}@endif @if ($company['klu']) &middot; KLU {{ $company['klu'] }}@endif @if ($company['address'])<br>{{ $company['address'] }}@endif<br>
         Dokumen ini digenerate otomatis oleh sistem Ginnva pada {{ now()->translatedFormat('d F Y H:i') }}.
         Ini adalah invoice/bukti transaksi internal — <strong>bukan Faktur Pajak</strong>.
     </div>

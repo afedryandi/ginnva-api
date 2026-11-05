@@ -71,9 +71,29 @@ class FinanceSetting extends Model
         return [
             'name' => (string) static::get(self::COMPANY_NAME, self::DEFAULT_COMPANY_NAME),
             'address' => static::get(self::COMPANY_ADDRESS),
-            'npwp' => static::get(self::COMPANY_NPWP),
+            'npwp' => static::formatNpwp(static::get(self::COMPANY_NPWP)),
             'klu' => static::get(self::COMPANY_KLU),
         ];
+    }
+
+    /**
+     * Bentuk baku NPWP untuk disimpan dan dicetak: 15 angka menjadi 00.000.000.0-000.000; 16 angka (format NIK) ditulis polos.
+     * Isian yang bukan 15/16 angka dikembalikan apa adanya (validasi ada di form).
+     */
+    public static function formatNpwp(?string $value): ?string
+    {
+        $text = trim((string) $value);
+        $digits = preg_replace('/\D/', '', $text);
+
+        if ($text === '') {
+            return null;
+        }
+
+        if (strlen($digits) === 15) {
+            return sprintf('%s.%s.%s.%s-%s.%s', substr($digits, 0, 2), substr($digits, 2, 3), substr($digits, 5, 3), substr($digits, 8, 1), substr($digits, 9, 3), substr($digits, 12, 3));
+        }
+
+        return strlen($digits) === 16 ? $digits : $text;
     }
 
     /** NPWP sah: 15 atau 16 angka, titik dan strip diabaikan. */

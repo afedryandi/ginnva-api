@@ -108,7 +108,7 @@ class ActivityResource extends Resource
     'year_end_closing' => 'Tutup Tahun Buku',
     'vehicle_glass_area' => 'Luas Kaca Kendaraan',
     'budget' => 'Anggaran',
-    'finance_setting' => 'Pengaturan Keuangan',
+    'finance_setting' => 'Profil Perusahaan & Pengaturan Keuangan',
     'technician_training' => 'Pelatihan Installer',
     'payroll' => 'Penggajian',
     'payroll_item' => 'Komponen Gaji',
@@ -306,7 +306,25 @@ class ActivityResource extends Resource
                 Tables\Columns\TextColumn::make('description')
                     ->label('Deskripsi')
                     ->state(fn (Activity $record) => ActivityPresenter::describe($record))
-                    ->searchable()
+                    // Teks deskripsi dibangun dari presenter, bukan kolom database: cari juga lewat nama modul ("Booking"), nomor objek
+                    // ("12" atau "#12"), dan kolom deskripsi mentah, supaya kata yang terlihat di layar bisa ditemukan.
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        $term = trim($search);
+                        $number = ltrim($term, '#');
+                        $modules = collect(self::LOG_NAME_LABELS)->filter(fn (string $label) => mb_stripos($label, $term) !== false)->keys()->all();
+
+                        return $query->where(function (Builder $q) use ($term, $number, $modules) {
+                            $q->where('description', 'like', "%{$term}%");
+
+                            if (ctype_digit($number)) {
+                                $q->orWhere('subject_id', (int) $number);
+                            }
+
+                            if ($modules !== []) {
+                                $q->orWhereIn('log_name', $modules);
+                            }
+                        });
+                    })
                     ->limit(60)
                     ->tooltip(fn (Activity $record) => ActivityPresenter::describe($record)),
             ])
@@ -365,15 +383,40 @@ class ActivityResource extends Resource
                     )),
 
                 // Tanggal dibaca sebagai tanggal WIB (batas hari 00:00 sampai 23:59 WIB), lalu diubah ke zona aplikasi.
+                Tables\Filters\SelectFilter::make('event')
+                    ->label('Aksi')
+                    ->options(fn () => ActivityPresenter::eventOptions()),
+
                 Tables\Filters\Filter::make('created_at')
                     ->form([
+                        \Filament\Forms\Components\Select::make('preset')
+                            ->label('Rentang Cepat')
+                            ->options(['today' => 'Hari ini', '7' => '7 hari terakhir', '30' => '30 hari terakhir'])
+                            ->placeholder('Pilih rentang, atau isi tanggal di bawah')
+                            ->native(false),
                         \Filament\Forms\Components\DatePicker::make('from')->label('Dari Tanggal (WIB)'),
                         \Filament\Forms\Components\DatePicker::make('until')->label('Sampai Tanggal (WIB)'),
                     ])
-                    ->query(fn (Builder $query, array $data) => $query
-                        ->when($data['from'] ?? null, fn ($q, $date) => $q->where('created_at', '>=', Carbon::parse($date, ActivityPresenter::TIMEZONE)->startOfDay()->setTimezone(config('app.timezone'))))
-                        ->when($data['until'] ?? null, fn ($q, $date) => $q->where('created_at', '<=', Carbon::parse($date, ActivityPresenter::TIMEZONE)->endOfDay()->setTimezone(config('app.timezone'))))
-                    ),
+                    ->query(function (Builder $query, array $data) {
+                        $from = $data['from'] ?? null;
+                        $until = $data['until'] ?? null;
+                        $days = match ($data['preset'] ?? null) {
+                            'today' => 1, '7' => 7, '30' => 30, default => null,
+                        };
+
+                        // Rentang cepat menggantikan isian tanggal: dihitung mundur dari hari ini (WIB).
+                        if ($days !== null) {
+                            $from = Carbon::now(ActivityPresenter::TIMEZONE)->subDays($days - 1)->toDateString();
+                            $until = null;
+                        }
+
+                        return $query
+                            ->when($from, fn ($q, $date) => $q->where('created_at', '>=', Carbon::parse($date, ActivityPresenter::TIMEZONE)->startOfDay()->setTimezone(config('app.timezone'))))
+                            ->when($until, fn ($q, $date) => $q->where('created_at', '<=', Carbon::parse($date, ActivityPresenter::TIMEZONE)->endOfDay()->setTimezone(config('app.timezone'))));
+                    })
+                    ->indicateUsing(fn (array $data): ?string => match ($data['preset'] ?? null) {
+                        'today' => 'Hari ini', '7' => '7 hari terakhir', '30' => '30 hari terakhir', default => null,
+                    }),
 
                 // Filter objek (jenis + nomor): menjawab "apa saja yang terjadi pada Booking #12".
                 Tables\Filters\Filter::make('subject')
@@ -433,6 +476,11 @@ class ActivityResource extends Resource
                 ->label('Objek')
                 ->formatStateUsing(fn ($state, $record) => $state ? ActivityPresenter::subjectLabel($record) : '—')
                 ->url(fn (Activity $record) => ActivityPresenter::subjectUrl($record)),
+            TextEntry::make('object_history')
+                ->label('Riwayat Objek')
+                ->state('Lihat semua aktivitas objek ini')
+                ->url(fn (Activity $record) => static::getUrl('index', ['tableFilters' => ['subject' => ['type' => $record->subject_type, 'id' => $record->subject_id]]]))
+                ->visible(fn (Activity $record) => filled($record->subject_type) && filled($record->subject_id)),
             TextEntry::make('description')->label('Deskripsi')->state(fn (Activity $record) => ActivityPresenter::describe($record))->columnSpanFull(),
             TextEntry::make('properties.reason')
                 ->label('Alasan')
