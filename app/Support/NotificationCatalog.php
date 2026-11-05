@@ -49,7 +49,7 @@ class NotificationCatalog
             ['audience' => 'pelanggan', 'source' => 'Services/ReferralPointService.php', 'title' => 'Poin Bertambah', 'panel_inbox' => false],
             ['audience' => 'pelanggan', 'source' => 'Services/RefundService.php', 'title' => 'Refund Diproses', 'panel_inbox' => false],
             ['audience' => 'pelanggan', 'source' => 'Services/ServiceReminderService.php', 'title' => 'Pengingat servis berkala', 'panel_inbox' => false],
-            ['audience' => 'pengguna', 'source' => 'Filament/Pages/SendNotification.php', 'title' => 'Notifikasi uji dari Kirim Notifikasi (diawali [UJI], hanya ke perangkat pengirim)', 'panel_inbox' => false],
+            ['audience' => 'pengguna', 'source' => 'Filament/Pages/SendNotification.php', 'title' => 'Notifikasi uji dari Kirim Notifikasi (diawali [UJI], hanya ke perangkat pengirim)', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Console/Commands/NotifyExpiringContracts.php', 'title' => 'Kontrak Kerja Anda Akan Berakhir', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Console/Commands/NotifyExpiringContracts.php', 'title' => 'Kontrak Karyawan Akan Berakhir', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Console/Commands/NotifyExpiringContracts.php', 'title' => 'Kontrak Karyawan Sudah Berakhir', 'panel_inbox' => true],

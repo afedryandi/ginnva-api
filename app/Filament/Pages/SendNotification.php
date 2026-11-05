@@ -6,7 +6,6 @@ use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\DeviceToken;
 use App\Models\NotificationCampaign;
-use App\Services\PushNotificationService;
 use Filament\Forms\Components\Group;
 use App\Models\NotificationTemplate;
 use App\Models\Partner;
@@ -366,11 +365,11 @@ class SendNotification extends Page implements HasForms
                         return;
                     }
 
-                    app(PushNotificationService::class)->sendToUsers([auth()->id()], '[UJI] ' . $state['title'], $state['body']);
+                    app(\App\Services\StaffNotifier::class)->toUsers([auth()->id()], '[UJI] ' . $state['title'], $state['body']);
 
                     Notification::make()
                         ->title('Notifikasi uji dikirim ke perangkat Anda')
-                        ->body('Hanya ke HP Anda sendiri, tidak ke pelanggan. Muncul sebagai pesan di aplikasi karyawan dengan awalan [UJI].')
+                        ->body('Hanya ke HP Anda sendiri, tidak ke pelanggan. Muncul sebagai push dan di Kotak Masuk aplikasi karyawan dengan awalan [UJI].')
                         ->success()
                         ->send();
                 }),
