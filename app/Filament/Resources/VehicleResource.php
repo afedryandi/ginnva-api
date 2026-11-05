@@ -332,9 +332,8 @@ class VehicleResource extends Resource
                             }),
                     ])
                     ->action(function (Vehicle $record, array $data) {
-                        $copy = $record->replicate(['created_at', 'updated_at']);
-                        $copy->variant = trim($data['variant']);
-                        $copy->save();
+                        // Salin kolom yang relevan saja: replicate() ikut membawa atribut hitungan (withCount) dari daftar.
+                        Vehicle::create($record->only(['brand', 'model', 'size_category', 'is_active', 'body_type', 'year_from', 'year_to', 'notes']) + ['variant' => trim($data['variant'])]);
 
                         Notification::make()->title('Varian baru dibuat')->body('Periksa ukuran dan tipe bodinya, lalu ubah bila berbeda.')->success()->send();
                     }),
