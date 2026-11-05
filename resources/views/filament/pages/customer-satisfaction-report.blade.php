@@ -81,7 +81,7 @@
             <x-filament::section>
                 <div class="text-xs text-gray-500 dark:text-gray-400">Lama Tindak Lanjut</div>
                 <div class="mt-1 text-2xl font-bold sf-num">{{ $hours($result['avgFollowUpHours']) }}</div>
-                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Rata-rata dari ulasan negatif masuk sampai ditandai ditindaklanjuti.</div>
+                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Rata-rata dari review negatif masuk sampai ditandai ditindaklanjuti.</div>
             </x-filament::section>
         </div>
 
@@ -199,7 +199,9 @@
 
         <x-filament::section>
             <x-slot name="heading">Review Pelanggan</x-slot>
-            @if ($result['displayReviewsTruncated'])
+            @if ($result['displayReviewsTruncated'] && $result['listTotal'] === $result['total'])
+                <x-slot name="description">Menampilkan 100 review terbaru dari {{ $result['total'] }} total pada rentang ini. Export Excel/PDF tetap berisi semuanya.</x-slot>
+            @elseif ($result['displayReviewsTruncated'])
                 <x-slot name="description">Menampilkan 100 review terbaru dari {{ $result['listTotal'] }} yang cocok dengan saringan ({{ $result['total'] }} total pada rentang ini). Export Excel/PDF tetap berisi semuanya.</x-slot>
             @elseif ($result['listTotal'] !== $result['total'])
                 <x-slot name="description">{{ $result['listTotal'] }} dari {{ $result['total'] }} review cocok dengan saringan daftar.</x-slot>

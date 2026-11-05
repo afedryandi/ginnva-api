@@ -329,6 +329,7 @@ class CustomerSatisfactionReportTest extends TestCase
     public function test_without_completed_bookings_there_is_no_response_rate_and_without_follow_ups_no_duration(): void
     {
         $this->review($this->storeA, 'negative', '2026-10-06 09:00:00');
+        DB::table('bookings')->update(['completed_at' => null]);   // booking buatan tes otomatis bertanda selesai pada saat dibuat
 
         $result = $this->report();
 
