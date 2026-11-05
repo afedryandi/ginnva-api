@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\FilmProduct;
 use App\Models\ScheduledPriceChange;
+use App\Models\ScheduledPriceChangeItem;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -36,7 +37,7 @@ class ScheduledPriceChangeService
      * Gambaran sebelum disimpan atau diterapkan: tidak menulis apa pun.
      *
      * @param  array{percent: float|int|string, rounding_step?: int|string|null, product_ids?: ?array, include_group_prices?: bool}  $params
-     * @return array{count: int, products: int, sample: list<array{product: string, label: string, old: float, new: float}>}
+     * @return array{count: int, products: int, byProduct: array<string, int>, sample: list<array{product: string, label: string, old: float, new: float}>}
      */
     public function preview(array $params, int $sampleSize = 8): array
     {
@@ -45,6 +46,7 @@ class ScheduledPriceChangeService
         return [
             'count' => $rows->count(),
             'products' => $rows->pluck('product')->unique()->count(),
+            'byProduct' => $rows->countBy('product')->all(),
             'sample' => $rows->take($sampleSize)->map(fn (array $r) => [
                 'product' => $r['product'], 'label' => $r['label'], 'old' => $r['old'], 'new' => $r['new'],
             ])->values()->all(),
@@ -72,12 +74,67 @@ class ScheduledPriceChangeService
             ]);
 
             foreach ($rows as $row) {
+                // Harga sebelum dan sesudah disimpan per baris (dasar tombol Kembalikan) selain tercatat di riwayat aktivitas.
+                ScheduledPriceChangeItem::create([
+                    'scheduled_price_change_id' => $locked->id,
+                    'model_type' => get_class($row['model']),
+                    'model_id' => $row['model']->getKey(),
+                    'price_column' => $row['column'],
+                    'old_value' => $row['old'],
+                    'new_value' => $row['new'],
+                    'label' => mb_substr($row['product'] . ' - ' . $row['label'], 0, 190),
+                ]);
+
                 $row['model']->update([$row['column'] => $row['new']]);
             }
 
             $locked->update(['status' => ScheduledPriceChange::STATUS_APPLIED, 'applied_at' => now(), 'affected_prices' => $rows->count()]);
 
             return $rows->count();
+        });
+    }
+
+    /**
+     * Kembalikan perubahan yang sudah berlaku ke harga sebelumnya. Hanya harga yang MASIH bernilai hasil perubahan ini yang dipulihkan;
+     * harga yang sudah diubah lagi sesudahnya (manual, impor, atau perubahan lain) dilewati supaya tidak menimpa pekerjaan yang lebih baru.
+     *
+     * @return array{reverted: int, skipped: int}|null null bila perubahan ini tidak berstatus berlaku atau tidak punya catatan harga lama
+     */
+    public function revert(ScheduledPriceChange $change, ?int $userId = null): ?array
+    {
+        return DB::transaction(function () use ($change, $userId) {
+            $locked = ScheduledPriceChange::query()->whereKey($change->getKey())->lockForUpdate()->firstOrFail();
+
+            if (! $locked->isApplied()) {
+                return null;
+            }
+
+            $items = $locked->items()->get();
+
+            if ($items->isEmpty()) {
+                return null;
+            }
+
+            $reverted = 0;
+            $skipped = 0;
+
+            foreach ($items as $item) {
+                $class = $item->model_type;
+                $model = in_array($class, ScheduledPriceChangeItem::MODELS, true) ? $class::query()->find($item->model_id) : null;
+
+                if ($model === null || abs((float) $model->{$item->price_column} - (float) $item->new_value) >= 0.005) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                $model->update([$item->price_column => $item->old_value]);
+                $reverted++;
+            }
+
+            $locked->update(['status' => ScheduledPriceChange::STATUS_REVERTED, 'reverted_at' => now(), 'reverted_by' => $userId]);
+
+            return ['reverted' => $reverted, 'skipped' => $skipped];
         });
     }
 

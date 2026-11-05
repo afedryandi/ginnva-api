@@ -33,11 +33,11 @@ class ProductImportLogResource extends Resource
     // 3: urutan 2 sudah dipakai Master Resep di cluster yang sama (urutan menu jadi tidak pasti).
     protected static ?int $navigationSort = 3;
 
+    // Hanya akses penuh (sama dengan Import Excel di Daftar Produk). Dulu juga mewajibkan kotak menu, tetapi kotak itu tidak membuka apa pun
+    // bagi staf biasa, jadi tidak lagi ditawarkan di Akses Menu.
     private static function accessGate(): bool
     {
-        $user = auth()->user();
-
-        return ($user?->isFullAccess() ?? false) && $user->hasMenuAccess(static::class);
+        return auth()->user()?->isFullAccess() ?? false;
     }
 
     public static function canViewAny(): bool
@@ -79,6 +79,15 @@ class ProductImportLogResource extends Resource
             TextEntry::make('total_rows')->label('Total Baris'),
             TextEntry::make('updated_count')->label('Berhasil Diperbarui'),
             TextEntry::make('skipped_count')->label('Dilewati'),
+            TextEntry::make('changes')
+                ->label('Perubahan yang Dilakukan')
+                ->visible(fn (ProductImportLog $record) => ! empty($record->changes))
+                ->state(fn (ProductImportLog $record) => collect($record->changes)->map(
+                    fn (array $c) => "{$c['sku']} ({$c['product']}) — {$c['field']}: {$c['old']} → {$c['new']}" . (! empty($c['note']) ? " [{$c['note']}]" : '')
+                )->all())
+                ->listWithLineBreaks()
+                ->bulleted()
+                ->columnSpanFull(),
             TextEntry::make('errors')
                 ->label('Detail Baris Dilewati/Error')
                 ->visible(fn (ProductImportLog $record) => ! empty($record->errors))
@@ -121,6 +130,18 @@ class ProductImportLogResource extends Resource
                     ->badge()
                     ->color(fn (ProductImportLog $record) => $record->skipped_count > 0 ? 'danger' : 'gray')
                     ->alignRight(),
+
+                Tables\Columns\TextColumn::make('changes_count')
+                    ->label('Perubahan')
+                    ->state(fn (ProductImportLog $record) => count($record->changes ?? []))
+                    ->alignRight()
+                    ->toggleable(),
+            ])
+            ->filters([
+                Tables\Filters\Filter::make('has_skipped')
+                    ->label('Ada baris dilewati')
+                    ->toggle()
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('skipped_count', '>', 0)),
             ])
             ->defaultSort('created_at', 'desc')
             ->actions([

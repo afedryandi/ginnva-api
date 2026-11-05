@@ -19,10 +19,12 @@ class ProductImportLog extends Model
         'updated_count',
         'skipped_count',
         'errors',
+        'changes',
     ];
 
     protected $casts = [
         'errors' => 'array',
+        'changes' => 'array',
     ];
 
     public function user(): BelongsTo

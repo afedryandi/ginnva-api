@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -21,10 +22,14 @@ class ScheduledPriceChange extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    /** Sudah berlaku lalu dikembalikan ke harga sebelumnya lewat tombol Kembalikan. */
+    public const STATUS_REVERTED = 'reverted';
+
     public const STATUS_LABELS = [
         self::STATUS_SCHEDULED => 'Terjadwal',
         self::STATUS_APPLIED => 'Sudah berlaku',
         self::STATUS_CANCELLED => 'Dibatalkan',
+        self::STATUS_REVERTED => 'Dikembalikan',
     ];
 
     public const ROUNDING_OPTIONS = [
@@ -36,7 +41,7 @@ class ScheduledPriceChange extends Model
 
     protected $fillable = [
         'name', 'effective_date', 'percent', 'rounding_step', 'product_ids', 'include_group_prices',
-        'status', 'applied_at', 'affected_prices', 'notes', 'created_by',
+        'status', 'applied_at', 'reverted_at', 'reverted_by', 'affected_prices', 'notes', 'created_by',
     ];
 
     protected $casts = [
@@ -46,6 +51,7 @@ class ScheduledPriceChange extends Model
         'product_ids' => 'array',
         'include_group_prices' => 'boolean',
         'applied_at' => 'datetime',
+        'reverted_at' => 'datetime',
         'affected_prices' => 'integer',
     ];
 
@@ -58,6 +64,22 @@ class ScheduledPriceChange extends Model
     public function scopeDue(Builder $query): Builder
     {
         return $query->where('status', self::STATUS_SCHEDULED)->whereDate('effective_date', '<=', today()->toDateString());
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(ScheduledPriceChangeItem::class);
+    }
+
+    public function isApplied(): bool
+    {
+        return $this->status === self::STATUS_APPLIED;
+    }
+
+    /** Sudah berlaku dan harga sebelumnya tersimpan, jadi bisa dikembalikan. */
+    public function canBeReverted(): bool
+    {
+        return $this->isApplied() && $this->items()->exists();
     }
 
     public function isScheduled(): bool

@@ -116,6 +116,7 @@ class FilmProductResource extends Resource
                             'ppf'          => 'Paint Protection Film (PPF)',
                             'detailing'    => 'Detailing (jasa, bukan film)',
                             'premium_wash' => 'Premium Wash (jasa, bukan film)',
+                            'color_change' => 'Ganti Warna',
                         ])
                         ->live()
                         ->required(),
@@ -135,14 +136,17 @@ class FilmProductResource extends Resource
 
                     Forms\Components\TextInput::make('base_price')
                         ->label('Harga Jual (Dasar / Flat)')
-                        ->helperText('INTERNAL — tidak ditampilkan ke pelanggan. Dipakai kalau harga SAMA untuk semua ukuran mobil (mis. Panoramic). Kalau harga beda per ukuran, isi di bagian "Harga per Ukuran" di bawah — itu yang menang.')
+                        ->helperText('INTERNAL — tidak ditampilkan ke pelanggan. Dipakai kalau harga SAMA untuk semua ukuran mobil (mis. Panoramic). Kalau harga beda per ukuran, isi di bagian "Harga Jual per Ukuran Kendaraan" di bawah — itu yang menang, dan kolom ini boleh dikosongkan (disimpan Rp0).')
                         ->numeric()
                         ->prefix('Rp')
                         ->minValue(0)
-                        ->required(),
+                        // Wajib hanya bila belum ada harga per ukuran sama sekali.
+                        ->required(fn (Forms\Get $get) => collect($get('prices') ?? [])->filter(fn ($row) => filled($row['price'] ?? null))->isEmpty())
+                        ->dehydrateStateUsing(fn ($state) => filled($state) ? $state : 0),
 
                     Forms\Components\Toggle::make('is_active')
-                        ->label('Aktif (tampil di pilihan quotation)')
+                        ->label('Aktif (tampil di pilihan produk)')
+                        ->helperText('Nonaktif: produk tidak muncul di pilihan quotation, booking, dan penjualan, serta tidak ikut perubahan harga massal.')
                         ->default(true),
 
                     // f28 — opt-in per produk (default false, tidak
@@ -153,7 +157,7 @@ class FilmProductResource extends Resource
                     // booking itu — lihat SpkService::assertBatchTrackingSatisfied().
                     Forms\Components\Toggle::make('tracks_batch')
                         ->label('Wajib Lacak Roll (Batch Number)')
-                        ->helperText('Kalau aktif: SPK booking yang memakai produk ini tidak bisa ditandai selesai sebelum staff mencatat roll gulungan yang dipakai (menu Produk PPF/WF → Catat Pemakaian) untuk booking tersebut.')
+                        ->helperText('Kalau aktif: SPK booking yang memakai produk ini tidak bisa ditandai selesai sebelum karyawan mencatat roll gulungan yang dipakai (menu Produk PPF/WF → Catat Pemakaian) untuk booking tersebut.')
                         ->default(false),
                 ]),
 
@@ -163,10 +167,11 @@ class FilmProductResource extends Resource
             // atas base_price untuk ukuran yang diisi. Harga INTERNAL saja.
             Forms\Components\Section::make('Harga Jual per Ukuran Kendaraan')
                 ->description('Isi kalau harga BEDA per ukuran mobil (Platinum / Signature / PPF). Kosongkan untuk produk harga flat — cukup "Harga Jual (Dasar / Flat)" di atas.')
-                ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing', 'premium_wash'], true))
+                ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing', 'premium_wash', 'color_change'], true))
                 ->schema([
                     Forms\Components\Repeater::make('prices')
                         ->relationship()
+                        ->live()
                         ->hiddenLabel()
                         ->addActionLabel('Tambah harga per ukuran')
                         ->reorderable(false)
@@ -205,7 +210,7 @@ class FilmProductResource extends Resource
             // PriceCalculator::priceFor().
             Forms\Components\Section::make('Harga Khusus per Grup Pelanggan')
                 ->description('Opsional — isi kalau grup pelanggan tertentu (mis. Member/Korporat) dapat harga berbeda dari harga normal di atas untuk produk ini.')
-                ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing', 'premium_wash'], true))
+                ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing', 'premium_wash', 'color_change'], true))
                 ->collapsed()
                 ->schema([
                     Forms\Components\Repeater::make('groupPrices')
@@ -285,16 +290,28 @@ class FilmProductResource extends Resource
                     })
                     ->toggleable(),
 
+                // Harga yang BERLAKU: rentang harga per ukuran bila ada (yang menang atas harga dasar), selain itu harga dasar.
+                Tables\Columns\TextColumn::make('price_range')
+                    ->label('Harga Jual')
+                    ->state(fn (FilmProduct $record): string => static::priceLabel($record))
+                    ->description(fn (FilmProduct $record): ?string => $record->prices->isNotEmpty() ? 'per ukuran kendaraan' : null),
+
                 Tables\Columns\TextColumn::make('base_price')
-                    ->label('Harga Dasar')
+                    ->label('Harga Dasar (flat)')
                     ->money('IDR')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('price_status')
                     ->label('Status Harga')
                     ->badge()
                     ->state(fn (FilmProduct $record): string => static::hasPrice($record) ? 'Terisi' : 'Belum diisi')
                     ->color(fn (FilmProduct $record): string => static::hasPrice($record) ? 'success' : 'gray'),
+
+                Tables\Columns\IconColumn::make('tracks_batch')
+                    ->label('Lacak Roll')
+                    ->boolean()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Aktif')
@@ -313,10 +330,19 @@ class FilmProductResource extends Resource
                         'ppf'          => 'PPF',
                         'detailing'    => 'Detailing',
                         'premium_wash' => 'Premium Wash',
+                        'color_change' => 'Ganti Warna',
                     ]),
 
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Status Aktif'),
+
+                Tables\Filters\Filter::make('price_missing')
+                    ->label('Harga belum diisi')
+                    ->toggle()
+                    ->query(fn (Builder $query) => $query->where('base_price', '<=', 0)->whereDoesntHave('prices')),
+
+                Tables\Filters\TernaryFilter::make('tracks_batch')
+                    ->label('Wajib lacak roll'),
 
                 // SoftDeletes ditambahkan 2026-09-25 (audit Daftar Produk) --
                 // supaya produk yang dihapus tetap bisa dicari & dipulihkan
@@ -452,9 +478,22 @@ class FilmProductResource extends Resource
         return (float) $record->base_price > 0 || (int) ($record->prices_count ?? $record->prices()->count()) > 0;
     }
 
+    /** Harga jual yang berlaku untuk tampilan tabel: rentang harga per ukuran bila ada, selain itu harga dasar; "—" bila belum diisi. */
+    public static function priceLabel(FilmProduct $record): string
+    {
+        $rp = fn (float $n) => 'Rp' . number_format($n, 0, ',', '.');
+        $sizes = $record->prices->pluck('price')->map(fn ($p) => (float) $p)->filter(fn (float $p) => $p > 0);
+
+        if ($sizes->isNotEmpty()) {
+            return $sizes->min() === $sizes->max() ? $rp($sizes->min()) : $rp($sizes->min()) . ' – ' . $rp($sizes->max());
+        }
+
+        return (float) $record->base_price > 0 ? $rp((float) $record->base_price) : '—';
+    }
+
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->withCount('prices');
+        return parent::getEloquentQuery()->withCount('prices')->with('prices:id,film_product_id,price');
     }
 
     public static function getRelations(): array

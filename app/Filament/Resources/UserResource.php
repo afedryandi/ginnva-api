@@ -171,7 +171,6 @@ class UserResource extends Resource
                 'SalesDashboard' => 'Dashboard Penjualan',
                 'FilmProductResource' => 'Daftar Produk',
                 'MasterResepResource' => 'Master Resep',
-                'ProductImportLogResource' => 'Riwayat Import Produk',
                 // Sama kelupaan dgn Invoice/SPK di grup 'Booking' —
                 // SalesResource ('Detail Penjualan') sudah pakai
                 // hasMenuAccess() di kode tapi belum pernah masuk daftar

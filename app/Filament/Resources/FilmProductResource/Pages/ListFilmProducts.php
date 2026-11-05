@@ -19,6 +19,30 @@ class ListFilmProducts extends ListRecords
 {
     protected static string $resource = FilmProductResource::class;
 
+    /** Pemberitahuan bagi akses penuh bila ada perubahan harga yang akan berlaku, supaya harga di tabel tidak mengejutkan. */
+    public function getSubheading(): ?string
+    {
+        if (! (auth()->user()?->isFullAccess() ?? false)) {
+            return null;
+        }
+
+        $upcoming = \App\Models\ScheduledPriceChange::query()
+            ->where('status', \App\Models\ScheduledPriceChange::STATUS_SCHEDULED)
+            ->orderBy('effective_date')
+            ->get();
+
+        if ($upcoming->isEmpty()) {
+            return null;
+        }
+
+        $first = $upcoming->first();
+        $percent = ((float) $first->percent > 0 ? '+' : '') . rtrim(rtrim(number_format((float) $first->percent, 2, ',', '.'), '0'), ',') . '%';
+
+        return "Ada perubahan harga terjadwal: \"{$first->name}\" ({$percent}) berlaku {$first->effective_date->format('d M Y')}"
+            . ($upcoming->count() > 1 ? ' dan ' . ($upcoming->count() - 1) . ' lainnya' : '')
+            . '. Lihat menu Perubahan Harga Terjadwal.';
+    }
+
     /**
      * "Ekspor Katalog" (audit 2026-09-12, temuan pola standar B) —
      * ekspor semua produk (tidak ikut filter tabel aktif), sama pola
@@ -80,7 +104,7 @@ class ListFilmProducts extends ListRecords
                             'application/vnd.ms-excel',
                             'text/csv',
                         ])
-                        ->helperText('Pakai format dari "Download Template Import". Kolom kosong tidak mengubah data yang ada. SKU yang tidak ditemukan di katalog dilewati (import ini tidak membuat produk baru).'),
+                        ->helperText('Pakai format dari "Download Template Import". Kolom kosong tidak mengubah data yang ada. SKU yang tidak ditemukan di katalog dilewati (import ini tidak membuat produk baru). Yang diimpor adalah Harga Dasar (flat); produk yang harganya per ukuran kendaraan tidak berubah harga jualnya.'),
                 ])
                 ->action(function (array $data) {
                     $path = $data['file'];
@@ -106,9 +130,12 @@ class ListFilmProducts extends ListRecords
 
                     Storage::disk('local')->delete($path);
 
+                    $sizePriced = collect($log->changes ?? [])->filter(fn (array $c) => ! empty($c['note']))->pluck('sku')->unique()->count();
+
                     Notification::make()
                         ->title('Import selesai')
-                        ->body("{$log->updated_count} produk diperbarui, {$log->skipped_count} baris dilewati dari {$log->total_rows} baris. Lihat detail di menu \"Riwayat Import Produk\".")
+                        ->body("{$log->updated_count} produk diperbarui, {$log->skipped_count} baris dilewati dari {$log->total_rows} baris. Lihat detail di menu \"Riwayat Import Produk\"."
+                            . ($sizePriced > 0 ? " Perhatian: {$sizePriced} produk punya harga per ukuran yang menang atas harga dasar, jadi harga jualnya tidak berubah." : ''))
                         ->success()
                         ->send();
                 })

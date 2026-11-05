@@ -11,6 +11,7 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\FilmProduct;
 use App\Models\FilmProductPrice;
+use App\Models\ScheduledPriceChange;
 use App\Models\ScrollCode;
 use App\Models\Store;
 use App\Models\User;
@@ -470,5 +471,101 @@ class FilmProductResourceTest extends TestCase
 
         $this->assertSame('CASE-1', $case->fresh()->filmProduct->sku);
         $this->assertSame('Produk CASE-1', $case->fresh()->filmProduct->name);
+    }
+
+    // ------------------------------------------------------------- harga yang berlaku, filter, Harga Dasar opsional
+
+    public function test_the_price_column_shows_the_range_per_size_the_flat_price_or_a_dash(): void
+    {
+        $this->admin();
+        $sized = $this->product('TST-RANGE', 'ppf', 0);
+        FilmProductPrice::create(['film_product_id' => $sized->id, 'vehicle_size' => 'S', 'price' => 800000]);
+        FilmProductPrice::create(['film_product_id' => $sized->id, 'vehicle_size' => 'L', 'price' => 1200000]);
+        $same = $this->product('TST-SAME', 'ppf', 0);
+        FilmProductPrice::create(['film_product_id' => $same->id, 'vehicle_size' => 'M', 'price' => 900000]);
+        $flat = $this->product('TST-FLAT', 'window_film', 150000);
+        $none = $this->product('TST-NONE', 'ppf', 0);
+
+        Livewire::test(ListFilmProducts::class)
+            ->assertTableColumnStateSet('price_range', 'Rp800.000 – Rp1.200.000', $sized)
+            ->assertTableColumnStateSet('price_range', 'Rp900.000', $same)
+            ->assertTableColumnStateSet('price_range', 'Rp150.000', $flat)
+            ->assertTableColumnStateSet('price_range', '—', $none);
+    }
+
+    public function test_the_missing_price_and_roll_tracking_filters(): void
+    {
+        $this->admin();
+        $none = $this->product('TST-NOPRICE', 'ppf', 0);
+        $flat = $this->product('TST-HASPRICE', 'ppf', 100000);
+        $sized = $this->product('TST-SIZEONLY', 'ppf', 0);
+        FilmProductPrice::create(['film_product_id' => $sized->id, 'vehicle_size' => 'M', 'price' => 800000]);
+        $tracked = $this->product('TST-TRACK', 'window_film', 50000);
+        $tracked->update(['tracks_batch' => true]);
+
+        Livewire::test(ListFilmProducts::class)
+            ->searchTable('TST-')
+            ->filterTable('price_missing', true)
+            ->assertCanSeeTableRecords([$none])
+            ->assertCanNotSeeTableRecords([$flat, $sized, $tracked]);
+
+        Livewire::test(ListFilmProducts::class)
+            ->searchTable('TST-')
+            ->filterTable('tracks_batch', true)
+            ->assertCanSeeTableRecords([$tracked])
+            ->assertCanNotSeeTableRecords([$none, $flat]);
+    }
+
+    public function test_the_flat_price_is_optional_when_a_size_price_is_given_and_saved_as_zero(): void
+    {
+        $this->admin();
+
+        Livewire::test(CreateFilmProduct::class)
+            ->fillForm(['sku' => 'SIZED-1', 'name' => 'Per Ukuran', 'product_type' => 'ppf', 'base_price' => null, 'prices' => [['vehicle_size' => 'M', 'price' => 800000]]])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $product = FilmProduct::where('sku', 'SIZED-1')->firstOrFail();
+        $this->assertEquals(0.0, (float) $product->base_price);
+        $this->assertSame(1, $product->prices()->count());
+
+        Livewire::test(CreateFilmProduct::class)
+            ->fillForm(['sku' => 'SIZED-2', 'name' => 'Tanpa Harga', 'product_type' => 'ppf', 'base_price' => null])
+            ->call('create')
+            ->assertHasFormErrors(['base_price' => 'required']);
+    }
+
+    public function test_the_color_change_type_can_be_created_and_filtered(): void
+    {
+        $this->admin();
+
+        Livewire::test(CreateFilmProduct::class)
+            ->fillForm(['sku' => 'CC-1', 'name' => 'PPF Warna', 'product_type' => 'color_change', 'base_price' => 5000000])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $product = FilmProduct::where('sku', 'CC-1')->firstOrFail();
+
+        Livewire::test(ListFilmProducts::class)
+            ->searchTable('CC-1')
+            ->filterTable('product_type', 'color_change')
+            ->assertCanSeeTableRecords([$product])
+            ->assertTableColumnFormattedStateSet('product_type', 'Ganti Warna', $product);
+    }
+
+    public function test_the_list_announces_upcoming_price_changes_to_full_access_only(): void
+    {
+        ScheduledPriceChange::create(['name' => 'Kenaikan November', 'effective_date' => '2026-11-20', 'percent' => 5, 'rounding_step' => 1000, 'status' => 'scheduled']);
+        ScheduledPriceChange::create(['name' => 'Sudah lewat', 'effective_date' => '2026-09-01', 'percent' => 3, 'rounding_step' => 0, 'status' => 'applied']);
+
+        $this->admin();
+        Livewire::test(ListFilmProducts::class)
+            ->assertSee('Ada perubahan harga terjadwal')
+            ->assertSee('Kenaikan November')
+            ->assertSee('+5%')
+            ->assertDontSee('Sudah lewat');
+
+        $this->actingAs($this->user('kasir'), 'web');
+        Livewire::test(ListFilmProducts::class)->assertDontSee('Ada perubahan harga terjadwal');
     }
 }

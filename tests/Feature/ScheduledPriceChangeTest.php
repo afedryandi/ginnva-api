@@ -306,4 +306,109 @@ class ScheduledPriceChangeTest extends TestCase
         $this->assertFalse(ScheduledPriceChangeResource::canEdit($this->change(['status' => 'applied'])));
         $this->assertFalse(ScheduledPriceChangeResource::canDelete($this->change()));
     }
+
+    // ------------------------------------------------------------- kembalikan, pratinjau per produk, tumpang tindih
+
+    public function test_applying_keeps_the_price_before_and_after_for_every_changed_price(): void
+    {
+        $product = $this->product('PPF-A', 1000000, ['M' => 1100000]);
+        $change = $this->change();
+
+        app(ScheduledPriceChangeService::class)->apply($change);
+
+        $items = $change->items()->orderBy('id')->get();
+        $this->assertCount(2, $items);
+        $this->assertEquals([1000000.0, 1050000.0], [(float) $items[0]->old_value, (float) $items[0]->new_value]);
+        $this->assertEquals([1100000.0, 1155000.0], [(float) $items[1]->old_value, (float) $items[1]->new_value]);
+        $this->assertStringContainsString('Produk PPF-A', $items[0]->label);
+        $this->assertTrue($change->fresh()->canBeReverted());
+    }
+
+    public function test_reverting_restores_the_old_prices_and_marks_the_change(): void
+    {
+        $product = $this->product('PPF-A', 1000000, ['M' => 1100000]);
+        $change = $this->change();
+        $service = app(ScheduledPriceChangeService::class);
+        $service->apply($change);
+        $admin = $this->admin();
+
+        $result = $service->revert($change->fresh(), $admin->id);
+
+        $this->assertSame(['reverted' => 2, 'skipped' => 0], $result);
+        $this->assertEquals(1000000, (float) $product->fresh()->base_price, 'Persis harga awal, tanpa selisih pembulatan.');
+        $this->assertEquals(1100000, (float) $product->prices()->first()->price);
+        $change->refresh();
+        $this->assertSame('reverted', $change->status);
+        $this->assertSame($admin->id, $change->reverted_by);
+        $this->assertNotNull($change->reverted_at);
+        $this->assertNull($service->revert($change), 'Tidak bisa dikembalikan dua kali.');
+    }
+
+    public function test_a_price_changed_again_after_the_change_is_not_overwritten_by_the_revert(): void
+    {
+        $product = $this->product('PPF-A', 1000000, ['M' => 1100000]);
+        $change = $this->change();
+        $service = app(ScheduledPriceChangeService::class);
+        $service->apply($change);
+        $product->prices()->first()->update(['price' => 1300000]);   // diubah manual sesudahnya
+
+        $result = $service->revert($change->fresh());
+
+        $this->assertSame(['reverted' => 1, 'skipped' => 1], $result);
+        $this->assertEquals(1000000, (float) $product->fresh()->base_price);
+        $this->assertEquals(1300000, (float) $product->prices()->first()->price, 'Harga yang lebih baru dibiarkan.');
+    }
+
+    public function test_only_applied_changes_with_saved_prices_can_be_reverted(): void
+    {
+        $this->product('PPF-A', 1000000);
+        $service = app(ScheduledPriceChangeService::class);
+
+        $this->assertNull($service->revert($this->change()), 'Masih terjadwal.');
+        $this->assertNull($service->revert($this->change(['status' => 'applied'])), 'Berlaku sebelum fitur ini: tidak ada harga lama tersimpan.');
+        $this->assertFalse($this->change(['status' => 'applied'])->canBeReverted());
+    }
+
+    public function test_the_revert_button_follows_the_status_and_runs(): void
+    {
+        $this->actingAs($this->admin(), 'web');
+        $product = $this->product('PPF-A', 1000000);
+        $change = $this->change();
+        app(ScheduledPriceChangeService::class)->apply($change);
+
+        Livewire::test(ListScheduledPriceChanges::class)
+            ->assertTableActionVisible('revert', $change->fresh())
+            ->callTableAction('revert', $change->fresh());
+
+        $this->assertSame('reverted', $change->fresh()->status);
+        $this->assertEquals(1000000, (float) $product->fresh()->base_price);
+
+        Livewire::test(ListScheduledPriceChanges::class)->assertTableActionHidden('revert', $change->fresh());
+    }
+
+    public function test_the_preview_counts_prices_per_product(): void
+    {
+        $this->product('PPF-A', 2000000, ['M' => 2200000]);
+        $this->product('PPF-B', 1000000);
+
+        $preview = app(ScheduledPriceChangeService::class)->preview(['percent' => 5, 'rounding_step' => 1000]);
+
+        $this->assertSame(['Produk PPF-A' => 2, 'Produk PPF-B' => 1], $preview['byProduct']);
+    }
+
+    public function test_a_second_change_on_the_same_date_and_product_triggers_a_warning(): void
+    {
+        $this->actingAs($this->admin(), 'web');
+        $a = $this->product('PPF-A', 1000000);
+        $this->change(['name' => 'Kenaikan pertama', 'effective_date' => '2026-11-25', 'product_ids' => [$a->id]]);
+
+        Livewire::test(CreateScheduledPriceChange::class)
+            ->fillForm(['name' => 'Kenaikan kedua', 'effective_date' => '2026-11-25', 'percent' => 5, 'product_ids' => [$a->id]])
+            ->assertSee('Sudah ada perubahan terjadwal pada tanggal yang sama')
+            ->assertSee('Kenaikan pertama');
+
+        Livewire::test(CreateScheduledPriceChange::class)
+            ->fillForm(['name' => 'Hari lain', 'effective_date' => '2026-11-26', 'percent' => 5, 'product_ids' => [$a->id]])
+            ->assertDontSee('Sudah ada perubahan terjadwal pada tanggal yang sama');
+    }
 }

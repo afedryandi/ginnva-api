@@ -16,8 +16,9 @@ use RuntimeException;
 
 /**
  * "Perubahan Harga Terjadwal" (audit ACCURATE 5, Penyesuaian Harga Jual dengan tanggal efektif): naik atau turun sekian persen untuk
- * semua produk film aktif (atau yang dipilih) pada tanggal tertentu. Pratinjau ditampilkan sebelum disimpan; saat tanggalnya tiba harga
- * berubah otomatis (perintah harian) dan harga lama serta barunya tercatat di riwayat aktivitas. Hanya akses penuh.
+ * semua produk aktif (atau yang dipilih) pada tanggal tertentu. Pratinjau ditampilkan sebelum disimpan; saat tanggalnya tiba harga
+ * berubah otomatis (perintah harian) dan harga lama serta barunya tercatat di riwayat aktivitas serta di scheduled_price_change_items,
+ * sehingga perubahan yang sudah berlaku bisa DIKEMBALIKAN persis ke harga awal. Hanya akses penuh.
  */
 class ScheduledPriceChangeResource extends Resource
 {
@@ -79,6 +80,7 @@ class ScheduledPriceChangeResource extends Resource
                         ->native(false)
                         ->required()
                         ->minDate(today())
+                        ->live()
                         ->helperText('Harga berubah otomatis pada dini hari tanggal ini. Booking dan invoice yang sudah dibuat tidak berubah.'),
 
                     Forms\Components\TextInput::make('percent')
@@ -114,8 +116,8 @@ class ScheduledPriceChangeResource extends Resource
                         ->options(fn () => FilmProduct::query()->where('is_active', true)->orderBy('name')->get()->mapWithKeys(fn (FilmProduct $p) => [$p->id => "{$p->name} ({$p->sku})"]))
                         ->multiple()
                         ->searchable()
-                        ->placeholder('Semua produk film yang aktif')
-                        ->helperText('Kosongkan untuk semua produk film aktif.')
+                        ->placeholder('Semua produk yang aktif')
+                        ->helperText('Kosongkan untuk semua produk aktif (kaca film, PPF, detailing, dan premium wash).')
                         ->columnSpanFull()
                         ->live(),
 
@@ -124,6 +126,14 @@ class ScheduledPriceChangeResource extends Resource
                         ->rows(2)
                         ->maxLength(500)
                         ->columnSpanFull(),
+                ]),
+
+            Forms\Components\Section::make('Peringatan')
+                ->visible(fn (Forms\Get $get, ?ScheduledPriceChange $record) => static::overlapText($get, $record) !== null)
+                ->schema([
+                    Forms\Components\Placeholder::make('overlap')
+                        ->hiddenLabel()
+                        ->content(fn (Forms\Get $get, ?ScheduledPriceChange $record) => static::overlapText($get, $record)),
                 ]),
 
             Forms\Components\Section::make('Pratinjau')
@@ -155,11 +165,16 @@ class ScheduledPriceChangeResource extends Resource
 
                             $rp = fn (float $n) => 'Rp' . number_format($n, 0, ',', '.');
                             $lines = collect($preview['sample'])->map(fn (array $r) => "{$r['product']} ({$r['label']}): {$rp($r['old'])} → {$rp($r['new'])}")->implode("\n");
+                            $perProduct = collect($preview['byProduct'])->take(12)->map(fn (int $n, string $name) => "{$name}: {$n} harga")->implode("\n");
 
                             return new \Illuminate\Support\HtmlString(
                                 '<p><strong>' . $preview['count'] . ' harga pada ' . $preview['products'] . ' produk akan berubah.</strong></p>'
-                                . '<p style="white-space: pre-line; margin-top: .5rem;">' . e($lines) . '</p>'
+                                . '<p style="margin-top: .75rem;"><strong>Contoh perubahan</strong></p>'
+                                . '<p style="white-space: pre-line; margin-top: .25rem;">' . e($lines) . '</p>'
                                 . ($preview['count'] > count($preview['sample']) ? '<p style="margin-top: .5rem;">… dan ' . ($preview['count'] - count($preview['sample'])) . ' lainnya.</p>' : '')
+                                . '<p style="margin-top: .75rem;"><strong>Per produk</strong></p>'
+                                . '<p style="white-space: pre-line; margin-top: .25rem;">' . e($perProduct) . '</p>'
+                                . ($preview['products'] > 12 ? '<p style="margin-top: .5rem;">… dan ' . ($preview['products'] - 12) . ' produk lainnya.</p>' : '')
                             );
                         }),
                 ]),
@@ -187,6 +202,7 @@ class ScheduledPriceChangeResource extends Resource
                     ->color(fn (string $state) => match ($state) {
                         ScheduledPriceChange::STATUS_SCHEDULED => 'warning',
                         ScheduledPriceChange::STATUS_APPLIED => 'success',
+                        ScheduledPriceChange::STATUS_REVERTED => 'info',
                         default => 'gray',
                     }),
 
@@ -222,6 +238,30 @@ class ScheduledPriceChangeResource extends Resource
                         Notification::make()->title("{$count} harga diubah")->success()->send();
                     }),
 
+                // Memulihkan harga yang diubah perubahan ini ke nilai sebelumnya. Harga yang sudah diubah lagi sesudahnya dilewati.
+                Tables\Actions\Action::make('revert')
+                    ->label('Kembalikan')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('info')
+                    ->visible(fn (ScheduledPriceChange $record) => (auth()->user()?->isFullAccess() ?? false) && $record->canBeReverted())
+                    ->requiresConfirmation()
+                    ->modalDescription('Harga yang diubah perubahan ini dikembalikan ke nilai sebelumnya. Harga yang sudah diubah lagi sesudahnya (manual, impor, atau perubahan lain) dilewati. Booking dan invoice yang sudah dibuat tidak terpengaruh.')
+                    ->action(function (ScheduledPriceChange $record) {
+                        $result = app(ScheduledPriceChangeService::class)->revert($record, auth()->id());
+
+                        if ($result === null) {
+                            Notification::make()->title('Perubahan ini tidak bisa dikembalikan')->warning()->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title("{$result['reverted']} harga dikembalikan")
+                            ->body($result['skipped'] > 0 ? "{$result['skipped']} harga dilewati karena sudah diubah lagi sesudah perubahan ini." : null)
+                            ->success()
+                            ->send();
+                    }),
+
                 Tables\Actions\Action::make('cancel')
                     ->label('Batalkan')
                     ->icon('heroicon-o-x-circle')
@@ -237,7 +277,42 @@ class ScheduledPriceChangeResource extends Resource
             ])
             ->defaultSort('effective_date', 'desc')
             ->emptyStateHeading('Belum ada perubahan harga terjadwal')
-            ->emptyStateDescription('Buat satu untuk menaikkan atau menurunkan harga produk film pada tanggal tertentu.');
+            ->emptyStateDescription('Buat satu untuk menaikkan atau menurunkan harga produk pada tanggal tertentu.');
+    }
+
+    /**
+     * Peringatan bila perubahan lain yang masih terjadwal jatuh pada tanggal yang sama dan mencakup produk yang sama (mis. dua kenaikan 5% pada
+     * hari yang sama berlaku beruntun, jadi 10,25%). Null bila tidak ada yang tumpang tindih.
+     */
+    public static function overlapText(Forms\Get $get, ?ScheduledPriceChange $record): ?string
+    {
+        $date = $get('effective_date');
+
+        if (blank($date)) {
+            return null;
+        }
+
+        $mine = array_values(array_filter((array) ($get('product_ids') ?? [])));
+
+        $others = ScheduledPriceChange::query()
+            ->where('status', ScheduledPriceChange::STATUS_SCHEDULED)
+            ->whereDate('effective_date', \Illuminate\Support\Carbon::parse($date)->toDateString())
+            ->when($record, fn ($q) => $q->whereKeyNot($record->getKey()))
+            ->get()
+            ->filter(function (ScheduledPriceChange $other) use ($mine) {
+                $theirs = array_values(array_filter((array) $other->product_ids));
+
+                // Kosong = semua produk aktif, jadi bersinggungan dengan apa pun.
+                return $mine === [] || $theirs === [] || array_intersect($mine, $theirs) !== [];
+            });
+
+        if ($others->isEmpty()) {
+            return null;
+        }
+
+        return 'Sudah ada perubahan terjadwal pada tanggal yang sama untuk produk yang sama: '
+            . $others->map(fn (ScheduledPriceChange $o) => "\"{$o->name}\" ({$o->percent}%)")->implode(', ')
+            . '. Keduanya berlaku beruntun, jadi hasilnya bertumpuk.';
     }
 
     public static function getPages(): array

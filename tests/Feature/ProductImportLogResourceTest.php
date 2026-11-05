@@ -180,4 +180,53 @@ class ProductImportLogResourceTest extends TestCase
             $response->assertDontSee('rahasia.xlsx');
         }
     }
+
+    // ------------------------------------------------------------- perubahan, filter, gerbang
+
+    public function test_the_detail_lists_the_changes_with_old_and_new_values_and_notes(): void
+    {
+        $admin = $this->user('super_admin');
+        $this->actingAs($admin, 'web');
+        $log = ProductImportLog::create([
+            'user_id' => $admin->id, 'filename' => 'harga.xlsx', 'total_rows' => 2, 'updated_count' => 2, 'skipped_count' => 0, 'errors' => null,
+            'changes' => [
+                ['sku' => 'PPF-1', 'product' => 'PPF Premium', 'field' => 'Harga Dasar', 'old' => 'Rp1.000.000', 'new' => 'Rp1.100.000', 'note' => null],
+                ['sku' => 'PPF-2', 'product' => 'PPF Per Ukuran', 'field' => 'Harga Dasar', 'old' => 'Rp0', 'new' => 'Rp900.000', 'note' => 'Produk ini punya harga per ukuran yang menang atas harga dasar, jadi harga jual per ukuran tidak berubah.'],
+            ],
+        ]);
+
+        $page = Livewire::test(ViewProductImportLog::class, ['record' => $log->getKey()]);
+
+        $page->assertSee('Perubahan yang Dilakukan')
+            ->assertSee('PPF-1 (PPF Premium) — Harga Dasar: Rp1.000.000 → Rp1.100.000', false)
+            ->assertSee('harga jual per ukuran tidak berubah');
+
+        $clean = $this->log('tanpa-perubahan.xlsx', '2026-10-07 15:30:00');
+        Livewire::test(ViewProductImportLog::class, ['record' => $clean->getKey()])->assertDontSee('Perubahan yang Dilakukan');
+    }
+
+    public function test_the_skipped_filter_and_the_changes_column(): void
+    {
+        $this->actingAs($this->user('super_admin'), 'web');
+        $clean = $this->log('bersih.xlsx', '2026-10-07 15:30:00', null, 4, 4, 0);
+        $messy = $this->log('berantakan.xlsx', '2026-10-07 16:30:00', null, 4, 2, 2, ['Baris 3: SKU kosong, dilewati.']);
+        $messy->update(['changes' => [['sku' => 'X', 'product' => 'P', 'field' => 'Harga Dasar', 'old' => 'Rp1', 'new' => 'Rp2', 'note' => null]]]);
+
+        Livewire::test(ListProductImportLogs::class)
+            ->assertCanSeeTableRecords([$clean, $messy])
+            ->filterTable('has_skipped', true)
+            ->assertCanSeeTableRecords([$messy])
+            ->assertCanNotSeeTableRecords([$clean]);
+
+        Livewire::test(ListProductImportLogs::class)->assertTableColumnStateSet('changes_count', 1, $messy->fresh())->assertTableColumnStateSet('changes_count', 0, $clean);
+    }
+
+    public function test_the_gate_is_full_access_only_and_the_menu_box_is_no_longer_offered(): void
+    {
+        $this->actingAs($this->user('super_admin'), 'web');
+        $this->assertTrue(ProductImportLogResource::canViewAny());
+
+        $options = collect((fn () => static::menuAccessOptions())->bindTo(null, \App\Filament\Resources\UserResource::class)())->flatMap(fn ($g) => array_keys($g))->all();
+        $this->assertNotContains('ProductImportLogResource', $options, 'Kotak yang tidak membuka apa pun bagi staf biasa dihapus dari Akses Menu.');
+    }
 }
