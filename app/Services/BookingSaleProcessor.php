@@ -104,7 +104,7 @@ class BookingSaleProcessor
 
             $message = $referencePrice !== null
                 ? 'Diskon melebihi ' . Booking::NEGOTIATION_DISCOUNT_MAX_PCT . '% dari harga acuan — permintaan ini dikirim ke admin/direksi untuk disetujui sebelum ' . $afterApproval
-                : 'Permintaan Proses Referral untuk booking ini sudah dikirim ke admin/direksi untuk disetujui sebelum ' . $afterApproval;
+                : 'Permintaan Catat Penjualan untuk booking ini sudah dikirim ke admin/direksi untuk disetujui sebelum ' . $afterApproval;
 
             return ['status' => 'pending', 'messages' => [], 'message' => $message];
         }

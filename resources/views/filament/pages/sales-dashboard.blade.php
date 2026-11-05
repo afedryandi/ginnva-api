@@ -198,7 +198,7 @@
                 <x-heroicon-o-document-magnifying-glass class="h-10 w-10 text-gray-300 dark:text-gray-600" />
                 <p class="text-sm font-medium text-gray-600 dark:text-gray-300">Belum ada penjualan tercatat untuk {{ $this->getRangeLabel() }}.</p>
                 <p class="max-w-md text-xs text-gray-500 dark:text-gray-400">
-                    Angka baru muncul setelah booking selesai diproses lewat "Proses Referral"{{ $financeOn ? ' ke Jurnal Umum' : '' }}.
+                    Angka baru muncul setelah booking selesai diproses lewat "Catat Penjualan"{{ $financeOn ? ' ke Jurnal Umum' : '' }}.
                     @if ($result['pendingCount'] > 0)
                         Ada {{ number_format($result['pendingCount'], 0, ',', '.') }} booking selesai yang menunggu diproses (lihat peringatan di atas).
                     @endif
@@ -207,7 +207,7 @@
         @else
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px">
             <div>
-                <x-metric-label :tooltip="$financeOn ? 'Booking yang sudah tercatat ke Jurnal Umum, dikurangi refund periode ini. Sama dengan Penjualan Bersih di Laba-Rugi.' : 'Booking yang penjualannya sudah diproses lewat Proses Referral, dikurangi pengembalian periode ini.'">Total Penjualan</x-metric-label>
+                <x-metric-label :tooltip="$financeOn ? 'Booking yang sudah tercatat ke Jurnal Umum, dikurangi refund periode ini. Sama dengan Penjualan Bersih di Laba-Rugi.' : 'Booking yang penjualannya sudah diproses lewat Catat Penjualan, dikurangi pengembalian periode ini.'">Total Penjualan</x-metric-label>
                 @php $c = $change($currentNet, $previousNet); @endphp
                 @if ($c)
                     <span class="inline-flex items-center gap-0.5 text-xs font-semibold {{ $c['up'] ? 'sd-up' : 'sd-down' }}">
@@ -352,7 +352,7 @@
                 Cara baca angka
             </summary>
             <div class="space-y-2 border-t border-gray-200 px-3 py-3 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                <p><strong class="text-gray-700 dark:text-gray-200">Total Penjualan</strong> — jumlah <code>transaction_amount</code> dari booking {{ $financeOn ? 'yang sudah tercatat ke Jurnal Umum (sudah lewat "Proses Referral")' : 'yang penjualannya sudah diproses lewat "Proses Referral"' }}, dikurangi nominal refund yang diproses pada periode ini. Sama definisi dengan "Penjualan Bersih" di Ringkasan Penjualan{{ $financeOn ? ' &amp; Laba-Rugi' : '' }}. Booking selesai yang belum diproses tidak ikut; booking dibatalkan tidak mungkin masuk (tidak punya jurnal).</p>
+                <p><strong class="text-gray-700 dark:text-gray-200">Total Penjualan</strong> — jumlah <code>transaction_amount</code> dari booking {{ $financeOn ? 'yang sudah tercatat ke Jurnal Umum (sudah lewat "Catat Penjualan")' : 'yang penjualannya sudah diproses lewat "Catat Penjualan"' }}, dikurangi nominal refund yang diproses pada periode ini. Sama definisi dengan "Penjualan Bersih" di Ringkasan Penjualan{{ $financeOn ? ' &amp; Laba-Rugi' : '' }}. Booking selesai yang belum diproses tidak ikut; booking dibatalkan tidak mungkin masuk (tidak punya jurnal).</p>
                 @if ($financeOn)
                 <p><strong class="text-gray-700 dark:text-gray-200">Piutang</strong> — <code>transaction_amount − amount_received</code>. Kolom <code>amount_received</code> yang kosong dianggap lunas penuh, jadi hanya booking yang eksplisit belum lunas yang masuk sini.</p>
                 @endif

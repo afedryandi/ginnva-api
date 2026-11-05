@@ -164,7 +164,7 @@ class GuideAccuracyTest extends TestCase
     {
         $text = $this->text($this->guide('penjualan'));
 
-        foreach (['Proses Referral', 'Rincian Harga per Layanan', 'Nominal Transaksi', 'Pembayaran diterima', 'Catat Uang Muka (DP)', 'Kembalikan Sisa DP', 'Proses Refund'] as $term) {
+        foreach (['Catat Penjualan', 'Rincian Harga per Layanan', 'Nominal Transaksi', 'Pembayaran diterima', 'Catat Uang Muka (DP)', 'Kembalikan Sisa DP', 'Proses Refund'] as $term) {
             $this->assertStringContainsString($term, $text, "Panduan Penjualan tidak menyebut \"{$term}\".");
         }
     }

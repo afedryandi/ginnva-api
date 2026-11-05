@@ -306,7 +306,7 @@ class ReceivableService
             }
 
             if ($locked->source_type === 'booking') {
-                throw new RuntimeException('Piutang ini berasal dari Booking — koreksi lewat nominal transaksi booking ("Proses Referral"), bukan dibatalkan di sini.');
+                throw new RuntimeException('Piutang ini berasal dari Booking — koreksi lewat nominal transaksi booking ("Catat Penjualan"), bukan dibatalkan di sini.');
             }
 
             if (ReceivablePayment::where('receivable_id', $locked->id)->whereNull('voided_at')->exists()) {

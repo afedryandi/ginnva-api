@@ -220,7 +220,7 @@ class GuideCatalog
                     'Tandai tahap **Quality Check** (semua produk yang dipesan harus sudah sampai tahap terakhirnya). Isi juga checklist QC layanan itu; pemeriksanya Leader, Store Manager, atau akses penuh, bukan orang yang mengerjakan unit. Semua butir harus dijawab dan butir yang tidak lulus wajib diberi catatan. Bila lulus, booking ditandai **Siap Diambil** dan pelanggan diberi tahu.',
                     'Serah terima unit: catat bahwa petunjuk perawatan sudah disampaikan. Untuk PPF dan Kaca Film tanda tangan basah di kertas wajib diterima (untuk Detailing dan Premium Wash opsional); sistem hanya mencatat bahwa tanda tangan sudah diterima. Foto akhir dan catatan boleh ditambahkan. Dicatat sekali per booking.',
                     'Terakhir, **Selesaikan Booking**. Status menjadi **Completed** dan tercatat di riwayat booking pelanggan. Syaratnya tahap Quality Check sudah ditandai.',
-                    'Setelah selesai, kasir atau admin mencatat penjualannya di panel lewat **Proses Referral** (lihat panduan Penjualan).',
+                    'Setelah selesai, kasir atau admin mencatat penjualannya di panel lewat **Catat Penjualan** (lihat panduan Penjualan).',
                 ],
                 'tips' => [
                     'Kewajiban lulus QC dan mencatat serah terima sebelum booking boleh diselesaikan bisa dinyalakan admin sistem. Bila menyala dan syaratnya belum terpenuhi, tombol Selesaikan Booking menolak dengan pesan yang menjelaskan apa yang kurang.',
@@ -247,7 +247,7 @@ class GuideCatalog
                     'Tandai tahap **Quality Check**, lalu isi checklist QC PPF. Butir bawaannya: tidak ada gelembung atau debu di bawah film, tepi dan sudut rapi dan menempel kuat, tidak ada kerutan atau potongan salah, bodi dan kaca bersih dari sisa larutan, tidak ada baret baru pada cat. Akses penuh dapat mengubah butirnya di menu **Checklist QC**.',
                     'Serah terima: sampaikan petunjuk perawatan dan terima tanda tangan basah di kertas (wajib untuk PPF), lalu **Selesaikan Booking**.',
                     'Buat **Garansi** (atau minta pelanggan mendaftarkannya di aplikasi): pilih kategori PPF, isi plat nomor, tipe mobil, seri produk, **Posisi Pemasangan** (penuh atau sebagian, dengan keterangan area), dan **Kode Gulungan** (isi kode kedua bila satu gulungan tidak cukup). Isi **Kuota Maintenance** dan **Interval Maintenance** bila garansi menawarkan maintenance.',
-                    'Garansi dari pelanggan menunggu **review**; setelah disetujui, jadwal maintenance berjalan otomatis (lihat panduan Garansi dan Maintenance PPF). Penjualannya dicatat lewat **Proses Referral** dengan baris layanan PPF.',
+                    'Garansi dari pelanggan menunggu **review**; setelah disetujui, jadwal maintenance berjalan otomatis (lihat panduan Garansi dan Maintenance PPF). Penjualannya dicatat lewat **Catat Penjualan** dengan baris layanan PPF.',
                 ],
                 'tips' => [
                     'Booking PPF + Kaca Film: Quality Check baru bisa ditandai setelah KEDUA produk sampai tahap terakhirnya.',
@@ -269,7 +269,7 @@ class GuideCatalog
                     'Tandai tahap **Quality Check**, lalu isi checklist QC Kaca Film. Butir bawaannya: tidak ada gelembung, debu, atau goresan pada film, tepi film rapi dan merata di semua kaca, kaca bersih tanpa sisa larutan, semua kaca naik-turun normal, defogger dan sensor tidak terganggu. Akses penuh dapat mengubah butirnya di menu **Checklist QC**.',
                     'Serah terima: sampaikan petunjuk perawatan dan terima tanda tangan basah di kertas (wajib untuk Kaca Film), lalu **Selesaikan Booking**.',
                     'Buat **Garansi** (atau minta pelanggan mendaftarkannya di aplikasi): pilih kategori Window Film, isi plat nomor, tipe mobil, dan seri produk. Di bagian Detail Instalasi isi **Kode Gulungan — Kaca Depan** dan, bila mobil ini juga dipasang di posisi itu, **Kode Gulungan — Kaca Samping & Belakang**. Pilihan hanya menampilkan gulungan yang terdaftar untuk posisi tersebut.',
-                    'Garansi dari pelanggan menunggu **review**. Penjualannya dicatat lewat **Proses Referral** dengan baris layanan Kaca Film.',
+                    'Garansi dari pelanggan menunggu **review**. Penjualannya dicatat lewat **Catat Penjualan** dengan baris layanan Kaca Film.',
                 ],
                 'tips' => [
                     'Satu gulungan kaca film dipakai untuk banyak mobil (sekitar 30) dan tetap muncul di pilihan garansi sampai ditandai habis lewat **Tandai Habis** di menu **Produk PPF/WF**.',
@@ -289,7 +289,7 @@ class GuideCatalog
                     'Detailing tidak punya tahap pengerjaan. Kabari pelanggan lewat **chat booking** bila perlu (teks atau foto); setelah selesai dikerjakan, langsung tandai tahap **Quality Check**.',
                     'Isi checklist QC Detailing. Butir bawaannya: interior bersih dan kering, eksterior bersih tanpa sisa pasta atau compound, kaca bersih tanpa noda, velg dan ban bersih, tidak ada kerusakan baru. Akses penuh dapat mengubah butirnya di menu **Checklist QC**.',
                     'Serah terima: sampaikan petunjuk perawatan. Tanda tangan basah di kertas opsional untuk Detailing. Lalu **Selesaikan Booking**.',
-                    'Penjualannya dicatat lewat **Proses Referral** dengan baris layanan Detailing.',
+                    'Penjualannya dicatat lewat **Catat Penjualan** dengan baris layanan Detailing.',
                 ],
                 'tips' => [
                     'Detailing tidak punya garansi atau jadwal maintenance di sistem; garansi hanya untuk PPF dan Kaca Film.',
@@ -310,7 +310,7 @@ class GuideCatalog
                     'Premium Wash tidak punya tahap pengerjaan. Setelah selesai dikerjakan, langsung tandai tahap **Quality Check**.',
                     'Isi checklist QC Premium Wash. Butir bawaannya: bodi bersih tanpa sisa sabun, kaca bersih tanpa noda, velg dan ban bersih, interior disedot dan dilap, tidak ada kerusakan baru. Akses penuh dapat mengubah butirnya di menu **Checklist QC**.',
                     'Serah terima: sampaikan petunjuk perawatan. Tanda tangan basah di kertas opsional untuk Premium Wash. Lalu **Selesaikan Booking**.',
-                    'Penjualannya dicatat lewat **Proses Referral** dengan baris layanan Premium Wash.',
+                    'Penjualannya dicatat lewat **Catat Penjualan** dengan baris layanan Premium Wash.',
                 ],
                 'tips' => [
                     'Premium Wash tidak punya garansi atau jadwal maintenance di sistem; garansi hanya untuk PPF dan Kaca Film.',
@@ -320,11 +320,11 @@ class GuideCatalog
             ],
             [
                 'id' => 'penjualan',
-                'title' => 'Penjualan: Proses Referral, rincian harga, dan pelunasan',
+                'title' => 'Penjualan: Catat Penjualan, rincian harga, dan pelunasan',
                 'summary' => 'Mencatat nilai penjualan sebuah booking yang sudah selesai: harga per layanan, pembayaran yang diterima, DP, voucher, dan kode referral.',
                 'menus' => ['BookingResource', 'SalesResource'],
                 'steps' => [
-                    'Syaratnya booking sudah **Completed**. Di panel, buka daftar Booking dan pilih aksi **Proses Referral** pada booking itu. Biasanya dikerjakan kasir atau admin, bukan installer. Aplikasi karyawan versi terbaru punya **Catat Penjualan** dengan aturan persetujuan yang sama.',
+                    'Syaratnya booking sudah **Completed**. Di panel, buka daftar Booking dan pilih aksi **Catat Penjualan** pada booking itu. Biasanya dikerjakan kasir atau admin, bukan installer. Aplikasi karyawan versi terbaru punya **Catat Penjualan** dengan aturan persetujuan yang sama.',
                     'Isi **Rincian Harga per Layanan**: satu baris per layanan atau produk (jenis layanan, produk, bagian atau keterangan, jumlah, harga satuan, potongan baris). Pendapatan per jenis layanan di laporan mengikuti nilai baris ini; tanpa rincian, nilai dibagi rata antar jenis layanan. Untuk booking yang wajib rincian, form menolak bila belum ada baris bernilai.',
                     'Isi **Nominal Transaksi**: angka bersih setelah voucher, promo, atau nego. Selisihnya dengan jumlah rincian dianggap potongan. Nominal ini juga dasar poin referral (1 poin per Rp10.000).',
                     'Isi **Pembayaran diterima**. Boleh lebih dari satu baris (mis. sebagian tunai, sebagian transfer): pilih metode dan nominal. Jumlah pembayaran ditambah DP yang terpakai tidak boleh melebihi Nominal Transaksi; sisanya tercatat sebagai sisa tagihan (Belum Lunas) di booking. Hapus semua baris bila belum ada pembayaran.',
@@ -333,7 +333,7 @@ class GuideCatalog
                 ],
                 'tips' => [
                     "Nego harga hingga {$negotiationMax}% dari harga acuan matriks boleh tanpa persetujuan; lebih dari itu perlu persetujuan.",
-                    'Uang muka dicatat lewat **Catat Uang Muka (DP)** (isi nominal dan **Metode Pembayaran**); DP yang tidak terpakai dikembalikan lewat **Kembalikan Sisa DP**. DP yang terpakai otomatis mengurangi sisa tagihan saat Proses Referral.',
+                    'Uang muka dicatat lewat **Catat Uang Muka (DP)** (isi nominal dan **Metode Pembayaran**); DP yang tidak terpakai dikembalikan lewat **Kembalikan Sisa DP**. DP yang terpakai otomatis mengurangi sisa tagihan saat Catat Penjualan.',
                     'Refund dilakukan lewat **Proses Refund** pada booking; untuk karyawan tanpa akses penuh refund menunggu persetujuan.',
                     'Sisa tagihan yang belum dibayar tampil di booking dan laporan penjualan; pelunasan dan pembukuannya dilakukan di Accurate.',
                     'Salah mengisi kode referral? Kosongkan kolomnya lalu simpan untuk menghapusnya.',
@@ -390,7 +390,7 @@ class GuideCatalog
                 ],
                 'tips' => [
                     'Invoice hanya bisa diubah selama berstatus draft atau belum dibayar. Yang sudah Lunas atau Void tidak bisa diedit; koreksi lewat Void lalu buat invoice baru.',
-                    'Invoice adalah dokumen tagihan: tidak menghitung pajak atau PPN. Penjualan booking dicatat lewat **Proses Referral** (lihat panduan Penjualan).',
+                    'Invoice adalah dokumen tagihan: tidak menghitung pajak atau PPN. Penjualan booking dicatat lewat **Catat Penjualan** (lihat panduan Penjualan).',
                     'Nomor invoice dibuat otomatis per toko dan hari.',
                     'Kaki invoice menampilkan nama perusahaan, NPWP, dan alamat dari menu **Profil Perusahaan** di Sistem (diisi akses penuh; NPWP 15 atau 16 angka). Bila kosong, hanya nama bawaan yang tampil. Invoice tetap bukan Faktur Pajak.',
                 ],
@@ -497,7 +497,7 @@ class GuideCatalog
                     'Buka **Katalog Reward** dan buat reward baru. Pilih jenis **Barang/Layanan** (diproses karyawan) atau **Voucher Diskon**.',
                     'Untuk voucher, isi nominal diskon dan masa berlaku (hari sejak ditukar), lalu harga poin dan stok. Reward langsung muncul di katalog pelanggan.',
                     'Pelanggan menukar poin. Untuk voucher, kode unik (GNV-...) langsung terbit di **Voucher Saya**. Untuk barang, penukaran masuk ke **Klaim Reward** dan menunggu diproses.',
-                    'Saat pelanggan memakai voucher, pilih **Kode Voucher** di form **Proses Referral** pada booking (lihat panduan Penjualan). Nominal diskon dipotong dan voucher berstatus Terpakai.',
+                    'Saat pelanggan memakai voucher, pilih **Kode Voucher** di form **Catat Penjualan** pada booking (lihat panduan Penjualan). Nominal diskon dipotong dan voucher berstatus Terpakai.',
                 ],
                 'tips' => [
                     'Voucher melekat ke akun yang menukarnya; tidak bisa dipakai di booking pelanggan lain.',
@@ -512,7 +512,7 @@ class GuideCatalog
                 'summary' => 'Aksi sensitif yang harus disetujui atasan sebelum berlaku.',
                 'menus' => ['TransactionApprovalRequestResource', 'FinanceTransactionApprovalRequestResource', 'FinanceTransactionResource', 'FinanceSettingsPage'],
                 'steps' => [
-                    'Karyawan mengajukan aksi (refund, Proses Referral, atau Catat Uang Muka). Pengajuan masuk ke **Persetujuan Transaksi** dengan status menunggu.',
+                    'Karyawan mengajukan aksi (refund, Catat Penjualan, atau Catat Uang Muka). Pengajuan masuk ke **Persetujuan Transaksi** dengan status menunggu.',
                     'Atasan membuka daftar yang sesuai, memeriksa rinciannya, lalu **Setujui** atau **Tolak**.',
                     'Aksi baru dijalankan setelah disetujui. Yang ditolak tidak mengubah data apa pun.',
                 ],
@@ -540,7 +540,7 @@ class GuideCatalog
                     'Kategori nonaktif tidak muncul lagi di transaksi baru, tetapi riwayat lamanya tetap utuh.',
                     'Data identik (nominal, kategori, toko, tanggal, keterangan) dari akun yang sama dalam 10 menit terakhir ditolak, untuk mencegah klik ganda. Cek daftar bila sudah merasa mengirim.',
                     'Pengeluaran dari rekening Kas Kecil ditolak bila nominalnya melebihi saldo kas kecil itu.',
-                    'Pencatatan nilai penjualan booking tidak dilakukan di sini; gunakan Proses Referral (lihat panduan Penjualan).',
+                    'Pencatatan nilai penjualan booking tidak dilakukan di sini; gunakan Catat Penjualan (lihat panduan Penjualan).',
                     'Duplikat tidak melewati aturan lain: pengeluaran dari karyawan tetap masuk antrean persetujuan, dan data identik dalam 10 menit tetap ditolak.',
                 ],
             ],
@@ -778,7 +778,7 @@ class GuideCatalog
                     'Data tambahan seperti **Jenis Kelamin** dan **Alamat** diisi admin lewat aksi **Data Pribadi** di daftar.',
                     '**Grup Pelanggan** mengelompokkan pelanggan untuk harga khusus produk. Buat grup dengan **Nama Grup**, **Deskripsi (opsional)**, dan **Urutan** (angka kecil tampil lebih dulu). Nonaktifkan grup agar tidak muncul sebagai pilihan baru tanpa mengubah pelanggan yang sudah memakainya; grup yang masih dipakai pelanggan tidak bisa dihapus.',
                     'Masukkan banyak pelanggan sekaligus ke grup: cari atau saring dulu, pilih beberapa baris, lalu **Atur Grup Pelanggan**. Harga khusus per grup diisi di Daftar Produk.',
-                    'Pelanggan datang lewat ajakan teman atau mitra? Pakai **Set Referral**. Ini hanya penanda; poin baru diberikan lewat Proses Referral di Booking setelah pelanggan itu booking dan selesai.',
+                    'Pelanggan datang lewat ajakan teman atau mitra? Pakai **Set Referral**. Ini hanya penanda; poin baru diberikan lewat Catat Penjualan di Booking setelah pelanggan itu booking dan selesai.',
                     'Daftar bisa diunduh lewat **Export Excel**.',
                     'Penghapusan memakai **Hapus**: nama, email, dan nomor WhatsApp dihapus PERMANEN (dianonimkan) dan tidak bisa dipulihkan, sedangkan riwayat booking dan garansi tetap tersimpan tanpa identitas. Lakukan hanya atas permintaan pelanggan atau kebijakan perusahaan.',
                 ],
@@ -828,7 +828,7 @@ class GuideCatalog
                 'menus' => ['SalesSummaryReport', 'SalesByPeriodReport', 'SalesByOutletReport', 'LayananReport', 'JenisOrderReport', 'ProductSalesReport', 'PaymentBookReport', 'RefundReport', 'VoidReport'],
                 'steps' => [
                     'Cara umum: pilih rentang lewat **Periode Cepat** atau **Dari** dan **Sampai**, lalu **Toko** atau **Toko** bila tersedia. Karyawan toko hanya melihat tokonya; pilihan toko khusus akses penuh. Hampir semua laporan bisa diunduh lewat **Export ke Excel** atau **Export ke PDF**.',
-                    'Penjualan dihitung dari booking yang penjualannya sudah diproses lewat Proses Referral (tanggal penjualannya tercatat). Booking yang selesai tetapi belum diproses tidak ikut; **Ringkasan Penjualan** menampilkan peringatan jumlah booking seperti itu dengan tautan langsung ke daftarnya.',
+                    'Penjualan dihitung dari booking yang penjualannya sudah diproses lewat Catat Penjualan (tanggal penjualannya tercatat). Booking yang selesai tetapi belum diproses tidak ikut; **Ringkasan Penjualan** menampilkan peringatan jumlah booking seperti itu dengan tautan langsung ke daftarnya.',
                     '**Ringkasan Penjualan** menyusun penjualan kotor, biaya promosi (voucher dan promo total pembelian), pengembalian, sampai penjualan bersih; nominal penjualan kotor sudah setelah potongan promo. Pakai **Bandingkan Dengan** (periode sebelumnya yang sama panjang, atau periode yang sama tahun lalu) untuk melihat naik turunnya.',
                     '**Penjualan Per Periode** menampilkan satu baris per periode untuk melihat tren; atur dengan **Kelompokkan Per** (bawaannya Bulanan; bisa Harian atau Mingguan). Nyalakan **Sembunyikan periode tanpa transaksi** untuk memangkas baris kosong. Kolomnya: **Transaksi**, **Penjualan**, ' . (config('features.finance') ? '**Diterima**, **Piutang**, ' : '') . '**Pengembalian**, dan **Komisi**, dengan baris Total di bawahnya.',
                     '**Penjualan Outlet** membandingkan toko: **Penjualan (bersih)**, **Pengembalian**, ' . (config('features.finance') ? '**Rata-rata/Transaksi**, dan **Piutang** per outlet' : 'dan **Rata-rata/Transaksi** per outlet') . ', dengan baris Total di bawahnya. Outlet nonaktif hanya tampil bila punya transaksi pada rentang itu.',
@@ -1253,7 +1253,7 @@ class GuideCatalog
                     'Absensi: koreksi absensi karyawan tokonya diputuskan di menu **Koreksi Absensi** di panel dengan **Setujui** atau **Tolak**. Anda tidak bisa menyetujui koreksi yang Anda ajukan sendiri. Izin dan cuti tokonya juga Anda putuskan di menu **Izin & Cuti** (kecuali milik Anda sendiri).',
                     'Keuangan di aplikasi: layar **Keuangan** menampilkan Saldo Kas, ringkasan hari ini (pengeluaran tercatat), dan piutang lewat jatuh tempo. Catat pengeluaran lewat **Catat Pengeluaran** dan hitung kas laci lewat **Hitung Kas**. Pengajuan pengeluaran dari karyawan tokonya muncul di **Persetujuan Pengeluaran**; tekan **Setujui** atau **Tolak Pengajuan**. Pengajuan Anda sendiri langsung naik ke direksi.',
                     'Batas persetujuan pengeluaran: secara bawaan setelah Anda setuju, pengajuan tetap naik ke direksi. Bila akses penuh mengisi batas di **Pengaturan Keuangan**, pengeluaran sampai nominal itu langsung dicatat setelah Anda menyetujuinya. Anda tidak boleh menyetujui pengajuan yang Anda ajukan sendiri.',
-                    'Refund dan Proses Referral: Anda bisa mengajukannya, tetapi baru berlaku setelah akses penuh menyetujuinya di **Persetujuan Transaksi**. Anda hanya melihat pengajuan tokonya.',
+                    'Refund dan Catat Penjualan: Anda bisa mengajukannya, tetapi baru berlaku setelah akses penuh menyetujuinya di **Persetujuan Transaksi**. Anda hanya melihat pengajuan tokonya.',
                 ],
                 'tips' => [
                     'Semua keputusan Anda tercatat di Riwayat Aktivitas dengan nama dan waktu.',
@@ -1312,13 +1312,13 @@ class GuideCatalog
                     'Admin/kasir toko adalah karyawan toko tanpa jabatan khusus: akun dengan menu Booking atau Invoice yang dicentang admin. Yang Anda lihat dibatasi ke toko Anda, dan di chat booking nama Anda tampil sebagai "Admin Toko" diikuti nama tokonya. Panduan ini muncul bagi akun yang menu Booking atau Invoice-nya dicentang eksplisit.',
                     'Pesanan masuk: booking dari aplikasi muncul sebagai Pending. Pelanggan dari WhatsApp, telepon, atau yang datang langsung Anda buatkan booking-nya di panel (pilih layanan; Detailing dan Premium Wash wajib memilih jam; tanggal yang penuh atau toko libur tidak bisa dipilih). Respons booking Pending dalam batas jam yang ditetapkan sistem; Anda mendapat pengingat otomatis bila ada yang tertunda. Calon pelanggan yang meminta penawaran masuk di Quotation (Lead): hubungi, catat, dan tetapkan hasilnya.',
                     'Hari pelaksanaan: pantau status booking toko dan jawab pesan pelanggan di chat booking bila Anda punya akses menu Booking. Penugasan installer, Quality Check, dan serah terima dipegang Leader atau Store Manager (lihat panduan Booking).',
-                    'Setelah booking **Completed**, catat penjualannya lewat **Proses Referral**: isi rincian harga per layanan, nominal transaksi, pembayaran yang diterima, voucher, promo, dan kode referral. Karena Anda bukan akses penuh, pengajuannya MENUNGGU persetujuan akses penuh dan belum berlaku sampai disetujui.',
+                    'Setelah booking **Completed**, catat penjualannya lewat **Catat Penjualan**: isi rincian harga per layanan, nominal transaksi, pembayaran yang diterima, voucher, promo, dan kode referral. Karena Anda bukan akses penuh, pengajuannya MENUNGGU persetujuan akses penuh dan belum berlaku sampai disetujui.',
                     'Uang muka dicatat lewat **Catat Uang Muka (DP)** dan sisa yang tidak terpakai dikembalikan lewat **Kembalikan Sisa DP**. Sisa tagihan yang belum dibayar tampil sebagai Belum Lunas di booking; pelunasannya dibukukan di Accurate. Pelanggan yang meminta dokumen tagihan dibuatkan **Invoice**.',
-                    'Refund diajukan lewat **Proses Refund** pada booking; seperti Proses Referral, refund dari Anda menunggu persetujuan akses penuh.',
+                    'Refund diajukan lewat **Proses Refund** pada booking; seperti Catat Penjualan, refund dari Anda menunggu persetujuan akses penuh.',
                     'Yang TIDAK bisa Anda lakukan, karena sengaja dibatasi: membatalkan booking, menandai pelanggan tidak datang, dan mengoreksi tahap (Store Manager atau akses penuh), serta menghapus data. Di panel, hak Void (pembatalan) dan Hapus dapat diberikan admin sebagai hak tambahan di Hak Akses Detail. Bila tombolnya tidak muncul, minta Store Manager.',
                 ],
                 'tips' => [
-                    'Salah mengisi Proses Referral? Pengajuan yang masih menunggu belum berlaku; hubungi akses penuh sebelum disetujui.',
+                    'Salah mengisi Catat Penjualan? Pengajuan yang masih menunggu belum berlaku; hubungi akses penuh sebelum disetujui.',
                     'Panduan menu per menu ada di Booking: dari masuk sampai selesai, Penjualan, Invoice, Quotation (Lead), dan Approval.',
                 ],
             ],
@@ -1355,7 +1355,7 @@ class GuideCatalog
                     '**Booking** menampilkan Booking Hari Ini, Garansi Aktif, Menunggu Review QA, Garansi Hampir Kedaluwarsa, dan Quotation Baru (7 Hari). Grafik di bawahnya: Tren Pendapatan Harian (bulan ini dibanding bulan lalu), Pendapatan per Kategori dan per Metode Pembayaran (bulan ini), Tren Pengajuan Garansi, Garansi per Toko, Tren Quotation, Grafik Jenis Order, dan Grafik Penjualan Outlet.',
                     '**Dashboard Penjualan** (menu terpisah; perlu dicentang di Akses Menu karena memuat omzet) bisa diatur dengan tombol **Harian**, **Mingguan**, atau **Bulanan**, ditambah panah tanggal dan **Lompat ke**. Akses penuh juga bisa memilih toko. Badge persentase di tiap angka membandingkan dengan periode sebelumnya yang sama panjang.',
                     'Angka utamanya: **Total Penjualan** (bersih, yaitu penjualan tercatat dikurangi pengembalian), ' . (config('features.finance') ? '**Penjualan Belum Dibayar (Piutang)**, **Penjualan Terbayar**, ' : '') . '**Transaksi**, **Penjualan per Transaksi**, **Produk Terjual**, dan **Produk per Transaksi**. Di bawahnya **Indikator Penjualan** (Transaksi Multi-Layanan, Pelanggan Kembali, Potongan Diberikan), penjualan per jenis layanan dan per toko, **Akumulasi dari Awal Bulan** dan **Proyeksi Bulan Ini** (selalu bulan berjalan, tidak mengikuti periode yang dipilih), serta **Ranking Installer**.',
-                    'Bila muncul peringatan kuning "booking sudah selesai tapi belum diproses ke pendapatan", nominalnya belum masuk angka. Proses dulu lewat Proses Referral (lihat panduan Penjualan). Untuk rincian dan export gunakan tautan Lihat & Export di Ringkasan Penjualan, yang membawa rentang tanggal yang sama.',
+                    'Bila muncul peringatan kuning "booking sudah selesai tapi belum diproses ke pendapatan", nominalnya belum masuk angka. Proses dulu lewat Catat Penjualan (lihat panduan Penjualan). Untuk rincian dan export gunakan tautan Lihat & Export di Ringkasan Penjualan, yang membawa rentang tanggal yang sama.',
                 ],
                 'tips' => [
                     'Dashboard memperbarui angka saat halaman dibuka atau filter diubah, tidak terus-menerus; muat ulang halaman untuk data terbaru.',

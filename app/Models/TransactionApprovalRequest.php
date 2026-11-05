@@ -18,7 +18,7 @@ class TransactionApprovalRequest extends Model
     use LogsActivity;
 
     public const TYPE_LABELS = [
-        'booking_referral' => 'Proses Referral',
+        'booking_referral' => 'Catat Penjualan',
         'refund' => 'Proses Refund',
         'booking_down_payment' => 'Catat Uang Muka (DP)',
     ];

@@ -171,7 +171,7 @@ class CustomerResource extends Resource
                 ->live()
                 ->disabled(fn (Forms\Get $get) => filled($get('referred_by_customer_id')))
                 ->dehydrated(true)
-                ->helperText('Penanda saja — poin tetap baru diberikan lewat "Proses Referral" di Booking setelah pelanggan ini booking & selesai. Kode referral partner di form itu akan otomatis ter-prefill dari sini. Kosongkan dulu "Direferensikan Pelanggan" di atas kalau mau isi ini.'),
+                ->helperText('Penanda saja — poin tetap baru diberikan lewat "Catat Penjualan" di Booking setelah pelanggan ini booking & selesai. Kode referral partner di form itu akan otomatis ter-prefill dari sini. Kosongkan dulu "Direferensikan Pelanggan" di atas kalau mau isi ini.'),
         ];
     }
 

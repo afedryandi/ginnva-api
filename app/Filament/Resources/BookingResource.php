@@ -1321,7 +1321,7 @@ class BookingResource extends Resource
                             ->required()
                             ->helperText(config('features.finance')
                                 ? 'Bebas diisi sesuai kesepakatan dengan pelanggan -- dicatat sebagai Pendapatan Diterima Dimuka, BUKAN pendapatan jasa.'
-                                : 'Bebas diisi sesuai kesepakatan dengan pelanggan. DP bukan pendapatan jasa dan dipakai otomatis melunasi pembayaran saat Proses Referral.'),
+                                : 'Bebas diisi sesuai kesepakatan dengan pelanggan. DP bukan pendapatan jasa dan dipakai otomatis melunasi pembayaran saat Catat Penjualan.'),
                         Forms\Components\Select::make('method')
                             ->label('Metode Pembayaran')
                             ->options(\App\Models\Booking::PAYMENT_METHOD_LABELS)
@@ -1420,7 +1420,7 @@ class BookingResource extends Resource
                 // operasional instalasi, sementara nominal & poin referral
                 // dicek/diinput belakangan (mis. oleh kasir).
                 Tables\Actions\Action::make('process_referral')
-                    ->label('Proses Referral')
+                    ->label('Catat Penjualan')
                     ->icon('heroicon-o-gift')
                     ->color('warning')
                     ->visible(fn (Booking $record) => $record->status === 'completed')

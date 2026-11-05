@@ -68,7 +68,7 @@
                 <x-heroicon-o-document-magnifying-glass class="h-10 w-10 text-gray-300 dark:text-gray-600" />
                 <p class="text-sm font-medium text-gray-600 dark:text-gray-300">Belum ada penjualan tercatat untuk periode ini.</p>
                 <p class="max-w-md text-xs text-gray-500 dark:text-gray-400">
-                    Angka baru muncul setelah booking selesai diproses lewat "Proses Referral"{{ config('features.finance') ? ' ke Jurnal Umum' : '' }}.
+                    Angka baru muncul setelah booking selesai diproses lewat "Catat Penjualan"{{ config('features.finance') ? ' ke Jurnal Umum' : '' }}.
                     @if ($result['pendingCount'] > 0)
                         Ada {{ number_format($result['pendingCount'], 0, ',', '.') }} booking selesai yang menunggu diproses (lihat peringatan di atas).
                     @endif

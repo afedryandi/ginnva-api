@@ -144,7 +144,7 @@ class DownPaymentService
             // mengembalikannya membuat 2140 negatif. Sisa DP yang TIDAK terpakai
             // tetap boleh di-refund.
             if ((float) $locked->applied_amount > 0) {
-                throw new RuntimeException('DP ini sudah dipakai sebagai pembayaran booking yang diposting, tidak bisa dikembalikan. Koreksi lewat "Proses Referral" atau Refund.');
+                throw new RuntimeException('DP ini sudah dipakai sebagai pembayaran booking yang diposting, tidak bisa dikembalikan. Koreksi lewat "Catat Penjualan" atau Refund.');
             }
 
             if (! config('features.finance')) {

@@ -120,7 +120,7 @@ class AccountingPeriodService
                 ->count();
 
             if ($unprocessed > 0) {
-                $items[] = ['key' => 'unprocessed_sales', 'severity' => 'warn', 'count' => $unprocessed, 'text' => "{$unprocessed} booking selesai bulan ini belum diproses ke pendapatan (Proses Referral) — setelah bulan ditutup, pendapatannya akan bertanggal bulan berikutnya."];
+                $items[] = ['key' => 'unprocessed_sales', 'severity' => 'warn', 'count' => $unprocessed, 'text' => "{$unprocessed} booking selesai bulan ini belum diproses ke pendapatan (Catat Penjualan) — setelah bulan ditutup, pendapatannya akan bertanggal bulan berikutnya."];
             }
         }
 

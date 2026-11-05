@@ -73,11 +73,11 @@ class RefundService
             $ledger = (bool) config('features.finance');
 
             if ($ledger && ! $booking->journal_entry_id) {
-                throw new RuntimeException('Booking ini belum punya jurnal pendapatan (belum diproses lewat "Proses Referral") — tidak ada yang bisa di-refund.');
+                throw new RuntimeException('Booking ini belum punya jurnal pendapatan (belum diproses lewat "Catat Penjualan") — tidak ada yang bisa di-refund.');
             }
 
             if (! $ledger && (float) ($booking->transaction_amount ?? 0) <= 0) {
-                throw new RuntimeException('Booking ini belum diproses lewat "Proses Referral" (nominal transaksi belum diisi) — tidak ada yang bisa di-refund.');
+                throw new RuntimeException('Booking ini belum diproses lewat "Catat Penjualan" (nominal transaksi belum diisi) — tidak ada yang bisa di-refund.');
             }
 
             $alreadyRefunded = (float) $booking->refunds()->sum('amount');

@@ -444,7 +444,7 @@ class SalesSummaryTest extends TestCase
         config(['features.finance' => false]);
         $this->actingAs($this->admin(), 'web');
 
-        $this->page()->assertSee('Proses Referral')->assertDontSee('Jurnal Umum');
+        $this->page()->assertSee('Catat Penjualan')->assertDontSee('Jurnal Umum');
 
         config(['features.finance' => true]);
         $this->page()->assertSee('Jurnal Umum');

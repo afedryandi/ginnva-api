@@ -592,7 +592,7 @@ class TransactionApprovalTest extends TestCase
 
         $this->assertSame(750000.0, $referral->amount());
         $this->assertSame(5000.0, $refund->amount());
-        $this->assertStringContainsString('Proses Referral', $referral->summaryLine());
+        $this->assertStringContainsString('Catat Penjualan', $referral->summaryLine());
         $this->assertStringContainsString('Rp750.000', $referral->summaryLine());
         $this->assertStringContainsString($staff->name, $referral->summaryLine());
     }

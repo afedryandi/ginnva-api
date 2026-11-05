@@ -91,7 +91,7 @@
     {{-- Catatan kaki (audit Detail Penjualan 2026-09-29) -- bukan pola laporan Keuangan generik
     (booking selalu punya toko, tidak ada konsep "Pusat/Tanpa Toko" di sini). --}}
     <div style="margin-top: 16px; padding-top: 8px; border-top: 1px solid #999; font-size: 9px; color: #555;">
-        Sumber data: booking yang penjualannya sudah diproses lewat Proses Referral{{ $financeOn ? ' (ada Jurnal Umum posted)' : '' }}. Mengikuti filter yang aktif saat mencetak.<br>
+        Sumber data: booking yang penjualannya sudah diproses lewat Catat Penjualan{{ $financeOn ? ' (ada Jurnal Umum posted)' : '' }}. Mengikuti filter yang aktif saat mencetak.<br>
         Dicetak {{ now()->translatedFormat('d M Y H:i') }} oleh {{ auth()->user()?->name ?? '—' }}.
     </div>
 </body>

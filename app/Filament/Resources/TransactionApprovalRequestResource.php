@@ -162,7 +162,7 @@ class TransactionApprovalRequestResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->emptyStateHeading('Belum ada pengajuan')
-            ->emptyStateDescription('Pengajuan Proses Referral, Refund, dan Catat DP dari staff muncul di sini.')
+            ->emptyStateDescription('Pengajuan Catat Penjualan, Refund, dan Catat DP dari staff muncul di sini.')
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options(TransactionApprovalRequest::STATUS_LABELS),
