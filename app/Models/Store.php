@@ -286,6 +286,64 @@ class Store extends Model
         return static::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->orderByDesc('is_active')->orderBy('id')->first();
     }
 
+    /**
+     * Status buka untuk tampilan publik: 'open_now' true/false menurut jam operasional hari ini (zona WIB), atau null bila toko belum punya jadwal
+     * hari itu; 'today_hours' teks "09:00–17:00", "Libur", atau null. Istirahat tidak dihitung (toko dianggap buka sepanjang jam buka–tutup).
+     *
+     * @return array{open_now: ?bool, today_hours: ?string}
+     */
+    public function openStatus(?\Illuminate\Support\Carbon $now = null): array
+    {
+        $now = ($now ?? now())->copy()->timezone('Asia/Jakarta');
+
+        if ($this->isClosedOn($now)) {
+            return ['open_now' => false, 'today_hours' => 'Libur'];
+        }
+
+        $row = $this->openingRowOn($now);
+        $open = $row['open'] ?? null;
+        $close = $row['close'] ?? null;
+
+        if (! filled($open) || ! filled($close)) {
+            return ['open_now' => null, 'today_hours' => null];
+        }
+
+        $clock = $now->format('H:i');
+
+        return [
+            'open_now' => $clock >= substr((string) $open, 0, 5) && $clock < substr((string) $close, 0, 5),
+            'today_hours' => substr((string) $open, 0, 5) . '–' . substr((string) $close, 0, 5),
+        ];
+    }
+
+    /**
+     * Data penting yang belum diisi di toko ini (label manusiawi), untuk kolom Kelengkapan dan pemeriksaan Pusat Master Data.
+     *
+     * @return list<string>
+     */
+    public function missingFields(): array
+    {
+        $missing = [];
+
+        if (blank($this->code)) {
+            $missing[] = 'Kode';
+        }
+        if (blank($this->phone)) {
+            $missing[] = 'Telepon';
+        }
+        if ($this->latitude === null || $this->longitude === null) {
+            $missing[] = 'Koordinat';
+        }
+        if (empty($this->opening_hours)) {
+            $missing[] = 'Jam buka';
+        }
+        if ($this->detailing_slot_count === null || $this->instalasi_qc_slot_count === null) {
+            $missing[] = 'Slot kapasitas';
+        }
+
+        return $missing;
+    }
+
     public function openingTimeOn(\Illuminate\Support\Carbon $date): ?string
     {
         if ($this->isClosedOn($date)) {

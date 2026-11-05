@@ -76,6 +76,23 @@ class ListVehicleGlassAreas extends ListRecords
                         ->success()
                         ->send();
                 }),
+            Actions\Action::make('export')
+                ->label('Export Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                ->action(function () {
+                    try {
+                        activity('report_export')
+                            ->causedBy(auth()->user())
+                            ->withProperties(['report' => 'vehicle_glass_area', 'format' => 'xlsx'])
+                            ->log('Export Luas Kaca (xlsx)');
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
+
+                    return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\VehicleGlassAreaExport(), 'luas-kaca-' . now()->format('Ymd') . '.xlsx');
+                }),
             Actions\CreateAction::make(),
         ];
     }

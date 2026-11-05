@@ -56,6 +56,16 @@ class Vehicle extends Model
         return $query->where('is_active', true);
     }
 
+    public function customerVehicles()
+    {
+        return $this->hasMany(CustomerVehicle::class);
+    }
+
+    public function caseStudies()
+    {
+        return $this->hasMany(CaseStudy::class);
+    }
+
     public function quotations()
     {
         return $this->hasMany(Quotation::class);

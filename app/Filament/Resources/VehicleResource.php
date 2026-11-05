@@ -168,7 +168,12 @@ class VehicleResource extends Resource
 
                     Forms\Components\Select::make('size_category')
                         ->label('Kategori Ukuran')
-                        ->helperText(fn () => static::sizeHelp())
+                        ->helperText(function (?Vehicle $record) {
+                            $usage = $record?->usageSummary() ?? [];
+                            $note = $usage === [] ? '' : ' Kendaraan ini dipakai oleh ' . collect($usage)->map(fn (int $n, string $label) => "{$n} {$label}")->implode(', ') . '.';
+
+                            return static::sizeHelp() . $note;
+                        })
                         ->options([
                             'S'   => 'S — Kecil (city car, hatchback)',
                             'M'   => 'M — Sedang (sedan, MPV kecil)',
@@ -247,6 +252,13 @@ class VehicleResource extends Resource
                     ->placeholder('—')
                     ->toggleable(),
 
+                Tables\Columns\TextColumn::make('usage_total')
+                    ->label('Dipakai')
+                    ->state(fn (Vehicle $record) => (int) $record->quotations_count + (int) $record->customer_vehicles_count + (int) $record->case_studies_count)
+                    ->tooltip('Penawaran + kendaraan pelanggan + studi kasus yang memakai kendaraan ini')
+                    ->numeric()
+                    ->toggleable(),
+
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Aktif')
                     ->boolean()
@@ -264,6 +276,31 @@ class VehicleResource extends Resource
                     ->trueLabel('Aktif')
                     ->falseLabel('Nonaktif')
                     ->default(true),
+                // Filter pembersihan: sama dengan hitungan di Pusat Master Data.
+                Tables\Filters\Filter::make('no_model')
+                    ->label('Tanpa tipe/model')
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->whereNull('model')),
+                Tables\Filters\Filter::make('no_body')
+                    ->label('Tanpa tipe bodi')
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->whereNotNull('model')->whereNull('body_type')),
+                Tables\Filters\Filter::make('no_area')
+                    ->label('Tanpa luas kaca')
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->whereNotNull('model')->whereNotExists(fn ($q) => $q
+                        ->from('vehicle_glass_areas as g')
+                        ->whereRaw('g.brand_key = LOWER(TRIM(vehicles.brand))')
+                        ->whereRaw('g.model_key = LOWER(TRIM(vehicles.model))'))),
+                Tables\Filters\Filter::make('size_conflict')
+                    ->label('Ukuran bentrok (satu model, beda ukuran)')
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('is_active', true)->whereNotNull('model')->whereNull('variant')->whereExists(fn ($q) => $q
+                        ->from('vehicles as v2')
+                        ->whereColumn('v2.brand', 'vehicles.brand')
+                        ->whereColumn('v2.model', 'vehicles.model')
+                        ->where('v2.is_active', true)
+                        ->whereNull('v2.variant')
+                        ->whereColumn('v2.size_category', '!=', 'vehicles.size_category'))),
+                Tables\Filters\Filter::make('unused')
+                    ->label('Belum pernah dipakai')
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->whereDoesntHave('quotations')->whereDoesntHave('customerVehicles')->whereDoesntHave('caseStudies')),
                 Tables\Filters\SelectFilter::make('size_category')
                     ->label('Kategori Ukuran')
                     ->options([
@@ -276,6 +313,51 @@ class VehicleResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('duplicate')
+                    ->label('Duplikat sebagai varian')
+                    ->icon('heroicon-o-document-duplicate')
+                    ->color('gray')
+                    ->visible(fn () => static::canCreate())
+                    ->modalHeading('Buat varian baru dari kendaraan ini')
+                    ->form(fn (Vehicle $record): array => [
+                        Forms\Components\TextInput::make('variant')
+                            ->label('Varian baru')
+                            ->required()
+                            ->maxLength(255)
+                            ->helperText("Merek {$record->brand} dan tipe " . ($record->model ?? '(tanpa tipe)') . ' disalin; ukuran, tipe bodi, dan tahun ikut dari kendaraan ini dan bisa diubah setelahnya.')
+                            ->rule(fn () => function (string $attribute, $value, \Closure $fail) use ($record) {
+                                if (Vehicle::where('brand', $record->brand)->where('model', $record->model)->where('variant', trim((string) $value))->exists()) {
+                                    $fail('Kendaraan dengan merek, model, dan varian yang sama sudah terdaftar.');
+                                }
+                            }),
+                    ])
+                    ->action(function (Vehicle $record, array $data) {
+                        $copy = $record->replicate(['created_at', 'updated_at']);
+                        $copy->variant = trim($data['variant']);
+                        $copy->save();
+
+                        Notification::make()->title('Varian baru dibuat')->body('Periksa ukuran dan tipe bodinya, lalu ubah bila berbeda.')->success()->send();
+                    }),
+                Tables\Actions\Action::make('addGlassArea')
+                    ->label('Isi Luas Kaca')
+                    ->icon('heroicon-o-squares-2x2')
+                    ->color('gray')
+                    ->visible(fn (Vehicle $record) => filled($record->model)
+                        && \App\Filament\Resources\VehicleGlassAreaResource::canCreate()
+                        && ! \App\Models\VehicleGlassArea::query()
+                            ->where('brand_key', \App\Models\VehicleGlassArea::keyOf((string) $record->brand))
+                            ->where('model_key', \App\Models\VehicleGlassArea::keyOf((string) $record->model))
+                            ->exists())
+                    ->modalHeading(fn (Vehicle $record) => "Luas kaca {$record->brand} {$record->model}")
+                    ->form(collect(['front_sqm' => 'Depan', 'side_sqm' => 'Samping (total)', 'rear_sqm' => 'Belakang', 'sunroof_sqm' => 'Sunroof'])
+                        ->map(fn (string $label, string $name) => Forms\Components\TextInput::make($name)
+                            ->label($label)->numeric()->minValue(0)->maxValue(99)->step(0.001)->default(0)->suffix('m²')->required())
+                        ->values()->all())
+                    ->action(function (Vehicle $record, array $data) {
+                        \App\Models\VehicleGlassArea::create($data + ['brand' => $record->brand, 'model' => $record->model, 'source' => 'manual']);
+
+                        Notification::make()->title('Luas kaca disimpan')->success()->send();
+                    }),
                 Tables\Actions\Action::make('toggle_active')
                     ->label(fn (Vehicle $record) => $record->is_active ? 'Nonaktifkan' : 'Aktifkan')
                     ->icon(fn (Vehicle $record) => $record->is_active ? 'heroicon-o-eye-slash' : 'heroicon-o-eye')
@@ -363,6 +445,11 @@ class VehicleResource extends Resource
             ->defaultSort('brand')
             ->paginated([25, 50, 100])
             ->defaultPaginationPageOption(25);
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()->withCount(['quotations', 'customerVehicles', 'caseStudies']);
     }
 
     public static function getRelations(): array

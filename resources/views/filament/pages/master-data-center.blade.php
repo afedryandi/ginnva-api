@@ -36,6 +36,9 @@
                                     'bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-300' => $check['severity'] !== 'warn',
                                 ])>{{ $check['count'] . ($check['total'] > 0 ? ' dari ' . $check['total'] : '') }}</span>
                                 <div class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{{ $check['severity'] === 'warn' ? 'Perlu ditindak' : 'Dilengkapi' }}</div>
+                                @if ($rowLink = $this->linkForCheck($check))
+                                    <a href="{{ $rowLink }}" class="mt-0.5 inline-block text-xs underline">Lihat daftarnya</a>
+                                @endif
                             @endif
                         </div>
                     </li>

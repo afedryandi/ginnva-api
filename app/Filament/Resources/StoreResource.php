@@ -72,291 +72,334 @@ class StoreResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Data Toko')
-                ->columns(2)
-                ->schema([
-                    Forms\Components\TextInput::make('name')
-                        ->label('Nama Toko')
-                        ->required()
-                        ->maxLength(255),
+            Forms\Components\Tabs::make('Toko')
+                ->columnSpanFull()
+                ->persistTabInQueryString()
+                ->tabs([
+                Forms\Components\Tabs\Tab::make('Identitas')
+                    ->columns(2)
+                    ->schema([
+                            Forms\Components\TextInput::make('name')
+                                ->label('Nama Toko')
+                                ->required()
+                                ->maxLength(255),
 
-                    Forms\Components\TextInput::make('code')
-                        ->label('Kode Toko')
-                        ->maxLength(12)
-                        ->placeholder('mis. JKT-01')
-                        ->rules(['nullable', 'regex:/^[A-Za-z0-9-]+$/'])
-                        ->unique(ignoreRecord: true)
-                        ->dehydrateStateUsing(fn (?string $state) => filled($state) ? strtoupper(trim($state)) : null)
-                        ->helperText('Singkat dan unik, huruf/angka/tanda hubung. Membedakan toko di laporan dan dokumen. Boleh dikosongkan untuk sementara.')
-                        ->validationMessages([
-                            'unique' => 'Kode toko ini sudah dipakai toko lain.',
-                            'regex' => 'Kode toko hanya boleh huruf, angka, dan tanda hubung (tanpa spasi).',
-                        ]),
+                            Forms\Components\TextInput::make('code')
+                                ->disabled(fn () => ! (auth()->user()?->isFullAccess() ?? false))
+                                ->label('Kode Toko')
+                                ->maxLength(12)
+                                ->placeholder('mis. JKT-01')
+                                ->rules(['nullable', 'regex:/^[A-Za-z0-9-]+$/'])
+                                ->unique(ignoreRecord: true)
+                                ->dehydrateStateUsing(fn (?string $state) => filled($state) ? strtoupper(trim($state)) : null)
+                                ->helperText('Singkat dan unik, huruf/angka/tanda hubung. Membedakan toko di laporan dan dokumen. Boleh dikosongkan untuk sementara.')
+                                ->validationMessages([
+                                    'unique' => 'Kode toko ini sudah dipakai toko lain.',
+                                    'regex' => 'Kode toko hanya boleh huruf, angka, dan tanda hubung (tanpa spasi).',
+                                ]),
 
-                    Forms\Components\Select::make('manager_user_id')
-                        ->label('Penanggung Jawab')
-                        ->options(fn () => \App\Models\User::query()
-                            ->where('is_active', true)
-                            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
-                            ->orderBy('name')
-                            ->pluck('name', 'id'))
-                        ->searchable()
-                        ->native(false)
-                        ->placeholder('Belum ditentukan'),
+                            Forms\Components\Select::make('manager_user_id')
+                                ->disabled(fn () => ! (auth()->user()?->isFullAccess() ?? false))
+                                ->label('Penanggung Jawab')
+                                ->options(fn () => \App\Models\User::query()
+                                    ->where('is_active', true)
+                                    ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id'))
+                                ->searchable()
+                                ->native(false)
+                                ->placeholder('Belum ditentukan'),
 
-                    Forms\Components\TextInput::make('city')
-                        ->label('Kota')
-                        ->required()
-                        ->maxLength(255),
+                            Forms\Components\TextInput::make('city')
+                                ->label('Kota')
+                                ->required()
+                                ->maxLength(255),
 
-                    Forms\Components\TextInput::make('phone')
-                        ->label('No. Telepon')
-                        ->tel()
-                        ->maxLength(255),
+                            Forms\Components\TextInput::make('phone')
+                                ->label('No. Telepon')
+                                ->tel()
+                                ->maxLength(255),
 
-                    // Cuma DEFAULT yang jadi patokan awal di form approve
-                    // booking (Filament & mobile) — staff tetap bisa ubah
-                    // angkanya sesaat kalau kapasitas hari itu beda dari
-                    // biasanya (mis. 1 installer izin), tanpa perlu ubah
-                    // setting ini. Lihat BookingResource::form().
-                    Forms\Components\TextInput::make('install_capacity_per_day')
-                        ->label('Kapasitas Instalasi / Hari (Default)')
-                        ->helperText('Berapa mobil yang biasanya bisa dikerjakan toko ini per hari — jadi nilai awal saat staff approve booking, tapi tetap bisa diubah sesaat per booking kalau kondisinya beda.')
-                        ->numeric()
-                        ->integer()
-                        ->minValue(1)
-                        ->maxValue(1000)
-                        ->default(3)
-                        ->required(),
+                            Forms\Components\Toggle::make('is_active')
+                                ->disabled(fn () => ! (auth()->user()?->isFullAccess() ?? false))
+                                ->label('Aktif (tampil di web publik)')
+                                ->helperText(function (?Store $record) {
+                                    if (! $record || ! $record->is_active) {
+                                        return null;
+                                    }
+        
+                                    $users = $record->users()->where('is_active', true)->count();
+                                    $bookings = \App\Models\Booking::query()->where('store_id', $record->id)->whereIn('status', ['pending', 'confirmed'])->count();
+        
+                                    return ($users > 0 || $bookings > 0)
+                                        ? "Perhatian sebelum menonaktifkan: toko ini masih punya {$users} karyawan aktif dan {$bookings} booking yang belum selesai. Toko nonaktif tidak tampil di web dan app."
+                                        : null;
+                                })
+                                ->default(true),
 
-                    // Fase 2 pengerjaan ulang booking (2026-10-16): kapasitas layanan RINGAN per slot jam, terpisah dari
-                    // kapasitas harian layanan berat di atas.
-                    Forms\Components\TextInput::make('light_capacity_per_slot')
-                        ->label('Kapasitas Layanan Ringan / Jam')
-                        ->helperText('Berapa mobil Detailing/Premium Wash yang bisa dikerjakan BERSAMAAN dalam satu slot jam (09-11, 11-13, 13-15, 15-17). Kosongkan untuk memakai nilai bawaan (2). Terpisah dari kapasitas harian PPF/Kaca Film.')
-                        ->numeric()
-                        ->integer()
-                        ->minValue(1)
-                        ->maxValue(50)
-                        ->nullable(),
-
-                    // f18 "Metrik Utilisasi Bay/Stall" (2026-09-24) — beda
-                    // dari install_capacity_per_day di atas (1 angka
-                    // instalasi/hari agregat), 2 field ini kapasitas FISIK
-                    // per ZONA (Detailing & Persiapan / Instalasi & QC),
-                    // dipakai laporan "Laporan Utilisasi Zona/Bay" yang
-                    // hitung durasi nyata dari log perpindahan tahap
-                    // booking. Nullable & boleh dikosongkan — toko yang
-                    // belum diisi otomatis dilewati dari laporan itu
-                    // (BUKAN dianggap 0 slot).
-                    Forms\Components\TextInput::make('detailing_slot_count')
-                        ->label('Jumlah Slot Detailing')
-                        ->helperText('Kapasitas fisik Zona Detailing & Persiapan (Cuci/Pembersihan/Pemanasan/Detailing) toko ini. Kosongkan kalau belum ditentukan — laporan "Laporan Utilisasi Zona/Bay" akan melewati toko ini sampai diisi.')
-                        ->numeric()
-                        ->integer()
-                        ->minValue(0)
-                        ->maxValue(1000)
-                        ->nullable(),
-
-                    Forms\Components\TextInput::make('instalasi_qc_slot_count')
-                        ->label('Jumlah Slot Instalasi & QC')
-                        ->helperText('Kapasitas fisik Zona Instalasi & QC toko ini. Kosongkan kalau belum ditentukan — laporan "Laporan Utilisasi Zona/Bay" akan melewati toko ini sampai diisi.')
-                        ->numeric()
-                        ->integer()
-                        ->minValue(0)
-                        ->maxValue(1000)
-                        ->nullable(),
-
-                    Forms\Components\TextInput::make('attendance_radius_meters')
-                        ->label('Radius Absen (meter)')
-                        ->helperText('Jarak maksimum dari lokasi toko ini supaya absen dari app dianggap wajar. Kosongkan untuk pakai default sistem (150 m).')
-                        ->numeric()
-                        ->integer()
-                        ->minValue(10)
-                        ->maxValue(100000)
-                        ->live(onBlur: true),
-
-                    Forms\Components\TextInput::make('late_tolerance_minutes')
-                        ->label('Toleransi Pengingat Absen & Pulang Cepat (menit)')
-                        ->helperText('Hanya dipakai untuk pengingat "belum absen masuk" dan menit pulang cepat. BUKAN dasar potongan telat: nominal dan aturan potongan telat/Alpha diisi di menu Karyawan > Aturan Potongan Absensi. Kosongkan untuk pakai default sistem (15 menit).')
-                        ->numeric()
-                        ->integer()
-                        ->minValue(0)
-                        ->maxValue(44640),
-
-                    Forms\Components\Repeater::make('opening_hours')
-                        ->label('Jam Operasional')
-                        ->columnSpanFull()
-                        ->schema([
-                            Forms\Components\CheckboxList::make('days')
-                                ->label('Hari')
-                                ->options(Store::DAY_LABELS)
-                                ->columns(4)
+                            Forms\Components\Textarea::make('address')
+                                ->label('Alamat')
                                 ->required()
                                 ->columnSpanFull(),
+                    ]),
 
-                            Forms\Components\Grid::make(3)
+                Forms\Components\Tabs\Tab::make('Jam Operasional')
+                    ->columns(1)
+                    ->schema([
+
+                            Forms\Components\Repeater::make('opening_hours')
+                                ->label('Jam Operasional')
+                                ->columnSpanFull()
                                 ->schema([
-                                    Forms\Components\Toggle::make('closed')
-                                        ->label('Libur')
-                                        ->live()
-                                        ->default(false),
+                                    Forms\Components\CheckboxList::make('days')
+                                        ->label('Hari')
+                                        ->options(Store::DAY_LABELS)
+                                        ->columns(4)
+                                        ->required()
+                                        ->columnSpanFull(),
 
-                                    Forms\Components\TimePicker::make('open')
-                                        ->label('Jam Buka')
-                                        ->seconds(false)
-                                        ->required(fn (Forms\Get $get) => ! $get('closed'))
-                                        ->hidden(fn (Forms\Get $get) => $get('closed')),
+                                    Forms\Components\Grid::make(3)
+                                        ->schema([
+                                            Forms\Components\Toggle::make('closed')
+                                                ->label('Libur')
+                                                ->live()
+                                                ->default(false),
 
-                                    Forms\Components\TimePicker::make('close')
-                                        ->label('Jam Tutup')
-                                        ->seconds(false)
-                                        ->required(fn (Forms\Get $get) => ! $get('closed'))
-                                        ->hidden(fn (Forms\Get $get) => $get('closed')),
-                                ]),
+                                            Forms\Components\TimePicker::make('open')
+                                                ->label('Jam Buka')
+                                                ->seconds(false)
+                                                ->required(fn (Forms\Get $get) => ! $get('closed'))
+                                                ->hidden(fn (Forms\Get $get) => $get('closed')),
 
-                            Forms\Components\Grid::make(2)
-                                ->hidden(fn (Forms\Get $get) => $get('closed'))
-                                ->schema([
-                                    Forms\Components\TimePicker::make('break_start')
-                                        ->label('Mulai Istirahat (opsional)')
-                                        ->seconds(false)
-                                        ->helperText('Jam istirahat dikurangi dari jam kerja efektif untuk potongan Alpha per jam. Kosongkan bila tidak ada.'),
+                                            Forms\Components\TimePicker::make('close')
+                                                ->label('Jam Tutup')
+                                                ->seconds(false)
+                                                ->required(fn (Forms\Get $get) => ! $get('closed'))
+                                                ->hidden(fn (Forms\Get $get) => $get('closed')),
+                                        ]),
 
-                                    Forms\Components\TimePicker::make('break_end')
-                                        ->label('Selesai Istirahat (opsional)')
-                                        ->seconds(false)
-                                        ->required(fn (Forms\Get $get) => filled($get('break_start'))),
-                                ]),
-                        ])
-                        ->itemLabel(fn (array $state): ?string => filled($state['days'] ?? null)
-                            ? Store::formatDayRange($state['days']) . (($state['closed'] ?? false) ? ' — Libur' : " — {$state['open']}–{$state['close']}" . (filled($state['break_start'] ?? null) ? " (istirahat {$state['break_start']}–{$state['break_end']})" : ''))
-                            : 'Baris baru')
-                        ->addActionLabel('Tambah Baris Jam')
-                        ->reorderable(false)
-                        // Satu hari hanya boleh ada di satu baris, dan jam tutup harus setelah jam buka -- kalau tidak,
-                        // jam operasional ambigu (dipakai validasi booking dan perhitungan telat absen).
-                        ->rules([
-                            fn () => function (string $attribute, $value, \Closure $fail) {
-                                $seen = [];
+                                    Forms\Components\Grid::make(2)
+                                        ->hidden(fn (Forms\Get $get) => $get('closed'))
+                                        ->schema([
+                                            Forms\Components\TimePicker::make('break_start')
+                                                ->label('Mulai Istirahat (opsional)')
+                                                ->seconds(false)
+                                                ->helperText('Jam istirahat dikurangi dari jam kerja efektif untuk potongan Alpha per jam. Kosongkan bila tidak ada.'),
 
-                                foreach ((array) $value as $row) {
-                                    foreach ((array) ($row['days'] ?? []) as $day) {
-                                        if (isset($seen[$day])) {
-                                            $fail('Hari ' . (Store::DAY_LABELS[$day] ?? $day) . ' muncul di lebih dari satu baris jam operasional.');
+                                            Forms\Components\TimePicker::make('break_end')
+                                                ->label('Selesai Istirahat (opsional)')
+                                                ->seconds(false)
+                                                ->required(fn (Forms\Get $get) => filled($get('break_start'))),
+                                        ]),
+                                ])
+                                ->itemLabel(fn (array $state): ?string => filled($state['days'] ?? null)
+                                    ? Store::formatDayRange($state['days']) . (($state['closed'] ?? false) ? ' — Libur' : " — {$state['open']}–{$state['close']}" . (filled($state['break_start'] ?? null) ? " (istirahat {$state['break_start']}–{$state['break_end']})" : ''))
+                                    : 'Baris baru')
+                                ->addActionLabel('Tambah Baris Jam')
+                                ->reorderable(false)
+                                // Satu hari hanya boleh ada di satu baris, dan jam tutup harus setelah jam buka -- kalau tidak,
+                                // jam operasional ambigu (dipakai validasi booking dan perhitungan telat absen).
+                                ->rules([
+                                    fn () => function (string $attribute, $value, \Closure $fail) {
+                                        $seen = [];
 
-                                            return;
+                                        foreach ((array) $value as $row) {
+                                            foreach ((array) ($row['days'] ?? []) as $day) {
+                                                if (isset($seen[$day])) {
+                                                    $fail('Hari ' . (Store::DAY_LABELS[$day] ?? $day) . ' muncul di lebih dari satu baris jam operasional.');
+
+                                                    return;
+                                                }
+                                                $seen[$day] = true;
+                                            }
+
+                                            if (empty($row['closed']) && filled($row['open'] ?? null) && filled($row['close'] ?? null)
+                                                && strtotime((string) $row['close']) <= strtotime((string) $row['open'])) {
+                                                $fail('Jam tutup harus setelah jam buka.');
+
+                                                return;
+                                            }
+
+                                            if (empty($row['closed']) && filled($row['break_start'] ?? null) && filled($row['break_end'] ?? null)
+                                                && (strtotime((string) $row['break_end']) <= strtotime((string) $row['break_start'])
+                                                    || strtotime((string) $row['break_start']) < strtotime((string) $row['open'])
+                                                    || strtotime((string) $row['break_end']) > strtotime((string) $row['close']))) {
+                                                $fail('Jam istirahat harus berada di dalam jam buka dan jam tutup, dan selesai setelah mulai.');
+
+                                                return;
+                                            }
                                         }
-                                        $seen[$day] = true;
+                                    },
+                                ])
+                                ->collapsible()
+                                ->collapsed(false)
+                                ->helperText('Kelompokkan hari dengan jam yang sama jadi 1 baris, mis. "Senin–Jumat" 1 baris, "Sabtu" baris lain, "Minggu" ditandai Libur.')
+                                ->default([]),
+                    ]),
+
+                Forms\Components\Tabs\Tab::make('Kapasitas & Absen')
+                    ->schema([
+                        Forms\Components\Placeholder::make('capacity_note')
+                            ->hiddenLabel()
+                            ->visible(fn () => ! (auth()->user()?->isFullAccess() ?? false))
+                            ->content('Pengaturan kapasitas dan absen hanya dapat diubah oleh akses penuh.'),
+                        Forms\Components\Section::make()
+                            ->columns(2)
+                            ->disabled(fn () => ! (auth()->user()?->isFullAccess() ?? false))
+                            ->schema([
+
+                                    // Cuma DEFAULT yang jadi patokan awal di form approve
+                                    // booking (Filament & mobile) — staff tetap bisa ubah
+                                    // angkanya sesaat kalau kapasitas hari itu beda dari
+                                    // biasanya (mis. 1 installer izin), tanpa perlu ubah
+                                    // setting ini. Lihat BookingResource::form().
+                                    Forms\Components\TextInput::make('install_capacity_per_day')
+                                        ->label('Kapasitas Instalasi / Hari (Default)')
+                                        ->helperText('Berapa mobil yang biasanya bisa dikerjakan toko ini per hari — jadi nilai awal saat staff approve booking, tapi tetap bisa diubah sesaat per booking kalau kondisinya beda.')
+                                        ->numeric()
+                                        ->integer()
+                                        ->minValue(1)
+                                        ->maxValue(1000)
+                                        ->default(3)
+                                        ->required(),
+
+                                    // Fase 2 pengerjaan ulang booking (2026-10-16): kapasitas layanan RINGAN per slot jam, terpisah dari
+                                    // kapasitas harian layanan berat di atas.
+                                    Forms\Components\TextInput::make('light_capacity_per_slot')
+                                        ->label('Kapasitas Layanan Ringan / Jam')
+                                        ->helperText('Berapa mobil Detailing/Premium Wash yang bisa dikerjakan BERSAMAAN dalam satu slot jam (09-11, 11-13, 13-15, 15-17). Kosongkan untuk memakai nilai bawaan (2). Terpisah dari kapasitas harian PPF/Kaca Film.')
+                                        ->numeric()
+                                        ->integer()
+                                        ->minValue(1)
+                                        ->maxValue(50)
+                                        ->nullable(),
+
+                                    // f18 "Metrik Utilisasi Bay/Stall" (2026-09-24) — beda
+                                    // dari install_capacity_per_day di atas (1 angka
+                                    // instalasi/hari agregat), 2 field ini kapasitas FISIK
+                                    // per ZONA (Detailing & Persiapan / Instalasi & QC),
+                                    // dipakai laporan "Laporan Utilisasi Zona/Bay" yang
+                                    // hitung durasi nyata dari log perpindahan tahap
+                                    // booking. Nullable & boleh dikosongkan — toko yang
+                                    // belum diisi otomatis dilewati dari laporan itu
+                                    // (BUKAN dianggap 0 slot).
+                                    Forms\Components\TextInput::make('detailing_slot_count')
+                                        ->label('Jumlah Slot Detailing')
+                                        ->helperText('Kapasitas fisik Zona Detailing & Persiapan (Cuci/Pembersihan/Pemanasan/Detailing) toko ini. Kosongkan kalau belum ditentukan — laporan "Laporan Utilisasi Zona/Bay" akan melewati toko ini sampai diisi.')
+                                        ->numeric()
+                                        ->integer()
+                                        ->minValue(0)
+                                        ->maxValue(1000)
+                                        ->nullable(),
+
+                                    Forms\Components\TextInput::make('instalasi_qc_slot_count')
+                                        ->label('Jumlah Slot Instalasi & QC')
+                                        ->helperText('Kapasitas fisik Zona Instalasi & QC toko ini. Kosongkan kalau belum ditentukan — laporan "Laporan Utilisasi Zona/Bay" akan melewati toko ini sampai diisi.')
+                                        ->numeric()
+                                        ->integer()
+                                        ->minValue(0)
+                                        ->maxValue(1000)
+                                        ->nullable(),
+
+                                    Forms\Components\TextInput::make('attendance_radius_meters')
+                                        ->label('Radius Absen (meter)')
+                                        ->helperText('Jarak maksimum dari lokasi toko ini supaya absen dari app dianggap wajar. Kosongkan untuk pakai default sistem (150 m).')
+                                        ->numeric()
+                                        ->integer()
+                                        ->minValue(10)
+                                        ->maxValue(100000)
+                                        ->live(onBlur: true),
+
+                                    Forms\Components\TextInput::make('late_tolerance_minutes')
+                                        ->label('Toleransi Pengingat Absen & Pulang Cepat (menit)')
+                                        ->helperText('Hanya dipakai untuk pengingat "belum absen masuk" dan menit pulang cepat. BUKAN dasar potongan telat: nominal dan aturan potongan telat/Alpha diisi di menu Karyawan > Aturan Potongan Absensi. Kosongkan untuk pakai default sistem (15 menit).')
+                                        ->numeric()
+                                        ->integer()
+                                        ->minValue(0)
+                                        ->maxValue(44640),
+                            ]),
+                    ]),
+
+                Forms\Components\Tabs\Tab::make('Lokasi & Review')
+                    ->columns(2)
+                    ->schema([
+
+                            Forms\Components\TextInput::make('maps_url')
+                                ->label('Tempel Link Google Maps')
+                                ->helperText('Cari toko di Google Maps → Bagikan → salin link (boleh link pendek maps.app.goo.gl) → tempel di sini. Latitude/Longitude di bawah terisi otomatis, dan link ini yang dibuka saat pelanggan tap "Buka Peta" di mobile app.')
+                                ->url()
+                                ->maxLength(255)
+                                ->columnSpanFull()
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(function (?string $state, Forms\Set $set) {
+                                    if (! $state) {
+                                        return;
                                     }
 
-                                    if (empty($row['closed']) && filled($row['open'] ?? null) && filled($row['close'] ?? null)
-                                        && strtotime((string) $row['close']) <= strtotime((string) $row['open'])) {
-                                        $fail('Jam tutup harus setelah jam buka.');
+                                    $coords = static::extractLatLngFromMapsUrl($state);
+
+                                    if (! $coords) {
+                                        Notification::make()
+                                            ->title('Koordinat tidak ditemukan')
+                                            ->body('Tidak bisa membaca latitude/longitude dari link ini. Isi manual di bawah, atau coba salin ulang link dari Google Maps.')
+                                            ->warning()
+                                            ->send();
 
                                         return;
                                     }
 
-                                    if (empty($row['closed']) && filled($row['break_start'] ?? null) && filled($row['break_end'] ?? null)
-                                        && (strtotime((string) $row['break_end']) <= strtotime((string) $row['break_start'])
-                                            || strtotime((string) $row['break_start']) < strtotime((string) $row['open'])
-                                            || strtotime((string) $row['break_end']) > strtotime((string) $row['close']))) {
-                                        $fail('Jam istirahat harus berada di dalam jam buka dan jam tutup, dan selesai setelah mulai.');
+                                    $set('latitude', $coords[0]);
+                                    $set('longitude', $coords[1]);
 
-                                        return;
-                                    }
-                                }
-                            },
-                        ])
-                        ->collapsible()
-                        ->collapsed(false)
-                        ->helperText('Kelompokkan hari dengan jam yang sama jadi 1 baris, mis. "Senin–Jumat" 1 baris, "Sabtu" baris lain, "Minggu" ditandai Libur.')
-                        ->default([]),
+                                    Notification::make()
+                                        ->title('Koordinat berhasil diisi')
+                                        ->body("Latitude {$coords[0]}, Longitude {$coords[1]}")
+                                        ->success()
+                                        ->send();
+                                }),
 
-                    Forms\Components\TextInput::make('maps_url')
-                        ->label('Tempel Link Google Maps')
-                        ->helperText('Cari toko di Google Maps → Bagikan → salin link (boleh link pendek maps.app.goo.gl) → tempel di sini. Latitude/Longitude di bawah terisi otomatis, dan link ini yang dibuka saat pelanggan tap "Buka Peta" di mobile app.')
-                        ->url()
-                        ->maxLength(255)
-                        ->columnSpanFull()
-                        ->live(onBlur: true)
-                        ->afterStateUpdated(function (?string $state, Forms\Set $set) {
-                            if (! $state) {
-                                return;
-                            }
+                            Forms\Components\TextInput::make('latitude')
+                                ->label('Latitude')
+                                ->numeric()
+                                ->minValue(-90)
+                                ->maxValue(90)
+                                ->live(onBlur: true),
 
-                            $coords = static::extractLatLngFromMapsUrl($state);
+                            Forms\Components\TextInput::make('longitude')
+                                ->label('Longitude')
+                                ->numeric()
+                                ->minValue(-180)
+                                ->maxValue(180)
+                                ->live(onBlur: true),
 
-                            if (! $coords) {
-                                Notification::make()
-                                    ->title('Koordinat tidak ditemukan')
-                                    ->body('Tidak bisa membaca latitude/longitude dari link ini. Isi manual di bawah, atau coba salin ulang link dari Google Maps.')
-                                    ->warning()
-                                    ->send();
+                            // Pratinjau peta radius absen (audit Majoo vs Ginnva,
+                            // "Radius Absensi diset via peta interaktif") --
+                            // fungsi radius per-toko SUDAH ADA sejak awal
+                            // (attendance_radius_meters di bawah, dipakai
+                            // Attendance::assertWithinRadius()), yang belum cuma
+                            // VISUALISASINYA. Live re-render tiap latitude/
+                            // longitude/attendance_radius_meters berubah (lihat
+                            // ->live() di field-field itu) -- Leaflet+OpenStreetMap
+                            // (gratis, tanpa API key) dimuat dari CDN, marker +
+                            // lingkaran radius digambar ulang tiap render lewat
+                            // Alpine x-init + wire:key acak supaya elemen selalu
+                            // dianggap baru oleh Livewire (script tag mentah tidak
+                            // reliable dieksekusi ulang lewat morphdom).
+                            Forms\Components\Placeholder::make('attendance_radius_map_preview')
+                                ->label('Pratinjau Radius di Peta')
+                                ->columnSpanFull()
+                                ->content(fn (Forms\Get $get) => view('filament.forms.components.attendance-radius-map', [
+                                    'lat' => $get('latitude'),
+                                    'lng' => $get('longitude'),
+                                    'radius' => $get('attendance_radius_meters') ?: Attendance::DEFAULT_RADIUS_METERS,
+                                ])),
 
-                                return;
-                            }
-
-                            $set('latitude', $coords[0]);
-                            $set('longitude', $coords[1]);
-
-                            Notification::make()
-                                ->title('Koordinat berhasil diisi')
-                                ->body("Latitude {$coords[0]}, Longitude {$coords[1]}")
-                                ->success()
-                                ->send();
-                        }),
-
-                    Forms\Components\TextInput::make('latitude')
-                        ->label('Latitude')
-                        ->numeric()
-                        ->minValue(-90)
-                        ->maxValue(90)
-                        ->live(onBlur: true),
-
-                    Forms\Components\TextInput::make('longitude')
-                        ->label('Longitude')
-                        ->numeric()
-                        ->minValue(-180)
-                        ->maxValue(180)
-                        ->live(onBlur: true),
-
-                    // Pratinjau peta radius absen (audit Majoo vs Ginnva,
-                    // "Radius Absensi diset via peta interaktif") --
-                    // fungsi radius per-toko SUDAH ADA sejak awal
-                    // (attendance_radius_meters di bawah, dipakai
-                    // Attendance::assertWithinRadius()), yang belum cuma
-                    // VISUALISASINYA. Live re-render tiap latitude/
-                    // longitude/attendance_radius_meters berubah (lihat
-                    // ->live() di field-field itu) -- Leaflet+OpenStreetMap
-                    // (gratis, tanpa API key) dimuat dari CDN, marker +
-                    // lingkaran radius digambar ulang tiap render lewat
-                    // Alpine x-init + wire:key acak supaya elemen selalu
-                    // dianggap baru oleh Livewire (script tag mentah tidak
-                    // reliable dieksekusi ulang lewat morphdom).
-                    Forms\Components\Placeholder::make('attendance_radius_map_preview')
-                        ->label('Pratinjau Radius di Peta')
-                        ->columnSpanFull()
-                        ->content(fn (Forms\Get $get) => view('filament.forms.components.attendance-radius-map', [
-                            'lat' => $get('latitude'),
-                            'lng' => $get('longitude'),
-                            'radius' => $get('attendance_radius_meters') ?: Attendance::DEFAULT_RADIUS_METERS,
-                        ])),
-
-                    Forms\Components\Toggle::make('is_active')
-                        ->label('Aktif (tampil di web publik)')
-                        ->default(true),
-
-                    Forms\Components\TextInput::make('google_place_id')
-                        ->label('Google Place ID')
-                        ->helperText('Dipakai untuk tombol "Beri Review" di mobile app. Cari toko di Google Maps → Bagikan → Sematkan peta HTML → salin ID setelah "!1s0x". Atau pakai tool "Place ID Finder" di developers.google.com/maps/documentation/places/web-service/place-id.')
-                        ->columnSpanFull()
-                        ->maxLength(255),
-
-                    Forms\Components\Textarea::make('address')
-                        ->label('Alamat')
-                        ->required()
-                        ->columnSpanFull(),
+                            Forms\Components\TextInput::make('google_place_id')
+                                ->label('Google Place ID')
+                                ->helperText('Dipakai untuk tombol "Beri Review" di mobile app. Cari toko di Google Maps → Bagikan → Sematkan peta HTML → salin ID setelah "!1s0x". Atau pakai tool "Place ID Finder" di developers.google.com/maps/documentation/places/web-service/place-id.')
+                                ->columnSpanFull()
+                                ->maxLength(255),
+                    ]),
                 ]),
         ]);
     }
@@ -415,7 +458,7 @@ class StoreResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with('manager:id,name'))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('manager:id,name')->withCount(['users as active_users_count' => fn ($q) => $q->where('is_active', true)]))
             ->columns([
                 Tables\Columns\TextColumn::make('code')
                     ->label('Kode')
@@ -442,6 +485,18 @@ class StoreResource extends Resource
 
                 Tables\Columns\TextColumn::make('phone')
                     ->label('Telepon'),
+
+                Tables\Columns\TextColumn::make('completeness')
+                    ->label('Kelengkapan')
+                    ->state(fn (Store $record) => $record->missingFields() === [] ? 'Lengkap' : 'Kurang: ' . implode(', ', $record->missingFields()))
+                    ->badge()
+                    ->color(fn (string $state) => $state === 'Lengkap' ? 'success' : 'warning')
+                    ->wrap(),
+
+                Tables\Columns\TextColumn::make('active_users_count')
+                    ->label('Karyawan Aktif')
+                    ->numeric()
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('opening_hours_summary')
                     ->label('Jam Operasional')
@@ -471,6 +526,27 @@ class StoreResource extends Resource
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Status Aktif'),
+                Tables\Filters\Filter::make('incomplete')
+                    ->label('Data belum lengkap')
+                    ->query(fn (Builder $query) => $query->where(fn (Builder $q) => $q
+                        ->whereNull('code')->orWhereNull('phone')->orWhereNull('latitude')->orWhereNull('longitude')
+                        ->orWhereNull('opening_hours')->orWhereRaw('JSON_LENGTH(opening_hours) = 0')
+                        ->orWhereNull('detailing_slot_count')->orWhereNull('instalasi_qc_slot_count'))),
+                Tables\Filters\Filter::make('no_coordinates')
+                    ->label('Tanpa koordinat')
+                    ->query(fn (Builder $query) => $query->where(fn (Builder $q) => $q->whereNull('latitude')->orWhereNull('longitude'))),
+                Tables\Filters\Filter::make('no_hours')
+                    ->label('Tanpa jam buka')
+                    ->query(fn (Builder $query) => $query->where(fn (Builder $q) => $q->whereNull('opening_hours')->orWhereRaw('JSON_LENGTH(opening_hours) = 0'))),
+                Tables\Filters\Filter::make('no_phone')
+                    ->label('Tanpa nomor telepon')
+                    ->query(fn (Builder $query) => $query->where(fn (Builder $q) => $q->whereNull('phone')->orWhere('phone', ''))),
+                Tables\Filters\Filter::make('no_manager')
+                    ->label('Tanpa penanggung jawab')
+                    ->query(fn (Builder $query) => $query->whereNull('manager_user_id')),
+                Tables\Filters\Filter::make('no_capacity')
+                    ->label('Slot kapasitas belum diisi')
+                    ->query(fn (Builder $query) => $query->where(fn (Builder $q) => $q->whereNull('detailing_slot_count')->orWhereNull('instalasi_qc_slot_count'))),
                 Tables\Filters\Filter::make('no_code')
                     ->label('Belum punya kode toko')
                     ->query(fn (Builder $query) => $query->whereNull('code')),

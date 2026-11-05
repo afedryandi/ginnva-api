@@ -105,6 +105,9 @@ class StoreController extends Controller
             'opening_hours'         => $store->opening_hours,
             'opening_hours_lines'   => $store->opening_hours_lines,
             'opening_hours_schema'  => $store->opening_hours_schema,
+            // Status hari ini (zona WIB) untuk tanda "Buka/Tutup" di app.
+            'open_now'              => $store->openStatus()['open_now'],
+            'today_hours'           => $store->openStatus()['today_hours'],
             'reviews_count'         => $store->reviews_count,
             'positive_rate_percent' => $store->positive_rate_percent,
         ];

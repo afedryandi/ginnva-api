@@ -127,14 +127,46 @@ class VehicleGlassAreaResource extends Resource
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('source')->label('Sumber')->options(['import' => 'Import', 'manual' => 'Manual']),
+                Tables\Filters\Filter::make('no_vehicle')
+                    ->label('Belum di katalog kendaraan')
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->whereNotExists(fn ($q) => $q
+                        ->from('vehicles as v')
+                        ->whereRaw('LOWER(TRIM(v.brand)) = vehicle_glass_areas.brand_key')
+                        ->whereRaw('LOWER(TRIM(v.model)) = vehicle_glass_areas.model_key'))),
             ])
             ->actions([
+                Tables\Actions\Action::make('createVehicle')
+                    ->label('Buat Kendaraan')
+                    ->icon('heroicon-o-truck')
+                    ->color('gray')
+                    ->visible(fn (VehicleGlassArea $record) => \App\Filament\Resources\VehicleResource::canCreate() && $record->catalogVehicleCount() === 0)
+                    ->modalHeading(fn (VehicleGlassArea $record) => "Tambahkan {$record->brand} {$record->model} ke katalog kendaraan")
+                    ->form([
+                        Forms\Components\Select::make('size_category')
+                            ->label('Kategori Ukuran')
+                            ->options(['S' => 'S — Kecil', 'M' => 'M — Sedang', 'L' => 'L — Besar', 'XL' => 'XL — Sangat Besar', 'XXL' => 'XXL — Ekstra Besar'])
+                            ->in(['S', 'M', 'L', 'XL', 'XXL'])
+                            ->required()
+                            ->helperText('Menentukan harga PPF dan kaca film untuk kendaraan ini.'),
+                    ])
+                    ->action(function (VehicleGlassArea $record, array $data) {
+                        \App\Models\Vehicle::create(['brand' => $record->brand, 'model' => $record->model, 'size_category' => $data['size_category'], 'is_active' => true]);
+
+                        \Filament\Notifications\Notification::make()->title('Kendaraan ditambahkan ke katalog')->success()->send();
+                    }),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->defaultSort('brand')
             ->paginated([25, 50, 100])
             ->defaultPaginationPageOption(25);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            \App\Filament\Resources\RelationManagers\ActivityHistoryRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

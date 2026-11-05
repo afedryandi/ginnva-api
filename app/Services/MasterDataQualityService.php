@@ -52,8 +52,11 @@ class MasterDataQualityService
         $add('vehicle_size_conflict', 'Kendaraan', 'Merek+model dengan lebih dari satu ukuran', $conflicting, $modelsTotal, 'warn',
             'Harga menjadi ambigu. Pilih satu ukuran yang benar dan nonaktifkan yang lain.');
 
-        // ---- Luas kaca
-        $areaTotal = VehicleGlassArea::count();
+        $inactiveInUse = Vehicle::query()->where('is_active', false)->whereIn('id', \App\Models\CustomerVehicle::query()->select('vehicle_id'))->count();
+        $add('vehicle_inactive_in_use', 'Kendaraan', 'Kendaraan nonaktif yang masih dipakai kendaraan pelanggan', $inactiveInUse, Vehicle::query()->where('is_active', false)->count(), 'info',
+            'Pelanggan masih memilihnya di Kendaraan Saya. Pastikan memang sengaja dinonaktifkan.');
+
+        // ---- Luas kaca        $areaTotal = VehicleGlassArea::count();
         $orphanAreas = VehicleGlassArea::query()->get(['id', 'brand_key', 'model_key'])
             ->filter(fn (VehicleGlassArea $a) => ! Vehicle::query()
                 ->whereRaw('LOWER(TRIM(brand)) = ?', [$a->brand_key])
@@ -71,6 +74,10 @@ class MasterDataQualityService
             'Koordinat dibutuhkan untuk absen berbasis lokasi.');
         $add('store_no_hours', 'Toko', 'Toko aktif tanpa jam buka', (clone $activeStores)->get(['id', 'opening_hours'])->filter(fn (Store $s) => empty($s->opening_hours))->count(), (clone $activeStores)->count(), 'warn',
             'Tanpa jam buka, kapasitas dan jadwal bergantung pada nilai bawaan.');
+        $add('store_no_phone', 'Toko', 'Toko aktif tanpa nomor telepon', (clone $activeStores)->where(fn ($q) => $q->whereNull('phone')->orWhere('phone', ''))->count(), (clone $activeStores)->count(), 'warn',
+            'Nomor telepon tampil di halaman dealer app dan web; pelanggan tidak bisa menghubungi toko tanpanya.');
+        $add('store_no_capacity', 'Toko', 'Toko aktif tanpa jumlah slot Detailing atau Instalasi & QC', (clone $activeStores)->where(fn ($q) => $q->whereNull('detailing_slot_count')->orWhereNull('instalasi_qc_slot_count'))->count(), (clone $activeStores)->count(), 'info',
+            'Laporan Utilisasi Zona/Bay melewati toko yang slotnya belum diisi.');
         $add('store_no_manager', 'Toko', 'Toko aktif tanpa penanggung jawab', (clone $activeStores)->whereNull('manager_user_id')->count(), (clone $activeStores)->count(), 'info',
             'Opsional, tetapi membantu mengetahui siapa yang dihubungi.');
 
