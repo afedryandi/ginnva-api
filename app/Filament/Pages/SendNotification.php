@@ -3,6 +3,11 @@
 namespace App\Filament\Pages;
 
 use App\Models\Customer;
+use App\Models\CustomerGroup;
+use App\Models\DeviceToken;
+use App\Models\NotificationCampaign;
+use App\Services\PushNotificationService;
+use Filament\Forms\Components\Group;
 use App\Models\NotificationTemplate;
 use App\Models\Partner;
 use App\Services\NotificationCampaignService;
@@ -65,7 +70,36 @@ class SendNotification extends Page implements HasForms
 
     public function mount(): void
     {
-        $this->form->fill($this->defaults());
+        $state = $this->defaults();
+
+        // "Duplikat" dari Kampanye Notifikasi (?dari=ID) atau "Pakai" dari Template Notifikasi (?template=ID). Jadwal tidak ikut disalin.
+        $from = request()->integer('dari');
+        $templateId = request()->integer('template');
+
+        if ($from && ($campaign = NotificationCampaign::find($from))) {
+            $state = NotificationCampaignService::stateFromCampaign($campaign);
+        } elseif ($templateId && ($template = NotificationTemplate::find($templateId))) {
+            $partner = $template->audience === 'partner';
+            $state = $this->defaults($partner ? 'partner' : 'customer') + [];
+            $state['title'] = $template->title;
+            $state['body'] = $template->body;
+
+            if (! $partner) {
+                $state['category'] = $template->category ?: 'promo';
+                $state['deep_link_route'] = $template->data['deep_link_route'] ?? null;
+                $state['deep_link_param_id'] = $template->data['deep_link_param_id'] ?? null;
+            }
+        }
+
+        $this->form->fill($state);
+    }
+
+    /** Pratinjau lama tidak berlaku lagi bila sasaran atau jenis pesan berubah: sembunyikan supaya angkanya tidak menyesatkan. */
+    public function updatedData($value = null, $key = null): void
+    {
+        if ($key === null || preg_match('/^(audience|category|broadcast|broadcast_partner|customer_ids|partner_ids|target_mode|segment_)/', (string) $key)) {
+            $this->preview = null;
+        }
     }
 
     /** @return array<string, mixed> */
@@ -137,12 +171,18 @@ class SendNotification extends Page implements HasForms
                     ->label('Judul Notifikasi')
                     ->required()
                     ->maxLength(200)
+                    ->live(debounce: 400)
+                    ->hint(fn (?string $state) => mb_strlen((string) $state) . '/200')
+                    ->helperText('Layar kunci biasanya hanya menampilkan sekitar 40 karakter pertama: taruh hal terpenting di depan.')
                     ->placeholder('Promo Spesial Ginnva!'),
 
                 Textarea::make('body')
                     ->label('Isi Pesan')
                     ->required()
                     ->maxLength(500)
+                    ->live(debounce: 400)
+                    ->hint(fn (?string $state) => mb_strlen((string) $state) . '/500')
+                    ->helperText('Sekitar 100 karakter pertama terbaca di layar kunci; sisanya hanya terbaca setelah dibuka.')
                     ->rows(3)
                     ->placeholder('Dapatkan diskon 20% untuk pemasangan PPF bulan ini...'),
 
@@ -152,8 +192,18 @@ class SendNotification extends Page implements HasForms
                     ->default(true)
                     ->visible(fn ($get) => $get('audience') === 'customer'),
 
-                Select::make('customer_ids')
-                    ->label('Pilih Pelanggan')
+                Radio::make('target_mode')
+                    ->label('Sasaran')
+                    ->options([
+                        'pick'    => 'Pilih pelanggan satu per satu',
+                        'segment' => 'Segmen pelanggan (berdasarkan kriteria)',
+                    ])
+                    ->default('pick')
+                    ->inline()
+                    ->live()
+                    ->visible(fn ($get) => $get('audience') === 'customer' && ! $get('broadcast')),
+
+                Select::make('customer_ids')                    ->label('Pilih Pelanggan')
                     ->multiple()
                     ->searchable()
                     // Pencarian bertahap (maks. 50 hasil), bukan memuat SEMUA pelanggan ke dropdown tiap halaman dibuka --
@@ -172,8 +222,43 @@ class SendNotification extends Page implements HasForms
                         ->get(['id', 'name', 'email'])
                         ->mapWithKeys(fn ($c) => [$c->id => $this->customerLabel($c)])
                         ->all())
-                    ->visible(fn ($get) => $get('audience') === 'customer' && !$get('broadcast'))
-                    ->requiredIf('broadcast', false),
+                    ->visible(fn ($get) => $get('audience') === 'customer' && ! $get('broadcast') && ($get('target_mode') ?? 'pick') !== 'segment')
+                    ->required(fn ($get) => ($get('target_mode') ?? 'pick') !== 'segment'),
+
+                Group::make([
+                    Select::make('segment_group_ids')
+                        ->label('Grup Pelanggan')
+                        ->multiple()
+                        ->options(fn () => CustomerGroup::query()->orderBy('sort_order')->orderBy('name')->pluck('name', 'id'))
+                        ->placeholder('Semua grup')
+                        ->live(),
+
+                    Select::make('segment_booking')
+                        ->label('Riwayat Booking')
+                        ->options(['any' => 'Tidak dibatasi', 'has' => 'Pernah booking', 'never' => 'Belum pernah booking'])
+                        ->default('any')
+                        ->native(false)
+                        ->live(),
+
+                    TextInput::make('segment_inactive_months')
+                        ->label('Belum Booking Sejak (bulan)')
+                        ->numeric()
+                        ->integer()
+                        ->minValue(1)
+                        ->maxValue(60)
+                        ->helperText('Pelanggan yang pernah booking tetapi tidak ada booking dalam sekian bulan terakhir, cocok untuk pengingat perawatan atau penawaran kembali.')
+                        ->live(onBlur: true),
+
+                    Toggle::make('segment_warranty_active')
+                        ->label('Punya garansi aktif')
+                        ->live(),
+
+                    \Filament\Forms\Components\Placeholder::make('segment_note')
+                        ->hiddenLabel()
+                        ->content('Semua kriteria yang diisi berlaku bersamaan. Tekan Pratinjau Penerima untuk melihat berapa pelanggan yang cocok. Keanggotaan segmen dihitung saat notifikasi dikirim, termasuk pada kiriman terjadwal.'),
+                ])
+                    ->columnSpanFull()
+                    ->visible(fn ($get) => $get('audience') === 'customer' && ! $get('broadcast') && ($get('target_mode') ?? 'pick') === 'segment'),
 
                 Toggle::make('broadcast_partner')
                     ->label('Kirim ke semua partner')
@@ -258,6 +343,37 @@ class SendNotification extends Page implements HasForms
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('testSend')
+                ->label('Kirim Uji ke Perangkat Saya')
+                ->icon('heroicon-o-device-phone-mobile')
+                ->color('gray')
+                ->action(function (): void {
+                    $state = $this->data;
+
+                    if (blank($state['title'] ?? null) || blank($state['body'] ?? null)) {
+                        Notification::make()->title('Isi judul dan pesan dulu')->body('Kirim uji memakai judul dan isi yang sedang diisi.')->danger()->send();
+
+                        return;
+                    }
+
+                    if (! DeviceToken::where('user_id', auth()->id())->exists()) {
+                        Notification::make()
+                            ->title('Belum ada perangkat terdaftar untuk akun Anda')
+                            ->body('Masuk dulu di aplikasi karyawan di HP Anda, lalu coba lagi.')
+                            ->warning()
+                            ->send();
+
+                        return;
+                    }
+
+                    app(PushNotificationService::class)->sendToUsers([auth()->id()], '[UJI] ' . $state['title'], $state['body']);
+
+                    Notification::make()
+                        ->title('Notifikasi uji dikirim ke perangkat Anda')
+                        ->body('Hanya ke HP Anda sendiri, tidak ke pelanggan. Muncul sebagai pesan di aplikasi karyawan dengan awalan [UJI].')
+                        ->success()
+                        ->send();
+                }),
             Action::make('saveTemplate')
                 ->label('Simpan sebagai template')
                 ->icon('heroicon-o-bookmark')
@@ -291,7 +407,7 @@ class SendNotification extends Page implements HasForms
                         'created_by' => auth()->id(),
                     ]);
 
-                    Notification::make()->title('Template disimpan')->body("Template \"{$data['name']}\" bisa dipilih lewat \"Pakai Templat\".")->success()->send();
+                    Notification::make()->title('Template disimpan')->body("Template \"{$data['name']}\" bisa dipilih lewat \"Pakai Template\".")->success()->send();
                 }),
         ];
     }

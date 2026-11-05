@@ -41,7 +41,8 @@ class NotificationTemplateResource extends Resource
 
     public static function canViewAny(): bool { return static::allowed('view'); }
     public static function canCreate(): bool { return false; }
-    public static function canEdit($record): bool { return static::allowed('edit'); }
+    // Kunci izin di Akses Menu adalah 'update' (Ubah); 'edit' tidak pernah cocok sehingga izin Ubah tidak berpengaruh.
+    public static function canEdit($record): bool { return static::allowed('update'); }
     public static function canDelete($record): bool { return static::allowed('delete'); }
 
     public static function form(Form $form): Form
@@ -74,6 +75,13 @@ class NotificationTemplateResource extends Resource
             ])
             ->defaultSort('name')
             ->actions([
+                Tables\Actions\Action::make('use')
+                    ->label('Pakai')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('gray')
+                    ->visible(fn () => \App\Filament\Pages\SendNotification::canAccess())
+                    ->tooltip('Buka Kirim Notifikasi dengan template ini sudah terisi.')
+                    ->url(fn (NotificationTemplate $r) => \App\Filament\Pages\SendNotification::getUrl(['template' => $r->id])),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])

@@ -73,6 +73,12 @@ class CustomerNotificationResource extends Resource
                     ->weight('bold')
                     ->wrap(),
 
+                Tables\Columns\TextColumn::make('category')
+                    ->label('Jenis')
+                    ->formatStateUsing(fn (?string $state) => match ($state) { 'promo' => 'Promosi', 'info' => 'Informasi', default => '—' })
+                    ->badge()
+                    ->color(fn (?string $state) => $state === 'promo' ? 'warning' : 'gray'),
+
                 Tables\Columns\TextColumn::make('body')
                     ->label('Isi')
                     ->wrap()
@@ -93,6 +99,7 @@ class CustomerNotificationResource extends Resource
                     })
                     ->badge()
                     ->color(fn (CustomerNotification $record) => $record->customer_id === null ? 'info' : 'gray')
+                    ->searchable(query: fn (\Illuminate\Database\Eloquent\Builder $query, string $search) => $query->whereHas('customer', fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('phone_number', 'like', "%{$search}%")))
                     // Drill-down ke halaman customer terkait (audit 2026-09-30).
                     ->url(fn (CustomerNotification $record) => $record->customer_id
                         ? CustomerResource::getUrl('view', ['record' => $record->customer_id])
@@ -119,11 +126,11 @@ class CustomerNotificationResource extends Resource
             ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\Filter::make('broadcast')
-                    ->label('Broadcast saja')
+                    ->label('Siaran ke semua pelanggan')
                     ->query(fn ($query) => $query->whereNull('customer_id')),
 
                 Tables\Filters\Filter::make('targeted')
-                    ->label('Targeted saja')
+                    ->label('Khusus pelanggan tertentu')
                     ->query(fn ($query) => $query->whereNotNull('customer_id')),
 
                 // Filter rentang tanggal (audit 2026-09-30) -- sejajar Riwayat lain

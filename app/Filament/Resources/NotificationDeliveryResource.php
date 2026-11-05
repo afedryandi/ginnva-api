@@ -48,7 +48,7 @@ class NotificationDeliveryResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with(['user:id,name', 'customer:id,name,deleted_at']);
+        return parent::getEloquentQuery()->with(['user:id,name', 'customer:id,name,deleted_at', 'campaign:id,title']);
     }
 
     public static function table(Table $table): Table
@@ -62,7 +62,13 @@ class NotificationDeliveryResource extends Resource
                     ->state(fn (NotificationDelivery $r): string => $r->user?->name
                         ?? ($r->customer ? ($r->customer->deleted_at ? '(Akun Dihapus)' : $r->customer->name) : 'Perangkat tanpa akun'))
                     ->badge()
-                    ->color(fn (NotificationDelivery $r): string => $r->user_id ? 'info' : 'gray'),
+                    ->color(fn (NotificationDelivery $r): string => $r->user_id ? 'info' : 'gray')
+                    ->tooltip(fn (NotificationDelivery $r): ?string => (! $r->user && ! $r->customer) ? 'Perangkat ini belum ditautkan ke akun mana pun (mis. aplikasi dibuka tanpa login).' : null)
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $q) => $q
+                        ->whereHas('user', fn ($u) => $u->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('customer', fn ($u) => $u->where('name', 'like', "%{$search}%")))),
+
+                Tables\Columns\TextColumn::make('campaign.title')->label('Kampanye')->placeholder('—')->limit(40)->toggleable(),
 
                 Tables\Columns\TextColumn::make('title')->label('Judul')->searchable()->wrap(),
 
@@ -84,6 +90,11 @@ class NotificationDeliveryResource extends Resource
             ->defaultSort('sent_at', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('status')->label('Hasil')->options(NotificationDelivery::STATUS_LABELS),
+
+                Tables\Filters\SelectFilter::make('campaign_id')
+                    ->label('Kampanye')
+                    ->searchable()
+                    ->options(fn () => \App\Models\NotificationCampaign::query()->orderByDesc('id')->limit(100)->pluck('title', 'id')),
 
                 Tables\Filters\Filter::make('sent_at')
                     ->form([

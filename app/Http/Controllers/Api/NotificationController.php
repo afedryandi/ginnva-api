@@ -109,8 +109,12 @@ class NotificationController extends Controller
 
         $since = now()->subDays(90);
 
+        // ?category=promo|info menyaring jenis pesan (tab Promo / Informasi di app); tanpa parameter = semua.
+        $category = in_array($request->query('category'), ['promo', 'info'], true) ? $request->query('category') : null;
+
         $notifications = CustomerNotification::forCustomer($customerId)
             ->where('created_at', '>=', $since)
+            ->when($category, fn ($q) => $q->where('category', $category))
             ->orderByDesc('created_at')
             ->paginate(30);
 

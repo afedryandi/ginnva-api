@@ -27,6 +27,11 @@ class NotificationDelivery extends Model
 
     protected $casts = ['sent_at' => 'datetime', 'checked_at' => 'datetime'];
 
+    public function campaign()
+    {
+        return $this->belongsTo(NotificationCampaign::class, 'campaign_id');
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

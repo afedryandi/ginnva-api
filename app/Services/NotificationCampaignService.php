@@ -43,6 +43,120 @@ class NotificationCampaignService
         return $data;
     }
 
+    /**
+     * Kriteria segmen dari isian form, atau null bila kiriman bukan ke segmen. Hanya untuk pelanggan, saat "semua pengguna" mati dan mode
+     * sasaran "segmen" dipilih. Kunci: group_ids, booking (any|has|never), inactive_months, warranty_active.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function segmentFromState(array $state): ?array
+    {
+        if (($state['audience'] ?? 'customer') !== 'customer' || ! empty($state['broadcast']) || ($state['target_mode'] ?? 'pick') !== 'segment') {
+            return null;
+        }
+
+        return array_filter([
+            'group_ids' => array_values(array_filter((array) ($state['segment_group_ids'] ?? []))),
+            'booking' => in_array($state['segment_booking'] ?? 'any', ['has', 'never'], true) ? $state['segment_booking'] : null,
+            'inactive_months' => filled($state['segment_inactive_months'] ?? null) ? max(1, (int) $state['segment_inactive_months']) : null,
+            'warranty_active' => ! empty($state['segment_warranty_active']) ? true : null,
+        ], fn ($value) => $value !== null && $value !== []);
+    }
+
+    /** Ringkasan kriteria segmen untuk ditampilkan ke admin. */
+    public static function segmentLabel(array $segment): string
+    {
+        $parts = [];
+
+        if (! empty($segment['group_ids'])) {
+            $parts[] = 'Grup: ' . \App\Models\CustomerGroup::whereIn('id', $segment['group_ids'])->orderBy('name')->pluck('name')->implode(', ');
+        }
+        if (($segment['booking'] ?? null) === 'has') {
+            $parts[] = 'pernah booking';
+        } elseif (($segment['booking'] ?? null) === 'never') {
+            $parts[] = 'belum pernah booking';
+        }
+        if (! empty($segment['inactive_months'])) {
+            $parts[] = "belum booking sejak {$segment['inactive_months']} bulan";
+        }
+        if (! empty($segment['warranty_active'])) {
+            $parts[] = 'punya garansi aktif';
+        }
+
+        return $parts === [] ? '—' : implode('; ', $parts);
+    }
+
+    /**
+     * ID pelanggan aktif yang cocok dengan kriteria segmen (semua kriteria berlaku bersamaan). Dipanggil saat pratinjau dan saat kirim,
+     * jadi kampanye terjadwal memakai keanggotaan terkini.
+     *
+     * @return list<int>
+     */
+    public function resolveSegment(array $segment): array
+    {
+        $query = Customer::query();
+
+        if (! empty($segment['group_ids'])) {
+            $query->whereIn('customer_group_id', $segment['group_ids']);
+        }
+
+        if (($segment['booking'] ?? null) === 'has') {
+            $query->whereHas('bookings');
+        } elseif (($segment['booking'] ?? null) === 'never') {
+            $query->whereDoesntHave('bookings');
+        }
+
+        if (! empty($segment['inactive_months'])) {
+            $cutoff = now()->subMonths((int) $segment['inactive_months']);
+            $query->whereHas('bookings')->whereDoesntHave('bookings', fn ($q) => $q->where('created_at', '>=', $cutoff));
+        }
+
+        if (! empty($segment['warranty_active'])) {
+            $query->whereHas('warranties', fn ($q) => $q->whereDate('expiry_date', '>=', now()->toDateString()));
+        }
+
+        return $query->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /** Isian form dari kampanye yang sudah ada (untuk "Duplikat"). Jadwal tidak ikut. */
+    public static function stateFromCampaign(NotificationCampaign $campaign): array
+    {
+        $partner = $campaign->audience === 'partner';
+        $state = [
+            'audience' => $partner ? 'partner' : 'customer',
+            'title' => $campaign->title,
+            'body' => $campaign->body,
+        ];
+
+        if ($partner) {
+            $state['broadcast_partner'] = empty($campaign->partner_ids);
+            $state['partner_ids'] = $campaign->partner_ids ?? [];
+
+            return $state;
+        }
+
+        $state['category'] = $campaign->category === 'info' ? 'info' : 'promo';
+        $state['deep_link_route'] = $campaign->data['route'] ?? null;
+        $state['deep_link_param_id'] = $campaign->data['params']['id'] ?? null;
+
+        if (! empty($campaign->segment)) {
+            $state += [
+                'broadcast' => false,
+                'target_mode' => 'segment',
+                'segment_group_ids' => $campaign->segment['group_ids'] ?? [],
+                'segment_booking' => $campaign->segment['booking'] ?? 'any',
+                'segment_inactive_months' => $campaign->segment['inactive_months'] ?? null,
+                'segment_warranty_active' => ! empty($campaign->segment['warranty_active']),
+            ];
+        } elseif (! empty($campaign->customer_ids)) {
+            $state += ['broadcast' => false, 'target_mode' => 'pick', 'customer_ids' => $campaign->customer_ids];
+        } else {
+            $state['broadcast'] = true;
+        }
+
+        return $state;
+    }
+
     /** Buat kampanye dari isian form. Tanpa $scheduledAt, statusnya langsung "sedang dikirim" (siap di-dispatch). */
     public function create(array $state, ?CarbonInterface $scheduledAt, ?int $userId): NotificationCampaign
     {
@@ -54,7 +168,8 @@ class NotificationCampaignService
             'title'        => $state['title'],
             'body'         => $state['body'],
             'data'         => $partner ? null : self::deepLinkData($state),
-            'customer_ids' => ! $partner && empty($state['broadcast']) ? array_values($state['customer_ids'] ?? []) : null,
+            'customer_ids' => ! $partner && empty($state['broadcast']) && self::segmentFromState($state) === null ? array_values($state['customer_ids'] ?? []) : null,
+            'segment'      => self::segmentFromState($state) ?: null,
             'partner_ids'  => $partner && empty($state['broadcast_partner']) ? array_values($state['partner_ids'] ?? []) : null,
             'status'       => $scheduledAt ? NotificationCampaign::SCHEDULED : NotificationCampaign::SENDING,
             'scheduled_at' => $scheduledAt,
@@ -72,6 +187,19 @@ class NotificationCampaignService
         $campaign->update(['status' => NotificationCampaign::SENDING]);
 
         $isPartner = $campaign->audience === 'partner';
+
+        if (! $isPartner && ! empty($campaign->segment)) {
+            $ids = $this->resolveSegment($campaign->segment);
+
+            if ($ids === []) {
+                $message = 'Tidak ada pelanggan yang cocok dengan segmen ini, jadi tidak ada yang dikirimi.';
+                $campaign->update(['status' => NotificationCampaign::FAILED, 'message' => $message]);
+
+                return ['ok' => false, 'message' => $message, 'result' => []];
+            }
+
+            $campaign->customer_ids = $ids;
+        }
         $request = $isPartner
             ? Request::create('/api/partner-notifications/send', 'POST', [
                 'title'       => $campaign->title,
@@ -139,6 +267,20 @@ class NotificationCampaignService
         }
 
         $targeted = empty($state['broadcast']) ? array_values(array_unique($state['customer_ids'] ?? [])) : [];
+        $segment = self::segmentFromState($state);
+
+        if ($segment !== null) {
+            if ($segment === []) {
+                return ['recipients' => 0, 'devices' => 0, 'excluded' => null, 'excluded_reason' => null, 'warnings' => ['Pilih minimal satu kriteria segmen.'], 'blocked' => true];
+            }
+
+            $targeted = $this->resolveSegment($segment);
+
+            if ($targeted === []) {
+                return ['recipients' => 0, 'devices' => 0, 'excluded' => null, 'excluded_reason' => null, 'warnings' => ['Tidak ada pelanggan yang cocok dengan segmen ini.'], 'blocked' => true];
+            }
+        }
+
         $warnings = [];
         $blocked = false;
         $excluded = null;

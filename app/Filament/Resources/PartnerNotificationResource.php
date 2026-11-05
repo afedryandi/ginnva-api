@@ -115,11 +115,11 @@ class PartnerNotificationResource extends Resource
             ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\Filter::make('broadcast')
-                    ->label('Broadcast saja')
+                    ->label('Siaran ke semua partner')
                     ->query(fn ($query) => $query->whereNull('partner_id')),
 
                 Tables\Filters\Filter::make('targeted')
-                    ->label('Targeted saja')
+                    ->label('Khusus partner tertentu')
                     ->query(fn ($query) => $query->whereNotNull('partner_id')),
 
                 // Filter rentang tanggal (audit 2026-09-30) -- sejajar Riwayat lain.

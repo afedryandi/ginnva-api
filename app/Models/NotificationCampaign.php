@@ -28,7 +28,7 @@ class NotificationCampaign extends Model
     ];
 
     protected $fillable = [
-        'audience', 'category', 'title', 'body', 'data', 'customer_ids', 'partner_ids', 'status', 'scheduled_at', 'sent_at',
+        'audience', 'category', 'title', 'body', 'data', 'customer_ids', 'partner_ids', 'segment', 'status', 'scheduled_at', 'sent_at',
         'recipients', 'skipped', 'devices_sent', 'devices_failed', 'campaign_key', 'message', 'created_by',
     ];
 
@@ -36,6 +36,7 @@ class NotificationCampaign extends Model
         'data' => 'array',
         'customer_ids' => 'array',
         'partner_ids' => 'array',
+        'segment' => 'array',
         'scheduled_at' => 'datetime',
         'sent_at' => 'datetime',
     ];

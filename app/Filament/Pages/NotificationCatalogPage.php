@@ -53,6 +53,23 @@ class NotificationCatalogPage extends Page
     }
 
     /** @return array{total: int, customer: int, staff: int, staff_push_only: int} */
+    /**
+     * Kapan tiap judul terakhir tercatat terkirim (90 hari terakhir, dari Log Pengiriman), supaya jenis notifikasi yang tidak pernah terpicu terlihat.
+     * Hanya judul yang tetap yang bisa dicocokkan; judul dinamis (diawali deskripsi) tampil "—".
+     *
+     * @return array<string, string>
+     */
+    public function getLastSent(): array
+    {
+        return \App\Models\NotificationDelivery::query()
+            ->where('sent_at', '>=', now()->subDays(90))
+            ->selectRaw('title, MAX(sent_at) as last_sent')
+            ->groupBy('title')
+            ->pluck('last_sent', 'title')
+            ->map(fn ($at) => \Illuminate\Support\Carbon::parse($at)->translatedFormat('d M Y'))
+            ->all();
+    }
+
     public function getSummary(): array
     {
         $all = collect(NotificationCatalog::all());
