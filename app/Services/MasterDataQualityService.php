@@ -56,7 +56,8 @@ class MasterDataQualityService
         $add('vehicle_inactive_in_use', 'Kendaraan', 'Kendaraan nonaktif yang masih dipakai kendaraan pelanggan', $inactiveInUse, Vehicle::query()->where('is_active', false)->count(), 'info',
             'Pelanggan masih memilihnya di Kendaraan Saya. Pastikan memang sengaja dinonaktifkan.');
 
-        // ---- Luas kaca        $areaTotal = VehicleGlassArea::count();
+        // ---- Luas kaca
+        $areaTotal = VehicleGlassArea::count();
         $orphanAreas = VehicleGlassArea::query()->get(['id', 'brand_key', 'model_key'])
             ->filter(fn (VehicleGlassArea $a) => ! Vehicle::query()
                 ->whereRaw('LOWER(TRIM(brand)) = ?', [$a->brand_key])

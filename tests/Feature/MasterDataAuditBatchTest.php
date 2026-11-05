@@ -122,7 +122,7 @@ class MasterDataAuditBatchTest extends TestCase
 
     public function test_export_headings_match_what_the_import_reads(): void
     {
-        $vehicle = $this->vehicle('Honda', 'Civic', 'L', ['variant' => 'RS', 'body_type' => 'sedan', 'year_from' => 2019, 'notes' => 'Gen 11']);
+        $vehicle = $this->vehicle('Honda', 'Civic', 'L', ['variant' => 'RS', 'body_type' => 'sedan', 'year_from' => 2019, 'notes' => 'Gen 11', 'is_active' => true]);
         $export = new VehicleExport();
 
         $this->assertSame(['Merek', 'Tipe/Model', 'Varian', 'Ukuran', 'Tipe Bodi', 'Tahun Dari', 'Tahun Sampai', 'Catatan', 'Aktif'], $export->headings());
