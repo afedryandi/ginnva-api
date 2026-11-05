@@ -9,6 +9,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
@@ -19,23 +20,15 @@ use Livewire\Attributes\Url;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
- * "Perputaran Stok" — diminta 2026-09-09, analog Majoo. Formula standar
- * Inventory Turnover Ratio = Qty Keluar (pemakaian) / Rata-rata Stok,
- * dihitung per Bahan Baku & Barang Habis Pakai (digabung, 2 jenis
- * inventori Ginnva -- Majoo bedakan "Bahan"/"Produk", di Ginnva
- * analognya "Bahan Baku"/"Barang Habis Pakai" karena tidak ada konsep
- * stok "Produk" jadi terpisah) dalam 1 rentang tanggal, dari
- * RawMaterialMovement/ConsumableItemMovement (type='out').
+ * "Perputaran Stok" -- Rasio Perputaran = pemakaian / rata-rata stok, per Bahan Baku dan Barang Habis Pakai (stok nasional, bukan per toko)
+ * dalam satu rentang tanggal, dari RawMaterialMovement/ConsumableItemMovement.
  *
- * "Rata-rata Stok" DISEDERHANAKAN jadi (stok AWAL + stok AKHIR) / 2 --
- * stok awal dihitung mundur dari stok SAAT INI dikurangi/ditambah
- * semua movement SETELAH tanggal awal rentang (rekonstruksi, karena
- * sistem tidak menyimpan snapshot stok harian). Rasio TINGGI = bahan
- * itu cepat berputar (sering dipakai relatif terhadap stoknya) — bukan
- * "bagus"/"buruk" mutlak, tergantung karakteristik bahan.
+ * Pemakaian = pergerakan keluar dikurangi pengembalian memo (pergerakan masuk bersumber memo). Rata-rata stok = (stok awal + stok akhir) / 2;
+ * stok awal dan akhir direkonstruksi mundur dari stok SAAT INI karena sistem tidak menyimpan snapshot harian. Rasio tinggi = cepat berputar
+ * (bukan otomatis baik atau buruk). "Hari Terpakai" = jumlah hari berbeda yang punya pergerakan keluar.
  *
- * "Hari Terjual" = jumlah HARI BERBEDA yang punya minimal 1 pergerakan
- * keluar dalam rentang ini.
+ * Estimasi Habis memakai konsumsi harian dari hari yang SUDAH berjalan (rentang dipotong sampai hari ini). Barang bersisa stok yang tidak
+ * dipakai sama sekali dapat ditampilkan lewat pilihan "Tampilkan yang tidak terpakai" (stok mati).
  */
 class StockTurnoverReport extends Page implements HasForms
 {
@@ -162,6 +155,21 @@ class StockTurnoverReport extends Page implements HasForms
 
             DatePicker::make('from')->label('Dari')->native(false)->required()->live(),
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
+
+            Select::make('type')
+                ->label('Jenis')
+                ->options(['raw' => 'Bahan Baku', 'consumable' => 'Barang Habis Pakai'])
+                ->placeholder('Semua jenis')
+                ->live(),
+
+            Toggle::make('only_low')
+                ->label('Hanya yang hampir habis (' . self::LOW_DAYS . ' hari atau kurang)')
+                ->live(),
+
+            Toggle::make('show_idle')
+                ->label('Tampilkan yang tidak terpakai')
+                ->helperText('Barang yang masih ada stoknya tetapi tidak dipakai pada rentang ini (stok mati).')
+                ->live(),
         ])->columns(3)->statePath('data');
     }
 
@@ -218,33 +226,51 @@ class StockTurnoverReport extends Page implements HasForms
         ];
     }
 
+    /** Batas "hampir habis": estimasi hari stok habis sama dengan atau kurang dari ini. */
+    public const LOW_DAYS = 14;
+
     public function getResult(): array
     {
         $from = Carbon::parse($this->data['from'] ?? now()->startOfMonth())->startOfDay();
         $to = Carbon::parse($this->data['to'] ?? now()->endOfMonth())->endOfDay();
+        $type = $this->data['type'] ?? null;
+        $showIdle = (bool) ($this->data['show_idle'] ?? false);
+        $onlyLow = (bool) ($this->data['only_low'] ?? false);
 
-        $materials = RawMaterial::query()
+        $materials = $type === 'consumable' ? collect() : RawMaterial::query()
             ->with(['movements' => fn ($q) => $q->where('created_at', '>=', $from)])
             ->orderBy('name')
             ->get()
             ->map(fn (RawMaterial $item) => $this->computeTurnover($item, 'Bahan Baku', $from, $to));
 
-        $consumables = ConsumableItem::query()
+        $consumables = $type === 'raw' ? collect() : ConsumableItem::query()
             ->with(['movements' => fn ($q) => $q->where('created_at', '>=', $from)])
             ->orderBy('name')
             ->get()
             ->map(fn (ConsumableItem $item) => $this->computeTurnover($item, 'Barang Habis Pakai', $from, $to));
 
-        $rows = $materials->concat($consumables)
-            ->filter(fn ($row) => $row['qtyOut'] > 0) // sembunyikan yang sama sekali tidak bergerak di rentang ini
+        $all = $materials->concat($consumables);
+        $used = $all->filter(fn ($row) => $row['qtyOut'] > 0);
+        $idle = $all->filter(fn ($row) => $row['qtyOut'] <= 0 && $row['currentStock'] > 0);
+        $isLow = fn ($row) => $row['daysUntilStockout'] !== null && $row['daysUntilStockout'] <= self::LOW_DAYS;
+
+        $rows = ($showIdle ? $used->concat($idle) : $used)
+            ->when($onlyLow, fn ($c) => $c->filter($isLow))
             // Rasio tertinggi dulu; rasio tak terhitung (rata-rata stok 0) di bawah; seri diurutkan nama supaya tampilan stabil.
             ->sort(fn ($a, $b) => [-($a['turnoverRatio'] ?? -1), $a['item']->name] <=> [-($b['turnoverRatio'] ?? -1), $b['item']->name])
             ->values();
+
+        $ratios = $used->pluck('turnoverRatio')->filter(fn ($r) => $r !== null);
 
         return [
             'from' => $from,
             'to' => $to,
             'rows' => $rows,
+            'usedCount' => $used->count(),
+            'lowCount' => $used->filter($isLow)->count(),
+            // Barang bersisa stok yang tidak dipakai sama sekali pada rentang ini (tampil bila pilihan "tidak terpakai" menyala).
+            'idleCount' => $idle->count(),
+            'avgRatio' => $ratios->isNotEmpty() ? (float) $ratios->avg() : null,
         ];
     }
 
@@ -253,10 +279,18 @@ class StockTurnoverReport extends Page implements HasForms
      */
     private function computeTurnover($item, string $type, Carbon $from, Carbon $to): array
     {
-        $qtyOutInPeriod = (float) $item->movements
+        $grossOut = (float) $item->movements
             ->where('type', 'out')
             ->where('created_at', '<=', $to)
             ->sum('quantity');
+
+        // Bahan yang dikembalikan lewat memo (pergerakan masuk bersumber memo) mengurangi pemakaian: yang dipakai = diambil - dikembalikan.
+        $returned = (float) $item->movements
+            ->where('type', 'in')
+            ->where('source_type', 'memo')
+            ->where('created_at', '<=', $to)
+            ->sum('quantity');
+        $qtyOutInPeriod = max(0.0, $grossOut - $returned);
 
         // Rekonstruksi stok di AKHIR rentang: stok SEKARANG dikurangi
         // net movement SETELAH $to.
@@ -281,16 +315,13 @@ class StockTurnoverReport extends Page implements HasForms
             ->unique()
             ->count();
 
-        // "Estimasi Hari Stok Habis" (audit Majoo f26, "forward-looking,
-        // berbasis kecepatan konsumsi") — MELENGKAPI turnover ratio yang
-        // backward-looking. Kecepatan konsumsi = qty keluar SELURUH
-        // rentang dibagi jumlah HARI kalender rentang itu (bukan cuma
-        // hari yang ada pergerakan -- rata-rata harian yang benar harus
-        // membagi dengan hari sepi juga). Diproyeksikan dari
-        // current_stock SEKARANG (bukan stockAtTo di akhir rentang
-        // laporan) -- pertanyaannya "kapan habis dari SEKARANG", bukan
-        // "kapan habis dari tanggal laporan yang mungkin sudah lewat".
-        $periodDays = max(1, (int) $from->diffInDays($to) + 1);
+        // "Estimasi Hari Stok Habis" -- MELENGKAPI rasio perputaran yang melihat ke belakang. Kecepatan konsumsi = pemakaian seluruh
+        // rentang dibagi jumlah HARI kalender yang sudah berjalan (bukan hanya hari yang ada pergerakan: hari sepi ikut dihitung).
+        // Hari yang belum lewat TIDAK ikut: rentang bawaan sampai akhir bulan, dan membaginya dengan seluruh bulan pada pertengahan
+        // bulan membuat konsumsi tampak jauh lebih kecil dan estimasi habis jauh lebih lama dari sebenarnya.
+        // Diproyeksikan dari current_stock SEKARANG (bukan stok di akhir rentang laporan): "kapan habis dari SEKARANG".
+        $periodEnd = $to->lt(now()) ? $to : now();
+        $periodDays = max(1, (int) $from->copy()->startOfDay()->diffInDays($periodEnd->copy()->startOfDay()) + 1);
         $avgDailyConsumption = $qtyOutInPeriod / $periodDays;
         $currentStock = (float) $item->current_stock;
         $daysUntilStockout = $avgDailyConsumption > 0 ? $currentStock / $avgDailyConsumption : null;
@@ -299,6 +330,7 @@ class StockTurnoverReport extends Page implements HasForms
             'item' => $item,
             'type' => $type,
             'qtyOut' => $qtyOutInPeriod,
+            'returned' => $returned,
             'stockAtFrom' => max(0, $stockAtFrom),
             'stockAtTo' => max(0, $stockAtTo),
             'avgStock' => max(0, $avgStock),

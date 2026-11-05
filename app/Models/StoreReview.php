@@ -63,6 +63,11 @@ class StoreReview extends Model
         'proses_lambat'        => 'Proses Lambat',
     ];
 
+    /** Tag yang bernada puas; sisanya (TAGS) bernada perlu diperbaiki. Dipakai laporan Kepuasan Pelanggan untuk memisahkan keduanya. */
+    public const POSITIVE_TAGS = ['pelayanan_ramah', 'hasil_rapi', 'harga_worth_it', 'proses_cepat'];
+
+    public const NEGATIVE_TAGS = ['pelayanan_kurang', 'hasil_kurang_rapi', 'harga_kurang_sesuai', 'proses_lambat'];
+
     /** Label Indonesia sebuah tag (kunci tersimpan, mis. "hasil_rapi"); kunci tak dikenal dirapikan seperlunya. */
     public static function tagLabel(string $key): string
     {

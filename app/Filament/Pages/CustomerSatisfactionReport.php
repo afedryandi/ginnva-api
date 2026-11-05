@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Exports\CustomerSatisfactionReportExport;
 use App\Models\Store;
+use App\Models\Booking;
 use App\Models\StoreReview;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
@@ -19,10 +20,12 @@ use Livewire\Attributes\Url;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
- * "Kepuasan Pelanggan" — diminta 2026-09-09, analog Majoo. Data
- * StoreReview (sentiment/tags/comment per booking) SUDAH ADA tapi
- * belum pernah diagregasi jadi laporan -- cuma resource daftar mentah.
- * sentiment enum: positive/neutral/negative (lihat migrasi).
+ * "Kepuasan Pelanggan" -- agregasi ulasan toko (StoreReview: sentimen positif/netral/negatif, tag aspek, komentar; satu ulasan per booking
+ * selesai, diisi pelanggan lewat aplikasi) dalam satu rentang tanggal ulasan masuk.
+ *
+ * Ukuran: tingkat positif, skor bersih ((positif - negatif) / total), tingkat respons (ulasan / booking selesai pada rentang), ulasan
+ * negatif yang belum ditindaklanjuti dan rata-rata lama tindak lanjutnya, tag dipisah menurut nada, tren (mingguan atau bulanan), per toko.
+ * Tindak lanjut dilakukan di menu Review Toko (panel); aplikasi karyawan belum punya layar ulasan.
  */
 class CustomerSatisfactionReport extends Page implements HasForms
 {
@@ -169,7 +172,20 @@ class CustomerSatisfactionReport extends Page implements HasForms
                 ->options(fn () => Store::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                 ->visible($isFullAccess)
                 ->live(),
-        ])->columns($isFullAccess ? 4 : 3)->statePath('data');
+
+            // Dua pilihan di bawah hanya menyaring DAFTAR ulasan; ringkasan, tag, dan tabel tetap dari seluruh ulasan pada rentang dan toko itu.
+            Select::make('sentiment')
+                ->label('Daftar: sentimen')
+                ->options(['positive' => 'Positif', 'neutral' => 'Netral', 'negative' => 'Negatif'])
+                ->placeholder('Semua sentimen')
+                ->live(),
+
+            Select::make('follow_up')
+                ->label('Daftar: tindak lanjut')
+                ->options(['pending' => 'Negatif yang belum ditindaklanjuti', 'done' => 'Sudah ditindaklanjuti'])
+                ->placeholder('Semua status')
+                ->live(),
+        ])->columns(3)->statePath('data');
     }
 
     /** Link drill-down ke halaman detail ulasan (tombol "Tandai Ditindaklanjuti" ada di sana). */
@@ -246,7 +262,7 @@ class CustomerSatisfactionReport extends Page implements HasForms
         $storeId = $this->effectiveStoreId();
 
         $reviews = StoreReview::query()
-            ->with(['store:id,name', 'customer:id,name'])
+            ->with(['store:id,name', 'customer:id,name', 'booking:id,booking_number,product_kaca_film,product_ppf,product_detailing,product_premium_wash'])
             ->whereBetween('created_at', [$from, $to])
             ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
             ->orderByDesc('created_at')
@@ -257,8 +273,21 @@ class CustomerSatisfactionReport extends Page implements HasForms
         $neutral = $reviews->where('sentiment', 'neutral')->count();
         $negative = $reviews->where('sentiment', 'negative')->count();
 
-        // Tag paling sering muncul -- `tags` disimpan sebagai array
-        // (json cast), gabungkan semua lalu hitung frekuensi.
+        // Tingkat respons: ulasan masuk dibanding booking yang selesai pada rentang dan toko yang sama (perkiraan: ulasan bisa untuk booking
+        // yang selesai sebelum rentang). Tanpa booking selesai tidak ada angkanya.
+        $completedBookings = Booking::query()
+            ->where('status', 'completed')
+            ->whereBetween('completed_at', [$from, $to])
+            ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
+            ->count();
+
+        // Lama tindak lanjut ulasan negatif (jam) dari ulasan masuk sampai ditandai ditindaklanjuti.
+        $followedNegatives = $reviews->where('sentiment', 'negative')->whereNotNull('followed_up_at');
+        $avgFollowUpHours = $followedNegatives->isNotEmpty()
+            ? (float) $followedNegatives->avg(fn (StoreReview $r) => abs($r->created_at->diffInMinutes($r->followed_up_at)) / 60)
+            : null;
+
+        // Tag paling sering muncul -- `tags` disimpan sebagai array (json cast), gabungkan semua lalu hitung frekuensi.
         $tagCounts = $reviews->flatMap(fn (StoreReview $r) => $r->tags ?? [])
             ->countBy()
             ->map(fn ($count, $key) => ['key' => $key, 'count' => $count])
@@ -266,33 +295,86 @@ class CustomerSatisfactionReport extends Page implements HasForms
             ->mapWithKeys(fn ($item) => [$item['key'] => $item['count']])
             ->take(10);
 
-        // Per toko -- cuma relevan untuk isFullAccess (store-scoped
-        // user cuma lihat 1 toko sendiri, tabel ini jadi trivial baginya).
+        // Tag dipisah menurut nadanya: yang membuat pelanggan puas dan yang perlu diperbaiki.
+        $allTagCounts = $reviews->flatMap(fn (StoreReview $r) => $r->tags ?? [])->countBy();
+        $tagGroup = fn (array $keys) => collect($keys)
+            ->mapWithKeys(fn ($key) => [$key => (int) ($allTagCounts[$key] ?? 0)])
+            ->filter(fn ($count) => $count > 0)
+            ->map(fn ($count, $key) => ['key' => $key, 'count' => $count])
+            ->sortBy([['count', 'desc'], ['key', 'asc']])
+            ->mapWithKeys(fn ($item) => [$item['key'] => $item['count']]);
+
+        // Per toko -- cuma relevan untuk isFullAccess (store-scoped user cuma lihat 1 toko sendiri).
         $byStore = $reviews->groupBy(fn (StoreReview $r) => $r->store?->name ?? 'Tanpa Toko')
-            ->map(fn ($group) => [
-                'total' => $group->count(),
-                'positive' => $group->where('sentiment', 'positive')->count(),
-                'negative' => $group->where('sentiment', 'negative')->count(),
-            ])
+            ->map(function ($group) {
+                $count = $group->count();
+                $pos = $group->where('sentiment', 'positive')->count();
+                $neg = $group->where('sentiment', 'negative')->count();
+
+                return [
+                    'total' => $count,
+                    'positive' => $pos,
+                    'neutral' => $group->where('sentiment', 'neutral')->count(),
+                    'negative' => $neg,
+                    'unfollowed' => $group->where('sentiment', 'negative')->whereNull('followed_up_at')->count(),
+                    'positiveRate' => $count > 0 ? $pos / $count * 100 : 0,
+                    'net' => $count > 0 ? ($pos - $neg) / $count * 100 : 0,
+                ];
+            })
             ->sortByDesc('total');
+
+        // Tren: per minggu untuk rentang sampai 60 hari, per bulan bila lebih panjang.
+        $monthly = $from->diffInDays($to) + 1 > 60;
+        $trend = $reviews
+            ->groupBy(fn (StoreReview $r) => $monthly ? $r->created_at->format('Y-m') : $r->created_at->copy()->startOfWeek()->toDateString())
+            ->sortKeys()
+            ->map(function ($group, $key) use ($monthly) {
+                $count = $group->count();
+                $pos = $group->where('sentiment', 'positive')->count();
+                $neg = $group->where('sentiment', 'negative')->count();
+
+                return [
+                    'label' => $monthly ? Carbon::parse($key . '-01')->format('M Y') : 'Minggu ' . Carbon::parse($key)->format('d M'),
+                    'total' => $count,
+                    'positive' => $pos,
+                    'negative' => $neg,
+                    'net' => $count > 0 ? ($pos - $neg) / $count * 100 : 0,
+                ];
+            })
+            ->values();
+
+        // Daftar kartu ulasan di layar: dapat disaring (sentimen, tindak lanjut) dan DIBATASI 100 terbaru -- sebelumnya blade me-render
+        // SEMUA baris sekaligus. Export Excel/PDF ('reviews') TETAP lengkap dan tidak mengikuti saringan daftar.
+        $sentiment = $this->data['sentiment'] ?? null;
+        $followUp = $this->data['follow_up'] ?? null;
+        $list = $reviews
+            ->when($sentiment, fn ($c) => $c->where('sentiment', $sentiment))
+            ->when($followUp === 'pending', fn ($c) => $c->where('sentiment', 'negative')->whereNull('followed_up_at'))
+            ->when($followUp === 'done', fn ($c) => $c->whereNotNull('followed_up_at'))
+            ->values();
 
         return [
             'from' => $from,
             'to' => $to,
             'reviews' => $reviews,
-            // Daftar kartu ulasan di layar DIBATASI 100 terbaru (audit 2026-09-30) --
-            // sebelumnya blade me-render SEMUA baris sekaligus, bisa berat kalau toko
-            // aktif punya ratusan ulasan sebulan. Export Excel/PDF ('reviews') TETAP
-            // lengkap, cuma tampilan layar yang dipotong.
-            'displayReviews' => $reviews->take(100),
-            'displayReviewsTruncated' => $reviews->count() > 100,
+            'displayReviews' => $list->take(100),
+            'displayReviewsTruncated' => $list->count() > 100,
+            'listTotal' => $list->count(),
             'total' => $total,
             'positive' => $positive,
             'neutral' => $neutral,
             'negative' => $negative,
             'positiveRate' => $total > 0 ? $positive / $total * 100 : 0,
+            // Skor bersih -100..100: (positif - negatif) / total. Di atas 0 = lebih banyak yang puas daripada yang tidak.
+            'netScore' => $total > 0 ? ($positive - $negative) / $total * 100 : 0,
+            'completedBookings' => $completedBookings,
+            'responseRate' => $completedBookings > 0 ? min(100, $total / $completedBookings * 100) : null,
+            'avgFollowUpHours' => $avgFollowUpHours,
             'tagCounts' => $tagCounts,
+            'tagGroups' => ['positive' => $tagGroup(StoreReview::POSITIVE_TAGS), 'negative' => $tagGroup(StoreReview::NEGATIVE_TAGS)],
             'byStore' => $byStore,
+            'trend' => $trend,
+            'trendMonthly' => $monthly,
             'unfollowedNegativeCount' => $reviews->where('sentiment', 'negative')->whereNull('followed_up_at')->count(),
         ];
     }

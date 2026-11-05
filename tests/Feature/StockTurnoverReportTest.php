@@ -137,6 +137,7 @@ class StockTurnoverReportTest extends TestCase
 
     public function test_consumption_rate_and_days_until_stockout_use_todays_stock(): void
     {
+        Carbon::setTestNow('2026-10-20 10:00:00');   // setelah akhir rentang, supaya seluruh 15 hari sudah berjalan
         $this->stock();
 
         $result = $this->report();
@@ -221,6 +222,7 @@ class StockTurnoverReportTest extends TestCase
 
     public function test_page_shows_ratios_estimates_and_links(): void
     {
+        Carbon::setTestNow('2026-10-20 10:00:00');
         $this->stock();
 
         $page = $this->page(self::RANGE);
@@ -242,16 +244,17 @@ class StockTurnoverReportTest extends TestCase
 
     public function test_excel_rows_are_aligned_with_headings(): void
     {
+        Carbon::setTestNow('2026-10-20 10:00:00');
         $this->stock();
 
         $export = new StockTurnoverReportExport($this->report());
         $rows = $export->array();
 
-        $this->assertSame(['Nama', 'Jenis', 'Terpakai', 'Sisa', 'Rata-rata Stok', 'Perputaran Stok', 'Hari Terjual', 'Stok Hari Ini', 'Konsumsi/Hari', 'Estimasi Habis (Hari)'], $export->headings());
+        $this->assertSame(['Nama', 'Jenis', 'Terpakai', 'Dikembalikan (memo)', 'Stok Akhir', 'Rata-rata Stok', 'Perputaran', 'Hari Terpakai', 'Stok Hari Ini', 'Konsumsi/Hari', 'Estimasi Habis (Hari)'], $export->headings());
         $this->assertCount(3, $rows);
-        $this->assertEquals(['Lap (pcs)', 'Barang Habis Pakai', 15.0, 5.0, 12.5, 1.2, 1, 5.0, 1.0, 5.0], $rows[0]);
-        $this->assertEquals(['Film (meter)', 'Bahan Baku', 50.0, 70.0, 85.0, 0.59, 2, 60.0, 3.33, 18.0], $rows[1]);
-        $this->assertSame('-', $rows[2][5], 'Rasio tak terhitung tampil "-".');
+        $this->assertEquals(['Lap (pcs)', 'Barang Habis Pakai', 15.0, 0.0, 5.0, 12.5, 1.2, 1, 5.0, 1.0, 5.0], $rows[0]);
+        $this->assertEquals(['Film (meter)', 'Bahan Baku', 50.0, 0.0, 70.0, 85.0, 0.59, 2, 60.0, 3.33, 18.0], $rows[1]);
+        $this->assertSame('-', $rows[2][6], 'Rasio tak terhitung tampil "-".');
     }
 
     public function test_exports_download_and_are_logged(): void
@@ -276,5 +279,98 @@ class StockTurnoverReportTest extends TestCase
 
         $this->stock();
         $this->page(self::RANGE)->callAction('exportPdf')->assertHasNoActionErrors();
+    }
+
+    // ------------------------------------------------------------- pemakaian bersih, hari berjalan, stok mati, filter
+
+    private function memoReturn(RawMaterial $m, float $qty, string $at): void
+    {
+        $row = RawMaterialMovement::create(['raw_material_id' => $m->id, 'type' => 'in', 'quantity' => $qty, 'source_type' => 'memo', 'source_id' => 1]);
+        DB::table('raw_material_movements')->where('id', $row->id)->update(['created_at' => $at, 'updated_at' => $at]);
+    }
+
+    public function test_materials_returned_through_a_memo_reduce_the_usage(): void
+    {
+        Carbon::setTestNow('2026-10-20 10:00:00');
+        $film = RawMaterial::create(['name' => 'Film', 'unit' => 'meter', 'current_stock' => 80]);
+        $this->rawMove($film, 'in', 100, '2026-09-20 09:00:00');
+        $this->rawMove($film, 'out', 30, '2026-10-05 10:00:00');
+        $this->memoReturn($film, 10, '2026-10-06 10:00:00');
+        // Pembelian biasa (bukan memo) tidak mengurangi pemakaian.
+        $this->rawMove($film, 'in', 5, '2026-10-07 10:00:00');
+
+        $row = $this->row($this->report(), 'Film');
+
+        $this->assertEqualsWithDelta(20.0, $row['qtyOut'], 0.001, '30 keluar - 10 dikembalikan lewat memo.');
+        $this->assertEqualsWithDelta(10.0, $row['returned'], 0.001);
+    }
+
+    public function test_consumption_per_day_uses_only_the_days_already_run(): void
+    {
+        // Hari ini 8 Okt; rentang 1-31 Okt. Pemakaian 16 dalam 8 hari berjalan = 2 per hari (bukan 16/31).
+        $lap = ConsumableItem::create(['name' => 'Lap', 'unit' => 'pcs', 'current_stock' => 20]);
+        $this->consumableMove($lap, 'in', 40, '2026-09-25 09:00:00');
+        $this->consumableMove($lap, 'out', 16, '2026-10-03 08:00:00');
+
+        $row = $this->row($this->report(['from' => '2026-10-01', 'to' => '2026-10-31']), 'Lap');
+
+        $this->assertEqualsWithDelta(2.0, $row['avgDailyConsumption'], 0.0001);
+        $this->assertEqualsWithDelta(10.0, $row['daysUntilStockout'], 0.001);
+    }
+
+    public function test_idle_stock_is_listed_only_when_asked_and_counted_either_way(): void
+    {
+        Carbon::setTestNow('2026-10-20 10:00:00');
+        $this->stock();
+
+        $default = $this->report();
+        $this->assertSame(['Lap', 'Film', 'Habis'], collect($default['rows'])->map(fn ($r) => $r['item']->name)->all());
+        $this->assertSame(1, $default['idleCount'], '"Diam" bersisa stok 40 tanpa pemakaian.');
+
+        $withIdle = $this->report(self::RANGE + ['show_idle' => true]);
+        $this->assertSame(['Lap', 'Film', 'Diam', 'Habis'], collect($withIdle['rows'])->map(fn ($r) => $r['item']->name)->all(), 'Diam (rasio 0) di atas Habis (rasio tak terhitung).');
+        $diam = $this->row($withIdle, 'Diam');
+        $this->assertEquals(0.0, $diam['qtyOut']);
+        $this->assertEquals(0.0, $diam['turnoverRatio']);
+        $this->assertNull($diam['daysUntilStockout']);
+    }
+
+    public function test_summary_and_the_type_and_low_stock_filters(): void
+    {
+        Carbon::setTestNow('2026-10-20 10:00:00');
+        $this->stock();
+
+        $all = $this->report();
+        $this->assertSame(3, $all['usedCount']);
+        $this->assertSame(2, $all['lowCount'], 'Lap (5 hari) dan Habis (0 hari); Film 18 hari tidak.');
+        $this->assertGreaterThan(0, $all['avgRatio']);
+
+        $lowOnly = $this->report(self::RANGE + ['only_low' => true]);
+        $this->assertSame(['Lap', 'Habis'], collect($lowOnly['rows'])->map(fn ($r) => $r['item']->name)->all(), 'Habis (stok 0) ikut karena estimasinya 0 hari.');
+
+        $raw = $this->report(self::RANGE + ['type' => 'raw']);
+        $this->assertSame(['Film', 'Habis'], collect($raw['rows'])->map(fn ($r) => $r['item']->name)->all());
+        $consumable = $this->report(self::RANGE + ['type' => 'consumable']);
+        $this->assertSame(['Lap'], collect($consumable['rows'])->map(fn ($r) => $r['item']->name)->all());
+    }
+
+    public function test_the_page_shows_the_summary_badges_and_the_returned_note(): void
+    {
+        Carbon::setTestNow('2026-10-20 10:00:00');
+        $this->stock();
+        $film = $this->film;
+        $this->memoReturn($film, 4, '2026-10-06 10:00:00');
+        DB::table('raw_materials')->where('id', $film->id)->update(['current_stock' => 64]);
+
+        $this->page(self::RANGE + ['show_idle' => true])
+            ->assertSee('Barang Dipakai')
+            ->assertSee('Hampir Habis')
+            ->assertSee('Stok Tidak Terpakai')
+            ->assertSee('segera beli')
+            ->assertSee('tidak terpakai')
+            ->assertSee('dikembalikan')
+            ->assertSee('Hari Terpakai')
+            ->assertSee('Stok Akhir')
+            ->assertDontSee('Hari Terjual');
     }
 }

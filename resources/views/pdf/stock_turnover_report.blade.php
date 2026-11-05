@@ -18,8 +18,8 @@
 
     <table>
         <tr>
-            <th>Nama</th><th>Jenis</th><th class="value">Terpakai</th><th class="value">Sisa</th>
-            <th class="value">Rata-rata Stok</th><th class="value">Perputaran Stok</th><th class="value">Hari Terjual</th>
+            <th>Nama</th><th>Jenis</th><th class="value">Terpakai</th><th class="value">Dikembalikan</th><th class="value">Stok Akhir</th>
+            <th class="value">Rata-rata Stok</th><th class="value">Perputaran</th><th class="value">Hari Terpakai</th>
             <th class="value">Stok Hari Ini</th><th class="value">Konsumsi/Hari</th><th class="value">Estimasi Habis</th>
         </tr>
         @forelse ($result['rows'] as $row)
@@ -27,6 +27,7 @@
                 <td>{{ $row['item']->name }}</td>
                 <td>{{ $row['type'] }}</td>
                 <td class="value">{{ number_format($row['qtyOut'], 2, ',', '.') }} {{ $row['item']->unit }}</td>
+                <td class="value">{{ $row['returned'] > 0 ? number_format($row['returned'], 2, ',', '.') . ' ' . $row['item']->unit : '-' }}</td>
                 <td class="value">{{ number_format($row['stockAtTo'], 2, ',', '.') }} {{ $row['item']->unit }}</td>
                 <td class="value">{{ number_format($row['avgStock'], 2, ',', '.') }} {{ $row['item']->unit }}</td>
                 <td class="value">{{ $row['turnoverRatio'] !== null ? number_format($row['turnoverRatio'], 2, ',', '.') . 'x' : '-' }}</td>
@@ -36,8 +37,9 @@
                 <td class="value">{{ $row['daysUntilStockout'] !== null ? number_format($row['daysUntilStockout'], 0, ',', '.') . ' Hari' : '-' }}</td>
             </tr>
         @empty
-            <tr><td colspan="10">Tidak ada pergerakan stok pada rentang ini.</td></tr>
+            <tr><td colspan="11">Tidak ada pergerakan stok pada rentang ini.</td></tr>
         @endforelse
     </table>
+    <p style="font-size: 9px; color: #9ca3af;">Terpakai = pergerakan keluar dikurangi pengembalian memo. Stok bersifat nasional. Estimasi Habis memakai hari yang sudah berjalan.</p>
 </body>
 </html>

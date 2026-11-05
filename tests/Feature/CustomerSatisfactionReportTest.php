@@ -147,8 +147,12 @@ class CustomerSatisfactionReportTest extends TestCase
         $byStore = $this->report()['byStore'];
 
         $this->assertSame(['Toko A', 'Toko B'], $byStore->keys()->all(), 'Terbanyak dulu.');
-        $this->assertSame(['total' => 5, 'positive' => 3, 'negative' => 2], $byStore['Toko A']);
-        $this->assertSame(['total' => 1, 'positive' => 0, 'negative' => 0], $byStore['Toko B']);
+        $a = $byStore['Toko A'];
+        $b = $byStore['Toko B'];
+        $this->assertSame([5, 3, 0, 2, 1], [$a['total'], $a['positive'], $a['neutral'], $a['negative'], $a['unfollowed']]);
+        $this->assertEqualsWithDelta(60.0, $a['positiveRate'], 0.001);
+        $this->assertEqualsWithDelta(20.0, $a['net'], 0.001, '(3 positif - 2 negatif) / 5.');
+        $this->assertSame([1, 0, 1, 0, 0], [$b['total'], $b['positive'], $b['neutral'], $b['negative'], $b['unfollowed']]);
     }
 
     public function test_screen_list_is_limited_to_100_but_the_full_set_is_kept_for_export(): void
@@ -247,7 +251,7 @@ class CustomerSatisfactionReportTest extends TestCase
 
         $this->assertStringContainsString((string) $this->r1->id, $page->instance()->reviewUrl($this->r1->id));
 
-        $this->page(['from' => '2026-01-01', 'to' => '2026-01-31'])->assertSee('Belum ada review pada rentang ini.')->assertSee('Belum ada tag pada rentang ini.');
+        $this->page(['from' => '2026-01-01', 'to' => '2026-01-31'])->assertSee('Belum ada review pada rentang ini.')->assertSee('Belum ada tag positif pada rentang ini.')->assertSee('Belum ada tag keluhan pada rentang ini.');
     }
 
     public function test_excel_has_summary_per_store_and_reviews_with_tag_labels(): void
@@ -260,9 +264,15 @@ class CustomerSatisfactionReportTest extends TestCase
         $this->assertSame(['RINGKASAN'], $rows[0]);
         $this->assertSame(['Total Review', 6], $rows[1]);
         $this->assertSame(['Tingkat Positif (%)', 50.0], $rows[5]);
-        $this->assertSame(['Toko A', 5, 3, 2], $byFirst['Toko A']);
-        $this->assertSame(['2026-10-02', 'Toko A', 'Siti', 'Positif', 'Hasil Rapi & Memuaskan, Pelayanan Ramah', 'Bagus'], $byFirst['2026-10-02']);
-        $this->assertSame(['2026-10-03', 'Toko B', 'Pelanggan', 'Netral', '', '-'], $byFirst['2026-10-03'], 'Pelanggan yang dihapus tampil "Pelanggan"; tanpa tag kosong.');
+        $this->assertEquals(['Toko A', 5, 3, 0, 2, 60.0, 20.0, 1], $byFirst['Toko A']);
+        $this->assertSame(['2026-10-02', 'Toko A', 'Siti', 'Positif', 'Hasil Rapi & Memuaskan, Pelayanan Ramah', 'Bagus'], array_slice($byFirst['2026-10-02'], 0, 6));
+        $this->assertSame(['PPF', '-'], array_slice($byFirst['2026-10-02'], 7, 2), 'Layanan dari booking; positif tidak butuh tindak lanjut.');
+        $this->assertStringStartsWith('BKG-TEST-', $byFirst['2026-10-02'][6]);
+        $this->assertSame(['2026-10-03', 'Toko B', 'Pelanggan', 'Netral', '', '-'], array_slice($byFirst['2026-10-03'], 0, 6), 'Pelanggan yang dihapus tampil "Pelanggan"; tanpa tag kosong.');
+        $this->assertSame('Belum', collect($rows)->first(fn ($r) => ($r[5] ?? null) === 'Lama sekali')[8], 'Negatif tanpa tindak lanjut.');
+        $this->assertSame('Sudah', collect($rows)->first(fn ($r) => ($r[0] ?? null) === '2026-10-07')[8]);
+        $this->assertContains('ASPEK YANG DISUKAI', array_column($rows, 0));
+        $this->assertContains('TREN PER MINGGU', array_column($rows, 0));
     }
 
     public function test_exports_download_and_the_log_records_the_effective_store(): void
@@ -287,5 +297,107 @@ class CustomerSatisfactionReportTest extends TestCase
 
         $this->october();
         $this->page()->callAction('exportPdf')->assertHasNoActionErrors();
+    }
+
+    // ------------------------------------------------------------- skor, respons, tag per nada, tren, saringan daftar
+
+    private function completedBooking(Store $store): void
+    {
+        $customer = Customer::create(['name' => 'Tanpa Review', 'phone_number' => '0812' . random_int(10000000, 99999999)]);
+        Booking::create([
+            'booking_number' => 'BKG-DONE-' . strtoupper(uniqid()), 'customer_id' => $customer->id, 'store_id' => $store->id,
+            'service_type' => 'PPF', 'product_ppf' => true, 'preferred_date' => '2026-10-02', 'status' => 'completed', 'completed_at' => '2026-10-04 10:00:00',
+        ]);
+    }
+
+    public function test_net_score_response_rate_and_follow_up_time(): void
+    {
+        $this->october();
+        DB::table('bookings')->update(['completed_at' => '2026-10-04 10:00:00']);   // 7 booking selesai (6 punya ulasan dalam rentang + 1 bulan lalu)
+        foreach (range(1, 3) as $_) {
+            $this->completedBooking($this->storeA);
+        }
+
+        $result = $this->report();
+
+        $this->assertEqualsWithDelta((3 - 2) / 6 * 100, $result['netScore'], 0.001);
+        $this->assertSame(10, $result['completedBookings']);
+        $this->assertEqualsWithDelta(60.0, $result['responseRate'], 0.001, '6 ulasan dari 10 booking selesai.');
+        $this->assertEqualsWithDelta(24.0, $result['avgFollowUpHours'], 0.001, 'Ulasan 7 Okt 09:00 ditindaklanjuti 8 Okt 09:00.');
+    }
+
+    public function test_without_completed_bookings_there_is_no_response_rate_and_without_follow_ups_no_duration(): void
+    {
+        $this->review($this->storeA, 'negative', '2026-10-06 09:00:00');
+
+        $result = $this->report();
+
+        $this->assertNull($result['responseRate']);
+        $this->assertNull($result['avgFollowUpHours']);
+        $this->page()->assertSee('Belum ada booking selesai pada rentang ini.');
+    }
+
+    public function test_tags_are_split_into_liked_and_needs_work(): void
+    {
+        $this->october();
+
+        $groups = $this->report()['tagGroups'];
+
+        $this->assertSame(['hasil_rapi' => 2, 'pelayanan_ramah' => 1], $groups['positive']->all());
+        $this->assertSame(['harga_kurang_sesuai' => 1, 'proses_lambat' => 1], $groups['negative']->all(), 'Seri diurutkan menurut kunci.');
+    }
+
+    public function test_the_trend_is_weekly_for_short_ranges_and_monthly_for_long_ones(): void
+    {
+        $this->october();
+
+        $weekly = $this->report();
+        $this->assertFalse($weekly['trendMonthly']);
+        $this->assertSame(['Minggu 28 Sep', 'Minggu 05 Oct'], $weekly['trend']->pluck('label')->all());
+        $this->assertSame([3, 3], $weekly['trend']->pluck('total')->all());
+        $this->assertEqualsWithDelta(200 / 3, $weekly['trend'][0]['net'], 0.001, '2 positif + 1 netral dalam minggu 28 Sep.');
+        $this->assertEqualsWithDelta(-100 / 3, $weekly['trend'][1]['net'], 0.001, '1 positif, 2 negatif.');
+
+        $monthly = $this->report(['from' => '2026-08-01', 'to' => '2026-10-31']);
+        $this->assertTrue($monthly['trendMonthly']);
+        $this->assertSame(['Sep 2026', 'Oct 2026'], $monthly['trend']->pluck('label')->all(), 'Review 30 Sep ikut karena rentang mulai 1 Agustus.');
+        $this->assertSame([1, 6], $monthly['trend']->pluck('total')->all());
+        $this->page(['from' => '2026-08-01', 'to' => '2026-10-31'])->assertSee('Tren per Bulan');
+    }
+
+    public function test_the_list_filters_only_narrow_the_list_not_the_summary(): void
+    {
+        $this->october();
+
+        $negative = $this->report(['sentiment' => 'negative']);
+        $this->assertSame([2, 6], [$negative['listTotal'], $negative['total']]);
+        $this->assertCount(2, $negative['displayReviews']);
+
+        $pending = $this->report(['follow_up' => 'pending']);
+        $this->assertSame(1, $pending['listTotal']);
+        $this->assertSame('negative', $pending['displayReviews']->first()->sentiment);
+
+        $done = $this->report(['follow_up' => 'done']);
+        $this->assertSame(1, $done['listTotal']);
+
+        $this->assertCount(6, $this->report(['sentiment' => 'negative'])['reviews'], 'Ekspor tetap lengkap.');
+        $this->page(['sentiment' => 'negative'])->assertSee('2 dari 6 review cocok dengan saringan daftar.');
+    }
+
+    public function test_the_page_shows_the_new_cards_groups_and_booking_context(): void
+    {
+        $this->october();
+
+        $this->page()
+            ->assertSee('Skor Bersih')
+            ->assertSee('Lama Tindak Lanjut')
+            ->assertSee('24 jam')
+            ->assertSee('Aspek yang Disukai')
+            ->assertSee('Aspek yang Perlu Diperbaiki')
+            ->assertSee('Tren per Minggu')
+            ->assertSee('Belum Ditindaklanjuti')
+            ->assertSee('BKG-TEST-')
+            ->assertSee('(PPF)')
+            ->assertDontSee('Majoo');
     }
 }
