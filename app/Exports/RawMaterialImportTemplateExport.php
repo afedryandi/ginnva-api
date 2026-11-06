@@ -13,8 +13,8 @@ class RawMaterialImportTemplateExport implements FromArray, WithHeadings, Should
     public function array(): array
     {
         return [
-            ['Adhesive Premium', 'ADH-001', 'Adhesive', 'liter', 50, 10, 150000, '14/08/2026', '30/06/2027', 'Contoh — hapus baris ini sebelum upload'],
-            ['Backing Paper', '', 'Packaging', 'meter', 200, 30, '', '', '', 'Kode/Tanggal/Harga boleh dikosongkan'],
+            ['Sonax SX 90 Plus 400 ml', 'SX90-001', 'Pembersih', 'ml', 2400, 800, 60, '14/08/2026', '30/06/2027', 'Contoh — hapus baris ini sebelum upload. Stok 2400 ml = 6 botol; harga per ml', 'botol', 400],
+            ['Backing Paper', '', 'Packaging', 'meter', 200, 30, '', '', '', 'Kode/Tanggal/Harga/Satuan Beli boleh dikosongkan', '', ''],
         ];
     }
 
@@ -31,6 +31,8 @@ class RawMaterialImportTemplateExport implements FromArray, WithHeadings, Should
             'Tanggal Masuk',
             'Tanggal Kedaluwarsa',
             'Catatan',
+            'Satuan Beli',
+            'Isi per Satuan Beli',
         ];
     }
 

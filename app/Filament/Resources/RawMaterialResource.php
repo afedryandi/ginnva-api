@@ -463,7 +463,7 @@ class RawMaterialResource extends Resource
                                 'application/vnd.ms-excel',
                                 'text/csv',
                             ])
-                            ->helperText('Pakai format dari tombol "Download Template". Baris pertama (header) otomatis dilewati. Stok Awal otomatis dicatat sebagai riwayat "Masuk" supaya tetap ada jejaknya.'),
+                            ->helperText('Pakai format dari tombol "Download Template". Baris pertama (header) otomatis dilewati. Stok Awal (dalam Satuan, mis. ml) otomatis dicatat sebagai riwayat "Masuk" supaya tetap ada jejaknya. Satuan Beli (mis. botol) dan Isi per Satuan Beli (mis. 400 ml) boleh dikosongkan, tapi bila diisi harus keduanya.'),
                     ])
                     ->action(fn (array $data) => static::importMaterials($data['file']))
                     ->modalSubmitActionLabel('Import'),
@@ -852,6 +852,23 @@ class RawMaterialResource extends Resource
             $expiryDate = static::normalizeImportedDate($row[8] ?? null);
             $notes = isset($row[9]) ? trim((string) $row[9]) : '';
 
+            // Satuan Beli (kolom 11) dan Isi per Satuan Beli (kolom 12), opsional: mis. beli per "botol" yang berisi 400 "ml" Satuan Dasar.
+            // Keduanya harus diisi bersamaan. Kolom ini di ujung kanan supaya file import lama (10 kolom) tetap terbaca.
+            $purchaseUnit = isset($row[10]) ? trim((string) $row[10]) : '';
+            $factorText = isset($row[11]) ? str_replace(',', '.', trim((string) $row[11])) : '';
+            $purchaseFactor = null;
+
+            if ($purchaseUnit !== '' || $factorText !== '') {
+                $factor = is_numeric($factorText) ? (float) $factorText : 0.0;
+
+                if ($purchaseUnit === '' || $factor <= 0 || mb_strlen($purchaseUnit) > 20) {
+                    $problems[] = "Baris {$line}: Satuan Beli dan Isi per Satuan Beli harus diisi bersamaan (isi berupa angka lebih dari 0, satuan maksimal 20 huruf) ({$name})";
+                    continue;
+                }
+
+                $purchaseFactor = $factor;
+            }
+
             // Kode barang punya UNIQUE constraint — kalau bentrok (sudah
             // ada di database, atau duplikat dalam file itu sendiri),
             // bahan tetap didaftarkan TANPA kode (bukan gagal total),
@@ -868,13 +885,15 @@ class RawMaterialResource extends Resource
 
             // Bahan dan stok awalnya satu kesatuan: kalau salah satu gagal, tidak ada yang tersimpan setengah-setengah.
             try {
-                DB::transaction(function () use ($name, $useCode, $category, $receivedDate, $unit, $reorderPoint, $unitCost, $expiryDate, $notes, $initialStock) {
+                DB::transaction(function () use ($name, $useCode, $category, $receivedDate, $unit, $reorderPoint, $unitCost, $expiryDate, $notes, $initialStock, $purchaseUnit, $purchaseFactor) {
                     $material = RawMaterial::create([
                         'name' => $name,
                         'code' => $useCode,
                         'category' => static::canonicalCategory($category),
                         'received_date' => $receivedDate,
                         'unit' => $unit,
+                        'purchase_unit' => $purchaseUnit !== '' ? $purchaseUnit : null,
+                        'purchase_conversion_factor' => $purchaseFactor,
                         'current_stock' => 0,
                         'reorder_point' => $reorderPoint,
                         'unit_cost' => $unitCost,

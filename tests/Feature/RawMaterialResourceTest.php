@@ -691,4 +691,52 @@ class RawMaterialResourceTest extends TestCase
         }
         Storage::disk('local')->assertMissing('rm-imports/test.xlsx');
     }
+
+    public function test_excel_import_reads_the_purchase_unit_columns_and_keeps_old_ten_column_files_working(): void
+    {
+        $this->as($this->user('super_admin'));
+        Storage::fake('local');
+
+        Excel::store(new RawMaterialTestRowsExport([
+            ['Nama', 'Kode', 'Kategori', 'Satuan', 'Stok Awal', 'Ambang', 'Harga', 'Tgl Daftar', 'Kedaluwarsa', 'Catatan', 'Satuan Beli', 'Isi per Satuan Beli'],
+            ['SX 90', 'PU-A', 'Pembersih', 'ml', 2400, 800, 60, '', '', '', 'botol', 400],
+            ['Shampoo', 'PU-B', 'Pembersih', 'ml', 0, '', '', '', '', '', 'botol', '500,5'],
+            ['Tanpa Isi', 'PU-C', '', 'ml', 0, '', '', '', '', '', 'botol', ''],
+            ['Tanpa Satuan Beli', 'PU-D', '', 'ml', 0, '', '', '', '', '', '', 400],
+            ['Isi Nol', 'PU-E', '', 'ml', 0, '', '', '', '', '', 'botol', 0],
+            ['Satuan Beli Terlalu Panjang', 'PU-F', '', 'ml', 0, '', '', '', '', '', str_repeat('x', 21), 100],
+            ['Format Lama', 'PU-G', '', 'ml', 0, '', '', '', '', ''],
+        ]), 'rm-imports/pu.xlsx', 'local');
+
+        $method = new \ReflectionMethod(RawMaterialResource::class, 'importMaterials');
+        $method->setAccessible(true);
+        $method->invoke(null, 'rm-imports/pu.xlsx');
+
+        $a = RawMaterial::where('code', 'PU-A')->firstOrFail();
+        $this->assertSame(['botol', 400.0, 2400.0], [$a->purchase_unit, (float) $a->purchase_conversion_factor, (float) $a->current_stock]);
+
+        $b = RawMaterial::where('code', 'PU-B')->firstOrFail();
+        $this->assertSame(500.5, (float) $b->purchase_conversion_factor, 'Koma desimal Indonesia diterima.');
+
+        foreach (['Tanpa Isi', 'Tanpa Satuan Beli', 'Isi Nol', 'Satuan Beli Terlalu Panjang'] as $skipped) {
+            $this->assertDatabaseMissing('raw_materials', ['name' => $skipped]);
+        }
+
+        $old = RawMaterial::where('code', 'PU-G')->firstOrFail();
+        $this->assertNull($old->purchase_unit);
+        $this->assertNull($old->purchase_conversion_factor);
+    }
+
+    public function test_the_import_template_has_the_purchase_unit_columns_at_the_end(): void
+    {
+        $template = new \App\Exports\RawMaterialImportTemplateExport();
+        $headings = $template->headings();
+
+        $this->assertSame(['Satuan Beli', 'Isi per Satuan Beli'], array_slice($headings, -2));
+        $this->assertSame('Catatan', $headings[9], 'Urutan 10 kolom pertama tidak berubah.');
+
+        foreach ($template->array() as $row) {
+            $this->assertCount(count($headings), $row);
+        }
+    }
 }
