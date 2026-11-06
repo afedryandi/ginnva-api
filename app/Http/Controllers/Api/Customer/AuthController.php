@@ -29,8 +29,11 @@ class AuthController extends Controller
      */
     public function requestOtp(Request $request)
     {
+        // "login" = email atau No. HP (app baru); "email" = app lama. No. HP diterjemahkan ke email akun pemiliknya karena kode hanya
+        // dikirim lewat email.
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
+            'login' => 'required_without:email|nullable|string|max:255',
+            'email' => 'required_without:login|nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -41,14 +44,32 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $otp = OtpCode::generateFor($request->email, 'email');
+        $identifier = trim((string) ($request->input('login') ?: $request->input('email')));
+        $email = \App\Support\CustomerLogin::resolveEmail($identifier);
+
+        if ($email === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nomor ini belum terdaftar. Masukkan email Anda untuk mendaftar atau masuk.',
+            ], 422);
+        }
+
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors'  => ['email' => ['Format email tidak valid.']],
+            ], 422);
+        }
+
+        $otp = OtpCode::generateFor($email, 'email');
 
         // MAIL_MAILER masih 'log' di environment default — pastikan SMTP
         // asli sudah disetel di .env sebelum production, kalau tidak
         // email OTP hanya akan tertulis di storage/logs/laravel.log,
         // tidak benar-benar terkirim ke inbox customer.
         try {
-            Mail::to($request->email)->send(new OtpMail($otp->code));
+            Mail::to($email)->send(new OtpMail($otp->code));
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('[OtpMail] Gagal kirim: ' . $e->getMessage());
 
@@ -61,6 +82,8 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Kode verifikasi telah dikirim ke email Anda.',
+            // Email tujuan yang disamarkan: untuk login dengan No. HP, pelanggan perlu tahu ke mana kodenya dikirim.
+            'email_hint' => \App\Support\CustomerLogin::maskEmail($email),
         ]);
     }
 
@@ -74,7 +97,8 @@ class AuthController extends Controller
     public function verifyOtp(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
+            'login' => 'required_without:email|nullable|string|max:255',
+            'email' => 'required_without:login|nullable|string|max:255',
             'code'  => 'required|string|size:6',
         ]);
 
@@ -85,6 +109,18 @@ class AuthController extends Controller
                 'errors'  => $validator->errors(),
             ], 422);
         }
+
+        $loginEmail = \App\Support\CustomerLogin::resolveEmail((string) ($request->input('login') ?: $request->input('email')));
+
+        if ($loginEmail === null || ! filter_var($loginEmail, FILTER_VALIDATE_EMAIL)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode verifikasi salah atau sudah kedaluwarsa.',
+            ], 422);
+        }
+
+        // Selanjutnya seluruh alur memakai email hasil terjemahan (sama dengan isian bila pelanggan mengetik email).
+        $request->merge(['email' => $loginEmail]);
 
         $isValid = OtpCode::verify($request->email, 'email', $request->code);
 

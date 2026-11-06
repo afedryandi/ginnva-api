@@ -49,7 +49,13 @@ class AuthController extends Controller
             return response()->json(['role' => User::findByLogin($identifier) ? 'staff' : 'customer']);
         }
 
-        return response()->json(['role' => User::findByLogin($identifier) ? 'staff' : 'unknown']);
+        // No. HP yang bukan karyawan: dikenali sebagai pelanggan bila cocok dengan akun pelanggan (kode dikirim ke emailnya); selain itu
+        // "unknown" supaya aplikasi meminta email untuk mendaftar.
+        if (User::findByLogin($identifier)) {
+            return response()->json(['role' => 'staff']);
+        }
+
+        return response()->json(['role' => \App\Support\CustomerLogin::resolveEmail($identifier) !== null ? 'customer' : 'unknown']);
     }
 
     /** Isian login: "login" (email atau No. HP). Aplikasi lama masih mengirim "email". */
