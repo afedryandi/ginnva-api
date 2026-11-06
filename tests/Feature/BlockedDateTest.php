@@ -222,9 +222,12 @@ class BlockedDateTest extends TestCase
     public function test_the_calendar_tells_a_closed_date_apart_from_a_weekly_day_off(): void
     {
         $this->storeA->update(['opening_hours' => [['days' => ['sun'], 'closed' => true]]]);
-        $closed = now()->addDays(2);
         $sunday = now()->addDay()->next('Sunday');
-        $this->blocked($this->storeA, 2, 'Acara');
+        // Tanggal yang ditutup tidak boleh jatuh pada hari Minggu yang diperiksa: pada hari Jumat, Minggu berikutnya tepat +2 hari, dan
+        // tanggal itu lalu terbaca "ditutup", bukan "libur mingguan" (ujinya dulu gagal tiap Jumat).
+        $offset = now()->addDays(2)->isSameDay($sunday) ? 3 : 2;
+        $closed = now()->addDays($offset);
+        $this->blocked($this->storeA, $offset, 'Acara');
 
         // Bulan ditentukan eksplisit supaya tanggal uji selalu ada di grid, termasuk di akhir bulan.
         $closedDay = collect($this->calendar($this->storeA)->set('month', $closed->format('Y-m'))->instance()->getCalendarDays())
