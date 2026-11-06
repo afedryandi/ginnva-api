@@ -534,6 +534,65 @@ class UserResource extends Resource
         return $actions;
     }
 
+    /** Empat aksi dasar yang dicentang massal; Void sengaja tidak ikut karena hanya berlaku di dua modul. */
+    private const BULK_ACTIONS = ['view', 'create', 'update', 'delete'];
+
+    /**
+     * Hasil pencentangan massal hak akses detail untuk modul yang menunya SUDAH menyala di satu tab.
+     *
+     * $action: 'all' mencentang keempat aksi; 'none' mengosongkannya (Void tetap); salah satu dari view/create/update/delete bekerja
+     * sebagai sakelar: bila semua modul menyala sudah punya aksi itu, dilepas dari semuanya; bila belum, dicentang di semuanya.
+     *
+     * @param  array<string, list<string>>  $current  kunci modul => aksi yang sedang tercentang (hanya modul yang menyala)
+     * @return array<string, list<string>>
+     */
+    public static function bulkPermissionChange(array $current, string $action): array
+    {
+        $result = [];
+
+        if ($action === 'all') {
+            foreach ($current as $moduleKey => $actions) {
+                $result[$moduleKey] = array_values(array_unique(array_merge($actions, self::BULK_ACTIONS)));
+            }
+
+            return $result;
+        }
+
+        if ($action === 'none') {
+            foreach ($current as $moduleKey => $actions) {
+                $result[$moduleKey] = array_values(array_diff($actions, self::BULK_ACTIONS));
+            }
+
+            return $result;
+        }
+
+        $allHave = $current !== [] && collect($current)->every(fn (array $actions) => in_array($action, $actions, true));
+
+        foreach ($current as $moduleKey => $actions) {
+            $result[$moduleKey] = $allHave
+                ? array_values(array_diff($actions, [$action]))
+                : array_values(array_unique(array_merge($actions, [$action])));
+        }
+
+        return $result;
+    }
+
+    /** Terapkan pencentangan massal ke modul yang menyala pada satu tab. @param list<string> $keys */
+    private static function applyBulkPermissions(Forms\Get $get, Forms\Set $set, array $keys, string $action): void
+    {
+        $current = [];
+
+        foreach ($keys as $moduleKey) {
+            if ($get(self::moduleAccessFieldKey($moduleKey))) {
+                $current[$moduleKey] = array_values((array) ($get(self::menuPermissionFieldKey($moduleKey)) ?? []));
+            }
+        }
+
+        foreach (self::bulkPermissionChange($current, $action) as $moduleKey => $actions) {
+            $set(self::menuPermissionFieldKey($moduleKey), $actions);
+        }
+    }
+
     /** Semua kunci modul, termasuk yang menunya disembunyikan saklar fitur. */
     private static function allModuleKeys(): array
     {
@@ -599,6 +658,41 @@ class UserResource extends Resource
                                 $set(self::menuPermissionFieldKey($moduleKey), []);
                             }
                         }),
+                ]),
+
+                // Hak akses detail untuk semua modul yang SUDAH menyala di tab ini. Satu tombol Semua Lihat/Buat/Ubah/Hapus bekerja sebagai
+                // sakelar (centang di semua, atau lepas bila sudah tercentang di semua).
+                Forms\Components\Actions::make([
+                    Forms\Components\Actions\Action::make("all_actions_{$slug}")
+                        ->label('Centang semua aksi')
+                        ->color('gray')
+                        ->size('sm')
+                        ->action(fn (Forms\Get $get, Forms\Set $set) => self::applyBulkPermissions($get, $set, $keys, 'all')),
+                    Forms\Components\Actions\Action::make("all_view_{$slug}")
+                        ->label('Semua Lihat')
+                        ->color('gray')
+                        ->size('sm')
+                        ->action(fn (Forms\Get $get, Forms\Set $set) => self::applyBulkPermissions($get, $set, $keys, 'view')),
+                    Forms\Components\Actions\Action::make("all_create_{$slug}")
+                        ->label('Semua Buat')
+                        ->color('gray')
+                        ->size('sm')
+                        ->action(fn (Forms\Get $get, Forms\Set $set) => self::applyBulkPermissions($get, $set, $keys, 'create')),
+                    Forms\Components\Actions\Action::make("all_update_{$slug}")
+                        ->label('Semua Ubah')
+                        ->color('gray')
+                        ->size('sm')
+                        ->action(fn (Forms\Get $get, Forms\Set $set) => self::applyBulkPermissions($get, $set, $keys, 'update')),
+                    Forms\Components\Actions\Action::make("all_delete_{$slug}")
+                        ->label('Semua Hapus')
+                        ->color('gray')
+                        ->size('sm')
+                        ->action(fn (Forms\Get $get, Forms\Set $set) => self::applyBulkPermissions($get, $set, $keys, 'delete')),
+                    Forms\Components\Actions\Action::make("no_actions_{$slug}")
+                        ->label('Kosongkan aksi')
+                        ->color('gray')
+                        ->size('sm')
+                        ->action(fn (Forms\Get $get, Forms\Set $set) => self::applyBulkPermissions($get, $set, $keys, 'none')),
                 ]),
             ];
 
