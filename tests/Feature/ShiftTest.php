@@ -188,7 +188,9 @@ class ShiftTest extends TestCase
         $shift = $this->shift('Pagi');
         $schedule = $this->schedule($shift);
         $employee = $this->user('kasir');
-        EmployeeScheduleAssignment::create(['user_id' => $employee->id, 'work_schedule_id' => $schedule->id, 'store_id' => $this->store->id, 'effective_from' => today()->subMonth()]);
+        // Tanggal berlaku TETAP, bukan today()->subMonth(): tanggal yang diperiksa di bawah juga tetap (7 Oktober 2026), dan tes ini
+        // dulu gagal begitu "sebulan lalu" jatuh sesudah tanggal itu (mulai 8 November 2026).
+        EmployeeScheduleAssignment::create(['user_id' => $employee->id, 'work_schedule_id' => $schedule->id, 'store_id' => $this->store->id, 'effective_from' => '2026-09-01']);
 
         $shift->update(['is_active' => false]);
 
