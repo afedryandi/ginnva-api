@@ -724,7 +724,7 @@ class ScrollCodeResource extends Resource
                                 ->title('Alokasi selesai')
                                 ->body("{$allocated} kode dialokasikan."
                                     . ($skipped > 0 ? " {$skipped} dilewati (sudah dialokasi/dipakai)." : '')
-                                    . ($inStock !== [] ? ' ' . count($inStock) . ' dilewati karena barangnya masih Ada Stok di gudang (catat keluar lewat Produk PPF/WF): ' . implode('; ', array_slice($inStock, 0, 10)) . (count($inStock) > 10 ? '; …' : '') . '.' : ''))
+                                    . ($inStock !== [] ? ' ' . count($inStock) . ' dilewati karena barangnya masih Ada Stok di gudang (catat keluar dengan tombol Catat Keluar di Produk PPF/WF, atau lewat aplikasi karyawan): ' . implode('; ', array_slice($inStock, 0, 10)) . (count($inStock) > 10 ? '; …' : '') . '.' : ''))
                                 ->color($inStock !== [] ? 'warning' : 'success')
                                 ->persistent($inStock !== [])
                                 ->send();

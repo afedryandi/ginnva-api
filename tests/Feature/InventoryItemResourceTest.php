@@ -690,4 +690,95 @@ class InventoryItemResourceTest extends TestCase
         $this->assertSame($before, InventoryItem::count());
         Storage::disk('local')->assertMissing('inv-imports/rusak.xlsx');
     }
+
+    // ------------------------------------------------------------- Catat Keluar / Catat Masuk dari panel
+
+    public function test_full_access_records_an_item_out_to_a_chosen_store_and_the_roll_follows(): void
+    {
+        $admin = $this->as($this->user('super_admin'));
+        $roll = $this->roll('GL-OUT-1', null, 'unallocated');
+        $item = $this->item('Kardus Keluar', 'PPF', 'in_stock', $roll);
+
+        Livewire::test(ListInventoryItems::class)
+            ->assertTableActionVisible('record_out', $item)
+            ->assertTableActionHidden('record_in', $item)
+            ->callTableAction('record_out', $item, data: ['store_id' => $this->storeB->id, 'note' => 'Kirim ke Bandung'])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertSame('out', $item->fresh()->status);
+        $this->assertSame('allocated', $roll->fresh()->status);
+        $this->assertSame($this->storeB->id, $roll->fresh()->store_id);
+
+        $movement = $item->movements()->latest('id')->firstOrFail();
+        $this->assertSame(['out', $this->storeB->id, $admin->id, 'Kirim ke Bandung'], [$movement->type, $movement->destination_store_id, $movement->user_id, $movement->note]);
+    }
+
+    public function test_full_access_must_pick_a_destination_store(): void
+    {
+        $this->as($this->user('super_admin'));
+        $item = $this->item('Tanpa Toko', 'PPF', 'in_stock', $this->roll('GL-OUT-2', null, 'unallocated'));
+
+        Livewire::test(ListInventoryItems::class)
+            ->callTableAction('record_out', $item, data: ['note' => 'x'])
+            ->assertHasTableActionErrors(['store_id' => 'required']);
+
+        $this->assertSame('in_stock', $item->fresh()->status);
+    }
+
+    public function test_a_permitted_employee_records_out_to_their_own_store_without_choosing_one(): void
+    {
+        $staff = $this->as($this->user('kasir', null, $this->storeA));
+        $roll = $this->roll('GL-OUT-3', null, 'unallocated');
+        $item = $this->item('Kardus Staf', 'PPF', 'in_stock', $roll);
+
+        Livewire::test(ListInventoryItems::class)
+            ->callTableAction('record_out', $item, data: ['note' => 'Dipakai toko'])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertSame($this->storeA->id, $roll->fresh()->store_id, 'Toko tujuan otomatis toko karyawan itu.');
+        $this->assertSame($staff->id, $item->movements()->latest('id')->first()->user_id);
+    }
+
+    public function test_record_in_returns_the_item_and_clears_the_roll_allocation(): void
+    {
+        $this->as($this->user('super_admin'));
+        $roll = $this->roll('GL-IN-1', $this->storeA, 'allocated');
+        $item = $this->item('Kardus Masuk', 'PPF', 'out', $roll);
+
+        Livewire::test(ListInventoryItems::class)
+            ->assertTableActionVisible('record_in', $item)
+            ->assertTableActionHidden('record_out', $item)
+            ->callTableAction('record_in', $item, data: ['note' => 'Kembali ke gudang'])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertSame('in_stock', $item->fresh()->status);
+        $this->assertSame(['unallocated', null], [$roll->fresh()->status, $roll->fresh()->store_id]);
+    }
+
+    public function test_movement_actions_are_hidden_without_update_permission_or_for_another_stores_roll(): void
+    {
+        $roll = $this->roll('GL-OTHER', $this->storeB, 'allocated');
+        $otherStoresItem = $this->item('Milik Toko B', 'PPF', 'out', $roll);
+        $plainItem = $this->item('Biasa', 'PPF', 'in_stock');
+
+        // Hanya boleh melihat: tanpa izin Ubah.
+        $this->as($this->user('kasir', ['InventoryItemResource'], $this->storeA, ['menu_permissions' => ['InventoryItemResource' => ['view']]]));
+        Livewire::test(ListInventoryItems::class)
+            ->assertTableActionHidden('record_out', $plainItem)
+            ->assertTableActionHidden('record_in', $otherStoresItem);
+
+        // Izin Ubah, tetapi gulungannya dialokasikan ke toko lain.
+        $this->as($this->user('kasir', null, $this->storeA));
+        Livewire::test(ListInventoryItems::class)
+            ->assertTableActionVisible('record_out', $plainItem)
+            ->assertTableActionHidden('record_in', $otherStoresItem);
+    }
+
+    public function test_the_scroll_code_allocation_message_points_to_the_record_out_button(): void
+    {
+        $source = file_get_contents(app_path('Filament/Resources/ScrollCodeResource.php'));
+
+        $this->assertStringContainsString('tombol Catat Keluar di Produk PPF/WF', $source);
+        $this->assertStringNotContainsString('(catat keluar lewat Produk PPF/WF)', $source);
+    }
 }

@@ -134,6 +134,42 @@ class InventoryItemResource extends Resource
         return ($user?->isFullAccess() ?? false) || $scrollCode->store_id === $user?->store_id;
     }
 
+    /**
+     * Catat Keluar/Masuk dari panel. Jalurnya sama dengan StaffInventoryController::storeMovement(): gulungan yang sudah dialokasikan ke satu
+     * toko hanya boleh digerakkan staf toko itu atau akses penuh, dan toko tujuan keluar milik akses penuh dipilih manual.
+     */
+    public static function applyMovement(InventoryItem $record, string $type, array $data): void
+    {
+        $user = auth()->user();
+
+        if (! static::canActOnScrollCode($record->scrollCode)) {
+            Notification::make()->title('Tidak bisa mencatat')->body('Kode gulungan ini teralokasi ke toko lain.')->danger()->send();
+
+            return;
+        }
+
+        $storeId = ($user?->isFullAccess() ?? false) ? ($data['store_id'] ?? null) : $user?->store_id;
+
+        if ($type === 'out' && ($user?->isFullAccess() ?? false) && blank($storeId)) {
+            Notification::make()->title('Pilih toko tujuan dulu.')->danger()->send();
+
+            return;
+        }
+
+        try {
+            $record->recordMovement($type, $user?->id, $data['note'] ?? null, $storeId ? (int) $storeId : null, $user?->store_id);
+        } catch (\InvalidArgumentException $e) {
+            Notification::make()->title('Tidak bisa mencatat')->body($e->getMessage())->danger()->send();
+
+            return;
+        }
+
+        Notification::make()
+            ->title($type === 'out' ? 'Barang keluar dicatat' : 'Barang masuk dicatat')
+            ->success()
+            ->send();
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -627,6 +663,51 @@ class InventoryItemResource extends Resource
                     ->icon('heroicon-o-qr-code')
                     ->color('gray')
                     ->action(fn (InventoryItem $record) => static::downloadQrPdf(new Collection([$record]))),
+
+                // Catat Keluar / Catat Masuk barang (kardus fisik): logika SAMA dengan aplikasi karyawan (scan QR, tombol "Catat Keluar" dan
+                // "Catat Masuk"), lewat InventoryItem::recordMovement(). Keluar mengalokasikan gulungan terkait ke toko tujuan; Masuk
+                // mengembalikannya ke gudang. Akses penuh memilih toko tujuan; karyawan lain otomatis memakai tokonya sendiri.
+                Tables\Actions\Action::make('record_out')
+                    ->label('Catat Keluar')
+                    ->icon('heroicon-o-arrow-up-tray')
+                    ->color('danger')
+                    ->visible(fn (InventoryItem $record) => static::canEdit($record)
+                        && $record->status === 'in_stock'
+                        && static::canActOnScrollCode($record->scrollCode))
+                    ->modalHeading(fn (InventoryItem $record) => "Catat barang keluar: {$record->name}")
+                    ->modalDescription(fn (InventoryItem $record) => $record->scrollCode
+                        ? "Gulungan {$record->scrollCode->code} ikut dialokasikan ke toko tujuan."
+                        : 'Barang ini belum punya kode gulungan, jadi hanya statusnya yang berubah menjadi Sudah Keluar.')
+                    ->form([
+                        Forms\Components\Select::make('store_id')
+                            ->label('Toko Tujuan')
+                            ->options(fn () => \App\Models\Store::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->required()
+                            ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
+                        Forms\Components\Textarea::make('note')
+                            ->label('Catatan (opsional)')
+                            ->maxLength(500),
+                    ])
+                    ->action(fn (InventoryItem $record, array $data) => static::applyMovement($record, 'out', $data)),
+
+                Tables\Actions\Action::make('record_in')
+                    ->label('Catat Masuk')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('success')
+                    ->visible(fn (InventoryItem $record) => static::canEdit($record)
+                        && $record->status === 'out'
+                        && static::canActOnScrollCode($record->scrollCode))
+                    ->modalHeading(fn (InventoryItem $record) => "Catat barang masuk: {$record->name}")
+                    ->modalDescription(fn (InventoryItem $record) => $record->scrollCode && $record->scrollCode->status === 'allocated'
+                        ? "Gulungan {$record->scrollCode->code} kembali menjadi belum dialokasikan."
+                        : 'Barang kembali berstatus Ada Stok di gudang.')
+                    ->form([
+                        Forms\Components\Textarea::make('note')
+                            ->label('Catatan (opsional)')
+                            ->maxLength(500),
+                    ])
+                    ->action(fn (InventoryItem $record, array $data) => static::applyMovement($record, 'in', $data)),
 
                 // Aksi ini yang jadi rujukan utama untuk mencatat pemakaian
                 // meter — TIDAK ada duplikat lagi di menu Kode Gulungan
