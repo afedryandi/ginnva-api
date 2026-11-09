@@ -457,9 +457,15 @@ class CustomerResource extends Resource
                         // memuat angka (kode referral, nama) tidak boleh ikut mencocokkan nomor lewat angka-angkanya saja.
                         $looksLikePhone = (bool) preg_match('/^[\d\s+()\-]+$/', $search);
 
+                        // Filament memecah isian menjadi kata-kata (dipisah spasi) dan setiap kata harus cocok. "+62 812 3456" menjadi "+62", "812", "3456":
+                        // kata "+62" (atau "0") hanyalah awalan nomor, bukan bagian nomor yang tersimpan, jadi dianggap cocok untuk semua dan tidak
+                        // menggugurkan pencarian.
+                        $prefixOnly = $looksLikePhone && $digits !== '' && $local === '';
+
                         return $query->where(fn (Builder $q) => $q
                             ->where('phone_number', 'like', "%{$search}%")
-                            ->when($looksLikePhone && $local !== '', fn (Builder $q2) => $q2->orWhere('phone_number', 'like', "%{$local}%")));
+                            ->when($looksLikePhone && $local !== '', fn (Builder $q2) => $q2->orWhere('phone_number', 'like', "%{$local}%"))
+                            ->when($prefixOnly, fn (Builder $q2) => $q2->orWhereRaw('1 = 1')));
                     }),
 
                 Tables\Columns\TextColumn::make('customerGroup.name')
