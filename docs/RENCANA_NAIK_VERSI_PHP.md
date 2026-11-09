@@ -17,11 +17,16 @@ Kompatibel mundur: `lcobucci/jwt 5.6.1` tetap jalan di PHP 8.2, jadi perubahan i
 
 ## 2. Ekstensi PHP yang dibutuhkan (periksa di PHP baru pada server)
 
+**PENTING, ditemukan 2026-11-09 saat Tahap A di dev:** `lcobucci/jwt 5.6.1` mewajibkan **ext-sodium**, dan ekstensi itu **belum aktif di ea-php82 server** (`composer install` gagal dengan "it is missing from your system"). Semua versi `lcobucci/jwt` sejak 4.1 membutuhkannya, dan versi 4.0.4 yang lama (tanpa sodium) justru yang tidak mendukung PHP 8.3/8.4, jadi **ext-sodium wajib aktif di server untuk naik PHP**. Aktifkan lebih dulu di PHP 8.2 (dev, lalu production) sebelum menjalankan `composer install` apa pun dengan `composer.lock` baru, dan pastikan juga aktif di PHP 8.4. Pemeriksaan lokal saya tidak menangkapnya karena PHP lokal sudah memuat sodium.
+
+Aktifkan lewat WHM (butuh akses root): Software, EasyApache 4, Customize, PHP Extensions, cari "sodium", pasang untuk ea-php82 dan ea-php84; atau lewat SSH sebagai root: `yum search sodium` lalu pasang paket yang sesuai. Bila hosting tanpa akses root, minta penyedia mengaktifkannya. Cek hasilnya dengan `/opt/cpanel/ea-php82/root/usr/bin/php -m | grep -i sodium`.
+
 `ctype curl dom fileinfo filter gd hash iconv intl json libxml mbstring openssl pcre session simplexml sodium tokenizer xml xmlreader xmlwriter zip zlib`, ditambah driver `pdo_mysql`. Di cPanel: MultiPHP INI Editor atau "Select PHP Version" pada versi baru. Pastikan `intl`, `gd`, `zip`, `sodium`, dan `pdo_mysql` aktif.
 
 ## 3. Urutan pengerjaan
 
 **Tahap A: perbarui dependensi (di PHP 8.2 yang sekarang).**
+0. **Aktifkan ext-sodium** di PHP 8.2 server dev (lihat bagian 2). Sebelum ini selesai, jangan jalankan `composer install` di server mana pun.
 1. Pull perubahan `composer.lock` (commit "lcobucci/jwt 5.6.1").
 2. Di dev: `composer install --no-interaction`, lalu jalankan tes penuh. Semua harus hijau, khususnya tes login, token, dan guard (`PhoneLoginTest`, `AccountSecurityLogTest`, `CustomerPhoneLoginTest`).
 3. Rilis ke production seperti biasa dan **uji login sungguhan** (karyawan dan pelanggan).

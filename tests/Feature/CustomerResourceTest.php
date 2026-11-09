@@ -427,6 +427,27 @@ class CustomerResourceTest extends TestCase
             ->assertCanNotSeeTableRecords([$b]);
     }
 
+    public function test_a_word_containing_digits_is_not_matched_against_phone_numbers(): void
+    {
+        $this->as($this->user('super_admin'));
+        // Kode referral acak seperti "K4T9Q2" memuat angka; angka-angka itu tidak boleh mencocokkan nomor telepon pelanggan lain
+        // (dulu tes "search and columns" gagal acak tergantung kode dan nomor yang kebetulan dibuat).
+        $phoneHolder = $this->customer('Pemilik Nomor', ['phone_number' => '81249012345']);
+
+        Livewire::test(ListCustomers::class)
+            ->searchTable('K4T9Q2')
+            ->assertCanNotSeeTableRecords([$phoneHolder]);
+
+        Livewire::test(ListCustomers::class)
+            ->searchTable('x4901y')
+            ->assertCanNotSeeTableRecords([$phoneHolder]);
+
+        // Isian yang memang berbentuk nomor tetap dicocokkan.
+        Livewire::test(ListCustomers::class)
+            ->searchTable('+62 812 4901 2345')
+            ->assertCanSeeTableRecords([$phoneHolder]);
+    }
+
     public function test_group_filter_and_single_row_group_action(): void
     {
         $this->as($this->user('super_admin'));

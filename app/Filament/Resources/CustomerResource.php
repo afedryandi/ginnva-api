@@ -453,10 +453,13 @@ class CustomerResource extends Resource
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         $digits = preg_replace('/\D/', '', $search);
                         $local = preg_replace('/^(0|62)/', '', $digits);
+                        // Hanya isian yang berbentuk nomor telepon (angka, spasi, +, -, kurung) yang dicocokkan sebagai nomor. Kata yang
+                        // memuat angka (kode referral, nama) tidak boleh ikut mencocokkan nomor lewat angka-angkanya saja.
+                        $looksLikePhone = (bool) preg_match('/^[\d\s+()\-]+$/', $search);
 
                         return $query->where(fn (Builder $q) => $q
                             ->where('phone_number', 'like', "%{$search}%")
-                            ->when($local !== '', fn (Builder $q2) => $q2->orWhere('phone_number', 'like', "%{$local}%")));
+                            ->when($looksLikePhone && $local !== '', fn (Builder $q2) => $q2->orWhere('phone_number', 'like', "%{$local}%")));
                     }),
 
                 Tables\Columns\TextColumn::make('customerGroup.name')
