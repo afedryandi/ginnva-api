@@ -316,6 +316,8 @@ class AuthController extends Controller
             'has_consumable_access' => $user->hasConsumableAccess(),
             'has_material_memo_access' => $user->hasMaterialMemoAccess(),
             'has_purchase_request_access' => $user->hasPurchaseRequestAccess(),
+            // Slip Gaji dan tab Gaji di aplikasi hanya bila payroll menyala (FEATURE_PAYROLL; mati sejak 2026-11-10).
+            'has_payroll' => (bool) config('features.payroll'),
             // Layar "K3 & Penilaian" di aplikasi: tampil hanya bila salah satu isinya (APD, pelatihan, penilaian) menyala.
             'has_safety_access' => (bool) (config('features.k3') || config('features.employee_training') || config('features.performance_reviews')),
             // Keuangan di aplikasi (Keuangan Fase 5): catat pengeluaran/hitung kas bila punya menunya, setujui bila Store Manager atau akses penuh.

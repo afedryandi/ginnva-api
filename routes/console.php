@@ -152,4 +152,4 @@ Schedule::command('purchase-requests:remind-pending')->dailyAt('09:00');
 Schedule::command('policies:remind-pending')->weeklyOn(1, '08:45');
 
 // Pengingat kelengkapan data wajib karyawan menjelang payroll (audit Kelengkapan Data Karyawan): tanggal 25 pagi ke akses penuh dan pemegang menunya.
-Schedule::command('hr:notify-incomplete-data')->monthlyOn(25, '08:00');
+Schedule::command('hr:notify-incomplete-data')->monthlyOn(25, '08:00')->when(fn () => (bool) config('features.payroll'));

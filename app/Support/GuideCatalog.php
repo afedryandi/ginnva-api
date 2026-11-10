@@ -153,6 +153,11 @@ class GuideCatalog
                 return false;
             }
 
+            // Payroll mati (FEATURE_PAYROLL): panduan Penggajian bulanan tidak ditampilkan karena menunya tidak ada.
+            if (! config('features.payroll') && $guide['id'] === 'penggajian') {
+                return false;
+            }
+
             // Menu K3, Penilaian Kinerja, dan Pelatihan Karyawan disembunyikan (config/features.php): panduannya ikut hilang bila ketiganya mati.
             if ($guide['id'] === 'k3-kinerja' && ! (config('features.k3') || config('features.employee_training') || config('features.performance_reviews'))) {
                 return false;
@@ -192,6 +197,8 @@ class GuideCatalog
      */
     public static function all(): array
     {
+        // Gaji tidak dihitung di sistem ini bila FEATURE_PAYROLL mati (keputusan pemilik 2026-11-10): teks yang menyebut slip gaji menyesuaikan.
+        $payroll = (bool) config('features.payroll');
         $sla = (int) config('booking.confirm_sla_hours', 4);
         $promoMax = (int) config('marketing.promo_max_campaigns_per_week', 2);
         $quietHours = QuietHours::label();
@@ -899,10 +906,14 @@ class GuideCatalog
                 'menus' => ['AttendanceReport', 'EmployeeReport'],
                 'steps' => [
                     '**Absensi** (laporan) menampilkan kehadiran harian mentah: **Absen Masuk**, **Absen Keluar**, **Terlambat**, **Pulang Cepat**, dan **Jenis**, dengan ringkasan keterlambatan di atasnya. Saring dengan **Periode Cepat**, **Dari**, **Sampai**, dan **Toko**. Koreksi absensi yang disetujui ikut tampil.',
-                    '**Laporan Karyawan** adalah ringkasan BULANAN dari Penggajian: **Hari Kerja**, **Telat (Menit)**, **Alpha (Hari)**, **Gaji Bersih**, dan **Status**. Pilih **Bulan** dan **Toko**. Datanya baru ada setelah payroll bulan itu digenerate.',
+                    $payroll
+                        ? '**Laporan Karyawan** adalah ringkasan BULANAN dari Penggajian: **Hari Kerja**, **Telat (Menit)**, **Alpha (Hari)**, **Gaji Bersih**, dan **Status**. Pilih **Bulan** dan **Toko**. Datanya baru ada setelah payroll bulan itu digenerate.'
+                        : 'Untuk rekap BULANAN per karyawan, pilih **Periode Cepat** (mis. Bulan lalu) lalu tekan **Export Rekap per Karyawan**. Excel-nya berisi Hadir, Terlambat (kali), Telat (Menit), Pulang Cepat (kali), Alpha, dan Izin/Cuti per karyawan, siap dikirim ke HR atau Accurate.',
                 ],
                 'tips' => [
-                    'Untuk membuat atau memperbaiki data dasarnya, lihat panduan Absensi Karyawan dan Penggajian bulanan.',
+                    $payroll
+                        ? 'Untuk membuat atau memperbaiki data dasarnya, lihat panduan Absensi Karyawan dan Penggajian bulanan.'
+                        : 'Untuk membuat atau memperbaiki data dasarnya, lihat panduan Absensi Karyawan.',
                 ],
             ],
             [
@@ -1100,10 +1111,14 @@ class GuideCatalog
                 'menus' => [],
                 'steps' => [
                     'Masuk lewat aplikasi karyawan dengan email atau No. HP, dan password dari admin. Installer tidak memakai panel web; semuanya lewat aplikasi. Lupa password? Pakai fitur lupa password di layar masuk (butuh email), atau minta admin; yang masuk dengan No. HP tanpa email meminta admin mengatur ulang. Ganti password lewat nama Anda di bagian atas **Beranda**.',
-                    'Bilah bawah berisi **Beranda**, **Absensi**, **Booking**, **Gaji**, dan **Profil**. Menu lain ada sebagai kotak di Beranda: **Surat Perintah Kerja**, **Kotak Masuk**, **Slip Gaji**, **K3 & Penilaian**, **Peraturan & Kebijakan**, dan **Panduan**.',
+                    $payroll
+                        ? 'Bilah bawah berisi **Beranda**, **Absensi**, **Booking**, **Gaji**, dan **Profil**. Menu lain ada sebagai kotak di Beranda: **Surat Perintah Kerja**, **Kotak Masuk**, **Slip Gaji**, **K3 & Penilaian**, **Peraturan & Kebijakan**, dan **Panduan**.'
+                        : 'Bilah bawah berisi **Beranda**, **Absensi**, **Booking**, dan **Profil**. Menu lain ada sebagai kotak di Beranda: **Surat Perintah Kerja**, **Kotak Masuk**, **K3 & Penilaian**, **Peraturan & Kebijakan**, dan **Panduan**.',
                     'Pekerjaan Anda muncul di **Booking Toko** dan **Surat Perintah Kerja**, hanya untuk booking yang DITUGASKAN kepada Anda, bukan seluruh booking toko. Saat leader menugaskan atau mencopot Anda dari sebuah booking, Anda menerima pemberitahuan "Penugasan Instalasi Baru" atau "Penugasan Dicabut"; riwayatnya ada di **Kotak Masuk**. Periksa kotak masuk di awal hari.',
                     'Yang dipegang leader installer, Store Manager, atau atasan, bukan installer: konfirmasi dan pembatalan booking, chat dengan pelanggan, foto penerimaan, Quality Check, serah terima, dan penugasan installer. Layar-layar itu ditolak untuk akun installer; hubungi leader bila ada kendala di lapangan.',
-                    'Yang menjadi tugas Anda di aplikasi: melihat detail pengerjaan, melengkapi SPK, absen, mengajukan izin dan koreksi, serta membaca slip gaji, perlengkapan, dan peraturan. Langkah tiap tugas ada di panduan Installer: mengerjakan satu booking dan Installer: absensi, gaji, dan K3.',
+                    $payroll
+                        ? 'Yang menjadi tugas Anda di aplikasi: melihat detail pengerjaan, melengkapi SPK, absen, mengajukan izin dan koreksi, serta membaca slip gaji, perlengkapan, dan peraturan. Langkah tiap tugas ada di panduan Installer: mengerjakan satu booking dan Installer: absensi, gaji, dan K3.'
+                        : 'Yang menjadi tugas Anda di aplikasi: melihat detail pengerjaan, melengkapi SPK, absen, mengajukan izin dan koreksi, serta membaca perlengkapan dan peraturan. Langkah tiap tugas ada di panduan Installer: mengerjakan satu booking dan Installer: absensi, izin, dan K3.',
                 ],
                 'tips' => [
                     'Booking yang belum ditugaskan ke Anda tidak muncul sama sekali; itu normal, bukan error.',
@@ -1131,22 +1146,24 @@ class GuideCatalog
             ],
             [
                 'id' => 'installer-hr',
-                'title' => 'Installer: absensi, izin, gaji, dan K3',
+                'title' => $payroll ? 'Installer: absensi, izin, gaji, dan K3' : 'Installer: absensi, izin, dan K3',
                 'audience' => 'installer',
-                'summary' => 'Absen masuk dan keluar, koreksi, izin dan cuti, slip gaji dan komisi, perlengkapan, serta peraturan.',
+                'summary' => $payroll
+                    ? 'Absen masuk dan keluar, koreksi, izin dan cuti, slip gaji dan komisi, perlengkapan, serta peraturan.'
+                    : 'Absen masuk dan keluar, koreksi, izin dan cuti, perlengkapan, serta peraturan.',
                 'menus' => [],
                 'steps' => [
                     'Di **Absensi**, tekan **Absen Masuk** saat tiba dan **Absen Keluar** saat pulang. Absen memakai lokasi dan hanya berhasil di dalam radius toko; aktifkan GPS. Tekan **Cek Jarak Saya ke Toko** bila absen ditolak karena jarak.',
                     'Lupa absen? Tekan **Ajukan Koreksi Absensi**, isi Tanggal, Jam Masuk, Jam Keluar, dan Alasan. Atasan menyetujui atau menolak; hasilnya ada di Riwayat Pengajuan.',
                     'Tidak masuk karena sakit atau keperluan lain: tekan tombol Ajukan / Lihat Izin & Cuti, lalu **Ajukan Izin/Cuti** (pilih Jenis, **Dari Tanggal**, **Sampai Tanggal**, tulis Alasan, dan lampirkan foto bila dibutuhkan). Pengajuan menunggu persetujuan admin; Anda bisa membatalkannya selama belum diproses.',
-                    '**Slip Gaji** menampilkan Gaji Pokok, Gaji Berjalan, Komisi Installer, dan Gaji Bersih per bulan, dan bisa diunduh lewat **Download Slip Gaji (PDF)**. Bila ada pekerjaan yang tarif komisinya belum diatur, aplikasi memberi tahu bahwa komisi itu belum ikut ditotal; tanyakan ke atasan.',
+                    ...($payroll ? ['**Slip Gaji** menampilkan Gaji Pokok, Gaji Berjalan, Komisi Installer, dan Gaji Bersih per bulan, dan bisa diunduh lewat **Download Slip Gaji (PDF)**. Bila ada pekerjaan yang tarif komisinya belum diatur, aplikasi memberi tahu bahwa komisi itu belum ikut ditotal; tanyakan ke atasan.'] : []),
                     '**K3 & Penilaian** menampilkan perlengkapan (APD) atas nama Anda beserta jatuh tempo ganti, pelatihan dan sertifikat, serta penilaian kinerja. Tekan **Saya Sudah Membaca** setelah membaca penilaian. Penilaian untuk pembinaan, bukan penentu gaji.',
                     '**Peraturan & Kebijakan** berisi peraturan perusahaan dan SOP. Baca dokumennya dan tekan tombol penerimaan bila diminta. Aturan potongan telat dan Alpha hanya sah bila tertulis di peraturan yang sudah Anda terima.',
                     '**Profil** menampilkan masa kerja dan kontrak, data diri, kontak darurat, dan dokumen. Bila ada data yang salah, minta HR memperbaikinya. Surat peringatan yang pernah diterbitkan ada di **Riwayat Surat Peringatan** pada layar Absensi.',
                 ],
                 'tips' => [
-                    'Koreksi absensi yang disetujui ikut memengaruhi perhitungan telat dan gaji.',
-                    'Aturan ini sama untuk semua karyawan; yang khusus installer hanyalah komisi pada Slip Gaji.',
+                    $payroll ? 'Koreksi absensi yang disetujui ikut memengaruhi perhitungan telat dan gaji.' : 'Koreksi absensi yang disetujui ikut memengaruhi perhitungan telat.',
+                    $payroll ? 'Aturan ini sama untuk semua karyawan; yang khusus installer hanyalah komisi pada Slip Gaji.' : 'Aturan ini sama untuk semua karyawan.',
                 ],
             ],
             [
@@ -1335,7 +1352,7 @@ class GuideCatalog
                 'menus' => ['GuideNoteResource'],
                 'steps' => [
                     'Direksi (CEO, CCO, CFO) setara dengan super admin: akses penuh ke semua menu dan semua toko, tanpa pembatasan Akses Menu. Tidak ada hak khusus per jabatan; keputusan keuangan dan karyawan dipegang semua akun akses penuh. Banyak tombol di sistem sengaja hanya muncul untuk Anda.',
-                    'Antrian keputusan, lewat notifikasi dan menu terkait: **Persetujuan Transaksi** (refund, referral, dan DP dari karyawan), **Penggajian** (**Setujui & Tandai Dibayar** atau **Tolak Pengajuan** untuk pengajuan Spv Finance), **Izin & Cuti** (**Setujui** atau **Tolak**), **Permohonan Pembelian**, installer baru yang menunggu review (**Aktifkan** atau tolak), dan **Klaim & Bukti**.',
+                    'Antrian keputusan, lewat notifikasi dan menu terkait: **Persetujuan Transaksi** (refund, referral, dan DP dari karyawan), ' . ($payroll ? '**Penggajian** (**Setujui & Tandai Dibayar** atau **Tolak Pengajuan** untuk pengajuan Spv Finance), ' : '') . '**Izin & Cuti** (**Setujui** atau **Tolak**), **Permohonan Pembelian**, installer baru yang menunggu review (**Aktifkan** atau tolak), dan **Klaim & Bukti**.',
                     'Pemisahan tugas: Anda tidak bisa menyetujui pengajuan yang Anda ajukan sendiri (transaksi). Pengajuan penggajian datang dari Spv Finance. Bila Anda perlu mengajukan sesuatu, minta akses penuh lain yang memutuskannya.',
                     'Booking: Anda melihat semua toko dan memiliki wewenang Store Manager (membatalkan booking, menandai tidak datang, mengoreksi tahap). Anda juga bisa ditunjuk sebagai Direksi Pemantau pada sebuah booking untuk ikut memantau progresnya.',
                     'Pengaturan yang hanya Anda pegang: **Profil Perusahaan** (identitas di kop invoice), akun karyawan, jabatan, dan Akses Menu di User, Aturan Potongan Absensi, Checklist QC, serta import Master Data. Atur hak tambahan seperti Void dan Hapus untuk karyawan di Hak Akses Detail, dan beri hak itu seperlunya.',

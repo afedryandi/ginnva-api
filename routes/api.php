@@ -455,8 +455,11 @@ Route::prefix('staff')->group(function () {
 
         // Slip gaji mandiri — sama pola dengan Absensi/Izin, tidak
         // dibatasi hasMenuAccess() (lihat catatan PayrollController).
-        Route::get('/payroll', [StaffPayrollController::class, 'index']);
-        Route::get('/payroll/{id}/slip', [StaffPayrollController::class, 'slip']);
+        // Mati bersama payroll (FEATURE_PAYROLL): 404 bila saklar mati.
+        Route::middleware('feature:payroll')->group(function () {
+            Route::get('/payroll', [StaffPayrollController::class, 'index']);
+            Route::get('/payroll/{id}/slip', [StaffPayrollController::class, 'slip']);
+        });
 
         // Riwayat Surat Peringatan mandiri — sama pola, read-only (lihat
         // catatan WarningLetterController).

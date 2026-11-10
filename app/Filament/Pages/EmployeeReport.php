@@ -69,6 +69,11 @@ class EmployeeReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
+        // Isinya ringkasan slip gaji; tanpa payroll (FEATURE_PAYROLL mati) rekap absen ada di Laporan Absensi.
+        if (! config('features.payroll')) {
+            return false;
+        }
+
         return auth()->user()?->isFullAccess() ?? false;
     }
 

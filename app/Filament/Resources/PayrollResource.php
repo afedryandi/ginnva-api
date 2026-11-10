@@ -50,6 +50,11 @@ class PayrollResource extends Resource
      */
     public static function canViewAny(): bool
     {
+        // Gaji tidak dihitung di sistem ini (FEATURE_PAYROLL mati, keputusan pemilik 2026-11-10).
+        if (! config('features.payroll')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return $user?->isFullAccess()

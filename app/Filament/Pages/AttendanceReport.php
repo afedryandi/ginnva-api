@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Exports\AttendanceReportExport;
+use App\Exports\AttendanceSummaryExport;
 use App\Models\Attendance;
 use App\Models\Store;
 use App\Services\AttendancePatternService;
@@ -238,6 +239,20 @@ class AttendanceReport extends Page implements HasForms
                     );
                 }),
 
+            // Rekap bulanan per karyawan untuk HR/Accurate (gaji tidak dihitung di sistem ini; 2026-11-10).
+            Action::make('exportSummary')
+                ->label('Export Rekap per Karyawan')
+                ->icon('heroicon-o-table-cells')
+                ->color('gray')
+                ->action(function () {
+                    $this->logExport('xlsx-rekap');
+
+                    return Excel::download(
+                        new AttendanceSummaryExport($this->summaryByEmployee($this->getResult()['rows'])),
+                        'rekap-absensi-karyawan-' . now()->format('Ymd-His') . '.xlsx'
+                    );
+                }),
+
             Action::make('exportPdf')
                 ->label('Export ke PDF')
                 ->icon('heroicon-o-document-arrow-down')
@@ -252,6 +267,37 @@ class AttendanceReport extends Page implements HasForms
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);
                 }),
         ];
+    }
+
+    /**
+     * Rekap satu baris per karyawan dari baris Absensi mentah. Hadir = hari dengan absen nyata (clock, manual, tugas lapangan);
+     * Alpha dan Izin/Cuti dihitung per baris jenisnya. Urut nama.
+     *
+     * @param  \Illuminate\Support\Collection<int, Attendance>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    public function summaryByEmployee(\Illuminate\Support\Collection $rows): array
+    {
+        return $rows
+            ->filter(fn (Attendance $a) => $a->user !== null)
+            ->groupBy('user_id')
+            ->map(function (\Illuminate\Support\Collection $group) {
+                $real = $group->filter(fn (Attendance $a) => in_array($a->entry_type, ['clock', 'manual', 'field_duty'], true));
+
+                return [
+                    'name' => $group->first()->user->name,
+                    'store' => $group->first()->store?->name ?? '-',
+                    'present' => $real->count(),
+                    'late_count' => $group->where('late_minutes', '>', 0)->count(),
+                    'late_minutes' => (int) $group->sum('late_minutes'),
+                    'early_leave_count' => $group->where('early_leave_minutes', '>', 0)->count(),
+                    'alpha' => $group->where('entry_type', 'alpha')->count(),
+                    'leave' => $group->where('entry_type', 'leave')->count(),
+                ];
+            })
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
     }
 
     public function getResult(): array

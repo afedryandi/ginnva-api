@@ -271,4 +271,33 @@ class AttendanceReportTest extends TestCase
         $this->october();
         $this->page()->callAction('exportPdf')->assertHasNoActionErrors();
     }
+
+    public function test_summary_by_employee_counts_each_person_once_in_name_order(): void
+    {
+        $this->october();
+
+        $summary = collect($this->page()->instance()->summaryByEmployee($this->page()->instance()->getResult()['rows']))->keyBy('name');
+
+        $this->assertSame(['Andi', 'Budi', 'Citra'], $summary->keys()->all());
+        $this->assertSame([2, 1, 30, 1, 0, 0], [
+            $summary['Andi']['present'], $summary['Andi']['late_count'], $summary['Andi']['late_minutes'],
+            $summary['Andi']['early_leave_count'], $summary['Andi']['alpha'], $summary['Andi']['leave'],
+        ], 'Andi: 5 dan 6 Okt hadir; 30 September di luar rentang.');
+        $this->assertSame([1, 0, 0, 0, 1, 1], [
+            $summary['Budi']['present'], $summary['Budi']['late_count'], $summary['Budi']['late_minutes'],
+            $summary['Budi']['early_leave_count'], $summary['Budi']['alpha'], $summary['Budi']['leave'],
+        ], 'Budi: 1 manual, 1 alpha, 1 izin.');
+        $this->assertSame(1, $summary['Citra']['present'], 'Tugas lapangan dihitung hadir.');
+    }
+
+    public function test_summary_export_downloads_and_is_logged(): void
+    {
+        $this->october();
+        Excel::fake();
+
+        $this->page()->callAction('exportSummary')->assertHasNoActionErrors();
+
+        Excel::assertDownloaded('rekap-absensi-karyawan-20261008-100000.xlsx');
+        $this->assertSame(1, Activity::where('log_name', 'report_export')->count());
+    }
 }

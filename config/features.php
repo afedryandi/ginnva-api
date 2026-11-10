@@ -114,4 +114,16 @@ return [
     // Keramaian terlihat di Kalender Kapasitas dan Reservasi & Utilisasi. Untuk menyalakan lagi isi FEATURE_REPORT_PEAK_TIME=true.
     'report_peak_time' => (bool) env('FEATURE_REPORT_PEAK_TIME', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Penggajian / Payroll (keputusan pemilik 2026-11-10)
+    |--------------------------------------------------------------------------
+    | Mati bawaan: gaji tidak dihitung di sistem ini. Menu Penggajian, Kategori Komponen Gaji, Aturan Potongan Absensi, dan Laporan
+    | Karyawan (ringkasan dari slip gaji) tidak tampil di panel, layar Slip Gaji dan tab Gaji di aplikasi staf hilang, endpoint /payroll
+    | ditolak (404), dan pengingat kelengkapan data menjelang payroll tidak jalan. Absensi, Alpha, telat, cuti, dan Laporan Komisi
+    | Teknisi tetap berjalan; rekap absen per karyawan ada di Laporan Absensi (Export Rekap per Karyawan).
+    | Kode, tabel, dan data slip lama tetap ada. Untuk menyalakan lagi isi FEATURE_PAYROLL=true di .env. Tes menyalakannya (phpunit.xml).
+    */
+    'payroll' => (bool) env('FEATURE_PAYROLL', false),
+
 ];

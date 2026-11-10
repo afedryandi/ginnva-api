@@ -107,6 +107,10 @@ class EmployeeDataCompletenessReport extends Page implements HasForms
      */
     public function getPayrollBlocker(): ?array
     {
+        if (! config('features.payroll')) {
+            return null;
+        }
+
         $month = now()->subMonthNoOverflow()->startOfMonth();
 
         if (\App\Models\AttendanceDeductionRule::effectiveFor($month)) {
