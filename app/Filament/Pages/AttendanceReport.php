@@ -247,9 +247,11 @@ class AttendanceReport extends Page implements HasForms
                 ->action(function () {
                     $this->logExport('xlsx-rekap');
 
+                    $result = $this->getResult();
+
                     return Excel::download(
-                        new AttendanceSummaryExport($this->summaryByEmployee($this->getResult()['rows'])),
-                        'rekap-absensi-karyawan-' . now()->format('Ymd-His') . '.xlsx'
+                        new AttendanceSummaryExport($this->summaryByEmployee($result['rows']), $result['from'], $result['to']),
+                        'rekap-absensi-karyawan-' . $result['from']->format('Ymd') . '-' . $result['to']->format('Ymd') . '.xlsx'
                     );
                 }),
 
@@ -291,6 +293,11 @@ class AttendanceReport extends Page implements HasForms
                     'late_count' => $group->where('late_minutes', '>', 0)->count(),
                     'late_minutes' => (int) $group->sum('late_minutes'),
                     'early_leave_count' => $group->where('early_leave_minutes', '>', 0)->count(),
+                    // Total jam kerja dari jam masuk sampai keluar; hari yang belum absen keluar (atau jamnya terbalik) tidak ikut dijumlah.
+                    'work_hours' => round($real->sum(fn (Attendance $a) => ($a->clock_in_at && $a->clock_out_at && $a->clock_out_at->gt($a->clock_in_at))
+                        ? $a->clock_in_at->diffInMinutes($a->clock_out_at) : 0) / 60, 2),
+                    // Hari absen masuk tanpa absen keluar: jamnya tidak ikut Total Jam Kerja, jadi HR perlu tahu angkanya.
+                    'missing_clock_out' => $real->filter(fn (Attendance $a) => $a->clock_in_at && ! $a->clock_out_at)->count(),
                     'alpha' => $group->where('entry_type', 'alpha')->count(),
                     'leave' => $group->where('entry_type', 'leave')->count(),
                 ];

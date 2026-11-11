@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Exports\AttendanceReportExport;
+use App\Exports\AttendanceSummaryExport;
 use App\Filament\Pages\AttendanceReport;
 use App\Models\Attendance;
 use App\Models\EmployeeScheduleAssignment;
@@ -288,6 +289,32 @@ class AttendanceReportTest extends TestCase
             $summary['Budi']['early_leave_count'], $summary['Budi']['alpha'], $summary['Budi']['leave'],
         ], 'Budi: 1 manual, 1 alpha, 1 izin.');
         $this->assertSame(1, $summary['Citra']['present'], 'Tugas lapangan dihitung hadir.');
+        // Total jam kerja: Andi 07:30-19:00 (11,5) + 08:30-16:00 (7,5); Budi 08:00-17:00 (9), alpha/izin tidak punya jam; Citra 08:00-17:00 (9).
+        $this->assertSame([19.0, 9.0, 9.0], [$summary['Andi']['work_hours'], $summary['Budi']['work_hours'], $summary['Citra']['work_hours']]);
+        $this->assertSame([0, 0, 0], [$summary['Andi']['missing_clock_out'], $summary['Budi']['missing_clock_out'], $summary['Citra']['missing_clock_out']]);
+
+        $this->att($this->budi, '2026-10-08', 'clock', '08:00');
+        $again = collect($this->page()->instance()->summaryByEmployee($this->page()->instance()->getResult()['rows']))->keyBy('name');
+        $this->assertSame(1, $again['Budi']['missing_clock_out'], 'Absen masuk tanpa absen keluar ditandai.');
+        $this->assertSame(9.0, $again['Budi']['work_hours'], 'Hari tanpa jam keluar tidak menambah jam kerja.');
+    }
+
+    public function test_summary_export_has_period_title_total_row_and_missing_clock_out_column(): void
+    {
+        $this->october();
+
+        $page = $this->page()->instance();
+        $result = $page->getResult();
+        $export = new AttendanceSummaryExport($page->summaryByEmployee($result['rows']), $result['from'], $result['to']);
+
+        $this->assertSame('Rekap 20261001-20261031', $export->title());
+        $this->assertContains('Belum Absen Keluar (Hari)', $export->headings());
+        $lines = $export->array();
+        $this->assertCount(4, $lines, '3 karyawan + 1 baris total.');
+        $total = end($lines);
+        $this->assertSame('TOTAL', $total[0]);
+        $this->assertSame([4, 37.0], [$total[2], $total[6]], 'Hadir: Andi 2 + Budi 1 + Citra 1; jam: 19 + 9 + 9.');
+        $this->assertSame([1, 1], [$total[8], $total[9]], 'Alpha 1 dan Izin/Cuti 1 (Budi).');
     }
 
     public function test_summary_export_downloads_and_is_logged(): void
@@ -297,7 +324,20 @@ class AttendanceReportTest extends TestCase
 
         $this->page()->callAction('exportSummary')->assertHasNoActionErrors();
 
-        Excel::assertDownloaded('rekap-absensi-karyawan-20261008-100000.xlsx');
+        Excel::assertDownloaded('rekap-absensi-karyawan-20261001-20261031.xlsx');
         $this->assertSame(1, Activity::where('log_name', 'report_export')->count());
+    }
+
+    public function test_schedule_only_columns_are_hidden_when_work_schedules_are_off(): void
+    {
+        $this->october();
+        config(['features.work_schedules' => false]);
+
+        $this->page()
+            ->assertSee('Pola Ketepatan Waktu per Karyawan')
+            ->assertSee('Terlambat Masuk')
+            ->assertDontSee('Masuk Lebih Awal')
+            ->assertDontSee('Lembur/Pulang Lambat')
+            ->assertDontSee('Tanpa Jadwal');
     }
 }
