@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\AttendanceCorrectionRequest;
 use App\Models\LeaveRequest;
 use App\Models\User;
-use App\Services\StaffNotifier;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 
@@ -27,7 +26,7 @@ class RemindPendingAttendanceRequests extends Command
 
     public const REPEAT_EVERY = 3;
 
-    public function handle(StaffNotifier $notifier): int
+    public function handle(): int
     {
         $today = Carbon::today();
 
@@ -61,7 +60,7 @@ class RemindPendingAttendanceRequests extends Command
                 $correctionCount > 0 ? "{$correctionCount} Koreksi Absensi" : null,
             ]);
 
-            $notifier->toUsers(
+            app(\App\Services\StaffNotifier::class)->toUsers(
                 [$user->id],
                 'Pengajuan Menunggu Keputusan',
                 implode(' dan ', $parts) . ' belum diputuskan lebih dari ' . self::AFTER_DAYS . ' hari. Karyawan menunggu kabar; buka menu terkait untuk menyetujui atau menolak.',

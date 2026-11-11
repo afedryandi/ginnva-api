@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\Attendance;
 use App\Models\Store;
 use App\Services\AttendanceAudience;
-use App\Services\StaffNotifier;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -29,7 +28,7 @@ class RemindUnfinishedClockouts extends Command
 
     private const CATCH_UP_MINUTES = 60;
 
-    public function handle(AttendanceAudience $audience, StaffNotifier $notifier): int
+    public function handle(AttendanceAudience $audience): int
     {
         $today = Carbon::today();
         $now = Carbon::now();
@@ -74,7 +73,7 @@ class RemindUnfinishedClockouts extends Command
             if ($userIds !== []) {
                 $radius = (int) ($store->attendance_radius_meters ?? Attendance::DEFAULT_RADIUS_METERS);
 
-                $notifier->toUsers(
+                app(\App\Services\StaffNotifier::class)->toUsers(
                     $userIds,
                     'Jangan Lupa Absen Pulang',
                     "Toko sudah tutup tapi Anda belum absen pulang. Absen keluar hanya berhasil di dalam radius {$radius} meter dari toko, jadi lakukan sebelum meninggalkan toko. Bila sudah di luar radius, ajukan Koreksi Absensi.",

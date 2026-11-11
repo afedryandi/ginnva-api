@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Services\AttendanceAudience;
-use App\Services\StaffNotifier;
 use App\Models\Store;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -28,7 +27,7 @@ class RemindUnclockedIns extends Command
 
     private const CATCH_UP_MINUTES = 30;
 
-    public function handle(AttendanceAudience $audience, StaffNotifier $notifier): int
+    public function handle(AttendanceAudience $audience): int
     {
         $today = Carbon::today();
         $now = Carbon::now();
@@ -66,7 +65,7 @@ class RemindUnclockedIns extends Command
             }
 
             if ($userIds !== []) {
-                $notifier->toUsers(
+                app(\App\Services\StaffNotifier::class)->toUsers(
                     $userIds,
                     'Jangan Lupa Absen Masuk',
                     'Toko sudah buka. Jangan lupa absen masuk: buka menu Absensi lalu tekan Absen Masuk dari area toko.',
