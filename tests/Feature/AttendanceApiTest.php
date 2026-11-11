@@ -506,7 +506,8 @@ class AttendanceApiTest extends TestCase
                 return $storeId === $this->store->id
                     && str_contains($body, $this->staff->name)
                     && ! str_contains($body, $clockedIn->name)
-                    && ! str_contains($body, $noShift->name);
+                    // Tanpa shift (Ginnva tidak memakai shift) acuannya jam buka toko 09:00, jadi tetap terdeteksi.
+                    && str_contains($body, $noShift->name);
             });
         });
 

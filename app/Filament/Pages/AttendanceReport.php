@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Exports\AttendanceReportExport;
 use App\Exports\AttendanceSummaryExport;
 use App\Models\Attendance;
+use App\Models\LeaveRequest;
 use App\Models\Store;
 use App\Services\AttendancePatternService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -279,13 +280,16 @@ class AttendanceReport extends Page implements HasForms
      */
     public function summaryByEmployee(\Illuminate\Support\Collection $rows): array
     {
+        $leaveTypes = $this->leaveTypeByRow($rows);
+
         return $rows
             ->filter(fn (Attendance $a) => $a->user !== null)
             ->groupBy('user_id')
-            ->map(function (\Illuminate\Support\Collection $group) {
+            ->map(function (\Illuminate\Support\Collection $group) use ($leaveTypes) {
                 $real = $group->filter(fn (Attendance $a) => in_array($a->entry_type, ['clock', 'manual', 'field_duty'], true));
 
                 return [
+                    'employee_number' => $group->first()->user->employee_number ?: '-',
                     'name' => $group->first()->user->name,
                     'store' => $group->first()->store?->name ?? '-',
                     'present' => $real->count(),
@@ -299,11 +303,51 @@ class AttendanceReport extends Page implements HasForms
                     'missing_clock_out' => $real->filter(fn (Attendance $a) => $a->clock_in_at && ! $a->clock_out_at)->count(),
                     'alpha' => $group->where('entry_type', 'alpha')->count(),
                     'leave' => $group->where('entry_type', 'leave')->count(),
+                    // Pecahan Izin/Cuti per jenis: {jenis => hari}, dari pengajuan yang disetujui dan menutupi tanggal baris itu.
+                    'leave_by_type' => $group->where('entry_type', 'leave')
+                        ->countBy(fn (Attendance $a) => $leaveTypes[$a->id] ?? 'Tanpa Pengajuan')
+                        ->all(),
                 ];
             })
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
             ->all();
+    }
+
+    /**
+     * Jenis izin/cuti tiap baris Absensi berjenis leave: dicari dari pengajuan yang disetujui dan menutupi tanggalnya (baris Izin/Cuti tidak
+     * menyimpan tautan ke pengajuan). Baris tanpa pengajuan yang cocok (mis. entri manual) tidak masuk peta ini.
+     *
+     * \param  \Illuminate\Support\Collection<int, Attendance>  $rows
+     * \return array<int, string> id baris Absensi => nama jenis
+     */
+    private function leaveTypeByRow(\Illuminate\Support\Collection $rows): array
+    {
+        $leaveRows = $rows->where('entry_type', 'leave');
+
+        if ($leaveRows->isEmpty()) {
+            return [];
+        }
+
+        $requests = LeaveRequest::with('leaveType:id,name')
+            ->where('status', 'approved')
+            ->whereIn('user_id', $leaveRows->pluck('user_id')->unique())
+            ->whereDate('start_date', '<=', $leaveRows->max(fn (Attendance $a) => $a->date->toDateString()))
+            ->whereDate('end_date', '>=', $leaveRows->min(fn (Attendance $a) => $a->date->toDateString()))
+            ->get()
+            ->groupBy('user_id');
+
+        $map = [];
+
+        foreach ($leaveRows as $row) {
+            $request = ($requests[$row->user_id] ?? collect())->first(fn (LeaveRequest $r) => $r->start_date->lte($row->date) && $r->end_date->gte($row->date));
+
+            if ($request) {
+                $map[$row->id] = $request->leaveType?->name ?? ucfirst((string) $request->type);
+            }
+        }
+
+        return $map;
     }
 
     public function getResult(): array
@@ -313,7 +357,7 @@ class AttendanceReport extends Page implements HasForms
         $storeId = $this->effectiveStoreId();
 
         $rows = Attendance::query()
-            ->with(['user:id,name', 'store:id,name'])
+            ->with(['user:id,name,employee_number', 'store:id,name'])
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
             ->orderByDesc('date')

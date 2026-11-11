@@ -5,7 +5,11 @@ namespace App\Filament\Resources\AttendanceResource\Pages;
 use App\Filament\Resources\AttendanceResource;
 use App\Filament\Widgets\NotCheckedInTodayWidget;
 use App\Models\User;
+use App\Models\Store;
+use App\Services\AlphaCleanupService;
 use App\Services\AttendanceCorrectionService;
+use Filament\Forms\Get;
+use Illuminate\Support\HtmlString;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -20,6 +24,70 @@ class ListAttendances extends ListRecords
         return [
             Actions\CreateAction::make()
                 ->label('Entri Manual'),
+
+            // Libur yang lupa ditetapkan: Alpha dibuat dini hari untuk kemarin dan tanggal yang sudah lewat tidak bisa ditutup di Kalender
+            // Kapasitas & Libur, jadi baris Alpha-nya dihapus lewat sini (hanya akses penuh, alasan wajib, tercatat di Riwayat Aktivitas).
+            Actions\Action::make('clearAlphaForHoliday')
+                ->label('Hapus Alpha Hari Libur')
+                ->icon('heroicon-o-trash')
+                ->color('gray')
+                ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                ->modalHeading('Hapus Alpha Hari Libur')
+                ->modalDescription('Untuk libur yang lupa ditetapkan: menghapus baris Alpha pada satu tanggal (kemarin atau sebelumnya, paling jauh ' . AlphaCleanupService::MAX_DAYS_BACK . ' hari). Hanya baris Alpha yang dihapus; absen, izin, dan cuti tidak tersentuh. Tidak bisa dibatalkan, dan dicatat di Riwayat Aktivitas.')
+                ->modalWidth('lg')
+                ->modalSubmitActionLabel('Hapus Alpha')
+                ->form([
+                    Forms\Components\DatePicker::make('date')
+                        ->label('Tanggal Libur')
+                        ->native(false)
+                        ->required()
+                        ->default(today()->subDay())
+                        ->maxDate(today()->subDay())
+                        ->minDate(today()->subDays(AlphaCleanupService::MAX_DAYS_BACK))
+                        ->live(),
+                    Forms\Components\Select::make('store_id')
+                        ->label('Toko')
+                        ->placeholder('Semua toko')
+                        ->options(fn () => Store::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                        ->helperText('Kosongkan untuk libur nasional atau cuti bersama yang berlaku di semua toko.')
+                        ->live(),
+                    Forms\Components\Placeholder::make('preview')
+                        ->label('Alpha yang akan dihapus')
+                        ->content(function (Get $get) {
+                            if (! $get('date')) {
+                                return '—';
+                            }
+
+                            $rows = app(AlphaCleanupService::class)->candidates($get('date'), $get('store_id') ? (int) $get('store_id') : null)->with('user:id,name')->get();
+
+                            if ($rows->isEmpty()) {
+                                return 'Tidak ada baris Alpha pada tanggal ini.';
+                            }
+
+                            $names = $rows->map(fn ($row) => e($row->user?->name ?? '—'))->take(10)->implode(', ');
+                            $more = $rows->count() > 10 ? ' dan ' . ($rows->count() - 10) . ' lainnya' : '';
+
+                            return new HtmlString('<strong>' . $rows->count() . ' baris</strong>: ' . $names . $more);
+                        }),
+                    Forms\Components\TextInput::make('reason')
+                        ->label('Alasan')
+                        ->placeholder('Mis. Libur Nasional - Maulid Nabi')
+                        ->required()
+                        ->maxLength(255),
+                ])
+                ->action(function (array $data) {
+                    try {
+                        $count = app(AlphaCleanupService::class)->remove($data['date'], $data['store_id'] ?: null, $data['reason'], auth()->user());
+                    } catch (\RuntimeException $e) {
+                        Notification::make()->title('Alpha tidak dihapus')->body($e->getMessage())->danger()->send();
+
+                        return;
+                    }
+
+                    $count > 0
+                        ? Notification::make()->title("{$count} baris Alpha dihapus")->success()->send()
+                        : Notification::make()->title('Tidak ada Alpha pada tanggal itu')->warning()->send();
+                }),
 
             // "Ajukan Koreksi" (audit Majoo f24) — untuk ENTRI BARU (mis.
             // lupa absen sama sekali), jalur staff non-manager. Manager/

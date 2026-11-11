@@ -140,6 +140,36 @@ class AttendanceController extends Controller
     }
 
     /**
+     * POST /api/staff/attendance/client-failure
+     * Laporan kegagalan absen dari aplikasi (2026-11-11): kegagalan di HP (GPS timeout, izin ditolak, jaringan putus) tidak pernah sampai ke
+     * server sehingga tidak ada jejaknya. Aplikasi mengirim catatan singkat tanpa koordinat dan tanpa foto; disimpan di Riwayat Aktivitas
+     * (modul "Gagal Absen (Aplikasi)") supaya pertanyaan "kenapa gagal absen" bisa dijawab dari data, bukan tebakan.
+     */
+    public function clientFailure(Request $request)
+    {
+        $data = $request->validate([
+            'action' => ['required', 'in:clock_in,clock_out'],
+            'stage' => ['required', 'in:locating,camera,sending'],
+            'reason' => ['required', 'in:location_permission,gps_timeout,location_error,camera_permission,camera_error,request_timeout,network_error,server_rejected,unknown'],
+            'http_status' => ['nullable', 'integer', 'between:100,599'],
+            'message' => ['nullable', 'string', 'max:200'],
+            'occurred_at' => ['nullable', 'date'],
+        ]);
+
+        $label = $data['action'] === 'clock_in' ? 'masuk' : 'keluar';
+
+        activity('attendance_failure')
+            ->causedBy($request->user('api'))
+            ->withProperties($data + [
+                'app_version' => $request->header('X-App-Version'),
+                'platform' => $request->header('X-App-Platform'),
+            ])
+            ->log("Gagal absen {$label}: {$data['reason']}");
+
+        return response()->json(['success' => true], 201);
+    }
+
+    /**
      * POST /api/staff/attendance/clock-out
      */
     public function clockOut(Request $request)

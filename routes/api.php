@@ -407,6 +407,8 @@ Route::prefix('staff')->group(function () {
         Route::get('/attendance/today', [StaffAttendanceController::class, 'today']);
         Route::post('/attendance/clock-in', [StaffAttendanceController::class, 'clockIn'])
             ->middleware('throttle:10,1');
+        Route::post('/attendance/client-failure', [StaffAttendanceController::class, 'clientFailure'])
+            ->middleware('throttle:30,1');
         Route::post('/attendance/clock-out', [StaffAttendanceController::class, 'clockOut'])
             ->middleware('throttle:10,1');
         Route::get('/attendance/history', [StaffAttendanceController::class, 'history']);

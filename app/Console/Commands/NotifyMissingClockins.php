@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use App\Filament\Resources\AttendanceResource;
 use App\Models\Attendance;
 use App\Models\Store;
-use App\Models\User;
+use App\Services\AttendanceAudience;
 use App\Services\PushNotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -18,6 +18,9 @@ use Illuminate\Support\Carbon;
  * attendance:mark-absences jalan dini hari BESOKNYA (retroaktif,
  * ditandai Alpha) -- tidak ada peringatan SAAT HARI ITU JUGA supaya
  * admin toko bisa segera tindak lanjut (telepon staff, dst).
+ *
+ * 2026-11-11: karyawan tanpa shift kini dibandingkan terhadap jam buka toko (sebelumnya dilewati, jadi peringatan tidak pernah terkirim
+ * di Ginnva yang tidak memakai shift), dan yang sudah punya izin/cuti disetujui hari ini dikecualikan.
  *
  * Dijadwalkan JALAN TIAP JAM (lihat routes/console.php) antara jam
  * operasional -- dedup TANPA kolom baru: window deteksi cuma
@@ -35,7 +38,7 @@ class NotifyMissingClockins extends Command
 
     private const DETECTION_WINDOW_MINUTES = 65;
 
-    public function handle(PushNotificationService $push): int
+    public function handle(PushNotificationService $push, AttendanceAudience $audience): int
     {
         $today = Carbon::today();
         $now = Carbon::now();
@@ -48,33 +51,24 @@ class NotifyMissingClockins extends Command
                 continue;
             }
 
-            $employees = User::where('store_id', $store->id)
-                ->where('is_active', true)
-                ->where(fn ($q) => $q->whereNull('last_work_date')->orWhereDate('last_work_date', '>=', $today))
-                ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'partner'))
-                ->requiresAttendance()
-                ->attendanceStarted($today)
-                ->get();
-
-            $alreadyClockedIn = Attendance::where('store_id', $store->id)
-                ->where('date', $today->toDateString())
-                ->whereNotNull('clock_in_at')
-                ->pluck('user_id');
-
+            $alreadyClockedIn = $audience->clockedInIds($store, $today);
+            $onLeave = $audience->onLeaveIds($store, $today);
             $toleranceMinutes = $store->late_tolerance_minutes ?? Attendance::DEFAULT_LATE_TOLERANCE_MINUTES;
             $lateNames = [];
 
-            foreach ($employees as $user) {
-                if ($alreadyClockedIn->contains($user->id)) {
+            foreach ($audience->expected($store, $today) as $user) {
+                if ($alreadyClockedIn->contains($user->id) || $onLeave->contains($user->id)) {
                     continue;
                 }
 
-                $shift = Attendance::resolveShiftFor($user->id, $today);
-                if (! $shift) {
+                // Ginnva tidak memakai shift (keputusan 2026-10-17): tanpa shift, acuannya jam buka toko hari ini. Sebelumnya karyawan tanpa
+                // shift dilewati begitu saja sehingga peringatan ini tidak pernah terkirim.
+                $startTime = $audience->startTime($user->id, $store, $today);
+                if (! $startTime) {
                     continue;
                 }
 
-                $threshold = $today->copy()->setTimeFromTimeString($shift->start_time)
+                $threshold = $today->copy()->setTimeFromTimeString($startTime)
                     ->addMinutes($toleranceMinutes + self::GRACE_MINUTES);
 
                 if ($threshold->between($windowStart, $now)) {

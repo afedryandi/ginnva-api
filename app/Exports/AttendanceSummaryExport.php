@@ -13,9 +13,29 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 /**
  * Export "Rekap per Karyawan" dari Laporan Absensi (2026-11-10): satu baris per karyawan untuk rentang yang dipilih, siap dikirim ke
  * HR atau Accurate setelah gaji tidak dihitung lagi di sistem ini. Angkanya dari baris Absensi mentah (AttendanceReport::summaryByEmployee()).
+ *
+ * 2026-11-11: kolom No. Karyawan (nomor induk internal, bukan NIK KTP) untuk mencocokkan dengan Accurate tanpa bergantung pada ejaan nama, dan
+ * pecahan Izin/Cuti per jenis (satu kolom per jenis yang muncul pada rentang itu, di kanan kolom total Izin/Cuti).
  */
 class AttendanceSummaryExport implements FromArray, WithHeadings, WithStyles, WithTitle
 {
+    /** Kolom tetap: kunci data => judul. Kolom angka dijumlah di baris TOTAL; 'work_hours' berdesimal, sisanya bilangan bulat. */
+    private const COLUMNS = [
+        'employee_number' => 'No. Karyawan',
+        'name' => 'Karyawan',
+        'store' => 'Toko',
+        'present' => 'Hadir (Hari)',
+        'late_count' => 'Terlambat (Kali)',
+        'late_minutes' => 'Telat (Menit)',
+        'early_leave_count' => 'Pulang Cepat (Kali)',
+        'work_hours' => 'Total Jam Kerja',
+        'missing_clock_out' => 'Belum Absen Keluar (Hari)',
+        'alpha' => 'Alpha (Hari)',
+        'leave' => 'Izin/Cuti (Hari)',
+    ];
+
+    private const TEXT_COLUMNS = ['employee_number', 'name', 'store'];
+
     /** @param array<int, array<string, mixed>> $rows */
     public function __construct(private array $rows, private Carbon $from, private Carbon $to) {}
 
@@ -25,47 +45,60 @@ class AttendanceSummaryExport implements FromArray, WithHeadings, WithStyles, Wi
         return 'Rekap ' . $this->from->format('Ymd') . '-' . $this->to->format('Ymd');
     }
 
+    /** Jenis izin/cuti yang muncul pada rentang ini, urut abjad (satu kolom per jenis). */
+    public function leaveTypes(): array
+    {
+        return collect($this->rows)
+            ->flatMap(fn (array $row) => array_keys($row['leave_by_type'] ?? []))
+            ->unique()
+            ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
+    }
+
     public function headings(): array
     {
-        return [
-            'Karyawan',
-            'Toko',
-            'Hadir (Hari)',
-            'Terlambat (Kali)',
-            'Telat (Menit)',
-            'Pulang Cepat (Kali)',
-            'Total Jam Kerja',
-            'Belum Absen Keluar (Hari)',
-            'Alpha (Hari)',
-            'Izin/Cuti (Hari)',
-        ];
+        return array_merge(array_values(self::COLUMNS), array_map(fn (string $type) => "  - {$type} (Hari)", $this->leaveTypes()));
     }
 
     public function array(): array
     {
+        $types = $this->leaveTypes();
+
         $lines = collect($this->rows)
-            ->map(fn (array $row) => [
-                $row['name'],
-                $row['store'],
-                $row['present'],
-                $row['late_count'],
-                $row['late_minutes'],
-                $row['early_leave_count'],
-                $row['work_hours'],
-                $row['missing_clock_out'],
-                $row['alpha'],
-                $row['leave'],
-            ])
+            ->map(function (array $row) use ($types) {
+                $line = [];
+                foreach (array_keys(self::COLUMNS) as $key) {
+                    $line[] = $row[$key] ?? ($key === 'employee_number' ? '-' : '');
+                }
+                foreach ($types as $type) {
+                    $line[] = (int) ($row['leave_by_type'][$type] ?? 0);
+                }
+
+                return $line;
+            })
             ->values();
 
-        // Baris total (kolom angka mulai dari Hadir); kosong bila tidak ada karyawan.
+        // Baris total; kosong bila tidak ada karyawan.
         if ($lines->isNotEmpty()) {
-            $total = ['TOTAL', ''];
-            foreach (range(2, 9) as $col) {
-                $sum = $lines->sum(fn (array $line) => (float) $line[$col]);
-                // Hanya Total Jam Kerja (kolom 6) yang berdesimal; kolom hitungan tetap bilangan bulat.
-                $total[] = $col === 6 ? round($sum, 2) : (int) round($sum);
+            $keys = array_keys(self::COLUMNS);
+            $total = [];
+
+            foreach ($keys as $index => $key) {
+                if (in_array($key, self::TEXT_COLUMNS, true)) {
+                    $total[] = $key === 'name' ? 'TOTAL' : '';
+
+                    continue;
+                }
+
+                $sum = $lines->sum(fn (array $line) => (float) $line[$index]);
+                $total[] = $key === 'work_hours' ? round($sum, 2) : (int) round($sum);
             }
+
+            foreach (array_keys($types) as $offset) {
+                $total[] = (int) round($lines->sum(fn (array $line) => (float) $line[count($keys) + $offset]));
+            }
+
             $lines->push($total);
         }
 

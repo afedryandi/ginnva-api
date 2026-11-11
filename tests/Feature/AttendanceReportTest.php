@@ -7,6 +7,8 @@ use App\Exports\AttendanceSummaryExport;
 use App\Filament\Pages\AttendanceReport;
 use App\Models\Attendance;
 use App\Models\EmployeeScheduleAssignment;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use App\Models\Shift;
 use App\Models\Store;
 use App\Models\User;
@@ -299,22 +301,63 @@ class AttendanceReportTest extends TestCase
         $this->assertSame(9.0, $again['Budi']['work_hours'], 'Hari tanpa jam keluar tidak menambah jam kerja.');
     }
 
+    /** Satu baris ekspor sebagai larik judul-kolom => nilai, supaya tes tidak bergantung pada urutan kolom. */
+    private function exportRows(array $data = []): array
+    {
+        $page = $this->page($data)->instance();
+        $result = $page->getResult();
+        $export = new AttendanceSummaryExport($page->summaryByEmployee($result['rows']), $result['from'], $result['to']);
+        $headings = $export->headings();
+
+        return [$export, array_map(fn (array $line) => array_combine($headings, $line), $export->array())];
+    }
+
     public function test_summary_export_has_period_title_total_row_and_missing_clock_out_column(): void
     {
         $this->october();
 
-        $page = $this->page()->instance();
-        $result = $page->getResult();
-        $export = new AttendanceSummaryExport($page->summaryByEmployee($result['rows']), $result['from'], $result['to']);
+        [$export, $rows] = $this->exportRows();
 
         $this->assertSame('Rekap 20261001-20261031', $export->title());
         $this->assertContains('Belum Absen Keluar (Hari)', $export->headings());
-        $lines = $export->array();
-        $this->assertCount(4, $lines, '3 karyawan + 1 baris total.');
-        $total = end($lines);
-        $this->assertSame('TOTAL', $total[0]);
-        $this->assertSame([4, 37.0], [$total[2], $total[6]], 'Hadir: Andi 2 + Budi 1 + Citra 1; jam: 19 + 9 + 9.');
-        $this->assertSame([1, 1], [$total[8], $total[9]], 'Alpha 1 dan Izin/Cuti 1 (Budi).');
+        $this->assertCount(4, $rows, '3 karyawan + 1 baris total.');
+        $total = end($rows);
+        $this->assertSame('TOTAL', $total['Karyawan']);
+        $this->assertSame([4, 37.0], [$total['Hadir (Hari)'], $total['Total Jam Kerja']], 'Hadir: Andi 2 + Budi 1 + Citra 1; jam: 19 + 9 + 9.');
+        $this->assertSame([1, 1], [$total['Alpha (Hari)'], $total['Izin/Cuti (Hari)']], 'Alpha 1 dan Izin/Cuti 1 (Budi).');
+    }
+
+    public function test_summary_export_has_employee_number_and_leave_columns_per_type(): void
+    {
+        $this->october();
+        $this->andi->update(['employee_number' => 'EMP-001']);
+        $sakit = LeaveType::create(['code' => 'sakit_x', 'name' => 'Sakit', 'category' => 'izin', 'deducts_annual_quota' => false, 'sort_order' => 210, 'is_active' => true]);
+        // Budi izin 7 Okt (baris leave dari october()) dengan pengajuan Sakit; Andi juga izin 8 Okt dengan pengajuan Sakit.
+        LeaveRequest::create(['user_id' => $this->budi->id, 'store_id' => $this->budi->store_id, 'type' => 'izin', 'leave_type_id' => $sakit->id, 'start_date' => '2026-10-07', 'end_date' => '2026-10-07', 'reason' => 'x', 'status' => 'approved']);
+        $this->att($this->andi, '2026-10-08', 'leave');
+        LeaveRequest::create(['user_id' => $this->andi->id, 'store_id' => $this->andi->store_id, 'type' => 'izin', 'leave_type_id' => $sakit->id, 'start_date' => '2026-10-08', 'end_date' => '2026-10-08', 'reason' => 'x', 'status' => 'approved']);
+
+        [$export, $rows] = $this->exportRows();
+        $byName = collect($rows)->keyBy('Karyawan');
+
+        $this->assertSame('No. Karyawan', $export->headings()[0]);
+        $this->assertSame('EMP-001', $byName['Andi']['No. Karyawan']);
+        $this->assertSame('-', $byName['Budi']['No. Karyawan'], 'Belum punya nomor: strip.');
+        $this->assertContains('  - Sakit (Hari)', $export->headings());
+        $this->assertSame([1, 1, 0], [$byName['Andi']['  - Sakit (Hari)'], $byName['Budi']['  - Sakit (Hari)'], $byName['Citra']['  - Sakit (Hari)']]);
+        $this->assertSame(2, $byName['TOTAL']['  - Sakit (Hari)'], 'Baris total ikut menjumlah kolom jenis.');
+        $this->assertSame(2, $byName['TOTAL']['Izin/Cuti (Hari)'], 'Total Izin/Cuti tetap memuat semua baris leave.');
+    }
+
+    public function test_leave_without_a_matching_request_is_listed_as_without_request(): void
+    {
+        $this->october(); // Budi punya baris leave 7 Okt tanpa pengajuan
+
+        [$export, $rows] = $this->exportRows();
+        $budi = collect($rows)->firstWhere('Karyawan', 'Budi');
+
+        $this->assertContains('  - Tanpa Pengajuan (Hari)', $export->headings());
+        $this->assertSame(1, $budi['  - Tanpa Pengajuan (Hari)']);
     }
 
     public function test_summary_export_downloads_and_is_logged(): void

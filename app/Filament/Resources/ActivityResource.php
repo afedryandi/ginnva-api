@@ -47,7 +47,9 @@ class ActivityResource extends Resource
     'notification_template' => 'Template Notifikasi',
     'asset' => 'Aset Tetap',
     'attendance' => 'Absensi',
+    'attendance_alpha_cleanup' => 'Pembersihan Alpha',
     'attendance_correction_request' => 'Koreksi Absensi',
+    'attendance_failure' => 'Gagal Absen (Aplikasi)',
     'bank_statement_line' => 'Mutasi Rekening Bank',
     'blocked_date' => 'Tanggal Diblokir',
     'booking' => 'Booking',
@@ -178,7 +180,7 @@ class ActivityResource extends Resource
         'price_rule', 'film_product', 'film_product_price', 'film_product_group_price', 'technician_service_rate',
         'payment_account', 'cash_transfer', 'cash_count', 'attendance_deduction_rule', 'salary_grade', 'payroll',
         'transaction_approval_request', 'finance_transaction_approval_request', 'stock_write_off',
-        'booking_sale_line', 'booking_settlement_payment', 'report_export',
+        'booking_sale_line', 'booking_settlement_payment', 'report_export', 'attendance_alpha_cleanup',
     ];
 
     /** Kejadian keamanan akun yang dianggap berisiko (masuk biasa dan keluar tidak). */
