@@ -62,7 +62,9 @@ class AttendanceSummaryExport implements FromArray, WithHeadings, WithStyles, Wi
         if ($lines->isNotEmpty()) {
             $total = ['TOTAL', ''];
             foreach (range(2, 9) as $col) {
-                $total[] = round($lines->sum(fn (array $line) => (float) $line[$col]), 2);
+                $sum = $lines->sum(fn (array $line) => (float) $line[$col]);
+                // Hanya Total Jam Kerja (kolom 6) yang berdesimal; kolom hitungan tetap bilangan bulat.
+                $total[] = $col === 6 ? round($sum, 2) : (int) round($sum);
             }
             $lines->push($total);
         }
