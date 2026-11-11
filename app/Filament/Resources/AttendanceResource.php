@@ -32,7 +32,7 @@ class AttendanceResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Absensi Karyawan';
 
-    protected static ?int $navigationSort = 100;
+    protected static ?int $navigationSort = 101;
 
     public static function canViewAny(): bool
     {

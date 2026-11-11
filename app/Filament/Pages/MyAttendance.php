@@ -31,7 +31,7 @@ class MyAttendance extends Page
     protected static ?string $title = 'Absen Saya';
 
     // Di atas Absensi Karyawan (100) dalam grup yang sama.
-    protected static ?int $navigationSort = 99;
+    protected static ?int $navigationSort = 100;
 
     protected static string $view = 'filament.pages.my-attendance';
 

@@ -30,7 +30,7 @@ class SalaryGradeResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Struktur & Skala Upah';
 
-    protected static ?int $navigationSort = 430;
+    protected static ?int $navigationSort = 703;
 
     public static function canViewAny(): bool
     {

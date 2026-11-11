@@ -32,7 +32,7 @@ class PayrollItemCategoryResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Kategori Komponen Gaji';
 
-    protected static ?int $navigationSort = 420;
+    protected static ?int $navigationSort = 702;
 
     /**
      * Kategori menentukan jenis, nama, dan akun setiap komponen di slip gaji semua orang, jadi tidak terbuka lewat akses bawaan akun baru:

@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Clusters\KaryawanCluster;
+use App\Filament\Pages\AttendanceReport;
 use App\Filament\Pages\EmployeeDataCompletenessReport;
+use App\Filament\Pages\FixedCommissionReport;
 use App\Filament\Pages\HrDashboard;
 use App\Filament\Pages\InstallerCompetencyReport;
+use App\Filament\Pages\TechnicianCommissionReport;
 use App\Filament\Pages\TechnicianServiceDurationReport;
 use App\Filament\Pages\TechnicianUtilizationReport;
 use App\Filament\Resources\AttendanceCorrectionRequestResource;
@@ -20,6 +24,7 @@ use App\Filament\Resources\LeaveTypeResource;
 use App\Filament\Resources\PayrollResource;
 use App\Filament\Resources\RoleResource;
 use App\Filament\Resources\SalaryGradeResource;
+use App\Filament\Resources\TechnicianResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\WarningLetterResource;
 use App\Models\User;
@@ -49,7 +54,7 @@ class KaryawanMenuLayoutTest extends TestCase
 
     public function test_installer_performance_screens_share_one_group(): void
     {
-        foreach ([TechnicianUtilizationReport::class, TechnicianServiceDurationReport::class, InstallerCompetencyReport::class] as $screen) {
+        foreach ([TechnicianUtilizationReport::class, TechnicianServiceDurationReport::class, InstallerCompetencyReport::class, TechnicianCommissionReport::class, FixedCommissionReport::class] as $screen) {
             $this->assertSame('Kinerja Installer', $screen::getNavigationGroup(), $screen);
         }
     }
@@ -73,22 +78,60 @@ class KaryawanMenuLayoutTest extends TestCase
             $this->assertSame('Absensi & Cuti', $screen::getNavigationGroup(), $screen);
         }
 
-        // Diatur sekali atau dipakai hanya saat ada kejadian: dilipat dalam satu grup di bawah menu harian.
-        $settings = [
-            RoleResource::class, EmployeeTypeResource::class, LeaveTypeResource::class, EmployeeDataCompletenessReport::class, ContractExtensionResource::class,
-            WarningLetterResource::class, CompanyPolicyResource::class, EmployeeChecklistItemResource::class, ChecklistTemplateResource::class,
+        // Catatan dan dokumen kepegawaian (dipakai saat ada kejadian) dipisah dari pengaturan sungguhan (diatur sekali).
+        $records = [
+            EmployeeDataCompletenessReport::class, ContractExtensionResource::class, WarningLetterResource::class,
+            CompanyPolicyResource::class, EmployeeChecklistItemResource::class, ChecklistTemplateResource::class,
         ];
 
-        foreach ($settings as $screen) {
+        foreach ($records as $screen) {
+            $this->assertSame('Kepegawaian', $screen::getNavigationGroup(), $screen);
+            $this->assertGreaterThanOrEqual(500, $screen::getNavigationSort(), $screen);
+            $this->assertLessThan(600, $screen::getNavigationSort(), $screen);
+        }
+
+        foreach ([RoleResource::class, EmployeeTypeResource::class, LeaveTypeResource::class] as $screen) {
             $this->assertSame('Pengaturan Karyawan', $screen::getNavigationGroup(), $screen);
             $this->assertGreaterThanOrEqual(600, $screen::getNavigationSort(), $screen);
+            $this->assertLessThan(700, $screen::getNavigationSort(), $screen);
         }
 
-        foreach ([UserResource::class, AttendanceResource::class, PayrollResource::class, TechnicianServiceDurationReport::class] as $daily) {
-            $this->assertLessThan(600, $daily::getNavigationSort(), $daily);
+        foreach ([UserResource::class, AttendanceResource::class, TechnicianServiceDurationReport::class] as $daily) {
+            $this->assertLessThan(500, $daily::getNavigationSort(), $daily);
         }
 
-        $this->assertLessThan(ContractExtensionResource::getNavigationSort(), LeaveTypeResource::getNavigationSort());
+        // Penggajian (mati bawaan) paling bawah.
+        $this->assertGreaterThanOrEqual(700, PayrollResource::getNavigationSort());
+    }
+
+    public function test_installer_attendance_report_and_commission_live_in_the_employee_cluster(): void
+    {
+        foreach ([TechnicianResource::class, AttendanceReport::class, TechnicianCommissionReport::class, FixedCommissionReport::class] as $screen) {
+            $this->assertSame(KaryawanCluster::class, $screen::getCluster(), $screen);
+        }
+
+        $this->assertSame('Karyawan', TechnicianResource::getNavigationGroup());
+        $this->assertSame('Absensi & Cuti', AttendanceReport::getNavigationGroup());
+        $this->assertSame('Laporan Absensi', AttendanceReport::getNavigationLabel());
+        $this->assertGreaterThan(LeaveRequestResource::getNavigationSort(), AttendanceReport::getNavigationSort(), 'Laporan Absensi menutup grup Absensi & Cuti.');
+        $this->assertGreaterThan(UserResource::getNavigationSort(), TechnicianResource::getNavigationSort(), 'Installer menyusul User.');
+    }
+
+    public function test_groups_follow_the_agreed_order_by_their_first_item(): void
+    {
+        $first = fn (array $screens) => min(array_map(fn ($s) => $s::getNavigationSort(), $screens));
+        $order = [
+            $first([HrDashboard::class, UserResource::class, TechnicianResource::class]),
+            $first([AttendanceResource::class, AttendanceReport::class]),
+            $first([TechnicianUtilizationReport::class, TechnicianServiceDurationReport::class, InstallerCompetencyReport::class]),
+            $first([EmployeeDataCompletenessReport::class, WarningLetterResource::class]),
+            $first([RoleResource::class, LeaveTypeResource::class]),
+            $first([PayrollResource::class]),
+        ];
+
+        $sorted = $order;
+        sort($sorted);
+        $this->assertSame($sorted, $order, 'Karyawan, Absensi & Cuti, Kinerja Installer, Kepegawaian, Pengaturan Karyawan, Penggajian.');
     }
 
     public function test_menu_names_are_clear(): void

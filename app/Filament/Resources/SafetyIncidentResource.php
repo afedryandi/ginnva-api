@@ -44,7 +44,7 @@ class SafetyIncidentResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Kejadian K3';
 
-    protected static ?int $navigationSort = 540;
+    protected static ?int $navigationSort = 403;
 
     /** Jejak keselamatan tidak dihapus; koreksi lewat ubah/tutup. */
     public static function canDelete($record): bool

@@ -40,7 +40,7 @@ class PpeIssuanceResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Pembagian APD';
 
-    protected static ?int $navigationSort = 520;
+    protected static ?int $navigationSort = 401;
 
     public static function getEloquentQuery(): Builder
     {

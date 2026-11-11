@@ -21,7 +21,7 @@ class ContractExtensionResource extends Resource
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Cuti & Kontrak".
-    protected static ?string $navigationGroup = 'Pengaturan Karyawan';
+    protected static ?string $navigationGroup = 'Kepegawaian';
 
     protected static ?string $navigationLabel = 'Riwayat Kontrak';
 
@@ -29,7 +29,7 @@ class ContractExtensionResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Riwayat Kontrak';
 
-    protected static ?int $navigationSort = 604;
+    protected static ?int $navigationSort = 501;
 
     /**
      * Riwayat dan pencatatan perpanjangan kontrak mengubah tanggal akhir kontrak karyawan dan mengirim notifikasi ke mereka, jadi tidak

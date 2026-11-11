@@ -49,19 +49,17 @@ class TechnicianCommissionReport extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
 
-    protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    // Grup sendiri 'Laporan Karyawan' (diubah 2026-09-09 dari 'Laporan'
-    // gabungan) -- satu grup dengan EmployeeReport (absensi & gaji).
-    protected static ?string $navigationGroup = 'Laporan Karyawan';
+    // Dipindah dari klaster Penjualan ke Karyawan, grup Kinerja Installer (2026-11-11), bersama laporan installer lainnya.
+    protected static ?string $navigationGroup = 'Kinerja Installer';
 
     protected static ?string $navigationLabel = 'Laporan Komisi Installer';
 
     protected static ?string $title = 'Laporan Komisi Installer';
 
-    // 401 -- band grup 'Laporan Karyawan' (lihat catatan sistem band di
-    // ProductSalesReport.php, diperbaiki 2026-09-09).
-    protected static ?int $navigationSort = 401;
+    // 303 -- band 300-399 grup Kinerja Installer di klaster Karyawan.
+    protected static ?int $navigationSort = 303;
 
     protected static string $view = 'filament.pages.technician-commission-report';
 

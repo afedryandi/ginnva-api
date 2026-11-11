@@ -42,7 +42,7 @@ class PerformanceReviewResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Penilaian Kinerja';
 
-    protected static ?int $navigationSort = 550;
+    protected static ?int $navigationSort = 404;
 
     /** Penilaian yang sudah dibaca karyawan tidak dihapus (bukti tetap utuh). */
     public static function canDelete($record): bool

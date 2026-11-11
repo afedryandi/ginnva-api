@@ -40,7 +40,7 @@ class PpeTypeResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Jenis APD & Perlengkapan';
 
-    protected static ?int $navigationSort = 510;
+    protected static ?int $navigationSort = 400;
 
     public static function canDelete($record): bool
     {

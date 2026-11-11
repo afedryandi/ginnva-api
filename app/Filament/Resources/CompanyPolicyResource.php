@@ -25,7 +25,7 @@ class CompanyPolicyResource extends Resource
 
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Pengaturan Karyawan';
+    protected static ?string $navigationGroup = 'Kepegawaian';
 
     protected static ?string $navigationLabel = 'Peraturan & Kebijakan';
 
@@ -33,7 +33,7 @@ class CompanyPolicyResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Peraturan & Kebijakan';
 
-    protected static ?int $navigationSort = 606;
+    protected static ?int $navigationSort = 503;
 
     /**
      * Peraturan Perusahaan menjadi dasar sah potongan telat dan Alpha, dan daftar "belum menerima" memuat nama karyawan. Akun baru (menu_access

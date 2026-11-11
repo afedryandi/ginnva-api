@@ -27,10 +27,10 @@ class TechnicianResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
 
-    protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    // Grup sidebar (audit navigasi 2026-09-29) -- band 400-499 "Teknisi".
-    protected static ?string $navigationGroup = 'Installer';
+    // Dipindah dari klaster Booking ke Karyawan (2026-11-11): ini data karyawan (akun User, tarif komisi). Kunci izin tidak berubah.
+    protected static ?string $navigationGroup = 'Karyawan';
 
     protected static ?string $navigationLabel = 'Installer';
 
@@ -38,7 +38,7 @@ class TechnicianResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Installer';
 
-    protected static ?int $navigationSort = 400;
+    protected static ?int $navigationSort = 2;
 
     public static function getEloquentQuery(): Builder
     {

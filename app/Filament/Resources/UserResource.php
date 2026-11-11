@@ -100,7 +100,6 @@ class UserResource extends Resource
                 'BookingServiceTypeResource' => 'Layanan Booking',
                 'QcChecklistItemResource' => 'Checklist QC',
                 'AppSettingResource' => 'Teks Aplikasi',
-                'TechnicianResource' => 'Installer',
                 'WarrantyResource' => 'Garansi',
                 'StoreReviewResource' => 'Review Toko',
                 // Dipindah dari bagian Karyawan (2026-10-30); kuncinya tetap, izin yang tersimpan tidak hilang.
@@ -155,10 +154,6 @@ class UserResource extends Resource
                 'PointReport' => 'Laporan Poin',
                 'PromoLoyaltyReport' => 'Laporan Promo',
             ],
-            'Laporan Karyawan' => [
-                'AttendanceReport' => 'Laporan Absensi',
-                'WorkScheduleCalendarReport' => 'Jadwal Kerja Karyawan',
-            ],
             'Penjualan' => [
                 // Cluster "Produk" di bawah grup top-nav "Penjualan"
                 // (2026-09-10). FilmProductResource dipindah kemari dari
@@ -200,6 +195,10 @@ class UserResource extends Resource
                 'StockOpnameResource' => 'Stok Opname',
             ],
             'Karyawan' => [
+                // Dipindah ke klaster Karyawan (2026-11-11): Installer, Laporan Absensi, dan Jadwal Kerja Karyawan.
+                'TechnicianResource' => 'Installer',
+                'AttendanceReport' => 'Laporan Absensi',
+                'WorkScheduleCalendarReport' => 'Jadwal Kerja Karyawan',
                 'EmployeeTypeResource' => 'Tipe Karyawan',
                 'MyAttendance' => 'Absen Saya',
                 'AttendanceResource' => 'Absensi Karyawan',

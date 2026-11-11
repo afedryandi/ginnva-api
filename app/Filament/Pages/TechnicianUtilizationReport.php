@@ -44,7 +44,7 @@ class TechnicianUtilizationReport extends Page implements HasForms
 
     protected static ?string $title = 'Utilisasi Installer';
 
-    protected static ?int $navigationSort = 500;
+    protected static ?int $navigationSort = 300;
 
     protected static string $view = 'filament.pages.technician-utilization-report';
 

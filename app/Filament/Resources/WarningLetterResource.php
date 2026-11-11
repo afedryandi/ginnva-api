@@ -22,7 +22,7 @@ class WarningLetterResource extends Resource
     protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- band 300-399 "Cuti & Kontrak".
-    protected static ?string $navigationGroup = 'Pengaturan Karyawan';
+    protected static ?string $navigationGroup = 'Kepegawaian';
 
     protected static ?string $navigationLabel = 'Surat Peringatan';
 
@@ -30,7 +30,7 @@ class WarningLetterResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Surat Peringatan';
 
-    protected static ?int $navigationSort = 605;
+    protected static ?int $navigationSort = 502;
 
     /**
      * Surat Peringatan adalah dokumen disipliner: membaca semua SP satu toko dan menerbitkannya (yang langsung memberi tahu karyawan) tidak

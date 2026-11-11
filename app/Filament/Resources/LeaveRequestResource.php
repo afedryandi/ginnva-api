@@ -33,7 +33,7 @@ class LeaveRequestResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Izin & Cuti';
 
-    protected static ?int $navigationSort = 102;
+    protected static ?int $navigationSort = 103;
 
     public static function canViewAny(): bool
     {

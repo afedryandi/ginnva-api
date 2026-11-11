@@ -46,7 +46,7 @@ class TechnicianServiceDurationReport extends Page implements HasForms
 
     protected static ?string $title = 'Durasi Servis Installer';
 
-    protected static ?int $navigationSort = 501;
+    protected static ?int $navigationSort = 301;
 
     protected static string $view = 'filament.pages.technician-service-duration-report';
 

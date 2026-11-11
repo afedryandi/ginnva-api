@@ -23,9 +23,8 @@ class FixedCommissionReport extends TechnicianCommissionReport
 
     protected static ?string $title = 'Komisi Tetap';
 
-    // 403 -- band grup 'Laporan Karyawan' (lihat catatan sistem band di
-    // ProductSalesReport.php).
-    protected static ?int $navigationSort = 403;
+    // 304 -- band 300-399 grup Kinerja Installer di klaster Karyawan (klaster dan grup diwarisi dari TechnicianCommissionReport).
+    protected static ?int $navigationSort = 304;
 
     // WAJIB override balik ke true -- TechnicianCommissionReport (induk)
     // sengaja return false (disembunyikan dari menu karena duplikat

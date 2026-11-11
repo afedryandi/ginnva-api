@@ -37,7 +37,7 @@ class InstallerCompetencyReport extends Page implements HasForms
 
     protected static ?string $title = 'Kompetensi & Mutu Installer';
 
-    protected static ?int $navigationSort = 502;
+    protected static ?int $navigationSort = 302;
 
     protected static string $view = 'filament.pages.installer-competency-report';
 

@@ -39,7 +39,7 @@ class EmployeeTrainingResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Pelatihan Karyawan';
 
-    protected static ?int $navigationSort = 530;
+    protected static ?int $navigationSort = 402;
 
     public static function getEloquentQuery(): Builder
     {

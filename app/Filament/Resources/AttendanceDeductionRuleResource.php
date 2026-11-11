@@ -31,7 +31,7 @@ class AttendanceDeductionRuleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Aturan Potongan Absensi';
 
-    protected static ?int $navigationSort = 410;
+    protected static ?int $navigationSort = 701;
 
     /**
      * Aturan ini menentukan potongan gaji SEMUA karyawan, jadi tidak terbuka lewat akses bawaan akun baru: hanya akses penuh atau staf

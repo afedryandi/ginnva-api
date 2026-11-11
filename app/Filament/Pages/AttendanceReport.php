@@ -48,17 +48,16 @@ class AttendanceReport extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-finger-print';
 
-    protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\KaryawanCluster::class;
 
-    protected static ?string $navigationGroup = 'Laporan Karyawan';
+    protected static ?string $navigationGroup = 'Absensi & Cuti';
 
-    protected static ?string $navigationLabel = 'Absensi';
+    protected static ?string $navigationLabel = 'Laporan Absensi';
 
     protected static ?string $title = 'Laporan Absensi';
 
-    // 402 -- band grup 'Laporan Karyawan' (lihat catatan sistem band di
-    // ProductSalesReport.php).
-    protected static ?int $navigationSort = 402;
+    // Dipindah dari klaster Penjualan ke Karyawan, grup Absensi & Cuti (2026-11-11): satu tempat dengan Absensi Karyawan. 104 = setelah Izin & Cuti.
+    protected static ?int $navigationSort = 104;
 
     protected static string $view = 'filament.pages.attendance-report';
 

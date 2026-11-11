@@ -36,7 +36,7 @@ class AttendanceCorrectionRequestResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Koreksi Absensi';
 
-    protected static ?int $navigationSort = 101;
+    protected static ?int $navigationSort = 102;
 
     private static function accessGate(): bool
     {

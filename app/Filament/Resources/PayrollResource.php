@@ -36,7 +36,7 @@ class PayrollResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Penggajian';
 
-    protected static ?int $navigationSort = 400;
+    protected static ?int $navigationSort = 700;
 
     /**
      * Uang gaji karyawan — SEBELUMNYA cuma isFullAccess() yang boleh
