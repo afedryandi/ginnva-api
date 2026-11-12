@@ -40,14 +40,18 @@ class AttendanceAudience
             ->pluck('user_id');
     }
 
-    /** Id karyawan yang punya izin/cuti disetujui pada hari itu (baris Izin/Cuti di Absensi baru dibuat dini hari berikutnya). */
+    /**
+     * Id karyawan yang tidak diharapkan absen di toko pada hari itu: izin/cuti disetujui (baris Izin/Cuti di Absensi baru dibuat dini hari
+     * berikutnya) dan dinas luar sehari penuh (disetujui, atau sudah tercatat sebagai Dinas Luar). Dinas sebagian hari tidak termasuk: karyawan tetap wajib absen.
+     */
     public function onLeaveIds(Store $store, Carbon $day): Collection
     {
         return LeaveRequest::where('status', 'approved')
             ->whereDate('start_date', '<=', $day)
             ->whereDate('end_date', '>=', $day)
             ->pluck('user_id')
-            ->merge(Attendance::where('store_id', $store->id)->where('date', $day->toDateString())->where('entry_type', 'leave')->pluck('user_id'));
+            ->merge(Attendance::where('store_id', $store->id)->where('date', $day->toDateString())->whereIn('entry_type', ['leave', 'field_duty'])->pluck('user_id'))
+            ->merge(\App\Models\FieldDutyRequest::withoutGlobalScopes()->where('store_id', $store->id)->where('status', 'approved')->whereNull('start_time')->whereDate('date', $day)->pluck('user_id'));
     }
 
     /** Jam mulai kerja karyawan hari itu ("H:i" atau "H:i:s"): shift pribadi, selain itu jam buka toko; null bila tidak diketahui. */

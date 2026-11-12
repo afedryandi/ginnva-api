@@ -253,7 +253,14 @@ class Attendance extends Model
 
         // Menit telat dicatat APA ADANYA, tanpa toleransi harian (keputusan pemilik 2026-10-17). Potongan dihitung di Payroll dari
         // TOTAL menit sebulan per blok penuh (lihat AttendanceDeductionRule), jadi toleransi bukan lagi urusan baris absen.
-        return max(0, (int) $expectedStart->diffInMinutes($clockInTime, false));
+        // Menit di antara jam mulai dan absen masuk yang tercakup dinas luar sebagian hari yang disetujui tidak dihitung telat.
+        $late = (int) $expectedStart->diffInMinutes($clockInTime, false);
+
+        if ($late > 0) {
+            $late -= self::fieldDutyCoveredMinutes($user->id, $date, $expectedStart, $clockInTime);
+        }
+
+        return max(0, $late);
     }
 
     /**
@@ -357,6 +364,30 @@ class Attendance extends Model
      */
     protected static function calculateEarlyLeaveMinutes(User $user, Store $store, Carbon $date, Carbon $clockOutTime): int
     {
+        $expectedEnd = self::expectedEndOn($user, $store, $date);
+
+        if ($expectedEnd === null) {
+            return 0;
+        }
+
+        $toleranceMinutes = $store->late_tolerance_minutes ?? self::DEFAULT_LATE_TOLERANCE_MINUTES;
+
+        $rawEarlyMinutes = (int) $clockOutTime->diffInMinutes($expectedEnd, false);
+
+        // Menit di antara jam pulang dan jam selesai yang tercakup dinas luar sebagian hari yang disetujui tidak dihitung pulang cepat.
+        if ($rawEarlyMinutes > 0) {
+            $rawEarlyMinutes -= self::fieldDutyCoveredMinutes($user->id, $date, $clockOutTime, $expectedEnd);
+        }
+
+        return max(0, $rawEarlyMinutes - $toleranceMinutes);
+    }
+
+    /**
+     * Jam selesai kerja yang diharapkan pada $date: jam selesai Shift individu, selain itu jam tutup toko; null bila tidak diketahui atau toko
+     * libur. Dipakai pulang cepat dan penutupan absen otomatis untuk dinas luar yang berlangsung sampai jam tutup.
+     */
+    public static function expectedEndOn(User $user, Store $store, Carbon $date): ?Carbon
+    {
         $shift = self::resolveShiftFor($user->id, $date);
 
         if ($shift) {
@@ -373,15 +404,26 @@ class Attendance extends Model
             $expectedEnd = $closingTime !== null ? $date->copy()->setTimeFromTimeString($closingTime) : null;
         }
 
-        if ($expectedEnd === null) {
+        return $expectedEnd;
+    }
+
+    /**
+     * Menit dalam rentang $from-$to yang tercakup dinas luar SEBAGIAN HARI yang disetujui untuk karyawan itu pada $date (Pengajuan Dinas Luar
+     * dengan jam). Dinas sehari penuh tidak lewat sini: barisnya sendiri bertipe field_duty dan tidak pernah dihitung telat.
+     */
+    public static function fieldDutyCoveredMinutes(int $userId, Carbon $date, Carbon $from, Carbon $to): int
+    {
+        if ($to->lessThanOrEqualTo($from)) {
             return 0;
         }
 
-        $toleranceMinutes = $store->late_tolerance_minutes ?? self::DEFAULT_LATE_TOLERANCE_MINUTES;
-
-        $rawEarlyMinutes = (int) $clockOutTime->diffInMinutes($expectedEnd, false);
-
-        return max(0, $rawEarlyMinutes - $toleranceMinutes);
+        return (int) \App\Models\FieldDutyRequest::withoutGlobalScopes()
+            ->where('user_id', $userId)
+            ->where('status', \App\Models\FieldDutyRequest::STATUS_APPROVED)
+            ->whereDate('date', $date->toDateString())
+            ->whereNotNull('start_time')
+            ->get()
+            ->sum(fn (\App\Models\FieldDutyRequest $r) => \App\Services\OvertimeRequestService::overlapMinutes($from, $to, $r->startsAt(), $r->endsAt()));
     }
 
     /**

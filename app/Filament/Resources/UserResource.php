@@ -205,6 +205,7 @@ class UserResource extends Resource
                 'AttendanceCorrectionRequestResource' => 'Koreksi Absensi',
                 'LeaveRequestResource' => 'Izin & Cuti',
                 'OvertimeRequestResource' => 'Pengajuan Lembur',
+                'FieldDutyRequestResource' => 'Pengajuan Dinas Luar',
                 'LeaveTypeResource' => 'Jenis Izin & Cuti',
                 'CompanyPolicyResource' => 'Peraturan & Kebijakan',
                 'EmployeeChecklistItemResource' => 'Checklist Masuk & Keluar',

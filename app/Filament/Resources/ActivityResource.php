@@ -45,6 +45,7 @@ class ActivityResource extends Resource
     'invoice_item' => 'Item Invoice',
     'notification_campaign' => 'Kampanye Notifikasi',
     'overtime_request' => 'Pengajuan Lembur',
+    'field_duty_request' => 'Pengajuan Dinas Luar',
     'notification_template' => 'Template Notifikasi',
     'asset' => 'Aset Tetap',
     'attendance' => 'Absensi',

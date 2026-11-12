@@ -248,6 +248,21 @@ class AttendanceApiTest extends TestCase
         $this->clockOut()->assertStatus(422)->assertJsonPath('message', 'Sudah absen keluar hari ini.');
     }
 
+    public function test_clock_out_works_on_a_manual_row_that_only_has_a_clock_in(): void
+    {
+        // Hasil Koreksi Absen yang hanya mengisi jam masuk: barisnya jenis Manual dengan jam masuk tanpa jam keluar.
+        Attendance::create(['user_id' => $this->staff->id, 'store_id' => $this->store->id, 'date' => '2026-10-07', 'entry_type' => 'manual', 'clock_in_at' => '2026-10-07 08:55:00', 'note' => 'Lupa absen masuk']);
+        Carbon::setTestNow('2026-10-07 18:00:00');
+
+        $this->clockOut(null, ['latitude' => -6.2100])->assertStatus(422);
+
+        $this->clockOut()->assertSuccessful()->assertJsonPath('attendance.entry_type', 'manual');
+
+        $row = Attendance::firstOrFail();
+        $this->assertNotNull($row->clock_out_at);
+        $this->assertSame('2026-10-07 08:55:00', $row->clock_in_at->format('Y-m-d H:i:s'));
+    }
+
     public function test_early_leave_is_counted_against_closing_time_minus_tolerance(): void
     {
         $this->clockIn()->assertSuccessful();

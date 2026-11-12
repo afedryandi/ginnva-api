@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\Staff\AttendanceController as StaffAttendanceContro
 use App\Http\Controllers\Api\Staff\ScheduleController as StaffScheduleController;
 use App\Http\Controllers\Api\Staff\PayrollController as StaffPayrollController;
 use App\Http\Controllers\Api\Staff\OvertimeRequestController as StaffOvertimeRequestController;
+use App\Http\Controllers\Api\Staff\FieldDutyRequestController as StaffFieldDutyRequestController;
 use App\Http\Controllers\Api\Staff\WarningLetterController as StaffWarningLetterController;
 use App\Http\Controllers\Api\Staff\PurchaseRequestController as StaffPurchaseRequestController;
 use Illuminate\Support\Facades\Route;
@@ -415,6 +416,10 @@ Route::prefix('staff')->group(function () {
         Route::get('/overtime-requests/bookings', [StaffOvertimeRequestController::class, 'bookings']);
         Route::post('/overtime-requests', [StaffOvertimeRequestController::class, 'store'])->middleware('throttle:20,1');
         Route::post('/overtime-requests/{id}/cancel', [StaffOvertimeRequestController::class, 'cancel'])->middleware('throttle:20,1');
+        // Pengajuan Dinas Luar: satu hari penuh di luar toko, boleh susulan, disetujui lalu absen hari itu tercatat Dinas Luar (2026-11-12).
+        Route::get('/field-duty-requests', [StaffFieldDutyRequestController::class, 'index']);
+        Route::post('/field-duty-requests', [StaffFieldDutyRequestController::class, 'store'])->middleware('throttle:20,1');
+        Route::post('/field-duty-requests/{id}/cancel', [StaffFieldDutyRequestController::class, 'cancel'])->middleware('throttle:20,1');
         Route::post('/attendance/clock-out', [StaffAttendanceController::class, 'clockOut'])
             ->middleware('throttle:10,1');
         Route::get('/attendance/history', [StaffAttendanceController::class, 'history']);

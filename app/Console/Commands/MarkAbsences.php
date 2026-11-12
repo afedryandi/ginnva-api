@@ -36,6 +36,10 @@ class MarkAbsences extends Command
     public function handle(): int
     {
         $yesterday = Carbon::yesterday();
+
+        // Dinas luar sebagian hari yang berlangsung sampai jam tutup: absen keluar yang masih kosong ditutup otomatis (karyawan tidak kembali ke toko).
+        $closedByFieldDuty = app(\App\Services\FieldDutyRequestService::class)->closeCoveredRows($yesterday);
+
         $alphaCount = 0;
         $leaveCount = 0;
 
@@ -82,7 +86,7 @@ class MarkAbsences extends Command
             }
         }
 
-        $this->info("Selesai untuk {$yesterday->translatedFormat('d F Y')}: {$alphaCount} ditandai Alpha, {$leaveCount} ditandai Izin/Cuti.");
+        $this->info("Selesai untuk {$yesterday->translatedFormat('d F Y')}: {$alphaCount} ditandai Alpha, {$leaveCount} ditandai Izin/Cuti, {$closedByFieldDuty} absen keluar ditutup otomatis (dinas luar).");
 
         return self::SUCCESS;
     }

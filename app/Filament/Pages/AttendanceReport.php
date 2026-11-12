@@ -59,8 +59,8 @@ class AttendanceReport extends Page implements HasForms
 
     protected static ?string $title = 'Laporan Absensi';
 
-    // Dipindah dari klaster Penjualan ke Karyawan, grup Absensi & Cuti (2026-11-11): satu tempat dengan Absensi Karyawan. 105 = setelah Pengajuan Lembur (104).
-    protected static ?int $navigationSort = 105;
+    // Dipindah dari klaster Penjualan ke Karyawan, grup Absensi & Cuti (2026-11-11): satu tempat dengan Absensi Karyawan. 106 = setelah Pengajuan Lembur (104) dan Pengajuan Dinas Luar (105).
+    protected static ?int $navigationSort = 106;
 
     protected static string $view = 'filament.pages.attendance-report';
 

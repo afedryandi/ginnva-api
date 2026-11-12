@@ -106,6 +106,8 @@ class NotificationCatalog
             ['audience' => 'staf_toko', 'source' => 'Console/Commands/NotifyMissingClockins.php', 'title' => 'Karyawan Belum Absen Masuk', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Services/OvertimeRequestService.php', 'title' => 'Pengajuan Lembur Baru', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Services/OvertimeRequestService.php', 'title' => 'Keputusan pengajuan lembur untuk pemohon (disetujui atau ditolak)', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/FieldDutyRequestService.php', 'title' => 'Pengajuan Dinas Luar Baru', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/FieldDutyRequestService.php', 'title' => 'Keputusan pengajuan dinas luar untuk pemohon (disetujui atau ditolak)', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindUnclockedIns.php', 'title' => 'Jangan Lupa Absen Masuk', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindUnfinishedClockouts.php', 'title' => 'Jangan Lupa Absen Pulang', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindPendingAttendanceRequests.php', 'title' => 'Pengajuan Menunggu Keputusan', 'panel_inbox' => true],
