@@ -116,7 +116,7 @@ class FieldDutyRequestTest extends TestCase
         $this->assertSame('2026-11-05', $this->submit(['date' => '2026-11-05'])->date->toDateString(), '7 hari ke belakang masih boleh.');
 
         $this->assertRejected(fn () => $this->submit(['date' => '2026-11-04']), 'paling lama 7 hari');
-        $this->assertRejected(fn () => $this->submit(['date' => '2026-11-27']), 'paling jauh 14 hari');
+        $this->assertRejected(fn () => $this->submit(['date' => '2026-11-27']), '14 hari ke depan');
     }
 
     public function test_the_purpose_is_required(): void
