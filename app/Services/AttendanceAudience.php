@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\LeaveRequest;
+use App\Models\OvertimeRequest;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -55,9 +56,26 @@ class AttendanceAudience
         return Attendance::resolveShiftFor($userId, $day)?->start_time ?? $store->openingTimeOn($day);
     }
 
-    /** Jam selesai kerja karyawan hari itu: akhir shift pribadi, selain itu jam tutup toko; null bila tidak diketahui. */
+    /**
+     * Jam selesai kerja karyawan hari itu: akhir shift pribadi, selain itu jam tutup toko; bila ada lembur yang disetujui, jam selesai lembur
+     * (yang lebih akhir). Null bila tidak diketahui (mis. toko libur dan tanpa lembur).
+     */
     public function endTime(int $userId, Store $store, Carbon $day): ?string
     {
-        return Attendance::resolveShiftFor($userId, $day)?->end_time ?? $store->closingTimeOn($day);
+        $normal = Attendance::resolveShiftFor($userId, $day)?->end_time ?? $store->closingTimeOn($day);
+
+        $overtimeEnd = OvertimeRequest::withoutGlobalScopes()
+            ->where('user_id', $userId)
+            ->where('status', OvertimeRequest::STATUS_APPROVED)
+            ->whereDate('date', $day->toDateString())
+            ->max('ends_at');
+
+        if (! $overtimeEnd) {
+            return $normal;
+        }
+
+        $overtime = Carbon::parse($overtimeEnd)->format('H:i:s');
+
+        return $normal === null || substr($overtime, 0, 5) > substr($normal, 0, 5) ? $overtime : $normal;
     }
 }

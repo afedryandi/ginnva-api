@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\Staff\MaterialMemoController as StaffMaterialMemoCo
 use App\Http\Controllers\Api\Staff\AttendanceController as StaffAttendanceController;
 use App\Http\Controllers\Api\Staff\ScheduleController as StaffScheduleController;
 use App\Http\Controllers\Api\Staff\PayrollController as StaffPayrollController;
+use App\Http\Controllers\Api\Staff\OvertimeRequestController as StaffOvertimeRequestController;
 use App\Http\Controllers\Api\Staff\WarningLetterController as StaffWarningLetterController;
 use App\Http\Controllers\Api\Staff\PurchaseRequestController as StaffPurchaseRequestController;
 use Illuminate\Support\Facades\Route;
@@ -409,6 +410,11 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:10,1');
         Route::post('/attendance/client-failure', [StaffAttendanceController::class, 'clientFailure'])
             ->middleware('throttle:30,1');
+        // Pengajuan Lembur: wajib diajukan sebelum dimulai dan disetujui dulu (2026-11-12).
+        Route::get('/overtime-requests', [StaffOvertimeRequestController::class, 'index']);
+        Route::get('/overtime-requests/bookings', [StaffOvertimeRequestController::class, 'bookings']);
+        Route::post('/overtime-requests', [StaffOvertimeRequestController::class, 'store'])->middleware('throttle:20,1');
+        Route::post('/overtime-requests/{id}/cancel', [StaffOvertimeRequestController::class, 'cancel'])->middleware('throttle:20,1');
         Route::post('/attendance/clock-out', [StaffAttendanceController::class, 'clockOut'])
             ->middleware('throttle:10,1');
         Route::get('/attendance/history', [StaffAttendanceController::class, 'history']);

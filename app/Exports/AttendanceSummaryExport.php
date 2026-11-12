@@ -14,6 +14,9 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Export "Rekap per Karyawan" dari Laporan Absensi (2026-11-10): satu baris per karyawan untuk rentang yang dipilih, siap dikirim ke
  * HR atau Accurate setelah gaji tidak dihitung lagi di sistem ini. Angkanya dari baris Absensi mentah (AttendanceReport::summaryByEmployee()).
  *
+ * 2026-11-12: Jam Lembur Disetujui (hanya jam dari Pengajuan Lembur yang disetujui) dan Jam Luar Jam Resmi Tanpa Persetujuan (kerja setelah jam
+ * tutup atau di hari libur toko tanpa persetujuan), supaya HR tahu mana lembur yang sah dan mana yang perlu ditegur.
+ *
  * 2026-11-11: kolom No. Karyawan (nomor induk internal, bukan NIK KTP) untuk mencocokkan dengan Accurate tanpa bergantung pada ejaan nama, dan
  * pecahan Izin/Cuti per jenis (satu kolom per jenis yang muncul pada rentang itu, di kanan kolom total Izin/Cuti).
  */
@@ -29,12 +32,17 @@ class AttendanceSummaryExport implements FromArray, WithHeadings, WithStyles, Wi
         'late_minutes' => 'Telat (Menit)',
         'early_leave_count' => 'Pulang Cepat (Kali)',
         'work_hours' => 'Total Jam Kerja',
+        'overtime_hours' => 'Jam Lembur Disetujui',
+        'unapproved_hours' => 'Jam Luar Jam Resmi Tanpa Persetujuan',
         'missing_clock_out' => 'Belum Absen Keluar (Hari)',
         'alpha' => 'Alpha (Hari)',
         'leave' => 'Izin/Cuti (Hari)',
     ];
 
     private const TEXT_COLUMNS = ['employee_number', 'name', 'store'];
+
+    /** Kolom berdesimal (jam); kolom angka lain bilangan bulat. */
+    private const DECIMAL_COLUMNS = ['work_hours', 'overtime_hours', 'unapproved_hours'];
 
     /** @param array<int, array<string, mixed>> $rows */
     public function __construct(private array $rows, private Carbon $from, private Carbon $to) {}
@@ -92,7 +100,7 @@ class AttendanceSummaryExport implements FromArray, WithHeadings, WithStyles, Wi
                 }
 
                 $sum = $lines->sum(fn (array $line) => (float) $line[$index]);
-                $total[] = $key === 'work_hours' ? round($sum, 2) : (int) round($sum);
+                $total[] = in_array($key, self::DECIMAL_COLUMNS, true) ? round($sum, 2) : (int) round($sum);
             }
 
             foreach (array_keys($types) as $offset) {

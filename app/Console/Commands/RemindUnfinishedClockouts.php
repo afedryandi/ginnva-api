@@ -35,10 +35,7 @@ class RemindUnfinishedClockouts extends Command
         $reminded = 0;
 
         foreach (Store::where('is_active', true)->get() as $store) {
-            if ($store->isClosedOn($today)) {
-                continue;
-            }
-
+            // Toko libur tidak dilewati: karyawan yang punya lembur disetujui hari ini tetap diingatkan (endTime() null bila tidak ada lembur).
             $open = Attendance::where('store_id', $store->id)
                 ->where('date', $today->toDateString())
                 ->where('entry_type', 'clock')
@@ -76,7 +73,7 @@ class RemindUnfinishedClockouts extends Command
                 app(\App\Services\StaffNotifier::class)->toUsers(
                     $userIds,
                     'Jangan Lupa Absen Pulang',
-                    "Toko sudah tutup tapi Anda belum absen pulang. Absen keluar hanya berhasil di dalam radius {$radius} meter dari toko, jadi lakukan sebelum meninggalkan toko. Bila sudah di luar radius, ajukan Koreksi Absensi.",
+                    "Jam kerja Anda hari ini sudah selesai (toko tutup atau lembur berakhir) tapi Anda belum absen pulang. Absen keluar hanya berhasil di dalam radius {$radius} meter dari toko, jadi lakukan sebelum meninggalkan toko. Bila sudah di luar radius, ajukan Koreksi Absensi.",
                     color: 'warning',
                 );
                 $reminded += count($userIds);

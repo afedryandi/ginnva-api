@@ -44,6 +44,7 @@ class ActivityResource extends Resource
     'booking_settlement_payment' => 'Pembayaran Pelunasan Booking',
     'invoice_item' => 'Item Invoice',
     'notification_campaign' => 'Kampanye Notifikasi',
+    'overtime_request' => 'Pengajuan Lembur',
     'notification_template' => 'Template Notifikasi',
     'asset' => 'Aset Tetap',
     'attendance' => 'Absensi',

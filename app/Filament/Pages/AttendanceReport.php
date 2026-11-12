@@ -6,6 +6,8 @@ use App\Exports\AttendanceReportExport;
 use App\Exports\AttendanceSummaryExport;
 use App\Models\Attendance;
 use App\Models\LeaveRequest;
+use App\Models\OvertimeRequest;
+use App\Services\OvertimeRequestService;
 use App\Models\Store;
 use App\Services\AttendancePatternService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -57,8 +59,8 @@ class AttendanceReport extends Page implements HasForms
 
     protected static ?string $title = 'Laporan Absensi';
 
-    // Dipindah dari klaster Penjualan ke Karyawan, grup Absensi & Cuti (2026-11-11): satu tempat dengan Absensi Karyawan. 104 = setelah Izin & Cuti.
-    protected static ?int $navigationSort = 104;
+    // Dipindah dari klaster Penjualan ke Karyawan, grup Absensi & Cuti (2026-11-11): satu tempat dengan Absensi Karyawan. 105 = setelah Pengajuan Lembur (104).
+    protected static ?int $navigationSort = 105;
 
     protected static string $view = 'filament.pages.attendance-report';
 
@@ -281,11 +283,12 @@ class AttendanceReport extends Page implements HasForms
     public function summaryByEmployee(\Illuminate\Support\Collection $rows): array
     {
         $leaveTypes = $this->leaveTypeByRow($rows);
+        [$overtimeRecognized, $overtimeUnapproved] = $this->overtimeMinutesByUser($rows);
 
         return $rows
             ->filter(fn (Attendance $a) => $a->user !== null)
             ->groupBy('user_id')
-            ->map(function (\Illuminate\Support\Collection $group) use ($leaveTypes) {
+            ->map(function (\Illuminate\Support\Collection $group) use ($leaveTypes, $overtimeRecognized, $overtimeUnapproved) {
                 $real = $group->filter(fn (Attendance $a) => in_array($a->entry_type, ['clock', 'manual', 'field_duty'], true));
 
                 return [
@@ -300,6 +303,9 @@ class AttendanceReport extends Page implements HasForms
                     'work_hours' => round($real->sum(fn (Attendance $a) => ($a->clock_in_at && $a->clock_out_at && $a->clock_out_at->gt($a->clock_in_at))
                         ? $a->clock_in_at->diffInMinutes($a->clock_out_at) : 0) / 60, 2),
                     // Hari absen masuk tanpa absen keluar: jamnya tidak ikut Total Jam Kerja, jadi HR perlu tahu angkanya.
+                    // Lembur: hanya jam yang disetujui diakui; jam kerja di luar jam resmi tanpa persetujuan ditandai terpisah (lihat OvertimeRequestService).
+                    'overtime_hours' => round(($overtimeRecognized[$group->first()->user_id] ?? 0) / 60, 2),
+                    'unapproved_hours' => round(($overtimeUnapproved[$group->first()->user_id] ?? 0) / 60, 2),
                     'missing_clock_out' => $real->filter(fn (Attendance $a) => $a->clock_in_at && ! $a->clock_out_at)->count(),
                     'alpha' => $group->where('entry_type', 'alpha')->count(),
                     'leave' => $group->where('entry_type', 'leave')->count(),
@@ -312,6 +318,51 @@ class AttendanceReport extends Page implements HasForms
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
             ->all();
+    }
+
+    /**
+     * Menit lembur yang diakui dan menit kerja di luar jam resmi tanpa persetujuan, per karyawan, dari baris Absensi pada rentang ini.
+     * Jam tutup dan status libur toko dicari sekali per toko per tanggal.
+     *
+     * \param  \Illuminate\Support\Collection<int, Attendance>  $rows
+     * \return array{0: array<int, int>, 1: array<int, int>} [user_id => menit diakui, user_id => menit tanpa persetujuan]
+     */
+    private function overtimeMinutesByUser(\Illuminate\Support\Collection $rows): array
+    {
+        $withTimes = $rows->filter(fn (Attendance $a) => $a->clock_in_at && $a->clock_out_at);
+
+        if ($withTimes->isEmpty()) {
+            return [[], []];
+        }
+
+        $approved = OvertimeRequest::withoutGlobalScopes()
+            ->where('status', OvertimeRequest::STATUS_APPROVED)
+            ->whereIn('user_id', $withTimes->pluck('user_id')->unique())
+            ->whereBetween('date', [$withTimes->min(fn (Attendance $a) => $a->date->toDateString()), $withTimes->max(fn (Attendance $a) => $a->date->toDateString())])
+            ->get()
+            ->groupBy(fn (OvertimeRequest $r) => $r->user_id . '|' . $r->date->toDateString());
+
+        $service = app(OvertimeRequestService::class);
+        $dayInfo = [];
+        $recognized = [];
+        $unapproved = [];
+
+        foreach ($withTimes as $row) {
+            $key = $row->user_id . '|' . $row->date->toDateString();
+            $forDay = $approved[$key] ?? collect();
+
+            $infoKey = $row->store_id . '|' . $row->date->toDateString();
+            $dayInfo[$infoKey] ??= $row->store
+                ? (($closed = $row->store->isClosedOn($row->date)) ? [true, null] : [false, $row->store->closingTimeOn($row->date)])
+                : [false, null];
+
+            [$closed, $closing] = $dayInfo[$infoKey];
+
+            $recognized[$row->user_id] = ($recognized[$row->user_id] ?? 0) + $service->recognizedMinutes($row, $forDay);
+            $unapproved[$row->user_id] = ($unapproved[$row->user_id] ?? 0) + $service->unapprovedExtraMinutes($row, $forDay, $closed, $closing);
+        }
+
+        return [$recognized, $unapproved];
     }
 
     /**
@@ -357,7 +408,7 @@ class AttendanceReport extends Page implements HasForms
         $storeId = $this->effectiveStoreId();
 
         $rows = Attendance::query()
-            ->with(['user:id,name,employee_number', 'store:id,name'])
+            ->with(['user:id,name,employee_number', 'store'])
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
             ->orderByDesc('date')

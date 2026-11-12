@@ -34,6 +34,7 @@ class GuideCatalog
         'Ubah Jadwal',
         'Catat Penjualan',
         'Ajukan Izin/Cuti',
+        'Ajukan Lembur',
         'Cek Jarak Saya ke Toko',
         'Detail Pengerjaan',
         'K3 & Penilaian',
@@ -1029,6 +1030,7 @@ class GuideCatalog
                 'steps' => [
                     'Karyawan mengajukan izin atau cuti lewat aplikasi karyawan, atau HR mengisinya di **Izin & Cuti**: **Karyawan**, **Jenis**, **Dari Tanggal**, **Sampai Tanggal**, **Alasan**, dan **Lampiran** (mis. surat dokter). Wajib atau tidaknya lampiran mengikuti aturan jenis yang dipilih.',
                     'Atasan menekan **Setujui** atau **Tolak** (isi **Alasan Ditolak**). Karyawan mendapat pemberitahuan atas keputusannya.',
+                    'Lembur wajib diajukan dan disetujui lebih dulu. Karyawan mengajukannya dari aplikasi sebelum lembur dimulai, dengan pekerjaan yang jelas (pilih Booking atau tulis uraian). Store manager toko itu atau akses penuh memutuskannya di **Pengajuan Lembur** lewat **Setujui** atau **Tolak** (isi **Alasan Penolakan**), sebelum jam lembur dimulai. Hanya jam yang disetujui diakui sebagai lembur; jam kerja di luar jam resmi tanpa persetujuan tidak diakui dan ditandai di rekap absensi. Batasnya 4 jam per hari dan 18 jam per minggu per karyawan. Upah lembur dihitung di luar sistem.',
                     '**Jenis Izin & Cuti** mengatur tiap jenis: **Maksimal hari per pengajuan** (kosong berarti batas umum 30 hari), **Wajib lampiran mulai (hari)**, dan **Memotong jatah cuti tahunan** (aktifkan hanya untuk Cuti Tahunan; cuti khusus seperti menikah atau melahirkan tidak memotong jatah). Angka bawaan hanyalah titik awal dan perlu disesuaikan dengan Peraturan Perusahaan. Jenis yang sudah dipakai pengajuan tidak bisa dihapus; nonaktifkan.',
                     '**Perpanjang Kontrak**: pilih **Karyawan**, isi **Tanggal Berakhir Kontrak Baru** (harus lebih baru dari tanggal akhir yang berlaku) dan **Catatan (opsional)**. Riwayat perpanjangan tersimpan dengan tanggal **Sebelumnya** dan **Diperpanjang Sampai**.',
                     '**Surat Peringatan**: isi **Toko**, **Karyawan**, **Tingkat**, **Tanggal Diterbitkan**, **Berlaku Sampai (opsional)**, dan **Alasan / Pelanggaran**; unggah **Scan Surat (opsional)**. **Riwayat SP Karyawan Ini** menampilkan surat peringatan sebelumnya, dan **Dibaca Karyawan** menandai surat sudah dilihat di aplikasi.',
