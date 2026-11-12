@@ -10,6 +10,7 @@ use App\Models\LeaveRequest;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\AttendanceAudience;
+use App\Services\AttendanceCorrectionService;
 use App\Services\FieldDutyRequestService;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -377,6 +378,52 @@ class FieldDutyRequestTest extends TestCase
         $this->service->approve($this->partial('2026-11-11', '15:00', '19:00'), $this->manager);
 
         $this->assertSame(0, $row->fresh()->early_leave_minutes);
+    }
+
+    /** Koreksi Absen karyawan yang lupa absen sama sekali (masuk 12:00, pulang jam tutup), lewat layanan yang sama dengan aplikasi dan panel. */
+    private function correct(string $date, string $in, string $out): Attendance
+    {
+        $correction = app(AttendanceCorrectionService::class)->submit([
+            'attendance_id' => null, 'user_id' => $this->andi->id, 'store_id' => $this->store->id, 'date' => $date,
+            'entry_type' => 'manual', 'clock_in_at' => "{$date} {$in}", 'clock_out_at' => "{$date} {$out}",
+            'reason' => 'Lupa absen masuk dan keluar karena dinas luar pagi hari',
+        ], $this->andi->id);
+
+        return app(AttendanceCorrectionService::class)->approve($correction, $this->manager->id);
+    }
+
+    public function test_a_partial_duty_then_a_correction_for_the_rest_of_the_day_is_a_full_attendance_without_lateness(): void
+    {
+        // Toko 09:00-18:00. Dinas 08:30-12:00 disetujui dulu, lalu koreksi masuk 12:00 pulang 18:00.
+        $this->service->approve($this->partial('2026-11-11', '08:30', '12:00'), $this->manager);
+
+        $row = $this->correct('2026-11-11', '12:00', '18:00');
+
+        $this->assertSame('manual', $row->entry_type, 'Tetap tercatat hadir (bukan alpha, bukan field_duty).');
+        $this->assertSame(0, $row->fresh()->late_minutes, 'Jam 09:00-12:00 tercakup dinas.');
+        $this->assertSame(0, $row->fresh()->early_leave_minutes);
+    }
+
+    public function test_the_order_does_not_matter_correction_first_then_the_duty_is_approved(): void
+    {
+        $request = $this->partial('2026-11-11', '08:30', '12:00');
+        $row = $this->correct('2026-11-11', '12:00', '18:00');
+        $this->assertSame(180, $row->fresh()->late_minutes, 'Tanpa dinas yang disetujui, 3 jam itu dihitung telat.');
+
+        $this->service->approve($request, $this->manager);
+
+        $this->assertSame(0, $row->fresh()->late_minutes);
+        $this->assertSame('manual', $row->fresh()->entry_type);
+    }
+
+    public function test_only_the_hours_outside_the_approved_duty_are_still_counted_late(): void
+    {
+        // Dinas hanya 10:00-12:00: jam 09:00-10:00 tidak tercakup, tetap 60 menit telat.
+        $this->service->approve($this->partial('2026-11-11', '10:00', '12:00'), $this->manager);
+
+        $row = $this->correct('2026-11-11', '12:00', '18:00');
+
+        $this->assertSame(60, $row->fresh()->late_minutes);
     }
 
     public function test_a_partial_window_does_not_excuse_the_missing_clock_in_reminder(): void
