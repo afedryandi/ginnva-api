@@ -1026,7 +1026,7 @@ class GuideCatalog
                 'id' => 'cuti-kontrak',
                 'title' => 'Izin, cuti, kontrak, dan surat peringatan',
                 'summary' => 'Memproses pengajuan izin dan cuti, mengatur jenis dan batasnya, mencatat perpanjangan kontrak, dan menerbitkan surat peringatan.',
-                'menus' => ['LeaveRequestResource', 'LeaveTypeResource', 'ContractExtensionResource', 'WarningLetterResource'],
+                'menus' => ['LeaveRequestResource', 'OvertimeRequestResource', 'LeaveTypeResource', 'ContractExtensionResource', 'WarningLetterResource'],
                 'steps' => [
                     'Karyawan mengajukan izin atau cuti lewat aplikasi karyawan, atau HR mengisinya di **Izin & Cuti**: **Karyawan**, **Jenis**, **Dari Tanggal**, **Sampai Tanggal**, **Alasan**, dan **Lampiran** (mis. surat dokter). Wajib atau tidaknya lampiran mengikuti aturan jenis yang dipilih.',
                     'Atasan menekan **Setujui** atau **Tolak** (isi **Alasan Ditolak**). Karyawan mendapat pemberitahuan atas keputusannya.',
@@ -1158,6 +1158,7 @@ class GuideCatalog
                     'Di **Absensi**, tekan **Absen Masuk** saat tiba dan **Absen Keluar** saat pulang. Absen memakai lokasi dan hanya berhasil di dalam radius toko; aktifkan GPS. Tekan **Cek Jarak Saya ke Toko** bila absen ditolak karena jarak.',
                     'Lupa absen? Tekan **Ajukan Koreksi Absensi**, isi Tanggal, Jam Masuk, Jam Keluar, dan Alasan. Atasan menyetujui atau menolak; hasilnya ada di Riwayat Pengajuan.',
                     'Tidak masuk karena sakit atau keperluan lain: tekan tombol Ajukan / Lihat Izin & Cuti, lalu **Ajukan Izin/Cuti** (pilih Jenis, **Dari Tanggal**, **Sampai Tanggal**, tulis Alasan, dan lampirkan foto bila dibutuhkan). Pengajuan menunggu persetujuan admin; Anda bisa membatalkannya selama belum diproses.',
+                    'Perlu lembur? Lembur harus diajukan dan disetujui LEBIH DULU, tidak boleh seenaknya. Buka **Pengajuan Lembur** dari layar Absensi, isi tanggal dan jam, pilih Booking yang dikerjakan atau jelaskan pekerjaannya, lalu tekan **Ajukan Lembur**. Kerjakan lembur hanya setelah disetujui; hanya jam yang disetujui diakui sebagai lembur (batas 4 jam per hari dan 18 jam per minggu). Absen keluar tetap harus dilakukan di dalam radius toko.',
                     ...($payroll ? ['**Slip Gaji** menampilkan Gaji Pokok, Gaji Berjalan, Komisi Installer, dan Gaji Bersih per bulan, dan bisa diunduh lewat **Download Slip Gaji (PDF)**. Bila ada pekerjaan yang tarif komisinya belum diatur, aplikasi memberi tahu bahwa komisi itu belum ikut ditotal; tanyakan ke atasan.'] : []),
                     '**K3 & Penilaian** menampilkan perlengkapan (APD) atas nama Anda beserta jatuh tempo ganti, pelatihan dan sertifikat, serta penilaian kinerja. Tekan **Saya Sudah Membaca** setelah membaca penilaian. Penilaian untuk pembinaan, bukan penentu gaji.',
                     '**Peraturan & Kebijakan** berisi peraturan perusahaan dan SOP. Baca dokumennya dan tekan tombol penerimaan bila diminta. Aturan potongan telat dan Alpha hanya sah bila tertulis di peraturan yang sudah Anda terima.',
