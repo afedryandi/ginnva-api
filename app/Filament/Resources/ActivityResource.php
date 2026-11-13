@@ -371,7 +371,10 @@ class ActivityResource extends Resource
                         ->mapWithKeys(fn ($c) => [$c->id => ($c->name ?: $c->email ?: 'Pelanggan') . ' (#' . $c->id . ')'])
                         ->all())
                     ->getOptionLabelUsing(fn ($value) => 'Pelanggan #' . $value)
-                    ->options([])
+                    // Daftar langsung tampil saat diklik (50 pelanggan pertama berdasarkan nama); sisanya dicari lewat ketikan.
+                    ->options(fn () => \App\Models\Customer::query()->orderBy('name')->limit(50)->get(['id', 'name', 'email'])
+                        ->mapWithKeys(fn ($c) => [$c->id => ($c->name ?: $c->email ?: 'Pelanggan') . ' (#' . $c->id . ')'])
+                        ->all())
                     ->query(fn (Builder $query, array $data) => $query->when(
                         $data['value'],
                         fn (Builder $q, $value) => $q->where('causer_id', $value)->where('causer_type', \App\Models\Customer::class)

@@ -62,6 +62,14 @@ class BookingReworkResource extends Resource
                             ->when($user && ! $user->isFullAccess(), fn ($q) => $q->where('store_id', $user->store_id))
                             ->orderByDesc('id')->limit(30)->pluck('booking_number', 'id')->all();
                     })
+                    // Daftar langsung tampil saat diklik (30 booking terbaru, dibatasi toko untuk non-akses-penuh); ketik untuk mencari yang lain.
+                    ->options(function () {
+                        $user = auth()->user();
+
+                        return Booking::query()
+                            ->when($user && ! $user->isFullAccess(), fn ($q) => $q->where('store_id', $user->store_id))
+                            ->orderByDesc('id')->limit(30)->pluck('booking_number', 'id')->all();
+                    })
                     ->getOptionLabelUsing(fn ($value) => Booking::withoutGlobalScopes()->whereKey($value)->value('booking_number'))
                     ->helperText('Cari nomor booking. Installer yang bertugas pada booking itu otomatis ikut terhitung di laporan.'),
                 Forms\Components\Select::make('source')->label('Sumber')->options(BookingRework::SOURCES)->required()->native(false),

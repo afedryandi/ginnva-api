@@ -161,6 +161,8 @@ class InvoiceResource extends Resource
                         ->label('Akun Pelanggan (opsional)')
                         ->relationship('customer', 'name')
                         ->searchable()
+                        // Daftar langsung tampil saat diklik (50 pertama); ketik untuk mencari pelanggan lain.
+                        ->preload()
                         ->live()
                         ->afterStateUpdated(function (Forms\Set $set, $state) {
                             $customer = Customer::find($state);

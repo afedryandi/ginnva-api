@@ -93,7 +93,7 @@ class PerformanceReviewResource extends Resource
             ])
             ->defaultSort('reviewed_on', 'desc')
             ->filters([
-                Tables\Filters\SelectFilter::make('user_id')->label('Karyawan')->relationship('user', 'name')->searchable(),
+                Tables\Filters\SelectFilter::make('user_id')->label('Karyawan')->relationship('user', 'name')->searchable()->preload(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

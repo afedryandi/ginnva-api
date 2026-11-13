@@ -483,6 +483,8 @@ class StockOpnameResource extends Resource
                                     ->afterStateUpdated(fn (Forms\Set $set) => $set('item_id', null)),
                                 Forms\Components\Select::make('item_id')
                                     ->label('Item')
+                                    // Daftar langsung tampil saat diklik (50 pertama menurut nama); ketik untuk mencari yang lain.
+                                    ->options(fn (Forms\Get $get) => static::searchItems($get('item_type'), ''))
                                     ->getSearchResultsUsing(fn (string $search, Forms\Get $get) => static::searchItems($get('item_type'), $search))
                                     ->getOptionLabelUsing(fn ($value, Forms\Get $get) => static::itemLabel($get('item_type'), $value))
                                     ->searchable()

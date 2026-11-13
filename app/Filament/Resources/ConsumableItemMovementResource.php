@@ -171,7 +171,8 @@ class ConsumableItemMovementResource extends Resource
                 Tables\Filters\SelectFilter::make('consumable_item_id')
                     ->label('Barang')
                     ->relationship('consumableItem', 'name')
-                    ->searchable(),
+                    ->searchable()
+                    ->preload(),
 
                 Tables\Filters\SelectFilter::make('category')
                     ->label('Kategori')

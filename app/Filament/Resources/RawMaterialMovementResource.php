@@ -185,7 +185,8 @@ class RawMaterialMovementResource extends Resource
                 Tables\Filters\SelectFilter::make('raw_material_id')
                     ->label('Bahan Baku')
                     ->relationship('rawMaterial', 'name')
-                    ->searchable(),
+                    ->searchable()
+                    ->preload(),
 
                 Tables\Filters\SelectFilter::make('category')
                     ->label('Kategori')

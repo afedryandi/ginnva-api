@@ -191,7 +191,8 @@ class InventoryMovementResource extends Resource
                 Tables\Filters\SelectFilter::make('inventory_item_id')
                     ->label('Barang')
                     ->relationship('inventoryItem', 'name')
-                    ->searchable(),
+                    ->searchable()
+                    ->preload(),
 
                 Tables\Filters\SelectFilter::make('destination_store_id')
                     ->label('Toko Tujuan')

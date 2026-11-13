@@ -78,7 +78,7 @@ class EmployeeChecklistItemResource extends Resource
             ->defaultSort('user_id')
             ->filters([
                 Tables\Filters\SelectFilter::make('kind')->label('Jenis')->options(ChecklistTemplate::KINDS),
-                Tables\Filters\SelectFilter::make('user_id')->label('Karyawan')->relationship('user', 'name')->searchable(),
+                Tables\Filters\SelectFilter::make('user_id')->label('Karyawan')->relationship('user', 'name')->searchable()->preload(),
                 Tables\Filters\TernaryFilter::make('is_done')->label('Selesai'),
             ])
             ->actions([
