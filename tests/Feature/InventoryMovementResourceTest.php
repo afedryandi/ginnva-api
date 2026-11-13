@@ -430,6 +430,10 @@ class InventoryMovementResourceTest extends TestCase
         $all = $this->actingAs($staff, 'api')->getJson('/api/staff/inventory-movements')->assertSuccessful();
         $this->assertSame(['ke A', 'balik A'], array_column($all->json('data'), 'note'));
         $this->assertSame(['out_today' => 1, 'in_today' => 0], $all->json('summary'));
+        // Ringkasan periode: seluruh riwayat akun ini bila tanpa from; mengikuti from; TIDAK mengikuti filter jenis.
+        $this->assertSame(['out' => 1, 'in' => 1], $all->json('period_summary'));
+        $this->assertSame(['out' => 1, 'in' => 0], $this->actingAs($staff, 'api')->getJson('/api/staff/inventory-movements?from=2026-10-05')->json('period_summary'));
+        $this->assertSame(['out' => 1, 'in' => 1], $this->actingAs($staff, 'api')->getJson('/api/staff/inventory-movements?type=in')->json('period_summary'));
         $this->assertFalse($all->json('has_more'));
 
         $this->assertSame(['balik A'], array_column($this->actingAs($staff, 'api')->getJson('/api/staff/inventory-movements?type=in')->json('data'), 'note'));

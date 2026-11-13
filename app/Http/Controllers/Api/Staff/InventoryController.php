@@ -220,6 +220,12 @@ class InventoryController extends Controller
 
         $today = fn () => \App\Models\InventoryMovement::query()->visibleTo($user)->effective()->whereDate('created_at', today());
 
+        // Ringkasan mengikuti PERIODE yang dipilih (from/until), bukan jenis atau pencarian: dua angka itu dibaca berdampingan, jadi memilih
+        // "Keluar" tidak boleh membuat angka Masuk jadi 0. Tanpa from/until = seluruh riwayat yang boleh dilihat akun ini.
+        $period = fn () => \App\Models\InventoryMovement::query()->visibleTo($user)->effective()
+            ->when($request->query('from'), fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+            ->when($request->query('until'), fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
+
         return response()->json([
             'success' => true,
             'data' => $rows->take($limit)->map(fn ($m) => [
@@ -238,6 +244,10 @@ class InventoryController extends Controller
             'summary' => [
                 'out_today' => $today()->where('type', 'out')->count(),
                 'in_today' => $today()->where('type', 'in')->count(),
+            ],
+            'period_summary' => [
+                'out' => $period()->where('type', 'out')->count(),
+                'in' => $period()->where('type', 'in')->count(),
             ],
         ]);
     }
