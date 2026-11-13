@@ -486,7 +486,7 @@ class FieldDutyRequestTest extends TestCase
         $others = $this->submit(['date' => '2026-11-13'], $this->manager);
 
         $this->actingAs($this->andi, 'api');
-        $this->postJson('/api/staff/field-duty-requests', ['date' => '2026-11-13', 'description' => 'singkat'])->assertStatus(422);
+        $this->postJson('/api/staff/field-duty-requests', ['date' => '2026-11-13', 'description' => ''])->assertStatus(422);
         $this->postJson('/api/staff/field-duty-requests', ['date' => '2026-11-13'])->assertStatus(422);
         $this->getJson('/api/staff/field-duty-requests')->assertJsonCount(0, 'field_duty_requests');
         $this->postJson("/api/staff/field-duty-requests/{$others->id}/cancel")->assertStatus(404);

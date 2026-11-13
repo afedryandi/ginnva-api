@@ -379,7 +379,7 @@ class OvertimeRequestTest extends TestCase
     {
         $this->actingAs($this->andi, 'api');
 
-        $this->postJson('/api/staff/overtime-requests', ['date' => '2026-11-12', 'start_time' => '18:30', 'end_time' => '20:30', 'description' => 'lembur'])
+        $this->postJson('/api/staff/overtime-requests', ['date' => '2026-11-12', 'start_time' => '18:30', 'end_time' => '20:30'])
             ->assertStatus(422)
             ->assertJsonPath('success', false);
 

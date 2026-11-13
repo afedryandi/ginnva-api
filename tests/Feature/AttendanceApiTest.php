@@ -406,7 +406,8 @@ class AttendanceApiTest extends TestCase
         $this->requestLeave(['type' => 'sakit', 'start_date' => '2026-10-03', 'end_date' => '2026-10-03'])
             ->assertStatus(422)->assertJsonValidationErrors('start_date');
 
-        $this->requestLeave(['type' => 'sakit', 'start_date' => '2026-10-04', 'end_date' => '2026-10-06'])
+        // Satu hari saja: sakit beberapa hari wajib melampirkan surat dokter, itu bukan yang diuji di sini.
+        $this->requestLeave(['type' => 'sakit', 'start_date' => '2026-10-04', 'end_date' => '2026-10-04'])
             ->assertStatus(201)->assertJsonPath('leave_request.status', 'pending');
     }
 
