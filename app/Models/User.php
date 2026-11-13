@@ -663,6 +663,11 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
 
     public function hasConsumableAccess(): bool
     {
+        // Barang Habis Pakai dimatikan saklar fitur (FEATURE_CONSUMABLES): tidak ada akses sama sekali, apa pun isi Hak Akses akunnya.
+        if (! config('features.consumables')) {
+            return false;
+        }
+
         // Eksplisit (bukan akses bawaan): lihat ConsumableItemResource::canViewAny().
         return $this->hasExplicitMenuAccess(\App\Filament\Resources\ConsumableItemResource::class);
     }

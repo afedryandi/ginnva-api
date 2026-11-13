@@ -15,7 +15,7 @@
 
     <x-filament::section>
         <x-slot name="heading">Persediaan per Item</x-slot>
-        <x-slot name="description">Diurutkan dari nilai tertinggi. Gabungan Bahan Baku &amp; Barang Habis Pakai.</x-slot>
+        <x-slot name="description">Diurutkan dari nilai tertinggi.{{ config('features.consumables') ? ' Gabungan Bahan Baku & Barang Habis Pakai.' : '' }}</x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">

@@ -25,7 +25,7 @@ class StockWriteOffController extends Controller
         $canConsumable = $user->hasConsumableAccess();
 
         if (! $canMaterial && ! $canConsumable) {
-            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu Bahan Baku maupun Barang Habis Pakai.'], 403);
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu ' . (config('features.consumables') ? 'Bahan Baku maupun Barang Habis Pakai' : 'Bahan Baku') . '.'], 403);
         }
 
         $validator = Validator::make($request->query(), [

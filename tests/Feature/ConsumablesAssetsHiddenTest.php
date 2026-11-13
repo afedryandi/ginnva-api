@@ -75,6 +75,17 @@ class ConsumablesAssetsHiddenTest extends TestCase
         $this->assertSame($all, HiddenInventoryTypes::filter($all));
     }
 
+    public function test_the_account_has_no_consumable_access_when_switched_off_even_with_the_menu_ticked(): void
+    {
+        $user = User::create(['name' => 'Gudang', 'email' => 'gudang@test.local', 'password' => 'x', 'join_date' => '2025-01-01', 'is_active' => true, 'menu_access' => ['ConsumableItemResource']]);
+
+        config(['features.consumables' => false]);
+        $this->assertFalse($user->hasConsumableAccess());
+
+        config(['features.consumables' => true]);
+        $this->assertTrue($user->hasConsumableAccess());
+    }
+
     public function test_the_guides_stop_mentioning_the_hidden_menus(): void
     {
         config(['features.consumables' => false, 'features.assets' => false]);
@@ -83,7 +94,7 @@ class ConsumablesAssetsHiddenTest extends TestCase
 
         $this->assertFalse($guides->has('aset-tetap'), 'Panduan Aset Tetap disembunyikan.');
 
-        foreach (['stok', 'permohonan-pembelian', 'riwayat-stok-dashboard', 'analisa-laporan'] as $id) {
+        foreach (['stok', 'permohonan-pembelian', 'riwayat-stok-dashboard', 'analisa-laporan', 'laporan-persediaan'] as $id) {
             $text = mb_strtolower(json_encode($guides[$id], JSON_UNESCAPED_UNICODE));
 
             $this->assertStringNotContainsString('barang habis pakai', $text, $id);

@@ -76,7 +76,7 @@ class StockOpnameController extends Controller
         $user = $request->user('api');
 
         if (! $this->canRead($user)) {
-            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu Bahan Baku maupun Barang Habis Pakai.'], 403);
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu ' . (config('features.consumables') ? 'Bahan Baku maupun Barang Habis Pakai' : 'Bahan Baku') . '.'], 403);
         }
 
         $status = in_array($request->query('status'), array_keys(StockOpname::STATUS_LABELS), true) ? $request->query('status') : null;
@@ -98,7 +98,7 @@ class StockOpnameController extends Controller
         $user = $request->user('api');
 
         if (! $this->canRead($user)) {
-            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu Bahan Baku maupun Barang Habis Pakai.'], 403);
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke menu ' . (config('features.consumables') ? 'Bahan Baku maupun Barang Habis Pakai' : 'Bahan Baku') . '.'], 403);
         }
 
         $opname = $this->scoped($user)->with('items')->find($id);

@@ -972,7 +972,7 @@ class BookingResource extends Resource
             // 2026_09_09_000001). Section ini sengaja TIDAK MUNCUL kalau
             // belum ada memo terhubung (bukan tampil kosong membingungkan).
             InfolistSection::make('Inventori Terpakai')
-                ->description('Bahan baku, barang habis pakai, dan produk+seri roll yang dipakai untuk booking ini, dicatat lewat Memo Barang.')
+                ->description(config('features.consumables') ? 'Bahan baku, barang habis pakai, dan produk+seri roll yang dipakai untuk booking ini, dicatat lewat Memo Barang.' : 'Bahan baku dan produk+seri roll yang dipakai untuk booking ini, dicatat lewat Memo Barang.')
                 ->visible(fn (Booking $record) => $record->materialMemo !== null)
                 ->schema([
                     TextEntry::make('materialMemo.memo_number')

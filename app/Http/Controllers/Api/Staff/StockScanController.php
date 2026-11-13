@@ -18,7 +18,7 @@ class StockScanController extends Controller
         $found = StockScanCode::resolve((string) $request->query('code', ''));
 
         if ($found === null) {
-            return response()->json(['success' => false, 'message' => 'Kode tidak dikenali. Pastikan label berasal dari Bahan Baku atau Barang Habis Pakai.'], 404);
+            return response()->json(['success' => false, 'message' => 'Kode tidak dikenali. Pastikan label berasal dari ' . (config('features.consumables') ? 'Bahan Baku atau Barang Habis Pakai' : 'Bahan Baku') . '.'], 404);
         }
 
         $isMaterial = $found['type'] === StockScanCode::TYPE_MATERIAL;

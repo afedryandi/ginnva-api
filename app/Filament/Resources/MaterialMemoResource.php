@@ -181,7 +181,7 @@ class MaterialMemoResource extends Resource
                     ->badge()
                     ->color(fn (int $state) => $state > 0 ? 'warning' : 'gray')
                     ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} baris" : '—')
-                    ->tooltip('Baris bahan/barang habis pakai yang stoknya sudah keluar tetapi pengembaliannya belum dicatat (isi 0 bila habis terpakai).'),
+                    ->tooltip(config('features.consumables') ? 'Baris bahan/barang habis pakai yang stoknya sudah keluar tetapi pengembaliannya belum dicatat (isi 0 bila habis terpakai).' : 'Baris bahan yang stoknya sudah keluar tetapi pengembaliannya belum dicatat (isi 0 bila habis terpakai).'),
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Dibuat Oleh')
                     ->placeholder('—'),

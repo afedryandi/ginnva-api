@@ -56,7 +56,7 @@
         </div>
 
         <x-filament::section>
-            <x-slot name="heading">Perputaran per Bahan Baku &amp; Barang Habis Pakai</x-slot>
+            <x-slot name="heading">Perputaran per Bahan Baku{{ config('features.consumables') ? ' & Barang Habis Pakai' : '' }}</x-slot>
             <x-slot name="description">
                 Perputaran = pemakaian ÷ rata-rata stok. Pemakaian sudah dikurangi bahan yang dikembalikan lewat memo. Rasio tinggi berarti cepat berputar, bukan otomatis baik atau buruk.
                 Diurutkan dari rasio tertinggi. Stok bersifat nasional (bukan per toko).

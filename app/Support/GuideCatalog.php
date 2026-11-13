@@ -236,6 +236,7 @@ class GuideCatalog
                 '**Riwayat Keluar/Masuk** (produk film), **Riwayat Bahan Baku**, dan **Riwayat Barang Habis Pakai** adalah' => '**Riwayat Keluar/Masuk** (produk film) dan **Riwayat Bahan Baku** adalah',
                 'Pada riwayat bahan baku dan barang habis pakai, **Cek' => 'Pada riwayat bahan baku, **Cek',
                 'bahan baku dan barang habis pakai: **Terpakai**' => 'bahan baku: **Terpakai**',
+                'merinci pergerakan stok bahan baku dan barang habis pakai dalam rentang' => 'merinci pergerakan stok bahan baku dalam rentang',
             ];
         }
 
