@@ -78,6 +78,9 @@ class ConsumablesAssetsHiddenTest extends TestCase
     public function test_the_account_has_no_consumable_access_when_switched_off_even_with_the_menu_ticked(): void
     {
         $user = User::create(['name' => 'Gudang', 'email' => 'gudang@test.local', 'password' => 'x', 'join_date' => '2025-01-01', 'is_active' => true, 'menu_access' => ['ConsumableItemResource']]);
+        // Akses eksplisit hanya berlaku bagi akun yang boleh masuk area staf (punya role selain role tanpa panel).
+        Role::findOrCreate('warehouse_staff', 'web');
+        $user->assignRole('warehouse_staff');
 
         config(['features.consumables' => false]);
         $this->assertFalse($user->hasConsumableAccess());
