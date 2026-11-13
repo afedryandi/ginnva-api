@@ -220,6 +220,16 @@ class OvertimeRequestService
         return $locked;
     }
 
+    /** Boleh memutuskan? Akses penuh, atau store manager toko pengajuan itu; tidak pernah pengajuan sendiri. Dipakai Pusat Persetujuan. */
+    public function canDecide(User $by, OvertimeRequest $request): bool
+    {
+        if ($request->user_id === $by->id) {
+            return false;
+        }
+
+        return $by->isFullAccess() || ($by->isStoreManager() && (int) $by->store_id === (int) $request->store_id);
+    }
+
     /** Pemutus: akses penuh, atau store manager toko pengajuan itu; tidak boleh memutuskan pengajuan sendiri. */
     private function assertCanDecide(OvertimeRequest $request, User $by): void
     {
@@ -319,7 +329,7 @@ class OvertimeRequestService
 
     private function notifyApprovers(OvertimeRequest $request): void
     {
-        $request->loadMissing('user:id,name');
+        $request->loadMissing('user:id,name', 'store:id,name', 'booking:id,booking_number');
 
         $recipients = User::where('is_active', true)
             ->get()
@@ -332,6 +342,14 @@ class OvertimeRequestService
             'Pengajuan Lembur Baru',
             "{$request->user?->name} mengajukan lembur {$request->starts_at->format('d M Y')} pukul {$request->starts_at->format('H:i')}–{$request->ends_at->format('H:i')}. Putuskan sebelum jam mulai.",
             color: 'warning',
+        );
+
+        app(ApprovalMailer::class)->requested(
+            'Lembur',
+            $request->user?->name ?? '—',
+            "{$request->starts_at->translatedFormat('d M Y')} pukul {$request->starts_at->format('H:i')}–{$request->ends_at->format('H:i')} · {$request->workLabel()}",
+            $request->store?->name,
+            $recipients,
         );
     }
 

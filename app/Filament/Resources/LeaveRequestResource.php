@@ -369,40 +369,19 @@ class LeaveRequestResource extends Resource
                         // Cuti) -- approveLocked() sekarang lockForUpdate()
                         // + recheck status di dalam DB::transaction(),
                         // lihat komentar lengkap di LeaveRequest model.
+                        // Akibat persetujuan (koreksi hari Alpha, pemberitahuan ke pemohon, cek slip gaji) satu pintu di LeaveDecisionService,
+                        // dipakai juga oleh Pusat Persetujuan.
                         try {
-                            $record = LeaveRequest::approveLocked($record->id, auth()->id());
+                            $result = app(\App\Services\LeaveDecisionService::class)->approve($record->id, auth()->user());
                         } catch (\RuntimeException $e) {
                             Notification::make()->title('Gagal menyetujui')->body($e->getMessage())->danger()->send();
 
                             return;
                         }
 
-                        // Kalau izin ini baru disetujui SETELAH sebagian
-                        // tanggalnya sudah kadung ditandai 'alpha' oleh
-                        // job harian (attendance:mark-absences) — koreksi
-                        // baris itu jadi 'leave', supaya tidak nyangkut
-                        // dianggap mangkir padahal izinnya disetujui.
-                        \App\Models\Attendance::where('user_id', $record->user_id)
-                            ->whereBetween('date', [$record->start_date, $record->end_date])
-                            ->where('entry_type', 'alpha')
-                            ->update(['entry_type' => 'leave']);
-
-                        app(\App\Services\StaffNotifier::class)->toUsers(
-                            [$record->user_id],
-                            'Pengajuan Izin Disetujui',
-                            "Pengajuan {$record->request_number} ({$record->start_date->format('d M')}–{$record->end_date->format('d M Y')}) disetujui."
-                        );
-
-                        // Absensi tanggal lampau yang diubah dari Alpha mengubah potongan gaji; ingatkan bila slip bulan itu sudah dikunci.
-                        $locked = \App\Models\Payroll::where('user_id', $record->user_id)
-                            ->whereIn('status', ['pending_approval', 'paid'])
-                            ->whereDate('period_month', '>=', $record->start_date->copy()->startOfMonth()->toDateString())
-                            ->whereDate('period_month', '<=', $record->end_date->copy()->startOfMonth()->toDateString())
-                            ->exists();
-
                         Notification::make()
                             ->title('Izin disetujui')
-                            ->body($locked ? 'Perhatian: slip gaji bulan terkait sudah menunggu persetujuan atau dibayar; angka gaji tidak otomatis berubah.' : null)
+                            ->body($result['payroll_locked'] ? 'Perhatian: slip gaji bulan terkait sudah menunggu persetujuan atau dibayar; angka gaji tidak otomatis berubah.' : null)
                             ->success()
                             ->send();
                     }),
@@ -421,18 +400,12 @@ class LeaveRequestResource extends Resource
                     ])
                     ->action(function (LeaveRequest $record, array $data) {
                         try {
-                            $record = LeaveRequest::rejectLocked($record->id, auth()->id(), $data['review_note']);
+                            app(\App\Services\LeaveDecisionService::class)->reject($record->id, auth()->user(), (string) $data['review_note']);
                         } catch (\RuntimeException $e) {
                             Notification::make()->title('Gagal menolak')->body($e->getMessage())->danger()->send();
 
                             return;
                         }
-
-                        app(\App\Services\StaffNotifier::class)->toUsers(
-                            [$record->user_id],
-                            'Pengajuan Izin Ditolak',
-                            "Pengajuan {$record->request_number} ditolak: {$data['review_note']}"
-                        );
 
                         Notification::make()->title('Izin ditolak')->warning()->send();
                     }),

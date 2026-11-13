@@ -437,9 +437,19 @@ class TransactionApprovalService
                 ->title("Menunggu persetujuan: {$label}")
                 ->body("Booking {$booking->booking_number} — perlu persetujuan Anda sebelum " . (config('features.finance') ? 'diposting ke Jurnal Umum.' : 'diproses.'))
                 ->warning()
-                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\TransactionApprovalRequestResource::class))
+                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Pages\ApprovalCenter::class))
                 ->sendToDatabase($recipient);
         }
+
+        $request->loadMissing('requester:id,name');
+
+        app(ApprovalMailer::class)->requested(
+            $label,
+            $request->requester?->name ?? '—',
+            "Booking {$booking->booking_number} · Rp" . number_format($request->amount(), 0, ',', '.'),
+            null,
+            $recipients->pluck('id'),
+        );
 
         // Push ke approver (sebelumnya cuma notifikasi database); kegagalan
         // kirim tidak boleh menggagalkan pengajuan.

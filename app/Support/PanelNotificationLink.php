@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Filament\Pages\ApprovalCenter;
 use App\Filament\Pages\EmployeeDataCompletenessReport;
 use App\Filament\Resources\AssetResource;
 use App\Filament\Resources\AttendanceCorrectionRequestResource;
@@ -44,6 +45,8 @@ class PanelNotificationLink
 
     /** @var list<array{0: string, 1: class-string}> pola judul (regex, tanpa membedakan huruf besar kecil) => tujuan */
     private const RULES = [
+        // Pengajuan baru yang menunggu keputusan membuka Pusat Persetujuan, tempat pengajuan bisa langsung disetujui atau ditolak.
+        ['/^(pengajuan (lembur|dinas luar|izin\/cuti) baru|permohonan pembelian baru|permintaan koreksi absensi baru)$/i', ApprovalCenter::class],
         ['/lembur/i', OvertimeRequestResource::class],
         ['/dinas luar/i', FieldDutyRequestResource::class],
         ['/koreksi absen/i', AttendanceCorrectionRequestResource::class],

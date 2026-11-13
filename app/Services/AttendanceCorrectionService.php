@@ -90,9 +90,19 @@ class AttendanceCorrectionService
                 ->title('Permintaan koreksi absensi baru')
                 ->body("{$request->user?->name} mengajukan koreksi absensi tanggal {$request->date->format('d M Y')}.")
                 ->warning()
-                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\AttendanceCorrectionRequestResource::class))
+                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Pages\ApprovalCenter::class))
                 ->sendToDatabase($recipient);
         }
+
+        $request->loadMissing('user:id,name', 'store:id,name');
+
+        app(ApprovalMailer::class)->requested(
+            'Koreksi Absen',
+            $request->user?->name ?? '—',
+            $request->date->translatedFormat('d M Y') . ': masuk ' . ($request->clock_in_at?->format('H:i') ?? '—') . ', keluar ' . ($request->clock_out_at?->format('H:i') ?? '—') . ' · ' . $request->reason,
+            $request->store?->name,
+            $recipients->pluck('id'),
+        );
     }
 
     /**

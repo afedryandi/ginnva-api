@@ -19,12 +19,17 @@ class PanelNotificationLinkTest extends TestCase
     public function test_known_titles_point_to_the_right_page(): void
     {
         $expect = [
-            'Pengajuan Lembur Baru' => '/overtime-requests',
+            // Pengajuan baru yang menunggu keputusan: Pusat Persetujuan, tempat bisa langsung diputuskan.
+            'Pengajuan Lembur Baru' => '/pusat-persetujuan',
+            'Pengajuan Dinas Luar Baru' => '/pusat-persetujuan',
+            'Permintaan koreksi absensi baru' => '/pusat-persetujuan',
+            'Pengajuan izin/cuti baru' => '/pusat-persetujuan',
+            'Permohonan Pembelian Baru' => '/pusat-persetujuan',
+            // Keputusan untuk pemohon dan jenis lain tetap ke menunya sendiri.
             'Pengajuan Dinas Luar Disetujui' => '/field-duty-requests',
-            'Permintaan koreksi absensi baru' => '/attendance-correction-requests',
+            'Pengajuan Lembur Ditolak' => '/overtime-requests',
             'Pengajuan Izin Disetujui' => '/leave-requests',
             'Surat Peringatan Diterbitkan' => '/warning-letters',
-            'Permohonan Pembelian Baru' => '/purchase-requests',
             'Booking Baru' => '/bookings',
         ];
 
@@ -78,7 +83,7 @@ class PanelNotificationLinkTest extends TestCase
 
         $this->assertNotNull($action);
         $this->assertSame('Buka', $action['label']);
-        $this->assertStringEndsWith('/overtime-requests', $action['url']);
+        $this->assertStringEndsWith('/pusat-persetujuan', $action['url']);
         $this->assertTrue($action['shouldMarkAsRead']);
     }
 }

@@ -459,7 +459,7 @@ class FieldDutyRequestService
 
     private function notifyApprovers(FieldDutyRequest $request): void
     {
-        $request->loadMissing('user:id,name');
+        $request->loadMissing('user:id,name', 'store:id,name');
 
         $recipients = User::where('is_active', true)
             ->get()
@@ -471,6 +471,14 @@ class FieldDutyRequestService
             'Pengajuan Dinas Luar Baru',
             "{$request->user?->name} mengajukan dinas luar {$request->date->format('d M Y')} ({$request->windowLabel()}): {$request->description}",
             color: 'warning',
+        );
+
+        app(ApprovalMailer::class)->requested(
+            'Dinas Luar',
+            $request->user?->name ?? '—',
+            "{$request->date->translatedFormat('d M Y')} ({$request->windowLabel()}) · {$request->description}",
+            $request->store?->name,
+            $recipients,
         );
     }
 

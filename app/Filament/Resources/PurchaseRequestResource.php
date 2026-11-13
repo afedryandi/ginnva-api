@@ -434,39 +434,17 @@ class PurchaseRequestResource extends Resource
                             ->helperText('Diminta: ' . rtrim(rtrim(number_format((float) $record->quantity, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : '') . '.'),
                     ])
                     ->action(function (PurchaseRequest $record, array $data) {
-                        // Kunci + cek ulang status: $record dari Livewire bisa basi (klik ganda / dua reviewer bersamaan).
-                        $processed = DB::transaction(function () use ($record, $data) {
-                            $locked = PurchaseRequest::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
-
-                            if ($locked->status !== 'pending') {
-                                return true;
-                            }
-
-                            $locked->update([
-                                'status'      => 'approved',
-                                // Kosong bila disetujui sebesar yang diminta.
-                                'quantity_approved' => round((float) $data['quantity_approved'], 2) < round((float) $locked->quantity, 2) ? round((float) $data['quantity_approved'], 2) : null,
-                                'reviewed_by' => auth()->id(),
-                                'reviewed_at' => now(),
-                            ]);
-
-                            return false;
-                        });
-
-                        if ($processed) {
-                            Notification::make()->title('Permohonan sudah diproses')->warning()->send();
+                        // Logikanya satu pintu di PurchaseRequestDecisionService (dipakai juga oleh Pusat Persetujuan): status dicek ulang pada
+                        // baris yang dikunci, jadi klik ganda atau dua pemutus bersamaan aman.
+                        try {
+                            app(\App\Services\PurchaseRequestDecisionService::class)->approve($record->id, auth()->user(), (float) $data['quantity_approved']);
+                        } catch (\RuntimeException $e) {
+                            Notification::make()
+                                ->title(str_contains($e->getMessage(), 'sudah diproses') ? 'Permohonan sudah diproses' : 'Gagal menyetujui')
+                                ->body(str_contains($e->getMessage(), 'sudah diproses') ? null : $e->getMessage())
+                                ->warning()->send();
 
                             return;
-                        }
-
-                        $record->refresh();
-
-                        if ($record->requested_by) {
-                            app(\App\Services\StaffNotifier::class)->toUsers(
-                                [$record->requested_by],
-                                'Permohonan Pembelian Disetujui',
-                                "Permohonan {$record->request_number} ({$record->item_name}) disetujui" . ($record->quantity_approved !== null ? ' dengan jumlah ' . rtrim(rtrim(number_format((float) $record->quantity_approved, 2, ',', '.'), '0'), ',') . ($record->unit ? " {$record->unit}" : '') . ' (diminta ' . rtrim(rtrim(number_format((float) $record->quantity, 2, ',', '.'), '0'), ',') . ').' : '.')
-                            );
                         }
 
                         Notification::make()->title('Permohonan disetujui')->success()->send();
@@ -485,37 +463,15 @@ class PurchaseRequestResource extends Resource
                             ->rows(2),
                     ])
                     ->action(function (PurchaseRequest $record, array $data) {
-                        $processed = DB::transaction(function () use ($record, $data) {
-                            $locked = PurchaseRequest::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
-
-                            if ($locked->status !== 'pending') {
-                                return true;
-                            }
-
-                            $locked->update([
-                                'status'      => 'rejected',
-                                'reviewed_by' => auth()->id(),
-                                'reviewed_at' => now(),
-                                'review_note' => $data['review_note'],
-                            ]);
-
-                            return false;
-                        });
-
-                        if ($processed) {
-                            Notification::make()->title('Permohonan sudah diproses')->warning()->send();
+                        try {
+                            app(\App\Services\PurchaseRequestDecisionService::class)->reject($record->id, auth()->user(), (string) $data['review_note']);
+                        } catch (\RuntimeException $e) {
+                            Notification::make()
+                                ->title(str_contains($e->getMessage(), 'sudah diproses') ? 'Permohonan sudah diproses' : 'Gagal menolak')
+                                ->body(str_contains($e->getMessage(), 'sudah diproses') ? null : $e->getMessage())
+                                ->warning()->send();
 
                             return;
-                        }
-
-                        $record->refresh();
-
-                        if ($record->requested_by) {
-                            app(\App\Services\StaffNotifier::class)->toUsers(
-                                [$record->requested_by],
-                                'Permohonan Pembelian Ditolak',
-                                "Permohonan {$record->request_number} ({$record->item_name}) ditolak: {$data['review_note']}"
-                            );
                         }
 
                         Notification::make()->title('Permohonan ditolak')->warning()->send();

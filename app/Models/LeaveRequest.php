@@ -89,16 +89,27 @@ class LeaveRequest extends Model
      */
     public function notifyApprovers(): void
     {
-        User::where('is_active', true)
+        $recipients = User::where('is_active', true)
             ->where('id', '!=', $this->user_id)
             ->get()
-            ->filter(fn (User $u) => $u->canDecideLeaveFor($this))
-            ->each(fn (User $u) => \Filament\Notifications\Notification::make()
+            ->filter(fn (User $u) => $u->canDecideLeaveFor($this));
+
+        $recipients->each(fn (User $u) => \Filament\Notifications\Notification::make()
                 ->title('Pengajuan izin/cuti baru')
                 ->body("{$this->user?->name} mengajukan {$this->request_number} ({$this->start_date->format('d M')}–{$this->end_date->format('d M Y')}).")
                 ->warning()
-                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\LeaveRequestResource::class))
+                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Pages\ApprovalCenter::class))
                 ->sendToDatabase($u));
+
+        $this->loadMissing('user:id,name', 'store:id,name', 'leaveType:id,name');
+
+        app(\App\Services\ApprovalMailer::class)->requested(
+            'Izin & Cuti',
+            $this->user?->name ?? '—',
+            ($this->leaveType?->name ?? ucfirst((string) $this->type)) . ' · ' . $this->start_date->translatedFormat('d M') . '–' . $this->end_date->translatedFormat('d M Y') . ' (' . $this->dayCount() . ' hari) · ' . $this->reason,
+            $this->store?->name,
+            $recipients->pluck('id'),
+        );
     }
 
     public function reviewer(): BelongsTo

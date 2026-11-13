@@ -39,6 +39,14 @@ class PurchaseRequestNotifier
                 ($request->requester?->name ?? 'Staff') . " mengajukan {$request->item_name} ({$qty}" . ($request->unit ? " {$request->unit}" : '') . ')'
                     . ($request->store ? " untuk {$request->store->name}" : '') . ". Nomor {$request->request_number}, menunggu persetujuan."
             );
+
+            app(ApprovalMailer::class)->requested(
+                'Permohonan Pembelian',
+                $request->requester?->name ?? 'Staff',
+                "{$request->request_number} · {$request->item_name} · {$qty}" . ($request->unit ? " {$request->unit}" : '') . ($request->reason ? " · {$request->reason}" : ''),
+                $request->store?->name,
+                $ids,
+            );
         } catch (\Throwable $e) {
             // Pemberitahuan tidak boleh menggagalkan pengajuan.
             report($e);
