@@ -330,4 +330,34 @@ class LeadManagementTest extends TestCase
 
         $this->actingAs($noMenu->fresh(), 'api')->getJson('/api/staff/lead-inbox/product-inquiry')->assertStatus(403);
     }
+
+    public function test_lead_hub_merges_all_lead_types_newest_first_and_respects_menu_access(): void
+    {
+        $staff = $this->staff();
+        $this->inquiry(['created_at' => now()->subHours(3)]);
+        $this->partnership(['created_at' => now()->subHours(2)]);
+        $this->quotation()->forceFill(['created_at' => now()->subHour()])->save();
+
+        $res = $this->actingAs($staff, 'api')->getJson('/api/staff/lead-hub')->assertOk()
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonCount(3, 'data');
+        $this->assertSame(['quotation', 'partnership', 'product-inquiry'], collect($res->json('data'))->pluck('type')->all());
+
+        $this->actingAs($staff, 'api')->getJson('/api/staff/lead-hub?type=partnership')->assertOk()->assertJsonCount(1, 'data');
+        $this->actingAs($staff, 'api')->getJson('/api/staff/lead-hub?status=contacted')->assertOk()->assertJsonCount(0, 'data');
+
+        $noMenu = $this->staff('kasir');
+        $noMenu->update(['menu_access' => []]);
+        $this->actingAs($noMenu->fresh(), 'api')->getJson('/api/staff/lead-hub')->assertStatus(403);
+    }
+
+    public function test_staff_can_only_move_a_quotation_between_new_and_contacted_from_the_app(): void
+    {
+        $quotation = $this->quotation();
+        $staff = $this->staff();
+
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/quotations/{$quotation->id}/status", ['status' => 'contacted'])->assertOk();
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/quotations/{$quotation->id}/status", ['status' => 'closed'])->assertStatus(422);
+        $this->actingAs($staff, 'api')->patchJson("/api/staff/quotations/{$quotation->id}/status", ['status' => 'cancelled'])->assertStatus(422);
+    }
 }

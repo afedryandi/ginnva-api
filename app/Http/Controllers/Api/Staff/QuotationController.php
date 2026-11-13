@@ -94,7 +94,7 @@ class QuotationController extends Controller
         }
 
         $request->validate([
-            'status' => 'required|in:new,contacted,closed,cancelled',
+            'status' => 'required|in:new,contacted',
         ]);
 
         $quotation = Quotation::findOrFail($id);

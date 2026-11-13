@@ -292,6 +292,7 @@ Route::prefix('staff')->group(function () {
             ->middleware('throttle:20,1');
         Route::patch('/quotations/{id}/lead', [StaffQuotationController::class, 'updateLead'])
             ->middleware('throttle:20,1');
+        Route::get('/lead-hub', [\App\Http\Controllers\Api\Staff\LeadHubController::class, 'index']);
         Route::get('/lead-inbox/{type}', [\App\Http\Controllers\Api\Staff\LeadInboxController::class, 'index']);
         Route::patch('/lead-inbox/{type}/{id}', [\App\Http\Controllers\Api\Staff\LeadInboxController::class, 'update'])
             ->middleware('throttle:20,1');

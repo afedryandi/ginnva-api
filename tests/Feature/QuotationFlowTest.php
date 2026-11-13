@@ -211,7 +211,7 @@ class QuotationFlowTest extends TestCase
         $this->travel(2)->hours();
 
         $this->actingAs($kasir, 'api')
-            ->patchJson("/api/staff/quotations/{$lead->id}/status", ['status' => 'closed'])
+            ->patchJson("/api/staff/quotations/{$lead->id}/status", ['status' => 'new'])
             ->assertSuccessful();
 
         $this->assertTrue($lead->fresh()->contacted_at->equalTo($first), 'contacted_at hanya mencatat respons PERTAMA.');
