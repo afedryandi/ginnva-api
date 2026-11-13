@@ -42,7 +42,7 @@ class StockCardService
             $rows = $rows->merge($this->rowsFor(RawMaterial::class, RawMaterialMovement::class, 'raw_material_id', 'Bahan Baku', 'raw_material', $from, $to, $search, $category));
         }
 
-        if (in_array($jenis, ['all', 'consumable_item'], true)) {
+        if (config('features.consumables') && in_array($jenis, ['all', 'consumable_item'], true)) {
             $rows = $rows->merge($this->rowsFor(ConsumableItem::class, ConsumableItemMovement::class, 'consumable_item_id', 'Barang Habis Pakai', 'consumable_item', $from, $to, $search, $category));
         }
 
@@ -83,7 +83,7 @@ class StockCardService
             $categories = $categories->merge(RawMaterial::query()->whereNotNull('category')->distinct()->pluck('category'));
         }
 
-        if (in_array($jenis, ['all', 'consumable_item'], true)) {
+        if (config('features.consumables') && in_array($jenis, ['all', 'consumable_item'], true)) {
             $categories = $categories->merge(ConsumableItem::query()->whereNotNull('category')->distinct()->pluck('category'));
         }
 

@@ -285,11 +285,11 @@ class StockCardReport extends Page implements HasForms
             DatePicker::make('to')->label('Sampai')->native(false)->required()->live(),
             Select::make('jenis')
                 ->label('Jenis')
-                ->options([
+                ->options(\App\Support\HiddenInventoryTypes::filter([
                     'all' => 'Semua',
                     'raw_material' => 'Bahan Baku',
                     'consumable_item' => 'Barang Habis Pakai',
-                ])
+                ]))
                 ->default('all')
                 ->selectablePlaceholder(false)
                 ->live(),

@@ -100,6 +100,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Barang Habis Pakai dan Aset Tetap (keputusan pemilik 2026-11-13: tidak dipakai, fokus ke Bahan Baku)
+    |--------------------------------------------------------------------------
+    | Mati bawaan: menu Barang Habis Pakai, Riwayat Barang Habis Pakai, dan Aset Tetap tidak tampil di panel maupun aplikasi staf, dan
+    | semua yang terkait ikut hilang: kartu di Dashboard Inventaris, pilihan jenis barang di Memo, Permohonan Pembelian, Stok Opname dan
+    | Stok Terbuang, baris di laporan stok, pengingat perawatan aset, dan panduannya. Kode dan data tetap ada, tidak dihapus.
+    | Untuk menyalakan lagi isi FEATURE_CONSUMABLES=true dan/atau FEATURE_ASSETS=true di .env. Tes menyalakannya (phpunit.xml).
+    */
+    'consumables' => (bool) env('FEATURE_CONSUMABLES', false),
+    'assets' => (bool) env('FEATURE_ASSETS', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Laporan kembar (keputusan pemilik 2026-11-04)
     |--------------------------------------------------------------------------
     | Mati bawaan. Laporan Jenis Order = isi sama dengan Laporan Jasa, Laporan Voucher = isi sama dengan Laporan Promo, dan

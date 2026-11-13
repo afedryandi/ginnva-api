@@ -127,12 +127,12 @@ class ItemsRelationManager extends RelationManager
                     ->form([
                         Forms\Components\Select::make('item_type')
                             ->label('Jenis Barang')
-                            ->options([
+                            ->options(\App\Support\HiddenInventoryTypes::filter([
                                 'raw_material' => 'Bahan Baku',
                                 'consumable_item' => 'Barang Habis Pakai',
                                 'inventory_item' => 'PPF/WF (Gulungan)',
                                 'offcut' => 'Potongan Sisa PPF (wasted)',
-                            ])
+                            ]))
                             ->required()
                             ->live(),
 

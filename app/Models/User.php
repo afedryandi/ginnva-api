@@ -492,8 +492,25 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
      */
     public function hasExplicitMenuAccess(string $resourceClass): bool
     {
+        // Menu yang dimatikan lewat saklar fitur tertutup untuk semua orang, akses penuh sekalipun. Satu titik ini juga menutup aplikasi
+        // staf (has_*_access), widget Dashboard Inventaris, dan endpoint API yang memakai hasAssetAccess()/hasConsumableAccess().
+        if (self::isMenuSwitchedOff($resourceClass)) {
+            return false;
+        }
+
         return $this->isFullAccess()
             || ($this->canAccessStaffArea() && is_array($this->menu_access) && $this->hasMenuAccess($resourceClass));
+    }
+
+    /** Menu yang dimatikan saklar fitur (config/features.php): Barang Habis Pakai (+ riwayatnya) dan Aset Tetap. */
+    public static function isMenuSwitchedOff(string $resourceClass): bool
+    {
+        return match ($resourceClass) {
+            \App\Filament\Resources\ConsumableItemResource::class,
+            \App\Filament\Resources\ConsumableItemMovementResource::class => ! config('features.consumables'),
+            \App\Filament\Resources\AssetResource::class => ! config('features.assets'),
+            default => false,
+        };
     }
 
     /**

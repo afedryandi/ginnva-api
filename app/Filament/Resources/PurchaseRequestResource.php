@@ -136,12 +136,12 @@ class PurchaseRequestResource extends Resource
 
                     Forms\Components\Select::make('item_type')
                         ->label('Jenis Barang')
-                        ->options([
+                        ->options(\App\Support\HiddenInventoryTypes::filter([
                             'raw_material'    => 'Bahan Baku (restock)',
                             'consumable_item' => 'Barang Habis Pakai (restock)',
                             'asset'           => 'Aset Baru (belum ada di katalog)',
-                        ])
-                        ->in(['raw_material', 'consumable_item', 'asset'])
+                        ]))
+                        ->in(\App\Support\HiddenInventoryTypes::allowed(['raw_material', 'consumable_item', 'asset']))
                         ->required()
                         ->live()
                         ->afterStateUpdated(fn (Forms\Set $set) => $set('item_id', null)),
@@ -369,11 +369,11 @@ class PurchaseRequestResource extends Resource
 
                 Tables\Filters\SelectFilter::make('item_type')
                     ->label('Jenis Barang')
-                    ->options([
+                    ->options(\App\Support\HiddenInventoryTypes::filter([
                         'raw_material'    => 'Bahan Baku',
                         'consumable_item' => 'Barang Habis Pakai',
                         'asset'           => 'Aset Baru',
-                    ]),
+                    ])),
 
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')

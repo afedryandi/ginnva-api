@@ -190,10 +190,10 @@ class StockWriteOffResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('writeoffable_type')
                     ->label('Jenis')
-                    ->options([
+                    ->options(\App\Support\HiddenInventoryTypes::filter([
                         'raw_material' => 'Bahan Baku',
                         'consumable_item' => 'Barang Habis Pakai',
-                    ]),
+                    ])),
 
                 Tables\Filters\SelectFilter::make('reason')
                     ->label('Alasan')

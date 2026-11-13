@@ -838,6 +838,8 @@ class UserResource extends Resource
             'performance_reviews' => ['PerformanceReviewResource'],
             'salary_grades' => ['SalaryGradeResource'],
             'master_resep' => ['MasterResepResource'],
+            'consumables' => ['ConsumableItemResource', 'ConsumableItemMovementResource'],
+            'assets' => ['AssetResource'],
             'report_jenis_order' => ['JenisOrderReport'],
             'report_voucher' => ['CouponReport'],
             'report_persediaan_detail' => ['PersediaanDetailReport'],

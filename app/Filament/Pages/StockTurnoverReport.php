@@ -158,7 +158,7 @@ class StockTurnoverReport extends Page implements HasForms
 
             Select::make('type')
                 ->label('Jenis')
-                ->options(['raw' => 'Bahan Baku', 'consumable' => 'Barang Habis Pakai'])
+                ->options(\App\Support\HiddenInventoryTypes::filter(['raw' => 'Bahan Baku', 'consumable' => 'Barang Habis Pakai']))
                 ->placeholder('Semua jenis')
                 ->live(),
 

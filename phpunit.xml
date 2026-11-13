@@ -35,6 +35,8 @@
         <env name="FEATURE_INSTALLER_UTILIZATION" value="true"/>
         <env name="FEATURE_WORK_SCHEDULES" value="true"/>
         <env name="FEATURE_MASTER_RESEP" value="true"/>
+        <env name="FEATURE_CONSUMABLES" value="true"/>
+        <env name="FEATURE_ASSETS" value="true"/>
         <env name="FEATURE_REPORT_JENIS_ORDER" value="true"/>
         <env name="FEATURE_REPORT_VOUCHER" value="true"/>
         <env name="FEATURE_REPORT_PERSEDIAAN_DETAIL" value="true"/>

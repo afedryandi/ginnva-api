@@ -199,6 +199,85 @@ class GuideCatalog
      */
     public static function all(): array
     {
+        return self::withoutHiddenInventory(self::allRaw());
+    }
+
+    /**
+     * Barang Habis Pakai dan Aset Tetap dimatikan lewat saklar fitur (config/features.php, 2026-11-13): panduan Aset Tetap tidak
+     * ditampilkan, menunya dicabut dari daftar menu panduan lain, dan kalimat yang menyebutnya disesuaikan.
+     *
+     * @param  array<int, array<string, mixed>>  $guides
+     * @return array<int, array<string, mixed>>
+     */
+    private static function withoutHiddenInventory(array $guides): array
+    {
+        $consumables = (bool) config('features.consumables');
+        $assets = (bool) config('features.assets');
+
+        if ($consumables && $assets) {
+            return $guides;
+        }
+
+        $join = fn (array $names) => count($names) <= 1 ? ($names[0] ?? '') : (count($names) === 2 ? "{$names[0]} atau {$names[1]}" : implode(', ', array_slice($names, 0, -1)) . ', atau ' . end($names));
+        $tail = fn (array $parts) => $parts === [] ? '' : (count($parts) === 1 ? ", dan {$parts[0]}" : ', ' . implode(', ', array_slice($parts, 0, -1)) . ', dan ' . end($parts));
+        $types = array_values(array_filter(['Bahan Baku', $consumables ? 'Barang Habis Pakai' : null, $assets ? 'Aset Baru' : null]));
+        $dashboardParts = array_values(array_filter([$consumables ? '**Barang Habis Pakai Perlu Perhatian**' : null, $assets ? '**Aset Bermasalah** (rusak, diperbaiki, hilang)' : null]));
+
+        $replace = [];
+
+        if (! $consumables) {
+            $replace += [
+                '**Produk PPF/WF** (gulungan film), **Daftar Bahan Baku**, dan **Barang Habis Pakai**, serta riwayat pergerakannya di halaman Riwayat (keluar/masuk, bahan baku, barang habis pakai)'
+                    => '**Produk PPF/WF** (gulungan film) dan **Daftar Bahan Baku**, serta riwayat pergerakannya di halaman Riwayat (keluar/masuk dan bahan baku)',
+                '(ikon papan di menu Bahan Baku dan Barang Habis Pakai)' => '(ikon papan di menu Bahan Baku)',
+                'Pada data Bahan Baku dan Barang Habis Pakai, isi' => 'Pada data Bahan Baku, isi',
+                'per bahan baku dan barang habis pakai untuk satu rentang tanggal' => 'per bahan baku untuk satu rentang tanggal',
+                'ikon grafik di menu Bahan Baku dan Barang Habis Pakai membuka' => 'ikon grafik di menu Bahan Baku membuka',
+                '**Riwayat Keluar/Masuk** (produk film), **Riwayat Bahan Baku**, dan **Riwayat Barang Habis Pakai** adalah' => '**Riwayat Keluar/Masuk** (produk film) dan **Riwayat Bahan Baku** adalah',
+                'Pada riwayat bahan baku dan barang habis pakai, **Cek' => 'Pada riwayat bahan baku, **Cek',
+                'bahan baku dan barang habis pakai: **Terpakai**' => 'bahan baku: **Terpakai**',
+            ];
+        }
+
+        $replace += [
+            ', **Barang Habis Pakai Perlu Perhatian**, dan **Aset Bermasalah** (rusak, diperbaiki, hilang)' => $tail($dashboardParts),
+            '(Bahan Baku, Barang Habis Pakai, atau Aset Baru)' => '(' . $join($types) . ')',
+            '(total, bahan baku, barang habis pakai, aset)' => '(total, bahan baku' . ($consumables ? ', barang habis pakai' : '') . ($assets ? ', aset' : '') . ')',
+        ];
+
+        if (! $assets) {
+            $replace += [
+                '**Barang** (atau **Nama Barang / Aset yang Diminta** untuk aset baru)' => '**Barang**',
+            ];
+        }
+
+        if (! $consumables && ! $assets) {
+            $replace += ['Mengajukan pembelian bahan, barang habis pakai, atau aset;' => 'Mengajukan pembelian bahan;'];
+        }
+
+        $hiddenMenus = array_merge($consumables ? [] : ['ConsumableItemResource', 'ConsumableItemMovementResource'], $assets ? [] : ['AssetResource']);
+        $scrub = fn ($text) => is_string($text) ? strtr($text, $replace) : $text;
+
+        $result = [];
+
+        foreach ($guides as $guide) {
+            if (! $assets && $guide['id'] === 'aset-tetap') {
+                continue;
+            }
+
+            $guide['summary'] = $scrub($guide['summary'] ?? '');
+            $guide['menus'] = array_values(array_diff($guide['menus'] ?? [], $hiddenMenus));
+            $guide['steps'] = array_map($scrub, $guide['steps'] ?? []);
+            $guide['tips'] = array_map($scrub, $guide['tips'] ?? []);
+            $result[] = $guide;
+        }
+
+        return $result;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private static function allRaw(): array
+    {
         // Gaji tidak dihitung di sistem ini bila FEATURE_PAYROLL mati (keputusan pemilik 2026-11-10): teks yang menyebut slip gaji menyesuaikan.
         $payroll = (bool) config('features.payroll');
         $sla = (int) config('booking.confirm_sla_hours', 4);

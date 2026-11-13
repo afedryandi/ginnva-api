@@ -125,7 +125,7 @@ class PersediaanRingkasanReport extends Page
                 'totalValue' => $m->stockValue(),
             ]);
 
-        $consumables = ConsumableItem::query()->orderBy('name')->get()
+        $consumables = (! config('features.consumables') ? collect() : ConsumableItem::query()->orderBy('name')->get())
             ->map(fn (ConsumableItem $c) => [
                 'id' => $c->id,
                 'source' => 'consumable',

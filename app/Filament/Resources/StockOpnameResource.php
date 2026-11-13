@@ -474,10 +474,10 @@ class StockOpnameResource extends Resource
                             ->schema([
                                 Forms\Components\Select::make('item_type')
                                     ->label('Jenis')
-                                    ->options([
+                                    ->options(\App\Support\HiddenInventoryTypes::filter([
                                         'raw_material' => 'Bahan Baku',
                                         'consumable_item' => 'Barang Habis Pakai',
-                                    ])
+                                    ]))
                                     ->required()
                                     ->live()
                                     ->afterStateUpdated(fn (Forms\Set $set) => $set('item_id', null)),
@@ -506,7 +506,7 @@ class StockOpnameResource extends Resource
                     ->color('gray')
                     ->form([
                         Forms\Components\Select::make('format')->label('Format')->options(['xlsx' => 'Excel (bisa diisi lalu diimpor)', 'pdf' => 'PDF (untuk dicetak)'])->default('xlsx')->required()->native(false),
-                        Forms\Components\Select::make('jenis')->label('Jenis')->options(['all' => 'Semua', 'raw_material' => 'Bahan Baku', 'consumable_item' => 'Barang Habis Pakai'])->default('all')->required()->native(false),
+                        Forms\Components\Select::make('jenis')->label('Jenis')->options(\App\Support\HiddenInventoryTypes::filter(['all' => 'Semua', 'raw_material' => 'Bahan Baku', 'consumable_item' => 'Barang Habis Pakai']))->default('all')->required()->native(false),
                         Forms\Components\Select::make('category')->label('Kategori (opsional)')->options(fn () => app(StockCardService::class)->categories())->searchable()->placeholder('Semua kategori'),
                     ])
                     ->modalDescription('Lembar berisi daftar barang dengan kolom hasil hitung kosong. Stok sistem sengaja tidak dicantumkan (hitung buta).')

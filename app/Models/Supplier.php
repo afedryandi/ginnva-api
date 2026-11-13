@@ -94,7 +94,7 @@ class Supplier extends Model
             $reasons[] = 'template tagihan rutin';
         }
 
-        $items = $this->suppliedMaterials()->count() + $this->suppliedConsumables()->count();
+        $items = $this->suppliedMaterials()->count() + (config('features.consumables') ? $this->suppliedConsumables()->count() : 0);
         if ($items > 0) {
             $reasons[] = "Pemasok Utama {$items} bahan/barang";
         }

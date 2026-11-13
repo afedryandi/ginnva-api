@@ -159,7 +159,7 @@ class SupplierResource extends Resource
 
         $lines = [];
 
-        foreach ([['Bahan Baku', $record->suppliedMaterials()], ['Barang Habis Pakai', $record->suppliedConsumables()]] as [$label, $relation]) {
+        foreach (array_filter([['Bahan Baku', $record->suppliedMaterials()], config('features.consumables') ? ['Barang Habis Pakai', $record->suppliedConsumables()] : null]) as [$label, $relation]) {
             $total = (clone $relation)->count();
 
             if ($total === 0) {

@@ -46,7 +46,7 @@ Schedule::command('materials:notify-expiring')->dailyAt('07:00');
 
 // Alert aset yang jadwal maintenance-nya jatuh tempo — lihat
 // App\Console\Commands\NotifyAssetMaintenanceDue.
-Schedule::command('assets:notify-maintenance-due')->dailyAt('07:00');
+Schedule::command('assets:notify-maintenance-due')->dailyAt('07:00')->when(fn () => (bool) config('features.assets'));
 
 // Alert kontrak karyawan yang akan berakhir dalam 30 hari — lihat
 // App\Console\Commands\NotifyExpiringContracts.
