@@ -334,8 +334,9 @@ class LeadManagementTest extends TestCase
     public function test_lead_hub_merges_all_lead_types_newest_first_and_respects_menu_access(): void
     {
         $staff = $this->staff();
-        $this->inquiry(['created_at' => now()->subHours(3)]);
-        $this->partnership(['created_at' => now()->subHours(2)]);
+        // created_at tidak fillable, jadi diset lewat forceFill.
+        $this->inquiry()->forceFill(['created_at' => now()->subHours(3)])->save();
+        $this->partnership()->forceFill(['created_at' => now()->subHours(2)])->save();
         $this->quotation()->forceFill(['created_at' => now()->subHour()])->save();
 
         $res = $this->actingAs($staff, 'api')->getJson('/api/staff/lead-hub')->assertOk()
