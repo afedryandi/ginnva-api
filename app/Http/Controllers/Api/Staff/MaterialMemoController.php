@@ -420,7 +420,8 @@ class MaterialMemoController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'item_type' => 'required|in:raw_material,consumable_item,inventory_item',
+            // Barang Habis Pakai ditolak saat dimatikan saklar fitur, walau klien lama masih menawarkannya.
+            'item_type' => 'required|in:'.implode(',', \App\Support\HiddenInventoryTypes::allowed(['raw_material', 'consumable_item', 'inventory_item'])),
             'item_id' => 'required|integer',
             'qty_taken' => 'required_if:item_type,raw_material,consumable_item|nullable|numeric|min:0.01|max:1000000',
             'meters_used' => 'required_if:item_type,inventory_item|nullable|numeric|min:0.01|max:100000',
