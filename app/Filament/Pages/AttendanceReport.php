@@ -283,7 +283,7 @@ class AttendanceReport extends Page implements HasForms
     public function summaryByEmployee(\Illuminate\Support\Collection $rows): array
     {
         $leaveTypes = $this->leaveTypeByRow($rows);
-        [$overtimeRecognized, $overtimeUnapproved] = $this->overtimeMinutesByUser($rows);
+        [$overtimeRecognized, $overtimeUnapproved] = config('features.overtime_requests') ? $this->overtimeMinutesByUser($rows) : [[], []];
 
         return $rows
             ->filter(fn (Attendance $a) => $a->user !== null)

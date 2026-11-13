@@ -38,7 +38,8 @@ class ApprovalCenterService
     public function sources(): array
     {
         $sources = [
-            new OvertimeSource(),
+            // Lembur hanya bila diberlakukan (FEATURE_OVERTIME_REQUESTS).
+            ...(config('features.overtime_requests') ? [new OvertimeSource()] : []),
             new FieldDutySource(),
             new LeaveSource(),
             new CorrectionSource(),

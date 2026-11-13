@@ -138,4 +138,15 @@ return [
     */
     'payroll' => (bool) env('FEATURE_PAYROLL', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Pengajuan Lembur (keputusan pemilik 2026-11-13)
+    |--------------------------------------------------------------------------
+    | Mati bawaan: perusahaan belum memberlakukan lembur. Menu Pengajuan Lembur di panel, tile Lembur di layar Absensi aplikasi, jenis Lembur
+    | di Pusat Persetujuan, endpoint /overtime-requests (404), kolom jam lembur di Export Rekap Absensi, serta teks panduan dan daftar
+    | notifikasinya disembunyikan. Kode, tabel, dan data pengajuan lama tetap ada. Untuk menyalakan lagi isi FEATURE_OVERTIME_REQUESTS=true
+    | di .env lalu `php artisan config:cache`. Tes menyalakannya (phpunit.xml).
+    */
+    'overtime_requests' => (bool) env('FEATURE_OVERTIME_REQUESTS', false),
+
 ];

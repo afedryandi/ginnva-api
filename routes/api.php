@@ -413,10 +413,13 @@ Route::prefix('staff')->group(function () {
         Route::post('/attendance/client-failure', [StaffAttendanceController::class, 'clientFailure'])
             ->middleware('throttle:30,1');
         // Pengajuan Lembur: wajib diajukan sebelum dimulai dan disetujui dulu (2026-11-12).
-        Route::get('/overtime-requests', [StaffOvertimeRequestController::class, 'index']);
-        Route::get('/overtime-requests/bookings', [StaffOvertimeRequestController::class, 'bookings']);
-        Route::post('/overtime-requests', [StaffOvertimeRequestController::class, 'store'])->middleware('throttle:20,1');
-        Route::post('/overtime-requests/{id}/cancel', [StaffOvertimeRequestController::class, 'cancel'])->middleware('throttle:20,1');
+        // Mati bersama saklar FEATURE_OVERTIME_REQUESTS (perusahaan belum memberlakukan lembur): 404 bila mati.
+        Route::middleware('feature:overtime_requests')->group(function () {
+            Route::get('/overtime-requests', [StaffOvertimeRequestController::class, 'index']);
+            Route::get('/overtime-requests/bookings', [StaffOvertimeRequestController::class, 'bookings']);
+            Route::post('/overtime-requests', [StaffOvertimeRequestController::class, 'store'])->middleware('throttle:20,1');
+            Route::post('/overtime-requests/{id}/cancel', [StaffOvertimeRequestController::class, 'cancel'])->middleware('throttle:20,1');
+        });
         // Pengajuan Dinas Luar: satu hari penuh di luar toko, boleh susulan, disetujui lalu absen hari itu tercatat Dinas Luar (2026-11-12).
         Route::get('/field-duty-requests', [StaffFieldDutyRequestController::class, 'index']);
         Route::post('/field-duty-requests', [StaffFieldDutyRequestController::class, 'store'])->middleware('throttle:20,1');

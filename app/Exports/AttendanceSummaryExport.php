@@ -39,6 +39,18 @@ class AttendanceSummaryExport implements FromArray, WithHeadings, WithStyles, Wi
         'leave' => 'Izin/Cuti (Hari)',
     ];
 
+    /** Kolom tetap tanpa kolom lembur bila lembur belum diberlakukan (FEATURE_OVERTIME_REQUESTS). @return array<string, string> */
+    private static function columns(): array
+    {
+        $columns = self::COLUMNS;
+
+        if (! config('features.overtime_requests')) {
+            unset($columns['overtime_hours'], $columns['unapproved_hours']);
+        }
+
+        return $columns;
+    }
+
     private const TEXT_COLUMNS = ['employee_number', 'name', 'store'];
 
     /** Kolom berdesimal (jam); kolom angka lain bilangan bulat. */
@@ -66,7 +78,7 @@ class AttendanceSummaryExport implements FromArray, WithHeadings, WithStyles, Wi
 
     public function headings(): array
     {
-        return array_merge(array_values(self::COLUMNS), array_map(fn (string $type) => "  - {$type} (Hari)", $this->leaveTypes()));
+        return array_merge(array_values(self::columns()), array_map(fn (string $type) => "  - {$type} (Hari)", $this->leaveTypes()));
     }
 
     public function array(): array
@@ -76,7 +88,7 @@ class AttendanceSummaryExport implements FromArray, WithHeadings, WithStyles, Wi
         $lines = collect($this->rows)
             ->map(function (array $row) use ($types) {
                 $line = [];
-                foreach (array_keys(self::COLUMNS) as $key) {
+                foreach (array_keys(self::columns()) as $key) {
                     $line[] = $row[$key] ?? ($key === 'employee_number' ? '-' : '');
                 }
                 foreach ($types as $type) {
@@ -89,7 +101,7 @@ class AttendanceSummaryExport implements FromArray, WithHeadings, WithStyles, Wi
 
         // Baris total; kosong bila tidak ada karyawan.
         if ($lines->isNotEmpty()) {
-            $keys = array_keys(self::COLUMNS);
+            $keys = array_keys(self::columns());
             $total = [];
 
             foreach ($keys as $index => $key) {

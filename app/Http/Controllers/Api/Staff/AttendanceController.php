@@ -43,7 +43,7 @@ class AttendanceController extends Controller
             'attendance_required' => ! $user->isAttendanceExempt(),
             'attendance' => $attendance ? $this->transform($attendance) : null,
             // Lembur hari ini (menunggu/disetujui), supaya layar Absensi menampilkan jam lembur yang berlaku.
-            'overtime' => \App\Models\OvertimeRequest::withoutGlobalScopes()
+            'overtime' => ! config('features.overtime_requests') ? [] : \App\Models\OvertimeRequest::withoutGlobalScopes()
                 ->where('user_id', $user->id)
                 ->whereDate('date', Carbon::today())
                 ->whereIn('status', ['pending', 'approved'])

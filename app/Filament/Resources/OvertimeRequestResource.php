@@ -38,6 +38,11 @@ class OvertimeRequestResource extends Resource
 
     private static function accessGate(): bool
     {
+        // Lembur belum diberlakukan perusahaan (FEATURE_OVERTIME_REQUESTS mati, keputusan pemilik 2026-11-13).
+        if (! config('features.overtime_requests')) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return ($user?->canAccessStaffArea() ?? false)

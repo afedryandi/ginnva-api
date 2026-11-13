@@ -15,7 +15,7 @@ class NotificationCatalog
     /** @return list<array{audience: string, source: string, title: string, panel_inbox: bool}> */
     public static function all(): array
     {
-        return [
+        $entries = [
             ['audience' => 'pelanggan', 'source' => 'Console/Commands/NotifyExpiringWarranties.php', 'title' => 'Garansi Akan Berakhir', 'panel_inbox' => true],
             ['audience' => 'pelanggan', 'source' => 'Console/Commands/ProcessMaintenanceSchedules.php', 'title' => 'Jadwalkan Ulang Maintenance PPF', 'panel_inbox' => false],
             ['audience' => 'pelanggan', 'source' => 'Filament/Resources/PointTransactionResource/Pages/CreatePointTransaction.php', 'title' => 'Poin Bertambah', 'panel_inbox' => false],
@@ -123,5 +123,12 @@ class NotificationCatalog
             ['audience' => 'staf_toko', 'source' => 'Observers/SpkObserver.php', 'title' => 'SPK Selesai', 'panel_inbox' => true],
             ['audience' => 'staf_toko', 'source' => 'Observers/StoreReviewObserver.php', 'title' => 'Review Negatif Masuk', 'panel_inbox' => true],
         ];
+
+        // Lembur belum diberlakukan (FEATURE_OVERTIME_REQUESTS mati): notifikasinya tidak ada.
+        if (! config('features.overtime_requests')) {
+            $entries = array_values(array_filter($entries, fn (array $e) => $e['source'] !== 'Services/OvertimeRequestService.php'));
+        }
+
+        return $entries;
     }
 }
