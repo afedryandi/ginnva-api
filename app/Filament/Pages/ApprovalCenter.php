@@ -53,6 +53,15 @@ class ApprovalCenter extends Page implements HasActions, HasForms
         return app(ApprovalCenterService::class)->canUse(auth()->user());
     }
 
+    /**
+     * Bukan tab di bilah menu atas: bilahnya sudah penuh oleh klaster lain, dan item tambahan membuatnya melebar sampai logo menyusut
+     * (2026-11-13). Pintasannya berupa ikon dengan angka di samping lonceng (hook USER_MENU_BEFORE di AdminPanelProvider).
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function getNavigationBadge(): ?string
     {
         $user = auth()->user();

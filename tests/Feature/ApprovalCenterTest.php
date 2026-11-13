@@ -213,6 +213,22 @@ class ApprovalCenterTest extends TestCase
         $this->assertSame('approved', $request->fresh()->status);
     }
 
+    public function test_the_shortcut_is_a_topbar_icon_with_a_count_not_a_menu_tab(): void
+    {
+        $this->assertFalse(ApprovalCenter::shouldRegisterNavigation(), 'Bilah menu atas sudah penuh; pintasannya ikon di samping lonceng.');
+
+        $this->overtime();
+        $this->leave();
+
+        $this->actingAs($this->admin);
+        $html = view('filament.partials.approval-topbar-link')->render();
+        $this->assertStringContainsString('pusat-persetujuan', $html);
+        $this->assertStringContainsString('2', $html);
+
+        $this->actingAs($this->andi);
+        $this->assertSame('', trim(view('filament.partials.approval-topbar-link')->render()), 'Karyawan biasa tidak melihat pintasannya.');
+    }
+
     public function test_the_page_is_closed_to_ordinary_staff(): void
     {
         $this->actingAs($this->andi);

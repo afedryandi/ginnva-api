@@ -200,6 +200,11 @@ class AdminPanelProvider extends PanelProvider
                     ? view('filament.period-status')->render()
                     : ''
             )
+            // Pintasan Pusat Persetujuan: ikon dengan angka pengajuan menunggu, di antara lonceng dan avatar. Bukan tab menu supaya bilah atas tidak penuh.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::USER_MENU_BEFORE,
+                fn (): string => auth()->check() ? view('filament.partials.approval-topbar-link')->render() : ''
+            )
             // Pintasan "Panduan" di menu avatar (pojok kanan atas): tempat yang biasa dicari staf untuk bantuan.
             ->userMenuItems([
                 \Filament\Navigation\MenuItem::make()
@@ -236,6 +241,9 @@ class AdminPanelProvider extends PanelProvider
                 // dan bisa digulir sendiri bila daftarnya lebih panjang dari layar. Hanya di layar md ke atas (di ponsel menunya berupa dropdown).
                 fn () => '<style>'
                     . '.fi-page-sub-navigation-sidebar { row-gap: 0.5rem !important; }'
+                    // Logo dan label menu atas tidak boleh menyusut atau terbelah dua baris saat bilah penuh; menu yang kelebihan dikelola Filament.
+                    . '.fi-topbar .fi-logo { flex-shrink: 0; }'
+                    . '.fi-topbar-item-btn { white-space: nowrap; }'
                     . '@media (min-width: 768px) {'
                     . '.fi-page-sub-navigation-sidebar { position: sticky; top: 5rem; align-self: flex-start; max-height: calc(100vh - 6.5rem); overflow-y: auto; overscroll-behavior: contain; padding-right: 0.25rem; scrollbar-width: thin; }'
                     . '}'
