@@ -63,6 +63,15 @@ class StockWriteOffController extends Controller
 
         $month = (clone $query)->whereNull('cancelled_at')->where('created_at', '>=', now()->startOfMonth());
 
+        // Ringkasan mengikuti PERIODE yang dipilih (from/until), bukan filter alasan: tanpa from/until = seluruh catatan yang boleh dilihat akun ini.
+        $period = StockWriteOff::query()
+            ->withoutGlobalScope('effective')
+            ->whereIn('writeoffable_type', $jenis ? [$jenis] : $kinds)
+            ->when(! $user->isFullAccess(), fn ($q) => $q->where('store_id', $user->store_id))
+            ->when($request->query('from'), fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+            ->when($request->query('until'), fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
+            ->whereNull('cancelled_at');
+
         return response()->json([
             'success' => true,
             'data' => $rows->take(self::LIMIT)->map(fn (StockWriteOff $w) => [
@@ -87,6 +96,10 @@ class StockWriteOffController extends Controller
             'summary' => [
                 'month_count' => (clone $month)->count(),
                 'month_value' => $showValue ? (float) (clone $month)->sum('total_value') : null,
+            ],
+            'period_summary' => [
+                'count' => (clone $period)->count(),
+                'value' => $showValue ? (float) (clone $period)->sum('total_value') : null,
             ],
             'show_value' => $showValue,
         ]);

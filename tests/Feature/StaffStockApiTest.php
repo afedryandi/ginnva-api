@@ -1447,6 +1447,11 @@ class StaffStockApiTest extends TestCase
         $this->assertFalse($res->json('show_value'));
         $this->assertNull($res->json('data.0.value'));
         $this->assertNull($res->json('summary.month_value'));
+        // Ringkasan periode: seluruh catatan toko sendiri; tidak mengikuti filter alasan; nilai hanya bila berizin.
+        $this->assertSame(2, $res->json('period_summary.count'));
+        $this->assertNull($res->json('period_summary.value'));
+        $this->assertSame(2, $this->api($writer)->getJson('/api/staff/stock-write-offs?reason=damaged')->json('period_summary.count'));
+        $this->assertSame(0, $this->api($writer)->getJson('/api/staff/stock-write-offs?from=' . now()->addDay()->toDateString())->json('period_summary.count'));
         $this->assertSame(['raw_material'], array_values(array_unique(array_column($this->api($writer)->getJson('/api/staff/stock-write-offs?jenis=raw_material')->json('data'), 'jenis'))));
         $this->assertSame(['damaged'], array_column($this->api($writer)->getJson('/api/staff/stock-write-offs?reason=damaged')->json('data'), 'reason'));
         $this->api($writer)->getJson('/api/staff/stock-write-offs?reason=ngawur')->assertStatus(422);
@@ -1455,6 +1460,8 @@ class StaffStockApiTest extends TestCase
         $this->assertSame(3, count($admin->json('data')));
         $this->assertTrue($admin->json('show_value'));
         $this->assertNotNull($admin->json('summary.month_value'));
+        $this->assertSame(3, $admin->json('period_summary.count'));
+        $this->assertNotNull($admin->json('period_summary.value'));
 
         // Akun bahan-baku-saja tidak melihat barang habis pakai; akun tanpa kedua menu ditolak.
         $materialsOnly = $this->staff('kasir', $this->storeA, ['RawMaterialResource']);
