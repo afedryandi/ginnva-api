@@ -84,6 +84,7 @@ class EditEmployeeType extends EditRecord
                 ->title('"Memiliki Tanggal Berakhir" Tipe Karyawan Diubah')
                 ->body($body . " Diubah oleh " . (auth()->user()?->name ?? '—') . '.')
                 ->warning()
+                ->actions(\App\Support\PanelNotificationLink::actions(EmployeeTypeResource::class))
                 ->sendToDatabase($admin);
         }
     }

@@ -395,6 +395,21 @@ class AttendanceApiTest extends TestCase
         $this->assertSame(0, LeaveRequest::count());
     }
 
+    public function test_only_sick_leave_can_be_filed_after_the_fact_and_only_a_few_days_back(): void
+    {
+        // Sekarang Rabu 7 Okt 2026.
+        $this->requestLeave(['type' => 'izin', 'start_date' => '2026-10-06', 'end_date' => '2026-10-06'])
+            ->assertStatus(422)->assertJsonValidationErrors('start_date');
+        $this->requestLeave(['type' => 'cuti', 'start_date' => '2026-10-06', 'end_date' => '2026-10-06'])
+            ->assertStatus(422)->assertJsonValidationErrors('start_date');
+
+        $this->requestLeave(['type' => 'sakit', 'start_date' => '2026-10-03', 'end_date' => '2026-10-03'])
+            ->assertStatus(422)->assertJsonValidationErrors('start_date');
+
+        $this->requestLeave(['type' => 'sakit', 'start_date' => '2026-10-04', 'end_date' => '2026-10-06'])
+            ->assertStatus(201)->assertJsonPath('leave_request.status', 'pending');
+    }
+
     public function test_leave_longer_than_the_maximum_is_rejected(): void
     {
         $this->requestLeave(['start_date' => '2026-10-12', 'end_date' => '2026-11-20'])->assertStatus(422)

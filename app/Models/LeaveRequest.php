@@ -35,6 +35,10 @@ class LeaveRequest extends Model
     // tanpa sengaja.
     public const MAX_DURATION_DAYS = 30;
 
+    // Sakit sering mendadak dan baru bisa dilaporkan sesudahnya, jadi karyawan boleh mengajukannya susulan sampai sekian hari ke belakang
+    // (tetap perlu persetujuan; keputusan 2026-11-13). Izin dan cuti tetap harus sebelum hari H. Disamakan di aplikasi (LeaveRequestForm).
+    public const SICK_BACKDATE_DAYS = 3;
+
     protected $fillable = [
         'request_number',
         'user_id',
@@ -93,6 +97,7 @@ class LeaveRequest extends Model
                 ->title('Pengajuan izin/cuti baru')
                 ->body("{$this->user?->name} mengajukan {$this->request_number} ({$this->start_date->format('d M')}–{$this->end_date->format('d M Y')}).")
                 ->warning()
+                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\LeaveRequestResource::class))
                 ->sendToDatabase($u));
     }
 

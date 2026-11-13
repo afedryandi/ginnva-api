@@ -47,9 +47,23 @@ class StaffInboxNotification extends Notification
             'iconColor' => null,
             'status' => null,
             'duration' => 'persistent',
-            'actions' => [],
+            // Tombol "Buka" ke halaman terkait di lonceng panel (PanelNotificationLink); kosong bila judulnya tidak dikenali.
+            'actions' => self::panelActions($title),
             'view' => 'filament-notifications::notification',
             'viewData' => ['source' => 'staff_inbox', 'payload' => $payload, 'coalesce_key' => $coalesceKey],
         ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function panelActions(string $title): array
+    {
+        try {
+            return \App\Support\PanelNotificationLink::storedActions($title);
+        } catch (\Throwable $e) {
+            // Tombol gagal dibentuk tidak boleh menggagalkan pengiriman notifikasinya.
+            report($e);
+
+            return [];
+        }
     }
 }

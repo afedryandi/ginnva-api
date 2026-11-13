@@ -81,7 +81,7 @@ class RecurringBillTemplate extends Model
                         ->title("Template tagihan rutin \"{$template->name}\" diubah")
                         ->body(auth()->user()->name . " mengubah: {$changed}.")
                         ->warning()
-                        ->sendToDatabase($user);
+                        ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\RecurringBillTemplateResource::class))->sendToDatabase($user);
                 }
             } catch (\Throwable $e) {
                 report($e);

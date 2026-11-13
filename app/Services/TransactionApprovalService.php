@@ -399,7 +399,7 @@ class TransactionApprovalService
 
             $notification = Notification::make()->title($title)->body($body);
             $approved ? $notification->success() : $notification->danger();
-            $notification->sendToDatabase($requester);
+            $notification->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\TransactionApprovalRequestResource::class))->sendToDatabase($requester);
 
             app(PushNotificationService::class)->sendToUsers([$requester->id], $title, $body);
         } catch (\Throwable $e) {
@@ -419,6 +419,7 @@ class TransactionApprovalService
                     ->title('Pengajuan Anda tertahan')
                     ->body(($request->booking?->booking_number ?? '') . ': ' . $reason)
                     ->warning()
+                    ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\TransactionApprovalRequestResource::class))
                     ->sendToDatabase($requester);
             }
         } catch (\Throwable $e) {
@@ -436,6 +437,7 @@ class TransactionApprovalService
                 ->title("Menunggu persetujuan: {$label}")
                 ->body("Booking {$booking->booking_number} — perlu persetujuan Anda sebelum " . (config('features.finance') ? 'diposting ke Jurnal Umum.' : 'diproses.'))
                 ->warning()
+                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\TransactionApprovalRequestResource::class))
                 ->sendToDatabase($recipient);
         }
 

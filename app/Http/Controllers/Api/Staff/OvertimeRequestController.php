@@ -32,7 +32,6 @@ class OvertimeRequestController extends Controller
                 'max_hours_per_day' => OvertimeRequestService::MAX_MINUTES_PER_DAY / 60,
                 'max_hours_per_week' => OvertimeRequestService::MAX_MINUTES_PER_WEEK / 60,
                 'max_days_ahead' => OvertimeRequestService::MAX_DAYS_AHEAD,
-                'min_description_length' => OvertimeRequestService::MIN_DESCRIPTION_LENGTH,
             ],
             'overtime_requests' => $requests->map(fn (OvertimeRequest $r) => $this->transform($r)),
         ]);

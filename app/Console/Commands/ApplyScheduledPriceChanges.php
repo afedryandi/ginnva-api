@@ -42,6 +42,7 @@ class ApplyScheduledPriceChanges extends Command
                 ->title('Perubahan harga berlaku')
                 ->body("\"{$change->name}\": {$change->affected_prices} harga diubah ({$change->percent}%).")
                 ->success()
+                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\ScheduledPriceChangeResource::class))
                 ->sendToDatabase($recipients);
         }
 
@@ -50,6 +51,7 @@ class ApplyScheduledPriceChanges extends Command
                 ->title('Perubahan harga terjadwal gagal diterapkan')
                 ->body(count($result['failures']) . ' perubahan gagal. Periksa menu Perubahan Harga Terjadwal.')
                 ->danger()
+                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\ScheduledPriceChangeResource::class))
                 ->sendToDatabase($recipients);
         }
 

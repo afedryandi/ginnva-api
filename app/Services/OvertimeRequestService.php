@@ -32,9 +32,6 @@ class OvertimeRequestService
     /** Pengajuan paling jauh sekian hari ke depan. */
     public const MAX_DAYS_AHEAD = 14;
 
-    /** Tanpa Booking, uraian pekerjaan minimal sekian karakter supaya tidak diisi asal-asalan. */
-    public const MIN_DESCRIPTION_LENGTH = 15;
-
     /** Kelebihan jam di bawah ini setelah jam tutup tidak ditandai "tanpa persetujuan" (wajar pulang beberapa menit setelah tutup). */
     public const UNAPPROVED_GRACE_MINUTES = 15;
 
@@ -109,8 +106,8 @@ class OvertimeRequestService
             if (! $booking || (int) $booking->store_id !== (int) $user->store_id) {
                 throw new RuntimeException('Booking yang dipilih tidak ditemukan di toko Anda.');
             }
-        } elseif ($description === null || mb_strlen($description) < self::MIN_DESCRIPTION_LENGTH) {
-            throw new RuntimeException('Jelaskan pekerjaan yang akan dilembur (minimal ' . self::MIN_DESCRIPTION_LENGTH . ' karakter), atau pilih Booking yang terkait.');
+        } elseif ($description === null) {
+            throw new RuntimeException('Jelaskan pekerjaan yang akan dilembur, atau pilih Booking yang terkait.');
         }
 
         $date = $startsAt->toDateString();

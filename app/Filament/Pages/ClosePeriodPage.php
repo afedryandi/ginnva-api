@@ -287,6 +287,7 @@ class ClosePeriodPage extends Page implements HasActions, HasForms
                     ->title($title)
                     ->body(auth()->user()->name . ($body ? ': ' . $body : ''))
                     ->info()
+                    ->actions(\App\Support\PanelNotificationLink::actions(self::class))
                     ->sendToDatabase($user);
             }
         } catch (\Throwable $e) {
@@ -333,6 +334,7 @@ class ClosePeriodPage extends Page implements HasActions, HasForms
                             ->title("Periode {$label} dibuka kembali")
                             ->body(auth()->user()->name . ': ' . $data['reason'])
                             ->warning()
+                            ->actions(\App\Support\PanelNotificationLink::actions(self::class))
                             ->sendToDatabase($user);
                     }
                 } catch (\Throwable $e) {

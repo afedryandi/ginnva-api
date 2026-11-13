@@ -149,10 +149,10 @@ class OvertimeRequestTest extends TestCase
         $this->assertRejected(fn () => $this->submit(['starts_at' => '2026-11-12 19:00', 'ends_at' => '2026-11-12 19:20']), 'minimal 30 menit');
     }
 
-    public function test_the_work_must_be_clear_a_booking_or_a_real_description(): void
+    public function test_the_work_must_be_clear_a_booking_or_a_description(): void
     {
         $this->assertRejected(fn () => $this->submit(['description' => null]), 'Jelaskan pekerjaan');
-        $this->assertRejected(fn () => $this->submit(['description' => 'lembur']), 'Jelaskan pekerjaan');
+        $this->assertRejected(fn () => $this->submit(['description' => '   ']), 'Jelaskan pekerjaan');
 
         $booking = $this->booking($this->store, 'BKG-OT-1', 'confirmed');
 

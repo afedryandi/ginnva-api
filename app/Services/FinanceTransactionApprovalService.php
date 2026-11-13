@@ -209,6 +209,7 @@ class FinanceTransactionApprovalService
                             ->title('Pengeluaran disetujui')
                             ->body('Nominal Rp' . number_format((float) ($data['amount'] ?? 0), 0, ',', '.') . ' sudah dicatat & diposting (' . $transaction->transaction_number . ').')
                             ->success()
+                            ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\FinanceTransactionResource::class))
                             ->sendToDatabase($requester);
 
                         app(\App\Services\PushNotificationService::class)->sendToUsers(
@@ -271,6 +272,7 @@ class FinanceTransactionApprovalService
                 ->title('Pengajuan pengeluaran ditolak')
                 ->body('Nominal Rp' . number_format((float) ($locked->payload['amount'] ?? 0), 0, ',', '.') . ($note ? " — {$note}" : ''))
                 ->danger()
+                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\FinanceTransactionApprovalRequestResource::class))
                 ->sendToDatabase($requester);
 
             app(\App\Services\PushNotificationService::class)->sendToUsers(
@@ -394,6 +396,7 @@ class FinanceTransactionApprovalService
             Notification::make()
                 ->title($title)
                 ->warning()
+                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\FinanceTransactionApprovalRequestResource::class))
                 ->sendToDatabase($recipient);
         }
 
@@ -423,6 +426,7 @@ class FinanceTransactionApprovalService
                     ->title('Pengajuan pengeluaran Anda tertahan')
                     ->body($reason)
                     ->warning()
+                    ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\FinanceTransactionApprovalRequestResource::class))
                     ->sendToDatabase($requester);
             }
         } catch (\Throwable $e) {

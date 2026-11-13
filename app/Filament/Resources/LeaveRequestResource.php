@@ -489,6 +489,10 @@ class LeaveRequestResource extends Resource
             'Alasan: ' . $e($record->reason),
         ];
 
+        if ($record->created_at && $record->start_date->lt($record->created_at->copy()->startOfDay())) {
+            $lines[] = '<strong>Diajukan susulan</strong> pada ' . $record->created_at->translatedFormat('d M Y') . ' untuk tanggal yang sudah lewat. Pastikan benar-benar sakit; hari Alpha pada tanggal itu menjadi Izin/Sakit bila disetujui.';
+        }
+
         if ($record->deductsAnnualQuota() && $record->user) {
             $year = $record->start_date->year;
             $remaining = max(0, LeaveRequest::annualQuotaFor($record->user, $year) - LeaveRequest::usedCutiDaysFor($record->user, $year, $record->id));

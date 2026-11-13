@@ -11,6 +11,7 @@ use App\Models\Store;
 use App\Services\AttendanceCorrectionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Absen mandiri (self-service) dari mobile app — SENGAJA tidak dibatasi
@@ -439,11 +440,10 @@ class AttendanceController extends Controller
             // Aplikasi baru mengirim leave_type_id; aplikasi lama masih mengirim type (kategori) saja.
             'leave_type_id' => 'nullable|integer|exists:leave_types,id',
             'type'       => 'required_without:leave_type_id|nullable|in:izin,sakit,cuti',
-            // after_or_equal:today — dulu bisa ajukan tanggal lampau lewat
-            // panggilan API langsung (app cuma mencegah lewat UI stepper,
-            // bukan validasi sungguhan). Lihat audit modul Izin & Cuti
-            // 2026-08-27.
-            'start_date' => 'required|date|after_or_equal:today',
+            // Tanggal lampau dulu bisa lolos lewat panggilan API langsung (app cuma mencegah lewat UI, bukan validasi
+            // sungguhan; audit Izin & Cuti 2026-08-27). Sekarang dicek di bawah, setelah jenisnya diketahui: hanya
+            // SAKIT yang boleh diajukan susulan (LeaveRequest::SICK_BACKDATE_DAYS hari ke belakang), keputusan 2026-11-13.
+            'start_date' => 'required|date',
             'end_date'   => 'required|date|after_or_equal:start_date',
             'reason'     => 'required|string|max:1000',
             // Opsional — mis. scan/foto surat dokter untuk 'sakit'. Belum
@@ -464,6 +464,20 @@ class AttendanceController extends Controller
 
         $leaveType = $request->filled('leave_type_id') ? LeaveType::find($request->leave_type_id) : LeaveType::forCategory((string) $request->type);
         $maxDays = $leaveType?->max_days ?: LeaveRequest::MAX_DURATION_DAYS;
+
+        $startDay = Carbon::parse($request->start_date)->startOfDay();
+
+        if ($startDay->lt(today())) {
+            $category = $leaveType?->category ?? (string) $request->type;
+
+            if ($category !== 'sakit') {
+                throw ValidationException::withMessages(['start_date' => 'Izin dan cuti harus diajukan sebelum hari H.']);
+            }
+
+            if ($startDay->lt(today()->subDays(LeaveRequest::SICK_BACKDATE_DAYS))) {
+                throw ValidationException::withMessages(['start_date' => 'Sakit susulan paling lama ' . LeaveRequest::SICK_BACKDATE_DAYS . ' hari ke belakang. Untuk yang lebih lama, hubungi admin.']);
+            }
+        }
 
         if ($dayCount > $maxDays) {
             return response()->json([

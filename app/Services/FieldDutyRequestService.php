@@ -35,9 +35,6 @@ class FieldDutyRequestService
     /** Pengajuan paling jauh sekian hari ke depan. */
     public const MAX_DAYS_AHEAD = 14;
 
-    /** Tujuan atau pekerjaan wajib diisi, minimal sekian karakter supaya tidak diisi asal-asalan. */
-    public const MIN_DESCRIPTION_LENGTH = 15;
-
     /** Dinas sebagian hari minimal sekian menit. */
     public const MIN_PARTIAL_MINUTES = 30;
 
@@ -127,8 +124,8 @@ class FieldDutyRequestService
             throw new RuntimeException('Dinas luar paling jauh diajukan ' . self::MAX_DAYS_AHEAD . ' hari ke depan.');
         }
 
-        if (mb_strlen($description) < self::MIN_DESCRIPTION_LENGTH) {
-            throw new RuntimeException('Jelaskan tujuan atau pekerjaan di luar toko (minimal ' . self::MIN_DESCRIPTION_LENGTH . ' karakter), mis. kanvasing area Kelapa Gading.');
+        if ($description === '') {
+            throw new RuntimeException('Jelaskan tujuan atau pekerjaan di luar toko, mis. kanvasing area Kelapa Gading.');
         }
 
         $day = $date->toDateString();

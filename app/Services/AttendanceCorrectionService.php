@@ -90,6 +90,7 @@ class AttendanceCorrectionService
                 ->title('Permintaan koreksi absensi baru')
                 ->body("{$request->user?->name} mengajukan koreksi absensi tanggal {$request->date->format('d M Y')}.")
                 ->warning()
+                ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\AttendanceCorrectionRequestResource::class))
                 ->sendToDatabase($recipient);
         }
     }

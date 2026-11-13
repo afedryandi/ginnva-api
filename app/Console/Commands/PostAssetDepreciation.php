@@ -59,6 +59,7 @@ class PostAssetDepreciation extends Command
                     ->title('Penyusutan Aset Tetap: ada yang dilewati')
                     ->body(count($result['messages']) . ' aset dilewati saat posting penyusutan bulan ' . $month->translatedFormat('F Y') . ' — periksa menu Aset Tetap.')
                     ->warning()
+                    ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\AssetResource::class))
                     ->sendToDatabase($recipient);
             }
         }

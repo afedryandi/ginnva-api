@@ -123,7 +123,7 @@ class FieldDutyRequestTest extends TestCase
     public function test_the_purpose_is_required(): void
     {
         $this->assertRejected(fn () => $this->submit(['description' => '']), 'Jelaskan tujuan');
-        $this->assertRejected(fn () => $this->submit(['description' => 'kanvasing']), 'minimal 15 karakter');
+        $this->assertRejected(fn () => $this->submit(['description' => '   ']), 'Jelaskan tujuan');
     }
 
     public function test_one_request_per_day_and_not_on_leave_or_after_attending(): void

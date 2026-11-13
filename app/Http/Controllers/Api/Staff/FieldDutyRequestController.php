@@ -28,7 +28,6 @@ class FieldDutyRequestController extends Controller
             'limits' => [
                 'max_days_back' => FieldDutyRequestService::MAX_DAYS_BACK,
                 'max_days_ahead' => FieldDutyRequestService::MAX_DAYS_AHEAD,
-                'min_description_length' => FieldDutyRequestService::MIN_DESCRIPTION_LENGTH,
                 'min_partial_minutes' => FieldDutyRequestService::MIN_PARTIAL_MINUTES,
             ],
             'field_duty_requests' => $requests->map(fn (FieldDutyRequest $r) => $this->transform($r)),

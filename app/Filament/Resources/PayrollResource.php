@@ -533,6 +533,7 @@ class PayrollResource extends Resource
                             Notification::make()
                                 ->title("Menunggu persetujuan Anda: gaji {$record->user?->name} ({$amountLabel})")
                                 ->warning()
+                                ->actions(\App\Support\PanelNotificationLink::actions(self::class))
                                 ->sendToDatabase($recipient);
                         }
 
@@ -655,6 +656,7 @@ class PayrollResource extends Resource
                                 User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess())->each(fn (User $u) => Notification::make()
                                     ->title("Menunggu persetujuan Anda: {$done->count()} slip gaji (total {$total})")
                                     ->warning()
+                                    ->actions(\App\Support\PanelNotificationLink::actions(self::class))
                                     ->sendToDatabase($u));
                             }
                         }),
