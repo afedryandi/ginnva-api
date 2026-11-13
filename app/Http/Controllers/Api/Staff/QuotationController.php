@@ -134,6 +134,7 @@ class QuotationController extends Controller
             'owner_user_id' => ['sometimes', 'nullable', 'integer', \Illuminate\Validation\Rule::exists('users', 'id')->where('is_active', true)],
             'outcome' => ['sometimes', 'nullable', 'in:' . implode(',', array_keys(\App\Support\LeadOutcome::OUTCOMES))],
             'outcome_reason' => ['sometimes', 'nullable', 'in:' . implode(',', array_keys(\App\Support\LeadOutcome::REASONS))],
+            'outcome_note' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 
         $quotation = Quotation::findOrFail($id);
@@ -143,6 +144,11 @@ class QuotationController extends Controller
         }
 
         $outcome = array_key_exists('outcome', $data) ? $data['outcome'] : $quotation->outcome;
+
+        $reason = $data['outcome_reason'] ?? $quotation->outcome_reason;
+        if ($outcome === \App\Support\LeadOutcome::LOST && $reason === 'lainnya' && blank($data['outcome_note'] ?? $quotation->outcome_note)) {
+            return response()->json(['success' => false, 'message' => 'Jelaskan alasannya bila memilih Lainnya.', 'errors' => ['outcome_note' => ['Jelaskan alasannya bila memilih Lainnya.']]], 422);
+        }
 
         if ($outcome === \App\Support\LeadOutcome::LOST && blank($data['outcome_reason'] ?? $quotation->outcome_reason)) {
             return response()->json(['success' => false, 'message' => 'Alasan wajib diisi bila lead ditandai tidak jadi.', 'errors' => ['outcome_reason' => ['Alasan wajib diisi bila lead ditandai tidak jadi.']]], 422);

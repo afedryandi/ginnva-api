@@ -110,6 +110,7 @@ class LeadHubController extends Controller
             'status' => $m->status,
             'outcome' => $m->outcome ?? null,
             'outcome_reason' => $m->outcome_reason ?? null,
+            'outcome_note' => $m->outcome_note ?? null,
             'owner_user_id' => $m->owner_user_id,
             'owner' => $m->owner ? ['id' => $m->owner->id, 'name' => $m->owner->name] : null,
             'message' => $m->message,

@@ -166,8 +166,15 @@ class QuotationResource extends Resource
                     Forms\Components\Select::make('outcome_reason')
                         ->label('Alasan Tidak Jadi')
                         ->options(\App\Support\LeadOutcome::REASONS)
+                        ->live()
                         ->visible(fn (Forms\Get $get) => $get('outcome') === 'lost')
                         ->required(fn (Forms\Get $get) => $get('outcome') === 'lost'),
+
+                    Forms\Components\TextInput::make('outcome_note')
+                        ->label('Jelaskan alasannya')
+                        ->maxLength(255)
+                        ->visible(fn (Forms\Get $get) => $get('outcome') === 'lost' && $get('outcome_reason') === 'lainnya')
+                        ->required(fn (Forms\Get $get) => $get('outcome') === 'lost' && $get('outcome_reason') === 'lainnya'),
                 ]),
 
             /* ── DATA PELANGGAN ─────────────────────────────────────── */

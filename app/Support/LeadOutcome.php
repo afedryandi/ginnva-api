@@ -36,13 +36,14 @@ class LeadOutcome
      */
     public static function sync(Model $lead): void
     {
-        if (! $lead->isDirty('outcome') && ! $lead->isDirty('outcome_reason')) {
+        if (! $lead->isDirty('outcome') && ! $lead->isDirty('outcome_reason') && ! $lead->isDirty('outcome_note')) {
             return;
         }
 
         if (blank($lead->outcome)) {
             $lead->outcome = null;
             $lead->outcome_reason = null;
+            $lead->outcome_note = null;
             $lead->outcome_at = null;
 
             return;
@@ -50,6 +51,11 @@ class LeadOutcome
 
         if ($lead->outcome !== self::LOST) {
             $lead->outcome_reason = null;
+        }
+
+        // Catatan bebas hanya berlaku untuk alasan "Lainnya".
+        if ($lead->outcome_reason !== 'lainnya') {
+            $lead->outcome_note = null;
         }
 
         if ($lead->isDirty('outcome') || empty($lead->outcome_at)) {

@@ -33,6 +33,7 @@ class Quotation extends Model
         'owner_user_id',
         'outcome',
         'outcome_reason',
+        'outcome_note',
         'outcome_at',
     ];
 

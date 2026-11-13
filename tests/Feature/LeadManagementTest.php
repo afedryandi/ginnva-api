@@ -352,6 +352,26 @@ class LeadManagementTest extends TestCase
         $this->actingAs($noMenu->fresh(), 'api')->getJson('/api/staff/lead-hub')->assertStatus(403);
     }
 
+    public function test_the_lost_reason_other_requires_a_note_and_the_note_is_dropped_for_other_reasons(): void
+    {
+        $staff = $this->staff();
+        $inquiry = $this->inquiry();
+        $url = "/api/staff/lead-inbox/product-inquiry/{$inquiry->id}";
+
+        $this->actingAs($staff, 'api')->patchJson($url, ['outcome' => 'lost', 'outcome_reason' => 'lainnya'])->assertStatus(422);
+        $this->actingAs($staff, 'api')->patchJson($url, ['outcome' => 'lost', 'outcome_reason' => 'lainnya', 'outcome_note' => 'Pindah kota'])->assertOk();
+        $this->assertSame('Pindah kota', $inquiry->fresh()->outcome_note);
+
+        $this->actingAs($staff, 'api')->patchJson($url, ['outcome_reason' => 'harga'])->assertOk();
+        $this->assertNull($inquiry->fresh()->outcome_note);
+
+        $quotation = $this->quotation();
+        $qUrl = "/api/staff/quotations/{$quotation->id}/lead";
+        $this->actingAs($staff, 'api')->patchJson($qUrl, ['outcome' => 'lost', 'outcome_reason' => 'lainnya'])->assertStatus(422);
+        $this->actingAs($staff, 'api')->patchJson($qUrl, ['outcome' => 'lost', 'outcome_reason' => 'lainnya', 'outcome_note' => 'Mobil dijual'])->assertOk();
+        $this->assertSame('Mobil dijual', $quotation->fresh()->outcome_note);
+    }
+
     public function test_staff_can_only_move_a_quotation_between_new_and_contacted_from_the_app(): void
     {
         $quotation = $this->quotation();

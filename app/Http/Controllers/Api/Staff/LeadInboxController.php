@@ -54,6 +54,7 @@ class LeadInboxController extends Controller
             'owner_user_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')->where('is_active', true)],
             'outcome' => ['sometimes', 'nullable', Rule::in(array_keys(LeadOutcome::OUTCOMES))],
             'outcome_reason' => ['sometimes', 'nullable', Rule::in(array_keys(LeadOutcome::REASONS))],
+            'outcome_note' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 
         $lead = $model::findOrFail($id);
@@ -65,6 +66,15 @@ class LeadInboxController extends Controller
                 'success' => false,
                 'message' => 'Alasan wajib diisi bila lead ditandai tidak jadi.',
                 'errors' => ['outcome_reason' => ['Alasan wajib diisi bila lead ditandai tidak jadi.']],
+            ], 422);
+        }
+
+        $reason = $data['outcome_reason'] ?? $lead->outcome_reason;
+        if ($outcome === LeadOutcome::LOST && $reason === 'lainnya' && blank($data['outcome_note'] ?? $lead->outcome_note)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Jelaskan alasannya bila memilih Lainnya.',
+                'errors' => ['outcome_note' => ['Jelaskan alasannya bila memilih Lainnya.']],
             ], 422);
         }
 
