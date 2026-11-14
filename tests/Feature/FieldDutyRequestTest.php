@@ -129,7 +129,7 @@ class FieldDutyRequestTest extends TestCase
     public function test_one_request_per_day_and_not_on_leave_or_after_attending(): void
     {
         $this->submit();
-        $this->assertRejected(fn () => $this->submit(), 'sudah punya pengajuan');
+        $this->assertRejected(fn () => $this->submit(), 'Sudah ada pengajuan');
 
         LeaveRequest::create(['user_id' => $this->andi->id, 'store_id' => $this->store->id, 'type' => 'izin', 'start_date' => '2026-11-16', 'end_date' => '2026-11-16', 'reason' => 'x', 'status' => 'approved']);
         $this->assertRejected(fn () => $this->submit(['date' => '2026-11-16']), 'izin/cuti');
@@ -293,10 +293,10 @@ class FieldDutyRequestTest extends TestCase
         $this->partial('2026-11-13', '14:00', '16:00');
 
         $this->assertRejected(fn () => $this->partial('2026-11-13', '11:00', '13:00'), 'bertabrakan');
-        $this->assertRejected(fn () => $this->submit(['date' => '2026-11-13']), 'sudah punya pengajuan');
+        $this->assertRejected(fn () => $this->submit(['date' => '2026-11-13']), 'Sudah ada pengajuan');
 
         $this->submit(['date' => '2026-11-14']);
-        $this->assertRejected(fn () => $this->partial('2026-11-14', '10:00', '12:00'), 'sudah punya pengajuan');
+        $this->assertRejected(fn () => $this->partial('2026-11-14', '10:00', '12:00'), 'Sudah ada pengajuan');
     }
 
     public function test_a_partial_day_can_be_filed_after_clocking_in_unlike_a_full_day(): void

@@ -178,7 +178,7 @@ class StaffInventoryApiTest extends TestCase
         $response = $this->api($user)->getJson('/api/staff/inventory?search=GLN-ORPHAN')->assertSuccessful();
 
         $this->assertSame([], $response->json('data'));
-        $this->assertStringContainsString('belum dikaitkan ke barang fisik', $response->json('hint'));
+        $this->assertStringContainsString('belum dikaitkan ke barang', $response->json('hint'));
         $this->assertNull($this->api($user)->getJson('/api/staff/inventory?search=TIDAK-ADA')->json('hint'));
     }
 

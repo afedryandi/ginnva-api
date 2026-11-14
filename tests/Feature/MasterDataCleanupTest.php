@@ -88,7 +88,7 @@ class MasterDataCleanupTest extends TestCase
 
         Livewire::test(CreateVehicle::class)
             ->assertSuccessful()
-            ->assertSee('harga dibaca dari matriks per ukuran')
+            ->assertSee('Menentukan harga PPF dan kaca film')
             ->assertDontSee('base_price × coefficient');
     }
 

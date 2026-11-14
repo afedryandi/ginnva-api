@@ -16,6 +16,12 @@ class ResetRawMaterialsCommandTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** Migrasi impor Majoo sudah mengisi beberapa Bahan Baku di setiap database uji, jadi hitungan dibandingkan dengan jumlah awal. */
+    private function baseline(): int
+    {
+        return DB::table('raw_materials')->count();
+    }
+
     private function seedMaterials(): RawMaterial
     {
         $film = RawMaterial::create(['name' => 'Cairan Slip', 'code' => 'CS-1', 'unit' => 'ml', 'current_stock' => 0]);
@@ -27,11 +33,12 @@ class ResetRawMaterialsCommandTest extends TestCase
 
     public function test_without_confirm_it_only_reports_and_changes_nothing(): void
     {
+        $before = $this->baseline();
         $this->seedMaterials();
 
         $this->artisan('bahan-baku:reset')->assertSuccessful();
 
-        $this->assertSame(2, DB::table('raw_materials')->count());
+        $this->assertSame($before + 2, DB::table('raw_materials')->count());
         $this->assertGreaterThan(0, DB::table('raw_material_movements')->count());
     }
 
@@ -51,12 +58,13 @@ class ResetRawMaterialsCommandTest extends TestCase
 
     public function test_it_refuses_while_documents_still_point_at_a_raw_material(): void
     {
+        $before = $this->baseline();
         $film = $this->seedMaterials();
         DB::table('stock_write_offs')->insert($this->writeOff($film->id));
 
         $this->artisan('bahan-baku:reset --confirm')->assertFailed();
 
-        $this->assertSame(2, DB::table('raw_materials')->count(), 'Tidak ada yang dihapus ketika ditolak.');
+        $this->assertSame($before + 2, DB::table('raw_materials')->count(), 'Tidak ada yang dihapus ketika ditolak.');
 
         $this->artisan('bahan-baku:reset --confirm --hapus-referensi')->assertSuccessful();
 

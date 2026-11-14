@@ -293,7 +293,7 @@ class ReservationUtilizationReportTest extends TestCase
             ->assertSee('Tingkat Pembatalan (Seluruh Toko)')
             ->assertSee('20.0%', false)
             ->assertSee('50.0%', false)
-            ->assertSee('BUKAN kapasitas persis', false);
+            ->assertSee('jadi angka Utilisasi adalah perkiraan', false);
 
         $url = $page->instance()->reservationUrl($this->storeA->id);
         $this->assertStringContainsString('cabang=' . $this->storeA->id, $url);

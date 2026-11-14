@@ -36,7 +36,7 @@ class IndonesianValidationTest extends TestCase
 
     public function test_common_rules_have_indonesian_messages(): void
     {
-        $this->assertSame('Email harus berupa alamat email yang valid.', $this->firstError(['email' => 'x'], ['email' => 'email']));
+        $this->assertSame('Email harus berupa email yang valid.', $this->firstError(['email' => 'x'], ['email' => 'email']));
         $this->assertSame('Jumlah minimal 5.', $this->firstError(['quantity' => 2], ['quantity' => 'numeric|min:5']));
         $this->assertSame('Catatan tidak boleh lebih dari 3 karakter.', $this->firstError(['notes' => 'panjang'], ['notes' => 'string|max:3']));
         $this->assertSame('Konfirmasi password tidak cocok.', $this->firstError(['password' => 'a', 'password_confirmation' => 'b'], ['password' => 'confirmed']));
