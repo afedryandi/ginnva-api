@@ -288,7 +288,7 @@ class EmployeeTypeTest extends TestCase
         $unused = $this->type('Magang', true);
         $this->user('kasir', ['employee_type_id' => $used->id]);
 
-        Livewire::test(CreateEmployeeType::class)->assertSee('dinonaktifkan otomatis')->assertSee('diperpanjang di Riwayat Kontrak');
+        Livewire::test(CreateEmployeeType::class)->assertSee('akun otomatis dinonaktifkan')->assertSee('diperpanjang di Riwayat Kontrak');
 
         Livewire::test(ListEmployeeTypes::class)->assertSuccessful()
             ->assertSee('Tidak bisa dihapus selama masih dipakai')
