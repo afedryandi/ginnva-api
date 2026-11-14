@@ -168,7 +168,7 @@ class StockTurnoverReport extends Page implements HasForms
 
             Toggle::make('show_idle')
                 ->label('Tampilkan yang tidak terpakai')
-                ->helperText('Barang yang masih ada stoknya tetapi tidak dipakai pada rentang ini (stok mati).')
+                ->helperText('Barang yang masih ada stoknya tapi tidak dipakai pada rentang ini (stok mati).')
                 ->live(),
         ])->columns(3)->statePath('data');
     }

@@ -170,7 +170,7 @@ class ContractExtension extends Model
             $reactivate = self::wasDeactivatedByLapse($fresh);
 
             if (! $fresh->is_active && ! $reactivate) {
-                throw new \InvalidArgumentException("Akun {$fresh->name} nonaktif; aktifkan dulu lewat menu User bila memang masih bekerja.");
+                throw new \InvalidArgumentException("Akun {$fresh->name} nonaktif; aktifkan dulu lewat menu User kalau memang masih bekerja.");
             }
 
             $previousType = $fresh->employeeType->name;

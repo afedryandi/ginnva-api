@@ -320,7 +320,7 @@ class BookingResource extends Resource
 
                             return $activeJobs > 0 ? "{$label} — {$activeJobs} job aktif" : $label;
                         })
-                        ->helperText('Bisa pilih lebih dari 1 installer. "X job aktif" = jumlah booking confirmed yang sedang dipegang installer itu saat ini. Installer hanya bisa lihat & chat teks di booking yang ditugaskan ke dirinya di mobile app. Installer dari toko lain, atau berstatus "Menunggu Review"/"Nonaktif" di roster Installer, tidak muncul di sini.')
+                        ->helperText('Bisa pilih lebih dari satu installer. "X job aktif" = booking confirmed yang sedang dipegang installer itu. Installer toko lain dan yang nonaktif tidak muncul.')
                         ->multiple()
                         ->searchable()
                         ->preload()
@@ -352,7 +352,7 @@ class BookingResource extends Resource
                             modifyQueryUsing: fn (Builder $query) => $query
                                 ->whereHas('roles', fn ($q) => $q->where('name', 'direksi')),
                         )
-                        ->helperText('Direksi yang ditugaskan memantau booking ini — notifikasi chat (push & email) cuma dikirim ke direksi yang dipilih di sini, bukan semua direksi.')
+                        ->helperText('Direksi yang memantau booking ini. Notifikasi chat (push dan email) hanya dikirim ke direksi yang dipilih.')
                         ->multiple()
                         ->searchable()
                         ->preload(),
@@ -449,7 +449,7 @@ class BookingResource extends Resource
                         ->searchable()
                         ->preload()
                         ->live()
-                        ->helperText('Produk UTAMA booking ini — diisi karyawan toko saat booking dikonfirmasi. Kalau booking ini pakai lebih dari 1 varian produk (mis. kaca depan beda dari kaca samping/belakang), tambahkan sisanya di "Produk Tambahan per Bagian" di bawah.'),
+                        ->helperText('Produk utama booking ini, diisi saat booking dikonfirmasi. Kalau ada varian lain (mis. kaca depan beda dari samping), tambahkan di Produk Tambahan per Bagian.'),
 
                     // Produk TAMBAHAN per bagian kendaraan -- keputusan
                     // atasan 2026-09-19 (Topik 3): 1 booking BISA pakai
@@ -483,7 +483,7 @@ class BookingResource extends Resource
                                 ->placeholder('mis. Kaca Depan, Kaca Samping, Kaca Belakang, Bumper Depan')
                                 ->maxLength(50),
                         ])
-                        ->helperText('Isi kalau booking ini genuinely butuh lebih dari 1 varian produk untuk bagian kendaraan berbeda. Kebanyakan booking cukup 1 produk utama saja di atas.'),
+                        ->helperText('Isi kalau booking ini butuh lebih dari satu varian produk untuk bagian kendaraan berbeda. Biasanya cukup satu produk utama.'),
 
                     // Referensi harga INTERNAL (bukan ditampilkan ke customer)
                     // — bantu staf set Nilai Transaksi. Booking tidak simpan
@@ -619,7 +619,7 @@ class BookingResource extends Resource
                         ->default(Booking::DEFAULT_DURATION_DAYS_DEFAULT)
                         ->live()
                         ->required()
-                        ->helperText('Berapa hari mobil ini makan slot instalasi (dipakai cek kapasitas). Default PPF 3 hari, lainnya 1 hari — sesuaikan kalau instalasi ini diperkirakan lebih cepat/lama.'),
+                        ->helperText('Berapa hari mobil ini memakai slot instalasi (untuk cek kapasitas). Default PPF 3 hari, lainnya 1 hari.'),
 
                     // Redesain 2026-09-25 (diminta user langsung, audit
                     // Booking Instalasi) — SEBELUMNYA ada Repeater
@@ -679,7 +679,7 @@ class BookingResource extends Resource
                             // "PENUH" tanpa risiko XSS.
                             return new \Illuminate\Support\HtmlString(implode('<br>', $lines));
                         })
-                        ->helperText('Kapasitas dikelola terpusat lewat Kalender Kapasitas (menu Booking) — bukan diisi di sini lagi. Approve akan ditolak otomatis kalau salah satu tanggal di atas sudah PENUH.'),
+                        ->helperText('Kapasitas diatur di Kalender Kapasitas (menu Booking). Approve ditolak otomatis kalau salah satu tanggal di atas sudah PENUH.'),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
@@ -721,7 +721,7 @@ class BookingResource extends Resource
 
                             return array_intersect_key($labels, array_flip($keys));
                         })
-                        ->helperText('Untuk membatalkan booking, gunakan aksi "Batalkan" supaya DP dikembalikan dan alasan tercatat.')
+                        ->helperText('Untuk membatalkan booking, pakai aksi "Batalkan" supaya DP dikembalikan dan alasan tercatat.')
                         // Default 'confirmed' DI SINI SENGAJA beda dari booking
                         // yang masuk lewat mobile app (selalu mulai 'pending',
                         // lihat Api/Customer/BookingController.php) — booking
@@ -1521,7 +1521,7 @@ class BookingResource extends Resource
                                     ->native(false)
                                     ->required(),
                                 Forms\Components\Select::make('payment_account_id')
-                                    ->label('Rekening (otomatis bila kosong)')
+                                    ->label('Rekening (otomatis kalau kosong)')
                                     ->options(fn (Booking $record) => \App\Models\PaymentAccount::query()
                                         ->with('chartAccount')
                                         ->where('is_active', true)
@@ -1556,7 +1556,7 @@ class BookingResource extends Resource
                             })
                             ->addActionLabel('Tambah pembayaran')
                             ->reorderable(false)
-                            ->helperText('Boleh lebih dari satu (mis. sebagian tunai, sebagian transfer). Hapus semua baris bila belum ada pembayaran; sisanya ' . (config('features.finance') ? 'jadi Piutang Usaha.' : 'belum terbayar.')),
+                            ->helperText('Boleh lebih dari satu (mis. sebagian tunai, sebagian transfer). Hapus semua baris kalau belum ada pembayaran; sisanya ' . (config('features.finance') ? 'jadi Piutang Usaha.' : 'belum terbayar.')),
 
                         Forms\Components\Placeholder::make('settlement_summary')
                             ->label('Ringkasan pembayaran')
@@ -1606,7 +1606,7 @@ class BookingResource extends Resource
                                     $p->id => "{$p->name} — min Rp" . number_format((float) $p->min_purchase_amount, 0, ',', '.') . ' → potong Rp' . number_format((float) $p->discount_amount, 0, ',', '.'),
                                 ]))
                             ->default(fn (Booking $record) => $record->spend_promo_id)
-                            ->helperText('"Nominal Transaksi" diisi angka SETELAH potongan. Sistem cek: (Nominal + potongan promo) harus ≥ minimal pembelian promo. Bisa dipakai BERSAMAAN dengan Kode Voucher di bawah (independen, saling tidak mempengaruhi).'),
+                            ->helperText('Isi angka SETELAH potongan. Nominal ditambah potongan promo harus mencapai minimal pembelian promo. Bisa dipakai bersama Kode Voucher.'),
 
                         // Gap ditutup 2026-09-26 (audit Voucher Promo) --
                         // SEBELUMNYA voucher fisik cuma status tracking
@@ -1643,7 +1643,7 @@ class BookingResource extends Resource
                             })
                             ->default(fn (Booking $record) => $record->voucher_claim_id)
                             ->searchable()
-                            ->helperText('Memilih kode voucher otomatis menandainya "Terpakai" & memotong Nominal Transaksi (isi angka SETELAH potongan, sama seperti Promo Total Pembelian).'),
+                            ->helperText('Kode voucher otomatis ditandai Terpakai dan memotong Nominal Transaksi (isi angka SETELAH potongan).'),
 
                         Forms\Components\TextInput::make('referral_code')
                             ->label('Kode Referral Partner')
@@ -1793,7 +1793,7 @@ class BookingResource extends Resource
                             ->required()
                             ->maxDate(now())
                             ->default(fn (Booking $record) => $record->completed_at ?? $record->updated_at)
-                            ->helperText('Tanggal ini menjadi tanggal pengakuan pendapatan saat penjualan diproses. Tidak boleh di masa depan atau di periode yang sudah ditutup.'),
+                            ->helperText('Tanggal pengakuan pendapatan saat penjualan diproses. Tidak boleh di masa depan atau periode yang sudah ditutup.'),
                     ])
                     ->action(function (Booking $record, array $data) {
                         $at = \Illuminate\Support\Carbon::parse($data['completed_at']);
@@ -1911,7 +1911,7 @@ class BookingResource extends Resource
                             || (auth()->user()?->hasMenuAccess(static::class) && auth()->user()?->hasModuleAction(static::class, 'void', false))))
                     ->requiresConfirmation()
                     ->modalHeading('Batalkan Booking?')
-                    ->modalDescription('Booking ini akan ditandai Dibatalkan. Tindakan ini tidak membatalkan otomatis assignment installer/direksi yang sudah tersimpan.')
+                    ->modalDescription('Booking ini akan ditandai Dibatalkan. Ini tidak otomatis membatalkan assignment installer/direksi yang sudah tersimpan.')
                     ->form([
                         Forms\Components\Textarea::make('reason')
                             ->label(fn (Booking $record) => ($record->status === 'confirmed' ? 'Alasan' : 'Alasan (opsional)') . ' — dikirim ke pelanggan')

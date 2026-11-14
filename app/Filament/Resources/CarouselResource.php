@@ -112,7 +112,7 @@ class CarouselResource extends Resource
                         ->rule('regex:/^https?:\/\//i')
                         ->placeholder('https://...')
                         ->maxLength(255)
-                        ->helperText('URL yang dituju saat banner diklik (harus diawali http:// atau https://). Kosongkan jika tidak ada.'),
+                        ->helperText('URL yang dituju saat banner diklik (harus diawali http:// atau https://). Kosongkan kalau tidak ada.'),
 
                     Forms\Components\Select::make('audience')
                         ->label('Tampil Untuk')
@@ -136,7 +136,7 @@ class CarouselResource extends Resource
                     Forms\Components\DateTimePicker::make('ends_at')
                         ->label('Berhenti Tayang (opsional)')
                         ->after('starts_at')
-                        ->helperText('Kosongkan bila tidak ada batas. Setelah lewat, banner berhenti tayang sendiri.'),
+                        ->helperText('Kosongkan kalau tidak ada batas. Setelah lewat, banner berhenti tayang sendiri.'),
                 ]),
         ]);
     }

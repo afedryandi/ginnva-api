@@ -101,7 +101,7 @@ class NotificationAuditBatchTest extends TestCase
         $this->assertEqualsCanonicalizing([$recent->id, $lapsed->id], $service->resolveSegment(['booking' => 'has']));
         $this->assertContains($never->id, $service->resolveSegment(['booking' => 'never']));
         $this->assertNotContains($lapsed->id, $service->resolveSegment(['booking' => 'never']));
-        $this->assertSame([$lapsed->id], $service->resolveSegment(['inactive_months' => 6]), 'Hanya yang pernah booking tetapi tidak dalam 6 bulan terakhir.');
+        $this->assertSame([$lapsed->id], $service->resolveSegment(['inactive_months' => 6]), 'Hanya yang pernah booking tapi tidak dalam 6 bulan terakhir.');
         $this->assertNotContains($outside->id, $service->resolveSegment(['inactive_months' => 6]));
     }
 

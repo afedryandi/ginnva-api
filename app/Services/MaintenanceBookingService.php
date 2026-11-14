@@ -44,7 +44,7 @@ class MaintenanceBookingService
 
         // Tanggal baru (reschedule) opsional; WAJIB kalau jadwal sudah lewat masa toleransi (2026-10-09).
         if (! $requestedDay && $schedule->validUntil()->lt(today())) {
-            return $this->fail('Jadwal maintenance ini sudah terlewat. Pilih tanggal baru untuk maintenance Anda.', requiresNewDate: true);
+            return $this->fail('Jadwal maintenance ini sudah terlewat. Pilih tanggal baru untuk maintenance.', requiresNewDate: true);
         }
 
         if ($requestedDay && ($requestedDay->lt(today()) || $requestedDay->gt(today()->addDays(30)))) {
@@ -57,15 +57,15 @@ class MaintenanceBookingService
         $store = Store::find($warranty->store_id);
 
         if ($store && ! $store->is_active) {
-            return $this->fail('Toko ini sudah nonaktif. Hubungi tim kami langsung untuk menyesuaikan jadwal maintenance Anda.');
+            return $this->fail('Toko ini sudah nonaktif. Hubungi tim kami langsung untuk menyesuaikan jadwal maintenance.');
         }
 
         if ($store?->isClosedOn($bookingDay)) {
-            return $this->fail('Toko tutup/libur pada tanggal jadwal ini. Hubungi toko langsung untuk menyesuaikan jadwal maintenance Anda.');
+            return $this->fail('Toko tutup/libur pada tanggal jadwal ini. Hubungi toko langsung untuk menyesuaikan jadwal maintenance.');
         }
 
         if (Booking::confirmedOverlapCount($warranty->store_id, $bookingDay) >= Booking::capacityForDate($warranty->store_id, $bookingDay)) {
-            return $this->fail('Kapasitas toko pada tanggal jadwal ini sudah penuh. Hubungi toko langsung untuk menyesuaikan jadwal maintenance Anda.');
+            return $this->fail('Kapasitas toko pada tanggal jadwal ini sudah penuh. Hubungi toko langsung untuk menyesuaikan jadwal maintenance.');
         }
 
         $booking = DB::transaction(function () use ($schedule, $warranty, $bookingDay, $requestedDay, $source) {
@@ -100,7 +100,7 @@ class MaintenanceBookingService
             return $this->fail('Jadwal ini sudah diproses sebelumnya.');
         }
 
-        return ['ok' => true, 'message' => 'Konfirmasi diterima. Toko akan menghubungi Anda untuk finalisasi jadwal.', 'booking' => $booking];
+        return ['ok' => true, 'message' => 'Konfirmasi diterima. Toko akan menghubungi untuk finalisasi jadwal.', 'booking' => $booking];
     }
 
     private function fail(string $message, bool $requiresNewDate = false): array

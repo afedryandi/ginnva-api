@@ -91,9 +91,7 @@
     <x-filament::section>
         <x-slot name="heading">Rekap per Periode</x-slot>
         <x-slot name="description">
-            Periode tanpa transaksi di dalam rentang tetap ditampilkan (Rp 0) supaya tren yang sepi kelihatan jelas; hari yang belum terjadi tidak dibuatkan
-            baris. Pengembalian dikelompokkan menurut tanggal refund diproses, bukan tanggal penjualannya. Klik nama metrik di legend grafik untuk
-            sembunyikan/tampilkan garisnya.
+            Pengembalian dikelompokkan menurut tanggal refund diproses, bukan tanggal penjualannya. Klik nama metrik di legend grafik untuk menyembunyikan garisnya.
         </x-slot>
 
         <div class="overflow-x-auto">

@@ -54,7 +54,7 @@ class EditWorkSchedule extends EditRecord
 
         Notification::make()
             ->title('Pola jadwal diubah')
-            ->body(count($userIds) . ' karyawan memakai jadwal ini dan langsung terdampak. Laporan pola absensi periode lama akan dihitung ulang dengan pola baru; hitungan telat pada absensi yang sudah ada TIDAK berubah.')
+            ->body(count($userIds) . ' karyawan memakai jadwal ini. Laporan lama dihitung ulang dengan pola baru; hitungan telat yang sudah tercatat tidak berubah.')
             ->warning()
             ->persistent()
             ->send();
@@ -62,7 +62,7 @@ class EditWorkSchedule extends EditRecord
         app(\App\Services\StaffNotifier::class)->toUsers(
             $userIds,
             'Jadwal Kerja Berubah',
-            "Pola jadwal kerja \"{$this->record->name}\" diperbarui. Perhatikan jadwal Anda."
+            "Pola jadwal kerja \"{$this->record->name}\" diperbarui. Perhatikan jadwal kerjanya."
         );
     }
 }

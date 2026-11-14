@@ -72,7 +72,7 @@
             </div>
         @empty
             <div class="pu-bar pu-muted">
-                Tidak ada pengajuan yang menunggu keputusan Anda. Pengajuan baru muncul di sini dan di lencana menu.
+                Tidak ada pengajuan yang menunggu keputusan. Pengajuan baru muncul di sini dan di lencana menu.
             </div>
         @endforelse
     </div>

@@ -317,7 +317,7 @@ class EmploymentLifecycleTest extends TestCase
 
         $this->assertCount(1, $pushes);
         [$ids, $title, $body, $data] = $pushes[0];
-        $this->assertSame('Dokumen Baru Perlu Anda Terima', $title);
+        $this->assertSame('Dokumen Baru Perlu Diterima', $title);
         $this->assertStringContainsString('PP Baru (2.0)', $body);
         $this->assertSame('/staff/policies', $data['route']);
         $this->assertTrue(in_array($this->staff->id, $ids, true));

@@ -143,7 +143,7 @@ class PaymentAccountResource extends Resource
 
                 Forms\Components\Toggle::make('is_default')
                     ->label('Rekening bawaan')
-                    ->helperText('Dipakai bila metode bayar tidak cocok atau tidak diisi. Satu rekening bawaan per toko (dan satu untuk pusat).'),
+                    ->helperText('Dipakai kalau metode bayar tidak cocok atau tidak diisi. Satu rekening bawaan per toko (dan satu untuk pusat).'),
 
                 Forms\Components\Toggle::make('is_active')->label('Aktif')->default(true),
             ]),
@@ -151,7 +151,7 @@ class PaymentAccountResource extends Resource
             Forms\Components\Section::make('Kas kecil (dana tetap)')
                 ->columns(3)
                 ->visible(fn (Forms\Get $get) => $get('kind') === 'kas_kecil')
-                ->description('Pengeluaran kecil dari kas ini dicatat lewat Transaksi Keuangan dengan memilih rekeningnya. Sampai batas per bukti, karyawan toko yang sama atau pemegang kas tidak perlu menunggu persetujuan direksi.')
+                ->description('Pengeluaran kecil dicatat lewat Transaksi Keuangan dengan memilih rekening ini. Sampai batas per bukti, tidak perlu persetujuan direksi.')
                 ->schema([
                     Forms\Components\TextInput::make('float_amount')->label('Plafon dana')->numeric()->minValue(0)->prefix('Rp')->helperText('Saldo yang dijaga; isi ulang sebesar plafon dikurangi saldo.'),
                     Forms\Components\TextInput::make('voucher_limit')->label('Batas per bukti')->numeric()->minValue(0)->prefix('Rp')->helperText('Pengeluaran di atas ini tetap lewat persetujuan. Kosong = semua lewat persetujuan.'),

@@ -206,11 +206,11 @@ class RecurringBillTemplateResource extends Resource
                         $expected = min($day, $date->daysInMonth);
 
                         if ($date->day !== $expected) {
-                            $fail("Tanggal mulai harus jatuh pada tanggal {$expected} (sesuai \"Tanggal Generate Tiap Bulan\" = {$day}, atau akhir bulan bila bulannya lebih pendek).");
+                            $fail("Tanggal mulai harus jatuh pada tanggal {$expected} (sesuai \"Tanggal Generate Tiap Bulan\" = {$day}, atau akhir bulan kalau bulannya lebih pendek).");
                         }
                     },
                 ])
-                ->helperText('Generate PERTAMA terjadi pada tanggal ini (atau setelahnya, saat cron harian jalan) -- generate BERIKUTNYA otomatis 1 bulan setelahnya di tanggal yang sama.'),
+                ->helperText('Generate pertama terjadi pada tanggal ini (atau setelahnya, saat cron harian jalan); berikutnya otomatis tiap bulan di tanggal yang sama.'),
 
             Forms\Components\Placeholder::make('catchup')
                 ->label('Perkiraan Tagihan Saat Cron Berikutnya')
@@ -219,7 +219,7 @@ class RecurringBillTemplateResource extends Resource
                     $start = Carbon::parse($get('next_run_date'))->startOfMonth();
                     $months = $start->diffInMonths(today()->startOfMonth()) + 1;
 
-                    return "Tanggal mulai sudah lewat: cron berikutnya akan LANGSUNG membuat sekitar {$months} tagihan dan jurnal (auto-post, tanpa approval). Pastikan ini disengaja.";
+                    return "Tanggal mulai sudah lewat: proses harian berikutnya langsung membuat sekitar {$months} tagihan dan jurnal (otomatis diposting). Pastikan ini disengaja.";
                 }),
 
             Forms\Components\DatePicker::make('end_date')

@@ -73,7 +73,7 @@
             </x-filament::section>
         @endif
 
-        <x-filament::section heading="Mutu pekerjaan" description="Dari booking selesai pada rentang tanggal. Untuk pembinaan, bukan dasar potongan. Pada booking tim, semua installer bertugas dihitung sama. Persentase baru berarti bila jumlah pekerjaan yang diperiksa cukup banyak.">
+        <x-filament::section heading="Mutu pekerjaan" description="Dari booking selesai pada rentang tanggal. Untuk pembinaan, bukan dasar potongan. Pada booking tim, semua installer bertugas dihitung sama. Persentase baru berarti kalau jumlah pekerjaan yang diperiksa cukup banyak.">
             @if ($quality->isEmpty())
                 <div class="text-sm text-gray-500 dark:text-gray-400">Tidak ada booking selesai dengan installer pada rentang ini.</div>
             @else

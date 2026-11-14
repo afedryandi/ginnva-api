@@ -388,7 +388,7 @@ class BankStatementLineResource extends Resource
                     ->color('gray')
                     ->visible(fn (BankStatementLine $record) => $record->status === 'unmatched')
                     ->requiresConfirmation()
-                    ->modalDescription('Dipakai untuk mutasi yang memang TIDAK PERLU dicocokkan ke jurnal (mis. saldo pembuka atau mutasi ganda). Biaya admin atau bunga bank sebaiknya dicatat lewat Catat sebagai Transaksi, bukan diabaikan — tidak menghapus barisnya, cuma menandai supaya tidak terus muncul di daftar "Belum Cocok".')
+                    ->modalDescription('Dipakai untuk mutasi yang memang tidak perlu dicocokkan ke jurnal (mis. saldo pembuka). Biaya admin atau bunga bank dicatat lewat Catat sebagai Transaksi, bukan diabaikan.')
                     ->action(fn (BankStatementLine $record) => app(BankReconciliationService::class)->ignore($record)),
 
                 // Baris yang masih 'matched' tidak boleh dihapus langsung -- batalkan kecocokannya

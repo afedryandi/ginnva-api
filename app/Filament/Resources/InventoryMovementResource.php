@@ -295,7 +295,7 @@ class InventoryMovementResource extends Resource
                     ->rows(2)
                     ->helperText('Mis. salah scan barang atau salah memilih jenis.'),
             ])
-            ->modalDescription('Batalkan pencatatan ini? Status barang akan dikembalikan ke sebelumnya. Baris ini tetap tersimpan sebagai "Dibatalkan" dan baris "Koreksi" baru ditambahkan sebagai jejaknya. Cuma bisa untuk kejadian paling terakhir barang ini.')
+            ->modalDescription('Batalkan pencatatan ini? Status barang kembali ke sebelumnya, baris ini ditandai Dibatalkan, dan baris Koreksi ditambahkan. Hanya bisa untuk kejadian terakhir barang ini.')
             ->action(function (InventoryMovement $record, array $data) {
                 try {
                     $record->inventoryItem->reverseLastMovement($record, auth()->id(), $data['reason']);

@@ -29,10 +29,9 @@
         <x-slot name="description">
             Berdasarkan booking berbayar dalam rentang tanggal terpilih — cuma pelanggan yang punya akun (tidak termasuk walk-in tanpa akun).
             @if (! (auth()->user()?->isFullAccess() ?? false))
-                Peringkat & belanja di bawah cuma menghitung booking di TOKO ANDA — belanja pelanggan di toko lain tidak ikut.
+                Peringkat dan belanja hanya menghitung booking di toko ini.
             @endif
-            "Outlet Registrasi" ala Majoo tidak ditampilkan — akun pelanggan Ginnva dibuat lewat mobile app, tidak terdaftar di 1 outlet tertentu.
-        </x-slot>
+                    </x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">

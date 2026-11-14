@@ -321,7 +321,7 @@ class WorkScheduleResource extends Resource
                         app(\App\Services\StaffNotifier::class)->toUsers(
                             $data['user_ids'],
                             'Jadwal Kerja Baru',
-                            "Anda ditugaskan ke jadwal \"{$record->name}\" mulai " . Carbon::parse($data['effective_from'])->translatedFormat('d M Y') . '.'
+                            "Ditugaskan ke jadwal \"{$record->name}\" mulai " . Carbon::parse($data['effective_from'])->translatedFormat('d M Y') . '.'
                         );
 
                         Notification::make()

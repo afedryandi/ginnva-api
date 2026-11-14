@@ -45,8 +45,8 @@ class BookingReminderService
             $b,
             'dayof_reminder_sent_at',
             'booking_reminder_dayof',
-            'Jadwal Anda Hari Ini',
-            fn (string $detail) => "Hari ini jadwal Anda: {$detail}. Sampai jumpa!",
+            'Jadwal Hari Ini',
+            fn (string $detail) => "Jadwal hari ini: {$detail}. Sampai jumpa!",
         );
     }
 
@@ -65,7 +65,7 @@ class BookingReminderService
                 $this->push->sendToCustomer(
                     $b->customer_id,
                     'Pengingat Jadwal Besok',
-                    "Besok jadwal Anda: {$this->detail($b)}. Jika berhalangan, ubah jadwal atau batalkan dari booking Anda.",
+                    "Jadwal besok: {$this->detail($b)}. Kalau berhalangan, ubah jadwal atau batalkan dari booking.",
                     ['type' => 'booking_reminder_h1', 'booking_id' => $b->id, 'route' => self::CUSTOMER_ROUTE, 'params' => ['reschedule' => (string) $b->id]]
                 );
             }

@@ -41,7 +41,7 @@ class RewardRedemptionService
                 }
 
                 if ((float) $lockedReward->voucher_discount <= 0) {
-                    throw new RuntimeException('Voucher ini belum siap ditukar. Silakan hubungi toko.');
+                    throw new RuntimeException('Voucher ini belum siap ditukar. Hubungi toko.');
                 }
             }
 
@@ -51,7 +51,7 @@ class RewardRedemptionService
             $currentBalance = $lockedRedeemer->{$balanceField};
 
             if ($currentBalance < $lockedReward->points_cost) {
-                throw new RuntimeException('Poin Anda tidak cukup untuk menukar reward ini.');
+                throw new RuntimeException('Poin tidak cukup untuk menukar reward ini.');
             }
 
             $reward = $lockedReward;

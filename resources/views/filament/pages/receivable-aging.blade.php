@@ -66,7 +66,7 @@
     <x-filament::section>
         <x-slot name="heading">Sisa piutang per pelanggan menurut umur jatuh tempo</x-slot>
         <x-slot name="description">
-            Toko: {{ $this->storeLabel() }}. Hanya piutang Belum Diterima / Diterima Sebagian. "Belum jatuh tempo" mencakup piutang tanpa tanggal jatuh tempo. Dihitung per hari ini. Klik nama pelanggan untuk melihat piutangnya di Piutang Usaha.
+            Toko: {{ $this->storeLabel() }}. Hanya piutang yang belum atau sebagian diterima, dihitung per hari ini. Klik nama pelanggan untuk melihat piutangnya di Piutang Usaha.
         </x-slot>
 
         <div class="overflow-x-auto">

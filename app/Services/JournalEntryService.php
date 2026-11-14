@@ -341,7 +341,7 @@ class JournalEntryService
         $parsed = Carbon::parse($date);
 
         if (AccountingPeriod::isClosedFor($parsed)) {
-            throw new RuntimeException('Periode ' . $parsed->translatedFormat('F Y') . ' sudah ditutup — tidak bisa membuat, mengubah, atau memposting jurnal dengan tanggal di bulan ini. Buka kembali periodenya dulu lewat menu Tutup Periode kalau memang perlu.');
+            throw new RuntimeException('Periode ' . $parsed->translatedFormat('F Y') . ' sudah ditutup: jurnal bertanggal di bulan ini tidak bisa dibuat, diubah, atau diposting. Buka kembali periodenya di menu Tutup Periode kalau perlu.');
         }
     }
 

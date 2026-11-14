@@ -40,7 +40,7 @@ class AdminTour
             ],
             [
                 'title' => 'Menu di bar atas',
-                'body' => 'Setiap menu (Booking, Karyawan, Keuangan, Penjualan, Lainnya) membuka sub-menu. Menu yang tampil mengikuti akses akun Anda, jadi tidak semua orang melihat menu yang sama.',
+                'body' => 'Setiap menu (Booking, Karyawan, Keuangan, Penjualan, Lainnya) membuka sub-menu. Menu yang tampil mengikuti akses akun, jadi tidak semua orang melihat menu yang sama.',
             ],
             [
                 'title' => 'Cari dan saring daftar',

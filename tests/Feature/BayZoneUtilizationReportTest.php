@@ -239,7 +239,7 @@ class BayZoneUtilizationReportTest extends TestCase
         $none = $this->report($this->week(), $this->user('kasir', null));
         $this->assertNull($none['store']);
         $this->assertSame([], $none['zones']);
-        $this->page($this->week(), $this->user('kasir', null))->assertSee('Pilih toko terlebih dahulu.');
+        $this->page($this->week(), $this->user('kasir', null))->assertSee('Pilih toko dulu.');
     }
 
     public function test_access_follows_staff_area_and_the_menu_checkbox(): void

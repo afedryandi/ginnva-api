@@ -310,7 +310,7 @@ class TrialBalanceTest extends TestCase
 
         $page = Livewire::test(TrialBalanceReport::class);
         $result = $page->instance()->getResult();
-        $this->assertSame(['aset', 'pendapatan'], $page->instance()->getGroupedRows($result)->keys()->all(), 'Akun yang saldonya habis tetap tampil bila filter mati.');
+        $this->assertSame(['aset', 'pendapatan'], $page->instance()->getGroupedRows($result)->keys()->all(), 'Akun yang saldonya habis tetap tampil kalau filter mati.');
 
         $page->set('data.hide_zero', true);
         $this->assertTrue($page->instance()->getGroupedRows($result)->isEmpty(), 'Semua akun bersaldo nol disembunyikan.');

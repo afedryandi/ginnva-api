@@ -410,7 +410,7 @@ class WorkScheduleCalendarReport extends Page implements HasActions, HasForms
                 $removed->each->delete();
 
                 if ($removed->isNotEmpty()) {
-                    $message = 'Jadwal Anda pada ' . $date->translatedFormat('d M Y') . ' kembali ke jadwal normal.';
+                    $message = 'Jadwal pada ' . $date->translatedFormat('d M Y') . ' kembali ke jadwal normal.';
                 }
 
                 Notification::make()->title('Override dihapus, kembali ke jadwal normal')->success()->send();
@@ -427,7 +427,7 @@ class WorkScheduleCalendarReport extends Page implements HasActions, HasForms
                 ->whereDate('start_date', '<=', $date)
                 ->whereDate('end_date', '>=', $date)
                 ->exists()) {
-                throw new \InvalidArgumentException('Karyawan ini punya Izin/Cuti yang sudah disetujui pada tanggal tersebut, tidak bisa dijadwalkan masuk kerja.');
+                throw new \InvalidArgumentException('Karyawan ini punya Izin/Cuti yang sudah disetujui pada tanggal itu, tidak bisa dijadwalkan masuk kerja.');
             }
 
             $shiftId = null;
@@ -455,7 +455,7 @@ class WorkScheduleCalendarReport extends Page implements HasActions, HasForms
             );
 
             $what = $shiftId ? 'shift "' . Shift::find($shiftId)?->name . '"' : 'LIBUR';
-            $message = 'Jadwal Anda pada ' . $date->translatedFormat('d M Y') . ' diubah menjadi ' . $what . '.';
+            $message = 'Jadwal pada ' . $date->translatedFormat('d M Y') . ' diubah menjadi ' . $what . '.';
 
             Notification::make()->title('Jadwal hari itu diubah')->success()->send();
         });

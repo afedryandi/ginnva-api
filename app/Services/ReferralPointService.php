@@ -89,7 +89,7 @@ class ReferralPointService
                 }
 
                 throw new RuntimeException(
-                    "Booking ini sudah diproses sebelumnya untuk partner lain (kode referral berbeda). Poin TIDAK dipindahkan otomatis ke \"{$lockedPartner->business_name}\" — hubungi admin untuk koreksi manual kalau memang salah input."
+                    "Booking ini sudah diproses untuk partner lain. Poin tidak dipindahkan otomatis ke \"{$lockedPartner->business_name}\"; hubungi admin kalau memang salah input."
                 );
             }
 
@@ -134,7 +134,7 @@ class ReferralPointService
                 app(\App\Services\PushNotificationService::class)->sendToCustomer(
                     $lockedCustomer->id,
                     'Poin Bertambah',
-                    "Anda mendapat {$points} poin dari booking #{$booking->booking_number}."
+                    "Dapat {$points} poin dari booking #{$booking->booking_number}."
                 );
             }
 
@@ -211,7 +211,7 @@ class ReferralPointService
             app(\App\Services\PushNotificationService::class)->sendToCustomer(
                 $lockedReferrer->id,
                 'Bonus Ajak Teman',
-                "Anda mendapat {$points} poin bonus ajak teman dari booking {$customer->name}."
+                "Dapat {$points} poin bonus ajak teman dari booking {$customer->name}."
             );
 
             return $lockedReferrer;

@@ -258,7 +258,7 @@ class FieldDutyRequestTest extends TestCase
         $this->service->approve($request, $this->manager);
 
         $this->assertRejected(fn () => $this->service->cancel($request, $this->andi->id), 'tidak bisa dibatalkan');
-        $this->assertRejected(fn () => $this->service->cancel($request, $this->manager->id), 'bukan milik Anda');
+        $this->assertRejected(fn () => $this->service->cancel($request, $this->manager->id), 'bukan milik akun ini');
     }
 
     // ------------------------------------------------------------- dinas sebagian hari

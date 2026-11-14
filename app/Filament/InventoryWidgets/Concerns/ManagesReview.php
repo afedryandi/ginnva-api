@@ -49,7 +49,7 @@ trait ManagesReview
                 // Menyembunyikan baris untuk semua orang: butuh izin Ubah eksplisit pada menu barangnya.
                 ->visible(fn ($record) => $canUpdate() && ! $record->isAcknowledged())
                 ->requiresConfirmation()
-                ->modalDescription("Sembunyikan baris ini dari \"Perlu Perhatian\" selama {$days} hari? Muncul lagi lebih cepat bila datanya berubah atau kondisinya memburuk (mis. kedaluwarsa). Bisa dibatalkan lewat filter \"Sudah ditinjau\".")
+                ->modalDescription("Sembunyikan baris ini dari Perlu Perhatian selama {$days} hari? Muncul lagi kalau datanya berubah atau kondisinya memburuk. Bisa dibatalkan lewat filter Sudah ditinjau.")
                 ->action(function ($record) {
                     $record->acknowledge(auth()->id());
                     Notification::make()->title('Ditandai sudah ditinjau')->success()->send();

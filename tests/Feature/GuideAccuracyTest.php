@@ -109,7 +109,7 @@ class GuideAccuracyTest extends TestCase
 
         $this->assertNotEmpty($terms);
         $this->assertSame([], $missing, 'Istilah tebal di panduan yang tidak ada sebagai label di kode: ' . implode(', ', $missing)
-            . '. Perbaiki teks panduan, atau daftarkan di GuideCatalog::MOBILE_LABELS bila label itu hanya ada di aplikasi staf (setelah diperiksa).');
+            . '. Perbaiki teks panduan, atau daftarkan di GuideCatalog::MOBILE_LABELS kalau label itu hanya ada di aplikasi staf (setelah diperiksa).');
     }
 
     public function test_every_mobile_label_is_actually_used_in_a_guide(): void
@@ -151,7 +151,7 @@ class GuideAccuracyTest extends TestCase
         $this->assertSame(
             ['kaca_film', 'ppf'],
             array_keys(BookingMessage::PRODUCT_STAGES),
-            'Bila Detailing/Premium Wash mendapat tahap pengerjaan, perbarui panduan Booking dan Istilah.'
+            'Kalau Detailing/Premium Wash mendapat tahap pengerjaan, perbarui panduan Booking dan Istilah.'
         );
     }
 

@@ -84,7 +84,7 @@ class VehicleImportService
 
             if ($model === '' && $variant !== '') {
                 $summary['invalid']++;
-                $problems[] = "Baris {$line}: varian diisi tetapi tipe/model kosong.";
+                $problems[] = "Baris {$line}: varian diisi tapi tipe/model kosong.";
 
                 continue;
             }

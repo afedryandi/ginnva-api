@@ -13,7 +13,7 @@
             <x-filament::section>
                 <div class="flex flex-col items-center gap-2 py-10 text-center">
                     <x-heroicon-o-building-storefront class="h-10 w-10 text-gray-300 dark:text-gray-600" />
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-300">Pilih toko terlebih dahulu.</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-300">Pilih toko dulu.</p>
                 </div>
             </x-filament::section>
         @elseif (! $result['configured'])
@@ -27,10 +27,7 @@
             </x-filament::section>
         @else
             <p class="text-xs text-gray-500 dark:text-gray-400">
-                Utilisasi dihitung dari durasi NYATA tiap booking menempati tahap-tahap zona ini (bukan estimasi
-                rata-rata) — beda dari "Laporan Reservasi & Utilisasi" yang cuma menghitung jumlah booking per hari.
-                Zona yang belum diisi jumlah slotnya ditandai "Belum dikonfigurasi" dan dilewati dari perhitungan,
-                bukan dianggap 0 slot.
+                Utilisasi dihitung dari durasi nyata tiap booking di zona ini. Zona yang belum diisi jumlah slotnya ditandai Belum dikonfigurasi dan dilewati.
             </p>
 
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">

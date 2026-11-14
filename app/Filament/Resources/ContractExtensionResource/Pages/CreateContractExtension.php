@@ -33,7 +33,7 @@ class CreateContractExtension extends CreateRecord
         if (! ContractExtension::eligibleEmployees($actor)->whereKey($employee->id)->exists()) {
             Notification::make()
                 ->title('Tidak bisa disimpan')
-                ->body('Karyawan ini tidak termasuk yang boleh Anda perpanjang kontraknya: harus aktif, bertipe kontrak, dan dalam wewenang Anda.')
+                ->body('Kontrak karyawan ini tidak bisa diperpanjang oleh akun ini: harus aktif, bertipe kontrak, dan dalam wewenang akun.')
                 ->danger()
                 ->send();
 
@@ -76,7 +76,7 @@ class CreateContractExtension extends CreateRecord
         app(\App\Services\StaffNotifier::class)->toUsers(
             [$this->record->user_id],
             'Kontrak Kerja Diperpanjang',
-            'Kontrak Anda telah diperpanjang sampai ' . $this->record->new_end_date->translatedFormat('d M Y') . '.'
+            'Kontrak diperpanjang sampai ' . $this->record->new_end_date->translatedFormat('d M Y') . '.'
         );
     }
 }

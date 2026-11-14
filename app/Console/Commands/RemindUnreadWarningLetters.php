@@ -38,8 +38,8 @@ class RemindUnreadWarningLetters extends Command
 
         foreach ($due as $userId => $letters) {
             $body = $letters->count() === 1
-                ? 'Anda punya 1 Surat Peringatan (' . $letters->first()->warning_number . ') yang belum dibaca. Buka Absensi > Riwayat Surat Peringatan.'
-                : "Anda punya {$letters->count()} Surat Peringatan yang belum dibaca. Buka Absensi > Riwayat Surat Peringatan.";
+                ? 'Ada 1 Surat Peringatan (' . $letters->first()->warning_number . ') yang belum dibaca. Buka Absensi > Riwayat Surat Peringatan.'
+                : "Ada {$letters->count()} Surat Peringatan yang belum dibaca. Buka Absensi > Riwayat Surat Peringatan.";
 
             app(StaffNotifier::class)->toUsers(
                 [$userId],

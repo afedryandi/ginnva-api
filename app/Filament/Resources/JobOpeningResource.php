@@ -93,7 +93,7 @@ class JobOpeningResource extends Resource
                     Forms\Components\DatePicker::make('valid_through')
                         ->label('Berlaku Sampai (opsional)')
                         ->native(false)
-                        ->helperText('Setelah lewat, lowongan hilang sendiri dari website dan Google. Kosongkan bila belum ada batas.'),
+                        ->helperText('Setelah lewat, lowongan hilang sendiri dari website dan Google. Kosongkan kalau belum ada batas.'),
 
                     Forms\Components\Toggle::make('is_published')
                         ->label('Tampilkan di Website')

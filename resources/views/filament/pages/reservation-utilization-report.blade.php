@@ -9,9 +9,7 @@
     @endphp
 
     <div class="rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
-        Kapasitas dihitung dari setting <strong>saat ini</strong> tiap toko (Kapasitas Instalasi/Hari), BUKAN kapasitas persis
-        yang berlaku di hari tertentu di masa lalu — nominal itu diinput manual staff sesaat saat approve booking dan tidak
-        pernah disimpan. Angka Utilisasi di sini pendekatan, bukan catatan historis pasti.
+        Kapasitas dihitung dari pengaturan toko <strong>saat ini</strong>, jadi angka Utilisasi adalah perkiraan, bukan catatan historis.
     </div>
 
     @if ($result['truncated'])

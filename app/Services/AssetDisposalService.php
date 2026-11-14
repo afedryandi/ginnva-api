@@ -52,7 +52,7 @@ class AssetDisposalService
         } elseif (! $journalable) {
             $warnings[] = 'Aset ini belum punya harga perolehan atau akun Bagan Akun, jadi hanya statusnya yang dicatat, tanpa jurnal.';
         } elseif ($this->missingDepreciationBefore($asset, $date)) {
-            $warnings[] = 'Penyusutan bulan sebelum tanggal pelepasan belum diposting seluruhnya. Jalankan penyusutan dulu agar nilai buku dan laba/rugi tepat.';
+            $warnings[] = 'Penyusutan bulan sebelum tanggal pelepasan belum diposting seluruhnya. Jalankan penyusutan dulu supaya nilai buku dan laba/rugi tepat.';
         }
 
         return [

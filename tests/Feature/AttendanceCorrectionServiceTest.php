@@ -202,7 +202,7 @@ class AttendanceCorrectionServiceTest extends TestCase
             $service->cancel($request, $manager->id);
             $this->fail('Bukan pengaju, seharusnya ditolak.');
         } catch (RuntimeException $e) {
-            $this->assertStringContainsString('bukan milik Anda', $e->getMessage());
+            $this->assertStringContainsString('bukan milik akun ini', $e->getMessage());
         }
 
         $service->cancel($request, $user->id);

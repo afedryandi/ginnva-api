@@ -95,7 +95,7 @@ class ProductClaimResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Bukti')
-                ->description('Arsip internal, tidak tampil di web. Angka hanya dapat disetujui bila ada berkas bukti atau catatan sumber, dan tanggalnya jelas. Mengubah klaim yang sudah disetujui membuatnya kembali berstatus draft.')
+                ->description('Arsip internal, tidak tampil di web. Angka bisa disetujui kalau ada berkas bukti atau catatan sumber. Mengubah klaim yang sudah disetujui mengembalikannya ke draft.')
                 ->columns(2)
                 ->schema([
                     Forms\Components\FileUpload::make('evidence_path')
@@ -109,7 +109,7 @@ class ProductClaimResource extends Resource
                     Forms\Components\Textarea::make('source_note')
                         ->label('Catatan Sumber')
                         ->rows(2)
-                        ->helperText('Asal angka bila tidak ada berkas. Contoh: "Lembar data pabrikan, revisi Maret 2026".')
+                        ->helperText('Asal angka kalau tidak ada berkas. Contoh: "Lembar data pabrikan, revisi Maret 2026".')
                         ->columnSpanFull(),
 
                     Forms\Components\DatePicker::make('tested_at')

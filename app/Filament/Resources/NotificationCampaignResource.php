@@ -161,7 +161,7 @@ class NotificationCampaignResource extends Resource
                     ->color('danger')
                     ->requiresConfirmation()
                     ->modalHeading('Batalkan kampanye terjadwal?')
-                    ->modalDescription('Kampanye tidak akan dikirim. Tindakan ini tidak bisa diurungkan.')
+                    ->modalDescription('Kampanye tidak akan dikirim. Ini tidak bisa diurungkan.')
                     ->visible(fn (NotificationCampaign $r) => $r->status === NotificationCampaign::SCHEDULED && static::canViewAny())
                     ->action(function (NotificationCampaign $record): void {
                         // Pembaruan bersyarat: kampanye yang sudah diklaim pengirim terjadwal tidak bisa dibatalkan lagi.

@@ -189,7 +189,7 @@ class StockOpnameResource extends Resource
     {
         return Forms\Components\Toggle::make('apply_now')
             ->label('Langsung terapkan ke stok')
-            ->helperText('Hanya akses penuh. Bila dimatikan, hasil hitung tersimpan sebagai draf dan stok baru berubah setelah diterapkan.')
+            ->helperText('Hanya akses penuh. Kalau dimatikan, hasil hitung tersimpan sebagai draf dan stok baru berubah setelah diterapkan.')
             ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
             ->default(false);
     }
@@ -201,7 +201,7 @@ class StockOpnameResource extends Resource
         $storeId = static::resolveStoreId($data);
 
         if ($storeId <= 0) {
-            Notification::make()->title('Akun Anda belum terikat ke toko, sesi tidak bisa dibuat.')->danger()->send();
+            Notification::make()->title('Akun ini belum terikat ke toko, sesi tidak bisa dibuat.')->danger()->send();
 
             return;
         }
@@ -497,7 +497,7 @@ class StockOpnameResource extends Resource
                                 Forms\Components\TextInput::make('note')
                                     ->label('Catatan')
                                     ->maxLength(255)
-                                    ->helperText('Wajib bila selisihnya besar.'),
+                                    ->helperText('Wajib kalau selisihnya besar.'),
                             ]),
                     ])
                     ->action(fn (array $data) => static::submitSession($data, $data['items'])),

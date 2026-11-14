@@ -384,7 +384,7 @@ class ConsumableItemController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => "Selisih melebihi {$limit} {$item->unit} untuk barang ini. Isi catatan alasan selisih.",
-                'errors' => ['note' => ["Catatan wajib diisi bila selisih lebih dari {$limit} {$item->unit}."]],
+                'errors' => ['note' => ["Catatan wajib diisi kalau selisih lebih dari {$limit} {$item->unit}."]],
             ], 422);
         }
 

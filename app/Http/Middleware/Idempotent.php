@@ -93,7 +93,7 @@ class Idempotent
                     return response()->json([
                         'success' => false,
                         'code' => 'request_in_progress',
-                        'message' => 'Permintaan Anda sebelumnya masih diproses. Tunggu sebentar lalu cek hasilnya.',
+                        'message' => 'Permintaan sebelumnya masih diproses. Tunggu sebentar lalu cek hasilnya.',
                     ], 409)->header('Retry-After', '2');
                 }
 

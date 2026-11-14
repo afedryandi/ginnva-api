@@ -475,20 +475,20 @@ class ScrollCodeResource extends Resource
 
                         Forms\Components\TextInput::make('max_usage')
                             ->label('Kapasitas Gulungan (opsional)')
-                            ->helperText('Boleh dikosongkan (berlaku untuk PPF maupun Window Film) — kode akan tetap muncul di pilihan warranty baru sampai ditandai habis manual lewat "Tandai Habis" (menu Produk PPF/WF). Isi kalau Anda tahu pasti gulungan ini cuma cukup untuk sekian mobil (mis. Window Film ±30 mobil), supaya otomatis ditandai habis begitu tercapai.')
+                            ->helperText('Boleh kosong. Kode tetap muncul di pilihan garansi sampai ditandai habis. Isi kalau gulungan hanya cukup untuk sekian mobil.')
                             ->numeric()
                             ->minValue(1),
 
                         Forms\Components\TextInput::make('total_length_meters')
                             ->label('Total Panjang (meter)')
-                            ->helperText('Terisi otomatis dari produk yang dipilih (PPF 15m, Window Film 30m) — ubah manual kalau gulungan ini beda, mis. sisa tabungan dari gulungan lain.')
+                            ->helperText('Terisi otomatis dari produk (PPF 15 m, Window Film 30 m). Ubah manual kalau gulungan ini berbeda.')
                             ->numeric()
                             ->required()
                             ->minValue(0.01),
 
                         Forms\Components\TextInput::make('purchase_cost')
                             ->label('Harga Beli Gulungan (opsional)')
-                            ->helperText('Harga beli TOTAL 1 gulungan ini (bukan per meter) — dipakai hitung HPP & Laba Kotor di Laporan Penjualan Per Periode. Boleh dikosongkan kalau belum tahu, laporan akan menandainya "harga belum diisi".')
+                            ->helperText('Harga beli total satu gulungan (bukan per meter), dipakai menghitung HPP di Laporan Penjualan Per Periode. Boleh kosong; laporan menandainya harga belum diisi.')
                             ->numeric()
                             ->prefix('Rp')
                             ->minValue(0),
@@ -745,7 +745,7 @@ class ScrollCodeResource extends Resource
                         ->color('gray')
                         ->visible(fn () => auth()->user()?->isFullAccess())
                         ->requiresConfirmation()
-                        ->modalDescription('Isi Total Panjang otomatis (PPF 15m, Window Film 30m) untuk kode terpilih yang belum punya nilai ini DAN masih berstatus "Belum dialokasikan". Kode yang sudah dialokasi/dipakai dilewati karena sisa meter sebenarnya tidak diketahui.')
+                        ->modalDescription('Isi Total Panjang otomatis (PPF 15 m, Window Film 30 m) untuk kode terpilih yang belum punya nilai dan belum dialokasikan. Kode yang sudah dialokasi atau dipakai dilewati.')
                         ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
                             $filled = 0;
                             $skipped = 0;

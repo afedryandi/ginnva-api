@@ -587,7 +587,7 @@ class DemoLengkapi extends Command
     {
         foreach ([
             ['Promo Akhir Bulan', 'customer', 'promo', 'Promo akhir bulan Ginnva', 'Diskon pemasangan film untuk booking sampai akhir bulan. Booking sekarang di aplikasi.'],
-            ['Pengingat Servis Berkala', 'customer', 'info', 'Waktunya servis berkala', 'Garansi Anda menyertakan pemeriksaan berkala. Jadwalkan kunjungan di aplikasi.'],
+            ['Pengingat Servis Berkala', 'customer', 'info', 'Waktunya servis berkala', 'Garansi ini termasuk pemeriksaan berkala. Jadwalkan kunjungan di aplikasi.'],
             ['Info Program Partner', 'partner', null, 'Program referral partner', 'Ajak pelanggan baru dan kumpulkan poin partner bulan ini.'],
         ] as [$name, $audience, $category, $title, $body]) {
             NotificationTemplate::create(['name' => self::TAG . ' ' . $name, 'audience' => $audience, 'category' => $category, 'title' => self::TAG . ' ' . $title, 'body' => $body, 'created_by' => $this->admin?->id]);
@@ -601,7 +601,7 @@ class DemoLengkapi extends Command
         NotificationCampaign::create([
             'audience' => 'customer', 'category' => 'info', 'title' => self::TAG . ' Info Perubahan Jam Operasional', 'body' => 'Jam operasional toko berubah mulai pekan depan.',
             'status' => NotificationCampaign::FAILED, 'sent_at' => now()->subDays(9), 'recipients' => 40, 'skipped' => 0, 'devices_sent' => 0, 'devices_failed' => 40,
-            'campaign_key' => (string) Str::uuid(), 'message' => self::TAG . ' gagal: layanan push tidak dapat dihubungi', 'created_by' => $this->admin?->id,
+            'campaign_key' => (string) Str::uuid(), 'message' => self::TAG . ' gagal: layanan push tidak bisa dihubungi', 'created_by' => $this->admin?->id,
         ]);
         NotificationCampaign::create([
             'audience' => 'partner', 'category' => null, 'title' => self::TAG . ' Pengumuman Partner (dibatalkan)', 'body' => 'Pengumuman program partner baru.',
@@ -644,7 +644,7 @@ class DemoLengkapi extends Command
         }
 
         PartnerNotification::withoutEvents(function () use ($partner) {
-            PartnerNotification::create(['partner_id' => $partner->id, 'title' => self::TAG . ' Poin referral bertambah', 'body' => 'Referral Anda menghasilkan 50 poin (data demo).', 'data' => ['type' => 'demo'], 'read_at' => now()->subDays(2), 'sent_by' => $this->admin?->id]);
+            PartnerNotification::create(['partner_id' => $partner->id, 'title' => self::TAG . ' Poin referral bertambah', 'body' => 'Referral menghasilkan 50 poin (data demo).', 'data' => ['type' => 'demo'], 'read_at' => now()->subDays(2), 'sent_by' => $this->admin?->id]);
             PartnerNotification::create(['partner_id' => $partner->id, 'title' => self::TAG . ' Program partner baru', 'body' => 'Ada program bonus referral bulan ini (data demo).', 'data' => ['type' => 'demo'], 'read_at' => null, 'sent_by' => $this->admin?->id]);
         });
 
@@ -679,7 +679,7 @@ class DemoLengkapi extends Command
 
     private function guideNotes(): void
     {
-        GuideNote::create(['guide_id' => 'booking', 'body' => self::TAG . ' Catatan perusahaan: konfirmasi booking maksimal 4 jam setelah masuk. Hubungi Store Manager bila ragu.', 'updated_by' => $this->admin?->id]);
+        GuideNote::create(['guide_id' => 'booking', 'body' => self::TAG . ' Catatan perusahaan: konfirmasi booking maksimal 4 jam setelah masuk. Hubungi Store Manager kalau ragu.', 'updated_by' => $this->admin?->id]);
 
         $this->count('Catatan Panduan', 1);
     }

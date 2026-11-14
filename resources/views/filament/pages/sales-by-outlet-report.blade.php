@@ -72,8 +72,7 @@
     <x-filament::section>
         <x-slot name="heading">Rekap per Outlet</x-slot>
         <x-slot name="description">
-            Diurutkan dari penjualan tertinggi. Penjualan (bersih) sudah dikurangi pengembalian yang diproses pada periode ini; grafik di atas
-            menampilkan nilai sebelum pengembalian. Outlet nonaktif hanya tampil bila punya transaksi pada rentang ini.
+            Diurutkan dari penjualan tertinggi. Penjualan bersih sudah dikurangi pengembalian periode ini; grafik menampilkan nilai sebelum pengembalian.
         </x-slot>
 
         <div class="overflow-x-auto">

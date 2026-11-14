@@ -341,7 +341,7 @@ class StockOpnameResourceTest extends TestCase
             ->set('mountedTableActionsData.0.items', [])
             ->setTableActionData($this->formData($this->storeA, [['item_type' => 'raw_material', 'item_id' => $material->id, 'actual_quantity' => 9]]))
             ->callMountedTableAction()
-            ->assertNotified('Akun Anda belum terikat ke toko, sesi tidak bisa dibuat.');
+            ->assertNotified('Akun ini belum terikat ke toko, sesi tidak bisa dibuat.');
 
         $this->assertSame(0, StockOpname::withoutGlobalScopes()->count());
         $this->assertEquals(10, (float) $material->fresh()->current_stock);

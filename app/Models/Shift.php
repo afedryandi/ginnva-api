@@ -41,7 +41,7 @@ class Shift extends Model
     {
         static::deleting(function (Shift $shift) {
             if ($shift->isInUse()) {
-                throw new \RuntimeException("Shift \"{$shift->name}\" masih dipakai Jadwal Kerja/override harian, tidak bisa dihapus. Ganti dulu shift di jadwal tersebut, atau nonaktifkan saja.");
+                throw new \RuntimeException("Shift \"{$shift->name}\" masih dipakai Jadwal Kerja/override harian, tidak bisa dihapus. Ganti dulu shift di jadwal itu, atau nonaktifkan saja.");
             }
         });
     }

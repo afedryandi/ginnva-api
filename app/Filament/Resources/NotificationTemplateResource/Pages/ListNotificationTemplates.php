@@ -16,6 +16,6 @@ class ListNotificationTemplates extends ListRecords
 
     public function getSubheading(): ?string
     {
-        return 'Template dibuat dari menu Kirim Notifikasi lewat "Simpan sebagai template". Di sini Anda bisa mengubah, menghapus, atau memakainya lagi.';
+        return 'Template dibuat dari menu Kirim Notifikasi lewat "Simpan sebagai template". Di sini bisa diubah, dihapus, atau dipakai lagi.';
     }
 }

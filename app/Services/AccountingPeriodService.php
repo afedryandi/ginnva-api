@@ -105,7 +105,7 @@ class AccountingPeriodService
                 ->count();
 
             if ($cogsMissing > 0) {
-                $items[] = ['key' => 'cogs', 'severity' => 'warn', 'count' => $cogsMissing, 'text' => "{$cogsMissing} booking selesai bulan ini punya pemakaian bahan tetapi belum punya jurnal HPP (jalankan php artisan cogs:sync)."];
+                $items[] = ['key' => 'cogs', 'severity' => 'warn', 'count' => $cogsMissing, 'text' => "{$cogsMissing} booking selesai bulan ini punya pemakaian bahan tapi belum punya jurnal HPP (jalankan php artisan cogs:sync)."];
             }
         }
 
@@ -120,7 +120,7 @@ class AccountingPeriodService
                 ->count();
 
             if ($unprocessed > 0) {
-                $items[] = ['key' => 'unprocessed_sales', 'severity' => 'warn', 'count' => $unprocessed, 'text' => "{$unprocessed} booking selesai bulan ini belum diproses ke pendapatan (Catat Penjualan) — setelah bulan ditutup, pendapatannya akan bertanggal bulan berikutnya."];
+                $items[] = ['key' => 'unprocessed_sales', 'severity' => 'warn', 'count' => $unprocessed, 'text' => "{$unprocessed} booking selesai bulan ini belum diproses (Catat Penjualan); setelah bulan ditutup, pendapatannya bertanggal bulan berikutnya."];
             }
         }
 

@@ -401,7 +401,7 @@ class PayrollResource extends Resource
                     ->color('gray')
                     ->visible(fn (Payroll $record) => $record->status === 'draft')
                     ->modalHeading(fn (Payroll $record) => 'Komponen Gaji - ' . $record->user?->name)
-                    ->modalDescription('Tambahan (tunjangan, bonus, THR, uang kompensasi) dan potongan (BPJS, PPh 21, kasbon) sesuai hitungan akuntan. Hanya dicatat; sistem tidak menghitung pajak dan iuran.')
+                    ->modalDescription('Tambahan (tunjangan, bonus, THR) dan potongan (BPJS, PPh 21, kasbon) sesuai hitungan akuntan. Hanya dicatat; sistem tidak menghitung pajak dan iuran.')
                     ->modalWidth('4xl')
                     ->fillForm(fn (Payroll $record) => ['items' => $record->items()->orderBy('id')->get()->map(fn ($i) => [
                         'id' => $i->id, 'payroll_item_category_id' => $i->payroll_item_category_id, 'label' => $i->label,
@@ -432,7 +432,7 @@ class PayrollResource extends Resource
                                     ->native(false)
                                     ->displayFormat('F Y')
                                     ->visible(fn (Forms\Get $get) => (bool) $get('is_recurring'))
-                                    ->helperText('Kosong = terus disalin tiap bulan. Isi bulan terakhirnya untuk cicilan kasbon atau tunjangan yang berakhir; sesudah bulan itu tidak disalin lagi.')
+                                    ->helperText('Kosong = disalin terus tiap bulan. Isi bulan terakhir untuk cicilan atau tunjangan yang berakhir.')
                                     ->columnSpan(2),
                             ]),
                     ])
@@ -531,7 +531,7 @@ class PayrollResource extends Resource
                         $amountLabel = 'Rp' . number_format((float) $record->net_pay, 0, ',', '.');
                         foreach ($recipients as $recipient) {
                             Notification::make()
-                                ->title("Menunggu persetujuan Anda: gaji {$record->user?->name} ({$amountLabel})")
+                                ->title("Menunggu persetujuan: gaji {$record->user?->name} ({$amountLabel})")
                                 ->warning()
                                 ->actions(\App\Support\PanelNotificationLink::actions(self::class))
                                 ->sendToDatabase($recipient);
@@ -612,7 +612,7 @@ class PayrollResource extends Resource
                     ->color('gray')
                     ->visible(fn (Payroll $record) => (auth()->user()?->isFullAccess() ?? false) && $record->status === 'paid' && $record->journal_entry_id === null)
                     ->modalHeading(fn (Payroll $record) => 'Batalkan status dibayar: ' . $record->user?->name)
-                    ->modalDescription('Slip kembali menjadi draf dan hilang dari slip gaji karyawan di aplikasi sampai dibayar lagi. Karyawan diberi tahu. Gunakan hanya bila slip salah ditandai dibayar.')
+                    ->modalDescription('Slip kembali jadi draf dan hilang dari slip karyawan di aplikasi sampai dibayar lagi. Karyawan diberi tahu. Pakai hanya kalau slip salah ditandai dibayar.')
                     ->form([
                         Forms\Components\Textarea::make('reason')->label('Alasan')->required()->rows(2),
                     ])
@@ -654,7 +654,7 @@ class PayrollResource extends Resource
                             if ($done->isNotEmpty()) {
                                 $total = 'Rp' . number_format((float) $done->sum('net_pay'), 0, ',', '.');
                                 User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess())->each(fn (User $u) => Notification::make()
-                                    ->title("Menunggu persetujuan Anda: {$done->count()} slip gaji (total {$total})")
+                                    ->title("Menunggu persetujuan: {$done->count()} slip gaji (total {$total})")
                                     ->warning()
                                     ->actions(\App\Support\PanelNotificationLink::actions(self::class))
                                     ->sendToDatabase($u));

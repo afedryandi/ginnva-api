@@ -198,7 +198,7 @@ class ClaimsRelationManager extends RelationManager
                             app(PushNotificationService::class)->sendToCustomer(
                                 $customerId,
                                 'Klaim After-Sales Disetujui',
-                                "Klaim #{$record->claim_number} Anda telah disetujui (pass)."
+                                "Klaim #{$record->claim_number} sudah disetujui (pass)."
                             );
                         }
 
@@ -231,7 +231,7 @@ class ClaimsRelationManager extends RelationManager
                             app(PushNotificationService::class)->sendToCustomer(
                                 $customerId,
                                 'Klaim After-Sales Ditolak',
-                                "Klaim #{$record->claim_number} Anda ditolak: {$data['rejection_reason']}"
+                                "Klaim #{$record->claim_number} ditolak: {$data['rejection_reason']}"
                             );
                         }
 
@@ -269,7 +269,7 @@ class ClaimsRelationManager extends RelationManager
                             ->label('Bahan terpakai')
                             ->content(fn () => ($count = $record->materialMemo()?->items->count() ?? 0) > 0
                                 ? "{$count} item tercatat di memo booking kunjungan."
-                                : 'Belum ada bahan tercatat. Bila ada film atau bahan yang terpakai, isi dulu lewat tombol "Bahan Terpakai" (Memo Pengambilan).'),
+                                : 'Belum ada bahan tercatat. Kalau ada film atau bahan yang terpakai, isi dulu lewat tombol "Bahan Terpakai" (Memo Pengambilan).'),
                         Forms\Components\Select::make('resolution')
                             ->label('Hasil Penanganan')
                             ->options(\App\Models\WarrantyClaim::RESOLUTIONS)
@@ -292,7 +292,7 @@ class ClaimsRelationManager extends RelationManager
                             app(PushNotificationService::class)->sendToCustomer(
                                 $customerId,
                                 'Klaim After-Sales Selesai Ditangani',
-                                "Klaim #{$record->claim_number} Anda sudah ditangani: " . \App\Models\WarrantyClaim::RESOLUTIONS[$data['resolution']] . '.'
+                                "Klaim #{$record->claim_number} sudah ditangani: " . \App\Models\WarrantyClaim::RESOLUTIONS[$data['resolution']] . '.'
                             );
                         }
 

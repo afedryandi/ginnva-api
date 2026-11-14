@@ -730,7 +730,7 @@ class UserResource extends Resource
                     'app_only' => 'Hanya aplikasi (panel: Absen Saya saja)',
                 ])
                 ->descriptions([
-                    'full' => 'Dapat membuka semua menu yang tersedia untuk jabatannya. Paling aman bila belum yakin.',
+                    'full' => 'Bisa membuka semua menu yang tersedia untuk jabatannya. Paling aman kalau belum yakin.',
                     'limited' => 'Hanya modul yang dipilih di tab di bawah yang tampil.',
                     'app_only' => 'Untuk karyawan yang tidak perlu panel. Absen, izin, dan slip gaji lewat aplikasi karyawan; di panel hanya halaman Absen Saya.',
                 ])
@@ -900,7 +900,7 @@ class UserResource extends Resource
             ->dehydrated(false)
             ->columnSpanFull()
             ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
-            ->helperText('Mengisi kotak modul dan hak detail di bawah sesuai karyawan yang dipilih, lalu tinggal diubah seperlunya. Jabatan dan Toko tidak ikut disalin. Baru berlaku setelah Anda menekan Simpan.')
+            ->helperText('Mengisi modul dan hak detail di bawah sesuai karyawan yang dipilih. Jabatan dan Toko tidak ikut disalin. Baru berlaku setelah Simpan.')
             ->afterStateUpdated(function ($state, Forms\Set $set) {
                 $source = $state ? User::find($state) : null;
 
@@ -942,7 +942,7 @@ class UserResource extends Resource
                         ->live(onBlur: true)
                         ->unique(ignoreRecord: true)
                         ->maxLength(255)
-                        ->helperText('Boleh dikosongkan bila No. HP diisi. Tanpa email, lupa password diatur ulang oleh admin.'),
+                        ->helperText('Boleh dikosongkan kalau No. HP diisi. Tanpa email, lupa password diatur ulang oleh admin.'),
 
                     Forms\Components\TextInput::make('phone')
                         ->label('No. HP')
@@ -970,7 +970,7 @@ class UserResource extends Resource
                     Forms\Components\Toggle::make('is_active')
                         ->label('Akun Aktif')
                         ->default(true)
-                        ->helperText('Matikan untuk mencabut akses login (panel & mobile app) tanpa menghapus akun & riwayatnya — dipakai saat karyawan resign/cuti panjang. Beda dari Hapus: data absensi/gaji/SP tetap tersimpan utuh.')
+                        ->helperText('Matikan untuk mencabut akses login (panel dan aplikasi) tanpa menghapus akun dan riwayatnya, mis. saat karyawan resign.')
                         // Karyawan tidak boleh menonaktifkan akunnya
                         // sendiri lewat form ini — kalau butuh, super
                         // admin lain yang harus melakukannya.
@@ -979,7 +979,7 @@ class UserResource extends Resource
 
                     Forms\Components\Select::make('roles')
                         ->label('Jabatan')
-                        ->helperText('Jabatan karyawan. Store Manager, Spv Finance, Installer Leader, Installer, Direksi, dan Super Admin (bertanda "wewenang bawaan") membawa wewenang tertentu; jabatan lain hanya nama, dan menu yang boleh dibuka diatur di Akses Menu di bawah.')
+                        ->helperText('Jabatan karyawan. Jabatan bertanda wewenang bawaan membawa wewenang khusus; jabatan lain hanya nama, menunya diatur di Akses Menu.')
                         ->relationship('roles', 'name')
                         // "partner" sengaja tidak ditawarkan di sini — akun
                         // mitra referral dibuat & dikelola lewat menu Partner
@@ -999,7 +999,7 @@ class UserResource extends Resource
                                 ->regex('/^[a-z_]+$/')
                                 ->validationMessages([
                                     'regex' => 'Huruf kecil & underscore saja, contoh: warehouse_staff.',
-                                    'unique' => 'Nama jabatan ini sudah digunakan, pakai nama lain.',
+                                    'unique' => 'Nama jabatan ini sudah dipakai, pakai nama lain.',
                                 ])
                                 ->helperText('Contoh: hrd, warehouse_staff, sales_admin. Jabatan baru hanya nama; tidak membawa wewenang bawaan.'),
                             Forms\Components\Hidden::make('guard_name')->default('web'),
@@ -1024,7 +1024,7 @@ class UserResource extends Resource
                         })
                         ->live()
                         ->required()
-                        ->helperText('super_admin/direksi: akses penuh. store_manager & installer: wajib pilih Toko di bawah (installer tidak bisa login ke panel ini, hanya via mobile app).'),
+                        ->helperText('super_admin dan direksi: akses penuh. store_manager dan installer: wajib pilih Toko di bawah.'),
 
                     Forms\Components\Select::make('store_id')
                         ->label('Toko (khusus jabatan yang terikat 1 toko)')
@@ -1059,7 +1059,7 @@ class UserResource extends Resource
                                 }
                             },
                         ])
-                        ->helperText('Wajib diisi kalau role-nya installer atau store_manager — tanpa Toko, akun ini tidak akan bisa akses booking/chat toko manapun. Kosongkan untuk super_admin/direksi/partner/role company-wide lain.'),
+                        ->helperText('Wajib untuk installer dan store_manager. Kosongkan untuk super_admin, direksi, partner, dan role lintas toko.'),
 
                     // "Riwayat Karir" (audit Majoo f57) — field TRANSIEN,
                     // BUKAN kolom users (lihat User::$pendingTransferReason),
@@ -1127,7 +1127,7 @@ class UserResource extends Resource
 
                     Forms\Components\DatePicker::make('attendance_start_date')
                         ->label('Mulai Wajib Absen')
-                        ->helperText('Kosongkan bila absensi wajib sejak Tanggal Mulai Kerja. Isi bila absensinya baru diberlakukan belakangan: sebelum tanggal ini tidak ada Alpha otomatis, pengingat belum absen, atau potongan Alpha di Payroll.'),
+                        ->helperText('Kosongkan kalau absensi wajib sejak Tanggal Mulai Kerja. Isi kalau baru diberlakukan belakangan: sebelum tanggal ini tidak ada Alpha otomatis atau pengingat.'),
 
                     Forms\Components\Select::make('employee_type_id')
                         ->label('Tipe Karyawan')
@@ -1138,17 +1138,17 @@ class UserResource extends Resource
 
                     Forms\Components\DatePicker::make('contract_end_date')
                         ->label('Tanggal Berakhir Kontrak')
-                        ->helperText('Isi di sini untuk kontrak PERTAMA kali. Perpanjangan berikutnya dicatat lewat menu "Perpanjang Kontrak" supaya riwayatnya tersimpan, bukan diedit langsung di sini.')
+                        ->helperText('Isi untuk kontrak pertama. Perpanjangan dicatat lewat menu Perpanjang Kontrak supaya riwayatnya tersimpan.')
                         ->visible(fn (Forms\Get $get) => (bool) \App\Models\EmployeeType::find($get('employee_type_id'))?->has_end_date)
                         ->required(fn (Forms\Get $get) => (bool) \App\Models\EmployeeType::find($get('employee_type_id'))?->has_end_date),
 
                     Forms\Components\DatePicker::make('last_work_date')
                         ->label('Hari Kerja Terakhir')
-                        ->helperText('Isi bila karyawan berhenti. Gaji bulan terakhirnya dihitung proporsional sampai tanggal ini dan Alpha sesudahnya tidak dicatat. Nonaktifkan akun setelah gaji terakhir dibayar; Generate Payroll tetap menyertakan karyawan nonaktif yang berhenti di bulan itu.'),
+                        ->helperText('Isi kalau karyawan berhenti. Gaji bulan terakhir dihitung proporsional sampai tanggal ini dan Alpha sesudahnya tidak dicatat. Nonaktifkan akun setelah gaji terakhir dibayar.'),
 
                     Forms\Components\DatePicker::make('probation_end_date')
                         ->label('Masa Percobaan Berakhir')
-                        ->helperText('Kosongkan bila tidak ada masa percobaan. Maksimal 3 bulan untuk PKWTT; PKWT tidak boleh ada masa percobaan.'),
+                        ->helperText('Kosongkan kalau tidak ada masa percobaan. Maksimal 3 bulan untuk PKWTT; PKWT tidak boleh ada masa percobaan.'),
 
                     Forms\Components\TextInput::make('base_salary')
                         ->label('Gaji Pokok')
@@ -1261,7 +1261,7 @@ class UserResource extends Resource
             // jangan boleh ubah") — kalau nanti perlu itu, butuh mekanisme
             // terpisah, bukan checklist yang sama.
             Forms\Components\Section::make('Akses Menu & Hak Akses Detail')
-                ->description('Khusus karyawan panel (jabatan selain Super Admin, Direksi, Installer, dan Partner). Pilih Akses penuh, batasi ke modul tertentu lalu centang modulnya di tab, atau Hanya aplikasi bagi karyawan yang tidak perlu panel. Kotak Lihat/Buat/Ubah/Hapus di sebelah modul hanya MENAMBAH izin: Lihat, Buat, dan Ubah tetap jalan seperti biasa, sedangkan Hapus (dan Void) baru aktif bila dicentang. Menu yang fiturnya dimatikan tidak ditampilkan, izinnya yang sudah tersimpan tetap dijaga.')
+                ->description('Pilih Akses penuh, batasi ke modul tertentu, atau Hanya aplikasi untuk karyawan yang tidak perlu panel. Kotak Lihat/Buat/Ubah/Hapus di sebelah modul hanya menambah izin; Hapus (dan Void) baru aktif kalau dicentang.')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
                 ->schema(array_merge(
                     self::accessModeFields(),
@@ -1464,7 +1464,7 @@ class UserResource extends Resource
 
                 Tables\Actions\DeleteAction::make()
                     ->modalDescription(fn (User $record) => $record->hasHrHistory()
-                        ? 'Akun ini sudah punya riwayat HR (absensi/cuti/gaji/SP/kontrak) — tidak bisa dihapus permanen. Gunakan "Nonaktifkan" untuk mencabut akses tanpa kehilangan riwayat.'
+                        ? 'Akun ini punya riwayat HR (absensi, cuti, gaji, SP, kontrak), jadi tidak bisa dihapus. Nonaktifkan untuk mencabut akses.'
                         : 'Yakin hapus akun ini? Tindakan ini tidak bisa dibatalkan.'),
             ])
             ->bulkActions([
@@ -1489,7 +1489,7 @@ class UserResource extends Resource
                         ->color('danger')
                         ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
                         ->requiresConfirmation()
-                        ->modalDescription('Akun dengan riwayat HR (absensi/cuti/gaji/SP/kontrak) akan DILEWATI, bukan dihapus — nonaktifkan akun itu satu-satu lewat aksi "Nonaktifkan".')
+                        ->modalDescription('Akun dengan riwayat HR (absensi, cuti, gaji, SP, kontrak) dilewati, bukan dihapus. Nonaktifkan satu per satu.')
                         ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
                             $deleted = 0;
                             $blocked = 0;

@@ -43,7 +43,7 @@ class ProductInquiryController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Pertanyaan Anda berhasil dikirim. Tim kami akan segera menghubungi Anda.',
+            'message' => 'Pertanyaan berhasil dikirim. Tim kami akan segera menghubungi.',
             'data'    => [
                 'inquiry_number' => $inquiry->inquiry_number,
             ],

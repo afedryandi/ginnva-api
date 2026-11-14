@@ -7,11 +7,11 @@
     Verifikasi Login
 </p>
 <h1 style="margin:0 0 20px;color:#333333;font-size:22px;font-weight:800;line-height:1.3;">
-    Masukkan kode verifikasi Anda
+    Masukkan kode verifikasi
 </h1>
 
 <p style="margin:0 0 24px;color:#666666;font-size:14px;line-height:1.6;">
-    Gunakan kode berikut untuk masuk ke akun Ginnva Shield Indonesia Anda.
+    Pakai kode berikut untuk masuk ke akun Ginnva Shield Indonesia.
     Kode ini berlaku selama <strong>10 menit</strong>.
 </p>
 

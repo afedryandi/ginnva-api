@@ -243,7 +243,7 @@ class BalanceSheetTest extends TestCase
         $this->assertSame([1050000.0, 84.0], array_slice($this->find($rows, 'Total Modal'), 1, 2));
         $this->assertSame(1250000.0, $this->find($rows, 'Total Kewajiban + Modal')[1]);
         $this->assertContains(['Balance — Total Aset sama dengan Total Kewajiban + Modal.'], $rows);
-        $this->assertNotContains('    Laba (Rugi) Tahun-Tahun Sebelumnya (belum ditutup)', array_column($rows, 0), 'Baris laba tahun lalu hanya muncul bila tidak nol.');
+        $this->assertNotContains('    Laba (Rugi) Tahun-Tahun Sebelumnya (belum ditutup)', array_column($rows, 0), 'Baris laba tahun lalu hanya muncul kalau tidak nol.');
 
         $this->assertSame('6.25x', $this->find($rows, 'Rasio Lancar (Aset Lancar / Kewajiban Lancar)')[1]);
         $this->assertSame(1050000.0, $this->find($rows, 'Modal Kerja (Aset Lancar - Kewajiban Lancar)')[1]);

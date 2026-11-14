@@ -46,7 +46,7 @@
 
     <x-filament::section>
         <x-slot name="heading">Waktu Teramai per Hari</x-slot>
-        <x-slot name="description">"Pelanggan" dihitung pelanggan UNIK per hari-dalam-seminggu (bukan per tanggal kalender) — pelanggan yang sama datang di 2 hari Senin berbeda minggu tetap dihitung 1x. Penjualan adalah nilai bersih: sudah dikurangi refund booking-nya, dicatat pada hari booking itu.</x-slot>
+        <x-slot name="description">Pelanggan dihitung unik per hari dalam seminggu (pelanggan yang sama di dua hari Senin dihitung sekali). Penjualan = nilai bersih setelah refund.</x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">

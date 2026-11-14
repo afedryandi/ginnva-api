@@ -122,7 +122,7 @@ class AttendanceResource extends Resource
 
         return $form->schema([
             Forms\Components\Section::make('Entri Manual Absensi')
-                ->description('Dipakai kalau device/wifi absen di toko mati, atau karyawan langsung dinas luar/ambil kendaraan client (tidak perlu hadir ke toko dulu).')
+                ->description('Dipakai kalau perangkat atau wifi absen toko mati, atau karyawan langsung dinas luar.')
                 ->columns(2)
                 ->schema([
                     // Karyawan dipilih DULUAN, Toko ikut otomatis dari

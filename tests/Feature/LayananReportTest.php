@@ -316,7 +316,7 @@ class LayananReportTest extends TestCase
         $money($by['Detailing'][3], 250000);
         $this->assertSame(0, $by['Premium Wash'][1]);
         $this->assertSame(0.0, $by['Premium Wash'][3]);
-        $this->assertArrayNotHasKey('Lainnya (tanpa jenis)', $by->all(), 'Baris Lainnya hanya ada bila ada isinya.');
+        $this->assertArrayNotHasKey('Lainnya (tanpa jenis)', $by->all(), 'Baris Lainnya hanya ada kalau ada isinya.');
 
         // Baris Total (jenis) lalu Total (toko): keyBy menyimpan yang terakhir, jadi cari lewat posisi.
         $totals = collect($rows)->filter(fn ($r) => ($r[0] ?? '') === 'Total')->values();

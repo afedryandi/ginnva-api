@@ -417,7 +417,7 @@ class LeaveRequestResource extends Resource
                     ->color('gray')
                     ->visible(fn (LeaveRequest $record) => (auth()->user()?->isFullAccess() ?? false) && $record->status === 'approved')
                     ->modalHeading(fn (LeaveRequest $record) => "Cabut persetujuan $record->request_number?")
-                    ->modalDescription('Jatah cuti dikembalikan. Absensi Izin/Cuti di rentang ini kembali menjadi Alpha untuk tanggal yang sudah lewat, dan dihapus untuk hari ini dan seterusnya. Karyawan diberi tahu.')
+                    ->modalDescription('Jatah cuti dikembalikan. Absensi Izin/Cuti kembali jadi Alpha untuk tanggal lewat, dan dihapus untuk hari ini dan seterusnya. Karyawan diberi tahu.')
                     ->form([
                         Forms\Components\Textarea::make('review_note')
                             ->label('Alasan dicabut')
@@ -463,7 +463,7 @@ class LeaveRequestResource extends Resource
         ];
 
         if ($record->created_at && $record->start_date->lt($record->created_at->copy()->startOfDay())) {
-            $lines[] = '<strong>Diajukan susulan</strong> pada ' . $record->created_at->translatedFormat('d M Y') . ' untuk tanggal yang sudah lewat. Pastikan benar-benar sakit; hari Alpha pada tanggal itu menjadi Izin/Sakit bila disetujui.';
+            $lines[] = '<strong>Diajukan susulan</strong> pada ' . $record->created_at->translatedFormat('d M Y') . ' untuk tanggal yang sudah lewat. Pastikan benar-benar sakit; hari Alpha pada tanggal itu menjadi Izin/Sakit kalau disetujui.';
         }
 
         if ($record->deductsAnnualQuota() && $record->user) {

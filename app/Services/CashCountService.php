@@ -35,7 +35,7 @@ class CashCountService
         }
 
         if (CashCount::withoutGlobalScopes()->where('payment_account_id', $account->id)->whereDate('count_date', $date->toDateString())->exists()) {
-            throw new RuntimeException('Kas ini sudah dihitung pada tanggal tersebut.');
+            throw new RuntimeException('Kas ini sudah dihitung pada tanggal itu.');
         }
 
         $coa = $account->chartAccount;

@@ -77,7 +77,7 @@ class CorrectionSource extends BaseSource
     private function assertMayDecide(User $by, AttendanceCorrectionRequest $request): void
     {
         if (! ($by->isFullAccess() || ($by->isStoreManager() && $this->inStore($by, $request->store_id)))) {
-            throw new \RuntimeException('Anda tidak berwenang memutuskan koreksi absen ini.');
+            throw new \RuntimeException('Akun ini tidak berwenang memutuskan koreksi absen ini.');
         }
     }
 }

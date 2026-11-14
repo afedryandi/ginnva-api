@@ -132,7 +132,7 @@ class StoreResource extends Resource
                                     $bookings = \App\Models\Booking::query()->where('store_id', $record->id)->whereIn('status', ['pending', 'confirmed'])->count();
         
                                     return ($users > 0 || $bookings > 0)
-                                        ? "Perhatian sebelum menonaktifkan: toko ini masih punya {$users} karyawan aktif dan {$bookings} booking yang belum selesai. Toko nonaktif tidak tampil di web dan app."
+                                        ? "Toko ini masih punya {$users} karyawan aktif dan {$bookings} booking belum selesai. Toko nonaktif tidak tampil di web dan app."
                                         : null;
                                 })
                                 ->default(true),
@@ -184,7 +184,7 @@ class StoreResource extends Resource
                                             Forms\Components\TimePicker::make('break_start')
                                                 ->label('Mulai Istirahat (opsional)')
                                                 ->seconds(false)
-                                                ->helperText('Jam istirahat dikurangi dari jam kerja efektif untuk potongan Alpha per jam. Kosongkan bila tidak ada.'),
+                                                ->helperText('Jam istirahat dikurangi dari jam kerja efektif untuk potongan Alpha per jam. Kosongkan kalau tidak ada.'),
 
                                             Forms\Components\TimePicker::make('break_end')
                                                 ->label('Selesai Istirahat (opsional)')
@@ -242,7 +242,7 @@ class StoreResource extends Resource
                         Forms\Components\Placeholder::make('capacity_note')
                             ->hiddenLabel()
                             ->visible(fn () => ! (auth()->user()?->isFullAccess() ?? false))
-                            ->content('Pengaturan kapasitas dan absen hanya dapat diubah oleh akses penuh.'),
+                            ->content('Pengaturan kapasitas dan absen hanya bisa diubah oleh akses penuh.'),
                         Forms\Components\Section::make()
                             ->columns(2)
                             ->disabled(fn () => ! (auth()->user()?->isFullAccess() ?? false))
@@ -255,7 +255,7 @@ class StoreResource extends Resource
                                     // setting ini. Lihat BookingResource::form().
                                     Forms\Components\TextInput::make('install_capacity_per_day')
                                         ->label('Kapasitas Instalasi / Hari (Default)')
-                                        ->helperText('Berapa mobil yang biasanya bisa dikerjakan toko ini per hari — jadi nilai awal saat staff approve booking, tapi tetap bisa diubah sesaat per booking kalau kondisinya beda.')
+                                        ->helperText('Berapa mobil yang biasanya bisa dikerjakan per hari. Jadi nilai awal saat approve booking, tapi bisa diubah per booking.')
                                         ->numeric()
                                         ->integer()
                                         ->minValue(1)
@@ -267,7 +267,7 @@ class StoreResource extends Resource
                                     // kapasitas harian layanan berat di atas.
                                     Forms\Components\TextInput::make('light_capacity_per_slot')
                                         ->label('Kapasitas Layanan Ringan / Jam')
-                                        ->helperText('Berapa mobil Detailing/Premium Wash yang bisa dikerjakan BERSAMAAN dalam satu slot jam (09-11, 11-13, 13-15, 15-17). Kosongkan untuk memakai nilai bawaan (2). Terpisah dari kapasitas harian PPF/Kaca Film.')
+                                        ->helperText('Berapa mobil Detailing/Premium Wash yang bisa dikerjakan bersamaan dalam satu slot jam. Kosongkan untuk nilai bawaan (2).')
                                         ->numeric()
                                         ->integer()
                                         ->minValue(1)
@@ -285,7 +285,7 @@ class StoreResource extends Resource
                                     // (BUKAN dianggap 0 slot).
                                     Forms\Components\TextInput::make('detailing_slot_count')
                                         ->label('Jumlah Slot Detailing')
-                                        ->helperText('Kapasitas fisik Zona Detailing & Persiapan (Cuci/Pembersihan/Pemanasan/Detailing) toko ini. Kosongkan kalau belum ditentukan — laporan "Laporan Utilisasi Zona/Bay" akan melewati toko ini sampai diisi.')
+                                        ->helperText('Jumlah slot Zona Detailing & Persiapan. Kosongkan kalau belum ditentukan; toko ini dilewati di Laporan Utilisasi Zona/Bay.')
                                         ->numeric()
                                         ->integer()
                                         ->minValue(0)
@@ -294,7 +294,7 @@ class StoreResource extends Resource
 
                                     Forms\Components\TextInput::make('instalasi_qc_slot_count')
                                         ->label('Jumlah Slot Instalasi & QC')
-                                        ->helperText('Kapasitas fisik Zona Instalasi & QC toko ini. Kosongkan kalau belum ditentukan — laporan "Laporan Utilisasi Zona/Bay" akan melewati toko ini sampai diisi.')
+                                        ->helperText('Jumlah slot Zona Instalasi & QC. Kosongkan kalau belum ditentukan; toko ini dilewati di Laporan Utilisasi Zona/Bay.')
                                         ->numeric()
                                         ->integer()
                                         ->minValue(0)
@@ -312,7 +312,7 @@ class StoreResource extends Resource
 
                                     Forms\Components\TextInput::make('late_tolerance_minutes')
                                         ->label('Toleransi Pengingat Absen & Pulang Cepat (menit)')
-                                        ->helperText('Hanya dipakai untuk pengingat "belum absen masuk" dan menit pulang cepat. BUKAN dasar potongan telat: nominal dan aturan potongan telat/Alpha diisi di menu Karyawan > Aturan Potongan Absensi. Kosongkan untuk pakai default sistem (15 menit).')
+                                        ->helperText('Dipakai untuk pengingat belum absen masuk dan menit pulang cepat, bukan dasar potongan telat. Kosongkan untuk pakai default (15 menit).')
                                         ->numeric()
                                         ->integer()
                                         ->minValue(0)
@@ -326,7 +326,7 @@ class StoreResource extends Resource
 
                             Forms\Components\TextInput::make('maps_url')
                                 ->label('Tempel Link Google Maps')
-                                ->helperText('Cari toko di Google Maps → Bagikan → salin link (boleh link pendek maps.app.goo.gl) → tempel di sini. Latitude/Longitude di bawah terisi otomatis, dan link ini yang dibuka saat pelanggan tap "Buka Peta" di mobile app.')
+                                ->helperText('Salin link dari Google Maps (Bagikan), tempel di sini. Latitude dan Longitude terisi otomatis, dan link ini dibuka saat pelanggan tap Buka Peta.')
                                 ->url()
                                 ->maxLength(255)
                                 ->columnSpanFull()
@@ -396,7 +396,7 @@ class StoreResource extends Resource
 
                             Forms\Components\TextInput::make('google_place_id')
                                 ->label('Google Place ID')
-                                ->helperText('Dipakai untuk tombol "Beri Review" di mobile app. Cari toko di Google Maps → Bagikan → Sematkan peta HTML → salin ID setelah "!1s0x". Atau pakai tool "Place ID Finder" di developers.google.com/maps/documentation/places/web-service/place-id.')
+                                ->helperText('Dipakai untuk tombol Beri Review di mobile app. Cari toko di Google Maps, pilih Bagikan, Sematkan peta, lalu salin ID setelah "!1s0x".')
                                 ->columnSpanFull()
                                 ->maxLength(255),
                     ]),

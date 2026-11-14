@@ -112,7 +112,7 @@ class CustomerGroupResource extends Resource
                 ->maxValue(100)
                 ->default(0)
                 ->suffix('%')
-                ->helperText('Dipotong dari harga normal produk (menurut ukuran kendaraan) bagi pelanggan grup ini. Produk yang punya harga khusus (tab Harga Khusus Produk) memakai harga khusus itu, bukan diskon ini. 0 = tanpa diskon.'),
+                ->helperText('Dipotong dari harga normal produk untuk pelanggan grup ini. Produk yang punya harga khusus memakai harga khusus itu. 0 = tanpa diskon.'),
 
             Forms\Components\TextInput::make('sort_order')
                 ->label('Urutan')

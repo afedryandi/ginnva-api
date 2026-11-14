@@ -137,17 +137,17 @@ class FieldDutyRequestService
             ->exists();
 
         if ($onLeave) {
-            throw new RuntimeException('Pada tanggal itu Anda sedang izin/cuti, tidak bisa mengajukan dinas luar.');
+            throw new RuntimeException('Pada tanggal itu sedang izin/cuti, tidak bisa mengajukan dinas luar.');
         }
 
         $existing = Attendance::withoutGlobalScopes()->where('user_id', $user->id)->whereDate('date', $day)->first();
 
         if ($existing && $existing->entry_type === 'leave') {
-            throw new RuntimeException('Pada tanggal itu absensi Anda tercatat Izin/Cuti, tidak bisa mengajukan dinas luar.');
+            throw new RuntimeException('Pada tanggal itu absensi tercatat Izin/Cuti, tidak bisa mengajukan dinas luar.');
         }
 
         if ($start === null && $this->hasRealAttendance($user->id, $day)) {
-            throw new RuntimeException('Pada tanggal itu sudah ada catatan absensi. Dinas sehari penuh hanya untuk hari tanpa absen; kalau Anda sempat absen dan keluar sebagian hari, ajukan dinas dengan jam mulai dan selesai.');
+            throw new RuntimeException('Tanggal itu sudah ada catatan absensi. Dinas sehari penuh hanya untuk hari tanpa absen; untuk sebagian hari, isi jam mulai dan selesai.');
         }
 
         if ($start !== null && $existing && $existing->entry_type === 'field_duty') {
@@ -175,13 +175,13 @@ class FieldDutyRequestService
         }
 
         if ($start === null || $others->contains(fn (FieldDutyRequest $o) => ! $o->isPartialDay())) {
-            throw new RuntimeException('Anda sudah punya pengajuan dinas luar untuk tanggal itu.');
+            throw new RuntimeException('Sudah ada pengajuan dinas luar untuk tanggal itu.');
         }
 
         $overlaps = $others->contains(fn (FieldDutyRequest $o) => $o->start_time < $end && $o->end_time > $start);
 
         if ($overlaps) {
-            throw new RuntimeException('Jam ini bertabrakan dengan pengajuan dinas luar Anda yang lain di tanggal itu.');
+            throw new RuntimeException('Jam ini bertabrakan dengan pengajuan dinas luar lain di tanggal itu.');
         }
     }
 
@@ -235,7 +235,7 @@ class FieldDutyRequestService
     private function approveFullDay(FieldDutyRequest $locked, User $by, string $day): void
     {
         if ($this->hasRealAttendance($locked->user_id, $day, lock: true)) {
-            throw new RuntimeException('Karyawan ini sudah punya catatan absensi di tanggal itu, jadi tidak bisa dicatat sebagai dinas luar sehari penuh. Tolak pengajuan ini atau koreksi absensinya lebih dulu.');
+            throw new RuntimeException('Karyawan ini sudah punya catatan absensi di tanggal itu, jadi tidak bisa jadi dinas luar sehari penuh. Tolak pengajuan atau koreksi absensinya dulu.');
         }
 
         // Hari Alpha (otomatis dini hari) dan baris kosong diganti menjadi Dinas Luar; absensi di toko tidak pernah ditimpa.
@@ -389,7 +389,7 @@ class FieldDutyRequestService
             $locked = FieldDutyRequest::withoutGlobalScopes()->whereKey($request->id)->lockForUpdate()->first();
 
             if (! $locked || $locked->user_id !== $userId) {
-                throw new RuntimeException('Pengajuan ini bukan milik Anda.');
+                throw new RuntimeException('Pengajuan ini bukan milik akun ini.');
             }
 
             if (! $this->isCancellable($locked)) {

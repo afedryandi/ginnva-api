@@ -17,8 +17,7 @@
     <h1>Laporan Reservasi &amp; Utilisasi</h1>
     <div class="period">Periode: {{ $result['from']->format('d M Y') }} - {{ $result['to']->format('d M Y') }}</div>
     <div class="note">
-        Kapasitas dihitung dari setting SAAT INI tiap toko (Kapasitas Instalasi/Hari), bukan kapasitas persis yang
-        berlaku di hari tertentu di masa lalu — angka Utilisasi ini pendekatan, bukan catatan historis pasti.
+        Kapasitas dihitung dari pengaturan toko saat ini, jadi angka Utilisasi adalah perkiraan, bukan catatan historis.
     </div>
     @if ($result['truncated'])
         <p class="note">Rentang melebihi 62 hari, laporan dipotong sampai {{ $result['to']->format('d M Y') }}.</p>

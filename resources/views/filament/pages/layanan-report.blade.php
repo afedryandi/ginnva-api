@@ -62,8 +62,7 @@
         <x-filament::section>
             <x-slot name="heading">Per Jenis Layanan</x-slot>
             <x-slot name="description">
-                Transaksi berjenis ganda dibagi menurut rincian harga (bagi rata bila tidak ada rincian), sama dengan Jurnal Umum, dan terhitung di tiap jenisnya.
-                Pendapatan di sini kotor; kolom Pengembalian dan Bersih membagi refund dengan proporsi yang sama.
+                Transaksi dengan beberapa jenis dibagi menurut rincian harga (rata kalau tidak ada rincian). Pendapatan di sini kotor; Pengembalian dan Bersih membagi refund dengan proporsi yang sama.
             </x-slot>
 
             <div class="overflow-x-auto">

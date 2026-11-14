@@ -21,7 +21,7 @@ class BookingWatcherAssignedMail extends Mailable
 
         $customerName = $b->customer_name ?? $b->customer?->name ?? 'Tanpa Nama';
 
-        return $this->subject("Anda Ditugaskan Memantau Booking — {$b->booking_number}")
+        return $this->subject("Penugasan Pemantau Booking — {$b->booking_number}")
             ->view('emails.booking_watcher_assigned')
             ->with([
                 'bookingNumber' => $b->booking_number,

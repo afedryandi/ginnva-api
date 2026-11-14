@@ -217,7 +217,7 @@ class AttendanceCorrectionRequestResource extends Resource
                                     default => $existing->entry_type,
                                 };
 
-                                return "Jenis saat ini: {$label}. Menyetujui koreksi ini akan MENIMPA baris tersebut jadi \"Manual\" sesuai jam yang diajukan." . $payrollNote;
+                                return "Jenis saat ini: {$label}. Menyetujui koreksi ini akan MENIMPA baris itu jadi \"Manual\" sesuai jam yang diajukan." . $payrollNote;
                             })
                             ->columnSpanFull(),
 
@@ -268,7 +268,7 @@ class AttendanceCorrectionRequestResource extends Resource
                     ->color('gray')
                     ->visible(fn (AttendanceCorrectionRequest $record) => $record->isPending() && $record->requested_by === auth()->id())
                     ->requiresConfirmation()
-                    ->modalDescription('Pengajuan ini ditarik kembali dan tidak akan diputuskan siapa pun. Anda bisa mengajukan lagi untuk tanggal yang sama.')
+                    ->modalDescription('Pengajuan ini ditarik kembali dan tidak akan diputuskan siapa pun. Bisa diajukan lagi untuk tanggal yang sama.')
                     ->action(function (AttendanceCorrectionRequest $record) {
                         try {
                             app(AttendanceCorrectionService::class)->cancel($record, auth()->id());

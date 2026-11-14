@@ -216,7 +216,7 @@ class PaymentBookReport extends Page implements HasForms
             })->all(),
             'totals' => $totals,
             'right' => [$amountIndex],
-            'note' => 'Uang muka yang sudah dikembalikan ditampilkan tetapi tidak dihitung dalam total. Pengembalian dana (refund) tidak termasuk; lihat Laporan Refund.',
+            'note' => 'Uang muka yang sudah dikembalikan ditampilkan tapi tidak dihitung dalam total. Pengembalian dana (refund) tidak termasuk; lihat Laporan Refund.',
         ];
     }
 

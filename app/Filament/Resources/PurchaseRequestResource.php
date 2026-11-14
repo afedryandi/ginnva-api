@@ -391,7 +391,7 @@ class PurchaseRequestResource extends Resource
                         && (auth()->user()?->isFullAccess() || auth()->id() === $record->requested_by))
                     ->requiresConfirmation()
                     ->modalHeading('Batalkan permohonan ini?')
-                    ->modalDescription('Permohonan yang dibatalkan tidak diproses lagi. Ajukan permohonan baru bila barangnya masih diperlukan.')
+                    ->modalDescription('Permohonan yang dibatalkan tidak diproses lagi. Ajukan permohonan baru kalau barangnya masih diperlukan.')
                     ->action(function (PurchaseRequest $record) {
                         $processed = DB::transaction(function () use ($record) {
                             $locked = PurchaseRequest::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
@@ -495,7 +495,7 @@ class PurchaseRequestResource extends Resource
                             ->minValue(0.01)
                             ->default(fn (PurchaseRequest $record) => $record->effectiveQuantity())
                             ->suffix(fn (PurchaseRequest $record) => $record->unit)
-                            ->helperText('Isi sesuai barang yang benar-benar sampai. Bila kurang dari yang diminta, ajukan permohonan baru untuk sisanya.'),
+                            ->helperText('Isi sesuai barang yang benar-benar sampai. Kalau kurang dari yang diminta, ajukan permohonan baru untuk sisanya.'),
 
                         // Penerimaan sekaligus jadi stok masuk (batch baru), supaya "terpenuhi" tidak berbeda dengan stok di gudang.
                         // Hanya bagi yang memang boleh mengubah stok barang itu; matikan bila barangnya sudah dicatat lewat Catat Stok.
@@ -504,7 +504,7 @@ class PurchaseRequestResource extends Resource
                             ->default(fn (PurchaseRequest $record) => static::canRecordStock($record))
                             ->visible(fn (PurchaseRequest $record) => static::canRecordStock($record))
                             ->live()
-                            ->helperText('Stok bertambah sebesar Jumlah Diterima sebagai batch baru (harga per satuan dari Total Biaya Aktual bila diisi). Matikan kalau barang ini sudah dicatat masuk lewat Catat Stok, supaya tidak tercatat dua kali.'),
+                            ->helperText('Stok bertambah sebesar Jumlah Diterima sebagai batch baru. Matikan kalau barang sudah dicatat masuk lewat Catat Stok, supaya tidak tercatat dua kali.'),
 
                         Forms\Components\DatePicker::make('expiry_date')
                             ->label('Tanggal Kedaluwarsa Batch Ini (opsional)')
@@ -524,7 +524,7 @@ class PurchaseRequestResource extends Resource
                             ->label('Daftarkan sebagai Aset Tetap sekarang')
                             ->default(fn (PurchaseRequest $record) => static::canRegisterAsset($record))
                             ->visible(fn (PurchaseRequest $record) => static::canRegisterAsset($record))
-                            ->helperText('Satu aset per unit yang diterima, dengan harga dari Total Biaya Aktual dibagi rata. Matikan kalau aset ini sudah didaftarkan manual, supaya tidak tercatat dua kali.'),
+                            ->helperText('Satu aset per unit yang diterima, harganya dari Total Biaya Aktual dibagi rata. Matikan kalau aset sudah didaftarkan manual.'),
 
                         Forms\Components\TextInput::make('actual_cost')
                             ->label('Total Biaya Aktual')

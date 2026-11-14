@@ -135,7 +135,7 @@ class BookingQcController extends Controller
                         app(PushNotificationService::class)->sendToCustomer(
                             (int) $customerId,
                             'Kendaraan Siap Diambil',
-                            "Kendaraan Anda (booking {$bookingNumber}) sudah lolos pemeriksaan akhir dan siap diambil.",
+                            "Kendaraan (booking {$bookingNumber}) sudah lolos pemeriksaan akhir dan siap diambil.",
                             ['type' => 'booking_ready', 'booking_id' => $locked->id],
                         );
                     } catch (\Throwable $e) {
@@ -177,15 +177,15 @@ class BookingQcController extends Controller
     /** Siapa pun staf toko yang punya akses booking boleh MELIHAT; yang boleh MEMERIKSA dicek di inspectBlocker(). */
     private function authorizeView($user, Booking $booking): void
     {
-        abort_if($user->hasRole('partner'), 403, 'Anda tidak punya akses ke Quality Check.');
+        abort_if($user->hasRole('partner'), 403, 'Akun ini tidak punya akses ke Quality Check.');
 
         if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
-            abort(403, 'Anda tidak punya akses ke booking toko lain.');
+            abort(403, 'Akun ini tidak punya akses ke booking toko lain.');
         }
 
         // Installer hanya boleh melihat booking yang ditugaskan kepadanya.
         if ($user->hasRole('installer') && ! $booking->installers()->whereKey($user->id)->exists()) {
-            abort(403, 'Booking ini tidak ditugaskan kepada Anda.');
+            abort(403, 'Booking ini tidak ditugaskan ke akun ini.');
         }
     }
 
@@ -201,7 +201,7 @@ class BookingQcController extends Controller
         }
 
         if ($booking->installers()->whereKey($user->id)->exists()) {
-            return 'Anda mengerjakan unit ini, jadi tidak bisa memeriksanya sendiri. Minta Leader atau Store Manager lain.';
+            return 'Unit ini dikerjakan oleh akun ini, jadi tidak bisa diperiksa sendiri. Minta Leader atau Store Manager lain.';
         }
 
         // Boleh diisi sebelum atau sesudah tahap "Quality Check" ditandai di chat (setelah ditandai, tahap produk tidak lagi di titik akhirnya).

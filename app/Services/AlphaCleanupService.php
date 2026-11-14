@@ -42,7 +42,7 @@ class AlphaCleanupService
         }
 
         if ($day->gte(today())) {
-            throw new \RuntimeException('Hanya tanggal kemarin atau sebelumnya yang bisa dibersihkan. Alpha hari ini dibuat besok dini hari, jadi tutup tanggalnya di Kalender Kapasitas & Libur.');
+            throw new \RuntimeException('Hanya tanggal kemarin atau sebelumnya yang bisa dibersihkan. Untuk hari ini, tutup tanggalnya di Kalender Kapasitas & Libur.');
         }
 
         if ($day->lt(today()->subDays(self::MAX_DAYS_BACK))) {

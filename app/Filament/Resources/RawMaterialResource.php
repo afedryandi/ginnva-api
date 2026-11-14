@@ -151,7 +151,7 @@ class RawMaterialResource extends Resource
                         ->disabled(fn (?RawMaterial $record) => static::unitLocked($record))
                         ->dehydrated(fn (?RawMaterial $record) => ! static::unitLocked($record))
                         ->helperText(fn (?RawMaterial $record) => static::unitLocked($record)
-                            ? 'Terkunci karena bahan ini sudah punya riwayat stok — mengganti satuan mengubah arti semua angka lama. Kalau salah, daftarkan bahan baru dan kosongkan stok yang lama.'
+                            ? 'Terkunci karena sudah ada riwayat stok; mengganti satuan mengubah arti semua angka lama. Kalau salah, daftarkan bahan baru.'
                             : null),
 
                     // Konversi satuan beli (audit Majoo f38) — opsional,
@@ -201,7 +201,7 @@ class RawMaterialResource extends Resource
                         ->minValue(0)
                         ->prefix('Rp')
                         ->visible(fn () => static::canSeeCost())
-                        ->helperText('Opsional — dipakai menilai stok yang batch-nya belum punya harga, jadi mengubahnya ikut mengubah nilai stok itu. Harga batch baru diisi lewat "Catat Stok".'),
+                        ->helperText('Opsional. Dipakai menilai stok yang batch-nya belum punya harga. Harga batch baru diisi lewat Catat Stok.'),
 
                     Forms\Components\TextInput::make('reorder_point')
                         ->label('Ambang Stok Menipis')
@@ -214,7 +214,7 @@ class RawMaterialResource extends Resource
                         ->numeric()
                         ->minValue(0)
                         ->suffix(fn (?RawMaterial $record) => $record?->unit)
-                        ->helperText('Opsional — kalau selisih hasil hitung fisik dengan stok sistem lebih besar dari angka ini (dalam satuan bahan ini), Sesuaikan Stok/Opname wajib diberi catatan alasan. Kosongkan untuk mematikan aturan.'),
+                        ->helperText('Opsional. Kalau selisih hitung fisik lebih besar dari angka ini, catatan alasan wajib diisi. Kosongkan untuk mematikan aturan.'),
 
                     Forms\Components\Select::make('preferred_supplier_id')
                         ->label('Pemasok Utama')
@@ -244,7 +244,7 @@ class RawMaterialResource extends Resource
                     Forms\Components\Toggle::make('is_active')
                         ->label('Aktif')
                         ->default(true)
-                        ->helperText('Matikan untuk bahan yang tidak dipakai lagi: hilang dari pemilih Memo Bahan/Permohonan Pembelian dan dari peringatan, tetapi stok, riwayat, dan laporannya tetap ada. Bisa diaktifkan lagi kapan saja.'),
+                        ->helperText('Matikan untuk bahan yang tidak dipakai lagi: hilang dari pilihan dan peringatan, tapi stok, riwayat, dan laporannya tetap ada.'),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
@@ -463,7 +463,7 @@ class RawMaterialResource extends Resource
                                 'application/vnd.ms-excel',
                                 'text/csv',
                             ])
-                            ->helperText('Pakai format dari tombol "Download Template". Baris pertama (header) otomatis dilewati. Stok Awal (dalam Satuan, mis. ml) otomatis dicatat sebagai riwayat "Masuk" supaya tetap ada jejaknya. Satuan Beli (mis. botol) dan Isi per Satuan Beli (mis. 400 ml) boleh dikosongkan, tapi bila diisi harus keduanya.'),
+                            ->helperText('Pakai format dari Download Template. Baris pertama dilewati. Stok Awal dicatat sebagai riwayat Masuk. Satuan Beli dan Isi per Satuan Beli diisi keduanya atau dikosongkan.'),
                     ])
                     ->action(fn (array $data) => static::importMaterials($data['file']))
                     ->modalSubmitActionLabel('Import'),
@@ -482,7 +482,7 @@ class RawMaterialResource extends Resource
                         Forms\Components\Placeholder::make('open_purchase')
                             ->hiddenLabel()
                             ->content(fn (RawMaterial $record) => ($purchase = static::approvedPurchase($record))
-                                ? "Ada permohonan pembelian disetujui untuk bahan ini ({$purchase->request_number}, {$purchase->quantity} {$purchase->unit}). Kalau ini kiriman dari permohonan itu, catat penerimaannya lewat Permohonan Pembelian > Tandai Terpenuhi (stok ikut bertambah) supaya tidak tercatat dua kali."
+                                ? "Ada permohonan pembelian disetujui untuk bahan ini ({$purchase->request_number}, {$purchase->quantity} {$purchase->unit}). Kalau ini kirimannya, catat lewat Permohonan Pembelian > Tandai Terpenuhi supaya tidak tercatat dua kali."
                                 : '')
                             ->visible(fn (RawMaterial $record) => static::approvedPurchase($record) !== null),
 
@@ -637,7 +637,7 @@ class RawMaterialResource extends Resource
 
                         Forms\Components\Textarea::make('note')
                             ->label(fn (RawMaterial $record) => $record->adjustment_note_threshold !== null
-                                ? 'Catatan (wajib bila selisih lebih dari ' . rtrim(rtrim(number_format((float) $record->adjustment_note_threshold, 2, ',', '.'), '0'), ',') . ' ' . $record->unit . ')'
+                                ? 'Catatan (wajib kalau selisih lebih dari ' . rtrim(rtrim(number_format((float) $record->adjustment_note_threshold, 2, ',', '.'), '0'), ',') . ' ' . $record->unit . ')'
                                 : 'Catatan')
                             ->required(fn (RawMaterial $record, Forms\Get $get) => is_numeric($get('actual_quantity'))
                                 && $record->adjustmentNeedsNote((float) $get('actual_quantity')))
@@ -758,7 +758,7 @@ class RawMaterialResource extends Resource
                             if ($blocked > 0) {
                                 \Filament\Notifications\Notification::make()
                                     ->title($deleted > 0 ? "{$deleted} dihapus, {$blocked} tidak bisa dihapus" : 'Tidak ada yang bisa dihapus')
-                                    ->body("{$blocked} sudah punya riwayat pergerakan stok sehingga dilewati. Menghapusnya akan menghapus riwayat itu dan merusak laporan persediaan dan HPP.")
+                                    ->body("{$blocked} sudah punya riwayat stok, jadi dilewati. Menghapusnya merusak laporan persediaan dan HPP.")
                                     ->warning()
                                     ->send();
 

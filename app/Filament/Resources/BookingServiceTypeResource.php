@@ -97,7 +97,7 @@ class BookingServiceTypeResource extends Resource
                     BookingServiceType::CATEGORY_LIGHT => 'Ringan: memakai slot jam (mis. detailing, cuci premium)',
                 ])
                 ->required()
-                ->helperText('Booking yang berisi layanan berat dan ringan sekaligus dihitung sebagai berat. Mengubah kategori memengaruhi perhitungan kapasitas booking baru.'),
+                ->helperText('Booking dengan layanan berat dan ringan dihitung sebagai berat. Mengubah kategori memengaruhi kapasitas booking baru.'),
 
             Forms\Components\TextInput::make('estimated_duration_days')
                 ->label('Lama Pengerjaan (hari kerja)')

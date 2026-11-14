@@ -176,7 +176,7 @@ class FieldDutyRequestResource extends Resource
                     ->visible(fn (FieldDutyRequest $record) => static::canDecide($record))
                     ->modalHeading('Setujui dinas luar?')
                     ->modalDescription(fn (FieldDutyRequest $record) => $record->isPartialDay()
-                        ? 'Telat dan pulang cepat pada rentang jam ini tidak dihitung; absen masuk dan keluar di toko tetap wajib. Bila rentang berlangsung sampai jam tutup toko, absen keluar yang kosong ditutup otomatis. Jam boleh Anda ubah sesuai kenyataan sebelum menyetujui.'
+                        ? 'Telat dan pulang cepat di rentang jam ini tidak dihitung; absen masuk dan keluar tetap wajib. Jam boleh diubah sesuai kenyataan sebelum menyetujui.'
                         : 'Absensi karyawan pada tanggal itu akan tercatat sebagai Dinas Luar (tanpa telat atau pulang cepat). Hari yang sudah ditandai Alpha diganti.')
                     ->fillForm(fn (FieldDutyRequest $record) => [
                         'start_time' => $record->isPartialDay() ? substr($record->start_time, 0, 5) : null,

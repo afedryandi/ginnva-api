@@ -26,7 +26,7 @@
     <x-filament::section>
         <x-slot name="heading">Sisa hutang per supplier menurut umur jatuh tempo</x-slot>
         <x-slot name="description">
-            Toko: {{ $this->storeLabel() }}. Hanya tagihan Belum Dibayar / Dibayar Sebagian. "Belum jatuh tempo" mencakup tagihan tanpa tanggal jatuh tempo. Dihitung per hari ini. Klik nama supplier untuk melihat tagihannya di Hutang Usaha.
+            Toko: {{ $this->storeLabel() }}. Hanya tagihan yang belum atau sebagian dibayar, dihitung per hari ini. Klik nama supplier untuk melihat tagihannya di Hutang Usaha.
         </x-slot>
 
         <div class="overflow-x-auto">

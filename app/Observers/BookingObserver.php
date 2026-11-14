@@ -167,8 +167,8 @@ class BookingObserver
         // sendiri yang membatalkan, karena ia sudah tahu.
         if (($closedCount ?? 0) > 0 && $booking->customer_id && $booking->cancelled_by_type !== 'customer') {
             $closedBody = $booking->status === 'cancelled'
-                ? "Pengajuan Anda untuk booking #{$booking->booking_number} ditutup karena booking sudah dibatalkan."
-                : "Pengajuan Anda untuk booking #{$booking->booking_number} ditutup karena booking sudah selesai.";
+                ? "Pengajuan untuk booking #{$booking->booking_number} ditutup karena booking sudah dibatalkan."
+                : "Pengajuan untuk booking #{$booking->booking_number} ditutup karena booking sudah selesai.";
             $closedData = ['type' => 'booking_request_closed', 'booking_id' => $booking->id, 'route' => "/booking/{$booking->id}/chat"];
             DB::afterCommit(fn () => $this->push->sendToCustomer($booking->customer_id, 'Pengajuan Ditutup', $closedBody, $closedData));
         }
@@ -255,7 +255,7 @@ class BookingObserver
                 'confirmed' => $this->push->sendToCustomer(
                     $booking->customer_id,
                     'Booking Dikonfirmasi',
-                    trim("Booking #{$booking->booking_number} Anda sudah dikonfirmasi toko untuk tanggal {$tanggal}. " . \App\Services\BookingReminderService::policyLine()),
+                    trim("Booking #{$booking->booking_number} sudah dikonfirmasi toko untuk tanggal {$tanggal}. " . \App\Services\BookingReminderService::policyLine()),
                     [
                         'type'       => 'booking_confirmed',
                         'booking_id' => $booking->id,
@@ -266,8 +266,8 @@ class BookingObserver
                     $booking->customer_id,
                     'Booking Dibatalkan',
                     $approvedRequest
-                        ? "Pengajuan pembatalan booking #{$booking->booking_number} ({$tanggal}) disetujui toko. Booking dibatalkan; DP (jika ada) dikembalikan penuh."
-                        : "Booking #{$booking->booking_number} Anda ({$tanggal}) telah dibatalkan"
+                        ? "Pengajuan pembatalan booking #{$booking->booking_number} ({$tanggal}) disetujui toko. Booking dibatalkan; DP (kalau ada) dikembalikan penuh."
+                        : "Booking #{$booking->booking_number} ({$tanggal}) sudah dibatalkan"
                             . ($booking->cancel_reason ? ": {$booking->cancel_reason}" : '.')
                             . ' Hubungi toko untuk info lebih lanjut.',
                     [
@@ -301,8 +301,8 @@ class BookingObserver
                 $booking->customer_id,
                 'Jadwal Booking Berubah',
                 ($tanggalLama
-                    ? "Booking #{$booking->booking_number} Anda dijadwal ulang dari {$tanggalLama} ke {$tanggal}."
-                    : "Booking #{$booking->booking_number} Anda dijadwal ulang ke {$tanggal}.") . $alasanPindah,
+                    ? "Booking #{$booking->booking_number} dijadwal ulang dari {$tanggalLama} ke {$tanggal}."
+                    : "Booking #{$booking->booking_number} dijadwal ulang ke {$tanggal}.") . $alasanPindah,
                 [
                     'type'       => 'booking_rescheduled',
                     'booking_id' => $booking->id,

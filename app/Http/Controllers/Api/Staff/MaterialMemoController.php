@@ -634,7 +634,7 @@ class MaterialMemoController extends Controller
         }
 
         if ($memoItem->item_type === 'offcut') {
-            return response()->json(['success' => false, 'message' => 'Potongan sisa tidak punya jumlah yang bisa dikoreksi. Hapus barisnya bila salah pilih.'], 422);
+            return response()->json(['success' => false, 'message' => 'Potongan sisa tidak punya jumlah yang bisa dikoreksi. Hapus barisnya kalau salah pilih.'], 422);
         }
 
         $isInventory = $memoItem->item_type === 'inventory_item';

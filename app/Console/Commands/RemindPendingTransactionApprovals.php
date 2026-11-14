@@ -46,7 +46,7 @@ class RemindPendingTransactionApprovals extends Command
             }
 
             Notification::make()
-                ->title($mine->count() . ' pengajuan transaksi menunggu keputusan Anda > 2 hari')
+                ->title($mine->count() . ' pengajuan transaksi menunggu keputusan > 2 hari')
                 ->body('Referral, Refund, atau DP dari staff belum diputuskan. Segera proses di menu Persetujuan Transaksi.')
                 ->warning()
                 ->actions([
@@ -64,7 +64,7 @@ class RemindPendingTransactionApprovals extends Command
             app(PushNotificationService::class)->sendToUsers(
                 $pushed,
                 'Pengajuan Transaksi Menunggu',
-                'Ada pengajuan Referral/Refund/DP yang menunggu keputusan Anda lebih dari 2 hari.'
+                'Ada pengajuan Referral/Refund/DP yang menunggu keputusan lebih dari 2 hari.'
             );
         } catch (\Throwable $e) {
             report($e);

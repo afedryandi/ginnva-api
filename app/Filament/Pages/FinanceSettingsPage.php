@@ -90,7 +90,7 @@ class FinanceSettingsPage extends Page implements HasForms
                 ->content(fn () => $this->lastChangeText()),
 
             Section::make('Profil perusahaan')
-                ->description('Identitas badan usaha yang tercetak di invoice. Kosongkan bila belum ingin ditampilkan; nama bawaan tetap dipakai.')
+                ->description('Identitas badan usaha yang tercetak di invoice. Kosongkan kalau belum ingin ditampilkan; nama bawaan tetap dipakai.')
                 ->columns(2)
                 ->schema([
                     TextInput::make('company_name')
@@ -123,7 +123,7 @@ class FinanceSettingsPage extends Page implements HasForms
                     TextInput::make('expense_manager_limit')
                         ->label('Batas yang cukup disetujui Store Manager')
                         ->numeric()->minValue(0)->prefix('Rp')
-                        ->helperText('Pengeluaran sampai nominal ini langsung dicatat setelah Store Manager menyetujui, tanpa menunggu direksi. Kosongkan agar semua nominal tetap ke direksi. Pengeluaran dari Kas Kecil punya batas sendiri di menu Rekening Kas & Bank.'),
+                        ->helperText('Pengeluaran sampai nominal ini langsung dicatat setelah Store Manager menyetujui, tanpa menunggu direksi. Kosongkan supaya semua nominal ke direksi. Kas Kecil punya batas sendiri.'),
                 ]),
         ])->statePath('data');
     }

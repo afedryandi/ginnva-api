@@ -82,7 +82,7 @@ class MonthlyIncomeStatementReport extends Page implements HasForms
                 Select::make('store_id')
                     ->label('Toko')
                     ->options(fn () => [FinancialStatementService::COMPANY_WIDE => 'Pusat / Tanpa Toko'] + Store::pluck('name', 'id')->all())
-                    ->helperText('Memilih toko TIDAK mencakup jurnal pusat (tanpa toko, mis. gaji pusat/penyusutan) — pilih "Pusat / Tanpa Toko" untuk melihatnya, atau kosongkan untuk semua.')
+                    ->helperText('Memilih toko tidak mencakup jurnal pusat (tanpa toko). Pilih Pusat / Tanpa Toko untuk melihatnya, atau kosongkan untuk semua.')
                     ->placeholder('Semua Toko')
                     ->searchable()
                     ->live()

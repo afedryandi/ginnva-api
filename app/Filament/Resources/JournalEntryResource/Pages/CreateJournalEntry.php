@@ -45,7 +45,7 @@ class CreateJournalEntry extends CreateRecord
         $this->record = $record;
 
         if (! JournalEntryResource::canPost($record)) {
-            Notification::make()->title('Jurnal disimpan sebagai Draft')->body('Anda tidak berwenang memposting jurnal ini (mis. jurnal buatan Anda sendiri) — minta direksi memostingnya.')->warning()->send();
+            Notification::make()->title('Jurnal disimpan sebagai Draft')->body('Akun ini tidak berwenang memposting jurnal ini (mis. jurnal buatan sendiri) — minta direksi memostingnya.')->warning()->send();
         } else {
             try {
                 app(JournalEntryService::class)->post($record, auth()->id());

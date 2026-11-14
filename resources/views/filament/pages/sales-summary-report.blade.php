@@ -109,8 +109,7 @@
     <x-filament::section>
         <x-slot name="heading">Rincian Ringkasan Penjualan</x-slot>
         <x-slot name="description">
-            Penjualan Kotor adalah nominal transaksi yang sudah setelah potongan promo dan voucher, jadi Biaya Promosi di bawah ditampilkan
-            sebagai informasi dan tidak dikurangkan lagi. Voucher dihitung menurut tanggal dipakai; Promo Total Pembelian menurut tanggal penjualan diproses.
+            Penjualan Kotor sudah setelah potongan promo dan voucher, jadi Biaya Promosi hanya informasi dan tidak dikurangkan lagi.
         </x-slot>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px">

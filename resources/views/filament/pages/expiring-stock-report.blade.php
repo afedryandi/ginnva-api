@@ -34,8 +34,7 @@
         <x-slot name="heading">Batch Kedaluwarsa</x-slot>
         <x-slot name="description">
             Cuma batch yang masih ada stoknya (qty > 0) yang dihitung — batch yang sudah habis dipakai tidak relevan lagi.
-            "Batch Number" ala Majoo tidak ditampilkan — batch bahan baku Ginnva tidak punya kode batch diskrit (cuma tanggal terima/kedaluwarsa).
-        </x-slot>
+                    </x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">

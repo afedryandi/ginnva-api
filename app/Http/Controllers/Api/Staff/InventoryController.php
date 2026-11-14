@@ -111,7 +111,7 @@ class InventoryController extends Controller
                 ->first();
 
             if ($orphanScrollCode) {
-                $hint = "Kode gulungan \"{$orphanScrollCode->code}\" sudah terdaftar tapi belum dikaitkan ke barang fisik. Kaitkan dulu lewat menu Produk PPF/WF di Filament sebelum pemakaiannya bisa dicatat.";
+                $hint = "Kode gulungan \"{$orphanScrollCode->code}\" belum dikaitkan ke barang. Kaitkan dulu lewat menu Produk PPF/WF di panel sebelum pemakaiannya dicatat.";
             }
         }
 

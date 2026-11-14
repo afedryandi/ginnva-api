@@ -17,7 +17,7 @@
                 Durasi dihitung dari kendaraan masuk sampai keluar bengkel (waktu check-in dan check-out SPK), jadi
                 kendaraan yang menginap dihitung penuh. Job yang dikerjakan tim dikreditkan penuh ke setiap installer
                 di tim itu, tidak dibagi rata. Laporan ini hanya merekap durasi dan belum dipakai untuk menghitung komisi.
-                Installer yang sudah nonaktif tetap tampil bila punya job di periode ini. Ketuk nama installer untuk melihat job yang membentuk angkanya.
+                Installer yang sudah nonaktif tetap tampil kalau punya job di periode ini. Ketuk nama installer untuk melihat job yang membentuk angkanya.
                 @if ($jobReportUrl = $this->jobReportUrl())
                     Durasi per job ada di <a href="{{ $jobReportUrl }}" class="underline">laporan Proses Order</a>.
                 @endif
@@ -27,7 +27,7 @@
         @if ($unfinished > 0)
             <div class="rounded-lg bg-warning-50 p-3 text-sm text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
                 {{ $unfinished }} SPK di periode ini belum di-check-out padahal kendaraan masuk lebih dari sehari lalu,
-                jadi tidak ikut terhitung. Minta installer atau leader menekan check-out agar durasinya masuk.
+                jadi tidak ikut terhitung. Minta installer atau leader menekan check-out supaya durasinya masuk.
             </div>
         @endif
 

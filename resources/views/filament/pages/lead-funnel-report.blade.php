@@ -100,9 +100,7 @@
         </x-filament::section>
 
         <p class="text-xs text-gray-500 dark:text-gray-400">
-            Periode menurut waktu lead masuk. Waktu respons = dari lead masuk sampai pertama kali ditindak (status berganti dari Baru); hanya lead
-            yang sudah ditindak sejak fitur ini aktif yang tercatat waktunya. Untuk kemitraan, status Deal dihitung Deal dan Ditolak dihitung Tidak Jadi
-            bila kolom Hasil belum diisi. Kampanye terisi dari UTM situs; lead tanpa UTM tidak muncul di tabel kampanye.
+            Periode menurut waktu lead masuk. Waktu respons = dari lead masuk sampai pertama kali ditindak. Lead tanpa UTM tidak muncul di tabel kampanye.
         </p>
     </div>
 </x-filament-panels::page>

@@ -78,8 +78,8 @@ class RewardRedemptionObserver
             if ($customer) {
                 $title = $to === 'fulfilled' ? 'Reward Sudah Dikirim' : 'Penukaran Reward Dibatalkan';
                 $body = $to === 'fulfilled'
-                    ? "Reward \"{$redemption->reward?->name}\" Anda sudah diproses toko."
-                    : "Penukaran reward \"{$redemption->reward?->name}\" dibatalkan, poin Anda sudah dikembalikan.";
+                    ? "Reward \"{$redemption->reward?->name}\" sudah diproses toko."
+                    : "Penukaran reward \"{$redemption->reward?->name}\" dibatalkan, poin sudah dikembalikan.";
 
                 // Gagal kirim notifikasi tidak boleh menggagalkan perubahan status penukaran (poin & stok sudah disesuaikan).
                 try {

@@ -271,7 +271,7 @@ class ContractExtensionResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn (ContractExtension $record) => static::canDelete($record))
                     ->requiresConfirmation()
-                    ->modalDescription('Menghapus riwayat ini TIDAK mengembalikan users.contract_end_date ke nilai sebelumnya secara otomatis — sesuaikan manual di menu User kalau perlu.'),
+                    ->modalDescription('Menghapus riwayat ini tidak mengembalikan tanggal akhir kontrak di akun karyawan; sesuaikan manual di menu User kalau perlu.'),
             ])
             ->defaultSort('created_at', 'desc');
     }

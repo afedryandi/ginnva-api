@@ -157,7 +157,7 @@ class SpkController extends Controller
 
         if ($user->hasRole('installer')) {
             if (! $booking->installers->contains('id', $user->id)) {
-                return response()->json(['success' => false, 'message' => 'Booking ini tidak ditugaskan ke Anda.'], 403);
+                return response()->json(['success' => false, 'message' => 'Booking ini tidak ditugaskan ke akun ini.'], 403);
             }
         } elseif (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
             return response()->json(['success' => false, 'message' => 'Booking ini milik toko lain.'], 403);

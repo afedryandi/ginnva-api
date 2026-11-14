@@ -28,7 +28,7 @@ class QuotationController extends Controller
         $user = $request->user('api');
 
         if (! $user->hasQuotationAccess()) {
-            abort(403, 'Anda tidak punya akses ke menu Quotation.');
+            abort(403, 'Akun ini tidak punya akses ke menu Quotation.');
         }
 
         $query = Quotation::with(['vehicle:id,brand,model', 'store:id,name'])
@@ -65,7 +65,7 @@ class QuotationController extends Controller
         $user = $request->user('api');
 
         if (! $user->hasQuotationAccess()) {
-            abort(403, 'Anda tidak punya akses ke menu Quotation.');
+            abort(403, 'Akun ini tidak punya akses ke menu Quotation.');
         }
 
         $quotation = Quotation::with(['vehicle', 'store:id,name', 'items.filmProduct:id,name', 'owner:id,name'])
@@ -90,7 +90,7 @@ class QuotationController extends Controller
         $user = $request->user('api');
 
         if (! $user->hasQuotationAccess()) {
-            abort(403, 'Anda tidak punya akses ke menu Quotation.');
+            abort(403, 'Akun ini tidak punya akses ke menu Quotation.');
         }
 
         $request->validate([
@@ -127,7 +127,7 @@ class QuotationController extends Controller
         $user = $request->user('api');
 
         if (! $user->hasQuotationAccess()) {
-            abort(403, 'Anda tidak punya akses ke menu Quotation.');
+            abort(403, 'Akun ini tidak punya akses ke menu Quotation.');
         }
 
         $data = $request->validate([
@@ -147,11 +147,11 @@ class QuotationController extends Controller
 
         $reason = $data['outcome_reason'] ?? $quotation->outcome_reason;
         if ($outcome === \App\Support\LeadOutcome::LOST && $reason === 'lainnya' && blank($data['outcome_note'] ?? $quotation->outcome_note)) {
-            return response()->json(['success' => false, 'message' => 'Jelaskan alasannya bila memilih Lainnya.', 'errors' => ['outcome_note' => ['Jelaskan alasannya bila memilih Lainnya.']]], 422);
+            return response()->json(['success' => false, 'message' => 'Jelaskan alasannya kalau memilih Lainnya.', 'errors' => ['outcome_note' => ['Jelaskan alasannya kalau memilih Lainnya.']]], 422);
         }
 
         if ($outcome === \App\Support\LeadOutcome::LOST && blank($data['outcome_reason'] ?? $quotation->outcome_reason)) {
-            return response()->json(['success' => false, 'message' => 'Alasan wajib diisi bila lead ditandai tidak jadi.', 'errors' => ['outcome_reason' => ['Alasan wajib diisi bila lead ditandai tidak jadi.']]], 422);
+            return response()->json(['success' => false, 'message' => 'Alasan wajib diisi kalau lead ditandai tidak jadi.', 'errors' => ['outcome_reason' => ['Alasan wajib diisi kalau lead ditandai tidak jadi.']]], 422);
         }
 
         $quotation->update($data);

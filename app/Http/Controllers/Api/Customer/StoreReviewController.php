@@ -93,7 +93,7 @@ class StoreReviewController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Terima kasih atas review Anda.',
+            'message' => 'Terima kasih atas reviewnya.',
             'data'     => [
                 'id'                  => $review->id,
                 'sentiment'           => $review->sentiment,

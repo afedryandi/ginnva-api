@@ -78,7 +78,7 @@
         <x-filament::section>
             <x-slot name="heading">Daftar Booking Dibatalkan</x-slot>
             <x-slot name="description">
-                Booking yang berstatus Cancelled pada rentang ini, termasuk pelanggan yang tidak datang. "Dibatalkan Oleh" bisa "Sistem" bila dibatalkan lewat proses otomatis.
+                Booking yang berstatus Cancelled pada rentang ini, termasuk pelanggan yang tidak datang. "Dibatalkan Oleh" bisa "Sistem" kalau dibatalkan lewat proses otomatis.
             </x-slot>
 
             <div class="overflow-x-auto">

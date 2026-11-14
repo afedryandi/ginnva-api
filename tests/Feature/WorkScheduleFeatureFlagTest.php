@@ -50,13 +50,13 @@ class WorkScheduleFeatureFlagTest extends TestCase
         config(['features.work_schedules' => false]); // phpunit.xml menyalakannya; di server bawaannya mati
 
         foreach ([ShiftResource::class, WorkScheduleResource::class, WorkScheduleCalendarReport::class] as $screen) {
-            $this->assertFalse($screen::shouldRegisterNavigation(), "{$screen} harus tersembunyi bila fitur mati.");
+            $this->assertFalse($screen::shouldRegisterNavigation(), "{$screen} harus tersembunyi kalau fitur mati.");
         }
 
         config(['features.work_schedules' => true]);
 
         foreach ([ShiftResource::class, WorkScheduleResource::class, WorkScheduleCalendarReport::class] as $screen) {
-            $this->assertTrue($screen::shouldRegisterNavigation(), "{$screen} muncul lagi bila fitur dinyalakan.");
+            $this->assertTrue($screen::shouldRegisterNavigation(), "{$screen} muncul lagi kalau fitur dinyalakan.");
         }
     }
 

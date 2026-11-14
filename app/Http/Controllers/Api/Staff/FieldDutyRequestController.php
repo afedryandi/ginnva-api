@@ -53,7 +53,7 @@ class FieldDutyRequestController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Pengajuan dinas luar terkirim, menunggu persetujuan. Setelah disetujui, hari itu tercatat sebagai Dinas Luar (sehari penuh) atau telat dan pulang cepat pada rentang jam itu tidak dihitung (sebagian hari).',
+            'message' => 'Pengajuan dinas luar terkirim, menunggu persetujuan.',
             'field_duty_request' => $this->transform($duty->load('reviewedBy:id,name')),
         ], 201);
     }

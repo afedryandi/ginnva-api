@@ -216,7 +216,7 @@ class Attendance extends Model
         if ($distance > $radius) {
             $roundedDistance = (int) round($distance);
             throw new \InvalidArgumentException(
-                "Anda berada {$roundedDistance} m dari toko (maksimal {$radius} m). Absen hanya bisa dilakukan dari lokasi toko."
+                "Posisi {$roundedDistance} m dari toko (maksimal {$radius} m). Absen hanya bisa dari lokasi toko."
             );
         }
     }

@@ -70,7 +70,7 @@ class EditUser extends EditRecord
         if ($otherFullAccessCount === 0) {
             Notification::make()
                 ->title('Tidak bisa disimpan')
-                ->body('Akun ini adalah satu-satunya akun full-access (super_admin/direksi) yang AKTIF di sistem. Mencabut role ini akan membuat tidak ada satu pun admin yang bisa mengelola hak akses lagi. Tambahkan atau aktifkan akun full-access lain dulu sebelum mengubah role akun ini.')
+                ->body('Ini satu-satunya akun akses penuh yang aktif. Kalau role-nya dicabut, tidak ada admin yang bisa mengelola hak akses. Aktifkan akun akses penuh lain dulu.')
                 ->danger()
                 ->persistent()
                 ->send();

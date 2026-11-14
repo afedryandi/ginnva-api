@@ -132,7 +132,7 @@ class ScheduledPriceChangeTest extends TestCase
 
         $this->assertEquals(1050000, (float) $active->fresh()->base_price);
         $this->assertEquals(0, (float) FilmProductPrice::where('film_product_id', $active->id)->value('price'), 'Harga nol dilewati.');
-        $this->assertEquals(1000000, (float) $inactive->fresh()->base_price, 'Produk nonaktif tidak ikut bila tidak dipilih.');
+        $this->assertEquals(1000000, (float) $inactive->fresh()->base_price, 'Produk nonaktif tidak ikut kalau tidak dipilih.');
 
         app(ScheduledPriceChangeService::class)->apply($this->change(['name' => 'Khusus', 'product_ids' => [$inactive->id]]));
         $this->assertEquals(1050000, (float) $inactive->fresh()->base_price, 'Produk yang dipilih ikut walau nonaktif.');

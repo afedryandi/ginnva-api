@@ -104,7 +104,7 @@ class OvertimeRequestService
             $booking = Booking::withoutGlobalScopes()->find($bookingId);
 
             if (! $booking || (int) $booking->store_id !== (int) $user->store_id) {
-                throw new RuntimeException('Booking yang dipilih tidak ditemukan di toko Anda.');
+                throw new RuntimeException('Booking yang dipilih tidak ditemukan di toko ini.');
             }
         } elseif ($description === null) {
             throw new RuntimeException('Jelaskan pekerjaan yang akan dilembur, atau pilih Booking yang terkait.');
@@ -119,7 +119,7 @@ class OvertimeRequestService
             ->exists();
 
         if ($onLeave) {
-            throw new RuntimeException('Pada tanggal itu Anda sedang izin/cuti, tidak bisa mengajukan lembur.');
+            throw new RuntimeException('Pada tanggal itu sedang izin/cuti, tidak bisa mengajukan lembur.');
         }
 
         $active = OvertimeRequest::withoutGlobalScopes()
@@ -129,13 +129,13 @@ class OvertimeRequestService
         $overlaps = (clone $active)->where('starts_at', '<', $endsAt)->where('ends_at', '>', $startsAt)->exists();
 
         if ($overlaps) {
-            throw new RuntimeException('Jam ini bertabrakan dengan pengajuan lembur Anda yang lain.');
+            throw new RuntimeException('Jam ini bertabrakan dengan pengajuan lembur lain.');
         }
 
         $dayMinutes = (int) (clone $active)->whereDate('date', $date)->sum('minutes');
 
         if ($dayMinutes + $minutes > self::MAX_MINUTES_PER_DAY) {
-            throw new RuntimeException('Lembur paling banyak ' . (self::MAX_MINUTES_PER_DAY / 60) . ' jam per hari. Pengajuan Anda pada tanggal itu sudah ' . $this->hours($dayMinutes) . ' jam.');
+            throw new RuntimeException('Lembur paling banyak ' . (self::MAX_MINUTES_PER_DAY / 60) . ' jam per hari. Pengajuan pada tanggal itu sudah ' . $this->hours($dayMinutes) . ' jam.');
         }
 
         $weekMinutes = (int) (clone $active)
@@ -143,7 +143,7 @@ class OvertimeRequestService
             ->sum('minutes');
 
         if ($weekMinutes + $minutes > self::MAX_MINUTES_PER_WEEK) {
-            throw new RuntimeException('Lembur paling banyak ' . (self::MAX_MINUTES_PER_WEEK / 60) . ' jam per minggu. Pengajuan Anda pada minggu itu sudah ' . $this->hours($weekMinutes) . ' jam.');
+            throw new RuntimeException('Lembur paling banyak ' . (self::MAX_MINUTES_PER_WEEK / 60) . ' jam per minggu. Pengajuan pada minggu itu sudah ' . $this->hours($weekMinutes) . ' jam.');
         }
     }
 
@@ -196,7 +196,7 @@ class OvertimeRequestService
             $locked = OvertimeRequest::withoutGlobalScopes()->whereKey($request->id)->lockForUpdate()->first();
 
             if (! $locked || $locked->user_id !== $userId) {
-                throw new RuntimeException('Pengajuan ini bukan milik Anda.');
+                throw new RuntimeException('Pengajuan ini bukan milik akun ini.');
             }
 
             $cancellable = $locked->isPending() || ($locked->isApproved() && $locked->starts_at->greaterThan(now()));

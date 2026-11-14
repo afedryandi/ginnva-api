@@ -202,7 +202,7 @@ class DownPaymentService
             $locked = Booking::query()->where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status !== 'completed') {
-                throw new RuntimeException('Sisa DP hanya bisa dikembalikan setelah booking selesai. Untuk booking berjalan, batalkan booking agar DP dikembalikan penuh.');
+                throw new RuntimeException('Sisa DP hanya bisa dikembalikan setelah booking selesai. Untuk booking berjalan, batalkan booking supaya DP dikembalikan penuh.');
             }
 
             $ledger = (bool) config('features.finance');

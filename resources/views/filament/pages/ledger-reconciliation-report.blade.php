@@ -19,7 +19,7 @@
                 @endif
             </x-slot>
             <x-slot name="description">
-                Saldo akun di Buku Besar sampai hari ini dibandingkan dengan total sub-buku keadaan sekarang. Selisih belum tentu galat: bisa dari saldo awal yang diinput tanpa jurnal, atau pemakaian bahan yang belum dijurnal sebagai HPP. Laporan ini tidak mengubah data apa pun.
+                Saldo akun di Buku Besar dibandingkan dengan total sub-buku sekarang. Selisih belum tentu salah: bisa dari saldo awal tanpa jurnal atau pemakaian bahan yang belum dijurnal. Laporan ini tidak mengubah data.
             </x-slot>
 
             <div class="overflow-x-auto">

@@ -384,7 +384,7 @@ class WarrantyController extends Controller
 
             return response()->json([
                 'success'       => true,
-                'message'       => 'Garansi berhasil dihubungkan ke akun Anda.',
+                'message'       => 'Garansi berhasil dihubungkan ke akun ini.',
                 'points_awarded' => $pointsAwarded ? 100 : 0,
             ]);
         });
@@ -425,7 +425,7 @@ class WarrantyController extends Controller
         if ($warranty->status === 'revoked') {
             return response()->json([
                 'success' => false,
-                'message' => 'Sertifikat garansi ini telah dibatalkan (revoked) dan tidak bisa diunduh lagi.',
+                'message' => 'Sertifikat garansi ini sudah dibatalkan (revoked) dan tidak bisa diunduh lagi.',
             ], 403);
         }
 

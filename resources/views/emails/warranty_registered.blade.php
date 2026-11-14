@@ -7,12 +7,12 @@
     Pendaftaran Garansi
 </p>
 <h1 style="margin:0 0 20px;color:#333333;font-size:22px;font-weight:800;line-height:1.3;">
-    Garansi Anda sedang diverifikasi
+    Garansi sedang diverifikasi
 </h1>
 
 <p style="margin:0 0 24px;color:#666666;font-size:14px;line-height:1.6;">
-    Halo <strong>{{ $customerName }}</strong>, pendaftaran garansi produk Ginnva Anda
-    telah berhasil diterima dan sedang dalam proses verifikasi oleh tim admin.
+    Halo <strong>{{ $customerName }}</strong>, pendaftaran garansi produk Ginnva
+    sudah berhasil diterima dan sedang dalam proses verifikasi oleh tim admin.
 </p>
 
 {{-- Kode garansi --}}
@@ -68,7 +68,7 @@
                 <tr>
                     <td style="padding-right:10px;font-size:18px;vertical-align:top;">⏳</td>
                     <td style="color:#d97706;font-size:13px;font-weight:600;line-height:1.5;">
-                        Garansi Anda sedang menunggu persetujuan admin.<br>
+                        Garansi sedang menunggu persetujuan admin.<br>
                         <span style="font-weight:400;color:#92400e;">
                             Sertifikat PDF akan tersedia untuk diunduh setelah diverifikasi.
                         </span>
@@ -80,7 +80,7 @@
 </table>
 
 <p style="margin:0;color:#999999;font-size:13px;line-height:1.6;">
-    Simpan nomor E-Warranty di atas. Anda dapat mengecek status garansi kapan saja
+    Simpan nomor E-Warranty di atas. Status garansi bisa dicek kapan saja
     melalui aplikasi Ginnva Shield Indonesia.
 </p>
 @endsection

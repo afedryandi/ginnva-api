@@ -111,7 +111,7 @@ class EmployeeTypeResource extends Resource
             Forms\Components\Toggle::make('has_end_date')
                 ->live()
                 ->label('Memiliki Tanggal Berakhir')
-                ->helperText('Kalau aktif, field "Tanggal Berakhir Kontrak" WAJIB diisi untuk karyawan bertipe ini di menu User, dan akun mereka DINONAKTIFKAN OTOMATIS (tidak bisa login ke panel maupun aplikasi) begitu tanggal itu lewat tanpa diperpanjang di Riwayat Kontrak. Kalau tidak, field itu disembunyikan dan tidak ada nonaktivasi otomatis (mis. untuk tipe "Tetap").')
+                ->helperText('Kalau aktif, Tanggal Berakhir Kontrak wajib diisi, dan akun otomatis dinonaktifkan begitu tanggal itu lewat tanpa diperpanjang di Riwayat Kontrak.')
                 ->default(false),
 
             Forms\Components\Toggle::make('is_active')
@@ -162,7 +162,7 @@ class EmployeeTypeResource extends Resource
                     ->label('Punya Tanggal Berakhir')
                     ->boolean()
                     ->tooltip(fn (EmployeeType $record) => $record->has_end_date
-                        ? 'Akun karyawan bertipe ini dinonaktifkan otomatis bila kontraknya lewat tanpa diperpanjang.'
+                        ? 'Akun karyawan bertipe ini dinonaktifkan otomatis kalau kontraknya lewat tanpa diperpanjang.'
                         : 'Tanpa tanggal berakhir: tidak ada nonaktivasi otomatis.'),
 
                 Tables\Columns\TextColumn::make('users_count')

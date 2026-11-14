@@ -39,7 +39,7 @@
                     <td style="background:#f2f5fa;padding:20px 32px;text-align:center;border-top:1px solid #e6e6e6;">
                         <p style="margin:0;color:#999999;font-size:12px;line-height:1.6;">
                             Email ini dikirim otomatis oleh sistem Ginnva Shield Indonesia.<br>
-                            Jika Anda tidak merasa melakukan permintaan ini, abaikan email ini.
+                            Kalau tidak merasa meminta ini, abaikan email ini.
                         </p>
                         <p style="margin:8px 0 0;color:#cccccc;font-size:11px;">
                             &copy; {{ date('Y') }} PT Ginnva Shield Indonesia &middot; Jakarta

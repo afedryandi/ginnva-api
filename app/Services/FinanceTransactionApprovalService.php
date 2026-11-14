@@ -112,7 +112,7 @@ class FinanceTransactionApprovalService
             // tidak boleh menyetujui pengajuan yang diajukan sendiri (mis.
             // user yang dipromosikan ke direksi setelah mengajukan).
             if ((int) $locked->requested_by === (int) $approver->id) {
-                throw new RuntimeException('Anda tidak boleh menyetujui pengajuan yang Anda ajukan sendiri.');
+                throw new RuntimeException('Pengajuan sendiri tidak boleh disetujui sendiri.');
             }
 
             $isSameStoreManager = $approver->isStoreManager() && (int) $approver->store_id === (int) $locked->store_id_from_payload;
@@ -176,7 +176,7 @@ class FinanceTransactionApprovalService
             }
 
             if ((int) $locked->requested_by === (int) $approver->id) {
-                throw new RuntimeException('Anda tidak boleh menyetujui pengajuan yang Anda ajukan sendiri.');
+                throw new RuntimeException('Pengajuan sendiri tidak boleh disetujui sendiri.');
             }
 
             $data = $locked->payload;
@@ -248,7 +248,7 @@ class FinanceTransactionApprovalService
                     && (int) $approver->store_id === (int) $locked->store_id_from_payload);
 
             if (! $canReject) {
-                throw new RuntimeException('Anda tidak berwenang menolak pengajuan ini pada tahap sekarang.');
+                throw new RuntimeException('Akun ini tidak berwenang menolak pengajuan ini pada tahap sekarang.');
             }
 
             $locked->update([
@@ -386,7 +386,7 @@ class FinanceTransactionApprovalService
                 $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess());
             }
 
-            $title = "Menunggu persetujuan Anda: pengeluaran {$amountLabel}";
+            $title = "Menunggu persetujuan: pengeluaran {$amountLabel}";
         } else {
             $recipients = User::where('is_active', true)->get()->filter(fn (User $u) => $u->isFullAccess());
             $title = "Menunggu persetujuan direksi: pengeluaran {$amountLabel}";
@@ -423,7 +423,7 @@ class FinanceTransactionApprovalService
         try {
             if ($requester = User::find($request->requested_by)) {
                 Notification::make()
-                    ->title('Pengajuan pengeluaran Anda tertahan')
+                    ->title('Pengajuan pengeluaran tertahan')
                     ->body($reason)
                     ->warning()
                     ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\FinanceTransactionApprovalRequestResource::class))

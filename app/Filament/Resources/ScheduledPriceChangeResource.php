@@ -225,7 +225,7 @@ class ScheduledPriceChangeResource extends Resource
                     ->color('warning')
                     ->visible(fn (ScheduledPriceChange $record) => static::canEdit($record) && $record->effective_date->lte(today()))
                     ->requiresConfirmation()
-                    ->modalDescription('Harga produk berubah sekarang sesuai pengaturan ini. Langkah ini tidak bisa dibatalkan; kembalikan dengan perubahan harga baru bila perlu.')
+                    ->modalDescription('Harga produk berubah sekarang sesuai pengaturan ini. Tidak bisa dibatalkan; kembalikan dengan perubahan harga baru kalau perlu.')
                     ->action(function (ScheduledPriceChange $record) {
                         $count = app(ScheduledPriceChangeService::class)->apply($record);
 
@@ -245,7 +245,7 @@ class ScheduledPriceChangeResource extends Resource
                     ->color('info')
                     ->visible(fn (ScheduledPriceChange $record) => (auth()->user()?->isFullAccess() ?? false) && $record->canBeReverted())
                     ->requiresConfirmation()
-                    ->modalDescription('Harga yang diubah perubahan ini dikembalikan ke nilai sebelumnya. Harga yang sudah diubah lagi sesudahnya (manual, import, atau perubahan lain) dilewati. Booking dan invoice yang sudah dibuat tidak terpengaruh.')
+                    ->modalDescription('Harga yang diubah perubahan ini dikembalikan ke nilai sebelumnya. Harga yang sudah diubah lagi sesudahnya dilewati. Booking dan invoice yang sudah dibuat tidak terpengaruh.')
                     ->action(function (ScheduledPriceChange $record) {
                         $result = app(ScheduledPriceChangeService::class)->revert($record, auth()->id());
 

@@ -311,7 +311,7 @@ class AttendanceController extends Controller
         if ($hasPendingForDate) {
             return response()->json([
                 'success' => false,
-                'message' => 'Anda sudah punya pengajuan koreksi untuk tanggal ini yang masih menunggu persetujuan. Tunggu keputusan admin sebelum mengajukan lagi.',
+                'message' => 'Pengajuan koreksi untuk tanggal ini masih menunggu persetujuan. Tunggu keputusan admin dulu sebelum mengajukan lagi.',
             ], 422);
         }
 
@@ -491,7 +491,7 @@ class AttendanceController extends Controller
         if (LeaveRequest::hasOverlap($user, $request->start_date, $request->end_date)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Anda sudah punya pengajuan izin/cuti lain yang tanggalnya tumpang tindih dengan rentang ini.',
+                'message' => 'Sudah ada pengajuan izin/cuti lain yang tanggalnya tumpang tindih dengan rentang ini.',
             ], 422);
         }
 

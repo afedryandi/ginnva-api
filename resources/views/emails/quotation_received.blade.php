@@ -7,12 +7,12 @@
     Konfirmasi Permintaan Penawaran
 </p>
 <h1 style="margin:0 0 20px;color:#333333;font-size:22px;font-weight:800;line-height:1.3;">
-    Permintaan Anda telah kami terima
+    Permintaan sudah kami terima
 </h1>
 
 <p style="margin:0 0 24px;color:#666666;font-size:14px;line-height:1.6;">
     Halo <strong>{{ $customerName }}</strong>, tim sales Ginnva Shield Indonesia akan segera
-    menghubungi Anda melalui WhatsApp untuk mendiskusikan penawaran lebih lanjut.
+    menghubungi lewat WhatsApp untuk membahas penawaran lebih lanjut.
 </p>
 
 {{-- Nomor referensi --}}
@@ -61,7 +61,7 @@
 </table>
 
 <p style="margin:0;color:#999999;font-size:13px;line-height:1.6;">
-    Simpan nomor referensi di atas jika perlu menghubungi kami. Tim kami akan membalas
+    Simpan nomor referensi di atas kalau perlu menghubungi kami. Tim kami akan membalas
     dalam waktu <strong>1×24 jam kerja</strong>.
 </p>
 @endsection

@@ -122,7 +122,7 @@ class MyAttendanceTest extends TestCase
             ->call('submitClock', 'in', -6.2100, 106.8000)
             ->assertNotified('Absen ditolak');
         $this->assertSame(0, Attendance::where('user_id', $user->id)->count());
-        $this->assertSame([], Storage::disk('local')->allFiles(), 'Foto dihapus bila absen ditolak.');
+        $this->assertSame([], Storage::disk('local')->allFiles(), 'Foto dihapus kalau absen ditolak.');
 
         Livewire::test(MyAttendance::class)->set('photo', $this->photo())->call('submitClock', 'in', -6.2000, 106.8000);
         Livewire::test(MyAttendance::class)->set('photo', $this->photo())->call('submitClock', 'in', -6.2000, 106.8000)->assertNotified('Absen ditolak');

@@ -124,7 +124,7 @@ class MaterialMemoResource extends Resource
                     ->validationMessages([
                         'unique' => 'Booking ini sudah tertaut ke Memo Barang lain.',
                     ])
-                    ->helperText(fn (?MaterialMemo $record) => 'Hubungkan ke booking supaya bahan/produk yang dipakai muncul di Detail Penjualan booking tersebut.'
+                    ->helperText(fn (?MaterialMemo $record) => 'Hubungkan ke booking supaya bahan/produk yang dipakai muncul di Detail Penjualan booking itu.'
                         . ($record !== null && $record->items()->exists()
                             ? ' Perhatian: mengganti booking memindahkan seluruh biaya bahan di memo ini ke booking yang baru (perubahannya tercatat di riwayat).'
                             : '')),
@@ -181,7 +181,7 @@ class MaterialMemoResource extends Resource
                     ->badge()
                     ->color(fn (int $state) => $state > 0 ? 'warning' : 'gray')
                     ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} baris" : '—')
-                    ->tooltip(config('features.consumables') ? 'Baris bahan/barang habis pakai yang stoknya sudah keluar tetapi pengembaliannya belum dicatat (isi 0 bila habis terpakai).' : 'Baris bahan yang stoknya sudah keluar tetapi pengembaliannya belum dicatat (isi 0 bila habis terpakai).'),
+                    ->tooltip(config('features.consumables') ? 'Baris bahan/barang habis pakai yang stoknya sudah keluar tapi pengembaliannya belum dicatat (isi 0 kalau habis terpakai).' : 'Baris bahan yang stoknya sudah keluar tapi pengembaliannya belum dicatat (isi 0 kalau habis terpakai).'),
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Dibuat Oleh')
                     ->placeholder('—'),

@@ -64,7 +64,7 @@ class BookingHandoverController extends Controller
         ]);
 
         if (! $request->boolean('care_instructions_given')) {
-            abort(422, 'Sampaikan petunjuk perawatan kepada pelanggan dulu, lalu centang.');
+            abort(422, 'Sampaikan petunjuk perawatan ke pelanggan dulu, lalu centang.');
         }
 
         $signatureRequired = $booking->requiresWetSignature();
@@ -120,13 +120,13 @@ class BookingHandoverController extends Controller
     private function authorizeManage($user, Booking $booking): Booking
     {
         if ($user->hasRole('installer') || $user->hasRole('partner')) {
-            abort(403, 'Anda tidak bisa mencatat serah terima.');
+            abort(403, 'Akun ini tidak bisa mencatat serah terima.');
         }
 
-        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
+        abort_unless($user->hasBookingAccess(), 403, 'Akun ini tidak punya akses menu Booking.');
 
         if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
-            abort(403, 'Anda tidak punya akses ke booking toko lain.');
+            abort(403, 'Akun ini tidak punya akses ke booking toko lain.');
         }
 
         return $booking;

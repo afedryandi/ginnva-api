@@ -13,7 +13,7 @@
                 ? ($this->data['broadcast_partner'] ?? true)
                 : ($this->data['broadcast'] ?? true);
             $confirmMessage = $isBroadcast
-                ? 'Yakin ingin mengirim notifikasi ini ke SEMUA pengguna? Aksi ini tidak bisa dibatalkan.'
+                ? 'Yakin ingin mengirim notifikasi ini ke SEMUA pengguna? Ini tidak bisa dibatalkan.'
                 : 'Kirim notifikasi ini ke penerima yang dipilih?';
         @endphp
 

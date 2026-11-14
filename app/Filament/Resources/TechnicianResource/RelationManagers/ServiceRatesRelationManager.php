@@ -68,6 +68,6 @@ class ServiceRatesRelationManager extends RelationManager
                 Tables\Actions\DeleteAction::make(),
             ])
             ->emptyStateHeading('Belum ada tarif per layanan')
-            ->emptyStateDescription('Installer ini masih pakai "Komisi per Pekerjaan" flat di atas. Tambah baris di sini untuk beralih ke tarif berbeda per jenis layanan (PPF/Kaca Film/Detailing/Premium Wash) -- booking dengan beberapa layanan sekaligus akan menjumlahkan tarifnya.');
+            ->emptyStateDescription('Installer ini masih memakai Komisi per Pekerjaan flat. Tambah baris di sini untuk tarif berbeda per jenis layanan; booking dengan beberapa layanan menjumlahkan tarifnya.');
     }
 }

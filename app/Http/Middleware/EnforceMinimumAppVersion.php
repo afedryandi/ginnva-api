@@ -37,7 +37,7 @@ class EnforceMinimumAppVersion
             return response()->json([
                 'success' => false,
                 'code' => 'upgrade_required',
-                'message' => 'Versi aplikasi Anda sudah terlalu lama. Perbarui aplikasi ke versi terbaru untuk melanjutkan.',
+                'message' => 'Versi aplikasi sudah terlalu lama. Perbarui aplikasi ke versi terbaru untuk melanjutkan.',
                 'min_version' => (string) $min,
                 'store_url' => config("app_version.{$platform}.store_url"),
             ], 426);

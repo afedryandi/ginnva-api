@@ -27,7 +27,7 @@
             @endif
         @else
             @if (! $canSeeMemos)
-                <p class="pu-muted" style="margin: 0;">Memo {{ $memo->memo_number }} tercatat dengan {{ $memo->items->count() }} item. Anda tidak punya akses ke menu Memo.</p>
+                <p class="pu-muted" style="margin: 0;">Memo {{ $memo->memo_number }} tercatat dengan {{ $memo->items->count() }} item. Akun ini tidak punya akses ke menu Memo.</p>
             @else
                 <p class="pu-strong" style="margin: 0;">Memo {{ $memo->memo_number }}</p>
 

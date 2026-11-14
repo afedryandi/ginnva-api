@@ -39,7 +39,7 @@
 
     @if ($result['multiProductCount'] > 0)
         <div class="ps-note">
-            {{ $result['multiProductCount'] }} transaksi lama (senilai {{ $rupiah($result['multiProductRevenue']) }}) memakai lebih dari satu produk tetapi tidak punya rincian harga. Seluruh nilainya dihitung ke produk utama booking, jadi angka per produk untuk transaksi itu belum pasti.
+            {{ $result['multiProductCount'] }} transaksi lama (senilai {{ $rupiah($result['multiProductRevenue']) }}) memakai lebih dari satu produk tapi tidak punya rincian harga. Nilainya dihitung ke produk utama, jadi angka per produk belum pasti.
         </div>
     @endif
 

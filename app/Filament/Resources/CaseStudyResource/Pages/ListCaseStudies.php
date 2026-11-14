@@ -24,7 +24,7 @@ class ListCaseStudies extends ListRecords
                 ->icon('heroicon-o-sparkles')
                 ->color('gray')
                 ->visible(fn () => CaseStudyResource::canCreate())
-                ->modalDescription('Hanya booking yang pelanggannya memberi izin foto dan sudah punya foto akhir serah terima. Materi dibuat TIDAK tayang: periksa apakah plat nomor di foto tertutup stiker (bila masih terlihat, unggah foto lain yang platnya tertutup), isi teks alternatif, lalu tayangkan.')
+                ->modalDescription('Hanya booking yang pelanggannya memberi izin foto dan punya foto akhir. Materi dibuat belum tayang: pastikan plat di foto tertutup stiker dan isi teks alternatif, lalu tayangkan.')
                 ->form([
                     Forms\Components\Select::make('booking_id')
                         ->label('Booking')

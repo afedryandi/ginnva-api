@@ -38,8 +38,8 @@ class RemindPendingPolicies extends Command
                 [$userId],
                 'Dokumen Peraturan Belum Diterima',
                 $count === 1
-                    ? 'Ada 1 dokumen peraturan/kebijakan yang belum Anda terima. Buka Peraturan & Kebijakan untuk membaca dan menerimanya.'
-                    : "Ada {$count} dokumen peraturan/kebijakan yang belum Anda terima. Buka Peraturan & Kebijakan untuk membaca dan menerimanya.",
+                    ? 'Ada 1 dokumen peraturan/kebijakan yang belum diterima. Buka Peraturan & Kebijakan untuk membaca dan menerimanya.'
+                    : "Ada {$count} dokumen peraturan/kebijakan yang belum diterima. Buka Peraturan & Kebijakan untuk membaca dan menerimanya.",
                 ['type' => 'company_policy', 'route' => '/staff/policies'],
                 'policy-pending',
                 'warning'

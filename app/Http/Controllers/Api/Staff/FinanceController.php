@@ -195,14 +195,14 @@ class FinanceController extends Controller
             $account = $this->accountsFor($user, ['kas', 'kas_kecil', 'bank'])->firstWhere('id', (int) $accountId);
 
             if (! $account) {
-                return response()->json(['success' => false, 'message' => 'Rekening tidak ditemukan atau bukan milik toko Anda.'], 422);
+                return response()->json(['success' => false, 'message' => 'Rekening tidak ditemukan atau bukan milik toko ini.'], 422);
             }
 
             $data['payment_account_id'] = $account->id;
         }
 
         if ($this->isDuplicate($data, $user)) {
-            return response()->json(['success' => false, 'message' => 'Pengeluaran yang sama baru saja dikirim. Tunggu ' . self::DUPLICATE_WINDOW_MINUTES . ' menit bila memang ingin mengirim ulang.'], 422);
+            return response()->json(['success' => false, 'message' => 'Pengeluaran yang sama baru saja dikirim. Tunggu ' . self::DUPLICATE_WINDOW_MINUTES . ' menit kalau memang mau mengirim ulang.'], 422);
         }
 
         $petty = app(PettyCashService::class);
@@ -442,7 +442,7 @@ class FinanceController extends Controller
         $account = $this->accountsFor($user, ['kas', 'kas_kecil'])->firstWhere('id', (int) $validated['payment_account_id']);
 
         if (! $account) {
-            return response()->json(['success' => false, 'message' => 'Kas tidak ditemukan atau bukan milik toko Anda.'], 422);
+            return response()->json(['success' => false, 'message' => 'Kas tidak ditemukan atau bukan milik toko ini.'], 422);
         }
 
         try {

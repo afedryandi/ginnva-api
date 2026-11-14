@@ -176,7 +176,7 @@ class DemoMarketingGroup extends Command
         $existingCover = News::whereNotNull('cover_image')->inRandomOrder()->value('cover_image');
 
         $titles = [
-            'Tips Merawat PPF Agar Tahan Lama',
+            'Tips Merawat PPF Supaya Tahan Lama',
             'Perbedaan Kaca Film Ceramic dan Carbon',
             'Ginnva Buka Cabang Baru Bulan Ini',
             'Cara Klaim Garansi PPF dengan Mudah',

@@ -3,7 +3,7 @@
     SalesResource, $stats dihitung dari $livewire->getFilteredTableQuery() (query yang SAMA dipakai tombol Export ke Excel) tiap kali
     tabel re-render (ganti filter/pencarian/halaman).
 
-    Kartu Lunas, Belum Lunas, dan Total Diterima hanya tampil bila modul Keuangan menyala: saat mati, piutang dicatat di Accurate
+    Kartu Lunas, Belum Lunas, dan Total Diterima hanya tampil kalau modul Keuangan menyala: saat mati, piutang dicatat di Accurate
     (keputusan pemilik 2026-11-04). Tidak ada kartu Void: booking yang dibatalkan tidak mungkin sudah diproses penjualannya.
     Panel memakai CSS Filament yang sudah dikompilasi, jadi layout grid pakai style inline dan warna/angka tabular memakai kelas sd-* di bawah.
 --}}

@@ -11,9 +11,7 @@
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
         <x-filament::section>
             <p class="text-xs text-gray-500 dark:text-gray-400">
-                Durasi diambil dari waktu kendaraan masuk-keluar bengkel (SPK) — data AKTUAL, bukan estimasi.
-                1 baris = 1 job (1 SPK). Untuk rekap akumulasi per installer (mis. persiapan komisi bertingkat),
-                lihat menu "Durasi Servis Installer" di cluster Karyawan.
+                Durasi dari waktu kendaraan masuk dan keluar bengkel (SPK), bukan estimasi. Satu baris = satu job. Rekap per installer ada di menu Durasi Servis Installer.
             </p>
         </x-filament::section>
 

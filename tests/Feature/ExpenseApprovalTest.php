@@ -199,7 +199,7 @@ class ExpenseApprovalTest extends TestCase
 
         $own = $this->submitAs($staff);
         $own->update(['requested_by' => $admin->id]);
-        $this->assertRefused(fn () => $this->service->approveByManager($own->fresh(), $admin), 'tidak boleh menyetujui pengajuan yang Anda ajukan sendiri');
+        $this->assertRefused(fn () => $this->service->approveByManager($own->fresh(), $admin), 'tidak boleh disetujui sendiri');
     }
 
     // ------------------------------------------------------------- tahap Direksi
@@ -249,7 +249,7 @@ class ExpenseApprovalTest extends TestCase
         $this->service->approveByManager($request, $this->manager());
         $requester->syncRoles(['direksi']);
 
-        $this->assertRefused(fn () => $this->service->approveByDireksi($request->fresh(), $requester->fresh()), 'tidak boleh menyetujui pengajuan yang Anda ajukan sendiri');
+        $this->assertRefused(fn () => $this->service->approveByDireksi($request->fresh(), $requester->fresh()), 'tidak boleh disetujui sendiri');
     }
 
     public function test_approval_revalidates_category_store_and_period_and_leaves_no_transaction_behind(): void
@@ -360,7 +360,7 @@ class ExpenseApprovalTest extends TestCase
 
         $this->service->notifyRequesterStuck($request, 'Periode sudah ditutup');
 
-        $this->assertSame('Pengajuan pengeluaran Anda tertahan', $staff->notifications()->first()->data['title']);
+        $this->assertSame('Pengajuan pengeluaran tertahan', $staff->notifications()->first()->data['title']);
     }
 
     // ------------------------------------------------------------- pengingat harian
@@ -512,7 +512,7 @@ class ExpenseApprovalTest extends TestCase
 
         $this->assertSame('pending_direksi', $request->fresh()->status);
         $this->assertSame(0, FinanceTransaction::count());
-        $this->assertSame('Pengajuan pengeluaran Anda tertahan', $staff->notifications()->first()->data['title']);
+        $this->assertSame('Pengajuan pengeluaran tertahan', $staff->notifications()->first()->data['title']);
     }
 
     public function test_reject_cancel_and_resubmit_from_the_table(): void

@@ -37,7 +37,7 @@ class BulkMenuPermissionTest extends TestCase
 
         $off = UserResource::bulkPermissionChange($on, 'view');
         $this->assertSame([], $off['A']);
-        $this->assertSame([], $off['B'], 'Bila sudah tercentang di semua, dilepas dari semua.');
+        $this->assertSame([], $off['B'], 'Kalau sudah tercentang di semua, dilepas dari semua.');
     }
 
     public function test_other_actions_are_left_alone_by_a_single_action_button(): void

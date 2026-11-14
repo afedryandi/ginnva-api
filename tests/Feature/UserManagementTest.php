@@ -595,7 +595,7 @@ class UserManagementTest extends TestCase
         $change = fn (array $data) => $this->actingAs($user, 'api')->postJson('/api/staff/auth/change-password', $data);
 
         $change(['current_password' => 'salah', 'password' => 'BaruAman456', 'password_confirmation' => 'BaruAman456'])
-            ->assertStatus(422)->assertJsonPath('message', 'Password lama yang Anda masukkan salah.');
+            ->assertStatus(422)->assertJsonPath('message', 'Password lama salah.');
         $change(['current_password' => 'Rahasia123', 'password' => 'semuakecil123', 'password_confirmation' => 'semuakecil123'])->assertStatus(422);
         $change(['current_password' => 'Rahasia123', 'password' => 'BaruAman456', 'password_confirmation' => 'beda'])->assertStatus(422);
         $this->assertTrue(Hash::check('Rahasia123', $user->fresh()->password));

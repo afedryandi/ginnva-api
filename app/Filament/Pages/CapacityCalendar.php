@@ -172,7 +172,7 @@ class CapacityCalendar extends Page
                 ->color('gray')
                 ->visible(fn () => self::canManageClosures('create') && $this->effectiveStoreId() !== null)
                 ->modalHeading('Tutup Rentang Tanggal')
-                ->modalDescription('Menutup semua tanggal dalam rentang untuk toko ini (libur, renovasi, acara). Tanggal yang sudah ditutup dilewati. Untuk libur rutin tiap minggu, atur di Toko > Jam Operasional.')
+                ->modalDescription('Menutup semua tanggal dalam rentang untuk toko ini. Tanggal yang sudah ditutup dilewati. Libur rutin mingguan diatur di Toko > Jam Operasional.')
                 ->modalWidth('lg')
                 ->modalSubmitActionLabel('Tutup Tanggal')
                 ->form([
@@ -215,7 +215,7 @@ class CapacityCalendar extends Page
                     ->icon('heroicon-o-building-storefront')
                     ->visible(fn () => (auth()->user()?->isFullAccess() ?? false) && self::canManageClosures('create'))
                     ->modalHeading('Tutup Semua Toko')
-                    ->modalDescription('Menutup semua toko aktif pada tanggal ini, misalnya libur nasional atau cuti bersama. Tanggal ini tidak bisa dibooking, tidak dihitung Alpha, dan tidak dihitung jam kerjanya di gaji. Booking yang sudah ada tidak dibatalkan.')
+                    ->modalDescription('Menutup semua toko aktif pada tanggal ini (libur nasional, cuti bersama). Tanggal ini tidak bisa dibooking dan tidak dihitung Alpha maupun jam kerjanya di gaji. Booking yang sudah ada tidak dibatalkan.')
                     ->modalWidth('lg')
                     ->modalSubmitActionLabel('Tutup Semua Toko')
                     ->form([
@@ -234,7 +234,7 @@ class CapacityCalendar extends Page
                     ->visible(fn () => self::canManageCapacity() && $this->effectiveStoreId() !== null)
                     ->requiresConfirmation()
                     ->modalHeading('Hapus semua override kapasitas?')
-                    ->modalDescription('Semua tanggal hari ini dan seterusnya untuk toko ini kembali memakai kapasitas bawaan toko. Override tanggal yang sudah lewat tetap tersimpan sebagai riwayat.')
+                    ->modalDescription('Semua tanggal hari ini dan seterusnya kembali memakai kapasitas bawaan toko. Override tanggal lewat tetap tersimpan sebagai riwayat.')
                     ->modalSubmitActionLabel('Hapus Override')
                     ->action(fn () => $this->clearAllOverrides()),
             ])

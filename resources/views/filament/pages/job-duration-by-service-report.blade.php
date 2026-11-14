@@ -12,9 +12,7 @@
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
         <x-filament::section>
             <p class="text-xs text-gray-500 dark:text-gray-400">
-                1 job dengan lebih dari 1 jenis layanan sekaligus (mis. PPF + Detailing) menyumbang durasi PENUHNYA
-                ke setiap layanan itu (tidak dibagi) — Jumlah Job lintas baris bisa melebihi jumlah job sungguhan
-                kalau banyak booking kombo. Untuk daftar per-job, lihat menu "Proses Order".
+                Job dengan beberapa jenis layanan (mis. PPF + Detailing) dihitung penuh di tiap layanan, jadi total Jumlah Job bisa melebihi jumlah job sebenarnya. Daftar per job ada di menu Proses Order.
             </p>
         </x-filament::section>
 

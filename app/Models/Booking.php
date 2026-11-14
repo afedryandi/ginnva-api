@@ -681,7 +681,7 @@ class Booking extends Model
         }
 
         if (! in_array($slot, static::lightSlotsFor($storeId, $date), true)) {
-            return 'Jam itu di luar jam buka toko pada tanggal tersebut. Pilih jam lain.';
+            return 'Jam itu di luar jam buka toko pada tanggal itu. Pilih jam lain.';
         }
 
         if ($lock) {
@@ -866,7 +866,7 @@ class Booking extends Model
             return null;
         }
 
-        return "Peringatan: {$load} booking berat aktif pada tanggal ini, tetapi hanya {$crew['available']} dari {$crew['total']} installer yang masuk kerja."
+        return "Peringatan: {$load} booking berat aktif pada tanggal ini, tapi hanya {$crew['available']} dari {$crew['total']} installer yang masuk kerja."
             . ($crew['unavailable'] ? ' Tidak masuk: ' . collect($crew['unavailable'])->map(fn ($u) => "{$u['name']} ({$u['reason']})")->implode(', ') . '.' : '');
     }
 

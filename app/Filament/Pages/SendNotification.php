@@ -245,7 +245,7 @@ class SendNotification extends Page implements HasForms
                         ->integer()
                         ->minValue(1)
                         ->maxValue(60)
-                        ->helperText('Pelanggan yang pernah booking tetapi tidak ada booking dalam sekian bulan terakhir, cocok untuk pengingat perawatan atau penawaran kembali.')
+                        ->helperText('Pelanggan yang pernah booking tapi tidak booking lagi dalam sekian bulan terakhir; cocok untuk pengingat perawatan.')
                         ->live(onBlur: true),
 
                     Toggle::make('segment_warranty_active')
@@ -254,7 +254,7 @@ class SendNotification extends Page implements HasForms
 
                     \Filament\Forms\Components\Placeholder::make('segment_note')
                         ->hiddenLabel()
-                        ->content('Semua kriteria yang diisi berlaku bersamaan. Tekan Pratinjau Penerima untuk melihat berapa pelanggan yang cocok. Keanggotaan segmen dihitung saat notifikasi dikirim, termasuk pada kiriman terjadwal.'),
+                        ->content('Semua kriteria yang diisi berlaku bersamaan. Tekan Pratinjau Penerima untuk melihat berapa pelanggan yang cocok.'),
                 ])
                     ->columnSpanFull()
                     ->visible(fn ($get) => $get('audience') === 'customer' && ! $get('broadcast') && ($get('target_mode') ?? 'pick') === 'segment'),
@@ -278,7 +278,7 @@ class SendNotification extends Page implements HasForms
                     ->requiredIf('broadcast_partner', false),
 
                 Section::make('Deep Link (Opsional)')
-                    ->description('Jika diisi, tap notifikasi akan membuka halaman tertentu di aplikasi. Khusus notifikasi Pelanggan.')
+                    ->description('Kalau diisi, tap notifikasi akan membuka halaman tertentu di aplikasi. Khusus notifikasi Pelanggan.')
                     ->collapsed()
                     ->visible(fn ($get) => $get('audience') === 'customer')
                     ->schema([
@@ -312,7 +312,7 @@ class SendNotification extends Page implements HasForms
                         TextInput::make('deep_link_param_id')
                             ->label('ID Record (opsional)')
                             ->placeholder('contoh: 42')
-                            ->helperText('Isi ID garansi/booking jika tujuan adalah halaman detail spesifik.')
+                            ->helperText('Isi ID garansi/booking kalau tujuan adalah halaman detail spesifik.')
                             ->numeric()
                             ->integer()
                             ->minValue(1)
@@ -357,8 +357,8 @@ class SendNotification extends Page implements HasForms
 
                     if (! DeviceToken::where('user_id', auth()->id())->exists()) {
                         Notification::make()
-                            ->title('Belum ada perangkat terdaftar untuk akun Anda')
-                            ->body('Masuk dulu di aplikasi karyawan di HP Anda, lalu coba lagi.')
+                            ->title('Belum ada perangkat terdaftar untuk akun ini')
+                            ->body('Masuk dulu di aplikasi karyawan di HP, lalu coba lagi.')
                             ->warning()
                             ->send();
 
@@ -368,8 +368,8 @@ class SendNotification extends Page implements HasForms
                     app(\App\Services\StaffNotifier::class)->toUsers([auth()->id()], '[UJI] ' . $state['title'], $state['body']);
 
                     Notification::make()
-                        ->title('Notifikasi uji dikirim ke perangkat Anda')
-                        ->body('Hanya ke HP Anda sendiri, tidak ke pelanggan. Muncul sebagai push dan di Kotak Masuk aplikasi karyawan dengan awalan [UJI].')
+                        ->title('Notifikasi uji dikirim ke perangkat ini')
+                        ->body('Hanya ke HP sendiri, tidak ke pelanggan. Muncul sebagai push dan di Kotak Masuk aplikasi karyawan dengan awalan [UJI].')
                         ->success()
                         ->send();
                 }),
@@ -481,7 +481,7 @@ class SendNotification extends Page implements HasForms
         if (! $isPartner && ($state['category'] ?? 'promo') === 'promo' && QuietHours::active($at)) {
             Notification::make()
                 ->title('Waktu kirim jatuh pada jam tenang')
-                ->body('Promosi tidak dikirim pada ' . QuietHours::label() . '. Pilih waktu di luar jam tersebut.')
+                ->body('Promosi tidak dikirim pada ' . QuietHours::label() . '. Pilih waktu di luar jam itu.')
                 ->danger()
                 ->send();
 

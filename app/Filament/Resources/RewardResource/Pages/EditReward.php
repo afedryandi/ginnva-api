@@ -34,7 +34,7 @@ class EditReward extends EditRecord
                     } catch (QueryException $e) {
                         Notification::make()
                             ->title('Tidak bisa menghapus reward ini')
-                            ->body('Reward ini masih punya riwayat penukaran. Nonaktifkan saja lewat toggle "Aktif" supaya tidak bisa ditukar lagi, tanpa menghapus riwayatnya.')
+                            ->body('Reward ini punya riwayat penukaran. Nonaktifkan lewat toggle Aktif supaya tidak bisa ditukar lagi.')
                             ->danger()
                             ->send();
 

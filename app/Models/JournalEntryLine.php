@@ -38,7 +38,7 @@ class JournalEntryLine extends Model
     {
         $guard = function (JournalEntryLine $line) {
             if (JournalEntry::withoutGlobalScopes()->where('id', $line->journal_entry_id)->where('status', 'posted')->exists()) {
-                throw new \RuntimeException('Baris jurnal yang sudah diposting tidak boleh diubah atau dihapus — gunakan jurnal pembalik.');
+                throw new \RuntimeException('Baris jurnal yang sudah diposting tidak boleh diubah atau dihapus — pakai jurnal pembalik.');
             }
         };
 

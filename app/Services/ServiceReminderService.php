@@ -35,7 +35,7 @@ class ServiceReminderService
         $results = ['push' => false, 'email' => false, 'whatsapp' => false];
 
         $title = 'Waktunya Servis Berkala';
-        $body = "Booking {$booking->booking_number} — sudah waktunya cek kondisi {$booking->service_type} Anda di toko Ginnva.";
+        $body = "Booking {$booking->booking_number} — sudah waktunya cek kondisi {$booking->service_type} di toko Ginnva.";
 
         if ($booking->customer_id) {
             try {

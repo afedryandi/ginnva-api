@@ -303,7 +303,7 @@ class NotificationCampaignService
 
             if (QuietHours::active()) {
                 $blocked = true;
-                $warnings[] = 'Sekarang jam tenang (' . QuietHours::label() . '): promosi akan ditolak bila dikirim sekarang. Jadwalkan di luar jam tersebut.';
+                $warnings[] = 'Sekarang jam tenang (' . QuietHours::label() . '): promosi akan ditolak kalau dikirim sekarang. Jadwalkan di luar jam itu.';
             }
 
             $max = (int) config('marketing.promo_max_campaigns_per_week', 2);

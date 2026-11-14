@@ -184,7 +184,7 @@ class ClosePeriodPage extends Page implements HasActions, HasForms
     {
         return Action::make('closePeriod')
             ->modalHeading(fn (array $arguments) => 'Tutup periode ' . Carbon::create((int) $arguments['year'], (int) $arguments['month'], 1)->translatedFormat('F Y') . '?')
-            ->modalDescription('Jurnal dengan tanggal di bulan ini tidak akan bisa dibuat/diubah/diposting lagi sampai periodenya dibuka kembali. Periode harus ditutup berurutan dari yang paling lama.')
+            ->modalDescription('Jurnal bertanggal di bulan ini tidak bisa dibuat, diubah, atau diposting sampai periodenya dibuka lagi. Tutup periode berurutan dari yang terlama.')
             ->modalSubmitActionLabel('Tutup Periode')
             ->color('danger')
             ->form(fn (array $arguments) => array_merge(
@@ -217,7 +217,7 @@ class ClosePeriodPage extends Page implements HasActions, HasForms
                 ->label('Tutup Beberapa Bulan')
                 ->icon('heroicon-o-lock-closed')
                 ->color('danger')
-                ->modalDescription('Menutup semua bulan terbuka mulai dari yang paling lama sampai bulan yang dipilih, berurutan. Berhenti di bulan pertama yang gagal (draft/tidak seimbang/peringatan belum dikonfirmasi).')
+                ->modalDescription('Menutup semua bulan terbuka dari yang terlama sampai bulan yang dipilih, berurutan. Berhenti di bulan pertama yang gagal.')
                 ->form([
                     Select::make('until')
                         ->label('Tutup sampai bulan')

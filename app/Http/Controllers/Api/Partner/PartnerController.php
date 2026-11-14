@@ -239,7 +239,7 @@ class PartnerController extends Controller
         if (! Hash::check($request->current_password, $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Password lama yang Anda masukkan salah.',
+                'message' => 'Password lama salah.',
             ], 422);
         }
 

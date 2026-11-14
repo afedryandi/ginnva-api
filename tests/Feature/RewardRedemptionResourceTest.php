@@ -201,7 +201,7 @@ class RewardRedemptionResourceTest extends TestCase
             $this->redeem($poor, $reward);
             $this->fail('Poin tidak cukup harus ditolak.');
         } catch (RuntimeException $e) {
-            $this->assertStringContainsString('Poin Anda tidak cukup', $e->getMessage());
+            $this->assertStringContainsString('Poin tidak cukup', $e->getMessage());
         }
 
         $empty = $this->reward('Habis', ['stock' => 0]);

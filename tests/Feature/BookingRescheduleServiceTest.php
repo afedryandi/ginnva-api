@@ -173,7 +173,7 @@ class BookingRescheduleServiceTest extends TestCase
             'status'      => 'pending',
         ]);
 
-        app(BookingCancellationService::class)->reject($request, $this->makeStaff()->id, 'Silakan datang sesuai jadwal');
+        app(BookingCancellationService::class)->reject($request, $this->makeStaff()->id, 'Datang sesuai jadwal');
 
         $this->assertSame('rejected', $request->fresh()->status);
 

@@ -73,9 +73,7 @@
     <x-filament::section>
         <x-slot name="heading">Daftar Reservasi</x-slot>
         <x-slot name="description">
-            Diurutkan berdasarkan tanggal diinginkan. Booking berstatus "completed" sudah tercover Laporan Penjualan,
-            "cancelled" sudah tercover Laporan Pembatalan — tidak ditampilkan lagi di sini supaya tidak tumpang tindih
-            (stat card "Dibuat/Selesai/Dibatalkan" di atas TETAP menghitung semua status, sesuai definisi Majoo).
+            Diurutkan berdasarkan tanggal diinginkan. Booking selesai dan dibatalkan tidak ditampilkan di tabel ini (sudah ada di Laporan Penjualan dan Laporan Pembatalan), tapi tetap dihitung di kartu atas.
         </x-slot>
 
         <div class="overflow-x-auto">

@@ -99,7 +99,7 @@ class LedgerReconciliationReport extends Page implements HasForms
                 $c['ok'] ? 'Cocok' : 'Berselisih',
             ])->all(),
             'right' => [2, 3, 4],
-            'note' => trim('Saldo akun di Buku Besar dibandingkan dengan total sub-buku keadaan sekarang. Selisih belum tentu galat. ' . $notes),
+            'note' => trim('Saldo akun di Buku Besar dibandingkan dengan total sub-buku keadaan sekarang. Selisih belum tentu salah. ' . $notes),
         ];
     }
 
@@ -112,7 +112,7 @@ class LedgerReconciliationReport extends Page implements HasForms
                 ->color('warning')
                 ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
                 ->modalHeading('Sinkronkan Persediaan ke Sub-Buku')
-                ->modalDescription('Membuat SATU jurnal penyesuaian yang menyamakan akun persediaan dengan nilai stok sekarang. Dipakai untuk saldo awal persediaan atau koreksi periodik. Pilih akun lawan dengan hati-hati dan minta akuntan memeriksanya.')
+                ->modalDescription('Membuat satu jurnal penyesuaian yang menyamakan akun persediaan dengan nilai stok sekarang. Pilih akun lawan dengan hati-hati dan minta akuntan memeriksanya.')
                 ->form(fn () => [
                     CheckboxList::make('keys')
                         ->label('Akun yang disinkronkan')

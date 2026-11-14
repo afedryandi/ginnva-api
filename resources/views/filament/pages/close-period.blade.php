@@ -39,7 +39,7 @@
     <x-filament::section>
         <x-slot name="heading">Status Periode {{ $year }}</x-slot>
         <x-slot name="description">
-            Bulan yang ditutup tidak bisa lagi menerima jurnal baru/perubahan/posting — koreksi hanya lewat Jurnal Pembalik (bertanggal hari ini) atau buka kembali periodenya dulu.
+            Bulan yang ditutup tidak menerima jurnal baru, perubahan, atau posting. Koreksi lewat Jurnal Pembalik (bertanggal hari ini) atau buka kembali periodenya.
         </x-slot>
 
         <div class="divide-y divide-gray-100 dark:divide-white/10">

@@ -91,6 +91,6 @@ class MovementsRelationManager extends RelationManager
             // salah catat, jalan resminya adalah "Sesuaikan Stok" (opname)
             // di daftar utama, BUKAN mengubah baris ini.
             ->emptyStateHeading('Belum ada riwayat')
-            ->emptyStateDescription('Riwayat otomatis muncul di sini setiap kali "Catat Stok" dicatat. Baris di sini permanen — kalau ada salah catat, koreksi lewat "Sesuaikan Stok" (opname) di daftar utama, bukan mengubah baris ini.');
+            ->emptyStateDescription('Riwayat muncul otomatis tiap kali Catat Stok dicatat. Salah catat? Koreksi lewat Sesuaikan Stok (opname) di daftar utama.');
     }
 }

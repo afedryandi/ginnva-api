@@ -83,8 +83,7 @@
         </div>
 
         <p class="text-xs text-gray-500 dark:text-gray-400">
-            Periode menurut waktu booking diajukan. Waktu tunggu konfirmasi hanya dihitung untuk booking yang dikonfirmasi sejak fitur ini aktif;
-            booking lama tidak punya waktu konfirmasi yang andal dan tidak ikut rata-rata. Tidak datang = booking terkonfirmasi yang ditandai pelanggan tidak datang.
+            Periode menurut waktu booking diajukan. Waktu tunggu hanya dihitung untuk booking yang dikonfirmasi sejak fitur ini aktif. Tidak datang = booking terkonfirmasi yang ditandai pelanggan tidak datang.
         </p>
     </div>
 </x-filament-panels::page>

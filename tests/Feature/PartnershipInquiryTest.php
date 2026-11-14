@@ -226,7 +226,7 @@ class PartnershipInquiryTest extends TestCase
         $this->user('kasir', null, ['email' => 'staf@example.com']);
 
         $this->postJson($url, ['name' => 'Andi', 'phone' => '081234567890', 'email' => 'staf@example.com', 'car_brand' => 'Toyota'])
-            ->assertStatus(422)->assertJsonPath('success', false)->assertJsonPath('errors.email.0', 'Email sudah digunakan.');
+            ->assertStatus(422)->assertJsonPath('success', false)->assertJsonPath('errors.email.0', 'Email sudah dipakai.');
 
         $this->assertSame(0, Partner::count());
         $this->assertSame(0, PartnershipInquiry::count());

@@ -85,7 +85,7 @@ class FeaturedProductResource extends Resource
                         ->image()
                         ->directory('featured-products')
                         ->maxSize(3072)
-                        ->helperText('Maks. 3 MB. Ditampilkan sebagai kartu di beranda — rasio ideal mengikuti kartu "热门商品", contoh: 800×1000 px.')
+                        ->helperText('Maks. 3 MB. Ditampilkan sebagai kartu di beranda — rasio ideal 4:5 (lebar × tinggi), contoh: 800×1000 px.')
                         ->required()
                         ->columnSpanFull(),
 
@@ -94,7 +94,7 @@ class FeaturedProductResource extends Resource
                         ->image()
                         ->directory('featured-products')
                         ->maxSize(5120)
-                        ->helperText('Maks. 5 MB. Gambar yang ditampilkan UTUH saat pelanggan tap kartunya — boleh beda dari gambar beranda (mis. lebih detail/resolusi tinggi). Kosongkan untuk pakai gambar beranda yang sama.')
+                        ->helperText('Maks. 5 MB. Tampil utuh saat pelanggan tap kartunya; boleh beda dari gambar beranda. Kosongkan untuk pakai gambar beranda.')
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('title')
@@ -113,7 +113,7 @@ class FeaturedProductResource extends Resource
                         ->rule('regex:/^https?:\/\//i')
                         ->placeholder('https://...')
                         ->maxLength(255)
-                        ->helperText('URL yang dituju saat tombol "Lihat Selengkapnya" di kartu ini ditekan (harus diawali http:// atau https://). Kosongkan jika tidak ada.'),
+                        ->helperText('URL tujuan tombol Lihat Selengkapnya (diawali http:// atau https://). Kosongkan kalau tidak ada.'),
 
                     Forms\Components\Toggle::make('is_active')
                         ->label('Tampilkan')

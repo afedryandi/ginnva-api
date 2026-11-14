@@ -364,9 +364,9 @@ class RawMaterialMovementResource extends Resource
             ])
             ->modalDescription(fn (RawMaterialMovement $record) => ($record->type === 'in'
                 ? 'Batch yang dibuat pencatatan ini akan dihapus dan stok dikembalikan ke sebelumnya.'
-                : 'Stok dikembalikan ke sebelumnya dan jumlahnya dipulihkan sebagai batch "tidak diketahui asalnya" (tanpa kedaluwarsa), karena sistem tidak menyimpan batch mana yang terpakai.')
+                : 'Stok kembali ke sebelumnya, dipulihkan sebagai batch tanpa kedaluwarsa karena sistem tidak menyimpan batch mana yang terpakai.')
                 . ' Baris ini tetap tersimpan sebagai "Dibatalkan" dan baris "Koreksi" ditambahkan sebagai jejaknya. Cuma bisa untuk kejadian paling terakhir bahan ini. '
-                . 'Pastikan pencatatan ini bukan bagian dari Memo, penerimaan Permohonan Pembelian, atau Stok Terbuang yang dicatat sebelum penanda sumber ada (data lama): batalkan yang bersumber dokumen lewat dokumennya.')
+                . 'Pastikan ini bukan bagian dari Memo, penerimaan Permohonan Pembelian, atau Stok Terbuang lama; yang bersumber dokumen dibatalkan lewat dokumennya.')
             ->action(function (RawMaterialMovement $record, array $data) {
                 try {
                     $record->rawMaterial->reverseLastMovement($record, auth()->id(), $data['reason']);

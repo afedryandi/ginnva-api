@@ -111,7 +111,7 @@ class MaintenanceSchedulesRelationManager extends RelationManager
                     ->visible(fn (WarrantyMaintenanceSchedule $record) => in_array($record->status, ['pending', 'confirmation_sent'], true)
                         && $record->warranty?->status !== 'revoked')
                     ->modalHeading('Buatkan Booking Maintenance')
-                    ->modalDescription('Gunakan setelah pelanggan dihubungi dan setuju datang. Booking dibuat berstatus Menunggu untuk pelanggan ini.')
+                    ->modalDescription('Pakai setelah pelanggan dihubungi dan setuju datang. Booking dibuat berstatus Menunggu untuk pelanggan ini.')
                     ->form([
                         Forms\Components\DatePicker::make('preferred_date')
                             ->label('Tanggal Kedatangan')
@@ -137,7 +137,7 @@ class MaintenanceSchedulesRelationManager extends RelationManager
                             app(PushNotificationService::class)->sendToCustomer(
                                 $booking->customer_id,
                                 'Booking Maintenance PPF Dibuat',
-                                "Tim kami membuatkan booking maintenance PPF untuk {$booking->preferred_date->format('d M Y')}. Toko akan menghubungi Anda untuk finalisasi jadwal.",
+                                "Tim kami membuatkan booking maintenance PPF untuk {$booking->preferred_date->format('d M Y')}. Toko akan menghubungi untuk finalisasi jadwal.",
                                 ['type' => 'ppf_maintenance_booked', 'booking_id' => $booking->id, 'route' => "/booking/{$booking->id}/chat"]
                             );
                         } catch (\Throwable $e) {

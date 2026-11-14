@@ -80,7 +80,7 @@ class FilmProduct extends Model
         $count = $this->activeScrollCodesCount();
 
         return "Produk ini masih dipakai {$count} roll aktif (kode gulungan: {$codes}" . ($count > 3 ? ', dst.' : '') . '). '
-            . 'Habiskan, pindahkan, atau hapus roll tersebut dulu — atau nonaktifkan produk ini saja lewat toggle "Aktif".';
+            . 'Habiskan, pindahkan, atau hapus roll itu dulu — atau nonaktifkan produk ini saja lewat toggle "Aktif".';
     }
 
     public function quotationItems()

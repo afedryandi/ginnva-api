@@ -72,8 +72,8 @@ class CreatePointTransaction extends CreateRecord
                 (int) $data['customer_id'],
                 $data['type'] === 'earn' ? 'Poin Bertambah' : 'Poin Berkurang',
                 $data['type'] === 'earn'
-                    ? "Anda mendapat {$data['points']} poin: {$data['description']}"
-                    : "{$data['points']} poin Anda dikurangi: {$data['description']}"
+                    ? "Dapat {$data['points']} poin: {$data['description']}"
+                    : "{$data['points']} poin dikurangi: {$data['description']}"
             );
         } catch (\Throwable $e) {
             report($e);

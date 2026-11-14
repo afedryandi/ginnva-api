@@ -212,7 +212,7 @@ class AttendanceCorrectionService
             $locked = AttendanceCorrectionRequest::whereKey($request->id)->lockForUpdate()->first();
 
             if (! $locked || $locked->requested_by !== $cancelledBy) {
-                throw new RuntimeException('Pengajuan ini bukan milik Anda.');
+                throw new RuntimeException('Pengajuan ini bukan milik akun ini.');
             }
 
             if (! $locked->isPending()) {
@@ -231,8 +231,8 @@ class AttendanceCorrectionService
 
         $title = $approved ? 'Koreksi Absensi Disetujui' : 'Koreksi Absensi Ditolak';
         $body = $approved
-            ? "Pengajuan koreksi absensi Anda tanggal {$request->date->format('d M Y')} sudah disetujui."
-            : "Pengajuan koreksi absensi Anda tanggal {$request->date->format('d M Y')} ditolak."
+            ? "Pengajuan koreksi absensi tanggal {$request->date->format('d M Y')} sudah disetujui."
+            : "Pengajuan koreksi absensi tanggal {$request->date->format('d M Y')} ditolak."
                 . ($request->review_notes ? " Alasan: {$request->review_notes}" : '');
 
         app(\App\Services\PushNotificationService::class)->sendToUsers([$request->requested_by], $title, $body);

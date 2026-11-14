@@ -98,7 +98,7 @@ class MarketingConsentResource extends Resource
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->modalDescription('Materi galeri yang bersumber dari booking ini langsung dinonaktifkan. Foto yang sudah terlanjur dibagikan di luar sistem perlu ditarik manual.')
+                    ->modalDescription('Materi galeri dari booking ini langsung dinonaktifkan. Foto yang sudah dibagikan di luar sistem perlu ditarik manual.')
                     ->form([Forms\Components\TextInput::make('note')->label('Catatan (opsional)')->maxLength(255)])
                     ->visible(fn (MarketingConsent $record) => $record->isActive()
                         && (auth()->user()?->hasModuleAction(static::class, 'update', true) ?? false))

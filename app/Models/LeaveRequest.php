@@ -358,7 +358,7 @@ class LeaveRequest extends Model
         $decider = User::find($deciderId);
 
         if (! $decider || ! $decider->canDecideLeaveFor($request)) {
-            throw new RuntimeException('Anda tidak berhak memutuskan pengajuan ini (hanya akses penuh, atau Store Manager/Spv Finance toko yang sama untuk pengajuan orang lain).');
+            throw new RuntimeException('Akun ini tidak berhak memutuskan pengajuan ini (hanya akses penuh, atau Store Manager/Spv Finance toko yang sama untuk pengajuan orang lain).');
         }
     }
 

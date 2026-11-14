@@ -95,8 +95,7 @@
             <x-slot name="heading">Daftar Pengembalian</x-slot>
             <x-slot name="description">
                 @if ($financeOn)
-                    Tiap refund penjualan otomatis punya jurnal kontra di Jurnal Umum — klik No. Jurnal untuk lihat detailnya.
-                    Refund bisa mengurangi Piutang Usaha dulu sebelum kas keluar, jadi "Metode" bisa berisi "Kurangi Piutang".
+                    Tiap refund penjualan punya jurnal kontra di Jurnal Umum; klik No. Jurnal untuk detailnya. Metode bisa berisi Kurangi Piutang kalau refund mengurangi Piutang Usaha dulu.
                 @else
                     Pengembalian dana ke pelanggan pada rentang ini: refund penjualan (nominal, metode, alasan, pemroses, dan penyetuju) dan DP yang dikembalikan.
                 @endif

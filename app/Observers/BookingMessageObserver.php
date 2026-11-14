@@ -85,20 +85,20 @@ class BookingMessageObserver
 
             return [
                 'Update Progress Instalasi',
-                "Booking Anda memasuki tahap: {$stageLabel}",
+                "Booking memasuki tahap: {$stageLabel}",
             ];
         }
 
         if ($message->type === 'photo') {
             return [
                 'Foto Baru dari Toko',
-                'Toko mengirimkan foto terbaru untuk booking Anda.',
+                'Toko mengirimkan foto terbaru untuk booking ini.',
             ];
         }
 
         return [
             'Pesan Baru dari Toko',
-            $message->body ? \Illuminate\Support\Str::limit($message->body, 100) : 'Anda mendapat pesan baru.',
+            $message->body ? \Illuminate\Support\Str::limit($message->body, 100) : 'Ada pesan baru.',
         ];
     }
 }

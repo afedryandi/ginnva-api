@@ -151,7 +151,7 @@ class ShiftResource extends Resource
                         }
                     },
                 ])
-                ->helperText('Kalau shift lintas tengah malam (mis. shift malam 22:00-06:00), isi jam selesai lebih kecil dari jam mulai apa adanya -- sistem otomatis mendeteksi ini sebagai lintas hari.'),
+                ->helperText('Untuk shift lintas tengah malam (mis. 22:00-06:00), isi jam selesai lebih kecil dari jam mulai; sistem mengenalinya sebagai lintas hari.'),
 
             // Istirahat: harus diisi berpasangan & jatuh di dalam rentang
             // shift (dihitung sebagai offset menit dari jam mulai, jadi
@@ -286,7 +286,7 @@ class ShiftResource extends Resource
                     }),
 
                 Tables\Actions\DeleteAction::make()
-                    ->modalDescription('Shift yang masih dipakai Jadwal Kerja atau override harian tidak bisa dihapus (tombol ini tidak muncul) -- ganti dulu shift di jadwal tersebut, atau nonaktifkan saja.'),
+                    ->modalDescription('Shift yang masih dipakai Jadwal Kerja atau override harian tidak bisa dihapus. Ganti dulu shift di jadwal itu, atau nonaktifkan.'),
             ])
             ->bulkActions([
                 // Bulk delete Filament cuma cek canDeleteAny(), tidak

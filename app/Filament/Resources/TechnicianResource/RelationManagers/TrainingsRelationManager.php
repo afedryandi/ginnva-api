@@ -36,7 +36,7 @@ class TrainingsRelationManager extends RelationManager
                 ->native(false)
                 ->placeholder('Umum (mis. K3)'),
             Forms\Components\DatePicker::make('held_on')->label('Tanggal pelatihan')->required()->maxDate(today()),
-            Forms\Components\DatePicker::make('valid_until')->label('Berlaku sampai')->helperText('Kosongkan bila tidak kedaluwarsa.')->afterOrEqual('held_on'),
+            Forms\Components\DatePicker::make('valid_until')->label('Berlaku sampai')->helperText('Kosongkan kalau tidak kedaluwarsa.')->afterOrEqual('held_on'),
             Forms\Components\FileUpload::make('certificate_path')
                 ->label('Berkas sertifikat (opsional)')
                 ->disk('local')

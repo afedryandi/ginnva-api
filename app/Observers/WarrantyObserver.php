@@ -83,7 +83,7 @@ class WarrantyObserver
                 $this->push->sendToCustomer(
                     $warranty->customer_id,
                     'Garansi Disetujui',
-                    "Garansi {$warranty->warranty_code} Anda sudah disetujui dan sertifikat E-Warranty bisa diunduh.",
+                    "Garansi {$warranty->warranty_code} sudah disetujui dan sertifikat E-Warranty bisa diunduh.",
                     ['type' => 'warranty_approved', 'route' => "/account/warranty-detail?id={$warranty->id}"]
                 );
 
@@ -111,8 +111,8 @@ class WarrantyObserver
                     $warranty->customer_id,
                     'Garansi Ditolak',
                     $warranty->rejection_reason
-                        ? "Pengajuan garansi Anda ditolak: {$warranty->rejection_reason}"
-                        : 'Pengajuan garansi Anda ditolak. Silakan hubungi toko untuk informasi lebih lanjut.',
+                        ? "Pengajuan garansi ditolak: {$warranty->rejection_reason}"
+                        : 'Pengajuan garansi ditolak. Hubungi toko untuk informasi lebih lanjut.',
                     ['type' => 'warranty_rejected', 'route' => "/account/warranty-detail?id={$warranty->id}"]
                 );
             }

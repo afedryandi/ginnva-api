@@ -165,7 +165,7 @@ class OvertimeRequestTest extends TestCase
     {
         $booking = $this->booking($this->otherStore, 'BKG-OT-2', 'confirmed');
 
-        $this->assertRejected(fn () => $this->submit(['booking_id' => $booking->id]), 'tidak ditemukan di toko Anda');
+        $this->assertRejected(fn () => $this->submit(['booking_id' => $booking->id]), 'tidak ditemukan di toko ini');
     }
 
     public function test_it_refuses_overlaps_and_leave_days_and_exempt_accounts(): void
@@ -258,7 +258,7 @@ class OvertimeRequestTest extends TestCase
     public function test_cancel_rules(): void
     {
         $pending = $this->submit();
-        $this->assertRejected(fn () => $this->service->cancel($pending, $this->manager->id), 'bukan milik Anda');
+        $this->assertRejected(fn () => $this->service->cancel($pending, $this->manager->id), 'bukan milik akun ini');
         $this->service->cancel($pending, $this->andi->id);
         $this->assertSame('cancelled', $pending->fresh()->status);
 

@@ -166,7 +166,7 @@ class WarrantyResource extends Resource
             app(\App\Services\PushNotificationService::class)->sendToCustomer(
                 $warranty->customer_id,
                 'Garansi Dibatalkan',
-                "Garansi #{$warranty->warranty_code} Anda telah dibatalkan: {$reason}"
+                "Garansi #{$warranty->warranty_code} sudah dibatalkan: {$reason}"
             );
         }
 
@@ -225,15 +225,15 @@ class WarrantyResource extends Resource
                 $push->sendToCustomer(
                     $oldCustomerId,
                     'Kepemilikan Garansi Dipindahkan',
-                    "Garansi #{$locked->warranty_code} sudah dipindahkan kepemilikannya ke pemilik baru dan tidak lagi muncul di akun Anda."
+                    "Garansi #{$locked->warranty_code} sudah dipindahkan kepemilikannya ke pemilik baru dan tidak lagi muncul di akun ini."
                 );
             }
 
             if (! empty($data['new_customer_id'])) {
                 $push->sendToCustomer(
                     $data['new_customer_id'],
-                    'Garansi Baru di Akun Anda',
-                    "Garansi #{$locked->warranty_code} sudah dipindahkan kepemilikannya ke akun Anda."
+                    'Garansi Baru di Akun',
+                    "Garansi #{$locked->warranty_code} sudah dipindahkan kepemilikannya ke akun ini."
                 );
             }
         });
@@ -310,7 +310,7 @@ class WarrantyResource extends Resource
                         'Kunjungan Maintenance Tercatat',
                         $remaining > 0
                             ? "Kunjungan maintenance garansi #{$locked->warranty_code} tercatat. Sisa {$remaining} kunjungan lagi."
-                            : "Kunjungan maintenance garansi #{$locked->warranty_code} tercatat. Kuota maintenance Anda sudah habis."
+                            : "Kunjungan maintenance garansi #{$locked->warranty_code} tercatat. Kuota maintenance sudah habis."
                     );
                 } catch (\Throwable $e) {
                     report($e);
@@ -371,7 +371,7 @@ class WarrantyResource extends Resource
                 app(\App\Services\PushNotificationService::class)->sendToCustomer(
                     $warranty->customer_id,
                     'Kunjungan Maintenance Dibatalkan',
-                    "Pencatatan kunjungan maintenance tanggal {$visit->visited_at->format('d M Y')} pada garansi #{$warranty->warranty_code} dibatalkan (kesalahan input). Kuota Anda sudah dikembalikan."
+                    "Pencatatan kunjungan maintenance tanggal {$visit->visited_at->format('d M Y')} pada garansi #{$warranty->warranty_code} dibatalkan (kesalahan input). Kuota sudah dikembalikan."
                 );
             }
 
@@ -426,7 +426,7 @@ class WarrantyResource extends Resource
 
                     Forms\Components\Select::make('customer_id')
                         ->label('Akun Pelanggan (opsional)')
-                        ->placeholder('Pilih akun pelanggan jika sudah terdaftar di app')
+                        ->placeholder('Pilih akun pelanggan kalau sudah terdaftar di app')
                         ->options(fn () => Customer::orderBy('name')
                             ->get()
                             ->mapWithKeys(fn (Customer $c) => [
@@ -436,7 +436,7 @@ class WarrantyResource extends Resource
                         ->searchable()
                         ->nullable()
                         ->columnSpanFull()
-                        ->helperText('Garansi akan langsung muncul di "Garansi Saya" pada mobile app pelanggan tersebut.')
+                        ->helperText('Garansi akan langsung muncul di "Garansi Saya" pada mobile app pelanggan itu.')
                         // Dikunci begitu approved (2026-09-25, dibarengi
                         // fitur transfer kepemilikan) -- KALAU field ini
                         // tetap bebas diedit, staff bisa ganti pemilik
@@ -541,7 +541,7 @@ class WarrantyResource extends Resource
                         ->maxValue(120)
                         ->nullable()
                         ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf' && $get('maintenance_quota') !== null)
-                        ->helperText('Jarak antar kunjungan maintenance, mis. 6 = tiap 6 bulan. Jadwal kunjungan pertama & konfirmasi otomatis ke pelanggan baru AKTIF setelah garansi ini disetujui (Status Review: Approved) — kalau diisi sebelum disetujui, baru akan menjadwalkan begitu disetujui. Tidak bisa dibatalkan lewat form ini, cuma lihat riwayatnya di tab "Jadwal Maintenance".'),
+                        ->helperText('Jarak antar kunjungan maintenance, mis. 6 = tiap 6 bulan. Jadwal baru berjalan setelah garansi disetujui. Riwayat kunjungan ada di tab Jadwal Maintenance.'),
 
                     Forms\Components\Placeholder::make('maintenance_schedule_status')
                         ->label('Jadwal Maintenance Aktif')
@@ -699,7 +699,7 @@ class WarrantyResource extends Resource
                         )
                         ->searchable()
                         ->live()
-                        ->helperText('Pilih kode gulungan PPF yang digunakan. Kode tetap muncul di pilihan untuk mobil berikutnya sampai ditandai habis manual (menu Produk PPF/WF → "Tandai Habis").'),
+                        ->helperText('Pilih kode gulungan PPF yang dipakai. Kode tetap muncul untuk mobil berikutnya sampai ditandai habis (Produk PPF/WF, Tandai Habis).'),
 
                     Forms\Components\Select::make('roll_number_2')
                         ->label('Kode Gulungan Kedua (opsional)')
@@ -738,7 +738,7 @@ class WarrantyResource extends Resource
                     Forms\Components\Select::make('roll_number_front')
                         ->label('Kode Gulungan — Kaca Depan')
                         ->placeholder('Pilih kode gulungan kaca depan')
-                        ->helperText('Cuma menampilkan gulungan yang terdaftar untuk posisi kaca depan. 1 gulungan bisa dipakai berkali-kali (~30 mobil) — tetap muncul di pilihan sampai ditandai habis manual. Kode Garansi mobil ini di-generate otomatis terpisah (GNV-WF-XXXXX), bukan dari kode gulungan ini.')
+                        ->helperText('Hanya gulungan untuk posisi kaca depan. Satu gulungan bisa dipakai banyak mobil sampai ditandai habis. Kode Garansi dibuat terpisah.')
                         // Difilter product_type='window_film' + posisi
                         // 'front' lewat filmProduct-nya — supaya staff cuma
                         // lihat gulungan Window Film yang relevan untuk kaca
@@ -1164,7 +1164,7 @@ class WarrantyResource extends Resource
                                 ])
                             )
                             ->searchable()
-                            ->helperText('Kalau diisi, garansi ini akan otomatis muncul di "Garansi Saya" akun tersebut.'),
+                            ->helperText('Kalau diisi, garansi ini akan otomatis muncul di "Garansi Saya" akun itu.'),
 
                         Forms\Components\Textarea::make('note')
                             ->label('Catatan (opsional)')

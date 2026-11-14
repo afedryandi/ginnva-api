@@ -136,7 +136,7 @@ class FilmProductResource extends Resource
 
                     Forms\Components\TextInput::make('base_price')
                         ->label('Harga Jual (Dasar / Flat)')
-                        ->helperText('INTERNAL — tidak ditampilkan ke pelanggan. Dipakai kalau harga SAMA untuk semua ukuran mobil (mis. Panoramic). Kalau harga beda per ukuran, isi di bagian "Harga Jual per Ukuran Kendaraan" di bawah — itu yang menang, dan kolom ini boleh dikosongkan (disimpan Rp0).')
+                        ->helperText('Internal, tidak tampil ke pelanggan. Isi kalau harga sama untuk semua ukuran. Kalau beda per ukuran, isi di bagian Harga Jual per Ukuran Kendaraan.')
                         ->numeric()
                         ->prefix('Rp')
                         ->minValue(0)
@@ -146,7 +146,7 @@ class FilmProductResource extends Resource
 
                     Forms\Components\Toggle::make('is_active')
                         ->label('Aktif (tampil di pilihan produk)')
-                        ->helperText('Nonaktif: produk tidak muncul di pilihan quotation, booking, dan penjualan, serta tidak ikut perubahan harga massal.')
+                        ->helperText('Nonaktif: produk tidak muncul di pilihan quotation, booking, dan penjualan, dan tidak ikut perubahan harga massal.')
                         ->default(true),
 
                     // f28 — opt-in per produk (default false, tidak
@@ -157,7 +157,7 @@ class FilmProductResource extends Resource
                     // booking itu — lihat SpkService::assertBatchTrackingSatisfied().
                     Forms\Components\Toggle::make('tracks_batch')
                         ->label('Wajib Lacak Roll (Batch Number)')
-                        ->helperText('Kalau aktif: SPK booking yang memakai produk ini tidak bisa ditandai selesai sebelum karyawan mencatat roll gulungan yang dipakai (menu Produk PPF/WF → Catat Pemakaian) untuk booking tersebut.')
+                        ->helperText('Kalau aktif, SPK booking dengan produk ini baru bisa ditandai selesai setelah roll gulungan yang dipakai dicatat (Produk PPF/WF, Catat Pemakaian).')
                         ->default(false),
                 ]),
 
@@ -166,7 +166,7 @@ class FilmProductResource extends Resource
             // Majoo tidak mengikuti koefisien tunggal. Baris di sini MENANG
             // atas base_price untuk ukuran yang diisi. Harga INTERNAL saja.
             Forms\Components\Section::make('Harga Jual per Ukuran Kendaraan')
-                ->description('Isi kalau harga BEDA per ukuran mobil (Platinum / Signature / PPF). Kosongkan untuk produk harga flat — cukup "Harga Jual (Dasar / Flat)" di atas.')
+                ->description('Isi kalau harga beda per ukuran mobil. Kosongkan untuk produk harga flat.')
                 ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing', 'premium_wash', 'color_change'], true))
                 ->schema([
                     Forms\Components\Repeater::make('prices')
@@ -367,7 +367,7 @@ class FilmProductResource extends Resource
                         } catch (QueryException $e) {
                             Notification::make()
                                 ->title('Tidak bisa menghapus produk ini')
-                                ->body('Produk ini masih dipakai oleh kode gulungan yang terdaftar. Hapus/pindahkan kode gulungannya dulu, atau nonaktifkan produk ini saja lewat toggle "Aktif".')
+                                ->body('Produk ini masih dipakai kode gulungan. Hapus atau pindahkan kode gulungannya dulu, atau nonaktifkan produk lewat toggle Aktif.')
                                 ->danger()
                                 ->send();
 
@@ -441,7 +441,7 @@ class FilmProductResource extends Resource
                                     ->title($deleted > 0
                                         ? "{$deleted} produk dihapus, {$blocked} tidak bisa dihapus"
                                         : 'Tidak ada produk yang bisa dihapus')
-                                    ->body("{$blocked} produk masih dipakai roll aktif (kode gulungan), dilewati. Habiskan/pindahkan rollnya dulu, atau nonaktifkan lewat toggle \"Aktif\" saja.")
+                                    ->body("{$blocked} produk masih dipakai roll aktif, jadi dilewati. Habiskan atau pindahkan rollnya dulu, atau nonaktifkan lewat toggle Aktif.")
                                     ->warning()
                                     ->send();
 

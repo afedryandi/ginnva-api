@@ -67,8 +67,8 @@ class ResetRawMaterials extends Command
         }
 
         if ($referenceTotal > 0 && ! $this->option('hapus-referensi')) {
-            $this->warn("Ada {$referenceTotal} baris dokumen yang menunjuk Bahan Baku. Bila Bahan Baku dihapus, baris itu menggantung (tidak akan menemukan Bahan Baku yang diinput ulang, ID-nya baru).");
-            $this->warn('Tambahkan --hapus-referensi bila baris itu juga boleh dihapus (Master Resep perlu disusun ulang sesudahnya).');
+            $this->warn("Ada {$referenceTotal} baris dokumen yang menunjuk Bahan Baku. Kalau Bahan Baku dihapus, baris itu menggantung (tidak akan menemukan Bahan Baku yang diinput ulang, ID-nya baru).");
+            $this->warn('Tambahkan --hapus-referensi kalau baris itu juga boleh dihapus (Master Resep perlu disusun ulang sesudahnya).');
         }
 
         if (! $this->option('confirm')) {

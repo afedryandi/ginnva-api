@@ -52,8 +52,8 @@ class EditEmployeeType extends EditRecord
         }
 
         $body = $this->record->has_end_date
-            ? "{$affected} karyawan bertipe \"{$this->record->name}\" sekarang seharusnya punya Tanggal Berakhir Kontrak, tapi yang belum terisi TIDAK otomatis diminta -- cek satu-satu di Daftar Karyawan."
-            : "{$affected} karyawan bertipe \"{$this->record->name}\" sekarang DIKECUALIKAN dari nonaktivasi otomatis kontrak habis (contracts:deactivate-expired), walau tanggal kontraknya sudah lewat.";
+            ? "{$affected} karyawan bertipe \"{$this->record->name}\" sekarang perlu Tanggal Berakhir Kontrak. Yang belum terisi tidak diminta otomatis; cek di Daftar Karyawan."
+            : "{$affected} karyawan bertipe \"{$this->record->name}\" kini tidak dinonaktifkan otomatis saat kontrak habis, walau tanggalnya sudah lewat.";
 
         Notification::make()
             ->title('"Memiliki Tanggal Berakhir" diubah')

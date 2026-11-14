@@ -247,7 +247,7 @@ class ChartOfAccountResource extends Resource
                         ->default(true)
                         ->disabled(fn (?ChartOfAccount $record) => static::structureLocked($record))
                         ->dehydrated()
-                        ->helperText('Matikan untuk akun header/pengelompok (mis. "Aset Lancar") yang cuma membungkus akun detail di bawahnya — tidak boleh menerima transaksi langsung.'),
+                        ->helperText('Matikan untuk akun header (mis. Aset Lancar) yang hanya mengelompokkan akun detail dan tidak menerima transaksi langsung.'),
 
                     Forms\Components\Toggle::make('is_active')
                         ->label('Aktif')
@@ -268,7 +268,7 @@ class ChartOfAccountResource extends Resource
                     Forms\Components\Toggle::make('is_contra')
                         ->label('Akun Kontra')
                         ->default(false)
-                        ->helperText('Penanda untuk akun pengurang (mis. Akumulasi Penyusutan, Retur Penjualan) yang saldonya berlawanan dengan kelompoknya. Hanya label -- tidak mengubah perhitungan laporan.'),
+                        ->helperText('Penanda untuk akun pengurang (mis. Akumulasi Penyusutan) yang saldonya berlawanan dengan kelompoknya. Hanya label, tidak mengubah laporan.'),
 
                     Forms\Components\Select::make('cash_flow_category')
                         ->label('Kategori Arus Kas')
@@ -392,7 +392,7 @@ class ChartOfAccountResource extends Resource
                     ->icon('heroicon-o-arrow-up-tray')
                     ->color('gray')
                     ->visible(fn () => static::canCreate())
-                    ->modalDescription('Hanya MEMBUAT akun baru: kode yang sudah ada dilewati (tidak ditimpa). Kalau ada satu baris error, tidak ada akun yang dibuat. Pakai file hasil "Export Excel" sebagai template (kolom saldo diabaikan).')
+                    ->modalDescription('Hanya membuat akun baru; kode yang sudah ada dilewati. Satu baris error membatalkan semuanya. Pakai hasil Export Excel sebagai template.')
                     ->form([
                         Forms\Components\FileUpload::make('file')
                             ->label('File Excel/CSV')

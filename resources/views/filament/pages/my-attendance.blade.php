@@ -163,8 +163,7 @@
                 </div>
 
                 <div class="pu-muted pu-small">
-                    Kalau absen ditolak karena lokasi, pastikan lokasi perangkat aktif, browser diizinkan memakai lokasi dan kamera, dan Anda
-                    berada di toko. Kalau lupa absen, ajukan koreksi lewat aplikasi staff atau hubungi atasan.
+                    Absen ditolak karena lokasi? Aktifkan lokasi, izinkan browser memakai lokasi dan kamera, dan pastikan sedang di toko. Lupa absen? Ajukan koreksi lewat aplikasi staff.
                 </div>
             @endif
         </div>

@@ -184,7 +184,7 @@ class PartnerResource extends Resource
                             'partner' => 'Landing Page Umum (/partner)',
                         ])
                         ->placeholder('Dibuat manual admin')
-                        ->helperText('Menentukan link mana yang dipakai saat "Download QR". Kosongkan kalau partner ini tidak daftar lewat salah satu landing page (mis. influencer/komunitas yang direkrut langsung) — QR yang di-generate tetap akan pakai link /partner (landing page umum) sebagai default, bukan dikosongkan.'),
+                        ->helperText('Menentukan link yang dipakai saat Download QR. Kalau kosong, QR memakai link umum /partner.'),
                 ]),
         ]);
     }
@@ -355,7 +355,7 @@ class PartnerResource extends Resource
                 'label' => match ($partner->source) {
                     'giias' => 'LANDING PAGE GIIAS',
                     'partner' => 'LANDING PAGE PARTNER',
-                    default => 'LINK REFERRAL ANDA',
+                    default => 'LINK REFERRAL',
                 },
                 'qr'    => QrCodeService::generateDataUri($link, 260),
             ];

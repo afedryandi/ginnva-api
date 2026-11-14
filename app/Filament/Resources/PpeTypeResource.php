@@ -55,7 +55,7 @@ class PpeTypeResource extends Resource
                 Forms\Components\TextInput::make('replace_after_months')
                     ->label('Umur pakai (bulan)')
                     ->numeric()->integer()->minValue(1)->maxValue(120)
-                    ->helperText('Dipakai menghitung jatuh tempo penggantian otomatis. Kosongkan bila tidak ada jadwal ganti.'),
+                    ->helperText('Dipakai menghitung jatuh tempo penggantian otomatis. Kosongkan kalau tidak ada jadwal ganti.'),
                 Forms\Components\Toggle::make('is_active')->label('Aktif')->default(true),
             ]),
         ]);

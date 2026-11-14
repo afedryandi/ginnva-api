@@ -17,8 +17,8 @@ class EditPartner extends EditRecord
         return [
             Actions\DeleteAction::make()
                 ->modalDescription(fn (Partner $record) => $record->hasHistory()
-                    ? 'Partner ini sudah punya riwayat poin dan/atau booking referral — tidak bisa dihapus permanen. Gunakan "Nonaktifkan" (ubah Status) untuk mencabut akses tanpa kehilangan riwayat.'
-                    : 'Yakin hapus partner ini? Tindakan ini tidak bisa dibatalkan.'),
+                    ? 'Partner ini punya riwayat poin atau booking referral, jadi tidak bisa dihapus. Nonaktifkan (ubah Status) untuk mencabut akses.'
+                    : 'Yakin hapus partner ini? Ini tidak bisa dibatalkan.'),
         ];
     }
 

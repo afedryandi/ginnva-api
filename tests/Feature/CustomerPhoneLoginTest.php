@@ -80,7 +80,7 @@ class CustomerPhoneLoginTest extends TestCase
     {
         $this->postJson('/api/customer/auth/request-otp', ['login' => '085555555555'])
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Nomor ini belum terdaftar. Masukkan email Anda untuk mendaftar atau masuk.');
+            ->assertJsonPath('message', 'Nomor ini belum terdaftar. Masukkan email untuk daftar atau masuk.');
 
         Mail::assertNothingSent();
     }

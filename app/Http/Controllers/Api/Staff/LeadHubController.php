@@ -26,7 +26,7 @@ class LeadHubController extends Controller
     public function index(Request $request)
     {
         $user = $request->user('api');
-        abort_unless($user->canAccessStaffArea(), 403, 'Anda tidak punya akses ke menu ini.');
+        abort_unless($user->canAccessStaffArea(), 403, 'Akun ini tidak punya akses ke menu ini.');
 
         $page = max(1, (int) $request->integer('page', 1));
         $status = $request->filled('status') ? (string) $request->string('status') : null;
@@ -34,10 +34,10 @@ class LeadHubController extends Controller
         $wanted = (string) $request->string('type', 'all');
 
         $allowed = array_values(array_filter(['quotation', 'product-inquiry', 'partnership'], fn (string $t) => $this->canView($request, $t)));
-        abort_if($allowed === [], 403, 'Anda tidak punya akses ke menu ini.');
+        abort_if($allowed === [], 403, 'Akun ini tidak punya akses ke menu ini.');
 
         $types = $wanted === 'all' ? $allowed : array_values(array_intersect([$wanted], $allowed));
-        abort_if($types === [], 403, 'Anda tidak punya akses ke jenis lead ini.');
+        abort_if($types === [], 403, 'Akun ini tidak punya akses ke jenis lead ini.');
 
         // Ambil (page x 20) teratas dari tiap jenis, gabung, urutkan, lalu potong halaman yang diminta. Cukup untuk volume lead toko.
         $limit = $page * self::PER_PAGE;

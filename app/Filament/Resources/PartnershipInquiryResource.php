@@ -155,7 +155,7 @@ class PartnershipInquiryResource extends Resource
                         ->options(\App\Support\LeadOutcome::OUTCOMES)
                         ->placeholder('Belum ada hasil')
                         ->live()
-                        ->helperText('Tandai Deal bila lead sudah jadi pelanggan/booking/partner, Tidak Jadi bila batal.'),
+                        ->helperText('Tandai Deal kalau lead sudah jadi pelanggan/booking/partner, Tidak Jadi kalau batal.'),
 
                     Forms\Components\Select::make('outcome_reason')
                         ->label('Alasan Tidak Jadi')

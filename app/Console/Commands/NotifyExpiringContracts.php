@@ -88,8 +88,8 @@ class NotifyExpiringContracts extends Command
 
             app(StaffNotifier::class)->toUsers(
                 [$user->id],
-                'Kontrak Kerja Anda Akan Berakhir',
-                "Kontrak Anda berakhir {$daysLeft} hari lagi (" . $user->contract_end_date->translatedFormat('d M Y') . '). Hubungi HR/atasan Anda untuk informasi perpanjangan.',
+                'Kontrak Kerja Akan Berakhir',
+                "Kontrak berakhir {$daysLeft} hari lagi (" . $user->contract_end_date->translatedFormat('d M Y') . '). Hubungi HR/atasan untuk info perpanjangan.',
                 [],
                 'contract-expiring-self',
                 $daysLeft <= 7 ? 'warning' : 'info'
@@ -130,7 +130,7 @@ class NotifyExpiringContracts extends Command
         }
 
         return "{$people->count()} karyawan kontraknya baru berakhir dan akunnya dinonaktifkan otomatis: " . $this->names($people)
-            . '. Bila ternyata diperpanjang, catat di Karyawan > Riwayat Kontrak (akunnya diaktifkan kembali); bila tidak, biarkan.';
+            . '. Kalau ternyata diperpanjang, catat di Karyawan > Riwayat Kontrak (akunnya diaktifkan kembali); kalau tidak, biarkan.';
     }
 
     private function names(Collection $people): string

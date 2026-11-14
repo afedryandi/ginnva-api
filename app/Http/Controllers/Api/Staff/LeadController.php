@@ -29,7 +29,7 @@ class LeadController extends Controller
                 && $user->hasMenuAccess(ProductInquiryResource::class)
                 && $user->hasModuleAction(ProductInquiryResource::class, 'create', true),
             403,
-            'Anda tidak punya akses mencatat lead.'
+            'Akun ini tidak punya akses mencatat lead.'
         );
 
         $data = $request->validate([

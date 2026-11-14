@@ -90,7 +90,7 @@ class QcChecklistItemResource extends Resource
             Forms\Components\Toggle::make('is_required')
                 ->label('Wajib Lulus')
                 ->default(true)
-                ->helperText('Bila butir wajib tidak lulus, Quality Check tidak lulus.'),
+                ->helperText('Kalau butir wajib tidak lulus, Quality Check tidak lulus.'),
 
             Forms\Components\Toggle::make('is_active')
                 ->label('Dipakai')

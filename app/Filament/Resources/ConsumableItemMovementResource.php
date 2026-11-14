@@ -337,8 +337,8 @@ class ConsumableItemMovementResource extends Resource
                     ->rows(2)
                     ->helperText('Mis. salah memilih barang atau salah memasukkan jumlah.'),
             ])
-            ->modalDescription('Batalkan pencatatan ini? Stok akan dikembalikan ke sebelumnya. Baris ini tetap tersimpan sebagai "Dibatalkan" dan baris "Koreksi" ditambahkan sebagai jejaknya. Cuma bisa untuk kejadian paling terakhir barang ini. '
-                . 'Pastikan pencatatan ini bukan bagian dari Memo, penerimaan Permohonan Pembelian, atau Stok Terbuang yang dicatat sebelum penanda sumber ada (data lama): batalkan yang bersumber dokumen lewat dokumennya.')
+            ->modalDescription('Batalkan pencatatan ini? Stok kembali ke sebelumnya, baris ini ditandai Dibatalkan, dan baris Koreksi ditambahkan. Hanya bisa untuk kejadian terakhir barang ini.'
+                . 'Pastikan ini bukan bagian dari Memo, penerimaan Permohonan Pembelian, atau Stok Terbuang lama; yang bersumber dokumen dibatalkan lewat dokumennya.')
             ->action(function (ConsumableItemMovement $record, array $data) {
                 try {
                     $record->consumableItem->reverseLastMovement($record, auth()->id(), $data['reason']);

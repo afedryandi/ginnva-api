@@ -17,9 +17,7 @@
     <h1>Durasi Servis Installer</h1>
     <div class="period">Periode: {{ $result['from']->format('d M Y') }} - {{ $result['to']->format('d M Y') }}</div>
     <div class="note">
-        Durasi diambil dari waktu kendaraan masuk-keluar bengkel (SPK) — data AKTUAL, bukan estimasi. Kalau 1 job
-        dikerjakan tim (lebih dari 1 installer), durasi PENUH dikreditkan ke setiap orang di tim itu (tidak dibagi
-        rata). Laporan ini murni akumulasi — belum ada perhitungan komisi bertingkat.
+        Durasi dari waktu kendaraan masuk dan keluar bengkel (SPK). Job yang dikerjakan tim dihitung penuh untuk tiap installer. Laporan ini hanya merekap durasi.
     </div>
 
     <table>

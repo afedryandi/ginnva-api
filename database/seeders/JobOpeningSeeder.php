@@ -43,7 +43,7 @@ class JobOpeningSeeder extends Seeder
                 'requirements' => [
                     'Pengalaman sales/CS di industri otomotif menjadi nilai tambah',
                     'Komunikatif, persuasif, dan berpenampilan menarik',
-                    'Terbiasa menggunakan WhatsApp Business dan media sosial',
+                    'Terbiasa memakai WhatsApp Business dan media sosial',
                     'Memiliki kendaraan pribadi menjadi nilai tambah',
                 ],
                 'sort_order'  => 2,

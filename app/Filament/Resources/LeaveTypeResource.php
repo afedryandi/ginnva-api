@@ -95,19 +95,19 @@ class LeaveTypeResource extends Resource
                         ->label('Memotong jatah cuti tahunan')
                         ->disabled(fn (?LeaveType $record) => $record?->requests()->exists() ?? false)
                         ->helperText(fn (?LeaveType $record) => ($record?->requests()->exists() ?? false)
-                            ? 'Terkunci karena jenis ini sudah dipakai pengajuan: mengubahnya akan menulis ulang pemakaian jatah semua karyawan. Buat jenis baru bila perlu.'
+                            ? 'Terkunci karena jenis ini sudah dipakai pengajuan: mengubahnya akan menulis ulang pemakaian jatah semua karyawan. Buat jenis baru kalau perlu.'
                             : 'Aktifkan hanya untuk Cuti Tahunan. Cuti khusus (menikah, melahirkan, dst.) tidak memotong jatah.')
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('max_days')
                         ->label('Maksimal hari per pengajuan')
                         ->numeric()->integer()->minValue(1)->maxValue(365)
-                        ->helperText('Kosongkan bila tidak ada batas khusus (batas umum 30 hari tetap berlaku).'),
+                        ->helperText('Kosongkan kalau tidak ada batas khusus (batas umum 30 hari tetap berlaku).'),
 
                     Forms\Components\TextInput::make('document_required_from_days')
                         ->label('Wajib lampiran mulai (hari)')
                         ->numeric()->integer()->minValue(1)->maxValue(365)
-                        ->helperText('Mis. 2 = pengajuan 2 hari atau lebih wajib melampirkan surat dokter. 1 = selalu wajib. Kosongkan bila lampiran tidak wajib.'),
+                        ->helperText('Mis. 2 = pengajuan 2 hari atau lebih wajib melampirkan surat dokter. 1 = selalu wajib. Kosongkan kalau lampiran tidak wajib.'),
 
                     Forms\Components\Textarea::make('notes')->label('Keterangan untuk karyawan')->rows(2)->columnSpanFull(),
 
@@ -165,7 +165,7 @@ class LeaveTypeResource extends Resource
             return 'Jenis dasar: tidak bisa dihapus atau dinonaktifkan.';
         }
         if ($record->isBuiltIn()) {
-            return 'Jenis bawaan: tidak bisa dihapus, nonaktifkan bila tidak dipakai.';
+            return 'Jenis bawaan: tidak bisa dihapus, nonaktifkan kalau tidak dipakai.';
         }
         if (($record->requests_count ?? $record->requests()->count()) > 0) {
             return 'Sudah dipakai pengajuan: tidak bisa dihapus, nonaktifkan saja.';

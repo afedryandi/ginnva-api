@@ -250,7 +250,7 @@ class RefundService
             app(PushNotificationService::class)->sendToCustomer(
                 $booking->customer_id,
                 'Refund Diproses',
-                "Refund Rp" . number_format($amount, 0, ',', '.') . " untuk booking #{$booking->booking_number} Anda sudah diproses.",
+                "Refund Rp" . number_format($amount, 0, ',', '.') . " untuk booking #{$booking->booking_number} sudah diproses.",
                 ['type' => 'refund_processed', 'booking_id' => $booking->id, 'route' => "/booking/{$booking->id}/chat"]
             );
         } catch (\Throwable $e) {

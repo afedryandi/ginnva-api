@@ -94,7 +94,7 @@ class NotifyExpiringWarranties extends Command
             $push->sendToCustomer(
                 $warranty->customer_id,
                 'Garansi Akan Berakhir',
-                "Garansi {$warranty->warranty_code} Anda akan berakhir dalam {$daysBefore} hari lagi.",
+                "Garansi {$warranty->warranty_code} akan berakhir {$daysBefore} hari lagi.",
                 ['type' => 'warranty_expiring', 'route' => "/account/warranty-detail?id={$warranty->id}"]
             );
         }

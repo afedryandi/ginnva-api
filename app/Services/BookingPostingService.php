@@ -362,7 +362,7 @@ class BookingPostingService
             ->first(fn (Receivable $r) => (float) $r->amount_paid > 0 || $r->payments()->exists());
 
         if ($existing) {
-            throw new RuntimeException("Booking ini punya Piutang Usaha ({$existing->receivable_number}) yang SUDAH ADA pelunasan masuk — selesaikan atau tangani piutang itu dulu lewat menu Piutang Usaha sebelum mengubah nominal transaksi.");
+            throw new RuntimeException("Piutang Usaha booking ini ({$existing->receivable_number}) sudah ada pelunasannya. Tangani dulu di menu Piutang Usaha sebelum mengubah nominal transaksi.");
         }
     }
 

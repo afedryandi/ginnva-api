@@ -73,7 +73,7 @@ class RemindUnfinishedClockouts extends Command
                 app(\App\Services\StaffNotifier::class)->toUsers(
                     $userIds,
                     'Jangan Lupa Absen Pulang',
-                    "Jam kerja Anda hari ini sudah selesai (toko tutup atau lembur berakhir) tapi Anda belum absen pulang. Absen keluar hanya berhasil di dalam radius {$radius} meter dari toko, jadi lakukan sebelum meninggalkan toko. Bila sudah di luar radius, ajukan Koreksi Absensi.",
+                    "Jam kerja hari ini sudah selesai, tapi absen pulang belum dicatat. Absen keluar hanya berhasil dalam radius {$radius} meter dari toko, jadi lakukan sebelum pergi. Sudah di luar radius? Ajukan Koreksi Absensi.",
                     color: 'warning',
                 );
                 $reminded += count($userIds);

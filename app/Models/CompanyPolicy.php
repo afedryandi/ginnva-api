@@ -67,7 +67,7 @@ class CompanyPolicy extends Model
 
         static::deleting(function (CompanyPolicy $policy) {
             if ($policy->acknowledgments()->exists()) {
-                throw new \RuntimeException('Dokumen yang sudah diterima karyawan tidak boleh dihapus; cabut terbit saja agar bukti penerimaan tetap utuh.');
+                throw new \RuntimeException('Dokumen yang sudah diterima karyawan tidak boleh dihapus; cabut terbit saja supaya bukti penerimaan tetap utuh.');
             }
         });
     }
@@ -118,7 +118,7 @@ class CompanyPolicy extends Model
 
         app(\App\Services\StaffNotifier::class)->toUsers(
             $ids,
-            'Dokumen Baru Perlu Anda Terima',
+            'Dokumen Baru Perlu Diterima',
             $this->title . ($this->version ? " ({$this->version})" : '') . ' sudah terbit. Buka Peraturan & Kebijakan untuk membaca dan menerimanya.',
             ['type' => 'company_policy', 'route' => '/staff/policies'],
             'policy-published-' . $this->id,
@@ -147,7 +147,7 @@ class CompanyPolicy extends Model
         app(\App\Services\StaffNotifier::class)->toUsers(
             $ids,
             'Pengingat Menerima Dokumen',
-            $this->title . ($this->version ? " ({$this->version})" : '') . ' belum Anda terima. Buka Peraturan & Kebijakan untuk membaca dan menerimanya.',
+            $this->title . ($this->version ? " ({$this->version})" : '') . ' belum diterima. Buka Peraturan & Kebijakan untuk membaca dan menerimanya.',
             ['type' => 'company_policy', 'route' => '/staff/policies'],
             'policy-remind-' . $this->id,
             'warning'
@@ -174,7 +174,7 @@ class CompanyPolicy extends Model
         $policies = static::published()->where('category', 'peraturan_perusahaan')->where('requires_acknowledgment', true)->get(['id']);
 
         if ($policies->isEmpty()) {
-            return 'Belum ada Peraturan Perusahaan yang terbit di sistem. Potongan telat dan Alpha baru sah bila tertulis di Peraturan Perusahaan yang diterima karyawan; unggah dan terbitkan di menu Peraturan & Kebijakan.';
+            return 'Belum ada Peraturan Perusahaan yang terbit. Potongan telat dan Alpha baru sah kalau tertulis di sana; unggah dan terbitkan di menu Peraturan & Kebijakan.';
         }
 
         $accepted = PolicyAcknowledgment::whereIn('company_policy_id', $policies->pluck('id'))->get(['user_id', 'company_policy_id'])->groupBy('user_id');

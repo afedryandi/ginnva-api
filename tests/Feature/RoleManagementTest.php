@@ -251,7 +251,7 @@ class RoleManagementTest extends TestCase
         }
 
         $missing = array_values(array_diff(array_unique($hardcoded), RoleResource::PROTECTED_ROLES));
-        $this->assertSame([], $missing, 'Role yang dipakai di kode tetapi belum terkunci di Role & Divisi: ' . implode(', ', $missing));
+        $this->assertSame([], $missing, 'Role yang dipakai di kode tapi belum terkunci di Role & Divisi: ' . implode(', ', $missing));
 
         foreach (['spv_finance', 'installer_leader'] as $name) {
             $this->assertFalse((bool) RoleResource::canEdit($this->role($name)), $name);

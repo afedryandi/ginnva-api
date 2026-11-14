@@ -46,10 +46,10 @@ class ChecklistTemplate extends Model
             'offboarding' => [
                 'Aset kerja dikembalikan (kunci, seragam, perangkat, alat)',
                 'Sisa kasbon/pinjaman diperhitungkan',
-                'Hak akhir dihitung akuntan (gaji terakhir, sisa cuti, uang kompensasi/pesangon bila ada)',
+                'Hak akhir dihitung akuntan (gaji terakhir, sisa cuti, uang kompensasi/pesangon kalau ada)',
                 'Serah terima pekerjaan dan booking yang ditangani',
                 'Akun aplikasi dinonaktifkan',
-                'Surat keterangan kerja diberikan bila diminta',
+                'Surat keterangan kerja diberikan kalau diminta',
             ],
         ];
 

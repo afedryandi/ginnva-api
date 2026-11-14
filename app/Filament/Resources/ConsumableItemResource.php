@@ -152,7 +152,7 @@ class ConsumableItemResource extends Resource
                         ->disabled(fn (?ConsumableItem $record) => static::unitLocked($record))
                         ->dehydrated(fn (?ConsumableItem $record) => ! static::unitLocked($record))
                         ->helperText(fn (?ConsumableItem $record) => static::unitLocked($record)
-                            ? 'Terkunci karena barang ini sudah punya riwayat stok — mengganti satuan mengubah arti semua angka lama. Kalau salah, daftarkan barang baru dan kosongkan stok yang lama.'
+                            ? 'Terkunci karena sudah ada riwayat stok; mengganti satuan mengubah arti semua angka lama. Kalau salah, daftarkan barang baru.'
                             : null),
 
                     Forms\Components\DatePicker::make('received_date')
@@ -185,7 +185,7 @@ class ConsumableItemResource extends Resource
                         ->numeric()
                         ->minValue(0)
                         ->suffix(fn (?ConsumableItem $record) => $record?->unit)
-                        ->helperText('Opsional — kalau selisih hasil hitung fisik dengan stok sistem lebih besar dari angka ini (dalam satuan barang ini), Sesuaikan Stok/Opname wajib diberi catatan alasan. Kosongkan untuk mematikan aturan.'),
+                        ->helperText('Opsional. Kalau selisih hitung fisik lebih besar dari angka ini, catatan alasan wajib diisi. Kosongkan untuk mematikan aturan.'),
 
                     Forms\Components\Select::make('preferred_supplier_id')
                         ->label('Pemasok Utama')
@@ -211,7 +211,7 @@ class ConsumableItemResource extends Resource
                     Forms\Components\Toggle::make('is_active')
                         ->label('Aktif')
                         ->default(true)
-                        ->helperText('Matikan untuk barang yang tidak dipakai lagi: hilang dari pemilih Memo Bahan/Permohonan Pembelian dan dari peringatan, tetapi stok, riwayat, dan laporannya tetap ada. Bisa diaktifkan lagi kapan saja.'),
+                        ->helperText('Matikan untuk barang yang tidak dipakai lagi: hilang dari pilihan dan peringatan, tapi stok, riwayat, dan laporannya tetap ada.'),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
@@ -400,7 +400,7 @@ class ConsumableItemResource extends Resource
                                 'application/vnd.ms-excel',
                                 'text/csv',
                             ])
-                            ->helperText('Pakai format dari tombol "Download Template". Baris pertama (header) otomatis dilewati. Stok Awal otomatis dicatat sebagai riwayat "Masuk" supaya tetap ada jejaknya.'),
+                            ->helperText('Pakai format dari tombol Download Template. Baris pertama dilewati. Stok Awal dicatat sebagai riwayat Masuk.'),
                     ])
                     ->action(fn (array $data) => static::importItems($data['file']))
                     ->modalSubmitActionLabel('Import'),
@@ -419,7 +419,7 @@ class ConsumableItemResource extends Resource
                         Forms\Components\Placeholder::make('open_purchase')
                             ->hiddenLabel()
                             ->content(fn (ConsumableItem $record) => ($purchase = static::approvedPurchase($record))
-                                ? "Ada permohonan pembelian disetujui untuk barang ini ({$purchase->request_number}, {$purchase->quantity} {$purchase->unit}). Kalau ini kiriman dari permohonan itu, catat penerimaannya lewat Permohonan Pembelian > Tandai Terpenuhi (stok ikut bertambah) supaya tidak tercatat dua kali."
+                                ? "Ada permohonan pembelian disetujui untuk barang ini ({$purchase->request_number}, {$purchase->quantity} {$purchase->unit}). Kalau ini kirimannya, catat lewat Permohonan Pembelian > Tandai Terpenuhi supaya tidak tercatat dua kali."
                                 : '')
                             ->visible(fn (ConsumableItem $record) => static::approvedPurchase($record) !== null),
 
@@ -500,7 +500,7 @@ class ConsumableItemResource extends Resource
                             ->label('Catatan')
                             ->required(fn (ConsumableItem $record, Forms\Get $get) => is_numeric($get('actual_quantity')) && $record->adjustmentNeedsNote((float) $get('actual_quantity')))
                             ->helperText(fn (ConsumableItem $record) => $record->adjustment_note_threshold !== null
-                                ? 'Wajib diisi bila selisih lebih dari ' . rtrim(rtrim(number_format((float) $record->adjustment_note_threshold, 2, ',', '.'), '0'), ',') . ' ' . $record->unit . '.'
+                                ? 'Wajib diisi kalau selisih lebih dari ' . rtrim(rtrim(number_format((float) $record->adjustment_note_threshold, 2, ',', '.'), '0'), ',') . ' ' . $record->unit . '.'
                                 : null)
                             ->placeholder('Mis. hasil stock opname bulanan, alasan selisih'),
                     ])
@@ -618,7 +618,7 @@ class ConsumableItemResource extends Resource
                             if ($blocked > 0) {
                                 \Filament\Notifications\Notification::make()
                                     ->title($deleted > 0 ? "{$deleted} dihapus, {$blocked} tidak bisa dihapus" : 'Tidak ada yang bisa dihapus')
-                                    ->body("{$blocked} sudah punya riwayat pergerakan stok sehingga dilewati. Menghapusnya akan menghapus riwayat itu dan merusak laporan persediaan dan HPP.")
+                                    ->body("{$blocked} sudah punya riwayat stok, jadi dilewati. Menghapusnya merusak laporan persediaan dan HPP.")
                                     ->warning()
                                     ->send();
 

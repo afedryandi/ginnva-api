@@ -40,7 +40,7 @@ class EditBooking extends EditRecord
                 ->color('gray')
                 ->visible(fn () => ! in_array($this->record->status, ['completed', 'cancelled'], true))
                 ->modalHeading('Saran installer')
-                ->modalDescription('Hanya saran berdasarkan keterampilan, kehadiran, dan beban kerja pada tanggal booking. Penugasan tetap Anda pilih sendiri di kolom Installer Bertugas.')
+                ->modalDescription('Hanya saran dari keterampilan, kehadiran, dan beban kerja di tanggal booking. Penugasan tetap dipilih di kolom Installer Bertugas.')
                 ->modalSubmitAction(false)
                 ->modalCancelActionLabel('Tutup')
                 ->modalContent(function () {
@@ -212,7 +212,7 @@ class EditBooking extends EditRecord
                 || $fresh->preferred_date?->toDateString() !== $record->preferred_date?->toDateString()) {
                 Notification::make()
                     ->title('Booking sudah berubah')
-                    ->body('Status atau jadwal booking ini baru saja diubah dari tempat lain. Muat ulang halaman lalu ulangi perubahan Anda.')
+                    ->body('Status atau jadwal booking ini baru saja diubah dari tempat lain. Muat ulang halaman lalu ulangi perubahannya.')
                     ->danger()
                     ->persistent()
                     ->send();

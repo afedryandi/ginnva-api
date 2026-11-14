@@ -144,7 +144,7 @@ class InstallerCompetencyReport extends Page implements HasForms
                     'right' => [2, 3, 4, 5, 6, 7],
                 ],
             ],
-            'note' => 'Mutu untuk pembinaan, bukan dasar potongan. Pada booking tim, semua installer bertugas dihitung sama. Persentase baru berarti bila jumlah pekerjaan yang diperiksa cukup banyak.',
+            'note' => 'Mutu untuk pembinaan, bukan dasar potongan. Pada booking tim, semua installer bertugas dihitung sama. Persentase baru berarti kalau jumlah pekerjaan yang diperiksa cukup banyak.',
         ];
     }
 

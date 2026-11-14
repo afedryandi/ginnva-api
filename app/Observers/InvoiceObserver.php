@@ -52,7 +52,7 @@ class InvoiceObserver
             $this->push->sendToCustomer(
                 $invoice->customer_id,
                 'Invoice Baru',
-                "Invoice #{$invoice->invoice_number} sudah diterbitkan untuk Anda.",
+                "Invoice #{$invoice->invoice_number} sudah diterbitkan.",
                 ['type' => 'invoice_new', 'invoice_id' => $invoice->id, 'route' => "/account/invoices/{$invoice->id}"]
             );
         }
@@ -82,7 +82,7 @@ class InvoiceObserver
 
         $body = $invoice->status === 'paid'
             ? "Invoice #{$invoice->invoice_number} untuk {$invoice->customer_name} sudah lunas."
-            : "Invoice #{$invoice->invoice_number} untuk {$invoice->customer_name} telah di-void.";
+            : "Invoice #{$invoice->invoice_number} untuk {$invoice->customer_name} sudah di-void.";
 
         app(\App\Services\StaffNotifier::class)->toStoreStaff(
             $invoice->store_id,

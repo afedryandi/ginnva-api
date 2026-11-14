@@ -26,7 +26,7 @@
                     </div>
                 </x-slot>
                 <x-slot name="description">
-                    Berdasarkan Jadwal Kerja yang sedang aktif per karyawan. "—" artinya belum ada Jadwal Kerja ter-assign untuk tanggal itu. Klik sel untuk override 1 hari itu saja (mis. tukar shift dadakan) tanpa mengubah template.
+                    Berdasarkan Jadwal Kerja yang aktif per karyawan. "—" = belum ada jadwal di tanggal itu. Klik sel untuk mengubah jadwal satu hari saja tanpa mengubah template.
                 </x-slot>
 
                 <div class="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">

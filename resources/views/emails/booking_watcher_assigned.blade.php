@@ -1,17 +1,17 @@
 @extends('emails.layout')
 
-@section('subject', 'Anda Ditugaskan Memantau Booking — ' . $bookingNumber)
+@section('subject', 'Penugasan Pemantau Booking — ' . $bookingNumber)
 
 @section('content')
 <p style="margin:0 0 8px;color:#666666;font-size:13px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">
     Penunjukan Pemantau Booking
 </p>
 <h1 style="margin:0 0 20px;color:#333333;font-size:22px;font-weight:800;line-height:1.3;">
-    Anda ditugaskan memantau booking di {{ $storeName }}
+    Penugasan memantau booking di {{ $storeName }}
 </h1>
 
 <p style="margin:0 0 24px;color:#666666;font-size:14px;line-height:1.6;">
-    {{ $assignedByName }} menunjuk Anda untuk memantau chat & progress booking berikut. Anda akan menerima notifikasi setiap ada pesan atau update baru pada booking ini.
+    {{ $assignedByName }} menugaskan pemantauan chat & progress booking berikut. Notifikasi dikirim setiap ada pesan atau update baru pada booking ini.
 </p>
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">

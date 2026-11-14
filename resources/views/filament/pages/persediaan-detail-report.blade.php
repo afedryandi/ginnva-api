@@ -15,11 +15,6 @@
         $filterTargets = 'data.from, data.to, data.preset';
     @endphp
 
-    <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
-        "Outlet" dan "No Transaksi" ala Majoo tidak ditampilkan — Bahan Baku/Barang Habis Pakai Ginnva tidak di-scope per toko
-        (satu pool bersama, bukan per-cabang), dan pergerakan stok tidak menyimpan nomor referensi transaksi.
-    </div>
-
     <div wire:loading.class="opacity-50 pointer-events-none" wire:target="{{ $filterTargets }}" class="space-y-6">
     {{-- style inline (bukan class grid-cols-*) -- panel Filament tidak
          compile Tailwind project ini, lihat catatan di SalesResource. --}}

@@ -185,7 +185,7 @@ class WarningLetter extends Model
 
         static::deleting(function (WarningLetter $warning) {
             if ($warning->isLocked()) {
-                throw new \RuntimeException("Surat {$warning->warning_number} sudah dibaca karyawan atau dibatalkan, tidak bisa dihapus. Gunakan Batalkan SP.");
+                throw new \RuntimeException("Surat {$warning->warning_number} sudah dibaca karyawan atau dibatalkan, tidak bisa dihapus. Pakai Batalkan SP.");
             }
         });
 

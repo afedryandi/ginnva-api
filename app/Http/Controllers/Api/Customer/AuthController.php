@@ -50,7 +50,7 @@ class AuthController extends Controller
         if ($email === null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Nomor ini belum terdaftar. Masukkan email Anda untuk mendaftar atau masuk.',
+                'message' => 'Nomor ini belum terdaftar. Masukkan email untuk daftar atau masuk.',
             ], 422);
         }
 
@@ -75,13 +75,13 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal mengirim kode verifikasi. Periksa kembali alamat email Anda atau coba lagi nanti.',
+                'message' => 'Gagal mengirim kode verifikasi. Periksa lagi alamat emailnya atau coba lagi nanti.',
             ], 422);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Kode verifikasi telah dikirim ke email Anda.',
+            'message' => 'Kode verifikasi sudah dikirim ke email.',
             // Email tujuan yang disamarkan: untuk login dengan No. HP, pelanggan perlu tahu ke mana kodenya dikirim.
             'email_hint' => \App\Support\CustomerLogin::maskEmail($email),
         ]);
@@ -322,7 +322,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Akun dan data pribadi Anda berhasil dihapus.',
+            'message' => 'Akun dan data pribadi berhasil dihapus.',
         ]);
     }
 }

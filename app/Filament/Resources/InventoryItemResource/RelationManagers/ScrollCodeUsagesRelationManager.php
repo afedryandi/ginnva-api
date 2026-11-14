@@ -69,7 +69,7 @@ class ScrollCodeUsagesRelationManager extends RelationManager
                     ->color('danger')
                     ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
                     ->requiresConfirmation()
-                    ->modalDescription('Batalkan baris pemakaian ini? Meternya akan dikembalikan ke sisa panjang gulungan, dan baris ini akan dihapus dari riwayat. Tindakan ini untuk mengoreksi salah input, bukan pembatalan pekerjaan.')
+                    ->modalDescription('Batalkan pemakaian ini? Meternya dikembalikan ke sisa gulungan dan baris dihapus dari riwayat. Untuk mengoreksi salah input, bukan membatalkan pekerjaan.')
                     ->action(function (ScrollCodeUsage $record) {
                         /** @var ScrollCode $scrollCode */
                         $scrollCode = $record->scrollCode;

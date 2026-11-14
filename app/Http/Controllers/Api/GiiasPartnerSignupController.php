@@ -82,7 +82,7 @@ class GiiasPartnerSignupController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Anda sudah terdaftar sebagai partner sebelumnya.',
+                'message' => 'Sudah terdaftar sebagai partner sebelumnya.',
                 'data' => [
                     'referral_code' => $existingPartner->referral_code,
                     'referral_link' => $link,
@@ -97,8 +97,8 @@ class GiiasPartnerSignupController extends Controller
         if ($email && User::where('email', $email)->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Email ini sudah terdaftar di sistem Ginnva. Gunakan email lain.',
-                'errors'  => ['email' => ['Email sudah digunakan.']],
+                'message' => 'Email ini sudah terdaftar di sistem Ginnva. Pakai email lain.',
+                'errors'  => ['email' => ['Email sudah dipakai.']],
             ], 422);
         }
 
@@ -165,7 +165,7 @@ class GiiasPartnerSignupController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Anda sudah terdaftar sebagai partner sebelumnya.',
+                'message' => 'Sudah terdaftar sebagai partner sebelumnya.',
                 'data' => [
                     'referral_code' => $racedPartner->referral_code,
                     'referral_link' => $link,
@@ -178,7 +178,7 @@ class GiiasPartnerSignupController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Pendaftaran partner berhasil! Kode referral Anda sudah aktif.',
+            'message' => 'Pendaftaran partner berhasil! Kode referral sudah aktif.',
             'data' => [
                 'referral_code' => $partner->referral_code,
                 'referral_link' => $link,

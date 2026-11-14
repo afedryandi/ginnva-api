@@ -106,7 +106,7 @@ class BookingMessageController extends Controller
             'photos.*' => 'image|max:10240',
         ], [
             'type.required'  => 'Jenis pesan wajib diisi.',
-            'type.in'        => 'Anda tidak punya izin untuk jenis pesan ini.',
+            'type.in'        => 'Akun ini tidak punya izin untuk jenis pesan ini.',
             'body.max'       => 'Pesan maksimal 2000 karakter.',
             'stage.required_if' => 'Tahap wajib dipilih.',
             'stage.in'       => 'Tahap yang dipilih tidak valid.',
@@ -141,7 +141,7 @@ class BookingMessageController extends Controller
         // Dikirim manual lewat chat, ia mengisi current_stage tanpa mengubah
         // status -> customer dapat push "Selesai" padahal booking belum.
         if ($request->type === 'stage' && $request->stage === 'completed') {
-            abort(422, 'Gunakan tombol "Selesaikan Booking" untuk menyelesaikan booking.');
+            abort(422, 'Pakai tombol "Selesaikan Booking" untuk menyelesaikan booking.');
         }
 
         if ($booking->status === 'completed' && $request->type === 'stage' && $request->stage !== 'completed') {
@@ -258,14 +258,14 @@ class BookingMessageController extends Controller
         // Installer tidak memakai chat booking (2026-10-10): komunikasi dengan customer lewat leader installer.
         // Mereka tetap tercatat sebagai pengerja (booking_installers) dan tetap melihat tugasnya.
         if ($user->hasRole('installer')) {
-            abort(403, 'Chat booking dipegang leader installer. Hubungi leader installer Anda.');
+            abort(403, 'Chat booking dipegang leader installer. Hubungi leader installer.');
         }
 
         // Konsisten dengan modul lain & filter notifikasi: staff toko wajib punya akses menu Booking.
-        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
+        abort_unless($user->hasBookingAccess(), 403, 'Akun ini tidak punya akses menu Booking.');
 
         if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
-            abort(403, 'Anda tidak punya akses ke booking toko lain.');
+            abort(403, 'Akun ini tidak punya akses ke booking toko lain.');
         }
 
         return $booking;

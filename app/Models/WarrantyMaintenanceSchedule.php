@@ -223,7 +223,7 @@ class WarrantyMaintenanceSchedule extends Model
                 app(\App\Services\PushNotificationService::class)->sendToCustomer(
                     $warranty->customer_id,
                     'Kuota Maintenance Habis',
-                    "Kunjungan maintenance PPF garansi #{$warranty->warranty_code} tercatat. Kuota maintenance Anda sudah habis.",
+                    "Kunjungan maintenance PPF garansi #{$warranty->warranty_code} tercatat. Kuota maintenance sudah habis.",
                     ['type' => 'ppf_maintenance_ended', 'route' => "/account/warranty-detail?id={$warranty->id}"]
                 );
             }

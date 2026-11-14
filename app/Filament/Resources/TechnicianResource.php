@@ -146,7 +146,7 @@ class TechnicianResource extends Resource
 
                     Forms\Components\Select::make('user_id')
                         ->label('Akun Installer')
-                        ->helperText('Hubungkan ke akun installer supaya level sertifikasi ini terlihat saat menugaskan installer di Booking. Boleh dikosongkan kalau akun login-nya belum dibuat.')
+                        ->helperText('Hubungkan ke akun installer supaya level sertifikasi terlihat saat menugaskan di Booking. Boleh kosong kalau akun login belum dibuat.')
                         ->options(fn (Forms\Get $get) => User::where('store_id', $get('store_id'))
                             ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
                             ->pluck('name', 'id')
@@ -183,7 +183,7 @@ class TechnicianResource extends Resource
                         ->numeric()
                         ->minValue(0)
                         ->prefix('Rp')
-                        ->helperText('Nominal tetap yang didapat installer ini per booking yang dia kerjakan (bukan persentase). Kalau 1 booking dikerjakan >1 installer, masing-masing dapat nominal penuh ini, bukan dibagi. Kosongkan kalau belum ada aturan komisi untuk installer ini. DIABAIKAN begitu installer ini punya minimal 1 baris di tab "Tarif per Layanan" (setelah disimpan) -- lihat tab itu untuk tarif berbeda per jenis layanan.')
+                        ->helperText('Nominal tetap per booking (bukan persentase). Kalau satu booking dikerjakan beberapa installer, masing-masing dapat nominal penuh. Tidak dipakai kalau ada Tarif per Layanan.')
                         ->disabled(fn () => ! auth()->user()?->isFullAccess())
                         ->dehydrated(),
 
@@ -385,7 +385,7 @@ class TechnicianResource extends Resource
                             app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->user_id],
                                 'Akun Installer Diaktifkan',
-                                'Akun installer Anda sudah diaktifkan — sekarang Anda bisa ditugaskan ke booking.'
+                                'Akun installer sudah diaktifkan — sekarang bisa ditugaskan ke booking.'
                             );
                         }
 
@@ -426,7 +426,7 @@ class TechnicianResource extends Resource
                             app(\App\Services\StaffNotifier::class)->toUsers(
                                 [$record->user_id],
                                 'Pendaftaran Installer Ditolak',
-                                "Pendaftaran installer Anda ditolak: {$data['review_note']}"
+                                "Pendaftaran installer ditolak: {$data['review_note']}"
                             );
                         }
 

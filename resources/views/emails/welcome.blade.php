@@ -11,17 +11,17 @@
 </h1>
 
 <p style="margin:0 0 16px;color:#666666;font-size:14px;line-height:1.6;">
-    Akun Anda di Ginnva Shield Indonesia telah berhasil dibuat dengan email
+    Akun Ginnva Shield Indonesia sudah berhasil dibuat dengan email
     <strong>{{ $email }}</strong>.
 </p>
 
 <p style="margin:0 0 16px;color:#666666;font-size:14px;line-height:1.6;">
-    Dengan akun ini Anda bisa:
+    Dengan akun ini bisa:
 </p>
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
     @foreach([
-        ['icon' => '🛡️', 'text' => 'Cek status garansi produk Ginnva Anda'],
+        ['icon' => '🛡️', 'text' => 'Cek status garansi produk Ginnva'],
         ['icon' => '📋', 'text' => 'Lihat riwayat garansi dan booking'],
         ['icon' => '📄', 'text' => 'Download sertifikat garansi digital (PDF)'],
         ['icon' => '🔔', 'text' => 'Terima notifikasi layanan after-sales'],

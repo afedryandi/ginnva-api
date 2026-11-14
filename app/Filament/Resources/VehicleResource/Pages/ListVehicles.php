@@ -44,7 +44,7 @@ class ListVehicles extends ListRecords
                 ->color('gray')
                 ->visible(fn () => VehicleResource::canCreate())
                 ->modalHeading('Import katalog kendaraan')
-                ->modalDescription('Pakai format dari Export Excel (kolom Merek, Tipe/Model, Varian, Ukuran, Tipe Bodi, Tahun Dari, Tahun Sampai, Catatan, Aktif). Kendaraan dicocokkan lewat merek+tipe+varian.')
+                ->modalDescription('Pakai format dari Export Excel. Kendaraan dicocokkan lewat merek, tipe, dan varian.')
                 ->modalSubmitActionLabel('Jalankan')
                 ->form([
                     Forms\Components\FileUpload::make('file')

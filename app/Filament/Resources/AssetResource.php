@@ -159,7 +159,7 @@ class AssetResource extends Resource
                         ->dehydrated(fn (?Asset $record) => $record?->disposed_at === null)
                         ->required(fn (?Asset $record) => $record?->disposed_at === null)
                         ->default('aktif')
-                        ->helperText('Aset yang dijual atau dibuang dilepas lewat tombol "Lepas Aset" di daftar (akses penuh) supaya jurnal pembukuannya tercatat; status "Dijual" hanya lewat sana. "Hilang" boleh ditandai di sini tanpa jurnal. Status aset yang sudah dilepas terkunci.'),
+                        ->helperText('Aset dijual atau dibuang lewat tombol Lepas Aset di daftar (akses penuh) supaya jurnalnya tercatat. Hilang boleh ditandai di sini.'),
 
                     Forms\Components\Select::make('assigned_to')
                         ->label('Dipegang Oleh')
@@ -222,7 +222,7 @@ class AssetResource extends Resource
                         ->numeric()
                         ->minValue(1)
                         ->maxValue(3650)
-                        ->helperText('Opsional — kalau diisi, "Catat Servis" mengisi jadwal berikutnya otomatis sebesar interval ini. Kosongkan kalau aset ini tidak punya interval tetap.'),
+                        ->helperText('Opsional. Kalau diisi, Catat Servis mengisi jadwal berikutnya otomatis sebesar interval ini.'),
 
                     Forms\Components\DatePicker::make('last_maintenance_date')
                         ->label('Servis Terakhir')
@@ -473,7 +473,7 @@ class AssetResource extends Resource
                                 'application/vnd.ms-excel',
                                 'text/csv',
                             ])
-                            ->helperText('Pakai format dari tombol "Download Template". Baris pertama (header) otomatis dilewati. Kolom "Dipegang Oleh" dicocokkan ke nama user (cocok persis), "Lokasi" dicocokkan ke nama toko — kalau tidak ketemu, dikosongkan (aset tetap dibuat).'),
+                            ->helperText('Pakai format dari tombol Download Template. Baris pertama dilewati. Dipegang Oleh dan Lokasi dicocokkan ke nama persis; kalau tidak ketemu, dikosongkan (aset tetap dibuat).'),
                     ])
                     ->action(fn (array $data) => static::importAssets($data['file']))
                     ->modalSubmitActionLabel('Import'),
@@ -616,7 +616,7 @@ class AssetResource extends Resource
                     ->color('danger')
                     ->visible(fn (Asset $record) => (auth()->user()?->isFullAccess() ?? false) && $record->disposed_at === null)
                     ->modalHeading(fn (Asset $record) => "Lepas aset: {$record->name}")
-                    ->modalDescription('Aset dikeluarkan dari pembukuan dan tidak disusutkan lagi. Langkah ini tidak bisa dibatalkan dari sini; salah catat dikoreksi lewat jurnal.')
+                    ->modalDescription('Aset dikeluarkan dari pembukuan dan tidak disusutkan lagi. Tidak bisa dibatalkan dari sini; salah catat dikoreksi lewat jurnal.')
                     ->form(fn (Asset $record) => [
                         Forms\Components\Select::make('type')
                             ->label('Jenis Pelepasan')

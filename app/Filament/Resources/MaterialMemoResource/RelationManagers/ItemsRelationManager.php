@@ -480,7 +480,7 @@ class ItemsRelationManager extends RelationManager
                             ->native(false)
                             ->displayFormat('d M Y')
                             ->visible(fn () => $record->item_type === 'raw_material')
-                            ->helperText('Bahan yang dikembalikan dicatat sebagai batch baru (tanggal masuk hari ini). Isi kalau bahan ini punya masa pakai, supaya peringatan kedaluwarsanya tidak hilang.'),
+                            ->helperText('Bahan yang kembali dicatat sebagai batch baru (masuk hari ini). Isi kalau bahan punya masa pakai, supaya peringatan kedaluwarsa tidak hilang.'),
                     ])
                     ->action(function (MaterialMemoItem $record, array $data) {
                         try {
@@ -519,7 +519,7 @@ class ItemsRelationManager extends RelationManager
                             ->native(false)
                             ->displayFormat('d M Y')
                             ->visible(fn () => $record->item_type === 'raw_material')
-                            ->helperText('Hanya dipakai bila jumlah dikembalikan bertambah: bahan yang bertambah dicatat sebagai batch baru.'),
+                            ->helperText('Hanya dipakai kalau jumlah dikembalikan bertambah: bahan yang bertambah dicatat sebagai batch baru.'),
 
                         Forms\Components\Textarea::make('note')
                             ->label('Alasan Koreksi')

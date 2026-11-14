@@ -537,7 +537,7 @@ class JournalEntryResource extends Resource
                         // Otorisasi diulang di dalam aksi (bukan cuma visible()):
                         // aksi Livewire bisa dipanggil manual.
                         if (! static::canPost($record)) {
-                            Notification::make()->title('Tidak berwenang')->body('Anda tidak berwenang memposting jurnal ini (mis. jurnal buatan Anda sendiri).')->danger()->send();
+                            Notification::make()->title('Tidak berwenang')->body('Akun ini tidak berwenang memposting jurnal ini (mis. jurnal buatan sendiri).')->danger()->send();
 
                             return;
                         }
@@ -570,11 +570,11 @@ class JournalEntryResource extends Resource
                             ->rows(2),
                     ])
                     ->requiresConfirmation()
-                    ->modalDescription('Membuat jurnal baru dengan debit/kredit dibalik dari jurnal ini — jurnal aslinya TETAP tersimpan (tidak dihapus), sesuai praktik akuntansi standar.')
+                    ->modalDescription('Membuat jurnal baru dengan debit dan kredit dibalik. Jurnal asli tetap tersimpan.')
                     ->visible(fn (JournalEntry $record) => static::canReverse($record))
                     ->action(function (JournalEntry $record, array $data) {
                         if (! static::canReverse($record)) {
-                            Notification::make()->title('Tidak berwenang')->body('Jurnal ini tidak bisa dibalik dari sini (jurnal otomatis dibalik lewat modul asalnya, dan Anda tidak boleh membalik jurnal buatan sendiri).')->danger()->send();
+                            Notification::make()->title('Tidak berwenang')->body('Jurnal ini tidak bisa dibalik dari sini: jurnal otomatis dibalik lewat modul asalnya, dan jurnal buatan sendiri tidak bisa dibalik sendiri.')->danger()->send();
 
                             return;
                         }
@@ -594,7 +594,7 @@ class JournalEntryResource extends Resource
                     ->icon('heroicon-o-lock-closed')
                     ->color('gray')
                     ->disabled()
-                    ->tooltip('Jurnal ini dibuat otomatis oleh modul lain (booking, transaksi keuangan, penyusutan, dst.). Koreksinya lewat modul asalnya supaya tetap sinkron.')
+                    ->tooltip('Jurnal otomatis dari modul lain (booking, transaksi keuangan, penyusutan, dst.). Koreksi lewat modul asalnya.')
                     ->visible(fn (JournalEntry $record) => $record->isPosted()
                         && ! in_array($record->reference_type, [null, 'manual', 'reversal'], true)
                         && ! $record->reversal()->exists()),

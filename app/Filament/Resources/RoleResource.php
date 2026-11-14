@@ -65,7 +65,7 @@ class RoleResource extends Resource
     public const DESCRIPTIONS = [
         'super_admin' => 'Akses penuh ke semua menu dan semua toko.',
         'direksi' => 'Akses penuh ke semua menu dan semua toko; memutuskan hal yang butuh persetujuan, mis. pembayaran gaji.',
-        'store_manager' => 'Wajib terikat satu toko. Memutuskan izin/cuti dan koreksi absensi tokonya, serta wewenang khusus booking (batal, tidak datang, koreksi tahap).',
+        'store_manager' => 'Wajib terikat satu toko. Memutuskan izin/cuti dan koreksi absensi tokonya, dan wewenang khusus booking (batal, tidak datang, koreksi tahap).',
         'spv_finance' => 'Menjalankan Penggajian (mengajukan pembayaran ke direksi) dan memutuskan izin/cuti tokonya. Menu lain dicentang per akun di User.',
         'installer_leader' => 'Pemimpin tim installer: boleh membuat SPK dan menjalankan booking di aplikasi.',
         'installer' => 'Wajib terikat satu toko. Login lewat aplikasi saja, tidak masuk panel ini.',
@@ -113,7 +113,7 @@ class RoleResource extends Resource
                 ->label('Nama Jabatan')
                 ->required()
                 ->unique(ignoreRecord: true)
-                ->helperText('Pakai huruf kecil & underscore, contoh: finance, hrd, warehouse_staff. Nama ini yang muncul di pilihan Jabatan saat bikin akun User. Jabatan baru hanya nama: akses menu tiap orang diatur di menu User, bukan di sini.')
+                ->helperText('Huruf kecil dan underscore, mis. finance, hrd, warehouse_staff. Jabatan baru hanya nama; akses menu diatur di menu User.')
                 ->regex('/^[a-z_]+$/')
                 // Tanpa pesan custom, rule 'unique' bawaan Laravel tampil
                 // dalam Bahasa Inggris ("The name has already been
@@ -122,7 +122,7 @@ class RoleResource extends Resource
                 // Ditemukan dari testing live checklist Role/Divisi.
                 ->validationMessages([
                     'regex' => 'Hanya huruf kecil dan underscore, tanpa spasi (mis. "warehouse_staff").',
-                    'unique' => 'Nama jabatan ini sudah digunakan, pakai nama lain.',
+                    'unique' => 'Nama jabatan ini sudah dipakai, pakai nama lain.',
                 ]),
 
             Forms\Components\Hidden::make('guard_name')

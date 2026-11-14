@@ -92,7 +92,7 @@ class CashCountResource extends Resource
                     ->helperText('Dibandingkan dengan saldo sistem sampai akhir tanggal ini.'),
                 Forms\Components\TextInput::make('counted_amount')->label('Uang yang dihitung')->numeric()->required()->minValue(0)->prefix('Rp'),
                 Forms\Components\Textarea::make('notes')->label('Catatan')->rows(2)->columnSpanFull()
-                    ->helperText('Wajib bila ada selisih dengan saldo sistem: jelaskan kemungkinan penyebabnya.'),
+                    ->helperText('Wajib kalau ada selisih dengan saldo sistem: jelaskan kemungkinan penyebabnya.'),
             ]),
         ]);
     }

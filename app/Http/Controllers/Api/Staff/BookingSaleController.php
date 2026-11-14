@@ -44,7 +44,7 @@ class BookingSaleController extends Controller
         }
 
         if ($booking->isSaleProcessed()) {
-            abort(422, 'Penjualan booking ini sudah dicatat. Koreksi dilakukan di panel admin oleh yang berwenang.');
+            abort(422, 'Penjualan booking ini sudah dicatat. Koreksi lewat panel admin, oleh yang punya akses.');
         }
 
         $validated = $request->validate([
@@ -84,13 +84,13 @@ class BookingSaleController extends Controller
     private function authorizeSale($user, Booking $booking): Booking
     {
         if ($user->hasRole('installer') || $user->hasRole('partner')) {
-            abort(403, 'Anda tidak bisa mencatat penjualan booking.');
+            abort(403, 'Akun ini tidak bisa mencatat penjualan booking.');
         }
 
-        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
+        abort_unless($user->hasBookingAccess(), 403, 'Akun ini tidak punya akses menu Booking.');
 
         if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
-            abort(403, 'Anda tidak punya akses ke booking toko lain.');
+            abort(403, 'Akun ini tidak punya akses ke booking toko lain.');
         }
 
         return $booking;

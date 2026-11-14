@@ -18,10 +18,7 @@
     <h1>Laporan Utilisasi Installer</h1>
     <div class="period">Periode: {{ $result['from']->format('d M Y') }} - {{ $result['to']->format('d M Y') }}</div>
     <div class="note">
-        Jam Hadir: sungguhan dari absensi (clock-in/clock-out). Jam Job: estimasi dari hari kerja yang direncanakan
-        per booking (booking belum mencatat jam mulai/selesai kerja yang sesungguhnya). Utilisasi di atas 100% bukan
-        bug — bisa berarti job dikerjakan di luar jam normal, dikerjakan tim, atau estimasi durasinya lebih besar
-        dari kenyataan.
+        Jam Hadir dari absensi; Jam Job adalah estimasi per booking. Utilisasi di atas 100% wajar.
     </div>
 
     <table>

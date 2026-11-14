@@ -291,7 +291,7 @@ class StockWriteOffResource extends Resource
                             ->helperText('Mis. salah memilih barang atau salah memasukkan jumlah.'),
                     ])
                     ->modalHeading('Batalkan stok terbuang ini?')
-                    ->modalDescription('Stok dikembalikan sejumlah yang dibuang (bahan baku dipulihkan sebagai batch "tidak diketahui asalnya", tanpa kedaluwarsa), jurnal kerugian dibalik bila ada, dan pergerakan stoknya ditandai dibatalkan. Baris ini tetap tersimpan sebagai "Dibatalkan".')
+                    ->modalDescription('Stok dikembalikan sejumlah yang dibuang, jurnal kerugian dibalik kalau ada, dan baris ini ditandai Dibatalkan (tetap tersimpan).')
                     ->action(function (StockWriteOff $record, array $data) {
                         try {
                             app(\App\Services\StockWriteOffService::class)->cancel($record, auth()->id(), $data['reason']);

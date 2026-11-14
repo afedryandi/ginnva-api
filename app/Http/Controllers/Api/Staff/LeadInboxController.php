@@ -64,8 +64,8 @@ class LeadInboxController extends Controller
         if ($outcome === LeadOutcome::LOST && blank($data['outcome_reason'] ?? $lead->outcome_reason)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Alasan wajib diisi bila lead ditandai tidak jadi.',
-                'errors' => ['outcome_reason' => ['Alasan wajib diisi bila lead ditandai tidak jadi.']],
+                'message' => 'Alasan wajib diisi kalau lead ditandai tidak jadi.',
+                'errors' => ['outcome_reason' => ['Alasan wajib diisi kalau lead ditandai tidak jadi.']],
             ], 422);
         }
 
@@ -73,8 +73,8 @@ class LeadInboxController extends Controller
         if ($outcome === LeadOutcome::LOST && $reason === 'lainnya' && blank($data['outcome_note'] ?? $lead->outcome_note)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Jelaskan alasannya bila memilih Lainnya.',
-                'errors' => ['outcome_note' => ['Jelaskan alasannya bila memilih Lainnya.']],
+                'message' => 'Jelaskan alasannya kalau memilih Lainnya.',
+                'errors' => ['outcome_note' => ['Jelaskan alasannya kalau memilih Lainnya.']],
             ], 422);
         }
 
@@ -96,7 +96,7 @@ class LeadInboxController extends Controller
                 && $user->hasMenuAccess($resource)
                 && ($action === 'view' || $user->hasModuleAction($resource, $action, true)),
             403,
-            'Anda tidak punya akses ke menu ini.'
+            'Akun ini tidak punya akses ke menu ini.'
         );
 
         return [$model, $resource];

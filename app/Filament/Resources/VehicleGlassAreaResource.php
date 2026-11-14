@@ -85,7 +85,7 @@ class VehicleGlassAreaResource extends Resource
                         ->label('Tipe / Model')
                         ->required()
                         ->maxLength(120)
-                        ->helperText('Samakan penulisannya dengan menu Kendaraan agar terhubung ke katalog. Huruf besar/kecil dan spasi ganda tidak membedakan.'),
+                        ->helperText('Samakan penulisannya dengan menu Kendaraan supaya terhubung ke katalog. Huruf besar/kecil dan spasi ganda tidak membedakan.'),
                 ]),
             Forms\Components\Section::make('Luas kaca (m²)')
                 ->columns(4)

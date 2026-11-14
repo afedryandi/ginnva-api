@@ -50,7 +50,7 @@ class LeaveType extends Model
 
         static::deleting(function (LeaveType $type) {
             if ($type->isBuiltIn()) {
-                throw new \RuntimeException("Jenis bawaan \"{$type->name}\" tidak bisa dihapus; nonaktifkan saja bila tidak dipakai.");
+                throw new \RuntimeException("Jenis bawaan \"{$type->name}\" tidak bisa dihapus; nonaktifkan saja kalau tidak dipakai.");
             }
         });
     }
@@ -111,7 +111,7 @@ class LeaveType extends Model
         if ($this->document_required_from_days !== null) {
             $parts[] = $this->document_required_from_days <= 1
                 ? 'wajib melampirkan dokumen'
-                : "wajib melampirkan dokumen bila {$this->document_required_from_days} hari atau lebih";
+                : "wajib melampirkan dokumen kalau {$this->document_required_from_days} hari atau lebih";
         }
 
         if ($this->deducts_annual_quota) {
@@ -125,7 +125,7 @@ class LeaveType extends Model
     public static function ensureDefaults(): void
     {
         $defaults = [
-            ['cuti_haid', 'Cuti Haid', 'cuti', 2, null, 'Hari pertama dan kedua haid bila merasa sakit.', 40],
+            ['cuti_haid', 'Cuti Haid', 'cuti', 2, null, 'Hari pertama dan kedua haid kalau merasa sakit.', 40],
             ['cuti_melahirkan', 'Cuti Melahirkan', 'cuti', 90, 1, '1,5 bulan sebelum dan 1,5 bulan sesudah melahirkan; lampirkan surat dokter/bidan.', 50],
             ['cuti_keguguran', 'Cuti Keguguran', 'cuti', 45, 1, 'Sekitar 1,5 bulan; lampirkan surat dokter/bidan.', 60],
             ['cuti_menikah', 'Cuti Menikah', 'cuti', 3, null, 'Pekerja menikah.', 70],

@@ -12,7 +12,7 @@ class ListRoles extends ListRecords
 
     public function getSubheading(): ?string
     {
-        return 'Jabatan hanya nama; akses menu tiap orang diatur di menu User. Beberapa nama (bergembok) dikenali sistem dan memberi wewenang tertentu, jadi tidak bisa diubah.';
+        return 'Jabatan hanya nama; akses menu diatur di menu User. Nama bergembok membawa wewenang khusus dan tidak bisa diubah.';
     }
 
     protected function getHeaderActions(): array

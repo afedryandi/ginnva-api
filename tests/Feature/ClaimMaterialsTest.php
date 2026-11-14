@@ -99,7 +99,7 @@ class ClaimMaterialsTest extends TestCase
         $this->assertNull($claim->materialMemo(), 'Tanpa booking kunjungan tidak ada memo.');
 
         $booking = $this->visitBooking($claim);
-        $this->assertNull($claim->fresh()->materialMemo(), 'Booking ada tetapi belum ada memo.');
+        $this->assertNull($claim->fresh()->materialMemo(), 'Booking ada tapi belum ada memo.');
 
         $memo = $this->memoFor($booking, 2);
         $this->assertTrue($claim->fresh()->materialMemo()->is($memo));

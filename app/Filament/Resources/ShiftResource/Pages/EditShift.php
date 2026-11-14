@@ -56,7 +56,7 @@ class EditShift extends EditRecord
 
         Notification::make()
             ->title('Jam shift diubah')
-            ->body("Shift ini dipakai {$usage['schedules']} Jadwal Kerja dan {$usage['overrides']} override harian. Laporan pola absensi & kalender periode lama akan dihitung ulang dengan jam baru, sehingga bisa berbeda dari potongan telat yang sudah tercatat/dibayar. Hitungan telat pada absensi yang sudah ada TIDAK berubah.")
+            ->body("Shift ini dipakai {$usage['schedules']} Jadwal Kerja dan {$usage['overrides']} override harian. Laporan lama dihitung ulang dengan jam baru; hitungan telat yang sudah tercatat tidak berubah.")
             ->warning()
             ->persistent()
             ->send();
@@ -67,7 +67,7 @@ class EditShift extends EditRecord
             app(\App\Services\StaffNotifier::class)->toUsers(
                 $userIds,
                 'Jam Shift Berubah',
-                "Jam shift \"{$this->record->name}\" kini {$fmt($this->record->start_time)} - {$fmt($this->record->end_time)}. Perhatikan jadwal kerja Anda."
+                "Jam shift \"{$this->record->name}\" kini {$fmt($this->record->start_time)} - {$fmt($this->record->end_time)}. Perhatikan jadwal kerja."
             );
         }
     }

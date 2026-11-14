@@ -41,7 +41,7 @@ class VerifyPricelistToken
     {
         return response()->json([
             'success' => false,
-            'message' => 'Sesi Anda sudah berakhir, silakan login ulang.',
+            'message' => 'Sesi sudah berakhir, login lagi.',
         ], 401);
     }
 }

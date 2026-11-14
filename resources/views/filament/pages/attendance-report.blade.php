@@ -67,9 +67,7 @@
             <x-slot name="heading">Pola Ketepatan Waktu per Karyawan</x-slot>
             <x-slot name="description">
                 @if ($withSchedules)
-                    "Masuk Lebih Awal" & "Lembur/Pulang Lambat" dibandingkan terhadap Jadwal Kerja yang berlaku (menu Karyawan → Jadwal Kerja) —
-                    karyawan yang belum di-assign jadwal untuk hari itu masuk kolom "Tanpa Jadwal", bukan dihitung 0. Kategori TIDAK saling
-                    eksklusif (1 hari bisa masuk 2 kategori sekaligus, mis. telat tapi juga lembur).
+                    Masuk Lebih Awal dan Lembur dibandingkan dengan Jadwal Kerja yang berlaku. Karyawan tanpa jadwal masuk kolom Tanpa Jadwal. Satu hari bisa masuk dua kategori (mis. telat tapi lembur).
                 @else
                     Terlambat masuk dan pulang cepat dihitung terhadap jam buka toko.
                 @endif
@@ -111,9 +109,7 @@
     <x-filament::section>
         <x-slot name="heading">Rincian Absensi</x-slot>
         <x-slot name="description">
-            "Jadwal Masuk/Pulang" per baris tidak ditampilkan di tabel ini (sistem cuma simpan hasil hitung telat/pulang cepat, bukan jam
-            jadwalnya).@if ($withSchedules) Tapi "Masuk Lebih Awal"/"Lembur" di atas SUDAH bisa dihitung dari Jadwal Kerja yang berlaku, lihat tabel "Pola
-            Ketepatan Waktu" di atas.@endif
+            Jadwal masuk/pulang per baris tidak ditampilkan di tabel ini.@if ($withSchedules) Lihat tabel Pola Ketepatan Waktu di atas untuk Masuk Lebih Awal dan Lembur.@endif
         </x-slot>
 
         <div class="overflow-x-auto">

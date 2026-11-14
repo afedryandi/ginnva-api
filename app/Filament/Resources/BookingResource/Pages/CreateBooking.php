@@ -71,7 +71,7 @@ class CreateBooking extends CreateRecord
             if ($store?->isClosedOn($day)) {
                 Notification::make()
                     ->title('Toko tutup di tanggal itu')
-                    ->body('Toko libur mingguan atau tanggal tersebut diblokir. Pilih tanggal lain.')
+                    ->body('Toko libur mingguan atau tanggal itu diblokir. Pilih tanggal lain.')
                     ->danger()
                     ->persistent()
                     ->send();

@@ -438,7 +438,7 @@ class NotificationController extends Controller
         if (\App\Support\QuietHours::active()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Promosi tidak dikirim pada jam tenang (' . \App\Support\QuietHours::label() . ') agar pelanggan tidak terganggu. Kirim ulang di luar jam tersebut.',
+                'message' => 'Promosi tidak dikirim pada jam tenang (' . \App\Support\QuietHours::label() . ') supaya pelanggan tidak terganggu. Kirim ulang di luar jam itu.',
             ], 422);
         }
 
@@ -452,7 +452,7 @@ class NotificationController extends Controller
         if ($recent >= $max) {
             return response()->json([
                 'success' => false,
-                'message' => "Batas promosi tercapai: maksimal {$max} kiriman promosi per 7 hari (sudah {$recent}). Tunggu sampai kiriman terlama lewat 7 hari, atau kirim sebagai Informasi penting bila memang bukan promosi.",
+                'message' => "Batas promosi tercapai: maksimal {$max} kiriman per 7 hari (sudah {$recent}). Tunggu kiriman terlama lewat 7 hari, atau kirim sebagai Informasi penting kalau bukan promosi.",
             ], 429);
         }
 

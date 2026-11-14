@@ -153,7 +153,7 @@ class RewardResource extends Resource
                         // ekspektasi customer yang sudah lihat harga lama
                         // di katalog.
                         ->helperText(fn (?Reward $record) => ($record && $record->redemptions()->exists())
-                            ? '⚠️ Reward ini sudah pernah ditukar pelanggan. Riwayat lama tidak berubah, tapi pelanggan yang sudah lihat harga lama di katalog bisa bingung kalau harga berubah.'
+                            ? '⚠️ Reward ini sudah pernah ditukar. Riwayat lama tidak berubah, tapi perubahan harga bisa membingungkan pelanggan.'
                             : null),
 
                     Forms\Components\TextInput::make('stock')
@@ -229,7 +229,7 @@ class RewardResource extends Resource
                         } catch (QueryException $e) {
                             Notification::make()
                                 ->title('Tidak bisa menghapus reward ini')
-                                ->body('Reward ini masih punya riwayat penukaran. Nonaktifkan saja lewat toggle "Aktif" supaya tidak bisa ditukar lagi, tanpa menghapus riwayatnya.')
+                                ->body('Reward ini punya riwayat penukaran. Nonaktifkan lewat toggle Aktif supaya tidak bisa ditukar lagi.')
                                 ->danger()
                                 ->send();
 

@@ -51,15 +51,14 @@
             <x-filament::section>
                 <div class="text-xs text-gray-500 dark:text-gray-400">Stok Tidak Terpakai</div>
                 <div class="mt-1 text-2xl font-bold st-num">{{ number_format($result['idleCount'], 0, ',', '.') }}</div>
-                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Bersisa stok tetapi tidak dipakai; nyalakan "Tampilkan yang tidak terpakai" untuk melihatnya.</div>
+                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Bersisa stok tapi tidak dipakai; nyalakan "Tampilkan yang tidak terpakai" untuk melihatnya.</div>
             </x-filament::section>
         </div>
 
         <x-filament::section>
             <x-slot name="heading">Perputaran per Bahan Baku{{ config('features.consumables') ? ' & Barang Habis Pakai' : '' }}</x-slot>
             <x-slot name="description">
-                Perputaran = pemakaian ÷ rata-rata stok. Pemakaian sudah dikurangi bahan yang dikembalikan lewat memo. Rasio tinggi berarti cepat berputar, bukan otomatis baik atau buruk.
-                Diurutkan dari rasio tertinggi. Stok bersifat nasional (bukan per toko).
+                Perputaran = pemakaian ÷ rata-rata stok (pemakaian sudah dikurangi bahan yang dikembalikan lewat memo). Diurutkan dari rasio tertinggi. Stok bersifat nasional.
             </x-slot>
 
             <div class="overflow-x-auto">
@@ -112,8 +111,7 @@
                 </table>
             </div>
             <p class="mt-3 text-xs st-muted">
-                Stok awal dan akhir direkonstruksi mundur dari stok hari ini karena sistem tidak menyimpan stok harian.
-                "Estimasi Habis" = stok hari ini ÷ konsumsi harian rata-rata (hanya hari yang sudah berjalan); perkiraan kasar dengan asumsi kecepatan pemakaian tetap.
+                Stok awal dan akhir dihitung mundur dari stok hari ini. Estimasi Habis = stok hari ini ÷ konsumsi harian rata-rata; perkiraan kasar.
             </p>
         </x-filament::section>
     </div>

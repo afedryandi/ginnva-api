@@ -93,7 +93,7 @@ class EditWarranty extends EditRecord
                             ->mapWithKeys(fn ($c) => [$c->id => trim(($c->name ?? 'Tanpa Nama') . ' — ' . $c->email)])
                         )
                         ->searchable()
-                        ->helperText('Kalau diisi, garansi ini akan otomatis muncul di "Garansi Saya" akun tersebut.'),
+                        ->helperText('Kalau diisi, garansi ini akan otomatis muncul di "Garansi Saya" akun itu.'),
 
                     Forms\Components\Textarea::make('note')
                         ->label('Catatan (opsional)')

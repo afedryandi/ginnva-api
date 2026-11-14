@@ -97,7 +97,7 @@ class AttendanceDeductionRuleResource extends Resource
                         ->default(AttendanceDeductionRule::DEFAULT_BLOCK_MINUTES)
                         ->live(onBlur: true)
                         ->required()
-                        ->helperText('Total menit telat sebulan dibagi ukuran ini, hanya blok PENUH yang dipotong. Contoh 15 menit: total 14 menit = tidak dipotong, 40 menit = 2 blok.'),
+                        ->helperText('Total menit telat sebulan dibagi ukuran ini; hanya blok penuh yang dipotong. Contoh 15 menit: 14 menit tidak dipotong, 40 menit = 2 blok.'),
 
                     Forms\Components\TextInput::make('late_deduction_per_block')
                         ->label('Potongan per Blok Telat (Rp)')
@@ -108,7 +108,7 @@ class AttendanceDeductionRuleResource extends Resource
                         ->default(0)
                         ->live(onBlur: true)
                         ->required()
-                        ->helperText('Nominal untuk setiap blok penuh. Isi 0 bila telat tidak dipotong.'),
+                        ->helperText('Nominal untuk setiap blok penuh. Isi 0 kalau telat tidak dipotong.'),
 
                     Forms\Components\TextInput::make('alpha_fine_per_day')
                         ->label('Denda Tetap per Hari Alpha (Rp)')
@@ -119,7 +119,7 @@ class AttendanceDeductionRuleResource extends Resource
                         ->default(0)
                         ->live(onBlur: true)
                         ->required()
-                        ->helperText('Ditambahkan di atas potongan Alpha per jam kerja. Isi 0 bila tidak ada denda tambahan.'),
+                        ->helperText('Ditambahkan di atas potongan Alpha per jam kerja. Isi 0 kalau tidak ada denda tambahan.'),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan (opsional)')

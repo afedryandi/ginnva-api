@@ -89,7 +89,7 @@ class BookingController extends Controller
         }
 
         // without_spk: picker booking untuk membuat SPK -- staf SPK tanpa menu Booking tetap boleh.
-        abort_unless($user->hasBookingAccess() || $request->boolean('without_spk'), 403, 'Anda tidak punya akses menu Booking.');
+        abort_unless($user->hasBookingAccess() || $request->boolean('without_spk'), 403, 'Akun ini tidak punya akses menu Booking.');
 
         $query = Booking::query()->with(['customer:id,name,phone_number', 'store:id,name', 'pendingRescheduleRequest', 'pendingCancellationRequest'])
             // Jumlah pesan customer yang belum dibaca staff (badge daftar).
@@ -188,7 +188,7 @@ class BookingController extends Controller
             abort(403, 'Partner tidak punya akses ke booking toko.');
         }
 
-        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
+        abort_unless($user->hasBookingAccess(), 403, 'Akun ini tidak punya akses menu Booking.');
 
         $booking = Booking::with([
             'customer:id,name,phone_number',
@@ -213,10 +213,10 @@ class BookingController extends Controller
 
         if ($user->hasRole('installer')) {
             if (! $booking->installers->contains('id', $user->id)) {
-                abort(403, 'Booking ini tidak ditugaskan ke Anda.');
+                abort(403, 'Booking ini tidak ditugaskan ke akun ini.');
             }
         } elseif (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
-            abort(403, 'Anda tidak punya akses ke booking toko lain.');
+            abort(403, 'Akun ini tidak punya akses ke booking toko lain.');
         }
 
         if ($this->isInstallerOnly($user)) {
@@ -253,7 +253,7 @@ class BookingController extends Controller
             abort(403, 'Partner tidak punya akses ke booking toko.');
         }
 
-        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
+        abort_unless($user->hasBookingAccess(), 403, 'Akun ini tidak punya akses menu Booking.');
 
         $storeId = $user->isFullAccess() ? $request->integer('store_id') : $user->store_id;
 
@@ -606,15 +606,15 @@ class BookingController extends Controller
         $user = $request->user('api');
 
         if ($user->hasRole('partner') || $user->hasRole('installer')) {
-            abort(403, 'Anda tidak punya akses untuk menyelesaikan booking.');
+            abort(403, 'Akun ini tidak punya akses untuk menyelesaikan booking.');
         }
 
-        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
+        abort_unless($user->hasBookingAccess(), 403, 'Akun ini tidak punya akses menu Booking.');
 
         $booking = Booking::findOrFail($id);
 
         if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
-            abort(403, 'Anda tidak punya akses ke booking toko lain.');
+            abort(403, 'Akun ini tidak punya akses ke booking toko lain.');
         }
 
         // Guard + lock (diperbaiki 2026-10-02) -- sebelumnya booking
@@ -840,13 +840,13 @@ class BookingController extends Controller
         $user = $request->user('api');
 
         if ($user->hasRole('partner') || $user->hasRole('installer')) {
-            abort(403, 'Anda tidak punya akses untuk mengirim pengingat maintenance.');
+            abort(403, 'Akun ini tidak punya akses untuk mengirim pengingat maintenance.');
         }
 
         $booking = Booking::with(['customer', 'store'])->findOrFail($id);
 
         if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
-            abort(403, 'Anda tidak punya akses ke booking toko lain.');
+            abort(403, 'Akun ini tidak punya akses ke booking toko lain.');
         }
 
         if (! $booking->customer_id && ! $booking->phone_number) {
@@ -978,7 +978,7 @@ class BookingController extends Controller
                         app(\App\Services\StaffNotifier::class)->toUsers(
                             $added,
                             'Penugasan Instalasi Baru',
-                            "Anda ditugaskan di booking #{$bookingNumber}.",
+                            "Ditugaskan di booking #{$bookingNumber}.",
                             ['type' => 'booking_assigned', 'booking_id' => $bookingId, 'route' => "/staff/bookings/{$bookingId}"],
                         );
                     } catch (\Throwable $e) {
@@ -996,7 +996,7 @@ class BookingController extends Controller
                         app(\App\Services\StaffNotifier::class)->toUsers(
                             $removed,
                             'Penugasan Dicabut',
-                            "Penugasan Anda di booking #{$removedNumber} dicabut.",
+                            "Penugasan di booking #{$removedNumber} dicabut.",
                             ['type' => 'booking_unassigned', 'route' => '/staff/bookings'],
                         );
                     } catch (\Throwable $e) {
@@ -1130,13 +1130,13 @@ class BookingController extends Controller
     private function authorizeManage($user, Booking $booking): Booking
     {
         if ($user->hasRole('installer') || $user->hasRole('partner')) {
-            abort(403, 'Anda tidak bisa mengatur assignment booking.');
+            abort(403, 'Akun ini tidak bisa mengatur assignment booking.');
         }
 
-        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
+        abort_unless($user->hasBookingAccess(), 403, 'Akun ini tidak punya akses menu Booking.');
 
         if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
-            abort(403, 'Anda tidak punya akses ke booking toko lain.');
+            abort(403, 'Akun ini tidak punya akses ke booking toko lain.');
         }
 
         return $booking;

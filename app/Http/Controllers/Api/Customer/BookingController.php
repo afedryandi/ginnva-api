@@ -113,8 +113,8 @@ class BookingController extends Controller
         }
 
         $validator = Validator::make($request->all(), $rules, [
-            'privacy_consent.accepted' => 'Anda perlu menyetujui pemberitahuan privasi untuk melanjutkan.',
-            'privacy_consent.required' => 'Anda perlu menyetujui pemberitahuan privasi untuk melanjutkan.',
+            'privacy_consent.accepted' => 'Setujui pemberitahuan privasi dulu untuk melanjutkan.',
+            'privacy_consent.required' => 'Setujui pemberitahuan privasi dulu untuk melanjutkan.',
         ]);
 
         if ($validator->fails()) {
@@ -167,7 +167,7 @@ class BookingController extends Controller
         if ($store?->isClosedOn(Carbon::parse($request->preferred_date))) {
             return response()->json([
                 'success' => false,
-                'message' => 'Tanggal yang dipilih sedang tidak tersedia untuk toko ini. Silakan pilih tanggal lain.',
+                'message' => 'Tanggal yang dipilih sedang tidak tersedia untuk toko ini. Pilih tanggal lain.',
                 'errors'  => ['preferred_date' => ['Toko tutup/tanggal diblokir pada hari ini.']],
             ], 422);
         }
@@ -180,7 +180,7 @@ class BookingController extends Controller
         if (Booking::where('customer_id', $customerId)->where('status', 'pending')->count() >= 3) {
             return response()->json([
                 'success' => false,
-                'message' => 'Anda sudah punya 3 booking yang menunggu konfirmasi. Tunggu toko mengonfirmasi atau batalkan salah satunya dulu.',
+                'message' => 'Sudah ada 3 booking yang menunggu konfirmasi. Tunggu toko mengonfirmasi atau batalkan salah satunya dulu.',
             ], 422);
         }
 
@@ -194,7 +194,7 @@ class BookingController extends Controller
         if ($duplicate) {
             return response()->json([
                 'success' => false,
-                'message' => "Anda sudah punya booking yang sama (#{$duplicate->booking_number}) di toko dan tanggal ini.",
+                'message' => "Booking yang sama (#{$duplicate->booking_number}) sudah ada di toko dan tanggal ini.",
             ], 422);
         }
 
@@ -219,7 +219,7 @@ class BookingController extends Controller
         } elseif (Booking::confirmedOverlapCount((int) $request->store_id, $preferred) >= Booking::capacityForDate((int) $request->store_id, $preferred)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Kapasitas toko pada tanggal itu sudah penuh. Silakan pilih tanggal lain.',
+                'message' => 'Kapasitas toko pada tanggal itu sudah penuh. Pilih tanggal lain.',
                 'errors'  => ['preferred_date' => ['Tanggal penuh.']],
             ], 422);
         }
@@ -260,7 +260,7 @@ class BookingController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Booking berhasil diajukan. Toko akan menghubungi Anda untuk konfirmasi.',
+            'message' => 'Booking berhasil diajukan. Toko akan menghubungi untuk konfirmasi.',
             'data' => $this->sanitize($booking),
         ], 201);
     }
@@ -461,7 +461,7 @@ class BookingController extends Controller
             $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
 
             if ($locked->status !== 'pending') {
-                abort(422, "Booking berstatus \"{$locked->status}\" tidak bisa dibatalkan sendiri. Silakan hubungi toko langsung.");
+                abort(422, "Booking berstatus \"{$locked->status}\" tidak bisa dibatalkan sendiri. Hubungi toko langsung.");
             }
 
             $locked->cancelWith('customer', $locked->customer_id, $request->input('reason'));

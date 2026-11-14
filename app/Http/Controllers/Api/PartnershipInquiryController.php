@@ -57,7 +57,7 @@ class PartnershipInquiryController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Pengajuan kemitraan berhasil dikirim. Tim kami akan segera menghubungi Anda.',
+            'message' => 'Pengajuan kemitraan berhasil dikirim. Tim kami akan segera menghubungi.',
             'data' => $inquiry,
         ], 201);
     }

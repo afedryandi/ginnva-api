@@ -27,7 +27,7 @@
 
         @if ($cannotFix)
             <x-filament::section>
-                <div class="text-sm text-gray-600 dark:text-gray-300">Data karyawan hanya bisa diubah oleh akun akses penuh. Daftar ini bisa Anda gunakan untuk meminta mereka melengkapinya; unduh lewat tombol di kanan atas bila perlu.</div>
+                <div class="text-sm text-gray-600 dark:text-gray-300">Data karyawan hanya bisa diubah oleh akun akses penuh. Daftar ini bisa dipakai untuk meminta mereka melengkapinya; unduh lewat tombol di kanan atas kalau perlu.</div>
             </x-filament::section>
         @endif
 
@@ -51,7 +51,7 @@
         @foreach ([
             ['rows' => $withRequired, 'heading' => 'Wajib dilengkapi', 'description' => 'Tanpa ini gaji atau absensi bisa salah atau tidak bisa digenerate.'],
             ['rows' => $onlyData, 'heading' => 'Sebaiknya dilengkapi', 'description' => 'Data kepegawaian formal; tidak menghalangi payroll.'],
-            ['rows' => $onlyFollowUp, 'heading' => 'Perlu ditindaklanjuti', 'description' => 'Bukan data yang kosong, tetapi butuh keputusan atau tindakan: masa percobaan, gaji di luar golongan, dokumen yang belum diterima.'],
+            ['rows' => $onlyFollowUp, 'heading' => 'Perlu ditindaklanjuti', 'description' => 'Bukan data yang kosong, tapi butuh keputusan atau tindakan: masa percobaan, gaji di luar golongan, dokumen yang belum diterima.'],
         ] as $group)
             @if ($group['rows']->isNotEmpty())
                 <x-filament::section :heading="$group['heading'] . ' (' . $group['rows']->count() . ' karyawan)'" :description="$group['description']">

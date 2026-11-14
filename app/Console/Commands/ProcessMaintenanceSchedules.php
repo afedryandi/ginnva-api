@@ -70,7 +70,7 @@ class ProcessMaintenanceSchedules extends Command
                     $expired ? 'Jadwalkan Ulang Maintenance PPF' : 'Konfirmasi Kedatangan Maintenance PPF',
                     $expired
                         ? "Jadwal maintenance PPF untuk {$warranty->warranty_code} ({$locked->scheduled_date->format('d M Y')}) sudah terlewat. Pilih tanggal baru di aplikasi."
-                        : "Waktunya maintenance PPF untuk {$warranty->warranty_code} (jadwal: {$locked->scheduled_date->format('d M Y')}). Konfirmasi kedatangan Anda sekarang.",
+                        : "Waktunya maintenance PPF untuk {$warranty->warranty_code} (jadwal: {$locked->scheduled_date->format('d M Y')}). Konfirmasi kedatangan sekarang.",
                     [
                         'type'        => 'ppf_maintenance_confirm',
                         'schedule_id' => $locked->id,

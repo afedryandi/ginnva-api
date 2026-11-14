@@ -123,11 +123,11 @@ class TransactionApprovalService
     private function assertMayDecide(?User $approver, TransactionApprovalRequest $request): void
     {
         if (! $approver || ! $approver->isFullAccess()) {
-            throw new RuntimeException('Anda tidak berwenang memutuskan pengajuan ini.');
+            throw new RuntimeException('Akun ini tidak berwenang memutuskan pengajuan ini.');
         }
 
         if ((int) $request->requested_by === (int) $approver->id) {
-            throw new RuntimeException('Anda tidak boleh memutuskan pengajuan yang Anda ajukan sendiri.');
+            throw new RuntimeException('Pengajuan sendiri tidak boleh diputuskan sendiri.');
         }
     }
 
@@ -416,7 +416,7 @@ class TransactionApprovalService
         try {
             if ($requester = User::find($request->requested_by)) {
                 Notification::make()
-                    ->title('Pengajuan Anda tertahan')
+                    ->title('Pengajuan tertahan')
                     ->body(($request->booking?->booking_number ?? '') . ': ' . $reason)
                     ->warning()
                     ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Resources\TransactionApprovalRequestResource::class))
@@ -435,7 +435,7 @@ class TransactionApprovalService
         foreach ($recipients as $recipient) {
             Notification::make()
                 ->title("Menunggu persetujuan: {$label}")
-                ->body("Booking {$booking->booking_number} — perlu persetujuan Anda sebelum " . (config('features.finance') ? 'diposting ke Jurnal Umum.' : 'diproses.'))
+                ->body("Booking {$booking->booking_number} — perlu persetujuan sebelum " . (config('features.finance') ? 'diposting ke Jurnal Umum.' : 'diproses.'))
                 ->warning()
                 ->actions(\App\Support\PanelNotificationLink::actions(\App\Filament\Pages\ApprovalCenter::class))
                 ->sendToDatabase($recipient);
@@ -457,7 +457,7 @@ class TransactionApprovalService
             app(PushNotificationService::class)->sendToUsers(
                 $recipients->pluck('id'),
                 "Menunggu persetujuan: {$label}",
-                "Booking {$booking->booking_number} — perlu persetujuan Anda."
+                "Booking {$booking->booking_number} — perlu persetujuan."
             );
         } catch (\Throwable $e) {
             report($e);

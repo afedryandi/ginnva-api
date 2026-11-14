@@ -18,7 +18,7 @@
         </div>
         <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
             Daftar ini hanya membaca. Kolom "Terakhir terkirim" diambil dari Log Pengiriman 90 hari terakhir dan hanya bisa mencocokkan judul yang tetap; "—" berarti belum tercatat dalam 90 hari atau judulnya berubah-ubah. Pelanggan selalu mendapat baris di kotak masuk aplikasinya. Untuk staff, "push saja" berarti berkas pengirimnya tidak membuat notifikasi di lonceng panel,
-            jadi pesan yang terlewat di ponsel tidak tersimpan. Aplikasi staff punya Kotak Masuk, tetapi baru memuat titik yang sudah memakai pengirim staff yang baru.
+            jadi pesan yang terlewat di ponsel tidak tersimpan. Aplikasi staff punya Kotak Masuk, tapi baru memuat titik yang sudah memakai pengirim staff yang baru.
         </p>
     </x-filament::section>
 

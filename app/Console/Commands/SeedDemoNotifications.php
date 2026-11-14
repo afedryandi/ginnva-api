@@ -31,9 +31,9 @@ class SeedDemoNotifications extends Command
         ['Permintaan koreksi absensi baru', 'Budi mengajukan koreksi absensi tanggal 12 Nov 2026.', 'warning', 42, false],
         ['Pengajuan izin/cuti baru', 'Rina mengajukan IZ-2611-0007 (14 Nov–15 Nov 2026).', 'warning', 75, false],
         ['Booking Baru', 'Booking BKG-2611-0042 masuk: Toyota Fortuner, PPF Full Body.', 'info', 130, false],
-        ['Permohonan Pembelian Baru', 'Permohonan pembelian PR-2611-0003 menunggu persetujuan Anda.', 'warning', 240, true],
+        ['Permohonan Pembelian Baru', 'Permohonan pembelian PR-2611-0003 menunggu persetujuan.', 'warning', 240, true],
         ['Pengeluaran Menunggu Persetujuan', 'Pengeluaran Rp1.250.000 (Pembelian bahan baku) menunggu persetujuan direksi.', 'warning', 380, true],
-        ['Surat Peringatan Diterbitkan', 'Surat Peringatan SP-2611-0002 untuk Dedi telah diterbitkan.', 'danger', 600, true],
+        ['Surat Peringatan Diterbitkan', 'Surat Peringatan SP-2611-0002 untuk Dedi sudah diterbitkan.', 'danger', 600, true],
         ['Kontrak Karyawan Akan Berakhir', 'Kontrak Tono berakhir 30 hari lagi (12 Des 2026).', 'warning', 1440, true],
         ['Lead Baru', 'Lead baru dari Instagram: Honda CR-V, minat Kaca Film Ceramic.', 'info', 2000, true],
         ['Review Negatif Masuk', 'Review 2 bintang untuk Ginnva House: "Pengerjaan terlalu lama".', 'danger', 2900, true],
@@ -43,7 +43,7 @@ class SeedDemoNotifications extends Command
     public function handle(): int
     {
         if (app()->isProduction() && ! $this->option('force')) {
-            $this->error('Ini lingkungan production. Tambahkan --force bila memang ingin membuat atau menghapus data demo di sini.');
+            $this->error('Ini lingkungan production. Tambahkan --force kalau memang ingin membuat atau menghapus data demo di sini.');
 
             return self::FAILURE;
         }

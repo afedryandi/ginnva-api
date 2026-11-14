@@ -61,7 +61,7 @@ class DeactivateExpiredContracts extends Command
         foreach ($recipients as $recipient) {
             Notification::make()
                 ->title('Karyawan Dinonaktifkan Otomatis (Kontrak Berakhir)')
-                ->body("{$expired->count()} karyawan: {$names}. Tidak diperpanjang sebelum tanggal berakhir, akses dicabut otomatis dan Hari Kerja Terakhir diisi tanggal akhir kontrak. Bila kontrak ternyata diperpanjang, catat di Riwayat Kontrak: akunnya diaktifkan kembali.")
+                ->body("{$expired->count()} karyawan: {$names}. Tidak diperpanjang sebelum tanggal berakhir, akses dicabut otomatis dan Hari Kerja Terakhir diisi tanggal akhir kontrak. Kalau kontrak ternyata diperpanjang, catat di Riwayat Kontrak: akunnya diaktifkan kembali.")
                 ->danger()
                 ->actions([
                     \Filament\Notifications\Actions\Action::make('view')

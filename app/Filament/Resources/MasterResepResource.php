@@ -112,7 +112,7 @@ class MasterResepResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Bahan Standar per 1x Pemasangan')
-                ->description('Perkiraan bahan yang terpakai untuk sekali pasang produk ini. Dipakai sebagai acuan auto-isi Memo Barang & perencanaan stok. Belum termasuk perhitungan biaya (HPP menyusul).')
+                ->description('Perkiraan bahan untuk sekali pasang produk ini. Dipakai sebagai acuan auto-isi Memo Barang dan perencanaan stok.')
                 ->schema([
                     Forms\Components\Repeater::make('recipeItems')
                         ->relationship()

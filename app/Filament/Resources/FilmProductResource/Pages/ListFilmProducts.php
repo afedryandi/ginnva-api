@@ -104,7 +104,7 @@ class ListFilmProducts extends ListRecords
                             'application/vnd.ms-excel',
                             'text/csv',
                         ])
-                        ->helperText('Pakai format dari "Download Template Import". Kolom kosong tidak mengubah data yang ada. SKU yang tidak ditemukan di katalog dilewati (import ini tidak membuat produk baru). Yang diimpor adalah Harga Dasar (flat); produk yang harganya per ukuran kendaraan tidak berubah harga jualnya.'),
+                        ->helperText('Pakai format dari Download Template Import. Kolom kosong tidak mengubah data. SKU yang tidak ada dilewati. Hanya Harga Dasar (flat) yang diimpor.'),
                 ])
                 ->action(function (array $data) {
                     $path = $data['file'];
@@ -134,7 +134,7 @@ class ListFilmProducts extends ListRecords
 
                     Notification::make()
                         ->title('Import selesai')
-                        ->body("{$log->updated_count} produk diperbarui, {$log->skipped_count} baris dilewati dari {$log->total_rows} baris. Lihat detail di menu \"Riwayat Import Produk\"."
+                        ->body("{$log->updated_count} produk diperbarui, {$log->skipped_count} dari {$log->total_rows} baris dilewati. Detail ada di Riwayat Import Produk."
                             . ($sizePriced > 0 ? " Perhatian: {$sizePriced} produk punya harga per ukuran yang menang atas harga dasar, jadi harga jualnya tidak berubah." : ''))
                         ->success()
                         ->send();

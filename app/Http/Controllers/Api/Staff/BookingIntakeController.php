@@ -130,13 +130,13 @@ class BookingIntakeController extends Controller
     private function authorizeManage($user, Booking $booking): Booking
     {
         if ($user->hasRole('installer') || $user->hasRole('partner')) {
-            abort(403, 'Anda tidak bisa mengelola foto penerimaan.');
+            abort(403, 'Akun ini tidak bisa mengelola foto penerimaan.');
         }
 
-        abort_unless($user->hasBookingAccess(), 403, 'Anda tidak punya akses menu Booking.');
+        abort_unless($user->hasBookingAccess(), 403, 'Akun ini tidak punya akses menu Booking.');
 
         if (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
-            abort(403, 'Anda tidak punya akses ke booking toko lain.');
+            abort(403, 'Akun ini tidak punya akses ke booking toko lain.');
         }
 
         return $booking;

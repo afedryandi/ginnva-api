@@ -240,8 +240,8 @@ class TransactionApprovalTest extends TestCase
         $admin = $this->admin();
         $adminRequest = $this->service->submitDownPayment($booking, 100000, null, $admin->id);
 
-        $this->assertRefused(fn () => $this->service->approve($adminRequest, $admin->id), 'tidak boleh memutuskan pengajuan yang Anda ajukan sendiri');
-        $this->assertRefused(fn () => $this->service->reject($adminRequest, $admin->id, 'x'), 'tidak boleh memutuskan pengajuan yang Anda ajukan sendiri');
+        $this->assertRefused(fn () => $this->service->approve($adminRequest, $admin->id), 'tidak boleh diputuskan sendiri');
+        $this->assertRefused(fn () => $this->service->reject($adminRequest, $admin->id, 'x'), 'tidak boleh diputuskan sendiri');
 
         foreach ([$this->user('store_manager'), $this->user('spv_finance'), $this->staff()] as $nonAdmin) {
             $this->assertRefused(fn () => $this->service->approve($adminRequest, $nonAdmin->id), 'tidak berwenang');
@@ -411,7 +411,7 @@ class TransactionApprovalTest extends TestCase
 
         $this->service->notifyRequesterStuck($request, 'Periode sudah ditutup');
 
-        $this->assertTrue($staff->notifications()->get()->contains(fn ($n) => $n->data['title'] === 'Pengajuan Anda tertahan'));
+        $this->assertTrue($staff->notifications()->get()->contains(fn ($n) => $n->data['title'] === 'Pengajuan tertahan'));
     }
 
     // ------------------------------------------------------------- pengingat harian
@@ -544,7 +544,7 @@ class TransactionApprovalTest extends TestCase
         $this->listFor($this->admin(), 'menunggu')->callTableAction('approve', $request);
 
         $this->assertSame('pending', $request->fresh()->status);
-        $this->assertTrue($staff->notifications()->get()->contains(fn ($n) => $n->data['title'] === 'Pengajuan Anda tertahan'));
+        $this->assertTrue($staff->notifications()->get()->contains(fn ($n) => $n->data['title'] === 'Pengajuan tertahan'));
     }
 
     public function test_rejecting_from_the_table_needs_a_note(): void

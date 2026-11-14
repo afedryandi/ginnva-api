@@ -100,7 +100,7 @@ class RewardController extends Controller
             ] : null,
             'message' => $claim
                 ? 'Voucher berhasil ditukar. Cek menu "Voucher Saya" dan tunjukkan kodenya saat booking berikutnya.'
-                : 'Reward berhasil ditukar. Tim kami akan menghubungi Anda untuk proses selanjutnya.',
+                : 'Reward berhasil ditukar. Tim kami akan menghubungi untuk proses selanjutnya.',
         ]);
     }
 }

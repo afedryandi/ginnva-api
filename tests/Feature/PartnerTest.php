@@ -228,7 +228,7 @@ class PartnerTest extends TestCase
 
         $this->asPartner($partner)->postJson('/api/partner/change-password', [
             'current_password' => 'salah', 'password' => 'passwordbaru1', 'password_confirmation' => 'passwordbaru1',
-        ])->assertStatus(422)->assertJsonPath('message', 'Password lama yang Anda masukkan salah.');
+        ])->assertStatus(422)->assertJsonPath('message', 'Password lama salah.');
 
         $this->asPartner($partner)->postJson('/api/partner/change-password', [
             'current_password' => 'rahasia123', 'password' => 'pendek', 'password_confirmation' => 'pendek',

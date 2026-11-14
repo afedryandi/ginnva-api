@@ -126,7 +126,7 @@ class MyWarrantyController extends Controller
         if ($store?->isClosedOn(Carbon::parse($request->preferred_date))) {
             return response()->json([
                 'success' => false,
-                'message' => 'Tanggal yang dipilih sedang tidak tersedia untuk toko ini. Silakan pilih tanggal lain.',
+                'message' => 'Tanggal yang dipilih sedang tidak tersedia untuk toko ini. Pilih tanggal lain.',
                 'errors'  => ['preferred_date' => ['Toko tutup/tanggal diblokir pada hari ini.']],
             ], 422);
         }
@@ -154,7 +154,7 @@ class MyWarrantyController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Klaim garansi diajukan. Toko akan menghubungi Anda untuk konfirmasi jadwal.',
+            'message' => 'Klaim garansi diajukan. Toko akan menghubungi untuk konfirmasi jadwal.',
             'data'    => [
                 'claim_number' => $booking->warrantyClaim->claim_number,
                 'booking'      => $booking,

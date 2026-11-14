@@ -18,14 +18,14 @@ class EnsureActiveAccount
         $user = $request->user('api');
 
         if ($user && $user->is_active === false) {
-            return response()->json(['success' => false, 'code' => 'account_inactive', 'message' => 'Akun Anda sudah dinonaktifkan. Hubungi admin jika ini keliru.'], 403);
+            return response()->json(['success' => false, 'code' => 'account_inactive', 'message' => 'Akun ini sudah dinonaktifkan. Hubungi admin kalau ini keliru.'], 403);
         }
 
         if ($user && $user->sessions_revoked_at) {
             $issuedAt = (int) auth('api')->payload()->get('iat');
 
             if ($issuedAt < $user->sessions_revoked_at->getTimestamp()) {
-                return response()->json(['success' => false, 'code' => 'session_revoked', 'message' => 'Sesi berakhir karena password diubah. Silakan masuk lagi.'], 401);
+                return response()->json(['success' => false, 'code' => 'session_revoked', 'message' => 'Sesi berakhir karena password diubah. Masuk lagi.'], 401);
             }
         }
 

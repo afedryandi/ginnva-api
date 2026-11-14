@@ -88,6 +88,6 @@ class MovementsRelationManager extends RelationManager
             ])
             ->defaultSort('created_at', 'desc')
             ->emptyStateHeading('Belum ada riwayat')
-            ->emptyStateDescription('Riwayat otomatis muncul di sini setiap kali "Catat Stok" dicatat. Baris di sini permanen — kalau ada salah catat, gunakan aksi "Batalkan" pada baris terakhir, atau "Sesuaikan Stok" (opname) di daftar utama.');
+            ->emptyStateDescription('Riwayat muncul otomatis tiap kali Catat Stok dicatat. Salah catat? Pakai Batalkan pada baris terakhir, atau Sesuaikan Stok (opname) di daftar utama.');
     }
 }

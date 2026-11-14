@@ -92,7 +92,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Akun Anda sudah dinonaktifkan. Hubungi admin jika ini keliru.',
+                'message' => 'Akun ini sudah dinonaktifkan. Hubungi admin kalau ini keliru.',
             ], 403);
         }
 
@@ -104,7 +104,7 @@ class AuthController extends Controller
         if ($user->partner && $user->partner->status !== 'active') {
             return response()->json([
                 'success' => false,
-                'message' => 'Akun partner ini sedang nonaktif. Hubungi tim Ginnva untuk informasi lebih lanjut.',
+                'message' => 'Akun partner ini sedang nonaktif. Hubungi tim Ginnva untuk info lebih lanjut.',
             ], 403);
         }
 
@@ -183,7 +183,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Jika email terdaftar sebagai akun staff, kode verifikasi telah dikirim. Karyawan yang masuk dengan No. HP tanpa email: hubungi admin untuk mengatur ulang password.',
+            'message' => 'Kalau email terdaftar, kode verifikasi sudah dikirim. Masuk dengan No. HP tanpa email? Hubungi admin untuk mengatur ulang password.',
         ]);
     }
 
@@ -227,7 +227,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Password berhasil diubah. Silakan masuk dengan password baru.',
+            'message' => 'Password berhasil diubah. Masuk dengan password baru.',
         ]);
     }
 
@@ -257,7 +257,7 @@ class AuthController extends Controller
         if (! Hash::check($request->current_password, $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Password lama yang Anda masukkan salah.',
+                'message' => 'Password lama salah.',
             ], 422);
         }
 

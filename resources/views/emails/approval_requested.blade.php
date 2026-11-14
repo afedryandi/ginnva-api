@@ -22,7 +22,7 @@
 </table>
 
 <p style="margin:0 0 24px;color:#666666;font-size:14px;line-height:1.6;">
-    Buka Pusat Persetujuan untuk menyetujui atau menolak. Saat ini ada <strong>{{ $pendingCount }}</strong> pengajuan yang menunggu keputusan Anda.
+    Buka Pusat Persetujuan untuk menyetujui atau menolak. Saat ini ada <strong>{{ $pendingCount }}</strong> pengajuan yang menunggu keputusan.
 </p>
 
 <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;">

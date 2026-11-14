@@ -478,7 +478,7 @@ class RawMaterialController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => "Selisih melebihi {$limit} {$material->unit} untuk bahan ini. Isi catatan alasan selisih.",
-                'errors' => ['note' => ["Catatan wajib diisi bila selisih lebih dari {$limit} {$material->unit}."]],
+                'errors' => ['note' => ["Catatan wajib diisi kalau selisih lebih dari {$limit} {$material->unit}."]],
             ], 422);
         }
 

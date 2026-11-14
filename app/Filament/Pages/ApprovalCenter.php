@@ -42,7 +42,7 @@ class ApprovalCenter extends Page implements HasActions, HasForms
 
     protected static string $view = 'filament.pages.approval-center';
 
-    protected static ?string $navigationBadgeTooltip = 'Pengajuan menunggu keputusan Anda';
+    protected static ?string $navigationBadgeTooltip = 'Pengajuan menunggu keputusan';
 
     /** Penyaring jenis pengajuan; kosong = semua. */
     #[Url(as: 'jenis')]

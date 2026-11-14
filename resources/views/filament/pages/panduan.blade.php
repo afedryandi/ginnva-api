@@ -113,7 +113,7 @@
 
         <div x-show="none" x-cloak>
             <x-filament::section>
-                <p style="font-size: 0.875rem;">Tidak ada panduan yang cocok dengan pencarian Anda. Coba kata kunci lain.</p>
+                <p style="font-size: 0.875rem;">Tidak ada panduan yang cocok dengan pencarian. Coba kata kunci lain.</p>
             </x-filament::section>
         </div>
     </div>

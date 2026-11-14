@@ -42,7 +42,7 @@
 
     <x-filament::section>
         <x-slot name="heading">Daftar Serial Number (Roll)</x-slot>
-        <x-slot name="description">Filter berdasarkan tanggal alokasi ke toko. Roll yang belum pernah dialokasikan tidak punya tanggal alokasi, jadi hanya muncul kalau status "Belum Dialokasikan" dipilih (filter tanggal tidak berlaku untuknya).</x-slot>
+        <x-slot name="description">Filter berdasarkan tanggal alokasi ke toko. Roll yang belum dialokasikan hanya muncul kalau status Belum Dialokasikan dipilih.</x-slot>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
@@ -91,9 +91,7 @@
     <x-filament::section>
         <x-slot name="heading">Riwayat Pemakaian</x-slot>
         <x-slot name="description">
-            Analog "Jenis Transaksi"/"Tanggal" Majoo — tiap baris = 1 kali roll dipakai instalasi. "No Transaksi" dan
-            "Stok"/"Stok Akhir" (saldo sebelum/sesudah) tidak ditampilkan — datanya tidak tersimpan, cuma jumlah meter
-            yang dipakai saat itu yang dicatat sistem.
+            Tiap baris = satu kali roll dipakai instalasi, dengan jumlah meter yang dipakai saat itu.
         </x-slot>
 
         <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">

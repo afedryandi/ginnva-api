@@ -23,13 +23,13 @@ class AppSetting extends Model
     public const DEFINITIONS = [
         self::CANCELLATION_POLICY => [
             'label' => 'Kebijakan Pembatalan Booking',
-            'help' => 'Tampil di ringkasan booking pelanggan. Tulis ringkas dan tanpa janji yang tidak Anda terapkan.',
-            'default' => 'Jika berhalangan, mohon ubah jadwal atau batalkan booking sedini mungkin agar slot bisa dipakai pelanggan lain. Tidak ada biaya pembatalan.',
+            'help' => 'Tampil di ringkasan booking pelanggan. Tulis ringkas dan tanpa janji yang tidak dijalankan.',
+            'default' => 'Kalau berhalangan, ubah jadwal atau batalkan booking sedini mungkin supaya slot bisa dipakai pelanggan lain. Tidak ada biaya pembatalan.',
         ],
         self::PRIVACY_NOTICE => [
             'label' => 'Pemberitahuan Privasi Booking',
             'help' => 'Tampil di ringkasan booking dengan kotak persetujuan. Mengubah isi membuat versi baru; persetujuan lama tetap tercatat pada versi yang disetujui. Sebut data yang dipakai, tujuan, masa simpan foto, dan cara meminta akses/penghapusan.',
-            'default' => 'Kami memakai nama, nomor HP, data kendaraan, dan foto kendaraan Anda hanya untuk memproses booking, pengerjaan, garansi, dan komunikasi layanan. Foto kendaraan disimpan 24 bulan setelah layanan selesai, lalu dihapus. Anda dapat meminta akses, koreksi, atau penghapusan data dengan menghubungi toko, atau menghapus akun dari aplikasi.',
+            'default' => 'Kami memakai nama, nomor HP, data kendaraan, dan foto kendaraan Anda hanya untuk memproses booking, pengerjaan, garansi, dan komunikasi layanan. Foto kendaraan disimpan 24 bulan setelah layanan selesai, lalu dihapus. Anda bisa meminta akses, koreksi, atau penghapusan data dengan menghubungi toko, atau menghapus akun dari aplikasi.',
         ],
     ];
 

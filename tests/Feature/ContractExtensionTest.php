@@ -311,7 +311,7 @@ class ContractExtensionTest extends TestCase
 
         $this->artisan('contracts:notify-expiring')->assertSuccessful();
 
-        $selfPushes = collect($pushes)->where(1, 'Kontrak Kerja Anda Akan Berakhir');
+        $selfPushes = collect($pushes)->where(1, 'Kontrak Kerja Akan Berakhir');
         $this->assertEqualsCanonicalizing($due->pluck('id')->all(), $selfPushes->pluck(0)->all());
         $this->assertStringContainsString('14 hari lagi', $selfPushes->firstWhere(0, $due[1]->id)[2]);
         $this->assertSame(1, $due[1]->notifications()->count(), 'Juga masuk kotak masuk, bukan push saja.');

@@ -14,6 +14,6 @@
         :badge="$count > 0 ? ($count > 99 ? '99+' : $count) : null"
         badge-color="danger"
         size="lg"
-        :tooltip="$count > 0 ? $count . ' pengajuan menunggu keputusan Anda' : 'Pusat Persetujuan'"
+        :tooltip="$count > 0 ? $count . ' pengajuan menunggu keputusan' : 'Pusat Persetujuan'"
     />
 @endif

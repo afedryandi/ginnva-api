@@ -260,7 +260,7 @@ class InventoryItemResource extends Resource
 
                             Forms\Components\TextInput::make('total_length_meters')
                                 ->label('Total Panjang (meter)')
-                                ->helperText('Terisi otomatis dari produk yang dipilih (PPF 15m, Window Film 30m) — ubah manual kalau gulungan ini beda, mis. sisa tabungan dari gulungan lain.')
+                                ->helperText('Terisi otomatis dari produk (PPF 15 m, Window Film 30 m). Ubah manual kalau gulungan ini berbeda.')
                                 ->numeric()
                                 ->required()
                                 ->minValue(0.01),
@@ -478,7 +478,7 @@ class InventoryItemResource extends Resource
                                 'application/vnd.ms-excel',
                                 'text/csv',
                             ])
-                            ->helperText('Pakai format dari tombol "Download Template". Baris pertama (header) otomatis dilewati. Kolom Kode Gulungan opsional — kosongkan kalau belum tahu kode fisiknya. Produk hasil import otomatis berstatus "Ada Stok".'),
+                            ->helperText('Pakai format dari tombol Download Template. Baris pertama dilewati. Kode Gulungan opsional. Produk hasil import berstatus Ada Stok.'),
                     ])
                     ->action(fn (array $data) => static::importItems($data['file']))
                     ->modalSubmitActionLabel('Import'),
@@ -792,7 +792,7 @@ class InventoryItemResource extends Resource
                         && $record->scrollCode?->status === 'allocated'
                         && static::canActOnScrollCode($record->scrollCode))
                     ->requiresConfirmation()
-                    ->modalDescription('Tandai kode gulungan barang ini sebagai habis? Kode ini tidak akan muncul lagi di pilihan saat input garansi baru.')
+                    ->modalDescription('Tandai gulungan ini habis? Kodenya tidak muncul lagi di pilihan garansi baru.')
                     ->action(function (InventoryItem $record) {
                         if (! static::canActOnScrollCode($record->scrollCode)) {
                             Notification::make()
@@ -1013,7 +1013,7 @@ class InventoryItemResource extends Resource
 
             Notification::make()
                 ->title('Import dibatalkan')
-                ->body('Terjadi galat di tengah import, jadi tidak ada barang yang tersimpan: ' . $e->getMessage())
+                ->body('Terjadi kesalahan di tengah import, jadi tidak ada barang yang tersimpan: ' . $e->getMessage())
                 ->danger()
                 ->persistent()
                 ->send();

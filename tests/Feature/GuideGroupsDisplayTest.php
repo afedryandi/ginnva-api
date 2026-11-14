@@ -30,7 +30,7 @@ class GuideGroupsDisplayTest extends TestCase
     {
         $guides = $this->actingAs($this->admin(), 'api')->getJson('/api/staff/guides')->assertOk()->json('guides');
 
-        $this->assertSame('Mulai dari peran Anda', $guides[0]['category_label']);
+        $this->assertSame('Mulai dari peran', $guides[0]['category_label']);
 
         $order = array_flip(array_keys(GuideCatalog::CATEGORIES));
         $positions = array_map(fn ($guide) => $order[$guide['category']], $guides);
@@ -50,6 +50,6 @@ class GuideGroupsDisplayTest extends TestCase
         $this->assertStringContainsString('data-guide-group="keuangan"', $html);
         $this->assertStringContainsString('aria-expanded', $html, 'Judul kelompok harus berupa tombol buka-tutup.');
         $this->assertStringContainsString("toggle('keuangan')", $html);
-        $this->assertStringContainsString('data-guide="booking"', $html, 'Isi panduan tetap ada di halaman agar bisa dicari.');
+        $this->assertStringContainsString('data-guide="booking"', $html, 'Isi panduan tetap ada di halaman supaya bisa dicari.');
     }
 }

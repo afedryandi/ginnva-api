@@ -168,7 +168,7 @@ class QuotationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Permintaan penawaran berhasil dikirim. Tim sales kami akan segera menghubungi Anda.',
+            'message' => 'Permintaan penawaran berhasil dikirim. Tim sales kami akan segera menghubungi.',
             'data' => [
                 'quotation_number' => $quotation->quotation_number,
             ],

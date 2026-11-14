@@ -19,7 +19,7 @@ class ListContractExtensions extends ListRecords
                 ->color('gray')
                 ->visible(fn () => ContractExtensionResource::canCreate())
                 ->modalHeading('Angkat Jadi Karyawan Tetap')
-                ->modalDescription('Tipe karyawan diganti dan tanggal akhir kontrak dikosongkan, sehingga tidak lagi diingatkan atau dinonaktifkan otomatis. Tercatat di Riwayat Aktivitas dan karyawan diberi tahu.')
+                ->modalDescription('Tipe karyawan diganti dan tanggal akhir kontrak dikosongkan, jadi tidak lagi diingatkan atau dinonaktifkan otomatis. Tercatat di Riwayat Aktivitas.')
                 ->form([
                     \Filament\Forms\Components\Select::make('user_id')
                         ->label('Karyawan')
@@ -38,7 +38,7 @@ class ListContractExtensions extends ListRecords
 
                     if (! $employee) {
                         \Filament\Notifications\Notification::make()->title('Tidak bisa disimpan')
-                            ->body('Karyawan ini tidak termasuk yang boleh Anda angkat: harus aktif, bertipe kontrak, dan dalam wewenang Anda.')->danger()->send();
+                            ->body('Karyawan ini tidak termasuk yang bisa diangkat oleh akun ini: harus aktif, bertipe kontrak, dan dalam wewenang akun ini.')->danger()->send();
 
                         return;
                     }
@@ -54,7 +54,7 @@ class ListContractExtensions extends ListRecords
                     app(\App\Services\StaffNotifier::class)->toUsers(
                         [$updated->id],
                         'Status Kepegawaian Berubah',
-                        "Anda kini karyawan tetap ({$updated->employeeType->name}). Kontrak kerja Anda tidak lagi berbatas waktu."
+                        "Status sekarang karyawan tetap ({$updated->employeeType->name}). Kontrak kerja tidak lagi berbatas waktu."
                     );
 
                     \Filament\Notifications\Notification::make()->title('Diangkat jadi karyawan tetap')

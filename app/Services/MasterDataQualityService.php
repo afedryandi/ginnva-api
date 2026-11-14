@@ -80,7 +80,7 @@ class MasterDataQualityService
         $add('store_no_capacity', 'Toko', 'Toko aktif tanpa jumlah slot Detailing atau Instalasi & QC', (clone $activeStores)->where(fn ($q) => $q->whereNull('detailing_slot_count')->orWhereNull('instalasi_qc_slot_count'))->count(), (clone $activeStores)->count(), 'info',
             'Laporan Utilisasi Zona/Bay melewati toko yang slotnya belum diisi.');
         $add('store_no_manager', 'Toko', 'Toko aktif tanpa penanggung jawab', (clone $activeStores)->whereNull('manager_user_id')->count(), (clone $activeStores)->count(), 'info',
-            'Opsional, tetapi membantu mengetahui siapa yang dihubungi.');
+            'Opsional, tapi membantu mengetahui siapa yang dihubungi.');
 
         // ---- Produk
         $products = FilmProduct::query()->where('is_active', true)->with(['prices'])->get();

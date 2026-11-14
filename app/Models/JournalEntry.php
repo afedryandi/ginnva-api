@@ -119,13 +119,13 @@ class JournalEntry extends Model
     {
         static::updating(function (JournalEntry $entry) {
             if ($entry->getOriginal('status') === 'posted' && $entry->isDirty(['entry_date', 'store_id', 'status', 'description', 'entry_number'])) {
-                throw new \RuntimeException("Jurnal {$entry->entry_number} sudah diposting dan terkunci — gunakan jurnal pembalik untuk koreksi.");
+                throw new \RuntimeException("Jurnal {$entry->entry_number} sudah diposting dan terkunci — pakai jurnal pembalik untuk koreksi.");
             }
         });
 
         static::deleting(function (JournalEntry $entry) {
             if ($entry->status === 'posted') {
-                throw new \RuntimeException("Jurnal {$entry->entry_number} sudah diposting dan tidak boleh dihapus — gunakan jurnal pembalik.");
+                throw new \RuntimeException("Jurnal {$entry->entry_number} sudah diposting dan tidak boleh dihapus — pakai jurnal pembalik.");
             }
         });
     }

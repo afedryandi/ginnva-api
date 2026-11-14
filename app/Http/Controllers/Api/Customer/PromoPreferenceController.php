@@ -42,7 +42,7 @@ class PromoPreferenceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => $optIn ? 'Anda akan menerima info promo dari Ginnva.' : 'Anda tidak akan menerima notifikasi promo lagi.',
+            'message' => $optIn ? 'Info promo dari Ginnva akan dikirim.' : 'Notifikasi promo tidak akan dikirim lagi.',
             'data' => $this->payload($customer->fresh()),
         ]);
     }

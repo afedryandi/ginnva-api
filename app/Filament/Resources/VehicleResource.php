@@ -91,7 +91,7 @@ class VehicleResource extends Resource
             }
         }
 
-        return 'Menentukan harga PPF dan kaca film (harga dibaca dari matriks per ukuran). Mengubah ukuran di sini mengubah harga acuan untuk semua booking dan penawaran berikutnya di SEMUA toko.'
+        return 'Menentukan harga PPF dan kaca film. Mengubah ukuran di sini mengubah harga acuan di semua toko untuk booking dan penawaran berikutnya.'
             . ($parts ? ' Contoh yang sudah terdaftar: ' . implode(' | ', $parts) . '.' : '');
     }
 
@@ -131,7 +131,7 @@ class VehicleResource extends Resource
 
                     Forms\Components\TextInput::make('model')
                         ->label('Tipe / Model')
-                        ->placeholder('Contoh: Civic, Alphard (opsional — isi jika sudah diketahui)')
+                        ->placeholder('Contoh: Civic, Alphard (opsional — isi kalau sudah diketahui)')
                         ->nullable()
                         ->maxLength(255),
 
@@ -198,7 +198,7 @@ class VehicleResource extends Resource
                     Forms\Components\Toggle::make('is_active')
                         ->label('Aktif di katalog')
                         ->default(true)
-                        ->helperText('Nonaktifkan kendaraan yang tidak ditawarkan lagi. Riwayat penawaran dan kendaraan pelanggan tetap utuh; kendaraan nonaktif tidak muncul di aplikasi dan formulir.'),
+                        ->helperText('Nonaktifkan kendaraan yang tidak ditawarkan lagi. Riwayat tetap utuh; kendaraan nonaktif tidak muncul di aplikasi dan formulir.'),
 
                     Forms\Components\TextInput::make('year_from')
                         ->label('Tahun produksi dari')
@@ -335,7 +335,7 @@ class VehicleResource extends Resource
                         // Salin kolom yang relevan saja: replicate() ikut membawa atribut hitungan (withCount) dari daftar.
                         Vehicle::create($record->only(['brand', 'model', 'size_category', 'is_active', 'body_type', 'year_from', 'year_to', 'notes']) + ['variant' => trim($data['variant'])]);
 
-                        Notification::make()->title('Varian baru dibuat')->body('Periksa ukuran dan tipe bodinya, lalu ubah bila berbeda.')->success()->send();
+                        Notification::make()->title('Varian baru dibuat')->body('Periksa ukuran dan tipe bodinya, lalu ubah kalau berbeda.')->success()->send();
                     }),
                 Tables\Actions\Action::make('addGlassArea')
                     ->label('Isi Luas Kaca')
@@ -429,7 +429,7 @@ class VehicleResource extends Resource
                                     ->title($deleted > 0
                                         ? "{$deleted} kendaraan dihapus, {$blocked} tidak bisa dihapus"
                                         : 'Tidak ada kendaraan yang bisa dihapus')
-                                    ->body("{$blocked} kendaraan masih dipakai oleh penawaran, studi kasus, atau kendaraan pelanggan, dilewati. Nonaktifkan saja kendaraan yang tidak ditawarkan lagi.")
+                                    ->body("{$blocked} kendaraan masih dipakai penawaran, studi kasus, atau kendaraan pelanggan, jadi dilewati. Nonaktifkan saja yang tidak ditawarkan lagi.")
                                     ->warning()
                                     ->send();
 

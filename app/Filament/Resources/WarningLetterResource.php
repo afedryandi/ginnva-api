@@ -303,7 +303,7 @@ class WarningLetterResource extends Resource
                                 : 'SP yang masih berlaku: ' . $active->map(fn ($w) => strtoupper(str_replace('sp', 'SP ', $w->level)) . ' (s/d ' . ($w->valid_until?->format('d M Y') ?? 'tanpa batas') . ')')->implode(', ') . ". Disarankan {$suggestedLabel}.";
 
                             if ($get('level') && \App\Models\WarningLetter::levelNumber($get('level')) > \App\Models\WarningLetter::levelNumber($suggested)) {
-                                $text .= ' Anda memilih tingkat yang melompati urutan; pastikan pelanggarannya memang layak dan tercatat di Peraturan Perusahaan.';
+                                $text .= ' Tingkat yang dipilih melompati urutan; pastikan pelanggarannya memang layak dan tercatat di Peraturan Perusahaan.';
                             }
 
                             if (! array_key_exists($suggested, static::allowedLevels())) {
@@ -369,7 +369,7 @@ class WarningLetterResource extends Resource
                         ->visible(fn (?WarningLetter $record) => $record?->isLocked() ?? false)
                         ->content(fn (?WarningLetter $record) => $record?->isCancelled()
                             ? 'Dibatalkan ' . $record->cancelled_at->translatedFormat('d M Y H:i') . ': ' . $record->cancel_reason
-                            : 'Sudah dibaca karyawan: isi surat terkunci. Bila keliru, batalkan lewat tombol Batalkan SP di daftar lalu terbitkan surat baru.')
+                            : 'Sudah dibaca karyawan: isi surat terkunci. Kalau keliru, batalkan lewat tombol Batalkan SP di daftar lalu terbitkan surat baru.')
                         ->columnSpanFull(),
                 ]),
         ]);
@@ -523,7 +523,7 @@ class WarningLetterResource extends Resource
                     ->color('danger')
                     ->visible(fn (WarningLetter $record) => ! $record->isCancelled() && static::canVoid())
                     ->modalHeading('Batalkan Surat Peringatan')
-                    ->modalDescription('Surat tetap tersimpan sebagai bukti, tetapi tidak dihitung sebagai SP berlaku maupun dasar tingkat berikutnya. Karyawan diberi tahu. Tidak bisa dikembalikan; bila perlu, terbitkan surat baru.')
+                    ->modalDescription('Surat tetap tersimpan sebagai bukti, tapi tidak dihitung sebagai SP berlaku. Karyawan diberi tahu. Tidak bisa dikembalikan; terbitkan surat baru kalau perlu.')
                     ->form([
                         Forms\Components\Textarea::make('cancel_reason')->label('Alasan pembatalan')->required()->rows(3),
                     ])
@@ -548,7 +548,7 @@ class WarningLetterResource extends Resource
 
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn (WarningLetter $record) => ! $record->isLocked() && static::canDelete($record))
-                    ->modalDescription('Hanya untuk surat yang salah input dan belum dibaca karyawan. Surat yang sudah dibaca tidak bisa dihapus; gunakan Batalkan SP.'),
+                    ->modalDescription('Hanya untuk surat yang salah input dan belum dibaca karyawan. Surat yang sudah dibaca tidak bisa dihapus; pakai Batalkan SP.'),
             ])
             ->defaultSort('issued_date', 'desc');
     }
