@@ -112,12 +112,12 @@
         .gd-ok { display: flex; align-items: center; gap: .625rem; padding: .25rem 0; font-size: .875rem; color: var(--gd-muted); }
         .gd-ok svg { width: 1.25rem; height: 1.25rem; color: rgb(var(--success-500)); flex: none; }
 
-        /* Baris atas asimetris: Perlu perhatian di kolom lebar (7/12), Aktivitas terbaru di kolom sempit (5/12); menumpuk di layar sempit. */
+        /* Baris atas asimetris: Perlu perhatian di kolom lebar (7/12), kartu aktivitas di kolom sempit (5/12); menumpuk di layar sempit. */
         .gd-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
         @media (min-width: 1280px) { .gd-split--two { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); } }
         .gd-stack { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 
-        /* Aktivitas terbaru: daftar ringkas bersekat tipis dalam satu kartu. */
+        /* Kartu aktivitas: daftar ringkas bersekat tipis dalam satu kartu. */
         .gd-act { background: var(--gd-surface); border: 1px solid var(--gd-line); border-radius: var(--gd-radius); padding: 1.125rem 1.25rem; }
         .gd-act-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: .875rem; }
         .gd-act-title { font-size: .875rem; font-weight: 600; color: var(--gd-ink); }

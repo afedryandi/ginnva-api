@@ -143,8 +143,9 @@ class UserAccessFormTest extends TestCase
             }
         }
 
-        // Tidak pernah bisa diberikan ke staf biasa (khusus akses penuh), halaman beranda, atau resource yang disembunyikan.
-        $this->assertEqualsCanonicalizing(['DashboardHome', 'PriceRuleResource', 'UserResource'], $missing);
+        // Tidak pernah bisa diberikan ke staf biasa (khusus akses penuh), halaman beranda, resource yang disembunyikan, atau halaman bantu
+        // tersembunyi yang aksesnya mengikuti menu lain (FieldDutyPhoto mengikuti Pengajuan Dinas Luar).
+        $this->assertEqualsCanonicalizing(['DashboardHome', 'FieldDutyPhoto', 'PriceRuleResource', 'UserResource'], $missing);
     }
 
     // ------------------------------------------------------------- Void

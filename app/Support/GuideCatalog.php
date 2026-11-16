@@ -942,11 +942,10 @@ class GuideCatalog
                 'id' => 'laporan-operasional',
                 'title' => 'Laporan reservasi, kapasitas, durasi kerja, dan nomor seri',
                 'summary' => 'Membaca jadwal dan kapasitas toko, kecepatan konfirmasi, durasi pengerjaan, dan jejak pemakaian gulungan film.',
-                'menus' => ['ReservationReport', 'ReservationUtilizationReport', 'BayZoneUtilizationReport', 'BookingServiceLevelReport', 'JobDurationReport', 'JobDurationByServiceReport', 'FixedCommissionReport', 'SerialNumberReport'],
+                'menus' => ['ReservationReport', 'ReservationUtilizationReport', 'BookingServiceLevelReport', 'JobDurationReport', 'JobDurationByServiceReport', 'FixedCommissionReport', 'SerialNumberReport'],
                 'steps' => [
                     '**Laporan Reservasi** mendaftar jadwal pemasangan berdasarkan **Tanggal Diinginkan**, termasuk yang masih menunggu konfirmasi dan belum tentu menjadi pendapatan. Saring dengan **Status**, **Periode Cepat**, dan **Toko**.',
                     '**Laporan Reservasi & Utilisasi** menghitung per toko: **Kapasitas/Hari**, **Total Kapasitas**, **Terpakai**, **Kosong**, **Dibatalkan**, **Tingkat Pembatalan**, dan **Utilisasi**. Kapasitas diambil dari pengaturan toko di Toko/Dealer.',
-                    '**Laporan Utilisasi Zona/Bay** menghitung pemakaian zona kerja dari durasi NYATA booking di tahap-tahapnya (**Jam Tersedia**, **Jam Terpakai**, **Utilisasi**, **Peak Bersamaan**). Pilih satu toko dulu; toko atau zona yang belum diisi jumlah slotnya ditandai "Belum dikonfigurasi" dan dilewati. Berbeda dari Laporan Reservasi & Utilisasi, yang hanya menghitung jumlah booking per hari.',
                     '**Laporan SLA & Tidak Datang** mengukur kecepatan konfirmasi dibanding target, konversi dari menunggu ke terkonfirmasi, tingkat tidak datang, dan pembatalan beserta alasannya. Waktu tunggu hanya dihitung untuk booking yang tercatat waktunya.',
                     '**Proses Order** menampilkan durasi tiap pekerjaan (satu SPK) dengan **Installer** dan **Jenis Layanan**. **Proses Produk** merangkumnya per jenis layanan: **Jumlah Job**, **Rata-rata**, **Tercepat**, dan **Terlama**. Dipakai untuk menilai waktu standar, bukan untuk menghitung komisi.',
                     '**Komisi Tetap** menampilkan komisi installer per periode: **Jumlah Pekerjaan**, **Penjualan**, **Skema Tarif**, dan **Total Komisi**. Komisi Ginnva berupa nominal tetap per pekerjaan; komisi bertingkat berdasarkan volume tidak ada. Nominal komisi diatur di data Installer.',
