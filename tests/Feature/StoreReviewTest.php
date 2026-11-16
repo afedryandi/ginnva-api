@@ -270,4 +270,24 @@ class StoreReviewTest extends TestCase
         $this->assertSame(3, $mine['total'], 'Staff toko hanya melihat review tokonya sendiri.');
         $this->assertSame(0, $mine['neutral']);
     }
+
+    public function test_the_review_tabs_isolate_unhandled_negative_reviews_and_the_clean_ui_applies(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($this->user('super_admin', null), 'web');
+
+        $positive = $this->review('positive');
+        $open = $this->review('negative');
+        $handled = $this->review('negative', null, ['followed_up_at' => now(), 'follow_up_note' => 'Selesai']);
+
+        Livewire::test(ListStoreReviews::class)->assertCanSeeTableRecords([$positive, $open, $handled]);
+        Livewire::test(ListStoreReviews::class)->set('activeTab', 'tindak')
+            ->assertCanSeeTableRecords([$open])
+            ->assertCanNotSeeTableRecords([$positive, $handled]);
+        Livewire::test(ListStoreReviews::class)->set('activeTab', 'puas')
+            ->assertCanSeeTableRecords([$positive])
+            ->assertCanNotSeeTableRecords([$open]);
+
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListStoreReviews()));
+    }
 }

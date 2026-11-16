@@ -10,6 +10,7 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -107,7 +108,9 @@ class StoreReviewResource extends Resource
     {
         return $form->schema([
             Forms\Components\Section::make('Detail Review')
-                ->columns(2)
+                ->description('Penilaian yang dikirim pelanggan setelah layanan selesai.')
+                ->icon('heroicon-o-chat-bubble-left-right')
+                ->columns(['default' => 1, 'md' => 2])
                 ->schema([
                     Forms\Components\Placeholder::make('store.name')
                         ->label('Toko')
@@ -175,21 +178,22 @@ class StoreReviewResource extends Resource
                     ->label('Toko')
                     ->toggleable(),
 
+                // Nama pelanggan tegas, nomor booking sebagai keterangan di bawahnya (satu sel).
                 Tables\Columns\TextColumn::make('customer.name')
                     ->label('Pelanggan')
+                    ->weight('semibold')
+                    ->description(fn (StoreReview $record) => $record->booking?->booking_number)
                     ->placeholder('—'),
 
-                Tables\Columns\TextColumn::make('booking.booking_number')
-                    ->label('Booking')
-                    ->placeholder('—'),
-
-                Tables\Columns\BadgeColumn::make('sentiment')
+                Tables\Columns\TextColumn::make('sentiment')
                     ->label('Sentimen')
-                    ->colors([
-                        'success' => 'positive',
-                        'warning' => 'neutral',
-                        'danger'  => 'negative',
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'positive' => 'success',
+                        'neutral' => 'warning',
+                        'negative' => 'danger',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state) => match ($state) {
                         'positive' => 'Puas',
                         'neutral'  => 'Biasa Saja',
@@ -224,10 +228,13 @@ class StoreReviewResource extends Resource
                     ->placeholder('—')
                     ->wrap(),
 
-                Tables\Columns\IconColumn::make('followed_up_at')
-                    ->label('Ditindaklanjuti')
-                    ->boolean()
-                    ->getStateUsing(fn (StoreReview $record) => $record->followed_up_at !== null),
+                // Hanya review negatif yang perlu ditangani: merah bila belum, hijau bila sudah, kosong untuk yang lain.
+                Tables\Columns\TextColumn::make('followed_up_at')
+                    ->label('Tindak lanjut')
+                    ->badge()
+                    ->placeholder('—')
+                    ->getStateUsing(fn (StoreReview $record) => $record->followed_up_at !== null ? 'Ditindaklanjuti' : ($record->sentiment === 'negative' ? 'Perlu ditindaklanjuti' : null))
+                    ->color(fn (?string $state) => $state === 'Ditindaklanjuti' ? 'success' : 'danger'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('sentiment')
@@ -246,8 +253,10 @@ class StoreReviewResource extends Resource
                 Tables\Filters\TernaryFilter::make('followed_up_at')
                     ->label('Sudah Ditindaklanjuti')
                     ->nullable(),
-            ])
+            ], layout: FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(3)
             ->actions([
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
                 // Cuma relevan untuk review negatif — supaya store manager
                 // tahu keluhan mana yang sudah/belum ditangani.
                 // SEBELUMNYA cuma requiresConfirmation() tanpa input apa
@@ -259,6 +268,8 @@ class StoreReviewResource extends Resource
                     ->label('Tandai Ditindaklanjuti')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
+                    ->iconButton()
+                    ->tooltip('Tandai Ditindaklanjuti')
                     ->visible(fn (StoreReview $record) => $record->sentiment === 'negative' && ! $record->followed_up_at)
                     ->form([
                         Forms\Components\Textarea::make('follow_up_note')
