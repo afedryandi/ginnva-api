@@ -278,6 +278,11 @@ class AdminPanelProvider extends PanelProvider
                     . '}'
                     . '</style>',
             )
+            // Gaya menu samping kiri (sub-navigasi klaster): kartu tipis, judul grup kecil, item aktif berlatar primer lembut.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn (): string => view('filament.partials.sidebar-styles')->render(),
+            )
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
