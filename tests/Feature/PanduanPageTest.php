@@ -107,8 +107,10 @@ class PanduanPageTest extends TestCase
 
     public function test_the_guide_is_reachable_from_the_menu_without_typing_the_url(): void
     {
-        // Dropdown "Lainnya" di bar atas.
-        $this->assertSame('Lainnya', Panduan::getNavigationGroup());
+        // Entri sendiri di bar atas (bukan dropdown, bukan kluster khusus akses penuh): terbuka untuk semua staf.
+        $this->assertNull(Panduan::getNavigationGroup());
+        $this->assertNull(Panduan::getCluster());
+        $this->assertTrue(Panduan::shouldRegisterNavigation());
 
         // Pintasan di menu avatar.
         $labels = collect(Filament::getPanel('admin')->getUserMenuItems())->map(fn ($item) => $item->getLabel())->all();

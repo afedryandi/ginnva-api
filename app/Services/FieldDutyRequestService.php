@@ -387,7 +387,7 @@ class FieldDutyRequestService
         $request->update(['location_photo' => $path, 'location_photo_at' => now()]);
         \App\Support\SensitiveFiles::delete($old);
 
-        activity('field_duty')->performedOn($request)->causedBy($user)->log('Foto di lokasi dinas luar dikirim');
+        activity('field_duty_request')->performedOn($request)->causedBy($user)->log('Foto di lokasi dinas luar dikirim');
 
         return $request->fresh();
     }
@@ -419,7 +419,7 @@ class FieldDutyRequestService
 
             if ($deleted > 0) {
                 $voided += $deleted;
-                activity('field_duty')->performedOn($request)->log('Kehadiran dinas luar dibatalkan: tidak ada foto di lokasi');
+                activity('field_duty_request')->performedOn($request)->log('Kehadiran dinas luar dibatalkan: tidak ada foto di lokasi');
             }
         }
 
