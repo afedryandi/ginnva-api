@@ -475,6 +475,7 @@ class GuideCatalog
                 'menus' => ['InvoiceResource'],
                 'steps' => [
                     'Buat invoice baru: pilih **Toko**, isi **Referensi Booking (opsional)** kalau terkait booking, lalu **Tanggal Dibuat** dan **Jatuh Tempo**. Data pelanggan diisi manual atau dengan memilih **Akun Pelanggan (opsional)**.',
+                    'Cara tercepat: buka halaman booking yang sudah Confirmed atau Completed lalu tekan **Buat Invoice**. Form invoice terisi dari booking itu (pelanggan, referensi, dan baris layanan; PPF Full Body mencantumkan Detailing dan Premium Wash dengan harga Rp 0). Harga yang belum ada di booking dikosongkan, isi manual. Kalau memilih **Referensi Booking** langsung di form invoice, isiannya sama, dan **Tarik ulang dari Booking** mengisi ulang. Semua isian tetap bisa diubah manual sebelum menekan Buat.',
                     'Di **Detail Produk** tambahkan baris: nama, jumlah, satuan, harga (Rp), dan diskon (%) per baris. Produk dari katalog boleh dipilih (opsional). Invoice harus punya minimal satu baris.',
                     'Di **Rincian Tagihan** atur **Jenis Diskon Transaksi**, **Nilai Diskon Transaksi**, **Biaya Pengiriman**, dan **Biaya Lainnya**. Total tagihan dihitung otomatis.',
                     'Cetak lewat **Cetak PDF**.',

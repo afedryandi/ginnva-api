@@ -73,6 +73,37 @@ class BookingServiceType extends Model
         return static::catalog()->where('is_active', true)->values();
     }
 
+    /**
+     * Pilihan layanan untuk form Booking di panel (kunci => nama): hanya layanan yang Tampil di menu Layanan Booking, urut sesuai Urutan.
+     * Layanan yang dimatikan tetap muncul kalau sudah terpilih pada booking yang sedang dibuka ($keepKeys), supaya datanya tidak hilang
+     * dari form. Tanpa data katalog (belum dimigrasi) dipakai keempat layanan bawaan.
+     *
+     * @param  list<string>  $keepKeys
+     * @return array<string, string>
+     */
+    public static function formOptions(array $keepKeys = []): array
+    {
+        $options = [];
+
+        foreach (static::catalog() as $type) {
+            if (! isset(self::FLAGS[$type->key])) {
+                continue;
+            }
+
+            if ($type->is_active || in_array($type->key, $keepKeys, true)) {
+                $options[$type->key] = $type->label;
+            }
+        }
+
+        if ($options === [] && static::catalog()->isEmpty()) {
+            foreach (array_keys(self::FLAGS) as $key) {
+                $options[$key] = static::labelFor($key);
+            }
+        }
+
+        return $options;
+    }
+
     public static function labelFor(string $key): string
     {
         return static::catalog()->firstWhere('key', $key)?->label ?? (self::DEFAULTS[$key]['label'] ?? $key);

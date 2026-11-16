@@ -133,16 +133,22 @@ class InvoiceResource extends Resource
                             ->get()
                             ->mapWithKeys(fn (Booking $b) => [$b->id => "{$b->booking_number} — {$b->customer_name}"]))
                         ->getOptionLabelUsing(fn ($value) => Booking::find($value)?->booking_number)
-                        ->afterStateUpdated(function (Forms\Set $set, $state) {
-                            $booking = Booking::find($state);
-                            if ($booking) {
-                                $set('customer_id', $booking->customer_id);
-                                $set('customer_name', $booking->customer_name ?? $booking->customer?->name);
-                                $set('customer_phone', $booking->phone_number ?? $booking->customer?->phone_number);
-                            }
-                        })
+                        // Memilih booking menarik data pelanggan dan baris produknya ke form (lihat InvoiceBookingPrefill). Semuanya hanya
+                        // isian awal dan tetap bisa diubah manual; harga yang belum ada di booking dikosongkan untuk diisi.
+                        ->afterStateUpdated(fn (Forms\Set $set, $state) => static::pullFromBooking($set, $state))
                         ->live()
-                        ->helperText('Kosongkan kalau invoice ini tidak terkait booking manapun ("Tanpa Nomor Referensi").'),
+                        ->suffixAction(
+                            Forms\Components\Actions\Action::make('pullFromBooking')
+                                ->label('Tarik ulang dari Booking')
+                                ->icon('heroicon-o-arrow-path')
+                                ->tooltip('Isi ulang pelanggan dan produk dari booking (menimpa isian saat ini)')
+                                ->visible(fn (Forms\Get $get, string $operation) => $operation === 'create' && filled($get('booking_id')))
+                                ->requiresConfirmation()
+                                ->modalHeading('Tarik ulang dari booking?')
+                                ->modalDescription('Data pelanggan dan baris produk akan diganti dengan data dari booking. Perubahan manual Anda pada bagian itu hilang.')
+                                ->action(fn (Forms\Set $set, Forms\Get $get) => static::pullFromBooking($set, $get('booking_id'))),
+                        )
+                        ->helperText('Memilih booking mengisi pelanggan dan produk otomatis, dan semuanya tetap bisa diubah. Kosongkan kalau invoice ini tidak terkait booking ("Tanpa Nomor Referensi").'),
 
                     Forms\Components\DatePicker::make('issue_date')
                         ->label('Tanggal Dibuat')
@@ -248,6 +254,11 @@ class InvoiceResource extends Resource
                                 ->label('Diskon (%)')
                                 ->numeric()
                                 ->default(0),
+
+                            Forms\Components\TextInput::make('note')
+                                ->label('Keterangan baris (opsional)')
+                                ->maxLength(255)
+                                ->columnSpanFull(),
                         ])
                         ->minItems(1)
                         ->required(),
@@ -287,6 +298,32 @@ class InvoiceResource extends Resource
                         ->rows(2),
                 ]),
         ]);
+    }
+
+    /**
+     * Isi form Invoice dari sebuah booking (pelanggan, referensi, baris produk). Hanya booking yang boleh dilihat pengguna
+     * (BookingResource::getEloquentQuery() membatasi toko). Semua isian tetap bisa diubah manual setelahnya.
+     */
+    public static function pullFromBooking(Forms\Set $set, mixed $bookingId): void
+    {
+        if (blank($bookingId)) {
+            return;
+        }
+
+        $booking = \App\Filament\Resources\BookingResource::getEloquentQuery()->find($bookingId);
+
+        if (! $booking) {
+            return;
+        }
+
+        foreach (\App\Services\InvoiceBookingPrefill::dataFor($booking) as $key => $value) {
+            // Referensi booking dan tanggal tidak ditimpa. Toko ikut hanya untuk akses penuh (staf toko selalu terkunci ke tokonya).
+            if (in_array($key, ['booking_id', 'issue_date'], true) || ($key === 'store_id' && ! (auth()->user()?->isFullAccess() ?? false))) {
+                continue;
+            }
+
+            $set($key, $value);
+        }
     }
 
     public static function table(Table $table): Table

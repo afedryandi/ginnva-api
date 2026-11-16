@@ -62,6 +62,7 @@ class EditBooking extends EditRecord
 
                     return new \Illuminate\Support\HtmlString('<ol style="list-style:decimal;padding-left:1.25rem">' . $html . '</ol>');
                 }),
+            ...$this->bookingInvoiceActions(),
             ...$this->rescheduleRequestActions(),
             ...$this->cancellationRequestActions(),
         ];

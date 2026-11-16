@@ -82,6 +82,11 @@ class Booking extends Model
     /** Bagian kaca Window Film yang bisa dipilih. */
     public const WF_AREAS = ['Kaca Depan', 'Kaca Samping', 'Kaca Belakang', 'Sun Roof'];
 
+    /** Pilihan bagian untuk varian yang dipakai di seluruh bagian (booking boleh punya lebih dari satu varian produk). */
+    public const PPF_ALL = 'Seluruh Bagian PPF';
+
+    public const WF_ALL = 'Seluruh Kaca';
+
     /** Panel eksterior yang bisa dipilih untuk PPF Part (kunci => label). */
     public const PPF_PARTS = [
         'hood' => 'Hood',
@@ -1086,6 +1091,12 @@ class Booking extends Model
     public function saleLines()
     {
         return $this->hasMany(BookingSaleLine::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /** Invoice yang dibuat dari booking ini (referensi booking di Invoice). Satu booking boleh punya beberapa (mis. DP lalu pelunasan). */
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
     }
 
     /**

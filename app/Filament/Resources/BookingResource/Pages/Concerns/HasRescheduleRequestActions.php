@@ -66,6 +66,24 @@ trait HasRescheduleRequestActions
         ];
     }
 
+    /**
+     * "Buat Invoice" di halaman booking: membuka form Invoice yang sudah terisi dari booking ini (pelanggan, referensi, produk). Hanya untuk
+     * booking Confirmed/Completed dan pengguna yang boleh membuat invoice. Lencana menunjukkan jumlah invoice yang sudah ada untuk booking ini.
+     */
+    protected function bookingInvoiceActions(): array
+    {
+        return [
+            Actions\Action::make('buatInvoice')
+                ->label('Buat Invoice')
+                ->icon('heroicon-o-document-currency-dollar')
+                ->color('gray')
+                ->visible(fn () => in_array($this->record->status, ['confirmed', 'completed'], true) && \App\Filament\Resources\InvoiceResource::canCreate())
+                ->badge(fn () => $this->record->invoices()->count() ?: null)
+                ->tooltip(fn () => ($count = $this->record->invoices()->count()) > 0 ? "Sudah ada {$count} invoice untuk booking ini" : 'Buat invoice dari data booking ini')
+                ->url(fn () => \App\Filament\Resources\InvoiceResource::getUrl('create', ['booking' => $this->record->getKey()])),
+        ];
+    }
+
     protected function rescheduleRequestActions(): array
     {
         return [

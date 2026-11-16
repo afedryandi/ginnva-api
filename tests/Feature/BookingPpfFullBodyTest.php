@@ -78,13 +78,18 @@ class BookingPpfFullBodyTest extends TestCase
     {
         $R = \App\Filament\Resources\BookingResource::class;
 
-        $this->assertSame([], $R::partOptions(['ppf'], Booking::PPF_SCOPE_FULL_BODY, 'exterior'));
-        $this->assertSame([], $R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, Booking::PPF_AREA_INTERIOR));
-        $this->assertSame(['PPF'], array_keys($R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, 'exterior')));
+        // Full Body dan Interior: hanya "Seluruh Bagian PPF" (untuk menambah lebih dari satu varian), tanpa panel satu per satu.
+        $this->assertSame([Booking::PPF_ALL], array_keys($R::partOptions(['ppf'], Booking::PPF_SCOPE_FULL_BODY, 'exterior')['PPF']));
+        $this->assertSame([Booking::PPF_ALL], array_keys($R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, Booking::PPF_AREA_INTERIOR)['PPF']));
+        $this->assertCount(1 + count(Booking::PPF_PARTS), $R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, 'exterior')['PPF']);
         $this->assertSame(['Window Film'], array_keys($R::partOptions(['kaca_film'], null, null)));
+        $this->assertContains(Booking::WF_ALL, array_keys($R::partOptions(['kaca_film'], null, null)['Window Film']));
         $this->assertSame(['PPF', 'Window Film'], array_keys($R::partOptions(['ppf', 'kaca_film'], Booking::PPF_SCOPE_PARTIAL, 'exterior')));
+        $this->assertSame([], $R::partOptions(['detailing'], null, null));
         $this->assertSame('window_film', $R::productTypeForPart('Kaca Depan'));
+        $this->assertSame('window_film', $R::productTypeForPart(Booking::WF_ALL));
         $this->assertSame('ppf', $R::productTypeForPart('Hood'));
+        $this->assertSame('ppf', $R::productTypeForPart(Booking::PPF_ALL));
     }
 
     public function test_without_ppf_parts_keeps_window_film_rows(): void

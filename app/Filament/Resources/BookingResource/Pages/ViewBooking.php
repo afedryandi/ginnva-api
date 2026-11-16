@@ -31,6 +31,7 @@ class ViewBooking extends ViewRecord
 
             // Setujui/Tolak pengajuan jadwal ulang customer (dipakai bersama
             // halaman Edit, lihat trait).
+            ...$this->bookingInvoiceActions(),
             ...$this->rescheduleRequestActions(),
             ...$this->cancellationRequestActions(),
 
