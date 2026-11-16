@@ -342,11 +342,39 @@ class AttendanceResource extends Resource
                         'last_month' => 'Bulan lalu',
                     ])
                     ->default('last_30')
-                    ->query(fn (Builder $query, array $data) => match ($data['value'] ?? null) {
+                    ->query(fn (Builder $query, array $data, $livewire) => $livewire->tableFilters['date_range']['from'] ?? $livewire->tableFilters['date_range']['until'] ?? null
+                        ? $query
+                        : match ($data['value'] ?? null) {
                         'last_30' => $query->whereDate('date', '>=', today()->subDays(30)),
                         'this_month' => $query->whereBetween('date', [today()->startOfMonth()->toDateString(), today()->endOfMonth()->toDateString()]),
                         'last_month' => $query->whereBetween('date', [today()->subMonthNoOverflow()->startOfMonth()->toDateString(), today()->subMonthNoOverflow()->endOfMonth()->toDateString()]),
                         default => $query,
+                    }),
+
+                // Rentang tanggal bebas (Dari dan Sampai, salah satu boleh kosong; satu hari: isi keduanya dengan tanggal yang sama). Kalau diisi,
+                // filter Periode di atas tidak berlaku, jadi tanggal lebih lama dari 30 hari tetap terlihat.
+                Tables\Filters\Filter::make('date_range')
+                    ->label('Rentang Tanggal')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')->label('Dari Tanggal')->native(false)->displayFormat('d M Y'),
+                        Forms\Components\DatePicker::make('until')->label('Sampai Tanggal')->native(false)->displayFormat('d M Y'),
+                    ])
+                    ->columns(2)
+                    ->query(fn (Builder $query, array $data) => $query
+                        ->when($data['from'] ?? null, fn (Builder $q, $date) => $q->whereDate('date', '>=', $date))
+                        ->when($data['until'] ?? null, fn (Builder $q, $date) => $q->whereDate('date', '<=', $date)))
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+
+                        if ($data['from'] ?? null) {
+                            $indicators[] = 'Dari ' . Carbon::parse($data['from'])->translatedFormat('d M Y');
+                        }
+
+                        if ($data['until'] ?? null) {
+                            $indicators[] = 'Sampai ' . Carbon::parse($data['until'])->translatedFormat('d M Y');
+                        }
+
+                        return $indicators;
                     }),
 
                 Tables\Filters\SelectFilter::make('user_id')

@@ -64,6 +64,31 @@ class AttendanceResourceTest extends TestCase
 
     // ------------------------------------------------------------- daftar
 
+    public function test_the_attendance_list_can_be_filtered_by_a_date_range(): void
+    {
+        $admin = $this->user('super_admin');
+        $kasir = $this->user('kasir');
+        $old = now()->subDays(60)->toDateString();
+        $recent = $this->row($kasir);
+        $older = $this->row($kasir, ['date' => $old, 'clock_in_at' => "{$old} 09:00:00"]);
+
+        $this->actingAs($admin, 'web');
+
+        // Bawaan: periode 30 hari terakhir, jadi absensi 60 hari lalu tidak tampil.
+        Livewire::test(ListAttendances::class)
+            ->assertCanSeeTableRecords([$recent])->assertCanNotSeeTableRecords([$older]);
+
+        // Rentang tanggal mengalahkan periode bawaan: tanggal lama tetap terlihat.
+        Livewire::test(ListAttendances::class)
+            ->filterTable('date_range', ['from' => $old, 'until' => $old])
+            ->assertCanSeeTableRecords([$older])->assertCanNotSeeTableRecords([$recent]);
+
+        // Satu sisi saja juga boleh.
+        Livewire::test(ListAttendances::class)
+            ->filterTable('date_range', ['from' => $this->yesterday, 'until' => null])
+            ->assertCanSeeTableRecords([$recent])->assertCanNotSeeTableRecords([$older]);
+    }
+
     public function test_store_manager_sees_only_their_own_store_while_admins_see_everything(): void
     {
         $manager = $this->user('store_manager');
