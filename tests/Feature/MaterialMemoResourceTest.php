@@ -218,6 +218,8 @@ class MaterialMemoResourceTest extends TestCase
         $memoId = $created->json('data.id');
         $this->actingAs($staff, 'api')->patchJson("/api/staff/memos/{$memoId}", ['booking_id' => $pending->id])->assertSuccessful();
         \Illuminate\Support\Facades\DB::table('bookings')->where('id', $pending->id)->update(['status' => 'completed']);
+        // Booking Selesai mengunci memo; akses penuh sudah membukanya, jadi info lain tetap bisa diubah.
+        \Illuminate\Support\Facades\DB::table('material_memos')->where('id', $memoId)->update(['unlocked_at' => now()]);
         $this->actingAs($staff, 'api')->patchJson("/api/staff/memos/{$memoId}", ['booking_id' => $pending->id, 'notes' => 'Catatan baru'])->assertSuccessful();
         $this->actingAs($staff, 'api')->patchJson("/api/staff/memos/{$memoId}", ['booking_id' => $done->id])->assertStatus(422);
         $this->actingAs($staff, 'api')->patchJson("/api/staff/memos/{$memoId}", ['booking_id' => null])->assertSuccessful();

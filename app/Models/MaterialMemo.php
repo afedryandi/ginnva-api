@@ -77,8 +77,10 @@ class MaterialMemo extends Model
             return false;
         }
 
-        $status = $this->relationLoaded('booking')
-            ? $this->booking?->status
+        // Relasi booking sering dimuat dengan kolom terbatas tanpa status (mis. di API), jadi status dibaca dari relasi hanya bila kolomnya ada.
+        $loaded = $this->relationLoaded('booking') ? $this->booking : null;
+        $status = ($loaded && array_key_exists('status', $loaded->getAttributes()))
+            ? $loaded->status
             : Booking::withoutGlobalScopes()->whereKey($this->booking_id)->value('status');
 
         return $status === 'completed';
