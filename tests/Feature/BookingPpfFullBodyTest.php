@@ -85,6 +85,30 @@ class BookingPpfFullBodyTest extends TestCase
         $this->assertNull($full->ppf_parts);
     }
 
+    public function test_service_type_label_keeps_fixed_order(): void
+    {
+        $this->assertSame(
+            'Pelindung Cat (PPF), Detailing, Premium Wash',
+            \App\Filament\Resources\BookingResource::serviceTypeLabel(['premium_wash', 'detailing', 'ppf'])
+        );
+        $this->assertSame('', \App\Filament\Resources\BookingResource::serviceTypeLabel([]));
+    }
+
+    public function test_form_loads_checked_services_from_flags(): void
+    {
+        \Illuminate\Support\Facades\Http::fake();
+        \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('admin'));
+
+        $admin = \App\Models\User::create(['name' => 'Admin', 'email' => 'admin@test.local', 'password' => 'x']);
+        $admin->assignRole('super_admin');
+        $this->actingAs($admin, 'web');
+
+        $booking = $this->makeBooking(['ppf_scope' => Booking::PPF_SCOPE_FULL_BODY]);
+
+        \Livewire\Livewire::test(\App\Filament\Resources\BookingResource\Pages\EditBooking::class, ['record' => $booking->getKey()])
+            ->assertFormSet(['services' => ['ppf', 'detailing', 'premium_wash']]);
+    }
+
     public function test_scope_cleared_when_not_ppf(): void
     {
         $booking = $this->makeBooking([

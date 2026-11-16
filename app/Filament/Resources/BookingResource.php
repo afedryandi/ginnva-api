@@ -375,20 +375,50 @@ class BookingResource extends Resource
                     // KOSONG di Select ini saat diedit (lihat catatan "select tampil kosong" di
                     // atas) -- data aslinya tetap utuh, cuma preselect-nya yang hilang, sengaja
                     // diterima sebagai trade-off minor untuk legacy record.
-                    Forms\Components\Select::make('service_type')
+                    // Jenis Layanan: pilihan ganda 4 jenis (sama seperti aplikasi pelanggan). `services` hanya penampung form; yang
+                    // tersimpan adalah kolom penanda produk + teks service_type (label dipisah koma, urutan tetap).
+                    Forms\Components\Hidden::make('service_type'),
+
+                    Forms\Components\CheckboxList::make('services')
                         ->label('Jenis Layanan')
-                        ->options([
-                            'Kaca Film (Window Film)'                      => 'Kaca Film (Window Film)',
-                            'Pelindung Cat (PPF)'                          => 'Pelindung Cat (PPF)',
-                            'Kaca Film (Window Film), Pelindung Cat (PPF)' => 'Kaca Film + PPF',
-                            'Lainnya'                                      => 'Lainnya (isi di catatan)',
-                        ])
+                        ->options(fn () => collect(\App\Models\BookingServiceType::FLAGS)
+                            ->mapWithKeys(fn ($column, $key) => [$key => \App\Models\BookingServiceType::labelFor($key)])
+                            ->all())
+                        ->columns(2)
+                        ->afterStateHydrated(function (Forms\Components\CheckboxList $component, ?Booking $record) {
+                            if ($record === null) {
+                                return;
+                            }
+
+                            $component->state(collect(\App\Models\BookingServiceType::FLAGS)
+                                ->filter(fn ($column) => (bool) $record->{$column})
+                                ->keys()
+                                ->values()
+                                ->all());
+                        })
+                        ->disableOptionWhen(fn (string $value, Forms\Get $get) => in_array($value, ['detailing', 'premium_wash'], true)
+                            && $get('ppf_scope') === Booking::PPF_SCOPE_FULL_BODY
+                            && in_array('ppf', (array) $get('services'), true)
+                            && $get('ppf_area') !== Booking::PPF_AREA_INTERIOR)
+                        ->dehydrated(false)
+                        ->required()
+                        ->minItems(1)
                         ->live()
                         ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
-                            $isPpf = in_array($state, ['Pelindung Cat (PPF)', 'Kaca Film (Window Film), Pelindung Cat (PPF)'], true);
+                            $keys = (array) $state;
+                            $isPpf = in_array('ppf', $keys, true);
 
-                            $set('product_kaca_film', in_array($state, ['Kaca Film (Window Film)', 'Kaca Film (Window Film), Pelindung Cat (PPF)'], true));
-                            $set('product_ppf', $isPpf);
+                            foreach (\App\Models\BookingServiceType::FLAGS as $key => $column) {
+                                $set($column, in_array($key, $keys, true));
+                            }
+
+                            $set('service_type', self::serviceTypeLabel($keys));
+
+                            if (! $isPpf) {
+                                $set('ppf_area', null);
+                                $set('ppf_scope', null);
+                                $set('ppf_parts', []);
+                            }
 
                             // Cuma auto-isi default kalau staff belum
                             // sentuh field durasi manual (kosong ATAU masih
@@ -405,11 +435,9 @@ class BookingResource extends Resource
                         // bisa diubah staff. Booking walk-in/WhatsApp (staff
                         // yang input manual) tetap bisa dipilih seperti biasa.
                         ->disabled(fn (Forms\Get $get) => $get('source') === 'app')
-                        ->dehydrated()
                         ->helperText(fn (Forms\Get $get) => $get('source') === 'app'
                             ? 'Dipilih oleh pelanggan lewat mobile app — tidak bisa diubah di sini.'
-                            : null)
-                        ->required(),
+                            : 'Centang semua yang dikerjakan. PPF Full Body sudah termasuk Detailing dan Premium Wash.'),
 
                     // Varian/SKU FilmProduct spesifik yang dipasang --
                     // OPSIONAL (diminta 2026-09-08), supaya "Produk
@@ -433,8 +461,9 @@ class BookingResource extends Resource
                                 ->where('is_active', true)
                                 ->whereNotIn('product_type', ['detailing', 'premium_wash']);
 
-                            $isKacaFilm = in_array($get('service_type'), ['Kaca Film (Window Film)'], true);
-                            $isPpf = in_array($get('service_type'), ['Pelindung Cat (PPF)'], true);
+                            $services = (array) $get('services');
+                            $isKacaFilm = in_array('kaca_film', $services, true) && ! in_array('ppf', $services, true);
+                            $isPpf = in_array('ppf', $services, true) && ! in_array('kaca_film', $services, true);
 
                             if ($isKacaFilm) {
                                 $query->where('product_type', 'window_film');
@@ -563,10 +592,12 @@ class BookingResource extends Resource
                         ->helperText('Full Body: Detailing dan Premium Wash ikut otomatis. Harga diisi manual saat membuat invoice.')
                         ->visible(fn (Forms\Get $get) => (bool) $get('product_ppf') && $get('ppf_area') !== Booking::PPF_AREA_INTERIOR)
                         ->live()
-                        ->afterStateUpdated(function (Forms\Set $set, $state) {
+                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
                             if ($state === Booking::PPF_SCOPE_FULL_BODY) {
                                 $set('product_detailing', true);
                                 $set('product_premium_wash', true);
+                                $set('services', array_values(array_unique([...(array) $get('services'), 'detailing', 'premium_wash'])));
+                                $set('service_type', self::serviceTypeLabel($get('services')));
                             }
                         }),
 
@@ -577,23 +608,11 @@ class BookingResource extends Resource
                         ->columnSpanFull()
                         ->visible(fn (Forms\Get $get) => (bool) $get('product_ppf') && $get('ppf_scope') === Booking::PPF_SCOPE_PARTIAL),
 
-                    Forms\Components\Toggle::make('product_detailing')
-                        ->label('Termasuk Jasa Detailing')
-                        ->helperText('Centang kalau booking ini mencakup detailing (poles/coating/cuci interior/dll) — baik dijual sendiri maupun bareng pemasangan film.')
-                        ->live()
-                        ->disabled(fn (Forms\Get $get) => $get('ppf_scope') === Booking::PPF_SCOPE_FULL_BODY && (bool) $get('product_ppf'))
-                        ->dehydrated()
-                        ->default(false),
-
-                    // Premium Wash -- pola sama persis product_detailing
-                    // (dikonfirmasi user 2026-09-22, dijual dua-duanya).
-                    Forms\Components\Toggle::make('product_premium_wash')
-                        ->label('Termasuk Jasa Premium Wash')
-                        ->helperText('Centang kalau booking ini mencakup Premium Wash (cuci premium) — baik dijual sendiri maupun bareng pemasangan film.')
-                        ->live()
-                        ->disabled(fn (Forms\Get $get) => $get('ppf_scope') === Booking::PPF_SCOPE_FULL_BODY && (bool) $get('product_ppf'))
-                        ->dehydrated()
-                        ->default(false),
+                    // Detailing & Premium Wash kini dipilih lewat pilihan "Jenis Layanan" di atas; kolom penandanya diisi otomatis.
+                    Forms\Components\Hidden::make('product_kaca_film')->default(false),
+                    Forms\Components\Hidden::make('product_ppf')->default(false),
+                    Forms\Components\Hidden::make('product_detailing')->default(false),
+                    Forms\Components\Hidden::make('product_premium_wash')->default(false),
 
                     Forms\Components\DatePicker::make('preferred_date')
                         ->label('Tanggal Diinginkan')
@@ -2144,6 +2163,16 @@ class BookingResource extends Resource
      * Booking baru untuk pelanggan yang datang lagi: pelanggan, kendaraan, toko, dan layanan disalin. Tanggal, jam, status, harga,
      * pembayaran, DP, rincian penjualan, voucher/referral, dan teknisi SENGAJA tidak ikut; semuanya diisi baru.
      */
+    /** Teks service_type dari pilihan jenis layanan: label dipisah koma, urutan tetap (sama dengan aplikasi pelanggan). */
+    public static function serviceTypeLabel(?array $keys): string
+    {
+        return collect(\App\Models\BookingServiceType::FLAGS)
+            ->keys()
+            ->filter(fn ($key) => in_array($key, (array) $keys, true))
+            ->map(fn ($key) => \App\Models\BookingServiceType::labelFor($key))
+            ->implode(', ');
+    }
+
     public static function duplicateData(\Illuminate\Database\Eloquent\Model $record): array
     {
         return collect([
