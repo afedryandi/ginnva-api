@@ -457,7 +457,8 @@ class GuideCatalog
                 'menus' => ['QuotationResource'],
                 'steps' => [
                     'Lead baru berstatus New dan muncul sebagai angka badge di menu. Lead dari website yang belum punya toko diteruskan ke akun akses penuh dan karyawan yang punya akses menu Quotation.',
-                    'Hubungi calon pelanggan lewat tombol **WhatsApp** atau **Telepon** di baris lead. Setelah dihubungi, ubah statusnya lewat **Ubah Status**: New, lalu Contacted, lalu Closed atau Cancelled.',
+                    'Pakai tab di atas daftar (**Semua**, **New**, **Contacted**, **Closed**, **Cancelled**) untuk melihat lead menurut statusnya; angka di tiap tab menunjukkan jumlahnya. Lead New yang belum direspons lebih dari 24 jam diberi garis merah di kiri barisnya.',
+                    'Hubungi calon pelanggan lewat ikon **WhatsApp** di baris lead, atau **Telepon** di menu titik tiga. Setelah dihubungi, ubah statusnya lewat **Ubah Status** di menu titik tiga: New, lalu Contacted, lalu Closed atau Cancelled.',
                     'Isi **Penanggung Jawab** (karyawan yang menangani), **Kanal Masuk** (dari mana lead datang: WhatsApp, telepon, datang langsung, dan sebagainya), dan periksa **Produk Diminati** dan catatan pelanggan.',
                     'Setelah ada kepastian, tetapkan **Hasil**: Deal kalau lead sudah jadi pelanggan, booking, atau partner; Tidak Jadi kalau batal. Untuk Tidak Jadi, **Alasan Tidak Jadi** wajib dipilih (harga di atas anggaran, memilih penyedia lain, tidak merespons lagi, belum butuh atau menunda, lokasi terlalu jauh, layanan tidak sesuai kebutuhan, atau lainnya).',
                 ],

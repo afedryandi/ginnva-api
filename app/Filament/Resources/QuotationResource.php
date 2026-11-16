@@ -9,6 +9,8 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
+use Filament\Infolists\Components\Grid as InfolistGrid;
+use Filament\Infolists\Components\Group as InfolistGroup;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
@@ -104,364 +106,409 @@ class QuotationResource extends Resource
     {
         $isSuperAdmin = auth()->user()?->isFullAccess();
 
+        // Dua kolom di layar lebar: kiri isi lead (pelanggan, kendaraan, produk), kanan penanganan (status, penanggung jawab, hasil).
         return $form->schema([
+            Forms\Components\Grid::make(['default' => 1, 'lg' => 3])->schema([
+                Forms\Components\Group::make()
+                    ->columnSpan(['lg' => 2])
+                    ->schema([
+                        Forms\Components\Section::make('Pelanggan')
+                            ->icon('heroicon-o-user')
+                            ->columns(2)
+                            ->schema([
+                                Forms\Components\TextInput::make('customer_name')
+                                    ->label('Nama Pelanggan')
+                                    ->required()
+                                    ->maxLength(255),
 
-            /* ── INFO UTAMA ─────────────────────────────────────────── */
-            Forms\Components\Section::make('Informasi Quotation')
-                ->columns(2)
-                ->schema([
-                    Forms\Components\TextInput::make('quotation_number')
-                        ->label('No. Quotation')
-                        ->default(fn () => static::generateQuotationNumber())
-                        ->required()
-                        ->unique(ignoreRecord: true)
-                        ->disabledOn('edit')
-                        ->maxLength(255),
+                                Forms\Components\TextInput::make('customer_phone')
+                                    ->label('No. Telepon / WhatsApp')
+                                    ->tel()
+                                    ->prefixIcon('heroicon-o-phone')
+                                    // Disamakan dengan validasi API publik (QuotationController::submit()): telepon dan email wajib
+                                    // karena dipakai follow-up (WA/telepon dan konfirmasi email).
+                                    ->required()
+                                    ->maxLength(255),
 
-                    Forms\Components\Select::make('status')
-                        ->label('Status Follow-up')
-                        ->options([
-                            'new'       => 'New',
-                            'contacted' => 'Contacted',
-                            'closed'    => 'Closed',
-                            'cancelled' => 'Cancelled',
-                        ])
-                        ->required()
-                        ->default('new'),
+                                Forms\Components\TextInput::make('customer_email')
+                                    ->label('Email')
+                                    ->email()
+                                    ->prefixIcon('heroicon-o-envelope')
+                                    ->required()
+                                    ->maxLength(255),
 
-                    Forms\Components\Select::make('store_id')
-                        ->label('Toko/Dealer')
-                        ->relationship('store', 'name')
-                        ->searchable()
-                        ->preload()
-                        ->visible($isSuperAdmin)
-                        ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id),
+                                Forms\Components\TextInput::make('license_plate')
+                                    ->label('Plat Nomor')
+                                    ->maxLength(255),
 
-                    // Marketing/Konten Fase 0: lead yang diinput staf wajib menyebut dari mana datangnya (lead dari web/aplikasi terisi otomatis).
-                    Forms\Components\Select::make('channel')
-                        ->label('Kanal Masuk')
-                        ->options(array_intersect_key(\App\Support\LeadAttribution::CHANNELS, array_flip(\App\Support\LeadAttribution::MANUAL_CHANNELS)))
-                        ->required()
-                        ->visible(fn (string $operation) => $operation === 'create')
-                        ->helperText('Dari mana lead ini datang (WhatsApp, telepon, datang langsung, dst.).'),
+                                Forms\Components\Textarea::make('message')
+                                    ->label('Catatan / Kebutuhan Pelanggan')
+                                    ->rows(3)
+                                    ->columnSpanFull(),
+                            ]),
 
-                    Forms\Components\Select::make('owner_user_id')
-                        ->label('Penanggung Jawab')
-                        ->options(fn () => \App\Models\User::query()
-                            ->where('is_active', true)
-                            ->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['installer', 'partner']))
-                            ->orderBy('name')
-                            ->pluck('name', 'id'))
-                        ->searchable()
-                        ->placeholder('Belum ditentukan')
-                        ->default(fn (string $operation) => $operation === 'create' ? auth()->id() : null),
+                        /* Kendaraan (cascading merek, lalu tipe). Label tipe menyertakan varian supaya varian kembar tidak tampak sama. */
+                        Forms\Components\Section::make('Kendaraan')
+                            ->icon('heroicon-o-truck')
+                            ->columns(2)
+                            ->schema([
+                                Forms\Components\Select::make('vehicle_brand')
+                                    ->label('Merek Kendaraan')
+                                    ->options(
+                                        Vehicle::query()
+                                            ->distinct()
+                                            ->orderBy('brand')
+                                            ->pluck('brand', 'brand')
+                                    )
+                                    ->live()
+                                    ->afterStateUpdated(fn (Set $set) => $set('vehicle_id', null))
+                                    ->required()
+                                    ->dehydrated(false),  // tidak disimpan ke DB
 
-                    Forms\Components\Select::make('outcome')
-                        ->label('Hasil')
-                        ->options(\App\Support\LeadOutcome::OUTCOMES)
-                        ->placeholder('Belum ada hasil')
-                        ->live()
-                        ->helperText('Tandai Deal kalau lead sudah jadi pelanggan/booking/partner, Tidak Jadi kalau batal.'),
+                                Forms\Components\Select::make('vehicle_id')
+                                    ->label('Tipe Kendaraan')
+                                    ->options(fn (Get $get) => Vehicle::query()
+                                        ->where('brand', $get('vehicle_brand'))
+                                        ->orderBy('model')
+                                        ->orderBy('variant')
+                                        ->get()
+                                        ->mapWithKeys(fn ($v) => [
+                                            $v->id => $v->variant
+                                                ? "{$v->model} — {$v->variant} (Size {$v->size_category})"
+                                                : "{$v->model} (Size {$v->size_category})",
+                                        ])
+                                    )
+                                    ->disabled(fn (Get $get) => blank($get('vehicle_brand')))
+                                    ->live()
+                                    ->required()
+                                    ->searchable(),
+                            ]),
 
-                    Forms\Components\Select::make('outcome_reason')
-                        ->label('Alasan Tidak Jadi')
-                        ->options(\App\Support\LeadOutcome::REASONS)
-                        ->live()
-                        ->visible(fn (Forms\Get $get) => $get('outcome') === 'lost')
-                        ->required(fn (Forms\Get $get) => $get('outcome') === 'lost'),
+                        Forms\Components\Section::make('Produk yang Diminati')
+                            ->icon('heroicon-o-cube')
+                            ->schema([
+                                Forms\Components\Repeater::make('items')
+                                    ->relationship('items')
+                                    ->hiddenLabel()
+                                    ->schema([
+                                        Forms\Components\Select::make('film_product_id')
+                                            ->label('Produk Film')
+                                            ->relationship('filmProduct', 'name')
+                                            ->searchable()
+                                            ->preload()
+                                            ->required()
+                                            ->columnSpan(2),
 
-                    Forms\Components\TextInput::make('outcome_note')
-                        ->label('Jelaskan alasannya')
-                        ->maxLength(255)
-                        ->visible(fn (Forms\Get $get) => $get('outcome') === 'lost' && $get('outcome_reason') === 'lainnya')
-                        ->required(fn (Forms\Get $get) => $get('outcome') === 'lost' && $get('outcome_reason') === 'lainnya'),
-                ]),
+                                        Forms\Components\TextInput::make('quantity')
+                                            ->label('Jumlah')
+                                            ->numeric()
+                                            ->default(1)
+                                            ->minValue(1)
+                                            ->required(),
 
-            /* ── DATA PELANGGAN ─────────────────────────────────────── */
-            Forms\Components\Section::make('Data Pelanggan')
-                ->columns(2)
-                ->schema([
-                    Forms\Components\TextInput::make('customer_name')
-                        ->label('Nama Pelanggan')
-                        ->required()
-                        ->maxLength(255),
+                                        Forms\Components\Textarea::make('notes')
+                                            ->label('Keterangan')
+                                            ->placeholder('Contoh: warna preferensi, bagian kendaraan tertentu')
+                                            ->rows(2)
+                                            ->columnSpanFull(),
+                                    ])
+                                    ->columns(3)
+                                    ->addActionLabel('+ Tambah Produk')
+                                    ->reorderable(false)
+                                    ->defaultItems(1),
+                            ]),
+                    ]),
 
-                    Forms\Components\TextInput::make('customer_phone')
-                        ->label('No. Telepon / WhatsApp')
-                        ->tel()
-                        // Disamakan dengan validasi API publik
-                        // (QuotationController::submit()) yang mewajibkan
-                        // keduanya — sebelumnya form admin di sini
-                        // membolehkan lead tanpa telepon/email sama sekali,
-                        // padahal keduanya dipakai untuk follow-up (WA call
-                        // & konfirmasi email).
-                        ->required()
-                        ->maxLength(255),
+                Forms\Components\Group::make()
+                    ->columnSpan(['lg' => 1])
+                    ->schema([
+                        Forms\Components\Section::make('Penanganan')
+                            ->icon('heroicon-o-adjustments-horizontal')
+                            ->schema([
+                                Forms\Components\TextInput::make('quotation_number')
+                                    ->label('No. Quotation')
+                                    ->default(fn () => static::generateQuotationNumber())
+                                    ->required()
+                                    ->unique(ignoreRecord: true)
+                                    ->disabledOn('edit')
+                                    ->maxLength(255),
 
-                    Forms\Components\TextInput::make('customer_email')
-                        ->label('Email')
-                        ->email()
-                        ->required()
-                        ->maxLength(255),
+                                Forms\Components\Select::make('status')
+                                    ->label('Status Follow-up')
+                                    ->options([
+                                        'new'       => 'New',
+                                        'contacted' => 'Contacted',
+                                        'closed'    => 'Closed',
+                                        'cancelled' => 'Cancelled',
+                                    ])
+                                    ->required()
+                                    ->default('new'),
 
-                    Forms\Components\TextInput::make('license_plate')
-                        ->label('Plat Nomor')
-                        ->maxLength(255),
+                                Forms\Components\Select::make('owner_user_id')
+                                    ->label('Penanggung Jawab')
+                                    ->options(fn () => \App\Models\User::query()
+                                        ->where('is_active', true)
+                                        ->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['installer', 'partner']))
+                                        ->orderBy('name')
+                                        ->pluck('name', 'id'))
+                                    ->searchable()
+                                    ->placeholder('Belum ditentukan')
+                                    ->default(fn (string $operation) => $operation === 'create' ? auth()->id() : null),
 
-                    Forms\Components\Textarea::make('message')
-                        ->label('Catatan / Kebutuhan Pelanggan')
-                        ->columnSpanFull(),
-                ]),
+                                Forms\Components\Select::make('store_id')
+                                    ->label('Toko/Dealer')
+                                    ->relationship('store', 'name')
+                                    ->searchable()
+                                    ->preload()
+                                    ->visible($isSuperAdmin)
+                                    ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id),
 
-            /* ── KENDARAAN (cascading brand → tipe) ────────────────── */
-            Forms\Components\Section::make('Kendaraan')
-                ->columns(2)
-                ->schema([
-                    Forms\Components\Select::make('vehicle_brand')
-                        ->label('Merek Kendaraan')
-                        ->options(
-                            Vehicle::query()
-                                ->distinct()
-                                ->orderBy('brand')
-                                ->pluck('brand', 'brand')
-                        )
-                        ->live()
-                        ->afterStateUpdated(fn (Set $set) => $set('vehicle_id', null))
-                        ->required()
-                        ->dehydrated(false),  // tidak disimpan ke DB
+                                // Marketing/Konten Fase 0: lead yang diinput staf wajib menyebut asalnya (lead web/aplikasi terisi otomatis).
+                                Forms\Components\Select::make('channel')
+                                    ->label('Kanal Masuk')
+                                    ->options(array_intersect_key(\App\Support\LeadAttribution::CHANNELS, array_flip(\App\Support\LeadAttribution::MANUAL_CHANNELS)))
+                                    ->required()
+                                    ->visible(fn (string $operation) => $operation === 'create')
+                                    ->helperText('Dari mana lead ini datang (WhatsApp, telepon, datang langsung, dst.).'),
+                            ]),
 
-                    // SEBELUMNYA label opsi cuma "{model} (Size {size})" —
-                    // tidak menyertakan Varian sama sekali. Kalau ada >1
-                    // varian untuk model yang sama (mis. "City Test 1.5 RS
-                    // CVT" & "City Test 1.5 S MT", dua-duanya size M),
-                    // keduanya tampil IDENTIK di dropdown ("City Test (Size
-                    // M)" dua kali) — staff tidak bisa bedakan mana yang
-                    // mana sama sekali. Varian ditambahkan ke label kalau
-                    // ada. Ditemukan lewat testing manual 2026-09-01.
-                    Forms\Components\Select::make('vehicle_id')
-                        ->label('Tipe Kendaraan')
-                        ->options(fn (Get $get) => Vehicle::query()
-                            ->where('brand', $get('vehicle_brand'))
-                            ->orderBy('model')
-                            ->orderBy('variant')
-                            ->get()
-                            ->mapWithKeys(fn ($v) => [
-                                $v->id => $v->variant
-                                    ? "{$v->model} — {$v->variant} (Size {$v->size_category})"
-                                    : "{$v->model} (Size {$v->size_category})",
-                            ])
-                        )
-                        ->disabled(fn (Get $get) => blank($get('vehicle_brand')))
-                        ->live()
-                        ->required()
-                        ->searchable(),
-                ]),
+                        Forms\Components\Section::make('Hasil')
+                            ->icon('heroicon-o-flag')
+                            ->schema([
+                                Forms\Components\Select::make('outcome')
+                                    ->label('Hasil')
+                                    ->options(\App\Support\LeadOutcome::OUTCOMES)
+                                    ->placeholder('Belum ada hasil')
+                                    ->live()
+                                    ->helperText('Deal kalau sudah jadi pelanggan, booking, atau partner. Tidak Jadi kalau batal.'),
 
-            /* ── PRODUK YANG DIMINATI ───────────────────────────────── */
-            Forms\Components\Section::make('Produk yang Diminati')
-                ->schema([
-                    Forms\Components\Repeater::make('items')
-                        ->relationship('items')
-                        ->label('')
-                        ->schema([
-                            Forms\Components\Select::make('film_product_id')
-                                ->label('Produk Film')
-                                ->relationship('filmProduct', 'name')
-                                ->searchable()
-                                ->preload()
-                                ->required()
-                                ->columnSpan(2),
+                                Forms\Components\Select::make('outcome_reason')
+                                    ->label('Alasan Tidak Jadi')
+                                    ->options(\App\Support\LeadOutcome::REASONS)
+                                    ->live()
+                                    ->visible(fn (Forms\Get $get) => $get('outcome') === 'lost')
+                                    ->required(fn (Forms\Get $get) => $get('outcome') === 'lost'),
 
-                            Forms\Components\TextInput::make('quantity')
-                                ->label('Jumlah')
-                                ->numeric()
-                                ->default(1)
-                                ->minValue(1)
-                                ->required(),
-
-                            Forms\Components\Textarea::make('notes')
-                                ->label('Keterangan')
-                                ->placeholder('Contoh: warna preferensi, bagian kendaraan tertentu')
-                                ->columnSpan(2),
-                        ])
-                        ->columns(3)
-                        ->addActionLabel('+ Tambah Produk')
-                        ->reorderable(false)
-                        ->defaultItems(1),
-                ]),
+                                Forms\Components\TextInput::make('outcome_note')
+                                    ->label('Jelaskan alasannya')
+                                    ->maxLength(255)
+                                    ->visible(fn (Forms\Get $get) => $get('outcome') === 'lost' && $get('outcome_reason') === 'lainnya')
+                                    ->required(fn (Forms\Get $get) => $get('outcome') === 'lost' && $get('outcome_reason') === 'lainnya'),
+                            ]),
+                    ]),
+            ]),
         ]);
     }
 
     /**
-     * SEBELUMNYA tidak ada — ViewQuotation fallback ke form disabled
-     * bawaan Filament (form Edit lengkap tapi semua field non-interaktif),
-     * bukan tampilan read-only yang dirapikan. Infolist khusus ini
-     * mengelompokkan info dengan section yang sama dengan form, tapi
-     * lebih ringkas & enak dibaca untuk sekadar melihat detail lead.
-     * Lihat audit UI/UX Filament Quotation 2026-08-27.
+     * Tampilan baca (View): dua kolom seperti form. Kiri: pelanggan, kendaraan, produk. Kanan: status dan hasil, lalu jejak lead
+     * (kapan masuk, berapa lama direspons, asal). Telepon dan email bisa disalin; telepon langsung membuka WhatsApp.
      */
     public static function infolist(Infolist $infolist): Infolist
     {
+        $statusLabel = fn (string $state) => match ($state) {
+            'new'       => 'New',
+            'contacted' => 'Contacted',
+            'closed'    => 'Closed',
+            'cancelled' => 'Cancelled',
+            default     => $state,
+        };
+
         return $infolist->schema([
-            InfolistSection::make('Informasi Quotation')
-                ->columns(3)
-                ->schema([
-                    TextEntry::make('quotation_number')->label('No. Quotation'),
-                    TextEntry::make('status')
-                        ->label('Status Follow-up')
-                        ->badge()
-                        ->formatStateUsing(fn (string $state) => match ($state) {
-                            'new'       => 'New',
-                            'contacted' => 'Contacted',
-                            'closed'    => 'Closed',
-                            'cancelled' => 'Cancelled',
-                            default     => $state,
-                        })
-                        ->color(fn (string $state) => match ($state) {
-                            'new'       => 'info',
-                            'contacted' => 'warning',
-                            'closed'    => 'success',
-                            'cancelled' => 'danger',
-                            default     => 'gray',
-                        }),
-                    TextEntry::make('store.name')->label('Toko/Dealer')->placeholder('—'),
-                    TextEntry::make('created_at')->label('Masuk')->dateTime('d M Y H:i'),
-                    TextEntry::make('contacted_at')
-                        ->label('Direspons Setelah')
-                        ->state(fn (Quotation $record) => $record->contacted_at
-                            ? $record->created_at->diffForHumans($record->contacted_at, syntax: \Carbon\CarbonInterface::DIFF_ABSOLUTE)
-                            : null)
-                        ->placeholder('Belum direspons'),
-                    TextEntry::make('source')
-                        ->label('Sumber')
-                        ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Pelanggan' : 'Input Staff'),
-                    TextEntry::make('channel')
-                        ->label('Kanal')
-                        ->state(fn (Quotation $record) => \App\Support\LeadAttribution::CHANNELS[$record->channel] ?? 'Tidak tercatat'),
-                    TextEntry::make('utm_campaign')
-                        ->label('Kampanye')
-                        ->placeholder('—'),
-                ]),
+            InfolistGrid::make(['default' => 1, 'lg' => 3])->schema([
+                InfolistGroup::make()
+                    ->columnSpan(['lg' => 2])
+                    ->schema([
+                        InfolistSection::make('Pelanggan')
+                            ->icon('heroicon-o-user')
+                            ->columns(2)
+                            ->schema([
+                                TextEntry::make('customer_name')->label('Nama Pelanggan')->weight('semibold'),
+                                TextEntry::make('license_plate')->label('Plat Nomor')->placeholder('—'),
+                                TextEntry::make('customer_phone')
+                                    ->label('No. Telepon / WhatsApp')
+                                    ->icon('heroicon-o-phone')
+                                    ->copyable()
+                                    ->url(fn (Quotation $record) => filled($record->customer_phone) ? 'https://wa.me/' . \App\Support\PhoneFormatter::toWhatsAppNumber($record->customer_phone) : null, true)
+                                    ->placeholder('—'),
+                                TextEntry::make('customer_email')->label('Email')->icon('heroicon-o-envelope')->copyable()->placeholder('—'),
+                                TextEntry::make('message')->label('Catatan / Kebutuhan Pelanggan')->placeholder('—')->columnSpanFull(),
+                            ]),
 
-            InfolistSection::make('Data Pelanggan')
-                ->columns(2)
-                ->schema([
-                    TextEntry::make('customer_name')->label('Nama Pelanggan'),
-                    TextEntry::make('customer_phone')->label('No. Telepon / WhatsApp')->placeholder('—'),
-                    TextEntry::make('customer_email')->label('Email')->placeholder('—'),
-                    TextEntry::make('license_plate')->label('Plat Nomor')->placeholder('—'),
-                    TextEntry::make('message')->label('Catatan / Kebutuhan Pelanggan')->placeholder('—')->columnSpanFull(),
-                ]),
+                        InfolistSection::make('Kendaraan')
+                            ->icon('heroicon-o-truck')
+                            ->columns(3)
+                            ->schema([
+                                TextEntry::make('vehicle.brand')->label('Merek Kendaraan')->placeholder('—'),
+                                TextEntry::make('vehicle.model')->label('Tipe Kendaraan')->placeholder('—'),
+                                TextEntry::make('vehicle.variant')->label('Varian')->placeholder('—'),
+                            ]),
 
-            // SEBELUMNYA Varian tidak ditampilkan sama sekali di sini —
-            // staff yang buka detail quotation tidak bisa tahu varian
-            // spesifik apa yang diminati customer (mis. "1.5 RS CVT" vs
-            // "1.5 S MT" untuk model yang sama), padahal datanya ada di
-            // vehicle_id yang tersimpan. Ditemukan lewat testing manual
-            // 2026-09-01.
-            InfolistSection::make('Kendaraan')
-                ->columns(3)
-                ->schema([
-                    TextEntry::make('vehicle.brand')->label('Merek Kendaraan')->placeholder('—'),
-                    TextEntry::make('vehicle.model')->label('Tipe Kendaraan')->placeholder('—'),
-                    TextEntry::make('vehicle.variant')->label('Varian')->placeholder('—'),
-                ]),
+                        InfolistSection::make('Produk yang Diminati')
+                            ->icon('heroicon-o-cube')
+                            ->schema([
+                                RepeatableEntry::make('items')
+                                    ->hiddenLabel()
+                                    ->schema([
+                                        TextEntry::make('filmProduct.name')->label('Produk Film')->weight('semibold'),
+                                        TextEntry::make('quantity')->label('Jumlah')->badge()->color('gray')->formatStateUsing(fn ($state) => '× ' . $state),
+                                        TextEntry::make('notes')->label('Keterangan')->placeholder('—'),
+                                    ])
+                                    ->columns(3),
+                            ]),
+                    ]),
 
-            InfolistSection::make('Produk yang Diminati')
-                ->schema([
-                    RepeatableEntry::make('items')
-                        ->label('')
-                        ->schema([
-                            TextEntry::make('filmProduct.name')->label('Produk Film'),
-                            TextEntry::make('quantity')->label('Jumlah'),
-                            TextEntry::make('notes')->label('Keterangan')->placeholder('—'),
-                        ])
-                        ->columns(3),
-                ]),
+                InfolistGroup::make()
+                    ->columnSpan(['lg' => 1])
+                    ->schema([
+                        InfolistSection::make('Penanganan')
+                            ->icon('heroicon-o-adjustments-horizontal')
+                            ->schema([
+                                TextEntry::make('quotation_number')->label('No. Quotation')->copyable(),
+                                TextEntry::make('status')
+                                    ->label('Status Follow-up')
+                                    ->badge()
+                                    ->formatStateUsing($statusLabel)
+                                    ->color(fn (string $state) => match ($state) {
+                                        'new'       => 'info',
+                                        'contacted' => 'warning',
+                                        'closed'    => 'success',
+                                        'cancelled' => 'danger',
+                                        default     => 'gray',
+                                    }),
+                                TextEntry::make('outcome')
+                                    ->label('Hasil')
+                                    ->badge()
+                                    ->formatStateUsing(fn (?string $state) => $state === 'won' ? 'Deal' : ($state === 'lost' ? 'Tidak Jadi' : 'Belum ada hasil'))
+                                    ->color(fn (?string $state) => match ($state) { 'won' => 'success', 'lost' => 'danger', default => 'gray' }),
+                                TextEntry::make('owner.name')->label('Penanggung Jawab')->placeholder('Belum ditentukan'),
+                                TextEntry::make('store.name')->label('Toko/Dealer')->placeholder('—'),
+                            ]),
+
+                        InfolistSection::make('Jejak Lead')
+                            ->icon('heroicon-o-clock')
+                            ->schema([
+                                TextEntry::make('created_at')->label('Masuk')->dateTime('d M Y H:i'),
+                                TextEntry::make('contacted_at')
+                                    ->label('Direspons Setelah')
+                                    ->state(fn (Quotation $record) => $record->contacted_at
+                                        ? $record->created_at->diffForHumans($record->contacted_at, syntax: \Carbon\CarbonInterface::DIFF_ABSOLUTE)
+                                        : null)
+                                    ->placeholder('Belum direspons'),
+                                TextEntry::make('source')
+                                    ->label('Sumber')
+                                    ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Pelanggan' : 'Input Staff'),
+                                TextEntry::make('channel')
+                                    ->label('Kanal')
+                                    ->state(fn (Quotation $record) => \App\Support\LeadAttribution::CHANNELS[$record->channel] ?? 'Tidak tercatat'),
+                                TextEntry::make('utm_campaign')->label('Kampanye')->placeholder('—'),
+                            ]),
+                    ]),
+            ]),
         ]);
     }
 
     public static function table(Table $table): Table
     {
+        $statusColor = fn (?string $state) => match ($state) {
+            'new'       => 'info',
+            'contacted' => 'warning',
+            'closed'    => 'success',
+            'cancelled' => 'danger',
+            default     => 'gray',
+        };
+
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('quotation_number')
-                    ->label('No. Quotation')
-                    ->searchable()
-                    ->sortable(),
-
+                // Pelanggan sebagai kolom utama: nama tebal, nomor telepon di bawahnya (dua hal yang dicari staf saat follow-up).
                 Tables\Columns\TextColumn::make('customer_name')
                     ->label('Pelanggan')
-                    ->searchable(),
+                    ->weight('medium')
+                    ->description(fn (Quotation $record) => $record->customer_phone)
+                    ->searchable(['customer_name', 'customer_phone', 'customer_email']),
 
-                // SEBELUMNYA Varian tidak ikut ditampilkan di sini juga —
-                // sama gap-nya dengan infolist View. Ditemukan lewat
-                // testing manual 2026-09-01.
+                // Kendaraan dengan produk yang diminati di bawahnya (triase cepat tanpa membuka record; eager-load 'items.filmProduct').
                 Tables\Columns\TextColumn::make('vehicle.model')
                     ->label('Kendaraan')
                     ->formatStateUsing(fn ($record) => $record->vehicle
                         ? "{$record->vehicle->brand} {$record->vehicle->model}"
                             . ($record->vehicle->variant ? " — {$record->vehicle->variant}" : '')
-                        : '—'),
-
-                Tables\Columns\TextColumn::make('store.name')
-                    ->label('Toko')
-                    ->placeholder('—')
-                    ->toggleable(),
-
-                // Sebelumnya tidak ada sama sekali — staff harus buka
-                // record satu-satu untuk tahu lead ini minat produk apa,
-                // padahal itu info penting untuk triase cepat. Lihat audit
-                // UI/UX Filament Quotation 2026-08-27.
-                Tables\Columns\TextColumn::make('items_summary')
-                    ->label('Produk Diminati')
-                    ->state(fn (Quotation $record) => $record->items
+                        : '—')
+                    ->description(fn (Quotation $record) => $record->items
                         ->map(fn ($item) => $item->filmProduct?->name)
                         ->filter()
-                        ->join(', ') ?: '—')
-                    ->wrap()
-                    ->limit(60)
-                    ->toggleable(),
+                        ->join(', ') ?: null)
+                    ->wrap(),
 
-                Tables\Columns\BadgeColumn::make('status')
-                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::quotationStatus($state))
-                    ->colors([
-                        'info'    => 'new',
-                        'warning' => 'contacted',
-                        'success' => 'closed',
-                        'danger'  => 'cancelled',
-                    ]),
-
-                Tables\Columns\TextColumn::make('source')
-                    ->label('Sumber')
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Status')
                     ->badge()
-                    ->color(fn (string $state) => $state === 'customer' ? 'gray' : 'info')
-                    ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Pelanggan' : 'Input Staff')
-                    ->toggleable(),
+                    ->icon(fn (?string $state) => match ($state) {
+                        'new'       => 'heroicon-m-bell-alert',
+                        'contacted' => 'heroicon-m-chat-bubble-left-ellipsis',
+                        'closed'    => 'heroicon-m-check-circle',
+                        'cancelled' => 'heroicon-m-x-circle',
+                        default     => null,
+                    })
+                    ->color($statusColor)
+                    ->formatStateUsing(fn (?string $state) => match ($state) {
+                        'new' => 'New', 'contacted' => 'Contacted', 'closed' => 'Closed', 'cancelled' => 'Cancelled', default => $state,
+                    })
+                    ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::quotationStatus($state)),
 
+                Tables\Columns\TextColumn::make('outcome')
+                    ->label('Hasil')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => $state === 'won' ? 'Deal' : ($state === 'lost' ? 'Tidak Jadi' : '—'))
+                    ->color(fn (?string $state) => match ($state) { 'won' => 'success', 'lost' => 'danger', default => 'gray' }),
+
+                Tables\Columns\TextColumn::make('owner.name')
+                    ->label('Penanggung Jawab')
+                    ->placeholder('Belum ditentukan')
+                    ->color(fn (Quotation $record) => $record->owner ? null : 'gray'),
+
+                // Masuk: tanggal, dengan "berapa lama lalu" di bawahnya.
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Masuk')
                     ->dateTime('d M Y H:i')
+                    ->description(fn (Quotation $record) => $record->created_at?->locale('id')->diffForHumans())
                     ->sortable(),
 
-                // SLA follow-up — isi otomatis begitu status pertama kali
-                // berubah dari 'new' (lihat QuotationObserver::updating()),
-                // bukan field yang diisi manual.
+                // SLA follow-up: terisi otomatis begitu status pertama kali berubah dari 'new' (QuotationObserver::updating()).
                 Tables\Columns\TextColumn::make('contacted_at')
                     ->label('Direspons Setelah')
                     ->state(fn (Quotation $record) => $record->contacted_at
                         ? $record->created_at->diffForHumans($record->contacted_at, syntax: \Carbon\CarbonInterface::DIFF_ABSOLUTE)
                         : null)
                     ->placeholder('Belum direspons')
-                    ->color(fn (Quotation $record) => ! $record->contacted_at && $record->created_at->lt(now()->subHours(24)) ? 'danger' : null)
-                    ->toggleable(),
+                    ->color(fn (Quotation $record) => ! $record->contacted_at && $record->created_at->lt(now()->subHours(24)) ? 'danger' : null),
+
+                // Kolom pelengkap: tersedia lewat tombol kolom, disembunyikan bawaan agar tabel tidak padat.
+                Tables\Columns\TextColumn::make('quotation_number')
+                    ->label('No. Quotation')
+                    ->color('gray')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('store.name')
+                    ->label('Toko')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('source')
+                    ->label('Sumber')
+                    ->badge()
+                    ->color(fn (string $state) => $state === 'customer' ? 'gray' : 'info')
+                    ->formatStateUsing(fn (string $state) => $state === 'customer' ? 'Pelanggan' : 'Input Staff')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('channel')
                     ->label('Kanal')
                     ->badge()
                     ->formatStateUsing(fn (?string $state) => \App\Support\LeadAttribution::CHANNELS[$state] ?? 'Tidak tercatat')
                     ->color(fn (?string $state) => $state ? 'info' : 'gray')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('utm_campaign')
                     ->label('Kampanye')
@@ -469,23 +516,6 @@ class QuotationResource extends Resource
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('owner.name')
-                    ->label('Penanggung Jawab')
-                    ->placeholder('Belum ditentukan')
-                    ->toggleable(),
-
-                Tables\Columns\TextColumn::make('outcome')
-                    ->label('Hasil')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state) => $state === 'won' ? 'Deal' : ($state === 'lost' ? 'Tidak Jadi' : '—'))
-                    ->color(fn (?string $state) => match ($state) { 'won' => 'success', 'lost' => 'danger', default => 'gray' })
-                    ->toggleable(),
-
-                // Sebelumnya cuma terlihat setelah buka form — toggleable
-                // & disembunyikan default (bukan info yang selalu perlu
-                // tampil), tapi bisa dimunculkan kalau staff mau baca
-                // sekilas tanpa buka record. Lihat audit UI/UX Filament
-                // Quotation 2026-08-27.
                 Tables\Columns\TextColumn::make('message')
                     ->label('Catatan Pelanggan')
                     ->placeholder('—')
@@ -493,6 +523,7 @@ class QuotationResource extends Resource
                     ->wrap()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            // Status dipindah ke tab di atas daftar (ListQuotations::getTabs), jadi tidak ada lagi filter Status di sini.
             ->filters([
                 Tables\Filters\SelectFilter::make('channel')
                     ->label('Kanal')
@@ -503,75 +534,57 @@ class QuotationResource extends Resource
                 Tables\Filters\SelectFilter::make('owner_user_id')
                     ->label('Penanggung Jawab')
                     ->relationship('owner', 'name'),
-                Tables\Filters\SelectFilter::make('status')
-                    ->options([
-                        'new'       => 'New',
-                        'contacted' => 'Contacted',
-                        'closed'    => 'Closed',
-                        'cancelled' => 'Cancelled',
-                    ]),
-
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
                     ->relationship('store', 'name')
                     ->visible(fn () => auth()->user()?->isFullAccess()),
-            ])
+            ], layout: FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(4)
+            // Aksi utama (WhatsApp, Lihat) sebagai ikon; sisanya dikelompokkan di menu "...", supaya baris tidak penuh tombol.
             ->actions([
-                // Sebelumnya staff harus buka form Edit penuh cuma untuk
-                // ubah status "New" -> "Contacted" — padahal ini aksi
-                // paling sering dilakukan tiap hari. Modal kecil ini
-                // memicu event Eloquent 'updating' yang sama (lewat
-                // ->update()), jadi contacted_at tetap terisi otomatis
-                // sama seperti lewat form Edit biasa (lihat
-                // QuotationObserver::updating()). Lihat audit UI/UX
-                // Filament Quotation 2026-08-27.
-                Tables\Actions\Action::make('quickStatus')
-                    ->label('Ubah Status')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('gray')
-                    ->form([
-                        Forms\Components\Select::make('status')
-                            ->label('Status Follow-up')
-                            ->options([
-                                'new'       => 'New',
-                                'contacted' => 'Contacted',
-                                'closed'    => 'Closed',
-                                'cancelled' => 'Cancelled',
-                            ])
-                            ->required(),
-                    ])
-                    ->fillForm(fn (Quotation $record) => ['status' => $record->status])
-                    ->action(fn (Quotation $record, array $data) => $record->update(['status' => $data['status']])),
+                Tables\Actions\Action::make('whatsapp')
+                    ->label('WhatsApp')
+                    ->icon('heroicon-o-chat-bubble-left-right')
+                    ->color('success')
+                    ->iconButton()
+                    ->tooltip('Hubungi lewat WhatsApp')
+                    ->visible(fn (Quotation $record) => filled($record->customer_phone))
+                    ->url(fn (Quotation $record) => 'https://wa.me/' . \App\Support\PhoneFormatter::toWhatsAppNumber($record->customer_phone))
+                    ->openUrlInNewTab(),
 
-                // Sebelumnya Filament sama sekali tidak punya cara cepat
-                // menghubungi lead — staff yang kerja dari desktop harus
-                // copy-paste nomor manual ke WhatsApp Web. Mobile app
-                // sudah punya ini di layar detail (lihat
-                // app/staff/quotations/[id].tsx). Lihat audit UI/UX
-                // Filament Quotation 2026-08-27.
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
+
                 Tables\Actions\ActionGroup::make([
-                    Tables\Actions\Action::make('whatsapp')
-                        ->label('WhatsApp')
-                        ->icon('heroicon-o-chat-bubble-left-right')
-                        ->color('success')
-                        ->visible(fn (Quotation $record) => filled($record->customer_phone))
-                        ->url(fn (Quotation $record) => 'https://wa.me/' . \App\Support\PhoneFormatter::toWhatsAppNumber($record->customer_phone))
-                        ->openUrlInNewTab(),
+                    // Ubah status cepat: aksi paling sering tiap hari. Memicu event 'updating' yang sama, jadi contacted_at tetap
+                    // terisi otomatis (QuotationObserver::updating()).
+                    Tables\Actions\Action::make('quickStatus')
+                        ->label('Ubah Status')
+                        ->icon('heroicon-o-arrow-path')
+                        ->form([
+                            Forms\Components\Select::make('status')
+                                ->label('Status Follow-up')
+                                ->options([
+                                    'new'       => 'New',
+                                    'contacted' => 'Contacted',
+                                    'closed'    => 'Closed',
+                                    'cancelled' => 'Cancelled',
+                                ])
+                                ->required(),
+                        ])
+                        ->fillForm(fn (Quotation $record) => ['status' => $record->status])
+                        ->action(fn (Quotation $record, array $data) => $record->update(['status' => $data['status']])),
+
                     Tables\Actions\Action::make('call')
                         ->label('Telepon')
                         ->icon('heroicon-o-phone')
-                        ->color('info')
                         ->visible(fn (Quotation $record) => filled($record->customer_phone))
                         ->url(fn (Quotation $record) => 'tel:' . $record->customer_phone),
-                ])
-                    ->label('Hubungi')
-                    ->icon('heroicon-o-phone')
-                    ->color('gray'),
 
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make()
-                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
+                    Tables\Actions\EditAction::make(),
+
+                    Tables\Actions\DeleteAction::make()
+                        ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
+                ])->icon('heroicon-o-ellipsis-horizontal')->tooltip('Aksi lain'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -579,18 +592,15 @@ class QuotationResource extends Resource
                         ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
                 ]),
             ])
-            // Sebelumnya defaultSort('created_at', 'desc') murni — lead
-            // "New" lama bisa terkubur di bawah lead baru yang statusnya
-            // sudah closed, tidak ada dorongan visual untuk prioritaskan
-            // yang overdue (walau sudah ada notifikasi harian
-            // NotifyStaleQuotations). 'sort_priority' dihitung di
-            // getEloquentQuery() — lead 'new' SELALU di atas (paling
-            // lama menunggu di paling atas — paling mendesak), baru di
-            // bawahnya sisanya diurutkan terbaru dulu. Diabaikan
-            // otomatis kalau staff klik header kolom lain untuk sort
-            // manual. Lihat audit UI/UX Filament Quotation 2026-08-27
-            // (perbaikan susulan — versi Closure sebelumnya ternyata
-            // tidak didukung).
+            // Lead baru yang menunggu lebih dari 24 jam diberi garis merah lembut di kiri baris (gaya di admin-ui-styles).
+            ->recordClasses(fn (Quotation $record) => $record->status === 'new' && $record->created_at?->lt(now()->subHours(24)) ? 'cu-row-late' : null)
+            ->emptyStateIcon('heroicon-o-inbox')
+            ->emptyStateHeading('Belum ada lead')
+            ->emptyStateDescription('Permintaan penawaran dari website, aplikasi, dan input staf akan muncul di sini.')
+            ->paginated([10, 25, 50])
+            ->defaultPaginationPageOption(25)
+            // 'sort_priority' dihitung di getEloquentQuery(): lead 'new' selalu di atas (yang paling lama menunggu paling atas),
+            // sisanya terbaru dulu. Diabaikan otomatis kalau staf mengurutkan lewat kepala kolom.
             ->defaultSort('sort_priority');
     }
 

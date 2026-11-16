@@ -222,6 +222,13 @@ class AdminPanelProvider extends PanelProvider
                     ])->render();
                 }
             )
+            // Gaya bersih untuk menu yang sudah dirombak (daftar di App\Support\CleanUi); menu lain tidak terpengaruh.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::PAGE_START,
+                fn (): string => \App\Support\CleanUi::appliesTo(\Livewire\Livewire::current())
+                    ? view('filament.partials.admin-ui-styles')->render()
+                    : ''
+            )
             // Pintasan Pusat Persetujuan: ikon dengan angka pengajuan menunggu, di antara lonceng dan avatar. Bukan tab menu supaya bilah atas tidak penuh.
             ->renderHook(
                 \Filament\View\PanelsRenderHook::USER_MENU_BEFORE,

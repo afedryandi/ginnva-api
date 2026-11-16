@@ -83,14 +83,54 @@ class QuotationFilamentSmokeTest extends TestCase
         $this->assertTrue(\App\Filament\Resources\QuotationResource::canViewAny(), 'QuotationResource::canViewAny() false.');
     }
 
-    public function test_quotation_list_renders_and_status_filter_works(): void
+    public function test_quotation_list_renders_and_status_tabs_work(): void
     {
         Livewire::test(ListQuotations::class)
             ->assertSuccessful()
             ->assertCanSeeTableRecords([$this->new, $this->contacted])
-            ->filterTable('status', 'new')
+            ->set('activeTab', 'new')
             ->assertCanSeeTableRecords([$this->new])
-            ->assertCanNotSeeTableRecords([$this->contacted]);
+            ->assertCanNotSeeTableRecords([$this->contacted])
+            ->set('activeTab', 'contacted')
+            ->assertCanSeeTableRecords([$this->contacted])
+            ->assertCanNotSeeTableRecords([$this->new]);
+    }
+
+    public function test_status_tabs_carry_the_count_of_each_status(): void
+    {
+        $tabs = Livewire::test(ListQuotations::class)->instance()->getTabs();
+
+        $this->assertSame(['all', 'new', 'contacted', 'closed', 'cancelled'], array_keys($tabs));
+        $this->assertSame(1, $tabs['new']->getBadge());
+        $this->assertSame(1, $tabs['contacted']->getBadge());
+        $this->assertSame(0, $tabs['closed']->getBadge());
+    }
+
+    public function test_row_actions_are_whatsapp_view_and_the_more_menu(): void
+    {
+        Livewire::test(ListQuotations::class)
+            ->assertTableActionExists('whatsapp')
+            ->assertTableActionExists('view')
+            ->assertTableActionExists('quickStatus')
+            ->assertTableActionExists('edit');
+    }
+
+    public function test_quick_status_still_stamps_the_first_response_time(): void
+    {
+        Livewire::test(ListQuotations::class)
+            ->callTableAction('quickStatus', $this->new, ['status' => 'contacted'])
+            ->assertHasNoTableActionErrors();
+
+        $fresh = $this->new->fresh();
+        $this->assertSame('contacted', $fresh->status);
+        $this->assertNotNull($fresh->contacted_at);
+    }
+
+    public function test_the_clean_style_applies_only_to_redesigned_menus(): void
+    {
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListQuotations()));
+        $this->assertFalse(\App\Support\CleanUi::appliesTo(new \App\Filament\Resources\BookingResource\Pages\ListBookings()));
+        $this->assertFalse(\App\Support\CleanUi::appliesTo(null));
     }
 
     public function test_quotation_view_edit_and_create_pages_render(): void
