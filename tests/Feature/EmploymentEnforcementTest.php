@@ -236,4 +236,21 @@ class EmploymentEnforcementTest extends TestCase
             (new InstallerAvailabilityService())->forDate($this->store->id, Carbon::parse('2026-10-12')),
         );
     }
+
+    public function test_the_rework_tabs_split_open_from_resolved_and_the_clean_ui_applies(): void
+    {
+        $this->actingAs($this->admin, 'web');
+        $problem = $this->booking(['status' => 'completed'], [$this->installer('Rina')]);
+        $rework = BookingRework::create(['booking_id' => $problem->id, 'source' => 'qc_gagal', 'reason' => 'Tepi film terangkat', 'reported_on' => '2026-10-01']);
+
+        Livewire::test(ListBookingReworks::class)->assertCanSeeTableRecords([$rework]);
+        Livewire::test(ListBookingReworks::class)->set('activeTab', 'selesai')->assertCanNotSeeTableRecords([$rework]);
+
+        $rework->update(['resolved_on' => '2026-10-03']);
+
+        Livewire::test(ListBookingReworks::class)->set('activeTab', 'berjalan')->assertCanNotSeeTableRecords([$rework]);
+        Livewire::test(ListBookingReworks::class)->set('activeTab', 'selesai')->assertCanSeeTableRecords([$rework]);
+
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListBookingReworks()));
+    }
 }
