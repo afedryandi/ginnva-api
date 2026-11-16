@@ -34,8 +34,6 @@ use RuntimeException;
 
 class BookingResource extends Resource
 {
-    use \App\Filament\Resources\Support\DuplicatesRecords;
-
     protected static ?string $model = Booking::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
@@ -161,10 +159,31 @@ class BookingResource extends Resource
         $isSuperAdmin = auth()->user()?->isFullAccess();
 
         return $form->schema([
+            Forms\Components\Section::make('Data Dikunci')
+                ->columns(1)
+                ->visible(fn (?Booking $record) => $record?->status === 'confirmed')
+                ->schema([
+                    Forms\Components\Placeholder::make('lock_info')
+                        ->hiddenLabel()
+                        ->content('Booking sudah dikonfirmasi, jadi data inti (pelanggan, kendaraan, jenis layanan, produk, tanggal dan jam, toko) tidak bisa diubah di sini. Ganti jadwal lewat tombol Pindah Jadwal. Installer, catatan, dan status tetap bisa diubah.'),
+                    Forms\Components\Toggle::make('core_unlocked')
+                        ->label('Buka kunci data (akses penuh)')
+                        ->helperText('Hanya untuk koreksi salah input. Alasan wajib dan tercatat di Histori Aktivitas.')
+                        ->visible(fn () => (bool) auth()->user()?->isFullAccess())
+                        ->live()
+                        ->dehydrated(false),
+                    Forms\Components\Textarea::make('unlock_reason')
+                        ->label('Alasan membuka kunci')
+                        ->visible(fn (Forms\Get $get) => (bool) $get('core_unlocked'))
+                        ->required(fn (Forms\Get $get) => (bool) $get('core_unlocked'))
+                        ->maxLength(500)
+                        ->dehydrated(false),
+                ]),
+
             Forms\Components\Section::make('Sumber Booking')
                 ->columns(1)
                 ->schema([
-                    Forms\Components\Select::make('source')
+                    Forms\Components\Select::make('source')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Asal Booking')
                         ->options([
                             'app'       => '📱 Mobile App',
@@ -186,7 +205,7 @@ class BookingResource extends Resource
                 ->columns(1)
                 ->schema([
                     // Booking dari app — pilih dari akun terdaftar
-                    Forms\Components\Select::make('customer_id')
+                    Forms\Components\Select::make('customer_id')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Akun Pelanggan (App)')
                         ->options(fn () => Customer::orderBy('name')
                             ->get()
@@ -200,13 +219,13 @@ class BookingResource extends Resource
                         ->disabledOn('edit'),
 
                     // Booking manual (WA/walk-in) — input nama & nomor langsung
-                    Forms\Components\TextInput::make('customer_name')
+                    Forms\Components\TextInput::make('customer_name')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Nama Pelanggan')
                         ->required(fn (Forms\Get $get) => in_array($get('source'), ['whatsapp', 'walk_in']))
                         ->visible(fn (Forms\Get $get) => in_array($get('source'), ['whatsapp', 'walk_in']))
                         ->maxLength(255),
 
-                    Forms\Components\TextInput::make('phone_number')
+                    Forms\Components\TextInput::make('phone_number')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('No. WhatsApp / Telepon')
                         ->tel()
                         // Diwajibkan — SEBELUMNYA booking manual (WA/walk-in)
@@ -224,7 +243,7 @@ class BookingResource extends Resource
                 ->description('Opsional. Booking dari aplikasi sudah terisi otomatis dari "Kendaraan Saya" milik pelanggan.')
                 ->columns(1)
                 ->schema([
-                    Forms\Components\TextInput::make('vehicle_plate')
+                    Forms\Components\TextInput::make('vehicle_plate')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Plat Nomor')
                         ->placeholder('B 1234 ABC')
                         ->maxLength(20)
@@ -236,12 +255,12 @@ class BookingResource extends Resource
                         ->dehydrateStateUsing(fn ($state) => filled($state)
                             ? \App\Models\CustomerVehicle::formatPlate(\App\Models\CustomerVehicle::normalizePlate((string) $state))
                             : null),
-                    Forms\Components\TextInput::make('vehicle_brand')->label('Merek')->maxLength(80),
-                    Forms\Components\TextInput::make('vehicle_model')->label('Model')->maxLength(120),
-                    Forms\Components\TextInput::make('vehicle_variant')->label('Varian')->maxLength(120),
-                    Forms\Components\TextInput::make('vehicle_color')->label('Warna')->maxLength(40),
-                    Forms\Components\TextInput::make('vehicle_year')->label('Tahun')->numeric()->minValue(1980)->maxValue((int) now()->year + 1),
-                    Forms\Components\Select::make('vehicle_size')
+                    Forms\Components\TextInput::make('vehicle_brand')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()->label('Merek')->maxLength(80),
+                    Forms\Components\TextInput::make('vehicle_model')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()->label('Model')->maxLength(120),
+                    Forms\Components\TextInput::make('vehicle_variant')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()->label('Varian')->maxLength(120),
+                    Forms\Components\TextInput::make('vehicle_color')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()->label('Warna')->maxLength(40),
+                    Forms\Components\TextInput::make('vehicle_year')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()->label('Tahun')->numeric()->minValue(1980)->maxValue((int) now()->year + 1),
+                    Forms\Components\Select::make('vehicle_size')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Ukuran Mobil')
                         ->options(array_combine(\App\Models\CustomerVehicle::SIZES, \App\Models\CustomerVehicle::SIZES))
                         ->placeholder('Belum ditentukan')
@@ -258,7 +277,8 @@ class BookingResource extends Resource
                         ->required()
                         ->live()
                         ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id)
-                        ->disabled(! $isSuperAdmin)
+                        ->disabled(fn (?Booking $record, Forms\Get $get) => ! $isSuperAdmin || self::coreLocked($record, $get))
+                        ->dehydrated(fn () => (bool) $isSuperAdmin)
                         ->afterStateUpdated(fn (Forms\Set $set) => $set('installers', [])),
 
                     Forms\Components\Select::make('installers')
@@ -434,12 +454,12 @@ class BookingResource extends Resource
                         // sendiri oleh customer — tampilkan apa adanya, jangan
                         // bisa diubah staff. Booking walk-in/WhatsApp (staff
                         // yang input manual) tetap bisa dipilih seperti biasa.
-                        ->disabled(fn (Forms\Get $get) => $get('source') === 'app')
+                        ->disabled(fn (?Booking $record, Forms\Get $get) => $get('source') === 'app' || self::coreLocked($record, $get))
                         ->helperText(fn (Forms\Get $get) => $get('source') === 'app'
                             ? 'Dipilih oleh pelanggan lewat mobile app — tidak bisa diubah di sini.'
                             : 'Centang semua yang dikerjakan. PPF Full Body sudah termasuk Detailing dan Premium Wash.'),
 
-                    Forms\Components\Select::make('ppf_area')
+                    Forms\Components\Select::make('ppf_area')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('PPF Eksterior / Interior')
                         ->options([
                             Booking::PPF_AREA_EXTERIOR => 'Eksterior',
@@ -455,7 +475,7 @@ class BookingResource extends Resource
                             }
                         }),
 
-                    Forms\Components\Select::make('ppf_scope')
+                    Forms\Components\Select::make('ppf_scope')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Bagian Panel Mobil')
                         ->options([
                             Booking::PPF_SCOPE_FULL_BODY => 'Full Body (sudah termasuk Detailing + Premium Wash)',
@@ -489,7 +509,7 @@ class BookingResource extends Resource
                     // Booking "Kaca Film + PPF" (dua-duanya) tetap boleh
                     // pilih dari semua opsi karena tidak bisa ditentukan
                     // otomatis mana yang dominan.
-                    Forms\Components\Select::make('film_product_id')
+                    Forms\Components\Select::make('film_product_id')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Varian Produk (SKU)')
                         ->options(function (Forms\Get $get) {
                             // Detailing (product_type 'detailing') BUKAN varian
@@ -528,6 +548,7 @@ class BookingResource extends Resource
                     // catatan lengkap di Booking::filmProducts().
                     Forms\Components\Repeater::make('filmProducts')
                         ->relationship()
+                        ->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))
                         ->label('Produk per Bagian')
                         ->addActionLabel('+ Tambah bagian')
                         ->reorderable(false)
@@ -622,7 +643,7 @@ class BookingResource extends Resource
                     Forms\Components\Hidden::make('product_detailing')->default(false),
                     Forms\Components\Hidden::make('product_premium_wash')->default(false),
 
-                    Forms\Components\DatePicker::make('preferred_date')
+                    Forms\Components\DatePicker::make('preferred_date')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Tanggal Diinginkan')
                         ->required()
                         ->live()
@@ -647,10 +668,10 @@ class BookingResource extends Resource
 ->label(fn (?Booking $record) => $record?->status === 'confirmed' ? 'Alasan Pindah Jadwal' : 'Alasan Pindah Jadwal (opsional)')
                         ->helperText('Wajib kalau tanggal booking yang sudah dikonfirmasi diubah; opsional untuk booking yang masih menunggu. Dikirim ke pelanggan.')
                         ->maxLength(500)
-                        ->visible(fn (?Booking $record) => in_array($record?->status, ['pending', 'confirmed'], true))
+                        ->visible(fn (?Booking $record, Forms\Get $get) => $record?->status === 'pending' || ($record?->status === 'confirmed' && ! self::coreLocked($record, $get)))
                         ->columnSpanFull(),
 
-                    Forms\Components\TextInput::make('preferred_time')
+                    Forms\Components\TextInput::make('preferred_time')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Jam Diinginkan')
                         ->placeholder('Contoh: 09:00')
                         ->maxLength(50)
@@ -688,7 +709,7 @@ class BookingResource extends Resource
                             },
                         ]),
 
-                    Forms\Components\TextInput::make('duration_days')
+                    Forms\Components\TextInput::make('duration_days')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Lama Pengerjaan (hari)')
                         ->numeric()
                         ->minValue(1)
@@ -1391,8 +1412,6 @@ class BookingResource extends Resource
                     ->query(fn (Builder $query) => $query->where('status', 'completed')->unsold()),
             ])
             ->actions([
-                static::duplicateTableAction()->label('Duplikat (pelanggan datang lagi)'),
-
                 // "Catat Uang Muka (DP)" -- keputusan atasan 2026-09-19
                 // (Topik 2, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx"): DP
                 // BUKAN syarat wajib, diterima fleksibel kapan saja SELAMA
@@ -2163,10 +2182,6 @@ class BookingResource extends Resource
     }
 
     /**
-     * Booking baru untuk pelanggan yang datang lagi: pelanggan, kendaraan, toko, dan layanan disalin. Tanggal, jam, status, harga,
-     * pembayaran, DP, rincian penjualan, voucher/referral, dan teknisi SENGAJA tidak ikut; semuanya diisi baru.
-     */
-    /**
      * Pilihan "Bagian" di Produk per Bagian menurut jenis layanan: panel PPF (hanya PPF Eksterior Part) dan/atau bagian kaca
      * Window Film. Kosong berarti bagian ini tidak dipakai (mis. PPF Full Body cukup memakai model utama).
      *
@@ -2187,6 +2202,20 @@ class BookingResource extends Resource
 
         return $options;
     }
+
+    /** Data inti booking yang sudah dikonfirmasi terkunci di form Ubah, kecuali akses penuh membuka kuncinya (toggle di form). */
+    public static function coreLocked(?Booking $record, ?Forms\Get $get = null): bool
+    {
+        return $record?->status === 'confirmed' && ! ($get !== null && (bool) $get('core_unlocked'));
+    }
+
+    /** Kolom data inti yang tidak boleh berubah lewat form Ubah saat terkunci (penjaga server di EditBooking). */
+    public const CORE_LOCKED_FIELDS = [
+        'source', 'customer_id', 'customer_name', 'phone_number',
+        'vehicle_plate', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_color', 'vehicle_year', 'vehicle_size',
+        'store_id', 'service_type', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash',
+        'ppf_area', 'ppf_scope', 'film_product_id', 'preferred_date', 'preferred_time', 'duration_days',
+    ];
 
     /** Buang baris panel PPF dari daftar Produk per Bagian (dipakai saat cakupan bukan Part), baris Window Film tetap. */
     public static function withoutPpfParts(array $rows): array
@@ -2212,12 +2241,4 @@ class BookingResource extends Resource
             ->implode(', ');
     }
 
-    public static function duplicateData(\Illuminate\Database\Eloquent\Model $record): array
-    {
-        return collect([
-            'customer_id', 'customer_name', 'phone_number',
-            'vehicle_plate', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_color', 'vehicle_year', 'vehicle_size',
-            'store_id', 'service_type', 'product_detailing', 'product_premium_wash',
-        ])->mapWithKeys(fn (string $field) => [$field => $record->{$field}])->all();
-    }
 }

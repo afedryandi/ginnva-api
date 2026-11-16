@@ -34,7 +34,7 @@ use Tests\TestCase;
 
 /**
  * Empat tambahan dari audit ACCURATE 5 (pass 12): Profil Perusahaan, status periode di halaman Keuangan,
- * tombol Duplikat (Pengeluaran, Template Tagihan, Booking), dan penanganan klaim garansi (penangan, perkiraan selesai, hasil).
+ * tombol Duplikat (Pengeluaran, Template Tagihan), dan penanganan klaim garansi (penangan, perkiraan selesai, hasil).
  * Waktu dibekukan: 15 Okt 2026.
  */
 class AccuratePolishTest extends TestCase
@@ -213,24 +213,6 @@ class AccuratePolishTest extends TestCase
 
         Livewire::withQueryParams(['duplikat' => $source->id])->test(CreateRecurringBillTemplate::class)
             ->assertFormSet(['name' => 'Sewa Toko (salinan)', 'day_of_month' => 5]);
-    }
-
-    public function test_a_booking_copy_keeps_the_customer_and_vehicle_but_not_dates_or_money(): void
-    {
-        $booking = new Booking([
-            'customer_name' => 'Budi', 'phone_number' => '081234567890', 'vehicle_plate' => 'B 1234 ABC', 'vehicle_brand' => 'Toyota',
-            'store_id' => $this->store->id, 'service_type' => 'ppf', 'preferred_date' => '2026-10-20', 'status' => 'confirmed',
-            'notes' => 'catatan lama', 'amount_received' => 500000,
-        ]);
-
-        $data = BookingResource::duplicateData($booking);
-
-        $this->assertSame('Budi', $data['customer_name']);
-        $this->assertSame('B 1234 ABC', $data['vehicle_plate']);
-        $this->assertSame($this->store->id, $data['store_id']);
-        foreach (['preferred_date', 'status', 'notes', 'amount_received', 'booking_number'] as $skipped) {
-            $this->assertArrayNotHasKey($skipped, $data);
-        }
     }
 
     // ------------------------------------------------------------- penanganan klaim

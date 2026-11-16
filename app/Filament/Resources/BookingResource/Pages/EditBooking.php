@@ -124,6 +124,25 @@ class EditBooking extends EditRecord
             $data['store_id'] = $this->record->store_id;
         }
 
+        // Booking terkonfirmasi: data inti terkunci. Form sudah menonaktifkan kolomnya; ini penjaga sisi server terhadap kiriman
+        // yang diubah. Akses penuh boleh membuka kunci dengan alasan wajib yang dicatat di Histori Aktivitas.
+        if ($this->record->status === 'confirmed') {
+            $unlocked = (bool) ($this->data['core_unlocked'] ?? false) && $user?->isFullAccess();
+
+            if ($unlocked) {
+                activity('booking')
+                    ->performedOn($this->record)
+                    ->causedBy($user)
+                    ->withProperties(['alasan' => (string) ($this->data['unlock_reason'] ?? '')])
+                    ->log('Kunci data booking dibuka: ' . (string) ($this->data['unlock_reason'] ?? ''));
+            } else {
+                foreach (BookingResource::CORE_LOCKED_FIELDS as $field) {
+                    $value = $this->record->{$field};
+                    $data[$field] = $value instanceof \Carbon\CarbonInterface ? $value->format('Y-m-d') : $value;
+                }
+            }
+        }
+
         $this->existingWatcherIds = $this->record->watchers()->pluck('users.id')->all();
 
         // Layanan ringan (Fase 2): cek slot jam, bukan kapasitas harian berat. Penanda produk diambil dari data form

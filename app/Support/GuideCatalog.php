@@ -321,8 +321,8 @@ class GuideCatalog
                     'Pelanggan tidak datang: Store Manager atau akses penuh bisa menandai tidak datang kalau booking sudah Confirmed, tanggalnya sudah tiba, dan pengerjaan belum dimulai. Booking menjadi **Cancelled**, slot terlepas, dan DP yang sudah diterima dikembalikan penuh.',
                     'Pelanggan menerima pengingat otomatis H-2, H-1, dan pagi hari-H. Teks kebijakan pembatalan yang tampil di aplikasi diatur admin di Operasional, Teks Aplikasi.',
                     'Booking yang sudah dibatalkan atau selesai tidak bisa diaktifkan lagi.',
+                    'Setelah dikonfirmasi, data inti booking terkunci di form Ubah: pelanggan, kendaraan, jenis layanan, produk, toko, tanggal, dan jam. Installer, catatan, dan status tetap bisa diubah. Untuk ganti jadwal, pakai **Pindah Jadwal** di halaman booking (alasan wajib, pelanggan diberi tahu). Salah input lain hanya bisa dikoreksi akses penuh lewat **Buka kunci data** dengan alasan yang tercatat di Histori Aktivitas.',
                     'Layar foto penerimaan, Quality Check, dan serah terima ada di aplikasi karyawan versi terbaru. Kalau tidak terlihat di aplikasi, perbarui aplikasi karyawan.',
-                    'Pelanggan yang datang lagi: di daftar Booking pakai **Duplikat (pelanggan datang lagi)**. Form Buat Booking terisi data pelanggan, kendaraan, toko, dan layanan; tanggal, jam, harga, pembayaran, DP, dan installer diisi baru. Belum ada yang tersimpan sampai menekan Buat.',
                 ],
             ],
             [

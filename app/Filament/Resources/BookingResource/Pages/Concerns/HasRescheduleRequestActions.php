@@ -69,6 +69,38 @@ trait HasRescheduleRequestActions
     protected function rescheduleRequestActions(): array
     {
         return [
+            // Jadwal booking terkonfirmasi terkunci di form Ubah; ganti jadwal lewat tombol ini (alasan wajib, pelanggan diberi tahu).
+            Actions\Action::make('rescheduleNow')
+                ->label('Pindah Jadwal')
+                ->icon('heroicon-o-calendar-days')
+                ->color('gray')
+                ->visible(fn () => in_array($this->record->status, ['pending', 'confirmed'], true) && BookingResource::canEdit($this->record))
+                ->form([
+                    Forms\Components\DatePicker::make('preferred_date')
+                        ->label('Tanggal baru')
+                        ->required()
+                        ->minDate(now()->startOfDay()),
+                    Forms\Components\Textarea::make('reason')
+                        ->label('Alasan (dikirim ke pelanggan)')
+                        ->required(fn () => $this->record->status === 'confirmed')
+                        ->maxLength(500),
+                ])
+                ->action(function (array $data) {
+                    try {
+                        app(BookingRescheduleService::class)->apply(
+                            $this->record,
+                            \Illuminate\Support\Carbon::parse($data['preferred_date']),
+                            auth()->id(),
+                            null,
+                            $data['reason'] ?? null,
+                        );
+                        Notification::make()->title('Jadwal booking diubah.')->success()->send();
+                    } catch (\RuntimeException $e) {
+                        Notification::make()->title('Gagal')->body($e->getMessage())->danger()->send();
+                    }
+                    $this->record->refresh();
+                }),
+
             Actions\Action::make('approveReschedule')
                 ->label(fn () => 'Setujui Jadwal Ulang (' . $this->record->pendingRescheduleRequest?->requested_date?->format('d M Y') . ')')
                 ->icon('heroicon-o-check')

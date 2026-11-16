@@ -396,7 +396,6 @@ class GuideAccuracyTest extends TestCase
     public function test_the_features_added_after_the_accurate_audit_are_documented(): void
     {
         $expected = [
-            'booking' => ['Duplikat (pelanggan datang lagi)'],
             'transaksi-keuangan' => ['Duplikat'],
             'garansi-maintenance' => ['Riwayat Klaim After-Sales', 'Ditangani oleh', 'Perkiraan Selesai', 'Bahan Terpakai', 'Catat Penyelesaian', 'Hasil Penanganan'],
             'stok' => ['Bahan Terpakai', 'Pemasok Utama'],
