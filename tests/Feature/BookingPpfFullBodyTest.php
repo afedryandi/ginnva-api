@@ -17,7 +17,7 @@ class BookingPpfFullBodyTest extends TestCase
     private function makeBooking(array $overrides = []): Booking
     {
         $store = Store::create(['city' => 'Jakarta', 'address' => 'Jl. Test 1', 'name' => 'Toko Test', 'is_active' => true]);
-        $customer = Customer::create(['name' => 'Budi', 'phone_number' => '081200000001']);
+        $customer = Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(10000000, 99999999)]);
 
         return Booking::create(array_merge([
             'booking_number' => 'BKG-TEST-' . uniqid(),
