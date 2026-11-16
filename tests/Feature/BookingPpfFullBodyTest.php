@@ -68,21 +68,30 @@ class BookingPpfFullBodyTest extends TestCase
         $booking = $this->makeBooking([
             'ppf_area' => Booking::PPF_AREA_INTERIOR,
             'ppf_scope' => Booking::PPF_SCOPE_FULL_BODY,
-            'ppf_parts' => ['hood'],
         ]);
 
         $this->assertNull($booking->ppf_scope);
-        $this->assertNull($booking->ppf_parts);
         $this->assertFalse((bool) $booking->product_detailing);
     }
 
-    public function test_part_keeps_selected_panels_only_for_part(): void
+    public function test_part_options_follow_service_scope_and_area(): void
     {
-        $part = $this->makeBooking(['ppf_area' => 'exterior', 'ppf_scope' => Booking::PPF_SCOPE_PARTIAL, 'ppf_parts' => ['hood', 'roof']]);
-        $this->assertSame(['hood', 'roof'], $part->fresh()->ppf_parts);
+        $R = \App\Filament\Resources\BookingResource::class;
 
-        $full = $this->makeBooking(['ppf_area' => 'exterior', 'ppf_scope' => Booking::PPF_SCOPE_FULL_BODY, 'ppf_parts' => ['hood']]);
-        $this->assertNull($full->ppf_parts);
+        $this->assertSame([], $R::partOptions(['ppf'], Booking::PPF_SCOPE_FULL_BODY, 'exterior'));
+        $this->assertSame([], $R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, Booking::PPF_AREA_INTERIOR));
+        $this->assertSame(['PPF'], array_keys($R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, 'exterior')));
+        $this->assertSame(['Window Film'], array_keys($R::partOptions(['kaca_film'], null, null)));
+        $this->assertSame(['PPF', 'Window Film'], array_keys($R::partOptions(['ppf', 'kaca_film'], Booking::PPF_SCOPE_PARTIAL, 'exterior')));
+        $this->assertSame('window_film', $R::productTypeForPart('Kaca Depan'));
+        $this->assertSame('ppf', $R::productTypeForPart('Hood'));
+    }
+
+    public function test_without_ppf_parts_keeps_window_film_rows(): void
+    {
+        $rows = [['position' => 'Hood'], ['position' => 'Kaca Depan'], ['position' => 'Roof']];
+
+        $this->assertSame([1 => ['position' => 'Kaca Depan']], \App\Filament\Resources\BookingResource::withoutPpfParts($rows));
     }
 
     public function test_service_type_label_keeps_fixed_order(): void

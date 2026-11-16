@@ -417,7 +417,7 @@ class BookingResource extends Resource
                             if (! $isPpf) {
                                 $set('ppf_area', null);
                                 $set('ppf_scope', null);
-                                $set('ppf_parts', []);
+                                $set('filmProducts', self::withoutPpfParts((array) $get('filmProducts')));
                             }
 
                             // Cuma auto-isi default kalau staff belum
@@ -438,6 +438,45 @@ class BookingResource extends Resource
                         ->helperText(fn (Forms\Get $get) => $get('source') === 'app'
                             ? 'Dipilih oleh pelanggan lewat mobile app — tidak bisa diubah di sini.'
                             : 'Centang semua yang dikerjakan. PPF Full Body sudah termasuk Detailing dan Premium Wash.'),
+
+                    Forms\Components\Select::make('ppf_area')
+                        ->label('PPF Eksterior / Interior')
+                        ->options([
+                            Booking::PPF_AREA_EXTERIOR => 'Eksterior',
+                            Booking::PPF_AREA_INTERIOR => 'Interior',
+                        ])
+                        ->placeholder('Pilih')
+                        ->visible(fn (Forms\Get $get) => (bool) $get('product_ppf'))
+                        ->live()
+                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
+                            if ($state === Booking::PPF_AREA_INTERIOR) {
+                                $set('ppf_scope', null);
+                                $set('filmProducts', self::withoutPpfParts((array) $get('filmProducts')));
+                            }
+                        }),
+
+                    Forms\Components\Select::make('ppf_scope')
+                        ->label('Bagian Panel Mobil')
+                        ->options([
+                            Booking::PPF_SCOPE_FULL_BODY => 'Full Body (sudah termasuk Detailing + Premium Wash)',
+                            Booking::PPF_SCOPE_PARTIAL   => 'Part (pilih panel)',
+                        ])
+                        ->placeholder('Pilih')
+                        ->helperText('Full Body: Detailing dan Premium Wash ikut otomatis. Harga diisi manual saat membuat invoice.')
+                        ->visible(fn (Forms\Get $get) => (bool) $get('product_ppf') && $get('ppf_area') !== Booking::PPF_AREA_INTERIOR)
+                        ->live()
+                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
+                            if ($state === Booking::PPF_SCOPE_FULL_BODY) {
+                                $set('product_detailing', true);
+                                $set('product_premium_wash', true);
+                                $set('services', array_values(array_unique([...(array) $get('services'), 'detailing', 'premium_wash'])));
+                                $set('service_type', self::serviceTypeLabel($get('services')));
+                            }
+
+                            if ($state !== Booking::PPF_SCOPE_PARTIAL) {
+                                $set('filmProducts', self::withoutPpfParts((array) $get('filmProducts')));
+                            }
+                        }),
 
                     // Varian/SKU FilmProduct spesifik yang dipasang --
                     // OPSIONAL (diminta 2026-09-08), supaya "Produk
@@ -478,7 +517,8 @@ class BookingResource extends Resource
                         ->searchable()
                         ->preload()
                         ->live()
-                        ->helperText('Produk utama booking ini, diisi saat booking dikonfirmasi. Kalau ada varian lain (mis. kaca depan beda dari samping), tambahkan di Produk Tambahan per Bagian.'),
+                        ->label('Model Produk Utama')
+                        ->helperText('Model utama booking ini. Kalau ada bagian yang memakai model lain, atur di Produk per Bagian.'),
 
                     // Produk TAMBAHAN per bagian kendaraan -- keputusan
                     // atasan 2026-09-19 (Topik 3): 1 booking BISA pakai
@@ -488,37 +528,47 @@ class BookingResource extends Resource
                     // catatan lengkap di Booking::filmProducts().
                     Forms\Components\Repeater::make('filmProducts')
                         ->relationship()
-                        ->label('Produk Tambahan per Bagian (opsional)')
-                        ->addActionLabel('+ Tambah produk untuk bagian lain')
+                        ->label('Produk per Bagian')
+                        ->addActionLabel('+ Tambah bagian')
                         ->reorderable(false)
                         ->defaultItems(0)
                         ->columns(2)
                         ->columnSpanFull()
+                        ->visible(fn (Forms\Get $get) => self::partOptions((array) $get('services'), $get('ppf_scope'), $get('ppf_area')) !== [])
                         ->itemLabel(fn (array $state): ?string => filled($state['position'] ?? null) ? $state['position'] : 'Bagian baru')
                         ->schema([
+                            Forms\Components\Select::make('position')
+                                ->label('Bagian')
+                                ->options(fn (Forms\Get $get) => self::partOptions((array) $get('../../services'), $get('../../ppf_scope'), $get('../../ppf_area')))
+                                ->placeholder('Pilih bagian')
+                                ->native(false)
+                                ->required()
+                                ->live()
+                                // Model terisi otomatis dari produk utama kalau jenisnya cocok; bisa diganti per bagian.
+                                ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
+                                    if (filled($get('film_product_id')) || blank($state)) {
+                                        return;
+                                    }
+
+                                    $main = \App\Models\FilmProduct::query()->find($get('../../film_product_id'));
+
+                                    if ($main && $main->product_type === self::productTypeForPart((string) $state)) {
+                                        $set('film_product_id', $main->id);
+                                    }
+                                }),
                             Forms\Components\Select::make('film_product_id')
-                                ->label('Varian Produk (SKU)')
-                                ->options(fn () => \App\Models\FilmProduct::query()
+                                ->label('Model')
+                                ->options(fn (Forms\Get $get) => \App\Models\FilmProduct::query()
                                     ->where('is_active', true)
-                                    ->whereNotIn('product_type', ['detailing', 'premium_wash'])
+                                    ->where('product_type', self::productTypeForPart((string) $get('position')))
                                     ->orderBy('name')
                                     ->get()
                                     ->mapWithKeys(fn ($product) => [$product->id => "{$product->sku} — {$product->name}"]))
                                 ->searchable()
                                 ->preload()
                                 ->required(),
-                            Forms\Components\Select::make('position')
-                                ->label('Posisi/Bagian')
-                                ->options([
-                                    'Kaca Depan' => 'Depan',
-                                    'Kaca Samping' => 'Samping',
-                                    'Kaca Belakang' => 'Belakang',
-                                    'Sun Roof' => 'Sun Roof',
-                                ])
-                                ->placeholder('Pilih bagian')
-                                ->native(false),
                         ])
-                        ->helperText('Isi kalau booking ini butuh lebih dari satu varian produk untuk bagian kendaraan berbeda. Biasanya cukup satu produk utama.'),
+                        ->helperText('PPF Part: pilih panel yang dipasang lalu modelnya. Window Film: pilih bagian kaca lalu modelnya. Model terisi dari Model Produk Utama dan bisa diganti.'),
 
                     // Referensi harga INTERNAL (bukan ditampilkan ke customer)
                     // — bantu staf set Nilai Transaksi. Booking tidak simpan
@@ -566,48 +616,6 @@ class BookingResource extends Resource
                     // TIDAK lewat service_type, supaya tidak meledakkan
                     // kombinasi opsi & tidak mengganggu mesin tahap film.
                     // Dipakai auto-isi Memo Barang dari Master Resep detailing.
-                    Forms\Components\Select::make('ppf_area')
-                        ->label('PPF Eksterior / Interior')
-                        ->options([
-                            Booking::PPF_AREA_EXTERIOR => 'Eksterior',
-                            Booking::PPF_AREA_INTERIOR => 'Interior',
-                        ])
-                        ->placeholder('Pilih')
-                        ->visible(fn (Forms\Get $get) => (bool) $get('product_ppf'))
-                        ->live()
-                        ->afterStateUpdated(function (Forms\Set $set, $state) {
-                            if ($state === Booking::PPF_AREA_INTERIOR) {
-                                $set('ppf_scope', null);
-                                $set('ppf_parts', []);
-                            }
-                        }),
-
-                    Forms\Components\Select::make('ppf_scope')
-                        ->label('Bagian Panel Mobil')
-                        ->options([
-                            Booking::PPF_SCOPE_FULL_BODY => 'Full Body (sudah termasuk Detailing + Premium Wash)',
-                            Booking::PPF_SCOPE_PARTIAL   => 'Part (pilih panel)',
-                        ])
-                        ->placeholder('Pilih')
-                        ->helperText('Full Body: Detailing dan Premium Wash ikut otomatis. Harga diisi manual saat membuat invoice.')
-                        ->visible(fn (Forms\Get $get) => (bool) $get('product_ppf') && $get('ppf_area') !== Booking::PPF_AREA_INTERIOR)
-                        ->live()
-                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
-                            if ($state === Booking::PPF_SCOPE_FULL_BODY) {
-                                $set('product_detailing', true);
-                                $set('product_premium_wash', true);
-                                $set('services', array_values(array_unique([...(array) $get('services'), 'detailing', 'premium_wash'])));
-                                $set('service_type', self::serviceTypeLabel($get('services')));
-                            }
-                        }),
-
-                    Forms\Components\CheckboxList::make('ppf_parts')
-                        ->label('Panel yang dipasang')
-                        ->options(Booking::PPF_PARTS)
-                        ->columns(3)
-                        ->columnSpanFull()
-                        ->visible(fn (Forms\Get $get) => (bool) $get('product_ppf') && $get('ppf_scope') === Booking::PPF_SCOPE_PARTIAL),
-
                     // Detailing & Premium Wash kini dipilih lewat pilihan "Jenis Layanan" di atas; kolom penandanya diisi otomatis.
                     Forms\Components\Hidden::make('product_kaca_film')->default(false),
                     Forms\Components\Hidden::make('product_ppf')->default(false),
@@ -924,7 +932,7 @@ class BookingResource extends Resource
                     // Produk tambahan per bagian (Topik 3, 2026-09-19) --
                     // cuma tampil kalau memang diisi, lihat Booking::filmProducts().
                     TextEntry::make('filmProducts')
-                        ->label('Produk Tambahan per Bagian')
+                        ->label('Produk per Bagian')
                         ->placeholder('—')
                         ->state(fn (Booking $record) => $record->filmProducts->isEmpty() ? null : $record->filmProducts
                             ->map(fn (\App\Models\BookingFilmProduct $item) => trim(($item->position ? "{$item->position}: " : '') . "{$item->filmProduct->sku} — {$item->filmProduct->name}"))
@@ -949,11 +957,6 @@ class BookingResource extends Resource
                             default => null,
                         })
                         ->visible(fn (Booking $record) => filled($record->ppf_area)),
-
-                    TextEntry::make('ppf_parts')
-                        ->label('Panel PPF')
-                        ->state(fn (Booking $record) => collect($record->ppf_parts ?? [])->map(fn ($k) => Booking::PPF_PARTS[$k] ?? $k)->implode(', '))
-                        ->visible(fn (Booking $record) => ! empty($record->ppf_parts)),
 
                     TextEntry::make('product_detailing')
                         ->label('Jasa Detailing')
@@ -2163,6 +2166,42 @@ class BookingResource extends Resource
      * Booking baru untuk pelanggan yang datang lagi: pelanggan, kendaraan, toko, dan layanan disalin. Tanggal, jam, status, harga,
      * pembayaran, DP, rincian penjualan, voucher/referral, dan teknisi SENGAJA tidak ikut; semuanya diisi baru.
      */
+    /**
+     * Pilihan "Bagian" di Produk per Bagian menurut jenis layanan: panel PPF (hanya PPF Eksterior Part) dan/atau bagian kaca
+     * Window Film. Kosong berarti bagian ini tidak dipakai (mis. PPF Full Body cukup memakai model utama).
+     *
+     * @param  array<int, string>  $services
+     * @return array<string, array<string, string>|string>
+     */
+    public static function partOptions(array $services, ?string $ppfScope, ?string $ppfArea): array
+    {
+        $options = [];
+
+        if (in_array('ppf', $services, true) && $ppfScope === Booking::PPF_SCOPE_PARTIAL && $ppfArea !== Booking::PPF_AREA_INTERIOR) {
+            $options['PPF'] = array_combine(array_values(Booking::PPF_PARTS), array_values(Booking::PPF_PARTS));
+        }
+
+        if (in_array('kaca_film', $services, true)) {
+            $options['Window Film'] = array_combine(array_values(Booking::WF_AREAS), array_values(Booking::WF_AREAS));
+        }
+
+        return $options;
+    }
+
+    /** Buang baris panel PPF dari daftar Produk per Bagian (dipakai saat cakupan bukan Part), baris Window Film tetap. */
+    public static function withoutPpfParts(array $rows): array
+    {
+        return collect($rows)
+            ->reject(fn ($row) => in_array($row['position'] ?? null, array_values(Booking::PPF_PARTS), true))
+            ->all();
+    }
+
+    /** Jenis produk yang cocok untuk sebuah bagian (panel PPF atau bagian kaca). */
+    public static function productTypeForPart(string $position): string
+    {
+        return in_array($position, Booking::WF_AREAS, true) ? 'window_film' : 'ppf';
+    }
+
     /** Teks service_type dari pilihan jenis layanan: label dipisah koma, urutan tetap (sama dengan aplikasi pelanggan). */
     public static function serviceTypeLabel(?array $keys): string
     {

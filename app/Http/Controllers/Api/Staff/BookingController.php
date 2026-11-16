@@ -26,7 +26,7 @@ class BookingController extends Controller
      */
     private const INSTALLER_DETAIL_FIELDS = [
         'id', 'booking_number', 'status', 'current_stage', 'secondary_stage', 'service_type',
-        'product_kaca_film', 'product_ppf', 'ppf_area', 'ppf_scope', 'ppf_parts', 'product_detailing', 'product_premium_wash',
+        'product_kaca_film', 'product_ppf', 'ppf_area', 'ppf_scope', 'product_detailing', 'product_premium_wash',
         'preferred_date', 'preferred_time', 'duration_days', 'end_date',
         'vehicle_size', 'vehicle_plate', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_color',
         'customer_name', 'notes',

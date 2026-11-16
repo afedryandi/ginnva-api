@@ -79,6 +79,9 @@ class Booking extends Model
 
     public const PPF_AREA_INTERIOR = 'interior';
 
+    /** Bagian kaca Window Film yang bisa dipilih. */
+    public const WF_AREAS = ['Kaca Depan', 'Kaca Samping', 'Kaca Belakang', 'Sun Roof'];
+
     /** Panel eksterior yang bisa dipilih untuk PPF Part (kunci => label). */
     public const PPF_PARTS = [
         'hood' => 'Hood',
@@ -182,7 +185,6 @@ class Booking extends Model
         // Cakupan PPF: full_body = sudah termasuk Detailing + Premium Wash (lihat includesPpfBonus()).
         'ppf_area',
         'ppf_scope',
-        'ppf_parts',
         // Penanda booking mencakup jasa detailing (sendiri / tambahan).
         // Lihat migrasi 2026_09_10_000003.
         'product_detailing',
@@ -299,7 +301,6 @@ class Booking extends Model
         'amount_received' => 'decimal:2',
         'product_kaca_film' => 'boolean',
         'product_ppf' => 'boolean',
-        'ppf_parts' => 'array',
         'product_detailing' => 'boolean',
         'product_premium_wash' => 'boolean',
         'spend_promo_discount' => 'decimal:2',
@@ -1409,7 +1410,7 @@ class Booking extends Model
         // PPF Full Body: Detailing + Premium Wash otomatis ikut. Hanya saat cakupan baru dipilih, jadi booking lama tidak berubah.
         static::saving(function (Booking $booking) {
             if (! $booking->product_ppf) {
-                $booking->ppf_area = $booking->ppf_scope = $booking->ppf_parts = null;
+                $booking->ppf_area = $booking->ppf_scope = null;
 
                 return;
             }
@@ -1417,10 +1418,6 @@ class Booking extends Model
             // Interior hanya satu paket (tanpa Full Body/Part); daftar panel hanya untuk Part.
             if ($booking->ppf_area === self::PPF_AREA_INTERIOR) {
                 $booking->ppf_scope = null;
-            }
-
-            if ($booking->ppf_scope !== self::PPF_SCOPE_PARTIAL) {
-                $booking->ppf_parts = null;
             }
 
             if ($booking->ppf_scope === self::PPF_SCOPE_FULL_BODY && $booking->isDirty('ppf_scope')) {
