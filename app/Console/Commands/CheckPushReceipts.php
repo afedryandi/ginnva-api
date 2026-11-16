@@ -5,7 +5,9 @@ namespace App\Console\Commands;
 use App\Models\DeviceToken;
 use App\Models\NotificationDelivery;
 use Illuminate\Console\Command;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Notifikasi Fase 3 (2026-10-21): periksa kuitansi Expo untuk push yang tiketnya sudah diterima. Tiket hanya berarti Expo menerima
@@ -37,6 +39,13 @@ class CheckPushReceipts extends Command
             try {
                 $response = Http::timeout(15)->withHeaders(['Accept' => 'application/json'])
                     ->post(self::RECEIPTS_URL, ['ids' => $batch->pluck('ticket_id')->unique()->values()->all()]);
+            } catch (ConnectionException $e) {
+                // Expo tidak terjangkau sesaat (timeout/jaringan): bukan galat aplikasi. Tiket tetap menunggu dan diperiksa lagi 15 menit
+                // lagi, jadi cukup dicatat di log tanpa mengirim peringatan ke Sentry.
+                Log::warning('Expo getReceipts tidak terjangkau: ' . $e->getMessage());
+                $this->warn('Expo getReceipts tidak terjangkau, dicoba lagi pada putaran berikutnya.');
+                $counts['pending'] += $batch->count();
+                continue;
             } catch (\Throwable $e) {
                 report($e);
                 $counts['pending'] += $batch->count();
