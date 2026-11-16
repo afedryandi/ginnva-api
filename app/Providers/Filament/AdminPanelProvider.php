@@ -288,6 +288,11 @@ class AdminPanelProvider extends PanelProvider
                 \Filament\View\PanelsRenderHook::HEAD_END,
                 fn (): string => view('filament.partials.topbar-styles')->render(),
             )
+            // Gaya panel Notifikasi (slide-over lonceng): kepala lapang, item berjarak lega, tombol "Buka" berlatar primer pucat.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn (): string => view('filament.partials.notification-styles')->render(),
+            )
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
