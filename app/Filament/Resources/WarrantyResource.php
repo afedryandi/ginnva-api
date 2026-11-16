@@ -18,6 +18,7 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -385,6 +386,8 @@ class WarrantyResource extends Resource
 
         return $form->schema([
             Forms\Components\Section::make('Data Garansi')
+                ->description('Pelanggan, kendaraan, produk, dan masa berlaku garansi.')
+                ->icon('heroicon-o-shield-check')
                 ->columns(1)
                 ->schema([
                     // Tidak diisi manual — nomor sekuensial GNV-PPF-00001 /
@@ -655,6 +658,7 @@ class WarrantyResource extends Resource
             // Depan vs Kaca Samping & Belakang, karena biasanya pakai
             // roll film yang berbeda (卷芯号 前挡 vs 侧后).
             Forms\Components\Section::make('Detail Instalasi (PPF)')
+                ->icon('heroicon-o-sparkles')
                 ->columns(1)
                 ->schema([
                     Forms\Components\Select::make('installation_position')
@@ -733,6 +737,7 @@ class WarrantyResource extends Resource
                 ->visible(fn (Forms\Get $get) => $get('product_category') === 'ppf'),
 
             Forms\Components\Section::make('Detail Instalasi (Window Film)')
+                ->icon('heroicon-o-sun')
                 ->columns(1)
                 ->schema([
                     Forms\Components\Select::make('roll_number_front')
@@ -811,6 +816,7 @@ class WarrantyResource extends Resource
             // (lihat getHeaderActions di EditWarranty), bukan field form,
             // supaya tidak bisa "diam-diam" diubah lewat save form biasa.
             Forms\Components\Section::make('Status Review (QA Certificate)')
+                ->icon('heroicon-o-check-badge')
                 ->columns(1)
                 ->schema([
                     Forms\Components\Placeholder::make('review_status')
@@ -841,6 +847,8 @@ class WarrantyResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('warranty_code')
                     ->label('Kode')
+                    ->weight('semibold')
+                    ->copyable()
                     ->searchable()
                     ->sortable(),
 
@@ -858,6 +866,8 @@ class WarrantyResource extends Resource
 
                 Tables\Columns\TextColumn::make('car_plate')
                     ->label('Plat Nomor')
+                    ->badge()
+                    ->color('gray')
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('product_series')
@@ -1088,14 +1098,21 @@ class WarrantyResource extends Resource
                             ->when($data['from'] ?? null, fn (Builder $q, $date) => $q->whereDate('created_at', '>=', $date))
                             ->when($data['until'] ?? null, fn (Builder $q, $date) => $q->whereDate('created_at', '<=', $date));
                     }),
-            ])
+            ], layout: FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(3)
+            // Lihat, Ubah, Approve, dan Reject sebagai ikon; sisanya dikelompokkan di menu "...", supaya baris tidak penuh tombol.
             ->actions([
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+
                 // Approve/Reject hanya untuk super_admin, sesuai keputusan
                 // akses QA review. Muncul hanya kalau masih pending_review.
                 Tables\Actions\Action::make('approve')
                     ->label('Approve')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
+                    ->iconButton()
+                    ->tooltip('Approve')
                     ->visible(fn (Warranty $record) => auth()->user()?->isFullAccess() && $record->review_status === 'pending_review')
                     ->requiresConfirmation()
                     ->action(fn (Warranty $record) => static::performApprove($record)),
@@ -1104,6 +1121,8 @@ class WarrantyResource extends Resource
                     ->label('Reject')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
+                    ->iconButton()
+                    ->tooltip('Reject')
                     ->visible(fn (Warranty $record) => auth()->user()?->isFullAccess() && $record->review_status === 'pending_review')
                     ->form([
                         Forms\Components\Textarea::make('rejection_reason')
@@ -1112,6 +1131,7 @@ class WarrantyResource extends Resource
                     ])
                     ->action(fn (Warranty $record, array $data) => static::performReject($record, $data['rejection_reason'])),
 
+                Tables\Actions\ActionGroup::make([
                 // Gap "revoke/void" diperbaiki 2026-09-25 (audit Garansi)
                 // -- lihat performRevoke() di atas.
                 Tables\Actions\Action::make('revoke')
@@ -1248,8 +1268,6 @@ class WarrantyResource extends Resource
                     ->modalDescription('Kunjungan yang dibatalkan mengembalikan kuota pelanggan. Riwayatnya tetap tersimpan (ditandai batal), bukan dihapus.')
                     ->action(fn (Warranty $record, array $data) => static::performCancelMaintenanceVisit($record, $data)),
 
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
                 // SEBELUMNYA tidak dibatasi sama sekali — padahal Approve/
                 // Reject di atas sengaja dikunci super_admin. Akibatnya
                 // Store Manager biasa bisa hapus permanen garansi yang
@@ -1257,6 +1275,7 @@ class WarrantyResource extends Resource
                 // boleh sekalipun cuma reject. Disamakan aturannya.
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
+                ]),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

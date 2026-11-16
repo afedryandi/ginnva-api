@@ -363,4 +363,18 @@ class WarrantyFlowTest extends TestCase
         Livewire::test(ListWarranties::class)->callTableAction('revoke', $approved, data: ['revoke_reason' => 'Salah input']);
         $this->assertSame('revoked', $approved->fresh()->status);
     }
+
+    public function test_the_warranty_tabs_split_pending_review_from_active_and_the_clean_ui_applies(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($this->staff('super_admin'), 'web');
+
+        $pending = $this->warranty(['warranty_code' => 'GNV-PPF-00040', 'review_status' => 'pending_review', 'customer_id' => $this->customer()->id]);
+
+        Livewire::test(ListWarranties::class)->assertCanSeeTableRecords([$pending]);
+        Livewire::test(ListWarranties::class)->set('activeTab', 'menunggu')->assertCanSeeTableRecords([$pending]);
+        Livewire::test(ListWarranties::class)->set('activeTab', 'aktif')->assertCanNotSeeTableRecords([$pending]);
+
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListWarranties()));
+    }
 }

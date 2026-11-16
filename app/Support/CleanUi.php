@@ -18,6 +18,10 @@ class CleanUi
         \App\Filament\Resources\QcChecklistItemResource::class,
         \App\Filament\Resources\AppSettingResource::class,
         \App\Filament\Resources\InvoiceResource::class,
+        \App\Filament\Resources\WarrantyResource::class,
+        \App\Filament\Resources\StoreReviewResource::class,
+        \App\Filament\Resources\BookingReworkResource::class,
+        \App\Filament\Resources\TransactionApprovalRequestResource::class,
     ];
 
     public static function appliesTo(mixed $page): bool
