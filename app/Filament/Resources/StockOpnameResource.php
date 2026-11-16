@@ -354,7 +354,9 @@ class StockOpnameResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('opname_number')
                     ->label('Nomor')
-                    ->searchable(),
+                    ->searchable()
+                    ->weight('semibold')
+                    ->description(fn (StockOpname $record) => $record->store?->name),
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -365,21 +367,24 @@ class StockOpnameResource extends Resource
                     })
                     ->formatStateUsing(fn (string $state) => StockOpname::STATUS_LABELS[$state] ?? $state),
                 Tables\Columns\TextColumn::make('store.name')
-                    ->label('Toko'),
+                    ->label('Toko')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('opname_date')
                     ->label('Tanggal Opname')
                     ->date('d M Y')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('items_count')
                     ->label('Jumlah Item')
-                    ->counts('items'),
+                    ->counts('items')
+                    ->alignEnd(),
                 Tables\Columns\TextColumn::make('diff_count')
                     ->label('Berselisih')
                     ->badge()
                     ->color(fn ($state) => (int) $state > 0 ? 'warning' : 'gray'),
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Dicatat Oleh')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Waktu')
                     ->dateTime('d M Y, H:i')

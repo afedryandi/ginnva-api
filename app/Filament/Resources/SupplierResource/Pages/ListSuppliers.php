@@ -5,7 +5,9 @@ namespace App\Filament\Resources\SupplierResource\Pages;
 use App\Exports\SupplierExport;
 use App\Filament\Resources\SupplierResource;
 use Filament\Actions;
+use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ListSuppliers extends ListRecords
@@ -27,5 +29,26 @@ class ListSuppliers extends ListRecords
 
             Actions\CreateAction::make(),
         ];
+    }
+
+    /** Tab status di atas daftar, dengan jumlah di tab (mengikuti pembatasan toko pengguna); "Semua" bawaan supaya tidak ada baris tersembunyi. */
+    public function getTabs(): array
+    {
+        $base = fn () => SupplierResource::getEloquentQuery()->withoutEagerLoads();
+
+        return [
+            'semua' => Tab::make('Semua'),
+            'aktif' => Tab::make('Aktif')
+                ->badge($base()->where('is_active', true)->count())
+                ->badgeColor('success')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('is_active', true)),
+            'nonaktif' => Tab::make('Nonaktif')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('is_active', false)),
+        ];
+    }
+
+    public function getDefaultActiveTab(): string|int|null
+    {
+        return 'semua';
     }
 }

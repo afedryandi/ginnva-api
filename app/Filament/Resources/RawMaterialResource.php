@@ -300,7 +300,7 @@ class RawMaterialResource extends Resource
                 Tables\Columns\TextColumn::make('code')
                     ->label('Kode')
                     ->badge()
-                    ->color('info')
+                    ->color('gray')
                     ->copyable()
                     ->copyMessage('Kode disalin')
                     ->placeholder('—')
@@ -308,6 +308,7 @@ class RawMaterialResource extends Resource
 
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama Bahan')
+                    ->weight('semibold')
                     ->searchable()
                     ->sortable(),
 
@@ -326,6 +327,7 @@ class RawMaterialResource extends Resource
                 Tables\Columns\TextColumn::make('current_stock')
                     ->label('Stok (Total)')
                     ->numeric(decimalPlaces: 2)
+                    ->alignEnd()
                     ->sortable()
                     ->formatStateUsing(fn (RawMaterial $record) => number_format((float) $record->current_stock, 2) . ' ' . $record->unit)
                     ->badge()
@@ -372,6 +374,7 @@ class RawMaterialResource extends Resource
                     ->label('Nilai Stok')
                     ->getStateUsing(fn (RawMaterial $record) => $record->stockValue())
                     ->money('IDR')
+                    ->alignEnd()
                     ->description(fn (RawMaterial $record) => $record->hasUnpricedStock() ? 'Sebagian belum berharga' : null)
                     ->visible(fn () => static::canSeeCost())
                     ->toggleable(),

@@ -112,16 +112,17 @@ class RawMaterialMovementResource extends Resource
                 Tables\Columns\TextColumn::make('rawMaterial.category')
                     ->label('Kategori')
                     ->placeholder('—')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\BadgeColumn::make('type')
+                Tables\Columns\TextColumn::make('type')
                     ->label('Jenis')
-                    ->colors([
-                        'success' => 'in',
-                        'danger'  => 'out',
-                        'warning' => 'adjustment',
-                        'gray'    => 'correction',
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'in' => 'success',
+                        'out' => 'danger',
+                        'adjustment' => 'warning',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'in' => 'Masuk',
                         'out' => 'Keluar',
@@ -132,6 +133,8 @@ class RawMaterialMovementResource extends Resource
 
                 Tables\Columns\TextColumn::make('quantity')
                     ->label('Jumlah')
+                    ->alignEnd()
+                    ->weight('semibold')
                     ->formatStateUsing(fn ($state, RawMaterialMovement $record) => ($state > 0 && $record->type === 'adjustment' ? '+' : '') . number_format((float) $state, 2) . ' ' . ($record->rawMaterial?->unit ?? '')),
 
                 // Harga batch yang tersalin saat "Catat Masuk" — supaya

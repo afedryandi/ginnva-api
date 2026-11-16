@@ -269,7 +269,7 @@ class PurchaseRequestResource extends Resource
                 Tables\Columns\TextColumn::make('request_number')
                     ->label('No. Permohonan')
                     ->searchable()
-                    ->weight('bold'),
+                    ->weight('semibold'),
 
                 Tables\Columns\TextColumn::make('item_name')
                     ->label('Barang')
@@ -310,14 +310,15 @@ class PurchaseRequestResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\BadgeColumn::make('status')
+                Tables\Columns\TextColumn::make('status')
                     ->label('Status')
-                    ->colors([
-                        'warning' => 'pending',
-                        'success' => 'approved',
-                        'danger'  => 'rejected',
-                        'gray'    => ['fulfilled', 'cancelled'],
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'pending' => 'warning',
+                        'approved' => 'success',
+                        'rejected' => 'danger',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state): string => static::statusLabel($state)),
 
                 Tables\Columns\TextColumn::make('actual_cost')
@@ -386,6 +387,8 @@ class PurchaseRequestResource extends Resource
                 Tables\Actions\Action::make('cancel')
                     ->label('Batalkan')
                     ->icon('heroicon-o-x-mark')
+                    ->iconButton()
+                    ->tooltip('Batalkan')
                     ->color('gray')
                     ->visible(fn (PurchaseRequest $record) => $record->status === 'pending'
                         && (auth()->user()?->isFullAccess() || auth()->id() === $record->requested_by))
@@ -417,6 +420,8 @@ class PurchaseRequestResource extends Resource
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
+                    ->iconButton()
+                    ->tooltip('Setujui')
                     ->color('success')
                     ->visible(fn (PurchaseRequest $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending')
@@ -453,6 +458,8 @@ class PurchaseRequestResource extends Resource
                 Tables\Actions\Action::make('reject')
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
+                    ->iconButton()
+                    ->tooltip('Tolak')
                     ->color('danger')
                     ->visible(fn (PurchaseRequest $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending')
@@ -601,9 +608,13 @@ class PurchaseRequestResource extends Resource
                     }),
 
                 Tables\Actions\EditAction::make()
+                    ->iconButton()
+                    ->tooltip('Ubah')
                     ->visible(fn (PurchaseRequest $record) => $record->status === 'pending'),
 
                 Tables\Actions\DeleteAction::make()
+                    ->iconButton()
+                    ->tooltip('Hapus')
                     ->visible(fn (PurchaseRequest $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending'),
             ])

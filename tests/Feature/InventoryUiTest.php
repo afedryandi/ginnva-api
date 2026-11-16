@@ -69,4 +69,23 @@ class InventoryUiTest extends TestCase
         $this->assertSame('semua', $component->instance()->getDefaultActiveTab());
         $this->assertSame(['semua', 'menunggu', 'disetujui', 'selesai', 'ditolak'], array_keys($component->instance()->getTabs()));
     }
+
+    public function test_every_inventory_list_opens_on_all_rows_and_has_status_tabs(): void
+    {
+        $this->admin();
+
+        foreach ([
+            ListSuppliers::class => ['semua', 'aktif', 'nonaktif'],
+            ListMaterialMemos::class => ['semua', 'belum'],
+            ListInventoryMovements::class => ['semua', 'masuk', 'keluar', 'koreksi'],
+            ListRawMaterialMovements::class => ['semua', 'masuk', 'keluar', 'opname'],
+            ListStockWriteOffs::class => ['semua', 'aktif', 'dibatalkan'],
+            ListStockOpnames::class => ['semua', 'draft', 'diterapkan', 'dibatalkan'],
+        ] as $list => $keys) {
+            $page = Livewire::test($list)->assertSuccessful()->instance();
+
+            $this->assertSame('semua', $page->getDefaultActiveTab(), $list);
+            $this->assertSame($keys, array_keys($page->getTabs()), $list);
+        }
+    }
 }

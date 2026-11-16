@@ -109,7 +109,7 @@ class StockWriteOffResource extends Resource
                 Tables\Columns\TextColumn::make('write_off_number')
                     ->label('Nomor')
                     ->searchable()
-                    ->weight('bold')
+                    ->weight('semibold')
                     ->placeholder('—'),
 
                 Tables\Columns\TextColumn::make('created_at')
@@ -137,6 +137,7 @@ class StockWriteOffResource extends Resource
 
                 Tables\Columns\TextColumn::make('quantity')
                     ->label('Jumlah')
+                    ->alignEnd()
                     ->formatStateUsing(fn ($state, StockWriteOff $record) => number_format((float) $state, 2) . ' ' . ($record->unit ?? '')),
 
                 Tables\Columns\TextColumn::make('reason')
@@ -151,6 +152,8 @@ class StockWriteOffResource extends Resource
 
                 Tables\Columns\TextColumn::make('total_value')
                     ->label('Nilai Kerugian')
+                    ->alignEnd()
+                    ->weight('semibold')
                     ->visible(fn () => static::canSeeValue())
                     ->money('IDR')
                     ->placeholder('Tidak dinilai (harga modal kosong)')
@@ -171,7 +174,7 @@ class StockWriteOffResource extends Resource
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Oleh')
                     ->placeholder('—')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')

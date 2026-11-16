@@ -210,7 +210,7 @@ class SupplierResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')->label('Supplier')->searchable()->weight('bold'),
+                Tables\Columns\TextColumn::make('name')->label('Supplier')->searchable()->weight('semibold'),
                 Tables\Columns\TextColumn::make('phone')->label('Telepon')->placeholder('—')->searchable()->toggleable(),
                 Tables\Columns\TextColumn::make('email')->label('Email')->placeholder('—')->searchable()->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('npwp')->label('NPWP')->placeholder('—')->searchable()->toggleable()
@@ -228,7 +228,9 @@ class SupplierResource extends Resource
                 Tables\Columns\TextColumn::make('received_count')->label('Pembelian Diterima')->sortable()->alignEnd(),
                 Tables\Columns\TextColumn::make('payables_count')->label('Tagihan')->sortable()
                     ->visible(fn () => (bool) config('features.finance')),
-                Tables\Columns\IconColumn::make('is_active')->label('Aktif')->boolean(),
+                Tables\Columns\TextColumn::make('is_active')->label('Status')->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Aktif' : 'Nonaktif')
+                    ->color(fn ($state) => $state ? 'success' : 'gray'),
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')->label('Aktif'),
@@ -244,6 +246,8 @@ class SupplierResource extends Resource
                 Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
                 Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
                 Tables\Actions\DeleteAction::make()
+                    ->iconButton()
+                    ->tooltip('Hapus')
                     ->before(function (Supplier $record, Tables\Actions\DeleteAction $action) {
                         if ($record->isInUse()) {
                             Notification::make()

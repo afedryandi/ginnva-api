@@ -288,13 +288,14 @@ class InventoryItemResource extends Resource
                 Tables\Columns\TextColumn::make('code')
                     ->label('Kode')
                     ->badge()
-                    ->color('info')
+                    ->color('gray')
                     ->copyable()
                     ->copyMessage('Kode disalin')
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama Produk')
+                    ->weight('semibold')
                     ->searchable()
                     ->sortable(),
 
@@ -373,12 +374,10 @@ class InventoryItemResource extends Resource
                     ->placeholder('—')
                     ->sortable(),
 
-                Tables\Columns\BadgeColumn::make('status')
+                Tables\Columns\TextColumn::make('status')
                     ->label('Status')
-                    ->colors([
-                        'success' => 'in_stock',
-                        'danger' => 'out',
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => $state === 'in_stock' ? 'success' : 'danger')
                     // "Sudah Keluar" — BUKAN "Habis". Status ini cuma
                     // berarti barangnya sudah keluar dari gudang, TIDAK
                     // berarti materialnya sudah habis terpakai — 1
@@ -662,6 +661,8 @@ class InventoryItemResource extends Resource
                     ->label('Download QR')
                     ->icon('heroicon-o-qr-code')
                     ->color('gray')
+                    ->iconButton()
+                    ->tooltip('Download QR')
                     ->action(fn (InventoryItem $record) => static::downloadQrPdf(new Collection([$record]))),
 
                 // Catat Keluar / Catat Masuk barang (kardus fisik): logika SAMA dengan aplikasi karyawan (scan QR, tombol "Catat Keluar" dan
@@ -670,6 +671,8 @@ class InventoryItemResource extends Resource
                 Tables\Actions\Action::make('record_out')
                     ->label('Catat Keluar')
                     ->icon('heroicon-o-arrow-up-tray')
+                    ->iconButton()
+                    ->tooltip('Catat Keluar')
                     ->color('danger')
                     ->visible(fn (InventoryItem $record) => static::canEdit($record)
                         && $record->status === 'in_stock'
@@ -695,6 +698,8 @@ class InventoryItemResource extends Resource
                     ->label('Catat Masuk')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
+                    ->iconButton()
+                    ->tooltip('Catat Masuk')
                     ->visible(fn (InventoryItem $record) => static::canEdit($record)
                         && $record->status === 'out'
                         && static::canActOnScrollCode($record->scrollCode))
@@ -709,6 +714,8 @@ class InventoryItemResource extends Resource
                     ])
                     ->action(fn (InventoryItem $record, array $data) => static::applyMovement($record, 'in', $data)),
 
+                // Aksi gulungan dikelompokkan di menu "...", supaya baris tidak penuh tombol.
+                Tables\Actions\ActionGroup::make([
                 // Aksi ini yang jadi rujukan utama untuk mencatat pemakaian
                 // meter — TIDAK ada duplikat lagi di menu Kode Gulungan
                 // (lihat catatan di ScrollCodeResource).
@@ -851,6 +858,7 @@ class InventoryItemResource extends Resource
 
                         Notification::make()->title('Data panjang diperbarui')->success()->send();
                     }),
+                ]),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

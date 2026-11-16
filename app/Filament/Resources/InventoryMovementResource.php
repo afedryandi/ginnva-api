@@ -102,7 +102,7 @@ class InventoryMovementResource extends Resource
                 Tables\Columns\TextColumn::make('inventoryItem.code')
                     ->label('Kode Produk')
                     ->badge()
-                    ->color('info')
+                    ->color('gray')
                     ->searchable()
                     // Drill-down ke halaman edit barang terkait (audit 2026-09-30).
                     ->url(fn (InventoryMovement $record) => $record->inventoryItem && InventoryItemResource::canViewAny()
@@ -120,20 +120,21 @@ class InventoryMovementResource extends Resource
                 Tables\Columns\TextColumn::make('inventoryItem.category')
                     ->label('Kategori')
                     ->placeholder('—')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('inventoryItem.scrollCode.code')
                     ->label('Kode Gulungan')
                     ->placeholder('—')
                     ->toggleable(),
 
-                Tables\Columns\BadgeColumn::make('type')
+                Tables\Columns\TextColumn::make('type')
                     ->label('Jenis')
-                    ->colors([
-                        'success' => 'in',
-                        'danger'  => 'out',
-                        'gray'    => 'correction',
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'in' => 'success',
+                        'out' => 'danger',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state): string => static::typeLabel($state)),
 
                 Tables\Columns\TextColumn::make('reversed_state')

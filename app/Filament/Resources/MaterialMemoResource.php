@@ -159,7 +159,7 @@ class MaterialMemoResource extends Resource
                 Tables\Columns\TextColumn::make('memo_number')
                     ->label('No Memo')
                     ->searchable()
-                    ->weight('bold'),
+                    ->weight('semibold'),
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
                     ->searchable(),
@@ -195,7 +195,8 @@ class MaterialMemoResource extends Resource
                     ->tooltip(config('features.consumables') ? 'Baris bahan/barang habis pakai yang stoknya sudah keluar tapi pengembaliannya belum dicatat (isi 0 kalau habis terpakai).' : 'Baris bahan yang stoknya sudah keluar tapi pengembaliannya belum dicatat (isi 0 kalau habis terpakai).'),
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Dibuat Oleh')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Tanggal')
                     ->dateTime('d M Y H:i')
