@@ -28,6 +28,15 @@ class DashboardHome extends Dashboard
 {
     protected static string $view = 'filament.pages.dashboard-home';
 
+    // Nama halaman: "Dashboard" (sebelumnya "Dasbor"/"Dashboard Utama"). Ikon outline saat biasa, solid saat aktif.
+    protected static ?string $title = 'Dashboard';
+
+    protected static ?string $navigationLabel = 'Dashboard';
+
+    protected static ?string $navigationIcon = 'heroicon-o-home';
+
+    protected static ?string $activeNavigationIcon = 'heroicon-s-home';
+
     #[Url(as: 'cabang')]
     public ?int $storeId = null;
 

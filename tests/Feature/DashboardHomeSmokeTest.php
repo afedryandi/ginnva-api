@@ -125,6 +125,21 @@ class DashboardHomeSmokeTest extends TestCase
             ->assertSee('Booking Pending Lewat SLA');
     }
 
+    public function test_dashboard_is_named_dashboard_and_grouped_in_labelled_blocks(): void
+    {
+        $this->actingAs($this->admin, 'web');
+
+        $this->assertSame('Dashboard', DashboardHome::getNavigationLabel());
+        $this->assertSame('Dashboard', (new DashboardHome())->getTitle());
+
+        Livewire::test(DashboardHome::class)
+            ->assertSuccessful()
+            ->assertSee('Semua toko')
+            ->assertSee('Perlu perhatian')
+            ->assertSee('Ringkasan')
+            ->assertSee('Tren penjualan');
+    }
+
     public function test_store_filter_works_for_full_access(): void
     {
         $this->actingAs($this->admin, 'web');
