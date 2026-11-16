@@ -650,7 +650,7 @@ class BookingResource extends Resource
                     // Booking::fullDatesInRange() (CreateBooking/EditBooking),
                     // staff tidak perlu isi apa pun secara manual lagi.
                     Forms\Components\Placeholder::make('date_range_preview')
-                        ->label('Rentang Tanggal & Kapasitas Instalasi')
+                        ->label('Waktu dan Slot Tersedia')
                         ->columnSpanFull()
                         ->content(function (Forms\Get $get, ?Booking $record) {
                             $storeId = $get('store_id');
@@ -749,29 +749,6 @@ class BookingResource extends Resource
                         ->default('confirmed')
                         ->required(),
 
-                    // Tanggal reminder servis berkala — ditentukan MANUAL oleh
-                    // store manager per booking (interval beda-beda per kasus,
-                    // mis. Kaca Film vs PPF), bukan dihitung otomatis oleh
-                    // sistem. Command terjadwal (SendServiceReminders) yang
-                    // otomatis kirim WhatsApp+Push+Email begitu tanggal ini tiba.
-                    Forms\Components\DatePicker::make('next_service_reminder_at')
-                        ->label('Tanggal Reminder Maintenance')
-                        ->helperText('Kosongkan kalau belum perlu reminder. Sistem otomatis kirim WhatsApp/Push/Email ke pelanggan pada tanggal ini.')
-                        // SEBELUMNYA ->minDate(now()) divalidasi ULANG setiap
-                        // kali form disimpan, termasuk saat staff sama sekali
-                        // tidak menyentuh field ini. Begitu tanggal reminder
-                        // yang sudah tersimpan lewat dari hari ini, SELURUH
-                        // form gagal disimpan (bug: staff tidak bisa edit
-                        // field lain sama sekali). minDate cuma masuk akal
-                        // untuk mencegah staff MENGATUR tanggal baru ke masa
-                        // lalu — kalau nilainya tidak diubah (tetap sama
-                        // dengan yang di DB), jangan divalidasi ulang.
-                        // Ditemukan & diperbaiki 2026-08-29.
-                        ->minDate(fn (?Booking $record, Forms\Get $get) => optional($record)
-                            ->next_service_reminder_at?->toDateString() === $get('next_service_reminder_at')
-                            ? null
-                            : now())
-                        ->native(false),
                 ]),
                 ]),
                 Forms\Components\Group::make()->columnSpan(['lg' => 1])->schema([
@@ -976,13 +953,6 @@ class BookingResource extends Resource
                             . ($record->cancelled_at ? ', ' . $record->cancelled_at->format('d M Y H:i') : '')
                         ))
                         ->columnSpanFull(),
-                    TextEntry::make('next_service_reminder_at')
-                        ->label('Reminder Maintenance')
-                        ->date('d M Y')
-                        ->placeholder('—')
-                        ->helperText(fn (Booking $record) => $record->next_service_reminder_at
-                            ? ($record->service_reminder_sent_at ? 'Sudah terkirim' : 'Belum terkirim')
-                            : null),
                 ]),
 
             // Penerimaan, QC, dan serah terima (koreksi celah Fase 3, 2026-10-22): bukti yang sebelumnya hanya terlihat di
@@ -1270,14 +1240,6 @@ class BookingResource extends Resource
                         : null)
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('next_service_reminder_at')
-                    ->label('Reminder Maintenance')
-                    ->date('d M Y')
-                    ->placeholder('—')
-                    ->description(fn ($record) => $record->next_service_reminder_at
-                        ? ($record->service_reminder_sent_at ? 'Sudah terkirim' : 'Belum terkirim')
-                        : null)
-                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->groups([
                 Tables\Grouping\Group::make('preferred_date')
