@@ -217,6 +217,17 @@ class BlockedDateTest extends TestCase
         $this->assertSame(['Mendatang'], $component->instance()->getUpcomingClosures()->pluck('reason')->all());
     }
 
+    public function test_the_calendar_shows_the_month_summary_and_the_closure_side_list(): void
+    {
+        $this->blocked($this->storeA, 4, 'Libur Bersama');
+
+        $this->calendar($this->storeA)
+            ->assertSee('hari kapasitas penuh')
+            ->assertSee('tanggal ditutup')
+            ->assertSee('kapasitas diatur manual')
+            ->assertSee('Tanggal ditutup yang akan datang')
+            ->assertSee('Libur Bersama');
+    }
     // ------------------------------------------------------------- tampilan kalender
 
     public function test_the_calendar_tells_a_closed_date_apart_from_a_weekly_day_off(): void
