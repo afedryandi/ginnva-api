@@ -57,6 +57,18 @@ class RecordPdfTest extends TestCase
             ->assertHeader('content-type', 'application/pdf');
     }
 
+    public function test_works_when_the_default_guard_is_not_web(): void
+    {
+        $booking = $this->booking();
+
+        // Seperti di produksi: sesi login ada di guard "web", tetapi guard bawaan aplikasi lain.
+        auth()->shouldUse('api');
+
+        $this->get(route('record-pdf', ['slug' => BookingResource::getSlug(), 'record' => $booking->getKey()]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+    }
+
     public function test_another_menu_also_prints(): void
     {
         $group = CustomerGroup::create(['name' => 'Grup Uji', 'discount_percent' => 5]);
