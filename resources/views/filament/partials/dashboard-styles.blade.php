@@ -93,9 +93,7 @@
         .gd .fi-badge { border-radius: .5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 
         /* Perlu Perhatian: tiap item kartu kecil dengan ikon di lingkaran pastel. */
-        .gd-attn { display: grid; grid-template-columns: minmax(0, 1fr); gap: .75rem; }
-        @media (min-width: 640px) { .gd-attn { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (min-width: 1280px) { .gd-attn { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        .gd-attn { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .75rem; }
         .gd-attn-item {
             display: flex; align-items: flex-start; gap: .75rem; padding: .875rem 1rem; text-decoration: none; color: inherit;
             border: 1px solid var(--gd-line); border-radius: .875rem; background: var(--gd-surface); transition: background .15s ease, border-color .15s ease;
@@ -113,5 +111,33 @@
         .gd-attn-text { margin-top: .125rem; font-size: .75rem; line-height: 1.15rem; color: var(--gd-muted); }
         .gd-ok { display: flex; align-items: center; gap: .625rem; padding: .25rem 0; font-size: .875rem; color: var(--gd-muted); }
         .gd-ok svg { width: 1.25rem; height: 1.25rem; color: rgb(var(--success-500)); flex: none; }
+
+        /* Baris atas asimetris: Perlu perhatian di kolom lebar (7/12), Aktivitas terbaru di kolom sempit (5/12); menumpuk di layar sempit. */
+        .gd-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
+        @media (min-width: 1280px) { .gd-split--two { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); } }
+        .gd-stack { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+
+        /* Aktivitas terbaru: daftar ringkas bersekat tipis dalam satu kartu. */
+        .gd-act { background: var(--gd-surface); border: 1px solid var(--gd-line); border-radius: var(--gd-radius); padding: 1.125rem 1.25rem; }
+        .gd-act-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: .875rem; }
+        .gd-act-title { font-size: .875rem; font-weight: 600; color: var(--gd-ink); }
+        .gd-act-sub { margin-top: .125rem; font-size: .75rem; color: var(--gd-muted); }
+        .gd-act-link { font-size: .8125rem; font-weight: 600; color: rgb(var(--primary-600)); text-decoration: none; white-space: nowrap; }
+        .gd-act-link:hover { text-decoration: underline; }
+        .dark .gd-act-link { color: rgb(var(--primary-400)); }
+        .gd-act-list { list-style: none; margin: 0; padding: 0; }
+        .gd-act-row { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; padding: .625rem 0; border-top: 1px solid var(--gd-line); }
+        .gd-act-row:first-child { border-top: 0; padding-top: 0; }
+        .gd-act-main { min-width: 0; }
+        .gd-act-line { font-size: .8125rem; line-height: 1.25rem; color: var(--gd-muted); overflow-wrap: anywhere; }
+        .gd-act-actor { font-weight: 600; color: var(--gd-ink); }
+        .gd-act-target { color: var(--gd-ink); }
+        .gd-act-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; margin-top: .125rem; font-size: .75rem; color: var(--gd-muted); }
+        .gd-act-module { display: inline-flex; align-items: center; height: 1.25rem; padding: 0 .4375rem; border-radius: .4375rem; background: var(--gd-soft); font-size: .6875rem; font-weight: 600; }
+        .gd-act-risky { display: inline-flex; align-items: center; height: 1.25rem; padding: 0 .4375rem; border-radius: .4375rem; background: rgba(var(--warning-500), .14); color: rgb(var(--warning-700)); font-size: .6875rem; font-weight: 600; }
+        .dark .gd-act-risky { color: rgb(var(--warning-300)); }
+        .gd-act-note { overflow-wrap: anywhere; }
+        .gd-act-time { flex: none; font-size: .75rem; color: var(--gd-muted); white-space: nowrap; }
+        .gd-act-empty { padding: 1.5rem .5rem; text-align: center; font-size: .8125rem; color: var(--gd-muted); }
     </style>
 @endonce

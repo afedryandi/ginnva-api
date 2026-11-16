@@ -204,4 +204,16 @@ class DashboardHomeSmokeTest extends TestCase
             ->assertDontSee('Booking Hari Ini')
             ->assertDontSee('Booking Pending Lewat SLA');
     }
+
+    public function test_recent_activity_card_shows_real_log_only_to_those_who_may_open_the_activity_history(): void
+    {
+        activity('booking')->causedBy($this->admin)->log('Mengubah status booking');
+
+        $this->actingAs($this->admin, 'web');
+        Livewire::test(DashboardHome::class)->assertSuccessful()->assertSee('Aktivitas terbaru')->assertSee('Lihat semua');
+
+        // Staf toko dengan akses menu bawaan (menu_access kosong) tidak boleh melihat log: memuat data sensitif.
+        $this->actingAs($this->user('store_manager', $this->storeA->id), 'web');
+        Livewire::test(DashboardHome::class)->assertSuccessful()->assertDontSee('Aktivitas terbaru');
+    }
 }

@@ -18,6 +18,7 @@
     @php
         $show = fn (string $widget) => $widget::canView();
         $attention = $show(\App\Filament\Widgets\PerluPerhatianWidget::class);
+        $activity = $show(\App\Filament\Widgets\AktivitasTerbaruWidget::class);
         $backup = $show(\App\Filament\Widgets\BackupStatusWidget::class);
         $revenue = $show(\App\Filament\Widgets\BookingRevenueStatsWidget::class);
         $bookings = $show(\App\Filament\Widgets\BookingStatsWidget::class);
@@ -61,15 +62,27 @@
             @endif
         </div>
 
-        @if ($attention || $backup)
+        @if ($attention || $backup || $activity)
             <section class="gd-block">
-                <div class="gd-label"><x-heroicon-o-bell-alert /> Perlu perhatian</div>
-                @if ($attention)
-                    @livewire(\App\Filament\Widgets\PerluPerhatianWidget::class, ['storeId' => $storeId], key('dashboard-home-perlu-perhatian-' . $storeKey))
-                @endif
-                @if ($backup)
-                    @livewire(\App\Filament\Widgets\BackupStatusWidget::class, [], key('dashboard-home-backup-status'))
-                @endif
+                <div class="gd-label"><x-heroicon-o-bell-alert /> Perlu perhatian{{ $activity ? ' dan aktivitas' : '' }}</div>
+                <div class="gd-split {{ ($attention || $backup) && $activity ? 'gd-split--two' : '' }}">
+                    @if ($attention || $backup)
+                        <div class="gd-stack">
+                            @if ($attention)
+                                @livewire(\App\Filament\Widgets\PerluPerhatianWidget::class, ['storeId' => $storeId], key('dashboard-home-perlu-perhatian-' . $storeKey))
+                            @endif
+                            @if ($backup)
+                                @livewire(\App\Filament\Widgets\BackupStatusWidget::class, [], key('dashboard-home-backup-status'))
+                            @endif
+                        </div>
+                    @endif
+                    {{-- Aktivitas terbaru: log asli (tanpa filter toko), hanya untuk yang boleh membuka Histori Aktivitas. --}}
+                    @if ($activity)
+                        <div class="gd-stack">
+                            @livewire(\App\Filament\Widgets\AktivitasTerbaruWidget::class, [], key('dashboard-home-aktivitas-terbaru'))
+                        </div>
+                    @endif
+                </div>
             </section>
         @endif
 
