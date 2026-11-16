@@ -54,6 +54,20 @@ class BookingServiceTypeResourceTest extends TestCase
         $this->assertSame(3, $services['ppf']->estimated_duration_days);
     }
 
+    public function test_the_list_shows_status_capacity_badges_and_the_clean_ui_applies(): void
+    {
+        $this->actAs('super_admin');
+        BookingServiceType::where('key', 'premium_wash')->update(['is_active' => false]);
+
+        Livewire::test(ListBookingServiceTypes::class)
+            ->assertSee('Disembunyikan')
+            ->assertSee('Tampil')
+            ->assertSee('Berat (harian)')
+            ->assertSee('Ringan (slot jam)')
+            ->assertSee('Empat layanan yang bisa dipesan pelanggan');
+
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListBookingServiceTypes()));
+    }
     public function test_list_page_shows_the_services_and_has_no_create_or_delete(): void
     {
         $this->actAs('super_admin');

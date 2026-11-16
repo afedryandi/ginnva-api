@@ -72,51 +72,70 @@ class BookingServiceTypeResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->columns(1)->schema([
-            Forms\Components\TextInput::make('key')
-                ->label('Kode Layanan')
-                ->disabled()
-                ->dehydrated(false)
-                ->helperText('Tetap; terhubung ke penanda produk di booking.'),
+            Forms\Components\Section::make('Layanan')
+                ->description('Nama dan deskripsi yang dilihat pelanggan di aplikasi.')
+                ->icon('heroicon-o-squares-2x2')
+                ->columns(2)
+                ->schema([
+                    Forms\Components\TextInput::make('key')
+                        ->label('Kode Layanan')
+                        ->disabled()
+                        ->dehydrated(false)
+                        ->helperText('Tetap; terhubung ke penanda produk di booking.'),
 
-            Forms\Components\TextInput::make('label')
-                ->label('Nama Layanan')
-                ->required()
-                ->maxLength(80)
-                ->helperText('Tampil di aplikasi dan menjadi "Jenis Layanan" pada booking BARU. Booking lama tidak berubah.'),
+                    Forms\Components\TextInput::make('label')
+                        ->label('Nama Layanan')
+                        ->required()
+                        ->maxLength(80)
+                        ->helperText('Tampil di aplikasi dan menjadi "Jenis Layanan" pada booking BARU. Booking lama tidak berubah.'),
 
-            Forms\Components\Textarea::make('description')
-                ->label('Deskripsi Singkat')
-                ->rows(2)
-                ->maxLength(255)
-                ->helperText('Satu atau dua kalimat di bawah nama layanan di aplikasi.'),
+                    Forms\Components\Textarea::make('description')
+                        ->label('Deskripsi Singkat')
+                        ->rows(2)
+                        ->maxLength(255)
+                        ->columnSpanFull()
+                        ->helperText('Satu atau dua kalimat di bawah nama layanan di aplikasi.'),
+                ]),
 
-            Forms\Components\Select::make('capacity_category')
-                ->label('Kategori Kapasitas')
-                ->options([
-                    BookingServiceType::CATEGORY_HEAVY => 'Berat: memakai kapasitas harian toko (mis. PPF, kaca film)',
-                    BookingServiceType::CATEGORY_LIGHT => 'Ringan: memakai slot jam (mis. detailing, cuci premium)',
-                ])
-                ->required()
-                ->helperText('Booking dengan layanan berat dan ringan dihitung sebagai berat. Mengubah kategori memengaruhi kapasitas booking baru.'),
+            Forms\Components\Section::make('Kapasitas dan Jadwal')
+                ->description('Menentukan cara layanan ini dihitung terhadap kapasitas toko.')
+                ->icon('heroicon-o-clock')
+                ->columns(['default' => 1, 'md' => 3])
+                ->schema([
+                    Forms\Components\Select::make('capacity_category')
+                        ->label('Kategori Kapasitas')
+                        ->options([
+                            BookingServiceType::CATEGORY_HEAVY => 'Berat: memakai kapasitas harian toko (mis. PPF, kaca film)',
+                            BookingServiceType::CATEGORY_LIGHT => 'Ringan: memakai slot jam (mis. detailing, cuci premium)',
+                        ])
+                        ->required()
+                        ->columnSpan(['md' => 3])
+                        ->helperText('Booking dengan layanan berat dan ringan dihitung sebagai berat. Mengubah kategori memengaruhi kapasitas booking baru.'),
 
-            Forms\Components\TextInput::make('estimated_duration_days')
-                ->label('Lama Pengerjaan (hari kerja)')
-                ->numeric()
-                ->required()
-                ->minValue(1)
-                ->maxValue(14)
-                ->helperText('Perkiraan yang tampil di aplikasi.'),
+                    Forms\Components\TextInput::make('estimated_duration_days')
+                        ->label('Lama Pengerjaan (hari kerja)')
+                        ->numeric()
+                        ->required()
+                        ->minValue(1)
+                        ->maxValue(14)
+                        ->suffix('hari')
+                        ->helperText('Perkiraan yang tampil di aplikasi.'),
 
-            Forms\Components\TextInput::make('sort_order')
-                ->label('Urutan Tampil')
-                ->numeric()
-                ->required()
-                ->minValue(0)
-                ->helperText('Angka kecil tampil lebih dulu.'),
+                    Forms\Components\TextInput::make('sort_order')
+                        ->label('Urutan Tampil')
+                        ->numeric()
+                        ->required()
+                        ->minValue(0)
+                        ->helperText('Angka kecil tampil lebih dulu.'),
+                ]),
 
-            Forms\Components\Toggle::make('is_active')
-                ->label('Tampil di Aplikasi')
-                ->helperText('Matikan untuk menyembunyikan layanan dari pilihan booking pelanggan.'),
+            Forms\Components\Section::make('Tampilan di Aplikasi')
+                ->icon('heroicon-o-device-phone-mobile')
+                ->schema([
+                    Forms\Components\Toggle::make('is_active')
+                        ->label('Tampil di Aplikasi')
+                        ->helperText('Matikan untuk menyembunyikan layanan dari pilihan booking pelanggan.'),
+                ]),
         ]);
     }
 
@@ -125,23 +144,39 @@ class BookingServiceTypeResource extends Resource
         return $table
             ->defaultSort('sort_order')
             ->paginated(false)
+            ->emptyStateHeading('Belum ada layanan')
+            ->emptyStateIcon('heroicon-o-squares-2x2')
             ->columns([
-                Tables\Columns\TextColumn::make('label')->label('Layanan')->weight('bold'),
+                // Nama tegas, deskripsi sebagai keterangan di bawahnya (satu sel, mudah dipindai).
+                Tables\Columns\TextColumn::make('label')
+                    ->label('Layanan')
+                    ->weight('semibold')
+                    ->description(fn (BookingServiceType $record) => $record->description ?: null)
+                    ->wrap(),
+
                 Tables\Columns\TextColumn::make('key')->label('Kode')->badge()->color('gray'),
+
                 Tables\Columns\TextColumn::make('capacity_category')
                     ->label('Kapasitas')
                     ->badge()
+                    ->icon(fn (string $state) => $state === BookingServiceType::CATEGORY_LIGHT ? 'heroicon-o-clock' : 'heroicon-o-calendar-days')
                     ->formatStateUsing(fn (string $state) => $state === BookingServiceType::CATEGORY_LIGHT ? 'Ringan (slot jam)' : 'Berat (harian)')
                     ->color(fn (string $state) => $state === BookingServiceType::CATEGORY_LIGHT ? 'info' : 'warning'),
-                Tables\Columns\TextColumn::make('estimated_duration_days')->label('Lama')->suffix(' hari kerja'),
-                Tables\Columns\TextColumn::make('sort_order')->label('Urutan'),
-                Tables\Columns\IconColumn::make('is_active')->label('Tampil')->boolean(),
+
+                Tables\Columns\TextColumn::make('estimated_duration_days')->label('Lama')->suffix(' hari kerja')->alignEnd(),
+
+                Tables\Columns\TextColumn::make('sort_order')->label('Urutan')->alignEnd(),
+
+                Tables\Columns\TextColumn::make('is_active')
+                    ->label('Aplikasi')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Tampil' : 'Disembunyikan')
+                    ->color(fn ($state) => $state ? 'success' : 'gray'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
             ]);
     }
-
     public static function getPages(): array
     {
         return [

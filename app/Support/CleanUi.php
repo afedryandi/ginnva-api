@@ -14,6 +14,10 @@ class CleanUi
         \App\Filament\Resources\QuotationResource::class,
         \App\Filament\Resources\BookingResource::class,
         \App\Filament\Resources\SpkResource::class,
+        \App\Filament\Resources\BookingServiceTypeResource::class,
+        \App\Filament\Resources\QcChecklistItemResource::class,
+        \App\Filament\Resources\AppSettingResource::class,
+        \App\Filament\Resources\InvoiceResource::class,
     ];
 
     public static function appliesTo(mixed $page): bool
