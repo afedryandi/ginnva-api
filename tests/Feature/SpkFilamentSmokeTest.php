@@ -66,6 +66,15 @@ class SpkFilamentSmokeTest extends TestCase
         Livewire::test(EditSpk::class, ['record' => $this->spk->getKey()])->assertSuccessful();
     }
 
+    public function test_the_spk_number_can_be_typed_on_create_but_not_changed_on_edit(): void
+    {
+        Livewire::test(CreateSpk::class)
+            ->assertFormFieldExists('spk_number', fn ($field) => ! $field->isDisabled());
+
+        Livewire::test(EditSpk::class, ['record' => $this->spk->getKey()])
+            ->assertFormFieldExists('spk_number', fn ($field) => $field->isDisabled());
+    }
+
     public function test_spk_created_from_booking_prechecks_work_items(): void
     {
         $labels = $this->spk->checklistItems->where('is_checked', true)->pluck('label')->all();

@@ -119,6 +119,92 @@ class SpkApiFlowTest extends TestCase
         $this->assertSame('B', $spk->damageMarks->first()->code);
     }
 
+    public function test_the_spk_form_pulls_customer_vehicle_and_notes_from_the_booking(): void
+    {
+        $customer = Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(1000000, 9999999), 'address' => 'Jl. Mawar 5']);
+        $booking = $this->booking([
+            'customer_id' => $customer->id, 'customer_name' => 'Budi Santoso', 'phone_number' => '0812999',
+            'vehicle_plate' => 'B 1234 XYZ', 'vehicle_brand' => 'Toyota', 'vehicle_model' => 'Fortuner', 'vehicle_variant' => 'VRZ',
+            'vehicle_year' => 2022, 'notes' => 'Minta cepat selesai',
+        ]);
+
+        $data = \App\Services\SpkService::prefillFromBooking($booking);
+
+        $this->assertSame('Budi Santoso', $data['customer_name']);
+        $this->assertSame('0812999', $data['phone_number']);
+        $this->assertSame('Jl. Mawar 5', $data['address']);
+        $this->assertSame('B 1234 XYZ', $data['vehicle_plate']);
+        $this->assertSame('Toyota Fortuner VRZ', $data['vehicle_brand']);
+        $this->assertEquals(2022, $data['vehicle_year']);
+        $this->assertSame('Minta cepat selesai', $data['notes']);
+    }
+
+    public function test_pulling_from_a_sparse_booking_returns_only_what_exists(): void
+    {
+        $booking = $this->booking();
+
+        $data = \App\Services\SpkService::prefillFromBooking($booking);
+
+        $this->assertArrayHasKey('customer_name', $data);
+        $this->assertArrayNotHasKey('vehicle_plate', $data);
+        $this->assertArrayNotHasKey('notes', $data);
+    }
+
+    public function test_staff_can_type_the_spk_number_manually(): void
+    {
+        $booking = $this->booking();
+
+        $response = $this->actingAs($this->staff('store_manager'), 'api')
+            ->postJson('/api/staff/spks', $this->payload($booking, ['spk_number' => 'SPK-MANUAL-001']))
+            ->assertStatus(201);
+
+        $this->assertSame('SPK-MANUAL-001', Spk::findOrFail($response->json('data.id'))->spk_number);
+    }
+
+    public function test_a_manual_spk_number_that_is_already_used_is_rejected(): void
+    {
+        $user = $this->staff('store_manager');
+        $first = $this->booking();
+        $second = $this->booking();
+
+        $this->actingAs($user, 'api')
+            ->postJson('/api/staff/spks', $this->payload($first, ['spk_number' => 'SPK-DUP']))
+            ->assertStatus(201);
+
+        $this->actingAs($user, 'api')
+            ->postJson('/api/staff/spks', $this->payload($second, ['spk_number' => 'SPK-DUP']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['spk_number']);
+
+        $this->assertDatabaseMissing('spks', ['booking_id' => $second->id]);
+    }
+
+    public function test_a_blank_spk_number_still_gets_an_automatic_one(): void
+    {
+        $booking = $this->booking();
+
+        $response = $this->actingAs($this->staff('store_manager'), 'api')
+            ->postJson('/api/staff/spks', $this->payload($booking, ['spk_number' => '']))
+            ->assertStatus(201);
+
+        $this->assertStringStartsWith("SPK/{$this->store->id}/", Spk::findOrFail($response->json('data.id'))->spk_number);
+    }
+
+    public function test_the_service_refuses_a_duplicate_manual_number_with_a_friendly_message(): void
+    {
+        $booking = $this->booking();
+        Spk::create(['spk_number' => 'SPK-ADA', 'booking_id' => $this->booking()->id, 'store_id' => $this->store->id, 'customer_name' => 'X']);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('sudah dipakai');
+
+        app(\App\Services\SpkService::class)->create(
+            ['booking_id' => $booking->id, 'store_id' => $this->store->id, 'customer_name' => 'Budi', 'spk_number' => 'SPK-ADA'],
+            [],
+            null
+        );
+    }
+
     public function test_spk_cannot_be_created_for_pending_booking_or_twice(): void
     {
         $kasir = $this->staff('store_manager');

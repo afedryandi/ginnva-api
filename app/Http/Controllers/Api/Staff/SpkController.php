@@ -139,7 +139,8 @@ class SpkController extends Controller
             return response()->json(['success' => false, 'message' => 'Hanya leader installer dan atasannya (store manager, direksi) yang bisa membuat SPK baru.'], 403);
         }
 
-        $validator = Validator::make($request->all(), $this->validationRules());
+        // spk_number: nomor SPK manual (opsional, unik); kosong = nomor otomatis. Hanya saat membuat.
+        $validator = Validator::make($request->all(), $this->validationRules() + ['spk_number' => 'nullable|string|max:100|unique:spks,spk_number']);
 
         if ($validator->fails()) {
             return response()->json([
@@ -166,6 +167,7 @@ class SpkController extends Controller
         $data = $this->extractSpkData($request);
         $data['booking_id'] = $booking->id;
         $data['store_id'] = $booking->store_id;
+        $data['spk_number'] = $request->input('spk_number');
 
         try {
             $spk = app(SpkService::class)->create(

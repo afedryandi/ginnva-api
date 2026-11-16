@@ -54,9 +54,17 @@ class SpkService
 
         $checklistItems = $this->withBookingWorkItems($data, $checklistItems);
 
+        // Nomor SPK boleh diketik manual (mis. mengikuti nomor di kertas SPK yang sudah berjalan); kosong = nomor otomatis. Nomor manual harus unik.
+        $manualNumber = trim((string) ($data['spk_number'] ?? ''));
+        unset($data['spk_number']);
+
+        if ($manualNumber !== '' && Spk::where('spk_number', $manualNumber)->exists()) {
+            throw new RuntimeException("Nomor SPK \"{$manualNumber}\" sudah dipakai SPK lain. Pakai nomor lain atau kosongkan untuk nomor otomatis.");
+        }
+
         try {
-            return DB::transaction(function () use ($data, $checklistItems, $createdBy, $damageMarks) {
-                $spkNumber = Spk::generateNumberForStore($data['store_id']);
+            return DB::transaction(function () use ($data, $checklistItems, $createdBy, $damageMarks, $manualNumber) {
+                $spkNumber = $manualNumber !== '' ? $manualNumber : Spk::generateNumberForStore($data['store_id']);
 
                 $spk = Spk::create(array_merge($data, [
                     'spk_number' => $spkNumber,
@@ -83,6 +91,33 @@ class SpkService
 
             throw $e;
         }
+    }
+
+    /**
+     * Isian awal detail SPK dari sebuah Booking: pelanggan (nama, telepon, alamat), kendaraan (plat, merek dan model, tahun, nomor rangka dari
+     * kendaraan tersimpan pelanggan), dan catatan booking. Hanya yang terisi di booking yang dikembalikan, jadi menarik data tidak mengosongkan
+     * isian yang sudah ada. Semuanya tetap bisa diubah manual di form SPK.
+     *
+     * @return array<string, mixed>
+     */
+    public static function prefillFromBooking(Booking $booking): array
+    {
+        $booking->loadMissing(['customer', 'customerVehicle']);
+
+        $brandModel = trim(implode(' ', array_filter([$booking->vehicle_brand, $booking->vehicle_model, $booking->vehicle_variant])));
+
+        $data = [
+            'customer_name' => $booking->customer_name ?: $booking->customer?->name,
+            'phone_number' => $booking->phone_number ?: $booking->customer?->phone_number,
+            'address' => $booking->customer?->address,
+            'vehicle_plate' => $booking->vehicle_plate ?: $booking->customerVehicle?->plate,
+            'vehicle_brand' => $brandModel !== '' ? $brandModel : null,
+            'vehicle_year' => $booking->vehicle_year ?: $booking->customerVehicle?->year,
+            'vehicle_vin' => $booking->customerVehicle?->vin,
+            'notes' => $booking->notes,
+        ];
+
+        return array_filter($data, fn ($value) => filled($value));
     }
 
     /**

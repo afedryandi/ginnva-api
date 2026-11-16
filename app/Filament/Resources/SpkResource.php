@@ -146,12 +146,48 @@ class SpkResource extends Resource
      * tidak terlalu panjang -- sebelumnya semua section ditumpuk
      * vertikal sekaligus (diminta user 2026-09-16).
      */
+    /** Tarik data booking ke form SPK (lihat SpkService::prefillFromBooking). Booking dibatasi ke yang boleh dilihat pengguna. */
+    public static function pullFromBooking(Forms\Set $set, Forms\Get $get, mixed $bookingId): void
+    {
+        if (blank($bookingId)) {
+            return;
+        }
+
+        $booking = Booking::query()
+            ->when(! (auth()->user()?->isFullAccess() ?? false), fn (Builder $q) => $q->where('store_id', auth()->user()?->store_id))
+            ->find($bookingId);
+
+        if (! $booking) {
+            return;
+        }
+
+        foreach (\App\Services\SpkService::prefillFromBooking($booking) as $field => $value) {
+            $set($field, $value);
+        }
+
+        // Layanan yang dipilih customer di booking langsung tercentang di Uraian Pekerjaan (tetap bisa diubah staf).
+        $labels = \App\Services\SpkService::workItemLabels($booking);
+        $set('checklist_pekerjaan', collect($get('checklist_pekerjaan') ?? [])
+            ->map(fn ($row) => ['label' => $row['label'] ?? '', 'is_checked' => in_array($row['label'] ?? '', $labels, true)])
+            ->all());
+    }
+
     private static function informationTabSchema(): array
     {
         return [
             Forms\Components\Section::make('Informasi SPK')
                 ->columns(2)
                 ->schema([
+                    // Nomor SPK: otomatis, atau diketik manual saat membuat (harus unik). Setelah dibuat tidak bisa diubah, karena dipakai dokumen lain (Memo, PDF).
+                    Forms\Components\TextInput::make('spk_number')
+                        ->label('No. SPK')
+                        ->placeholder('Otomatis kalau dikosongkan')
+                        ->helperText(fn (string $operation) => $operation === 'create' ? 'Isi kalau ingin memakai nomor sendiri (harus belum dipakai). Kosongkan untuk nomor otomatis.' : null)
+                        ->maxLength(100)
+                        ->unique(table: 'spks', column: 'spk_number', ignoreRecord: true)
+                        ->disabledOn('edit')
+                        ->dehydrated(fn (string $operation) => $operation === 'create'),
+
                     Forms\Components\Select::make('store_id')
                         ->label('Toko')
                         ->relationship('store', 'name')
@@ -182,19 +218,20 @@ class SpkResource extends Resource
                             ->get()
                             ->mapWithKeys(fn (Booking $b) => [$b->id => "{$b->booking_number} — {$b->customer_name}"]))
                         ->getOptionLabelUsing(fn ($value) => Booking::find($value)?->booking_number)
-                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
-                            $booking = Booking::find($state);
-                            if ($booking) {
-                                $set('customer_name', $booking->customer_name ?? $booking->customer?->name);
-                                $set('phone_number', $booking->phone_number ?? $booking->customer?->phone_number);
-
-                                // Layanan yang dipilih customer di booking langsung tercentang di Uraian Pekerjaan (tetap bisa diubah staf).
-                                $labels = \App\Services\SpkService::workItemLabels($booking);
-                                $set('checklist_pekerjaan', collect($get('checklist_pekerjaan') ?? [])
-                                    ->map(fn ($row) => ['label' => $row['label'] ?? '', 'is_checked' => in_array($row['label'] ?? '', $labels, true)])
-                                    ->all());
-                            }
-                        })
+                        // Memilih booking menarik data pelanggan, kendaraan, dan catatan ke detail SPK, serta mencentang layanan di Uraian
+                        // Pekerjaan. Semuanya hanya isian awal dan tetap bisa diubah manual.
+                        ->afterStateUpdated(fn (Forms\Set $set, Forms\Get $get, $state) => static::pullFromBooking($set, $get, $state))
+                        ->suffixAction(
+                            Forms\Components\Actions\Action::make('pullFromBooking')
+                                ->label('Tarik ulang dari Booking')
+                                ->icon('heroicon-o-arrow-path')
+                                ->tooltip('Isi ulang data pelanggan dan kendaraan dari booking (menimpa isian saat ini)')
+                                ->visible(fn (Forms\Get $get, string $operation) => $operation === 'create' && filled($get('booking_id')))
+                                ->requiresConfirmation()
+                                ->modalHeading('Tarik ulang dari booking?')
+                                ->modalDescription('Data pelanggan, kendaraan, dan catatan akan diganti dengan data dari booking. Perubahan manual pada bagian itu hilang.')
+                                ->action(fn (Forms\Set $set, Forms\Get $get) => static::pullFromBooking($set, $get, $get('booking_id'))),
+                        )
                         ->live()
                         ->required()
                         ->helperText('Cuma booking berstatus "Dikonfirmasi" yang belum punya SPK.'),
