@@ -200,6 +200,28 @@ class AdminPanelProvider extends PanelProvider
                     ? view('filament.period-status')->render()
                     : ''
             )
+            // Tombol "Cetak PDF" di halaman lihat/ubah satu data, untuk menu mana pun. Isi PDF: App\Support\RecordPdf.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::PAGE_HEADER_ACTIONS_AFTER,
+                function (): string {
+                    $page = \Livewire\Livewire::current();
+
+                    if (! ($page instanceof \Filament\Resources\Pages\ViewRecord || $page instanceof \Filament\Resources\Pages\EditRecord)) {
+                        return '';
+                    }
+
+                    $resource = $page::getResource();
+                    $record = $page->getRecord();
+
+                    if (! $record?->exists || ! $resource::canView($record)) {
+                        return '';
+                    }
+
+                    return view('filament.partials.print-pdf-button', [
+                        'url' => route('record-pdf', ['slug' => $resource::getSlug(), 'record' => $record->getKey()]),
+                    ])->render();
+                }
+            )
             // Pintasan Pusat Persetujuan: ikon dengan angka pengajuan menunggu, di antara lonceng dan avatar. Bukan tab menu supaya bilah atas tidak penuh.
             ->renderHook(
                 \Filament\View\PanelsRenderHook::USER_MENU_BEFORE,
