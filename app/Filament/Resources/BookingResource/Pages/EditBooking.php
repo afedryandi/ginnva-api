@@ -354,6 +354,9 @@ class EditBooking extends EditRecord
      */
     protected function afterSave(): void
     {
+        // Produk utama (film_product_id) mengikuti produk pertama di daftar Produk per Bagian.
+        BookingResource::syncMainProduct($this->record);
+
         // Halaman Edit tetap terbuka setelah simpan: token versi harus ikut
         // diperbarui, kalau tidak simpan berikutnya ditolak "sudah berubah".
         $this->record->refresh();

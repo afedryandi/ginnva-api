@@ -503,48 +503,8 @@ class BookingResource extends Resource
                             }
                         }),
 
-                    // Varian/SKU FilmProduct spesifik yang dipasang --
-                    // OPSIONAL (diminta 2026-09-08), supaya "Produk
-                    // Terlaris" bisa dihitung dari Booking sungguhan,
-                    // bukan cuma Quotation (lead, belum tentu jadi
-                    // transaksi). Opsinya difilter sesuai Jenis Layanan
-                    // yang dipilih (kalau PPF, cuma tampilkan varian PPF;
-                    // kalau Kaca Film, cuma tampilkan window_film) supaya
-                    // staff tidak salah pilih varian dari tipe yang beda.
-                    // Booking "Kaca Film + PPF" (dua-duanya) tetap boleh
-                    // pilih dari semua opsi karena tidak bisa ditentukan
-                    // otomatis mana yang dominan.
-                    Forms\Components\Select::make('film_product_id')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
-                        ->label('Varian Produk (SKU)')
-                        ->options(function (Forms\Get $get) {
-                            // Detailing (product_type 'detailing') BUKAN varian
-                            // film — dikecualikan dari dropdown ini. Penanda
-                            // detailing di booking = toggle "Termasuk Detailing"
-                            // di bawah.
-                            $query = \App\Models\FilmProduct::query()
-                                ->where('is_active', true)
-                                ->whereNotIn('product_type', ['detailing', 'premium_wash']);
-
-                            $services = (array) $get('services');
-                            $isKacaFilm = in_array('kaca_film', $services, true) && ! in_array('ppf', $services, true);
-                            $isPpf = in_array('ppf', $services, true) && ! in_array('kaca_film', $services, true);
-
-                            if ($isKacaFilm) {
-                                $query->where('product_type', 'window_film');
-                            } elseif ($isPpf) {
-                                $query->where('product_type', 'ppf');
-                            }
-
-                            return $query->orderBy('name')
-                                ->get()
-                                ->mapWithKeys(fn ($product) => [$product->id => "{$product->sku} — {$product->name}"]);
-                        })
-                        ->searchable()
-                        ->preload()
-                        ->live()
-                        ->label('Model Produk Utama')
-                        ->helperText('Varian utama booking ini. Kalau memakai lebih dari satu varian, tambahkan sisanya di Varian Produk di bawah.'),
-
+                    // Produk dipilih langsung per bagian (tanpa "model produk utama" terpisah). Kolom bookings.film_product_id (dipakai laporan,
+                    // Memo Barang, dan Catat Penjualan) diisi otomatis dari produk pertama di daftar ini: BookingResource::syncMainProduct().
                     // Produk TAMBAHAN per bagian kendaraan -- keputusan
                     // atasan 2026-09-19 (Topik 3): 1 booking BISA pakai
                     // lebih dari 1 produk, dicatat staff toko saat booking
@@ -554,8 +514,21 @@ class BookingResource extends Resource
                     Forms\Components\Repeater::make('filmProducts')
                         ->relationship()
                         ->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))
-                        ->label('Varian Produk')
-                        ->addActionLabel('+ Tambah varian')
+                        ->label('Produk per Bagian')
+                        ->addActionLabel('+ Tambah produk')
+                        // Booking lama yang baru punya satu produk (kolom film_product_id) tampil sebagai satu baris, supaya tetap terlihat dan bisa diubah.
+                        ->afterStateHydrated(function (Forms\Components\Repeater $component, ?Booking $record, $state) {
+                            if ($record === null || filled($state) || blank($record->film_product_id)) {
+                                return;
+                            }
+
+                            $type = $record->filmProduct?->product_type;
+                            $position = match ($type) { 'ppf' => Booking::PPF_ALL, 'window_film' => Booking::WF_ALL, default => null };
+
+                            if ($position !== null) {
+                                $component->state([['position' => $position, 'film_product_id' => $record->film_product_id]]);
+                            }
+                        })
                         ->reorderable(false)
                         ->defaultItems(0)
                         ->columns(2)
@@ -569,21 +542,9 @@ class BookingResource extends Resource
                                 ->placeholder('Pilih bagian')
                                 ->native(false)
                                 ->required()
-                                ->live()
-                                // Model terisi otomatis dari produk utama kalau jenisnya cocok; bisa diganti per bagian.
-                                ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
-                                    if (filled($get('film_product_id')) || blank($state)) {
-                                        return;
-                                    }
-
-                                    $main = \App\Models\FilmProduct::query()->find($get('../../film_product_id'));
-
-                                    if ($main && $main->product_type === self::productTypeForPart((string) $state)) {
-                                        $set('film_product_id', $main->id);
-                                    }
-                                }),
+                                ->live(),
                             Forms\Components\Select::make('film_product_id')
-                                ->label('Model')
+                                ->label('Produk')
                                 ->options(fn (Forms\Get $get) => \App\Models\FilmProduct::query()
                                     ->where('is_active', true)
                                     ->where('product_type', self::productTypeForPart((string) $get('position')))
@@ -594,7 +555,7 @@ class BookingResource extends Resource
                                 ->preload()
                                 ->required(),
                         ])
-                        ->helperText('Tambahkan lebih dari satu varian: pilih bagian ("Seluruh Bagian PPF" atau "Seluruh Kaca" kalau dipakai di semua bagian), lalu varian produknya. PPF Part: pilih tiap panel. Varian terisi dari Model Produk Utama dan bisa diganti.'),
+                        ->helperText('Pilih bagian, lalu produknya. "Seluruh Bagian PPF" atau "Seluruh Kaca" kalau satu produk dipakai di semua bagian; boleh lebih dari satu produk. PPF Part: pilih tiap panel.'),
 
                     // Detailing dijual dua-duanya (sendiri / tambahan pada
                     // booking film) — diminta 2026-09-10. Toggle terpisah,
@@ -910,19 +871,19 @@ class BookingResource extends Resource
                 ->columns(2)
                 ->schema([
                     TextEntry::make('service_type')->label('Jenis Layanan'),
-                    TextEntry::make('filmProduct.name')
-                        ->label('Varian Produk (SKU) — Utama')
-                        ->placeholder('Belum diisi')
-                        ->state(fn (Booking $record) => $record->filmProduct ? "{$record->filmProduct->sku} — {$record->filmProduct->name}" : null),
-                    // Produk tambahan per bagian (Topik 3, 2026-09-19) --
-                    // cuma tampil kalau memang diisi, lihat Booking::filmProducts().
+                    // Produk per bagian; booking lama yang baru punya satu produk (kolom film_product_id) menampilkan produk itu.
                     TextEntry::make('filmProducts')
-                        ->label('Varian Produk')
-                        ->placeholder('—')
-                        ->state(fn (Booking $record) => $record->filmProducts->isEmpty() ? null : $record->filmProducts
-                            ->map(fn (\App\Models\BookingFilmProduct $item) => trim(($item->position ? "{$item->position}: " : '') . "{$item->filmProduct->sku} — {$item->filmProduct->name}"))
-                            ->implode(', '))
-                        ->visible(fn (Booking $record) => $record->filmProducts->isNotEmpty()),
+                        ->label('Produk per Bagian')
+                        ->placeholder('Belum diisi')
+                        ->state(function (Booking $record) {
+                            if ($record->filmProducts->isNotEmpty()) {
+                                return $record->filmProducts
+                                    ->map(fn (\App\Models\BookingFilmProduct $item) => trim(($item->position ? "{$item->position}: " : '') . "{$item->filmProduct->sku} — {$item->filmProduct->name}"))
+                                    ->implode(', ');
+                            }
+
+                            return $record->filmProduct ? "{$record->filmProduct->sku} — {$record->filmProduct->name}" : null;
+                        }),
                     TextEntry::make('ppf_scope')
                         ->label('Cakupan PPF')
                         ->badge()
@@ -2175,6 +2136,22 @@ class BookingResource extends Resource
         return $options;
     }
 
+    /**
+     * Isi bookings.film_product_id dari produk pertama di daftar Produk per Bagian (id terkecil). Kolom ini tetap dipakai laporan Produk
+     * Terlaris, Memo Barang otomatis, dan Catat Penjualan. Tanpa baris produk, nilai lama dibiarkan (booking lama). Lewat query dasar agar
+     * updated_at (token versi form) tidak ikut berubah.
+     */
+    public static function syncMainProduct(Booking $record): void
+    {
+        $first = $record->filmProducts()->orderBy('id')->value('film_product_id');
+
+        if ($first !== null && (int) $first !== (int) $record->film_product_id) {
+            Booking::query()->whereKey($record->getKey())->toBase()->update(['film_product_id' => $first]);
+            $record->film_product_id = $first;
+            $record->syncOriginalAttribute('film_product_id');
+        }
+    }
+
     /** Data inti booking yang sudah dikonfirmasi terkunci di form Ubah, kecuali akses penuh membuka kuncinya (toggle di form). */
     public static function coreLocked(?Booking $record, ?Forms\Get $get = null): bool
     {
@@ -2186,7 +2163,7 @@ class BookingResource extends Resource
         'source', 'customer_id', 'customer_name', 'phone_number',
         'vehicle_plate', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_color', 'vehicle_year', 'vehicle_size',
         'store_id', 'service_type', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash',
-        'ppf_area', 'ppf_scope', 'film_product_id', 'preferred_date', 'preferred_time', 'duration_days',
+        'ppf_area', 'ppf_scope', 'preferred_date', 'preferred_time', 'duration_days',
     ];
 
     /** Buang baris panel PPF dari daftar Produk per Bagian (dipakai saat cakupan bukan Part), baris Window Film tetap. */

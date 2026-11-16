@@ -173,6 +173,9 @@ class CreateBooking extends CreateRecord
      */
     protected function afterCreate(): void
     {
+        // Produk utama (film_product_id) mengikuti produk pertama di daftar Produk per Bagian.
+        BookingResource::syncMainProduct($this->record);
+
         $watcherIds = $this->record->watchers()->pluck('users.id')->all();
 
         BookingResource::notifyNewWatchers($this->record, $watcherIds, auth()->user()?->name ?? 'Admin');
