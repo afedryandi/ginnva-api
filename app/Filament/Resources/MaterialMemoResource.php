@@ -69,14 +69,18 @@ class MaterialMemoResource extends Resource
         return static::canViewAny() && auth()->user()->hasModuleAction(static::class, 'create', false);
     }
 
+    // Memo terkunci begitu booking-nya Selesai (lihat MaterialMemo::isLocked()): Ubah, tambah/ubah/hapus barang, dan catat pengembalian tidak
+    // tersedia sampai akses penuh membuka kunci (tombol Buka Kunci di halaman Lihat). Semua aksi barang membaca canEdit() ini.
     public static function canEdit($record): bool
     {
-        return static::canViewAny() && auth()->user()->hasModuleAction(static::class, 'update', false);
+        return static::canViewAny()
+            && auth()->user()->hasModuleAction(static::class, 'update', false)
+            && ! ($record instanceof MaterialMemo && $record->isLocked());
     }
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        $query = parent::getEloquentQuery()->with('booking:id,status');
         $user = auth()->user();
 
         if ($user && ! $user->isFullAccess()) {
@@ -159,6 +163,13 @@ class MaterialMemoResource extends Resource
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
                     ->searchable(),
+                // Ikon gembok: memo terkunci karena booking-nya Selesai (MaterialMemo::isLocked()).
+                Tables\Columns\IconColumn::make('lock')
+                    ->label('')
+                    ->state(fn (MaterialMemo $record) => $record->isLocked() ? 'locked' : null)
+                    ->icon(fn (?string $state) => $state ? 'heroicon-o-lock-closed' : null)
+                    ->color('gray')
+                    ->tooltip(fn (MaterialMemo $record) => $record->isLocked() ? 'Terkunci: booking sudah selesai' : null),
                 Tables\Columns\TextColumn::make('booking.booking_number')
                     ->label('Booking')
                     ->searchable()

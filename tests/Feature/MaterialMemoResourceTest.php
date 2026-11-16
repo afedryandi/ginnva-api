@@ -761,4 +761,25 @@ class MaterialMemoResourceTest extends TestCase
         $this->assertSame('material_memo', $log->properties['report']);
         $this->assertSame($this->storeA->id, $log->properties['store_id']);
     }
+
+    public function test_the_return_forms_no_longer_ask_for_an_expiry_date(): void
+    {
+        $admin = $this->user('super_admin');
+        $this->as($admin);
+        $memo = $this->memo($this->storeA);
+        $material = $this->material('Lem Tanpa Kedaluwarsa', 10);
+        $item = \App\Services\MaterialMemoStockService::addMaterial($material, 'raw_material', $memo, 5, $admin->id, null);
+
+        $this->manager($memo)
+            ->mountTableAction('return_item', $item)
+            ->assertFormFieldExists('qty_returned', 'mountedTableActionForm')
+            ->assertFormFieldDoesNotExist('expiry_date', 'mountedTableActionForm');
+
+        // Bahan yang kembali tetap menjadi batch baru, tanpa tanggal kedaluwarsa.
+        $this->manager($memo)
+            ->callTableAction('return_item', $item, ['qty_returned' => 2])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertEquals(2, (float) $material->batches()->whereNull('expiry_date')->latest('id')->value('quantity'));
+    }
 }

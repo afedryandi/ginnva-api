@@ -33,6 +33,23 @@ class MaterialMemoController extends Controller
      * destroyItem) bisa disentuh staff toko lain asal tahu/tebak ID-nya —
      * lubang kebocoran data lintas toko.
      */
+    /**
+     * Memo terkunci begitu booking-nya Selesai (pemakaian bahan sudah dibukukan sebagai HPP); akses penuh membuka kunci lewat panel admin.
+     * Dipanggil di semua endpoint yang mengubah memo atau barangnya.
+     */
+    private function lockedResponse(MaterialMemo $memo): ?\Illuminate\Http\JsonResponse
+    {
+        if (! $memo->isLocked()) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'locked' => true,
+            'message' => 'Memo ini terkunci karena booking-nya sudah selesai. Minta akses penuh untuk membuka kunci di panel admin.',
+        ], 422);
+    }
+
     private function authorizeMemoAccess(Request $request, MaterialMemo $memo): bool
     {
         if (! $this->authorizeAccess($request)) {
@@ -290,7 +307,7 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
-        return response()->json(['success' => true, 'data' => $memo, 'can_modify' => $this->can($request, 'update')]);
+        return response()->json(['success' => true, 'data' => $memo, 'can_modify' => $this->can($request, 'update') && ! $memo->isLocked(), 'is_locked' => $memo->isLocked()]);
     }
 
     /**
@@ -309,6 +326,10 @@ class MaterialMemoController extends Controller
 
         if (! $this->authorizeMemoAccess($request, $memo)) {
             return $this->forbiddenResponse();
+        }
+
+        if ($locked = $this->lockedResponse($memo)) {
+            return $locked;
         }
 
         if ($denied = $this->denyUnlessCan($request, 'update')) {
@@ -367,6 +388,10 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
+        if ($locked = $this->lockedResponse($memo)) {
+            return $locked;
+        }
+
         if ($denied = $this->denyUnlessCan($request, 'update')) {
             return $denied;
         }
@@ -413,6 +438,10 @@ class MaterialMemoController extends Controller
 
         if (! $this->authorizeMemoAccess($request, $memo)) {
             return $this->forbiddenResponse();
+        }
+
+        if ($locked = $this->lockedResponse($memo)) {
+            return $locked;
         }
 
         if ($denied = $this->denyUnlessCan($request, 'update')) {
@@ -494,6 +523,10 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
+        if ($locked = $this->lockedResponse($memo)) {
+            return $locked;
+        }
+
         if ($denied = $this->denyUnlessCan($request, 'update')) {
             return $denied;
         }
@@ -565,6 +598,10 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
+        if ($locked = $this->lockedResponse($memo)) {
+            return $locked;
+        }
+
         if ($denied = $this->denyUnlessCan($request, 'update')) {
             return $denied;
         }
@@ -621,6 +658,10 @@ class MaterialMemoController extends Controller
 
         if (! $this->authorizeMemoAccess($request, $memo)) {
             return $this->forbiddenResponse();
+        }
+
+        if ($locked = $this->lockedResponse($memo)) {
+            return $locked;
         }
 
         if ($denied = $this->denyUnlessCan($request, 'update')) {
@@ -687,6 +728,10 @@ class MaterialMemoController extends Controller
 
         if (! $this->authorizeMemoAccess($request, $memo)) {
             return $this->forbiddenResponse();
+        }
+
+        if ($locked = $this->lockedResponse($memo)) {
+            return $locked;
         }
 
         if ($denied = $this->denyUnlessCan($request, 'update')) {

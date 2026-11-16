@@ -472,15 +472,6 @@ class ItemsRelationManager extends RelationManager
                             ->minValue(0)
                             ->prefix('Rp')
                             ->helperText('Kosongkan untuk pakai harga terakhir tersimpan.'),
-
-                        // Bahan baku yang kembali selalu menjadi batch baru (sistem tidak menyimpan batch asal yang dulu terpakai),
-                        // jadi kedaluwarsanya harus diisi di sini kalau bahan itu punya masa pakai.
-                        Forms\Components\DatePicker::make('expiry_date')
-                            ->label('Tanggal Kedaluwarsa (opsional)')
-                            ->native(false)
-                            ->displayFormat('d M Y')
-                            ->visible(fn () => $record->item_type === 'raw_material')
-                            ->helperText('Bahan yang kembali dicatat sebagai batch baru (masuk hari ini). Isi kalau bahan punya masa pakai, supaya peringatan kedaluwarsa tidak hilang.'),
                     ])
                     ->action(function (MaterialMemoItem $record, array $data) {
                         try {
@@ -490,7 +481,7 @@ class ItemsRelationManager extends RelationManager
                                 auth()->id(),
                                 $this->getOwnerRecord(),
                                 isset($data['unit_cost']) && $data['unit_cost'] !== '' ? (float) $data['unit_cost'] : null,
-                                ! empty($data['expiry_date']) ? (string) $data['expiry_date'] : null,
+                                null,
                             );
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()->title('Tidak bisa mencatat pengembalian')->body($e->getMessage())->danger()->send();
@@ -514,13 +505,6 @@ class ItemsRelationManager extends RelationManager
                             ->maxValue((float) $record->qty_taken)
                             ->helperText("Diambil: {$record->qty_taken} {$record->unit}. Tercatat sekarang: {$record->qty_returned} {$record->unit}. Selisihnya menambah atau mengurangi stok."),
 
-                        Forms\Components\DatePicker::make('expiry_date')
-                            ->label('Tanggal Kedaluwarsa (opsional)')
-                            ->native(false)
-                            ->displayFormat('d M Y')
-                            ->visible(fn () => $record->item_type === 'raw_material')
-                            ->helperText('Hanya dipakai kalau jumlah dikembalikan bertambah: bahan yang bertambah dicatat sebagai batch baru.'),
-
                         Forms\Components\Textarea::make('note')
                             ->label('Alasan Koreksi')
                             ->required()
@@ -535,7 +519,7 @@ class ItemsRelationManager extends RelationManager
                                 auth()->id(),
                                 $this->getOwnerRecord(),
                                 (string) $data['note'],
-                                ! empty($data['expiry_date']) ? (string) $data['expiry_date'] : null,
+                                null,
                             );
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()->title('Tidak bisa mengoreksi pengembalian')->body($e->getMessage())->danger()->send();

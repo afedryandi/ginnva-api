@@ -37,6 +37,13 @@ class MaterialMemo extends Model
         'spk_number',
         'notes',
         'created_by',
+        'unlocked_at',
+        'unlocked_by',
+        'unlock_reason',
+    ];
+
+    protected $casts = [
+        'unlocked_at' => 'datetime',
     ];
 
     /**
@@ -57,6 +64,34 @@ class MaterialMemo extends Model
             ->max() ?? 0;
 
         return sprintf('MEMO-%s-%04d', $datePart, $last + 1);
+    }
+
+    /**
+     * Terkunci kalau booking-nya sudah Selesai (pemakaian bahan sudah dibukukan sebagai HPP, jadi mengubah memo membuat stok dan pembukuan
+     * tidak cocok), kecuali akses penuh sudah membukanya (unlocked_at terisi). Booking Dibatalkan tidak mengunci: sisa bahan masih harus
+     * bisa dikembalikan. Memo tanpa booking tidak pernah terkunci.
+     */
+    public function isLocked(): bool
+    {
+        if (! $this->booking_id || $this->unlocked_at !== null) {
+            return false;
+        }
+
+        $status = $this->relationLoaded('booking')
+            ? $this->booking?->status
+            : Booking::withoutGlobalScopes()->whereKey($this->booking_id)->value('status');
+
+        return $status === 'completed';
+    }
+
+    /** Booking-nya Selesai tetapi kuncinya sudah dibuka akses penuh (bisa dikunci lagi). */
+    public function isUnlockedAfterCompletion(): bool
+    {
+        if (! $this->booking_id || $this->unlocked_at === null) {
+            return false;
+        }
+
+        return Booking::withoutGlobalScopes()->whereKey($this->booking_id)->value('status') === 'completed';
     }
 
     /** Memo yang masih punya baris bahan/barang habis pakai tanpa catatan pengembalian (stok sudah keluar, belum diselesaikan). */
