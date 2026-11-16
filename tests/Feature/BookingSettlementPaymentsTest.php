@@ -117,7 +117,7 @@ class BookingSettlementPaymentsTest extends TestCase
      */
     private function processReferral(Booking $booking, array $data, array $payments)
     {
-        $component = Livewire::test(ListBookings::class)->removeTableFilter('upcoming')->mountTableAction('process_referral', $booking);
+        $component = Livewire::test(ListBookings::class)->set('activeTab', 'semua')->mountTableAction('process_referral', $booking);
         $defaultKeys = array_keys((array) $component->get('mountedTableActionsData.0.settlement_payments'));
 
         $keyed = [];

@@ -215,19 +215,19 @@ class RevenueOnCompletionTest extends TestCase
         $this->actingAs($this->admin(), 'web');
         $booking = $this->completed('2026-10-30 14:00:00', 1000000, ['transaction_amount' => null, 'amount_received' => null]);
 
-        Livewire::test(ListBookings::class)->removeTableFilter('upcoming')
+        Livewire::test(ListBookings::class)->set('activeTab', 'semua')
             ->assertTableActionVisible('correct_completed_at', $booking);
 
         // Sudah diproses (punya jurnal): disembunyikan.
         $processed = $this->completed('2026-10-30 14:00:00');
         app(BookingPostingService::class)->sync($processed);
-        Livewire::test(ListBookings::class)->removeTableFilter('upcoming')
+        Livewire::test(ListBookings::class)->set('activeTab', 'semua')
             ->assertTableActionHidden('correct_completed_at', $processed->fresh());
 
         // Bukan akses penuh: disembunyikan.
         $kasir = tap(User::create(['name' => 'Kasir', 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $this->store->id]), fn (User $u) => $u->assignRole('kasir'));
         $this->actingAs($kasir, 'web');
-        Livewire::test(ListBookings::class)->removeTableFilter('upcoming')
+        Livewire::test(ListBookings::class)->set('activeTab', 'semua')
             ->assertTableActionHidden('correct_completed_at', $booking);
     }
 
@@ -236,13 +236,13 @@ class RevenueOnCompletionTest extends TestCase
         $this->actingAs($this->admin(), 'web');
         $booking = $this->completed('2026-11-10 09:00:00', 1000000, ['transaction_amount' => null, 'amount_received' => null]);
 
-        Livewire::test(ListBookings::class)->removeTableFilter('upcoming')
+        Livewire::test(ListBookings::class)->set('activeTab', 'semua')
             ->callTableAction('correct_completed_at', $booking, data: ['completed_at' => '2026-11-05 08:30:00'])
             ->assertNotified('Tanggal selesai diperbarui');
         $this->assertSame('2026-11-05 08:30:00', $booking->fresh()->completed_at->toDateTimeString());
 
         $this->closePeriod('2026-10-01');
-        Livewire::test(ListBookings::class)->removeTableFilter('upcoming')
+        Livewire::test(ListBookings::class)->set('activeTab', 'semua')
             ->callTableAction('correct_completed_at', $booking, data: ['completed_at' => '2026-10-20 08:30:00'])
             ->assertNotified('Periode sudah ditutup');
         $this->assertSame('2026-11-05 08:30:00', $booking->fresh()->completed_at->toDateTimeString());

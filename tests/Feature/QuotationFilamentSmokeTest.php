@@ -129,7 +129,8 @@ class QuotationFilamentSmokeTest extends TestCase
     public function test_the_clean_style_applies_only_to_redesigned_menus(): void
     {
         $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListQuotations()));
-        $this->assertFalse(\App\Support\CleanUi::appliesTo(new \App\Filament\Resources\BookingResource\Pages\ListBookings()));
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new \App\Filament\Resources\BookingResource\Pages\ListBookings()));
+        $this->assertFalse(\App\Support\CleanUi::appliesTo(new \App\Filament\Resources\InvoiceResource\Pages\ListInvoices()));
         $this->assertFalse(\App\Support\CleanUi::appliesTo(null));
     }
 

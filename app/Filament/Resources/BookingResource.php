@@ -16,6 +16,8 @@ use App\Support\PhoneFormatter;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\Grid as InfolistGrid;
+use Filament\Infolists\Components\Group as InfolistGroup;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\ViewEntry;
@@ -23,6 +25,7 @@ use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -160,6 +163,7 @@ class BookingResource extends Resource
 
         return $form->schema([
             Forms\Components\Section::make('Data Dikunci')
+                ->icon('heroicon-o-lock-closed')
                 ->columns(1)
                 ->visible(fn (?Booking $record) => $record?->status === 'confirmed')
                 ->schema([
@@ -180,28 +184,11 @@ class BookingResource extends Resource
                         ->dehydrated(false),
                 ]),
 
-            Forms\Components\Section::make('Sumber Booking')
-                ->columns(1)
-                ->schema([
-                    Forms\Components\Select::make('source')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
-                        ->label('Asal Booking')
-                        ->options([
-                            'app'       => '📱 Mobile App',
-                            'whatsapp'  => '💬 WhatsApp',
-                            'walk_in'   => '🚶 Walk-in',
-                        ])
-                        ->default('whatsapp')
-                        ->required()
-                        ->live()
-                        ->disabledOn('edit'),
-
-                    Forms\Components\TextInput::make('booking_number')
-                        ->label('No. Booking')
-                        ->disabled()
-                        ->hiddenOn('create'),
-                ]),
-
-            Forms\Components\Section::make('Data Pelanggan')
+            // Dua kolom di layar lebar: kiri isi booking (pelanggan, kendaraan, detail), kanan sumber booking.
+            Forms\Components\Grid::make(['default' => 1, 'lg' => 3])->schema([
+                Forms\Components\Group::make()->columnSpan(['lg' => 2])->schema([
+            Forms\Components\Section::make('Pelanggan')
+                ->icon('heroicon-o-user')
                 ->columns(1)
                 ->schema([
                     // Booking dari app — pilih dari akun terdaftar
@@ -240,6 +227,7 @@ class BookingResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Kendaraan')
+                ->icon('heroicon-o-truck')
                 ->description('Opsional. Booking dari aplikasi sudah terisi otomatis dari "Kendaraan Saya" milik pelanggan.')
                 ->columns(1)
                 ->schema([
@@ -268,6 +256,7 @@ class BookingResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Detail Booking')
+                ->icon('heroicon-o-clipboard-document-list')
                 ->columns(1)
                 ->schema([
                     Forms\Components\Select::make('store_id')
@@ -784,6 +773,32 @@ class BookingResource extends Resource
                             : now())
                         ->native(false),
                 ]),
+                ]),
+                Forms\Components\Group::make()->columnSpan(['lg' => 1])->schema([
+            Forms\Components\Section::make('Sumber Booking')
+                ->icon('heroicon-o-inbox-arrow-down')
+                ->columns(1)
+                ->schema([
+                    Forms\Components\Select::make('source')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
+                        ->label('Asal Booking')
+                        ->options([
+                            'app'       => '📱 Mobile App',
+                            'whatsapp'  => '💬 WhatsApp',
+                            'walk_in'   => '🚶 Walk-in',
+                        ])
+                        ->default('whatsapp')
+                        ->required()
+                        ->live()
+                        ->disabledOn('edit'),
+
+                    Forms\Components\TextInput::make('booking_number')
+                        ->label('No. Booking')
+                        ->disabled()
+                        ->hiddenOn('create'),
+                ]),
+
+                ]),
+            ]),
         ])
             // SEBELUMNYA booking yang statusnya sudah 'completed'/'cancelled'
             // (final, tidak bisa dibatalkan lagi — lihat guard action
@@ -809,41 +824,11 @@ class BookingResource extends Resource
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist->schema([
-            InfolistSection::make('Informasi Booking')
-                ->columns(3)
-                ->schema([
-                    TextEntry::make('booking_number')->label('No. Booking'),
-                    TextEntry::make('status')
-                        ->label('Status')
-                        ->badge()
-                        ->formatStateUsing(fn (string $state) => match ($state) {
-                            'pending'   => 'Menunggu',
-                            'confirmed' => 'Dikonfirmasi',
-                            'completed' => 'Selesai',
-                            'cancelled' => 'Dibatalkan',
-                            default     => $state,
-                        })
-                        ->color(fn (string $state) => match ($state) {
-                            'pending'   => 'warning',
-                            'confirmed' => 'info',
-                            'completed' => 'success',
-                            'cancelled' => 'danger',
-                            default     => 'gray',
-                        }),
-                    TextEntry::make('source')
-                        ->label('Asal Booking')
-                        ->formatStateUsing(fn (string $state) => match ($state) {
-                            'app'      => '📱 Mobile App',
-                            'whatsapp' => '💬 WhatsApp',
-                            'walk_in'  => '🚶 Walk-in',
-                            default    => $state,
-                        }),
-                    TextEntry::make('store.name')->label('Toko/Workshop')->placeholder('—'),
-                    TextEntry::make('installers.name')->label('Installer Bertugas')->badge()->placeholder('Belum ditugaskan'),
-                    TextEntry::make('watchers.name')->label('Direksi Pemantau')->badge()->placeholder('—'),
-                ]),
-
-            InfolistSection::make('Data Pelanggan')
+            // Dua kolom: kiri pelanggan, kendaraan, dan detail; kanan ringkasan status dan penugasan.
+            InfolistGrid::make(['default' => 1, 'lg' => 3])->schema([
+                InfolistGroup::make()->columnSpan(['lg' => 2])->schema([
+            InfolistSection::make('Pelanggan')
+                ->icon('heroicon-o-user')
                 ->columns(2)
                 ->schema([
                     TextEntry::make('display_name')
@@ -855,6 +840,7 @@ class BookingResource extends Resource
                 ]),
 
             InfolistSection::make('Kendaraan')
+                ->icon('heroicon-o-truck')
                 ->columns(2)
                 ->schema([
                     TextEntry::make('vehicle_plate')->label('Plat Nomor')->placeholder('—'),
@@ -868,6 +854,7 @@ class BookingResource extends Resource
                 ]),
 
             InfolistSection::make('Detail Booking')
+                ->icon('heroicon-o-clipboard-document-list')
                 ->columns(2)
                 ->schema([
                     TextEntry::make('service_type')->label('Jenis Layanan'),
@@ -1000,6 +987,46 @@ class BookingResource extends Resource
 
             // Penerimaan, QC, dan serah terima (koreksi celah Fase 3, 2026-10-22): bukti yang sebelumnya hanya terlihat di
             // aplikasi staf. Hanya muncul bila booking sudah dikonfirmasi/selesai atau sudah punya salah satu catatannya.
+                ]),
+                InfolistGroup::make()->columnSpan(['lg' => 1])->schema([
+            InfolistSection::make('Ringkasan')
+                ->icon('heroicon-o-clipboard-document-check')
+                ->columns(1)
+                ->schema([
+                    TextEntry::make('booking_number')->label('No. Booking'),
+                    TextEntry::make('status')
+                        ->label('Status')
+                        ->badge()
+                        ->formatStateUsing(fn (string $state) => match ($state) {
+                            'pending'   => 'Menunggu',
+                            'confirmed' => 'Dikonfirmasi',
+                            'completed' => 'Selesai',
+                            'cancelled' => 'Dibatalkan',
+                            default     => $state,
+                        })
+                        ->color(fn (string $state) => match ($state) {
+                            'pending'   => 'warning',
+                            'confirmed' => 'info',
+                            'completed' => 'success',
+                            'cancelled' => 'danger',
+                            default     => 'gray',
+                        }),
+                    TextEntry::make('source')
+                        ->label('Asal Booking')
+                        ->formatStateUsing(fn (string $state) => match ($state) {
+                            'app'      => '📱 Mobile App',
+                            'whatsapp' => '💬 WhatsApp',
+                            'walk_in'  => '🚶 Walk-in',
+                            default    => $state,
+                        }),
+                    TextEntry::make('store.name')->label('Toko/Workshop')->placeholder('—'),
+                    TextEntry::make('installers.name')->label('Installer Bertugas')->badge()->placeholder('Belum ditugaskan'),
+                    TextEntry::make('watchers.name')->label('Direksi Pemantau')->badge()->placeholder('—'),
+                ]),
+
+                ]),
+            ]),
+
             InfolistSection::make('Penerimaan, QC, dan Serah Terima')
                 ->visible(fn (Booking $record) => in_array($record->status, ['confirmed', 'completed'], true)
                     || $record->intakePhotos()->exists() || $record->qcResults()->exists() || $record->handover()->exists())
@@ -1104,8 +1131,11 @@ class BookingResource extends Resource
                     ->searchable()
                     ->sortable(),
 
+                // Pelanggan sebagai kolom utama: nama tebal, nomor telepon di bawahnya.
                 Tables\Columns\TextColumn::make('display_name')
                     ->label('Pelanggan')
+                    ->weight('medium')
+                    ->description(fn (Booking $record) => $record->display_phone_number)
                     ->getStateUsing(fn (Booking $record): string => $record->display_customer_name)
                     ->searchable(query: fn (Builder $query, string $search) => $query
                         ->where('customer_name', 'like', "%{$search}%")
@@ -1125,26 +1155,25 @@ class BookingResource extends Resource
                 Tables\Columns\TextColumn::make('phone_number')
                     ->label('No. Telepon')
                     ->getStateUsing(fn (Booking $record): string => $record->display_phone_number)
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\BadgeColumn::make('source')
+                Tables\Columns\TextColumn::make('source')
                     ->label('Asal')
+                    ->badge()
                     ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::bookingSource($state))
-                    ->colors([
-                        'primary' => 'app',
-                        'success' => 'whatsapp',
-                        'gray'    => 'walk_in',
-                    ])
+                    ->color(fn (?string $state) => match ($state) { 'app' => 'primary', 'whatsapp' => 'success', default => 'gray' })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'app'      => '📱 App',
-                        'whatsapp' => '💬 WA',
-                        'walk_in'  => '🚶 Walk-in',
+                        'app'      => 'App',
+                        'whatsapp' => 'WA',
+                        'walk_in'  => 'Walk-in',
                         default    => $state,
-                    }),
+                    })
+                    ->toggleable(isToggledHiddenByDefault: true),
 
+                // Toko: tampil bawaan hanya untuk akses penuh (staf toko selalu melihat tokonya sendiri).
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: ! (auth()->user()?->isFullAccess() ?? false)),
 
                 Tables\Columns\TextColumn::make('installers.name')
                     ->label('Installer')
@@ -1154,7 +1183,8 @@ class BookingResource extends Resource
 
                 Tables\Columns\TextColumn::make('service_type')
                     ->label('Layanan')
-                    ->limit(25),
+                    ->wrap()
+                    ->limit(40),
 
                 // Kolom baru (diminta 2026-09-08) -- ditaruh
                 // toggleable+default hidden, tabel booking sudah cukup
@@ -1179,23 +1209,29 @@ class BookingResource extends Resource
                     ->label('Tanggal')
                     ->date('d M Y')
                     ->sortable()
-                    ->description(fn (Booking $record) => $record->duration_days > 1
-                        ? "{$record->duration_days} hari (s/d {$record->end_date?->format('d M')})"
-                        : null),
+                    // Jam dan durasi di bawah tanggal (kolom Jam terpisah disembunyikan bawaan).
+                    ->description(fn (Booking $record) => trim(implode(' · ', array_filter([
+                        $record->preferred_time,
+                        $record->duration_days > 1 ? "{$record->duration_days} hari (s/d {$record->end_date?->format('d M')})" : null,
+                    ]))) ?: null),
 
                 Tables\Columns\TextColumn::make('preferred_time')
                     ->label('Jam')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\BadgeColumn::make('status')
+                Tables\Columns\TextColumn::make('status')
                     ->label('Status')
+                    ->badge()
+                    ->icon(fn (?string $state) => match ($state) {
+                        'pending'   => 'heroicon-m-clock',
+                        'confirmed' => 'heroicon-m-check-badge',
+                        'completed' => 'heroicon-m-check-circle',
+                        'cancelled' => 'heroicon-m-x-circle',
+                        default     => null,
+                    })
                     ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::bookingStatus($state))
-                    ->colors([
-                        'warning' => 'pending',
-                        'info'    => 'confirmed',
-                        'success' => 'completed',
-                        'danger'  => 'cancelled',
-                    ])
+                    ->color(fn (?string $state) => match ($state) { 'pending' => 'warning', 'confirmed' => 'info', 'completed' => 'success', 'cancelled' => 'danger', default => 'gray' })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'pending'   => 'Menunggu',
                         'confirmed' => 'Dikonfirmasi',
@@ -1251,14 +1287,6 @@ class BookingResource extends Resource
             ])
             ->defaultGroup('preferred_date')
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
-                    ->options([
-                        'pending'   => 'Menunggu',
-                        'confirmed' => 'Dikonfirmasi',
-                        'completed' => 'Selesai',
-                        'cancelled' => 'Dibatalkan',
-                    ]),
-
                 Tables\Filters\Filter::make('pending_sla')
                     ->label('Menunggu > 4 jam (lewat SLA)')
                     ->query(fn (Builder $query) => $query->where('status', 'pending')->where('created_at', '<=', now()->subHours(4))),
@@ -1320,8 +1348,7 @@ class BookingResource extends Resource
                     ->label('Aktif & akan datang')
                     ->query(fn (Builder $query) => $query->where(fn (Builder $q) => $q
                         ->whereIn('status', ['pending', 'confirmed'])
-                        ->orWhereDate('preferred_date', '>=', today())))
-                    ->default(),
+                        ->orWhereDate('preferred_date', '>=', today()))),
 
                 // Booking sudah SELESAI tapi nominal/pendapatannya belum
                 // dicatat (belum "Proses Referral") — dipakai juga sebagai
@@ -1335,8 +1362,14 @@ class BookingResource extends Resource
                 Tables\Filters\Filter::make('selesai_belum_diproses')
                     ->label('Selesai, belum diproses')
                     ->query(fn (Builder $query) => $query->where('status', 'completed')->unsold()),
-            ])
+            ], layout: FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(3)
+            // Aksi utama (Lihat, Ubah) sebagai ikon; sisanya dikelompokkan di menu "...", supaya baris tidak penuh tombol.
             ->actions([
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+
+                Tables\Actions\ActionGroup::make([
                 // "Catat Uang Muka (DP)" -- keputusan atasan 2026-09-19
                 // (Topik 2, "Keputusan-PPN-DP-Produk-Stok-Ginnva.docx"): DP
                 // BUKAN syarat wajib, diterima fleksibel kapan saja SELAMA
@@ -1895,7 +1928,6 @@ class BookingResource extends Resource
                 // Filament sama sekali — staff yang kerja dari desktop
                 // harus copy-paste nomor manual ke WhatsApp Web. Lihat
                 // audit UI/UX Filament Booking 2026-08-27.
-                Tables\Actions\ActionGroup::make([
                     // Audit framework 2026-09-14, "Penanganan data
                     // pribadi (PII) pelanggan" -- customer_name/
                     // phone_number tetap utuh di database (bukti
@@ -1919,10 +1951,6 @@ class BookingResource extends Resource
                         ->visible(fn (Booking $record) => ! ($record->customer_id && ! $record->customer)
                             && filled($record->phone_number ?? $record->customer?->phone_number))
                         ->url(fn (Booking $record) => 'tel:' . ($record->phone_number ?? $record->customer?->phone_number)),
-                ])
-                    ->label('Hubungi')
-                    ->icon('heroicon-o-phone')
-                    ->color('gray'),
 
                 // Pembatalan TIDAK butuh pengecekan kapasitas sama sekali
                 // (beda dari approve/confirm yang wajib lewat
@@ -1992,8 +2020,6 @@ class BookingResource extends Resource
                         Notification::make()->title('Booking dibatalkan.')->success()->send();
                     }),
 
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
                 // Booking yang sudah diproses referral (partner_id terisi)
                 // sudah menambah saldo poin Partner yang cash-convertible —
                 // saldo itu TIDAK ikut hilang kalau booking-nya dihapus
@@ -2003,7 +2029,18 @@ class BookingResource extends Resource
                 // direksi yang boleh hapus booking.
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => auth()->user()?->isFullAccess()),
+                ])->icon('heroicon-o-ellipsis-horizontal')->tooltip('Aksi lain'),
             ])
+            // Booking yang perlu tindakan (menunggu lewat SLA 4 jam, atau dikonfirmasi lewat tanggal tapi belum dikerjakan) diberi garis merah
+            // lembut di kiri baris (gaya di admin-ui-styles).
+            ->recordClasses(fn (Booking $record) => ($record->status === 'pending' && $record->created_at?->lte(now()->subHours(4)))
+                || ($record->status === 'confirmed' && ! $record->hasWorkStarted() && $record->preferred_date?->lt(today()))
+                ? 'cu-row-late' : null)
+            ->emptyStateIcon('heroicon-o-calendar-days')
+            ->emptyStateHeading('Belum ada booking')
+            ->emptyStateDescription('Booking dari aplikasi, WhatsApp, dan walk-in akan muncul di sini.')
+            ->paginated([10, 25, 50])
+            ->defaultPaginationPageOption(25)
             ->headerActions([
                 Tables\Actions\Action::make('export')
                     ->label('Export Excel')

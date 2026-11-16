@@ -183,8 +183,9 @@ class BookingFilamentSmokeTest extends TestCase
             ->call('save')
             ->assertHasFormErrors(['vehicle_plate']);
 
+        // Booking terkonfirmasi: data kendaraan terkunci, jadi koreksi plat lewat "Buka kunci data" (akses penuh, alasan wajib).
         Livewire::test(EditBooking::class, ['record' => $booking->getKey()])
-            ->fillForm(['vehicle_plate' => 'd 99-xy'])
+            ->fillForm(['core_unlocked' => true, 'unlock_reason' => 'Koreksi penulisan plat', 'vehicle_plate' => 'd 99-xy'])
             ->call('save')
             ->assertHasNoFormErrors();
 

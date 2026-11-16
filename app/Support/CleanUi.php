@@ -12,6 +12,7 @@ class CleanUi
     /** @var list<class-string<\Filament\Resources\Resource>> */
     public const RESOURCES = [
         \App\Filament\Resources\QuotationResource::class,
+        \App\Filament\Resources\BookingResource::class,
     ];
 
     public static function appliesTo(mixed $page): bool
