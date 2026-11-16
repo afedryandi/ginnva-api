@@ -361,6 +361,71 @@ class FieldDutyRequestService
         return $closed;
     }
 
+    /**
+     * Foto bukti saat tiba di lokasi. Hanya pemilik pengajuan, hanya pengajuan yang sudah disetujui, dan hanya pada hari dinasnya (foto yang
+     * dikirim di hari lain tidak membuktikan keberadaan di lokasi pada hari itu). Mengirim ulang menggantikan foto sebelumnya.
+     *
+     * @throws RuntimeException
+     */
+    public function attachLocationPhoto(FieldDutyRequest $request, User $user, \Illuminate\Http\UploadedFile $photo): FieldDutyRequest
+    {
+        if ((int) $request->user_id !== (int) $user->id) {
+            throw new RuntimeException('Pengajuan ini bukan milik Anda.');
+        }
+
+        if ($request->status !== 'approved') {
+            throw new RuntimeException('Foto di lokasi hanya untuk pengajuan dinas luar yang sudah disetujui.');
+        }
+
+        if (! $request->date->isToday()) {
+            throw new RuntimeException('Foto di lokasi hanya bisa dikirim pada hari dinas (' . $request->date->translatedFormat('d M Y') . ').');
+        }
+
+        $path = \App\Support\SensitiveFiles::store($photo, 'field-duty-photos');
+        $old = $request->location_photo;
+
+        $request->update(['location_photo' => $path, 'location_photo_at' => now()]);
+        \App\Support\SensitiveFiles::delete($old);
+
+        activity('field_duty')->performedOn($request)->causedBy($user)->log('Foto di lokasi dinas luar dikirim');
+
+        return $request->fresh();
+    }
+
+    /**
+     * Dinas luar sehari penuh yang disetujui tetapi sampai hari itu berakhir tidak ada foto di lokasi: kehadiran dinasnya dibatalkan (barisnya
+     * dihapus, jadi attendance:mark-absences menandainya Alpha). Dinas sebagian hari tidak disentuh, karena absennya tetap berupa absen biasa.
+     * Dipanggil dari attendance:mark-absences sebelum Alpha ditentukan.
+     *
+     * @return int jumlah kehadiran dinas yang dibatalkan
+     */
+    public function voidUnprovenDuty(Carbon $day): int
+    {
+        $voided = 0;
+
+        $requests = FieldDutyRequest::withoutGlobalScopes()
+            ->where('status', 'approved')
+            ->whereDate('date', $day->toDateString())
+            ->whereNull('location_photo')
+            ->get()
+            ->reject(fn (FieldDutyRequest $r) => $r->isPartialDay());
+
+        foreach ($requests as $request) {
+            $deleted = Attendance::withoutGlobalScopes()
+                ->where('user_id', $request->user_id)
+                ->whereDate('date', $day->toDateString())
+                ->where('entry_type', 'field_duty')
+                ->delete();
+
+            if ($deleted > 0) {
+                $voided += $deleted;
+                activity('field_duty')->performedOn($request)->log('Kehadiran dinas luar dibatalkan: tidak ada foto di lokasi');
+            }
+        }
+
+        return $voided;
+    }
+
     public function reject(FieldDutyRequest $request, User $by, string $notes): void
     {
         if (trim($notes) === '') {

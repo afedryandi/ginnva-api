@@ -77,6 +77,34 @@ class FieldDutyRequestController extends Controller
         return response()->json(['success' => true, 'message' => 'Pengajuan dinas luar dibatalkan.']);
     }
 
+    /**
+     * POST /api/staff/field-duty-requests/{id}/location-photo (multipart: photo)
+     * Foto bukti saat tiba di lokasi dinas; wajib supaya dinas dianggap hadir. Lihat FieldDutyRequestService::attachLocationPhoto().
+     */
+    public function locationPhoto(Request $request, int $id)
+    {
+        $request->validate(['photo' => ['required', 'image', 'max:5120', 'dimensions:min_width=200,min_height=200']]);
+
+        $user = $request->user('api');
+        $duty = FieldDutyRequest::withoutGlobalScopes()->where('id', $id)->where('user_id', $user->id)->first();
+
+        if (! $duty) {
+            return response()->json(['success' => false, 'message' => 'Pengajuan tidak ditemukan.'], 404);
+        }
+
+        try {
+            $duty = app(FieldDutyRequestService::class)->attachLocationPhoto($duty, $user, $request->file('photo'));
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Foto di lokasi tersimpan. Dinas luar Anda tercatat hadir.',
+            'field_duty_request' => $this->transform($duty->load('reviewedBy:id,name')),
+        ]);
+    }
+
     private function transform(FieldDutyRequest $r): array
     {
         return [
@@ -92,6 +120,10 @@ class FieldDutyRequestController extends Controller
             'reviewed_at' => $r->reviewed_at?->toIso8601String(),
             'created_at' => $r->created_at->toIso8601String(),
             'can_cancel' => app(FieldDutyRequestService::class)->isCancellable($r),
+            'location_photo_url' => \App\Support\SensitiveFiles::url($r->location_photo),
+            'location_photo_at' => $r->location_photo_at?->toIso8601String(),
+            // Foto bukti di lokasi wajib di hari dinas: aplikasi menampilkan tombol ambil foto saat ini true.
+            'needs_location_photo' => $r->needsLocationPhoto(),
         ];
     }
 }

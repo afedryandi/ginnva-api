@@ -40,6 +40,9 @@ class MarkAbsences extends Command
         // Dinas luar sebagian hari yang berlangsung sampai jam tutup: absen keluar yang masih kosong ditutup otomatis (karyawan tidak kembali ke toko).
         $closedByFieldDuty = app(\App\Services\FieldDutyRequestService::class)->closeCoveredRows($yesterday);
 
+        // Dinas luar sehari penuh tanpa foto di lokasi tidak dianggap hadir: barisnya dibatalkan dulu supaya hari itu terbaca Alpha di bawah.
+        $voidedFieldDuty = app(\App\Services\FieldDutyRequestService::class)->voidUnprovenDuty($yesterday);
+
         $alphaCount = 0;
         $leaveCount = 0;
 
@@ -86,7 +89,7 @@ class MarkAbsences extends Command
             }
         }
 
-        $this->info("Selesai untuk {$yesterday->translatedFormat('d F Y')}: {$alphaCount} ditandai Alpha, {$leaveCount} ditandai Izin/Cuti, {$closedByFieldDuty} absen keluar ditutup otomatis (dinas luar).");
+        $this->info("Selesai untuk {$yesterday->translatedFormat('d F Y')}: {$alphaCount} ditandai Alpha, {$leaveCount} ditandai Izin/Cuti, {$closedByFieldDuty} absen keluar ditutup otomatis (dinas luar), {$voidedFieldDuty} dinas luar tanpa foto di lokasi dibatalkan.");
 
         return self::SUCCESS;
     }

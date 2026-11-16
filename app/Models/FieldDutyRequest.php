@@ -29,6 +29,8 @@ class FieldDutyRequest extends Model
         'start_time',
         'end_time',
         'description',
+        'location_photo',
+        'location_photo_at',
         'status',
         'reviewed_by',
         'reviewed_at',
@@ -38,7 +40,14 @@ class FieldDutyRequest extends Model
     protected $casts = [
         'date' => 'date',
         'reviewed_at' => 'datetime',
+        'location_photo_at' => 'datetime',
     ];
+
+    /** Sudah disetujui, harinya sudah tiba (atau lewat), tetapi foto bukti di lokasi belum dikirim. */
+    public function needsLocationPhoto(): bool
+    {
+        return $this->status === 'approved' && blank($this->location_photo) && $this->date->lte(today());
+    }
 
     public function user(): BelongsTo
     {

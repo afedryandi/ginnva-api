@@ -447,6 +447,92 @@ class FieldDutyRequestTest extends TestCase
         $this->postJson('/api/staff/field-duty-requests', ['date' => '2026-11-14', 'start_time' => '10:00', 'description' => 'Kanvasing area Kelapa Gading'])->assertStatus(422);
     }
 
+    // ------------------------------------------------------------- foto di lokasi
+
+    private function approvedForToday(): FieldDutyRequest
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $request = $this->submit();
+        $this->service->approve($request, $this->manager);
+        Carbon::setTestNow('2026-11-13 10:00:00');
+
+        return $request->fresh();
+    }
+
+    public function test_the_photo_at_the_location_can_be_sent_only_by_the_owner_on_the_day(): void
+    {
+        $request = $this->approvedForToday();
+        $this->assertTrue($request->needsLocationPhoto());
+
+        $this->actingAs($this->andi, 'api')
+            ->post("/api/staff/field-duty-requests/{$request->id}/location-photo", ['photo' => \Illuminate\Http\UploadedFile::fake()->image('lokasi.jpg', 600, 600)], ['Accept' => 'application/json'])
+            ->assertSuccessful()
+            ->assertJsonPath('field_duty_request.needs_location_photo', false);
+
+        $fresh = $request->fresh();
+        $this->assertNotNull($fresh->location_photo);
+        $this->assertNotNull($fresh->location_photo_at);
+        \Illuminate\Support\Facades\Storage::disk('local')->assertExists($fresh->location_photo);
+
+        // Orang lain tidak menemukan pengajuannya.
+        $this->actingAs($this->manager, 'api')
+            ->post("/api/staff/field-duty-requests/{$request->id}/location-photo", ['photo' => \Illuminate\Http\UploadedFile::fake()->image('lokasi.jpg', 600, 600)], ['Accept' => 'application/json'])
+            ->assertStatus(404);
+    }
+
+    public function test_the_photo_is_refused_before_the_day_and_for_unapproved_requests(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $pending = $this->submit();   // tanggal 13 Nov, sekarang 12 Nov, belum disetujui
+
+        $this->assertRejected(fn () => $this->service->attachLocationPhoto($pending, $this->andi, \Illuminate\Http\UploadedFile::fake()->image('a.jpg', 600, 600)), 'sudah disetujui');
+
+        $this->service->approve($pending, $this->manager);
+
+        $this->assertRejected(fn () => $this->service->attachLocationPhoto($pending->fresh(), $this->andi, \Illuminate\Http\UploadedFile::fake()->image('a.jpg', 600, 600)), 'pada hari dinas');
+    }
+
+    public function test_a_full_day_duty_without_a_photo_is_voided_and_becomes_alpha(): void
+    {
+        $request = $this->approvedForToday();
+
+        $this->assertSame(1, $this->service->voidUnprovenDuty(Carbon::parse('2026-11-13')));
+
+        $this->assertNull(Attendance::withoutGlobalScopes()->where('user_id', $this->andi->id)->whereDate('date', '2026-11-13')->first());
+        $this->assertSame('approved', $request->fresh()->status);
+    }
+
+    public function test_a_full_day_duty_with_a_photo_keeps_its_attendance(): void
+    {
+        $request = $this->approvedForToday();
+        $this->service->attachLocationPhoto($request, $this->andi, \Illuminate\Http\UploadedFile::fake()->image('lokasi.jpg', 600, 600));
+
+        $this->assertSame(0, $this->service->voidUnprovenDuty(Carbon::parse('2026-11-13')));
+
+        $this->assertSame('field_duty', Attendance::withoutGlobalScopes()->where('user_id', $this->andi->id)->whereDate('date', '2026-11-13')->value('entry_type'));
+    }
+
+    public function test_a_partial_day_duty_is_not_voided_without_a_photo(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $partial = $this->partial('2026-11-13', '10:00', '13:00');
+        $this->service->approve($partial, $this->manager);
+        $this->clockRow('2026-11-13', '09:00');
+
+        $this->assertSame(0, $this->service->voidUnprovenDuty(Carbon::parse('2026-11-13')));
+        $this->assertNotNull(Attendance::withoutGlobalScopes()->where('user_id', $this->andi->id)->whereDate('date', '2026-11-13')->first());
+    }
+
+    public function test_the_api_list_flags_the_requests_that_still_need_the_photo(): void
+    {
+        $this->approvedForToday();
+
+        $this->actingAs($this->andi, 'api')->getJson('/api/staff/field-duty-requests')
+            ->assertSuccessful()
+            ->assertJsonPath('field_duty_requests.0.needs_location_photo', true)
+            ->assertJsonPath('field_duty_requests.0.location_photo_url', null);
+    }
+
     // ------------------------------------------------------------- pengingat absen
 
     public function test_a_field_duty_day_is_not_chased_as_a_missing_clock_in(): void

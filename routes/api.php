@@ -424,6 +424,7 @@ Route::prefix('staff')->group(function () {
         Route::get('/field-duty-requests', [StaffFieldDutyRequestController::class, 'index']);
         Route::post('/field-duty-requests', [StaffFieldDutyRequestController::class, 'store'])->middleware('throttle:20,1');
         Route::post('/field-duty-requests/{id}/cancel', [StaffFieldDutyRequestController::class, 'cancel'])->middleware('throttle:20,1');
+        Route::post('/field-duty-requests/{id}/location-photo', [StaffFieldDutyRequestController::class, 'locationPhoto'])->middleware('throttle:20,1');
         Route::post('/attendance/clock-out', [StaffAttendanceController::class, 'clockOut'])
             ->middleware('throttle:10,1');
         Route::get('/attendance/history', [StaffAttendanceController::class, 'history']);
