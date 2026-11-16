@@ -53,6 +53,31 @@ class SpkFilamentSmokeTest extends TestCase
         $this->spk = app(SpkService::class)->createFromBooking($booking, $admin->id);
     }
 
+    public function test_the_status_tabs_split_in_progress_from_finished_vehicles(): void
+    {
+        // Kendaraan belum keluar: ada di tab bawaan "Dikerjakan", tidak di "Selesai".
+        Livewire::test(ListSpks::class)
+            ->assertSuccessful()
+            ->assertCanSeeTableRecords([$this->spk]);
+
+        Livewire::test(ListSpks::class)->set('activeTab', 'selesai')->assertCanNotSeeTableRecords([$this->spk]);
+
+        $this->spk->update(['checked_out_at' => now()]);
+
+        Livewire::test(ListSpks::class)->set('activeTab', 'dikerjakan')->assertCanNotSeeTableRecords([$this->spk]);
+        Livewire::test(ListSpks::class)->set('activeTab', 'selesai')->assertCanSeeTableRecords([$this->spk]);
+        Livewire::test(ListSpks::class)->set('activeTab', 'semua')->assertCanSeeTableRecords([$this->spk]);
+    }
+
+    public function test_the_damage_filter_and_clean_ui_apply_to_the_spk_list(): void
+    {
+        Livewire::test(ListSpks::class)
+            ->set('activeTab', 'semua')
+            ->filterTable('ada_kerusakan')
+            ->assertCanNotSeeTableRecords([$this->spk]);
+
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListSpks()));
+    }
     public function test_spk_list_renders_with_record(): void
     {
         Livewire::test(ListSpks::class)

@@ -13,6 +13,7 @@ class CleanUi
     public const RESOURCES = [
         \App\Filament\Resources\QuotationResource::class,
         \App\Filament\Resources\BookingResource::class,
+        \App\Filament\Resources\SpkResource::class,
     ];
 
     public static function appliesTo(mixed $page): bool

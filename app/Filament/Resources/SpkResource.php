@@ -10,6 +10,7 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -176,6 +177,8 @@ class SpkResource extends Resource
     {
         return [
             Forms\Components\Section::make('Informasi SPK')
+                ->description('Nomor, toko, booking asal, dan jam kendaraan masuk dan keluar.')
+                ->icon('heroicon-o-clipboard-document-check')
                 ->columns(2)
                 ->schema([
                     // Nomor SPK: otomatis, atau diketik manual saat membuat (harus unik). Setelah dibuat tidak bisa diubah, karena dipakai dokumen lain (Memo, PDF).
@@ -248,6 +251,8 @@ class SpkResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Data Pelanggan')
+                ->description('Terisi dari booking, tetap bisa diubah.')
+                ->icon('heroicon-o-user')
                 ->columns(2)
                 ->schema([
                     Forms\Components\TextInput::make('customer_name')
@@ -266,7 +271,9 @@ class SpkResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Data Kendaraan')
-                ->columns(2)
+                ->description('Identitas dan kondisi awal kendaraan saat masuk.')
+                ->icon('heroicon-o-truck')
+                ->columns(['default' => 1, 'sm' => 2, 'xl' => 4])
                 ->schema([
                     Forms\Components\TextInput::make('vehicle_plate')
                         ->label('No. Polisi')
@@ -309,14 +316,20 @@ class SpkResource extends Resource
     {
         return [
             Forms\Components\Section::make('Uraian Pekerjaan')
+                ->description('Pekerjaan yang dikerjakan; layanan dari booking tercentang otomatis.')
+                ->icon('heroicon-o-wrench-screwdriver')
                 ->collapsed()
                 ->schema([static::checklistRepeater('pekerjaan', '')]),
 
             Forms\Components\Section::make('Extra Services')
+                ->description('Layanan tambahan di luar paket utama.')
+                ->icon('heroicon-o-plus-circle')
                 ->collapsed()
                 ->schema([static::checklistRepeater('extra_service', '')]),
 
             Forms\Components\Section::make('Perlengkapan Kendaraan')
+                ->description('Barang di dalam kendaraan saat diterima.')
+                ->icon('heroicon-o-archive-box')
                 ->collapsed()
                 ->schema([static::checklistRepeater('perlengkapan', '')]),
         ];
@@ -357,32 +370,41 @@ class SpkResource extends Resource
     {
         return $table
             ->columns([
+                // Nomor SPK dan nama pelanggan dalam satu sel (nomor tegas, pelanggan sebagai keterangan) supaya baris mudah dipindai.
                 Tables\Columns\TextColumn::make('spk_number')
-                    ->label('No. SPK')
-                    ->searchable()
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('customer_name')
-                    ->label('Pelanggan')
-                    ->searchable(),
+                    ->label('SPK')
+                    ->weight('semibold')
+                    ->description(fn (Spk $record) => $record->customer_name)
+                    ->searchable(['spk_number', 'customer_name', 'phone_number', 'vehicle_plate'])
+                    ->sortable()
+                    ->copyable(),
 
                 Tables\Columns\TextColumn::make('vehicle_plate')
                     ->label('No. Polisi')
+                    ->badge()
+                    ->color('gray')
                     ->placeholder('—'),
 
                 Tables\Columns\TextColumn::make('booking.booking_number')
                     ->label('Booking')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('checked_in_at')
-                    ->label('Jam Masuk')
+                    ->label('Masuk')
                     ->dateTime('d M Y, H:i')
                     ->placeholder('—')
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Status')
+                    ->badge()
+                    ->state(fn (Spk $record) => $record->checked_out_at ? 'Selesai' : 'Dikerjakan')
+                    ->color(fn (string $state) => $state === 'Selesai' ? 'success' : 'warning'),
 
                 Tables\Columns\TextColumn::make('damage_marks_count')
                     ->label('Kerusakan')
@@ -391,11 +413,46 @@ class SpkResource extends Resource
                     ->color(fn (int $state) => $state > 0 ? 'danger' : 'gray')
                     ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} titik" : 'Belum ada'),
             ])
-            ->defaultSort('created_at', 'desc')
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
+            ->filters([
+                Tables\Filters\SelectFilter::make('store_id')
+                    ->label('Toko')
+                    ->relationship('store', 'name')
+                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
 
+                Tables\Filters\Filter::make('checked_in_range')
+                    ->label('Tanggal masuk')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')->label('Dari'),
+                        Forms\Components\DatePicker::make('until')->label('Sampai'),
+                    ])
+                    ->columns(2)
+                    ->query(fn (Builder $query, array $data) => $query
+                        ->when($data['from'] ?? null, fn (Builder $q, $d) => $q->whereDate('checked_in_at', '>=', $d))
+                        ->when($data['until'] ?? null, fn (Builder $q, $d) => $q->whereDate('checked_in_at', '<=', $d)))
+                    ->indicateUsing(function (array $data): array {
+                        $out = [];
+                        if ($data['from'] ?? null) {
+                            $out[] = 'Masuk dari ' . \Illuminate\Support\Carbon::parse($data['from'])->translatedFormat('d M Y');
+                        }
+                        if ($data['until'] ?? null) {
+                            $out[] = 'Masuk sampai ' . \Illuminate\Support\Carbon::parse($data['until'])->translatedFormat('d M Y');
+                        }
+
+                        return $out;
+                    }),
+
+                Tables\Filters\Filter::make('ada_kerusakan')
+                    ->label('Ada titik kerusakan')
+                    ->query(fn (Builder $query) => $query->whereHas('damageMarks')),
+            ], layout: FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(3)
+            ->defaultSort('created_at', 'desc')
+            // Lihat dan Ubah sebagai ikon; cetak dikelompokkan di menu "...", supaya baris tidak penuh tombol.
+            ->actions([
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+
+                Tables\Actions\ActionGroup::make([
                 Tables\Actions\Action::make('print')
                     ->label('Cetak PDF')
                     ->icon('heroicon-o-printer')
@@ -425,6 +482,7 @@ class SpkResource extends Resource
 
                         return response()->streamDownload(fn () => print($pdf->output()), $filename);
                     }),
+                ]),
             ]);
     }
 
