@@ -206,4 +206,19 @@ class ReminderSequenceAndPolicyTest extends TestCase
         $this->actingAs($manager, 'web');
         $this->assertFalse(AppSettingResource::canEdit(AppSetting::first()));
     }
+
+    public function test_the_app_text_list_shows_the_hint_and_the_clean_ui_applies(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $admin = User::create(['name' => 'Admin', 'email' => uniqid() . '@test.local', 'password' => 'x', 'store_id' => $this->store->id, 'menu_access' => null, 'is_active' => true, 'join_date' => '2025-01-01']);
+        $admin->assignRole('super_admin');
+        $this->actingAs($admin, 'web');
+
+        Livewire::test(ListAppSettings::class)
+            ->assertSuccessful()
+            ->assertSee('Teks yang dilihat pelanggan di aplikasi');
+
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListAppSettings()));
+    }
 }

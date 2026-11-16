@@ -75,16 +75,19 @@ class AppSettingResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->columns(1)->schema([
-            Forms\Components\Placeholder::make('label')
-                ->label('Pengaturan')
-                ->content(fn (?AppSetting $record) => AppSetting::DEFINITIONS[$record?->key]['label'] ?? $record?->key),
-
-            Forms\Components\Textarea::make('value')
-                ->label('Isi Teks')
-                ->rows(5)
-                ->required()
-                ->maxLength(1000)
-                ->helperText(fn (?AppSetting $record) => AppSetting::DEFINITIONS[$record?->key]['help'] ?? null),
+            Forms\Components\Section::make(fn (?AppSetting $record) => AppSetting::DEFINITIONS[$record?->key]['label'] ?? ($record?->key ?? 'Teks'))
+                ->description('Teks ini tampil ke pelanggan di aplikasi dan langsung terbaca tanpa rilis.')
+                ->icon('heroicon-o-document-text')
+                ->schema([
+                    Forms\Components\Textarea::make('value')
+                        ->label('Isi Teks')
+                        ->rows(8)
+                        ->required()
+                        ->maxLength(1000)
+                        ->live(debounce: 300)
+                        ->hint(fn (Forms\Get $get) => mb_strlen((string) $get('value')) . ' / 1000')
+                        ->helperText(fn (?AppSetting $record) => AppSetting::DEFINITIONS[$record?->key]['help'] ?? null),
+                ]),
         ]);
     }
 
@@ -92,19 +95,22 @@ class AppSettingResource extends Resource
     {
         return $table
             ->paginated(false)
+            ->emptyStateHeading('Belum ada teks')
+            ->emptyStateIcon('heroicon-o-document-text')
             ->columns([
+                // Nama pengaturan tegas, petunjuk singkat sebagai keterangan di bawahnya.
                 Tables\Columns\TextColumn::make('key')
                     ->label('Pengaturan')
                     ->formatStateUsing(fn (string $state) => AppSetting::DEFINITIONS[$state]['label'] ?? $state)
-                    ->weight('bold'),
+                    ->weight('semibold')
+                    ->description(fn (AppSetting $record) => \Illuminate\Support\Str::limit(AppSetting::DEFINITIONS[$record->key]['help'] ?? '', 90)),
                 Tables\Columns\TextColumn::make('value')->label('Isi')->limit(120)->wrap(),
-                Tables\Columns\TextColumn::make('updated_at')->label('Diubah')->since(),
+                Tables\Columns\TextColumn::make('updated_at')->label('Diubah')->since()->color('gray'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
             ]);
     }
-
     public static function getPages(): array
     {
         return [
