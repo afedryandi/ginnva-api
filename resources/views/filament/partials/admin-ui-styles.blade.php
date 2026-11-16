@@ -29,14 +29,15 @@
             background: var(--cu-surface); border: 1px solid var(--cu-line); border-radius: var(--cu-radius);
             box-shadow: none; --tw-ring-shadow: 0 0 #0000; --tw-ring-color: transparent;
         }
-        .fi-main .fi-section { overflow: hidden; }
+        /* Jangan overflow:hidden di kartu: memotong daftar pilihan (dropdown) di dalam form dan filter. */
+        .fi-main .fi-section { overflow: visible; }
         .fi-main .fi-section-header { padding: 1rem 1.25rem .25rem; }
         .fi-main .fi-section-header-heading { font-size: .875rem; font-weight: 600; color: var(--cu-ink); }
         .fi-main .fi-section-header-description { font-size: .75rem; color: var(--cu-muted); }
         .fi-main .fi-section-content { padding: .875rem 1.25rem 1.25rem; }
 
         /* Tabel: kepala tipis dan redup, baris lega, hover lembut. */
-        .fi-main .fi-ta-ctn { overflow: hidden; }
+        .fi-main .fi-ta-ctn { overflow: visible; }
         .fi-main .fi-ta-header-ctn { border-color: var(--cu-line); }
         .fi-main .fi-ta-table { font-variant-numeric: tabular-nums; }
         .fi-main .fi-ta-table thead tr { background: var(--cu-soft); }

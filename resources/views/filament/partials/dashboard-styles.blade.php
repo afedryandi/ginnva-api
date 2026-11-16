@@ -68,7 +68,7 @@
             background: var(--gd-surface); border: 1px solid var(--gd-line); border-radius: var(--gd-radius);
             box-shadow: none; --tw-ring-shadow: 0 0 #0000; --tw-ring-color: transparent;
         }
-        .gd .fi-section { overflow: hidden; }
+        .gd .fi-section { overflow: visible; }
         .gd .fi-section-header { padding: 1rem 1.25rem .25rem; }
         .gd .fi-section-header-heading { font-size: .875rem; font-weight: 600; letter-spacing: -.005em; color: var(--gd-ink); }
         .gd .fi-section-header-description { font-size: .75rem; color: var(--gd-muted); }
