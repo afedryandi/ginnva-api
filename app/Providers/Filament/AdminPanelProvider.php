@@ -298,6 +298,15 @@ class AdminPanelProvider extends PanelProvider
                 \Filament\View\PanelsRenderHook::HEAD_END,
                 fn (): string => view('filament.partials.header-styles')->render(),
             )
+            // Gaya halaman Login: kanvas netral, kartu tipis, isian 44px, tombol selebar kartu (hanya memakai kelas .fi-simple-*, halaman lain tidak terpengaruh).
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn (): string => view('filament.partials.login-styles')->render(),
+            )
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
+                fn (): string => '<p class="lg-foot">Ginnva &middot; Panel Admin &copy; ' . date('Y') . '</p>',
+            )
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

@@ -6,6 +6,7 @@ use App\Support\PhoneNumber;
 use Filament\Forms\Components\Component;
 use Filament\Forms\Components\TextInput;
 use Filament\Pages\Auth\Login as BaseLogin;
+use Illuminate\Contracts\Support\Htmlable;
 
 /**
  * Login panel admin dengan email ATAU No. HP. Isian tetap berkunci 'email' di form supaya pesan galat bawaan Filament ('data.email')
@@ -14,12 +15,23 @@ use Filament\Pages\Auth\Login as BaseLogin;
  */
 class Login extends BaseLogin
 {
+    public function getHeading(): string|Htmlable
+    {
+        return 'Masuk ke panel';
+    }
+
+    public function getSubHeading(): string|Htmlable|null
+    {
+        return 'Gunakan email atau nomor HP yang terdaftar.';
+    }
+
     protected function getEmailFormComponent(): Component
     {
         return TextInput::make('email')
             ->label('Email atau No. HP')
             ->required()
             ->maxLength(255)
+            ->placeholder('nama@ginnva.id atau 0812…')
             ->autocomplete('username')
             ->autofocus()
             ->extraInputAttributes(['tabindex' => 1]);
