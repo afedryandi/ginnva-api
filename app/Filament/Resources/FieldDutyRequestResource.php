@@ -180,6 +180,14 @@ class FieldDutyRequestResource extends Resource
                     ]),
             ])
             ->actions([
+                // Karyawan tanpa aplikasi (mis. iPhone) mengirim foto di lokasi dari panel; halaman ini memakai layanan yang sama dengan aplikasi.
+                Tables\Actions\Action::make('kirim_foto')
+                    ->label('Kirim Foto di Lokasi')
+                    ->icon('heroicon-o-camera')
+                    ->color('warning')
+                    ->visible(fn (FieldDutyRequest $record) => $record->user_id === auth()->id() && $record->needsLocationPhoto() && $record->date->isToday())
+                    ->url(fn () => \App\Filament\Pages\FieldDutyPhoto::getUrl()),
+
                 Tables\Actions\Action::make('lihat_foto')
                     ->label('Foto Lokasi')
                     ->icon('heroicon-o-photo')

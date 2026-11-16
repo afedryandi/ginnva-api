@@ -523,6 +523,36 @@ class FieldDutyRequestTest extends TestCase
         $this->assertNotNull(Attendance::withoutGlobalScopes()->where('user_id', $this->andi->id)->whereDate('date', '2026-11-13')->first());
     }
 
+    public function test_the_panel_page_sends_the_photo_for_staff_without_the_app(): void
+    {
+        $this->approvedForToday();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($this->andi);
+
+        Livewire::test(\App\Filament\Pages\FieldDutyPhoto::class)
+            ->set('photo', \Illuminate\Http\UploadedFile::fake()->image('lokasi.jpg', 600, 600))
+            ->call('submitPhoto')
+            ->assertHasNoErrors();
+
+        $this->assertNotNull(FieldDutyRequest::withoutGlobalScopes()->where('user_id', $this->andi->id)->value('location_photo'));
+    }
+
+    public function test_the_panel_page_rejects_a_missing_photo_and_other_peoples_duty(): void
+    {
+        $this->approvedForToday();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $this->actingAs($this->andi);
+        Livewire::test(\App\Filament\Pages\FieldDutyPhoto::class)->call('submitPhoto')->assertHasErrors(['photo' => 'required']);
+
+        // Manajer tidak punya dinas luar sendiri hari ini, jadi foto tidak menempel ke dinas Andi.
+        $this->actingAs($this->manager);
+        Livewire::test(\App\Filament\Pages\FieldDutyPhoto::class)
+            ->set('photo', \Illuminate\Http\UploadedFile::fake()->image('lokasi.jpg', 600, 600))
+            ->call('submitPhoto');
+
+        $this->assertNull(FieldDutyRequest::withoutGlobalScopes()->where('user_id', $this->andi->id)->value('location_photo'));
+    }
     public function test_the_api_list_flags_the_requests_that_still_need_the_photo(): void
     {
         $this->approvedForToday();
