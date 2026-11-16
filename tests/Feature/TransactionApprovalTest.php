@@ -596,4 +596,9 @@ class TransactionApprovalTest extends TestCase
         $this->assertStringContainsString('Rp750.000', $referral->summaryLine());
         $this->assertStringContainsString($staff->name, $referral->summaryLine());
     }
+
+    public function test_the_approval_list_uses_the_clean_ui(): void
+    {
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListTransactionApprovalRequests()));
+    }
 }

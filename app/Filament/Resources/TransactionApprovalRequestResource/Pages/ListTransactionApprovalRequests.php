@@ -27,6 +27,8 @@ class ListTransactionApprovalRequests extends ListRecords
     {
         return [
             'menunggu' => Tab::make('Menunggu')
+                ->badge(TransactionApprovalRequestResource::getEloquentQuery()->withoutEagerLoads()->where('status', 'pending')->count())
+                ->badgeColor('warning')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'pending')),
             'disetujui' => Tab::make('Disetujui')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'approved')),

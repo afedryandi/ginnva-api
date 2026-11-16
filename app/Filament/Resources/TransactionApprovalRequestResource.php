@@ -10,6 +10,7 @@ use Filament\Infolists;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use RuntimeException;
@@ -113,17 +114,20 @@ class TransactionApprovalRequestResource extends Resource
     {
         return $table
             ->columns([
+                // Nomor tegas dan bisa disalin; pengaju sebagai keterangan di bawahnya (satu sel).
                 Tables\Columns\TextColumn::make('request_number')
                     ->label('No. Pengajuan')
                     ->searchable()
-                    ->fontFamily('mono')
+                    ->weight('semibold')
+                    ->description(fn (TransactionApprovalRequest $record) => $record->requester?->name)
                     ->placeholder('—')
                     ->copyable(),
 
                 Tables\Columns\TextColumn::make('type')
                     ->label('Jenis')
                     ->formatStateUsing(fn (string $state) => TransactionApprovalRequest::TYPE_LABELS[$state] ?? $state)
-                    ->badge(),
+                    ->badge()
+                    ->color('gray'),
 
                 Tables\Columns\TextColumn::make('booking.booking_number')
                     ->label('Booking')
@@ -133,21 +137,25 @@ class TransactionApprovalRequestResource extends Resource
                         : null),
 
                 Tables\Columns\TextColumn::make('nominal')
-                    ->label('Nominal Diajukan')
+                    ->label('Nominal')
+                    ->alignEnd()
+                    ->weight('semibold')
                     ->getStateUsing(fn (TransactionApprovalRequest $record): string => 'Rp' . number_format($record->amount(), 0, ',', '.')),
 
                 Tables\Columns\TextColumn::make('requester.name')
                     ->label('Diajukan Oleh')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\BadgeColumn::make('status')
+                Tables\Columns\TextColumn::make('status')
                     ->label('Status')
-                    ->colors([
-                        'warning' => 'pending',
-                        'success' => 'approved',
-                        'danger' => 'rejected',
-                        'gray' => 'cancelled',
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'pending' => 'warning',
+                        'approved' => 'success',
+                        'rejected' => 'danger',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state) => TransactionApprovalRequest::STATUS_LABELS[$state] ?? $state),
 
                 Tables\Columns\TextColumn::make('approver.name')
@@ -170,12 +178,15 @@ class TransactionApprovalRequestResource extends Resource
                 Tables\Filters\SelectFilter::make('type')
                     ->label('Jenis')
                     ->options(TransactionApprovalRequest::TYPE_LABELS),
-            ])
+            ], layout: FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(3)
             ->actions([
                 // Detail + riwayat keputusan (audit Persetujuan Transaksi
                 // 2026-09-29): payload, alasan, siapa/kapan memutuskan.
                 Tables\Actions\ViewAction::make()
                     ->label('Detail')
+                    ->iconButton()
+                    ->tooltip('Detail')
                     ->modalHeading(fn (TransactionApprovalRequest $r) => 'Pengajuan #' . $r->id . ' — ' . (TransactionApprovalRequest::TYPE_LABELS[$r->type] ?? $r->type))
                     ->infolist(fn (TransactionApprovalRequest $r) => [
                         Infolists\Components\Section::make('Pengajuan')->columns(2)->schema([
@@ -196,50 +207,12 @@ class TransactionApprovalRequestResource extends Resource
                         ]),
                     ]),
 
-                Tables\Actions\Action::make('cancelRequest')
-                    ->label('Batalkan Pengajuan')
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('gray')
-                    ->visible(fn (TransactionApprovalRequest $r) => $r->isPending() && (int) $r->requested_by === (int) auth()->id())
-                    ->requiresConfirmation()
-                    ->modalDescription(fn (TransactionApprovalRequest $r) => 'Batalkan pengajuan: ' . $r->summaryLine())
-                    ->action(function (TransactionApprovalRequest $r) {
-                        try {
-                            app(TransactionApprovalService::class)->cancel($r, auth()->user());
-                        } catch (RuntimeException $e) {
-                            Notification::make()->title('Tidak bisa dibatalkan')->body($e->getMessage())->danger()->send();
-
-                            return;
-                        }
-
-                        Notification::make()->title('Pengajuan dibatalkan.')->success()->send();
-                    }),
-
-                Tables\Actions\Action::make('resubmit')
-                    ->label('Ajukan Ulang')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('warning')
-                    ->visible(fn (TransactionApprovalRequest $r) => (int) $r->requested_by === (int) auth()->id()
-                        && in_array($r->status, ['rejected', 'cancelled'], true)
-                        && $r->resubmitted_at === null)
-                    ->requiresConfirmation()
-                    ->modalDescription('Data yang sama diajukan lagi sebagai pengajuan baru (sekali saja per pengajuan).')
-                    ->action(function (TransactionApprovalRequest $r) {
-                        try {
-                            app(TransactionApprovalService::class)->resubmit($r, auth()->user());
-                        } catch (RuntimeException $e) {
-                            Notification::make()->title('Tidak bisa diajukan ulang')->body($e->getMessage())->danger()->send();
-
-                            return;
-                        }
-
-                        Notification::make()->title('Pengajuan dikirim ulang.')->success()->send();
-                    }),
-
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
+                    ->iconButton()
+                    ->tooltip('Setujui')
                     ->visible(fn (TransactionApprovalRequest $record) => $record->isPending()
                         && (auth()->user()?->isFullAccess() ?? false)
                         && (int) $record->requested_by !== (int) auth()->id())
@@ -291,6 +264,8 @@ class TransactionApprovalRequestResource extends Resource
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
+                    ->iconButton()
+                    ->tooltip('Tolak')
                     ->visible(fn (TransactionApprovalRequest $record) => $record->isPending()
                         && (auth()->user()?->isFullAccess() ?? false)
                         && (int) $record->requested_by !== (int) auth()->id())
@@ -320,6 +295,49 @@ class TransactionApprovalRequestResource extends Resource
                             ->success()
                             ->send();
                     }),
+
+                // Aksi milik pengaju (batalkan, ajukan ulang) di menu "...", supaya baris tidak penuh tombol.
+                Tables\Actions\ActionGroup::make([
+                Tables\Actions\Action::make('cancelRequest')
+                    ->label('Batalkan Pengajuan')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('gray')
+                    ->visible(fn (TransactionApprovalRequest $r) => $r->isPending() && (int) $r->requested_by === (int) auth()->id())
+                    ->requiresConfirmation()
+                    ->modalDescription(fn (TransactionApprovalRequest $r) => 'Batalkan pengajuan: ' . $r->summaryLine())
+                    ->action(function (TransactionApprovalRequest $r) {
+                        try {
+                            app(TransactionApprovalService::class)->cancel($r, auth()->user());
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Tidak bisa dibatalkan')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Pengajuan dibatalkan.')->success()->send();
+                    }),
+
+                Tables\Actions\Action::make('resubmit')
+                    ->label('Ajukan Ulang')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->visible(fn (TransactionApprovalRequest $r) => (int) $r->requested_by === (int) auth()->id()
+                        && in_array($r->status, ['rejected', 'cancelled'], true)
+                        && $r->resubmitted_at === null)
+                    ->requiresConfirmation()
+                    ->modalDescription('Data yang sama diajukan lagi sebagai pengajuan baru (sekali saja per pengajuan).')
+                    ->action(function (TransactionApprovalRequest $r) {
+                        try {
+                            app(TransactionApprovalService::class)->resubmit($r, auth()->user());
+                        } catch (RuntimeException $e) {
+                            Notification::make()->title('Tidak bisa diajukan ulang')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Pengajuan dikirim ulang.')->success()->send();
+                    }),
+                ]),
             ]);
     }
 
