@@ -34,9 +34,9 @@ class InvoiceResource extends Resource
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- band 200-299 "Dokumen".
-    protected static ?string $navigationGroup = 'Dokumen';
+    protected static ?string $navigationGroup = 'Order & Lead';
 
-    protected static ?int $navigationSort = 200;
+    protected static ?int $navigationSort = 3;
 
     protected static ?string $navigationLabel = 'Invoice';
 

@@ -11,7 +11,7 @@ use Filament\Forms\Form;
 use Filament\Pages\Page;
 
 /**
- * "Dasbor HR" (Karyawan Fase 5, 2026-11-02): satu layar angka yang butuh tindakan HR (kontrak, masa percobaan, data belum lengkap,
+ * "Dashboard HR" (Karyawan Fase 5, 2026-11-02): satu layar angka yang butuh tindakan HR (kontrak, masa percobaan, data belum lengkap,
  * peraturan belum diterima, APD jatuh tempo, sertifikat kedaluwarsa, kejadian K3 terbuka, belum dinilai).
  */
 class HrDashboard extends Page implements HasForms
@@ -24,9 +24,9 @@ class HrDashboard extends Page implements HasForms
 
     protected static ?string $navigationGroup = 'Karyawan';
 
-    protected static ?string $navigationLabel = 'Dasbor HR';
+    protected static ?string $navigationLabel = 'Dashboard HR';
 
-    protected static ?string $title = 'Dasbor HR';
+    protected static ?string $title = 'Dashboard HR';
 
     protected static ?int $navigationSort = 0;
 

@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * Ringkasan corong lead untuk "Dasbor Lead" (Marketing/Konten Fase 1, 2026-10-23): tiga tipe lead (quotation, inquiry produk, kemitraan)
+ * Ringkasan corong lead untuk "Dashboard Lead" (Marketing/Konten Fase 1, 2026-10-23): tiga tipe lead (quotation, inquiry produk, kemitraan)
  * digabung menjadi satu daftar baris seragam lalu dikelompokkan per kanal, per kampanye, dan per tipe.
  *
  * Patokan periode: waktu lead masuk (created_at). Hasil: kolom outcome; khusus kemitraan, bila outcome kosong, status "deal" dibaca

@@ -13,7 +13,7 @@ use App\Models\User;
 use App\Models\WarningLetter;
 
 /**
- * Ringkasan Dasbor HR (Karyawan Fase 5, 2026-11-02): angka yang butuh tindakan HR dalam satu layar. Murni agregat dari data yang sudah
+ * Ringkasan Dashboard HR (Karyawan Fase 5, 2026-11-02): angka yang butuh tindakan HR dalam satu layar. Murni agregat dari data yang sudah
  * ada; tidak menyimpan apa pun. Karyawan aktif = akun aktif selain mitra. Sebuah angka 0 berarti tidak ada yang perlu ditindak.
  */
 class HrDashboardService

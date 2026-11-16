@@ -175,7 +175,7 @@ class UserResource extends Resource
             // Cluster "Inventori" (dulu "Inventaris") sekarang di bawah
             // grup top-nav "Penjualan" (2026-09-10, ikut struktur Majoo)
             // — tetap section sendiri di sini karena isinya banyak.
-            'Inventori' => [
+            'Inventaris' => [
                 'InventoryDashboard' => 'Dashboard Inventaris',
                 'InventoryItemResource' => 'Produk PPF/WF',
                 'InventoryMovementResource' => 'Riwayat Keluar/Masuk',
@@ -234,7 +234,7 @@ class UserResource extends Resource
                 'EmployeeTrainingResource' => 'Pelatihan Karyawan',
                 'SafetyIncidentResource' => 'Kejadian K3',
                 'PerformanceReviewResource' => 'Penilaian Kinerja',
-                'HrDashboard' => 'Dasbor HR',
+                'HrDashboard' => 'Dashboard HR',
             ],
             // Saklar FEATURE_FINANCE mati: menunya tidak tampil di panel, tapi kuncinya TETAP di daftar supaya menu_access user yang
             // memuatnya tidak ikut terhapus saat disimpan (menu_access kosong = akses penuh).
@@ -258,7 +258,7 @@ class UserResource extends Resource
                 'SupplierResource' => 'Supplier',
                 'RecurringBillTemplateResource' => 'Template Tagihan Rutin',
                 'ReceivableResource' => 'Piutang Usaha',
-                'FinanceDashboard' => 'Dasbor Keuangan',
+                'FinanceDashboard' => 'Dashboard Keuangan',
                 'MonthlyIncomeStatementReport' => 'Laba Rugi Bulanan',
                 'PayableAgingReport' => 'Umur Hutang',
                 'ReceivableAgingReport' => 'Umur Piutang',
@@ -290,7 +290,7 @@ class UserResource extends Resource
                 'PointTransactionResource' => 'Riwayat Poin Pelanggan',
                 'PartnershipInquiryResource' => 'Pengajuan Kemitraan',
                 'ProductInquiryResource' => 'Inquiry Produk',
-                'LeadFunnelReport' => 'Dasbor Lead',
+                'LeadFunnelReport' => 'Dashboard Lead',
                 'ProductClaimResource' => 'Klaim & Bukti Produk',
                 'CaseStudyResource' => 'Galeri Pemasangan',
                 'MarketingConsentResource' => 'Izin Foto Pelanggan',

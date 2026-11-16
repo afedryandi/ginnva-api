@@ -141,7 +141,6 @@ class AdminPanelProvider extends PanelProvider
                 // sebelum coba lagi).
                 \Filament\Navigation\NavigationGroup::make('Penjualan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Penjualan')->collapsed(),
-                \Filament\Navigation\NavigationGroup::make('Laporan Produk')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Jasa')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Promo & Loyalti')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Pelanggan')->collapsed(),

@@ -78,6 +78,12 @@ class BayZoneUtilizationReport extends Page implements HasForms
     #[Url(as: 'toko')]
     public ?int $storeId = null;
 
+    /** Disembunyikan dari menu bawaan (flag report_bay_zone); halamannya tetap bisa dibuka lewat alamat langsung. */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return (bool) config('features.report_bay_zone', false);
+    }
+
     public static function canAccess(): bool
     {
         $user = auth()->user();

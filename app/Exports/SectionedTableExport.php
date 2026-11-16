@@ -9,7 +9,7 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Ekspor Excel untuk laporan ringkasan yang terdiri dari beberapa tabel (SLA & Tidak Datang, Dasbor Lead, Kompetensi Installer):
+ * Ekspor Excel untuk laporan ringkasan yang terdiri dari beberapa tabel (SLA & Tidak Datang, Dashboard Lead, Kompetensi Installer):
  * satu lembar, tiap bagian diawali judul dan baris judul kolom, dipisah satu baris kosong. Data dari ExportsReportTable::reportExportData()
  * bentuk 'sections'.
  */

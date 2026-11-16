@@ -37,9 +37,9 @@ class TransactionApprovalRequestResource extends Resource
     protected static ?string $cluster = \App\Filament\Clusters\BookingCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- band 400-499 "Approval".
-    protected static ?string $navigationGroup = 'Approval';
+    protected static ?string $navigationGroup = 'Order & Lead';
 
-    protected static ?int $navigationSort = 350;
+    protected static ?int $navigationSort = 4;
 
     protected static ?string $navigationLabel = 'Persetujuan Transaksi';
 

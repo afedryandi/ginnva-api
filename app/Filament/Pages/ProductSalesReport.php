@@ -41,7 +41,7 @@ class ProductSalesReport extends Page implements HasForms
 
     protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
 
-    protected static ?string $navigationGroup = 'Laporan Produk';
+    protected static ?string $navigationGroup = 'Laporan Penjualan';
 
     protected static ?string $navigationLabel = 'Penjualan Produk';
 

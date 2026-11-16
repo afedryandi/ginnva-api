@@ -134,7 +134,7 @@ class WarningLetter extends Model
     }
 
     /**
-     * Satu definisi "SP berlaku" untuk saran tingkat, hitungan Dasbor HR, dan daftar: tidak dibatalkan, sudah terbit pada tanggal itu, dan
+     * Satu definisi "SP berlaku" untuk saran tingkat, hitungan Dashboard HR, dan daftar: tidak dibatalkan, sudah terbit pada tanggal itu, dan
      * belum lewat masa berlakunya (SP lama tanpa tanggal berlaku dianggap berlaku terus).
      */
     public function scopeActive($query, ?\Illuminate\Support\Carbon $on = null)

@@ -10,7 +10,7 @@ class MarketingKontenCluster extends Cluster
 
     protected static ?string $navigationLabel = 'Marketing/Konten';
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 21;
 
     /**
      * Halaman induk menu hanya bisa dibuka kalau ada isi yang boleh diakses role ini. Tanpa ini, role yang tidak punya

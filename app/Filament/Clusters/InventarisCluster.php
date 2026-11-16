@@ -17,9 +17,9 @@ class InventarisCluster extends Cluster
 {
     protected static ?string $navigationIcon = 'heroicon-o-archive-box';
 
-    protected static ?string $navigationLabel = 'Inventori';
+    protected static ?string $navigationLabel = 'Inventaris';
 
-    protected static ?string $clusterBreadcrumb = 'Inventori';
+    protected static ?string $clusterBreadcrumb = 'Inventaris';
 
     protected static ?int $navigationSort = 20;
 

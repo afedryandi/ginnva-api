@@ -11,7 +11,7 @@ use Filament\Forms\Form;
 use Filament\Pages\Page;
 
 /**
- * "Dasbor Keuangan" (Keuangan Fase 6, 2026-11-09): kas, laba bulan ini, piutang/hutang, dan hal yang perlu ditindak dalam satu layar.
+ * "Dashboard Keuangan" (Keuangan Fase 6, 2026-11-09): kas, laba bulan ini, piutang/hutang, dan hal yang perlu ditindak dalam satu layar.
  */
 class FinanceDashboard extends Page implements HasForms
 {
@@ -23,9 +23,9 @@ class FinanceDashboard extends Page implements HasForms
 
     protected static ?string $navigationGroup = 'Laporan Keuangan';
 
-    protected static ?string $navigationLabel = 'Dasbor Keuangan';
+    protected static ?string $navigationLabel = 'Dashboard Keuangan';
 
-    protected static ?string $title = 'Dasbor Keuangan';
+    protected static ?string $title = 'Dashboard Keuangan';
 
     protected static ?int $navigationSort = 299;
 

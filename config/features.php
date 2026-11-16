@@ -119,6 +119,15 @@ return [
     | Untuk menyalakan lagi isi FEATURE_REPORT_JENIS_ORDER, FEATURE_REPORT_VOUCHER, atau FEATURE_REPORT_PERSEDIAAN_DETAIL=true di .env.
     */
     'report_jenis_order' => (bool) env('FEATURE_REPORT_JENIS_ORDER', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Laporan Utilisasi Zona/Bay (keputusan pemilik 2026-11-16)
+    |--------------------------------------------------------------------------
+    | Mati bawaan: Ginnva tidak punya entitas bay, jadi laporannya disembunyikan dari menu (halaman, kode, dan data tetap ada; alamat
+    | langsung tetap bisa dibuka oleh yang berhak). Untuk memunculkan lagi isi FEATURE_REPORT_BAY_ZONE=true di .env.
+    */
+    'report_bay_zone' => (bool) env('FEATURE_REPORT_BAY_ZONE', false),
     'report_voucher' => (bool) env('FEATURE_REPORT_VOUCHER', false),
     'report_persediaan_detail' => (bool) env('FEATURE_REPORT_PERSEDIAAN_DETAIL', false),
 

@@ -17,7 +17,7 @@ use RuntimeException;
 
 /**
  * Kejadian K3 (Karyawan Fase 5, 2026-11-02): catat kejadian, penyebab, dan tindak lanjut, lalu tutup. Kejadian tidak bisa dihapus (jejak
- * keselamatan harus utuh). Kejadian cedera yang belum ditutup ditandai di Dasbor HR.
+ * keselamatan harus utuh). Kejadian cedera yang belum ditutup ditandai di Dashboard HR.
  */
 class SafetyIncidentResource extends Resource
 {

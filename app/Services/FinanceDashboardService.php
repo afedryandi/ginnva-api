@@ -13,7 +13,7 @@ use App\Models\YearEndClosing;
 use Illuminate\Support\Carbon;
 
 /**
- * Ringkasan Dasbor Keuangan (Keuangan Fase 6, 2026-11-09): satu layar kondisi uang dan hal yang perlu ditindak. Murni agregat dari data yang
+ * Ringkasan Dashboard Keuangan (Keuangan Fase 6, 2026-11-09): satu layar kondisi uang dan hal yang perlu ditindak. Murni agregat dari data yang
  * sudah ada; tidak menyimpan apa pun. $storeId null = seluruh perusahaan.
  */
 class FinanceDashboardService

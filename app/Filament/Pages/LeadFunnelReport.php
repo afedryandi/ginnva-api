@@ -13,7 +13,7 @@ use Illuminate\Support\Carbon;
 use Livewire\Attributes\Url;
 
 /**
- * "Dasbor Lead" (Marketing/Konten Fase 1, 2026-10-23): corong lead dari tiga sumber (quotation, inquiry produk, kemitraan) per kanal
+ * "Dashboard Lead" (Marketing/Konten Fase 1, 2026-10-23): corong lead dari tiga sumber (quotation, inquiry produk, kemitraan) per kanal
  * dan kampanye: berapa masuk, berapa yang direspons dan seberapa cepat, berapa deal/tidak jadi, dan alasannya. Hitungan ada di
  * LeadFunnelService.
  */
@@ -28,9 +28,9 @@ class LeadFunnelReport extends Page implements HasForms
 
     protected static ?string $navigationGroup = 'Inquiry & Kemitraan';
 
-    protected static ?string $navigationLabel = 'Dasbor Lead';
+    protected static ?string $navigationLabel = 'Dashboard Lead';
 
-    protected static ?string $title = 'Dasbor Lead';
+    protected static ?string $title = 'Dashboard Lead';
 
     protected static ?int $navigationSort = -4;
 
@@ -138,7 +138,7 @@ class LeadFunnelReport extends Page implements HasForms
 
         return [
             'key' => 'dasbor-lead',
-            'title' => 'Dasbor Lead',
+            'title' => 'Dashboard Lead',
             'subtitle' => $from->translatedFormat('d F Y') . ' - ' . $to->translatedFormat('d F Y') . ' · ' . (LeadFunnelService::TYPES[$type] ?? 'Semua jenis lead'),
             'money' => false,
             'sections' => [

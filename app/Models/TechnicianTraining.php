@@ -31,7 +31,7 @@ class TechnicianTraining extends Model
     /**
      * Catatan yang sudah DIGANTIKAN: installer yang sama punya catatan lain dengan judul dan layanan yang sama yang berlaku lebih lama
      * (atau tanpa batas). Memperbarui sertifikat berarti menambah catatan baru, jadi yang lama tidak boleh terus dihitung kedaluwarsa.
-     * Dipakai di query (laporan, Dasbor HR) sebagai ->current().
+     * Dipakai di query (laporan, Dashboard HR) sebagai ->current().
      */
     public function scopeCurrent(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
