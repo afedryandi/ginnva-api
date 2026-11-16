@@ -14,6 +14,7 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use RuntimeException;
@@ -101,7 +102,9 @@ class InvoiceResource extends Resource
     {
         return $form->schema([
             Forms\Components\Section::make('Informasi Invoice')
-                ->columns(2)
+                ->description('Toko, referensi booking, dan tanggal tagihan.')
+                ->icon('heroicon-o-document-text')
+                ->columns(['default' => 1, 'md' => 2])
                 ->schema([
                     Forms\Components\Select::make('store_id')
                         ->label('Toko')
@@ -161,7 +164,9 @@ class InvoiceResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Informasi Pelanggan')
-                ->columns(2)
+                ->description('Terisi dari booking atau akun pelanggan, tetap bisa diubah.')
+                ->icon('heroicon-o-user')
+                ->columns(['default' => 1, 'md' => 2])
                 ->schema([
                     Forms\Components\Select::make('customer_id')
                         ->label('Akun Pelanggan (opsional)')
@@ -203,6 +208,8 @@ class InvoiceResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Detail Produk')
+                ->description('Produk atau jasa yang ditagihkan. Harga diisi manual kalau belum ada di booking.')
+                ->icon('heroicon-o-shopping-bag')
                 ->schema([
                     // BUKAN ->relationship('items') SENGAJA -- item
                     // disimpan lewat InvoiceService (bukan auto-save
@@ -213,7 +220,8 @@ class InvoiceResource extends Resource
                     Forms\Components\Repeater::make('items')
                         ->label('')
                         ->addActionLabel('Tambah Produk')
-                        ->columns(6)
+                        ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
+                        ->columns(['default' => 2, 'md' => 6])
                         ->live()
                         ->schema([
                             Forms\Components\Select::make('film_product_id')
@@ -246,13 +254,15 @@ class InvoiceResource extends Resource
                                 ->default('Unit'),
 
                             Forms\Components\TextInput::make('price')
-                                ->label('Harga (Rp)')
+                                ->label('Harga')
                                 ->numeric()
+                                ->prefix('Rp')
                                 ->required(),
 
                             Forms\Components\TextInput::make('discount_percent')
-                                ->label('Diskon (%)')
+                                ->label('Diskon')
                                 ->numeric()
+                                ->suffix('%')
                                 ->default(0),
 
                             Forms\Components\TextInput::make('note')
@@ -265,7 +275,9 @@ class InvoiceResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Rincian Tagihan')
-                ->columns(2)
+                ->description('Diskon, biaya tambahan, dan catatan di bawah total.')
+                ->icon('heroicon-o-calculator')
+                ->columns(['default' => 1, 'md' => 2])
                 ->schema([
                     Forms\Components\Select::make('transaction_discount_type')
                         ->label('Jenis Diskon Transaksi')
@@ -280,11 +292,13 @@ class InvoiceResource extends Resource
                     Forms\Components\TextInput::make('shipping_cost')
                         ->label('Biaya Pengiriman')
                         ->numeric()
+                        ->prefix('Rp')
                         ->default(0),
 
                     Forms\Components\TextInput::make('other_cost')
                         ->label('Biaya Lainnya')
                         ->numeric()
+                        ->prefix('Rp')
                         ->default(0),
 
                     Forms\Components\Textarea::make('notes')
@@ -330,14 +344,14 @@ class InvoiceResource extends Resource
     {
         return $table
             ->columns([
+                // Nomor tegas dan bisa disalin, nama pelanggan sebagai keterangan di bawahnya (satu sel).
                 Tables\Columns\TextColumn::make('invoice_number')
-                    ->label('No. Invoice')
-                    ->searchable()
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('customer_name')
-                    ->label('Pelanggan')
-                    ->searchable(),
+                    ->label('Invoice')
+                    ->weight('semibold')
+                    ->description(fn (Invoice $r) => $r->customer_name)
+                    ->searchable(['invoice_number', 'customer_name', 'customer_phone'])
+                    ->sortable()
+                    ->copyable(),
 
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
@@ -346,46 +360,72 @@ class InvoiceResource extends Resource
                 Tables\Columns\TextColumn::make('issue_date')
                     ->label('Tanggal')
                     ->date('d M Y')
+                    ->description(fn (Invoice $r) => $r->due_date ? 'Jatuh tempo ' . $r->due_date->translatedFormat('d M Y') : null)
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('total')
-                    ->label('Total Tagihan')
+                    ->label('Total')
                     ->money('IDR', locale: 'id')
+                    ->alignEnd()
                     ->sortable(),
 
+                // Sisa tagihan: merah kalau masih ada yang harus dibayar, abu-abu kalau sudah nol atau invoice di-void.
                 Tables\Columns\TextColumn::make('remaining')
-                    ->label('Sisa Tagihan')
-                    ->getStateUsing(fn (Invoice $r) => 'Rp' . number_format($r->remainingAmount(), 0, ',', '.')),
+                    ->label('Sisa')
+                    ->alignEnd()
+                    ->getStateUsing(fn (Invoice $r) => 'Rp' . number_format($r->remainingAmount(), 0, ',', '.'))
+                    ->color(fn (Invoice $r) => in_array($r->status, ['draft', 'unpaid'], true) && $r->remainingAmount() > 0 ? 'danger' : 'gray'),
 
-                Tables\Columns\BadgeColumn::make('status')
+                Tables\Columns\TextColumn::make('status')
                     ->label('Status')
-                    ->colors([
-                        'gray' => 'draft',
-                        'warning' => 'unpaid',
-                        'success' => 'paid',
-                        'danger' => 'void',
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'draft' => 'gray',
+                        'unpaid' => 'warning',
+                        'paid' => 'success',
+                        'void' => 'danger',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state) => Invoice::STATUS_LABELS[$state] ?? $state),
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
-                    ->options(Invoice::STATUS_LABELS),
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                // BUG DIPERBAIKI 2026-09-25 (audit Invoice): canDelete()
-                // di atas (baris ~67) SUDAH punya logika otorisasi lengkap
-                // (full-access, atau hasModuleAction 'delete', DAN status
-                // harus 'draft') tapi TIDAK PERNAH terpasang jadi tombol —
-                // dead code, tidak ada cara hapus invoice draft dari UI
-                // sama sekali. DeleteAction otomatis menghormati
-                // canDelete() static resource ini (Filament v3 memanggilnya
-                // sebagai sumber otorisasi kalau tidak ada Policy class
-                // terdaftar untuk model Invoice).
-                Tables\Actions\DeleteAction::make(),
+                Tables\Filters\SelectFilter::make('store_id')
+                    ->label('Toko')
+                    ->relationship('store', 'name')
+                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
 
+                Tables\Filters\Filter::make('issue_range')
+                    ->label('Tanggal invoice')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')->label('Dari'),
+                        Forms\Components\DatePicker::make('until')->label('Sampai'),
+                    ])
+                    ->columns(2)
+                    ->query(fn (Builder $query, array $data) => $query
+                        ->when($data['from'] ?? null, fn (Builder $q, $d) => $q->whereDate('issue_date', '>=', $d))
+                        ->when($data['until'] ?? null, fn (Builder $q, $d) => $q->whereDate('issue_date', '<=', $d)))
+                    ->indicateUsing(function (array $data): array {
+                        $out = [];
+                        if ($data['from'] ?? null) {
+                            $out[] = 'Dari ' . \Illuminate\Support\Carbon::parse($data['from'])->translatedFormat('d M Y');
+                        }
+                        if ($data['until'] ?? null) {
+                            $out[] = 'Sampai ' . \Illuminate\Support\Carbon::parse($data['until'])->translatedFormat('d M Y');
+                        }
+
+                        return $out;
+                    }),
+
+                Tables\Filters\Filter::make('jatuh_tempo_lewat')
+                    ->label('Lewat jatuh tempo')
+                    ->query(fn (Builder $query) => $query->whereIn('status', ['draft', 'unpaid'])->whereNotNull('due_date')->whereDate('due_date', '<', today())),
+            ], layout: FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(3)
+            // Aksi yang paling sering dipakai (Lihat, Ubah, Catat Pembayaran) berupa ikon; sisanya dikelompokkan di menu "...", supaya baris tidak penuh tombol.
+            ->actions([
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
                 // GAP DIPERBAIKI 2026-09-25 (audit Invoice) -- SEBELUMNYA
                 // cuma ada "Tandai Lunas" (langsung set amount_paid =
                 // total penuh), tidak ada cara mencatat pembayaran
@@ -395,6 +435,8 @@ class InvoiceResource extends Resource
                     ->label('Catat Pembayaran')
                     ->icon('heroicon-o-banknotes')
                     ->color('info')
+                    ->iconButton()
+                    ->tooltip('Catat Pembayaran')
                     ->visible(fn (Invoice $r) => in_array($r->status, ['draft', 'unpaid'], true))
                     ->form([
                         Forms\Components\TextInput::make('amount')
@@ -416,6 +458,18 @@ class InvoiceResource extends Resource
 
                         Notification::make()->title('Pembayaran dicatat.')->success()->send();
                     }),
+
+                Tables\Actions\ActionGroup::make([
+                // BUG DIPERBAIKI 2026-09-25 (audit Invoice): canDelete()
+                // di atas (baris ~67) SUDAH punya logika otorisasi lengkap
+                // (full-access, atau hasModuleAction 'delete', DAN status
+                // harus 'draft') tapi TIDAK PERNAH terpasang jadi tombol —
+                // dead code, tidak ada cara hapus invoice draft dari UI
+                // sama sekali. DeleteAction otomatis menghormati
+                // canDelete() static resource ini (Filament v3 memanggilnya
+                // sebagai sumber otorisasi kalau tidak ada Policy class
+                // terdaftar untuk model Invoice).
+                Tables\Actions\DeleteAction::make(),
 
                 Tables\Actions\Action::make('mark_paid')
                     ->label('Tandai Lunas')
@@ -465,6 +519,7 @@ class InvoiceResource extends Resource
 
                         return response()->streamDownload(fn () => print($pdf->output()), $filename);
                     }),
+                ]),
             ]);
     }
 

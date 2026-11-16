@@ -130,7 +130,7 @@ class QuotationFilamentSmokeTest extends TestCase
     {
         $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListQuotations()));
         $this->assertTrue(\App\Support\CleanUi::appliesTo(new \App\Filament\Resources\BookingResource\Pages\ListBookings()));
-        $this->assertFalse(\App\Support\CleanUi::appliesTo(new \App\Filament\Resources\InvoiceResource\Pages\ListInvoices()));
+        $this->assertFalse(\App\Support\CleanUi::appliesTo(new \App\Filament\Resources\CustomerResource\Pages\ListCustomers()));
         $this->assertFalse(\App\Support\CleanUi::appliesTo(null));
     }
 

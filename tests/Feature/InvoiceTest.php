@@ -256,4 +256,26 @@ class InvoiceTest extends TestCase
         Livewire::test(ListInvoices::class)->callTableAction('void', $invoice);
         $this->assertSame('void', $invoice->fresh()->status);
     }
+
+    public function test_the_status_tabs_split_open_from_paid_and_void_invoices(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $admin = User::create(['name' => 'Admin', 'email' => 'admin2@test.local', 'password' => 'x']);
+        $admin->assignRole('super_admin');
+        $this->actingAs($admin, 'web');
+
+        $invoice = $this->invoice();
+
+        // Belum lunas: ada di tab bawaan "Perlu ditagih", tidak di "Lunas".
+        Livewire::test(ListInvoices::class)->assertCanSeeTableRecords([$invoice]);
+        Livewire::test(ListInvoices::class)->set('activeTab', 'lunas')->assertCanNotSeeTableRecords([$invoice]);
+
+        $invoice->update(['status' => 'paid']);
+
+        Livewire::test(ListInvoices::class)->set('activeTab', 'ditagih')->assertCanNotSeeTableRecords([$invoice]);
+        Livewire::test(ListInvoices::class)->set('activeTab', 'lunas')->assertCanSeeTableRecords([$invoice]);
+        Livewire::test(ListInvoices::class)->set('activeTab', 'semua')->assertCanSeeTableRecords([$invoice]);
+
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListInvoices()));
+    }
 }
