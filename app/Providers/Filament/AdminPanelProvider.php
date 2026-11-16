@@ -293,6 +293,11 @@ class AdminPanelProvider extends PanelProvider
                 \Filament\View\PanelsRenderHook::HEAD_END,
                 fn (): string => view('filament.partials.notification-styles')->render(),
             )
+            // Gaya kepala halaman (breadcrumb, judul, tombol aksi) untuk semua halaman panel: lebih ringkas dan sejajar.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn (): string => view('filament.partials.header-styles')->render(),
+            )
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
