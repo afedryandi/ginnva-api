@@ -19,4 +19,4 @@ Route::middleware('auth:web')->get('/admin-tour/selesai', [AdminTourController::
 Route::get('/r/{code}', ReferralRedirectController::class)->where('code', '[A-Za-z0-9]{1,10}');
 
 // Cetak PDF satu data dari menu panel admin mana pun (tombol "Cetak PDF" di halaman lihat/ubah). Akses mengikuti hak lihat menu.
-Route::middleware('auth:web')->get('/cetak-pdf/{slug}/{record}', \App\Http\Controllers\RecordPdfController::class)->name('record-pdf');
+Route::get('/cetak-pdf/{slug}/{record}', \App\Http\Controllers\RecordPdfController::class)->name('record-pdf');

@@ -15,6 +15,11 @@ class RecordPdfController extends Controller
         $panel = Filament::getPanel('admin');
         Filament::setCurrentPanel($panel);
 
+        // Aplikasi ini tidak punya rute "login" biasa, jadi tamu diarahkan ke halaman masuk panel (bukan lewat middleware auth).
+        if (! auth('web')->check()) {
+            return redirect()->guest($panel->getLoginUrl());
+        }
+
         $resource = collect($panel->getResources())->first(fn (string $class) => $class::getSlug() === $slug);
 
         abort_if($resource === null, 404);
