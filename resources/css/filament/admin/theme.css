@@ -1,0 +1,146 @@
+@import '/vendor/filament/filament/resources/css/theme.css';
+
+@config 'tailwind.config.js';
+
+/*
+ * Gaya dasar panel admin Ginnva (semua halaman panel): kanvas netral, kartu bersudut 1rem bergaris tipis tanpa bayangan tebal, tabel lapang
+ * dengan angka tabular-nums, lencana pastel, isian dan tombol bersudut seragam. Warna utama tetap merah Ginnva (diatur di AdminPanelProvider)
+ * dan semuanya memakai variabel warna Filament (--gray-*, --primary-*), jadi mode gelap (.dark) ikut otomatis.
+ *
+ * Menu yang sudah dirombak satu per satu (App\Support\CleanUi) tetap memakai gayanya sendiri di atas gaya dasar ini.
+ */
+
+:root {
+    --gx-line: rgba(var(--gray-200), 0.7);
+    --gx-soft: rgba(var(--gray-100), 0.7);
+    --gx-radius: 1rem;
+    --gx-radius-sm: 0.625rem;
+}
+
+.dark {
+    --gx-line: rgba(255, 255, 255, 0.08);
+    --gx-soft: rgba(255, 255, 255, 0.04);
+}
+
+/* Kanvas dan tipografi dasar: angka sejajar di seluruh panel. */
+.fi-body {
+    font-feature-settings: 'tnum' 1, 'cv11' 1;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Kartu: section, widget, tabel, dan kartu infolist. Tanpa bayangan, garis tipis, sudut 1rem. */
+.fi-section,
+.fi-ta-ctn,
+.fi-wi-stats-overview-stat,
+.fi-fo-wizard,
+.fi-in-repeatable-item {
+    border-radius: var(--gx-radius);
+    border: 1px solid var(--gx-line);
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-ring-color: transparent;
+}
+
+.fi-section-header {
+    padding: 1rem 1.25rem 0.25rem;
+}
+
+.fi-section-header-heading {
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.fi-section-header-description {
+    font-size: 0.75rem;
+}
+
+.fi-section-content {
+    padding: 0.875rem 1.25rem 1.25rem;
+}
+
+/* Tabel: kepala tipis dan redup, baris lega, hover lembut. */
+.fi-ta-table {
+    font-variant-numeric: tabular-nums;
+}
+
+.fi-ta-table thead tr {
+    background: var(--gx-soft);
+}
+
+.fi-ta-header-cell-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.fi-ta-row {
+    transition: background-color 0.12s ease;
+}
+
+.fi-ta-row:hover {
+    background: var(--gx-soft);
+}
+
+.fi-ta-text-item-description {
+    font-size: 0.75rem;
+}
+
+/* Lencana: pastel lembut, sudut seragam. */
+.fi-badge {
+    border-radius: 0.5rem;
+    font-weight: 600;
+}
+
+/* Isian dan tombol: sudut seragam, cincin fokus primer lembut. */
+.fi-input-wrp {
+    border-radius: var(--gx-radius-sm);
+    box-shadow: none;
+    transition: box-shadow 0.15s ease;
+}
+
+.fi-input-wrp:focus-within {
+    box-shadow: 0 0 0 3px rgba(var(--primary-500), 0.16);
+}
+
+.fi-btn {
+    border-radius: var(--gx-radius-sm);
+}
+
+.fi-fo-field-wrp-label span {
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.fi-fo-field-wrp-hint,
+.fi-fo-field-wrp-helper-text {
+    font-size: 0.75rem;
+}
+
+/* Dialog, dropdown, dan tab. */
+.fi-modal-window {
+    border-radius: var(--gx-radius);
+    box-shadow: none;
+    border: 1px solid var(--gx-line);
+}
+
+.fi-dropdown-panel {
+    border-radius: 0.875rem;
+    box-shadow: 0 8px 24px -8px rgba(15, 23, 42, 0.12);
+}
+
+.fi-tabs {
+    border-radius: var(--gx-radius);
+    box-shadow: none;
+}
+
+/* Statistik widget: label redup kecil, angka tegas. */
+.fi-wi-stats-overview-stat-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.fi-wi-stats-overview-stat-value {
+    font-weight: 650;
+    letter-spacing: -0.01em;
+}

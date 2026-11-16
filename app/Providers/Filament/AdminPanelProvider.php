@@ -21,7 +21,7 @@ class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
-        return $panel
+        $panel = $panel
             ->default()
             ->id('admin')
             ->path('admin')
@@ -49,6 +49,8 @@ class AdminPanelProvider extends PanelProvider
             // balik ke Color::Red bawaan Filament seperti semula.
             ->colors([
                 'primary' => Color::Red,
+                // Netral slate (kebiruan halus) untuk teks, garis, dan kanvas, sesuai arahan tampilan SaaS modern.
+                'gray' => Color::Slate,
             ])
             // Navigasi horizontal di atas — diminta 2026-09-08, referensi
             // tata letak Majoo, TAPI bukan dropdown: tiap grup (dulu
@@ -320,6 +322,32 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])
+            // Font dan warna netral dasar tema (merah Ginnva tetap menjadi warna utama).
+            ->font('Plus Jakarta Sans');
+
+        // Tema Vite dipasang hanya kalau hasil build-nya ada. Kalau belum (lupa npm run build, atau build gagal), panel tetap jalan dengan
+        // tampilan tanpa tema ini, bukan error 500 di semua halaman. Lihat docs/TEMA_VITE.md.
+        if (self::themeIsBuilt()) {
+            $panel->viteTheme(self::VITE_THEME);
+        }
+
+        return $panel;
+    }
+
+    public const VITE_THEME = 'resources/css/filament/admin/theme.css';
+
+    /** Hasil build tema ada di manifest Vite (public/build/manifest.json). */
+    public static function themeIsBuilt(?string $manifest = null): bool
+    {
+        $manifest ??= public_path('build/manifest.json');
+
+        if (! is_file($manifest)) {
+            return false;
+        }
+
+        $decoded = json_decode((string) file_get_contents($manifest), true);
+
+        return is_array($decoded) && array_key_exists(self::VITE_THEME, $decoded);
     }
 }
