@@ -140,8 +140,9 @@ class Technician extends Model
         $matchedTypes = array_filter([
             'ppf' => (bool) $booking->product_ppf,
             'kaca_film' => (bool) $booking->product_kaca_film,
-            'detailing' => (bool) $booking->product_detailing,
-            'premium_wash' => (bool) $booking->product_premium_wash,
+            // PPF Full Body: Detailing & Premium Wash sudah termasuk, tidak menambah komisi.
+            'detailing' => (bool) $booking->product_detailing && ! $booking->includesPpfBonus(),
+            'premium_wash' => (bool) $booking->product_premium_wash && ! $booking->includesPpfBonus(),
         ]);
 
         if (empty($matchedTypes)) {

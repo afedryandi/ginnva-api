@@ -48,7 +48,14 @@ class BookingRevenueSplitter
     {
         $keys = [];
 
+        $bonus = $booking->includesPpfBonus();
+
         foreach (self::PRODUCTS as $key => [$flag]) {
+            // PPF Full Body: Detailing & Premium Wash gratis, seluruh harga ada di PPF.
+            if ($bonus && in_array($key, ['detailing', 'premium_wash'], true)) {
+                continue;
+            }
+
             if ($booking->{$flag}) {
                 $keys[] = $key;
             }

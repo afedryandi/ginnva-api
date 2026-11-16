@@ -71,6 +71,44 @@ class Booking extends Model
             + (int) (bool) $this->product_premium_wash;
     }
 
+    public const PPF_SCOPE_FULL_BODY = 'full_body';
+
+    public const PPF_SCOPE_PARTIAL = 'partial';
+
+    public const PPF_AREA_EXTERIOR = 'exterior';
+
+    public const PPF_AREA_INTERIOR = 'interior';
+
+    /** Panel eksterior yang bisa dipilih untuk PPF Part (kunci => label). */
+    public const PPF_PARTS = [
+        'hood' => 'Hood',
+        'front_bumper' => 'Front Bumper',
+        'rear_bumper' => 'Rear Bumper',
+        'left_front_fender' => 'Left Front Fender',
+        'right_front_fender' => 'Right Front Fender',
+        'left_side_skirt' => 'Left Side Skirt',
+        'right_side_skirt' => 'Right Side Skirt',
+        'roof' => 'Roof',
+        'rear_liftgate' => 'Rear Liftgate',
+        'left_outside_mirror' => 'Left Outside Mirror',
+        'right_outside_mirror' => 'Right Outside Mirror',
+        'left_front_door' => 'Left Front Door',
+        'right_front_door' => 'Right Front Door',
+        'left_rear_door' => 'Left Rear Door',
+        'right_rear_door' => 'Right Rear Door',
+        'left_rear_fender' => 'Left Rear Fender',
+        'right_rear_fender' => 'Right Rear Fender',
+    ];
+
+    /**
+     * PPF Full Body: Detailing dan Premium Wash sudah termasuk (bonus). Keduanya tetap tercatat (flag, SPK, hitungan jenis
+     * layanan) tapi tidak ditagih terpisah, tidak masuk pembagian pendapatan, dan tidak menambah komisi installer.
+     */
+    public function includesPpfBonus(): bool
+    {
+        return $this->ppf_scope === self::PPF_SCOPE_FULL_BODY && (bool) $this->product_ppf && $this->ppf_area !== self::PPF_AREA_INTERIOR;
+    }
+
     public function getDisplayPhoneNumberAttribute(): string
     {
         if ($this->customer_id && ! $this->customer) {
@@ -141,6 +179,10 @@ class Booking extends Model
         'service_type',
         'product_kaca_film',
         'product_ppf',
+        // Cakupan PPF: full_body = sudah termasuk Detailing + Premium Wash (lihat includesPpfBonus()).
+        'ppf_area',
+        'ppf_scope',
+        'ppf_parts',
         // Penanda booking mencakup jasa detailing (sendiri / tambahan).
         // Lihat migrasi 2026_09_10_000003.
         'product_detailing',
@@ -257,6 +299,7 @@ class Booking extends Model
         'amount_received' => 'decimal:2',
         'product_kaca_film' => 'boolean',
         'product_ppf' => 'boolean',
+        'ppf_parts' => 'array',
         'product_detailing' => 'boolean',
         'product_premium_wash' => 'boolean',
         'spend_promo_discount' => 'decimal:2',
@@ -1360,6 +1403,29 @@ class Booking extends Model
         static::saving(function (Booking $booking) {
             if ($booking->isDirty('status') && $booking->status === 'completed' && ! $booking->completed_at) {
                 $booking->completed_at = now();
+            }
+        });
+
+        // PPF Full Body: Detailing + Premium Wash otomatis ikut. Hanya saat cakupan baru dipilih, jadi booking lama tidak berubah.
+        static::saving(function (Booking $booking) {
+            if (! $booking->product_ppf) {
+                $booking->ppf_area = $booking->ppf_scope = $booking->ppf_parts = null;
+
+                return;
+            }
+
+            // Interior hanya satu paket (tanpa Full Body/Part); daftar panel hanya untuk Part.
+            if ($booking->ppf_area === self::PPF_AREA_INTERIOR) {
+                $booking->ppf_scope = null;
+            }
+
+            if ($booking->ppf_scope !== self::PPF_SCOPE_PARTIAL) {
+                $booking->ppf_parts = null;
+            }
+
+            if ($booking->ppf_scope === self::PPF_SCOPE_FULL_BODY && $booking->isDirty('ppf_scope')) {
+                $booking->product_detailing = true;
+                $booking->product_premium_wash = true;
             }
         });
 
