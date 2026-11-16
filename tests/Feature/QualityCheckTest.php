@@ -264,4 +264,21 @@ class QualityCheckTest extends TestCase
             $this->assertSame(1, (int) QcChecklistItem::where('service_key', $key)->min('sort_order'), "Urutan {$key} dimulai dari 1.");
         }
     }
+
+    public function test_the_checklist_list_uses_status_badges_and_the_clean_ui(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $admin = $this->user('super_admin');
+        $admin->update(['menu_access' => null]);
+        $this->actingAs($admin, 'web');
+
+        Livewire::test(ListQcChecklistItems::class)
+            ->assertSuccessful()
+            ->assertSee('Wajib lulus')
+            ->assertSee('Dipakai')
+            ->assertSee('Seret baris');
+
+        $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListQcChecklistItems()));
+    }
 }

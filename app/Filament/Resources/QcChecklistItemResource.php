@@ -76,33 +76,45 @@ class QcChecklistItemResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->columns(1)->schema([
-            Forms\Components\Select::make('service_key')
-                ->label('Layanan')
-                ->options(fn () => BookingServiceType::catalog()->pluck('label', 'key')->all())
-                ->required(),
+            Forms\Components\Section::make('Butir periksa')
+                ->description('Satu pernyataan yang harus benar saat Quality Check dilakukan.')
+                ->icon('heroicon-o-clipboard-document-check')
+                ->schema([
+                    Forms\Components\Select::make('service_key')
+                        ->label('Layanan')
+                        ->options(fn () => BookingServiceType::catalog()->pluck('label', 'key')->all())
+                        ->required(),
 
-            Forms\Components\TextInput::make('label')
-                ->label('Butir yang Diperiksa')
-                ->required()
-                ->maxLength(160)
-                ->helperText('Tulis sebagai pernyataan yang harus benar, mis. "Tepi film rapi dan menempel kuat".'),
+                    Forms\Components\TextInput::make('label')
+                        ->label('Butir yang Diperiksa')
+                        ->required()
+                        ->maxLength(160)
+                        ->helperText('Tulis sebagai pernyataan yang harus benar, mis. "Tepi film rapi dan menempel kuat".'),
+                ]),
 
-            Forms\Components\Toggle::make('is_required')
-                ->label('Wajib Lulus')
-                ->default(true)
-                ->helperText('Kalau butir wajib tidak lulus, Quality Check tidak lulus.'),
+            Forms\Components\Section::make('Aturan')
+                ->icon('heroicon-o-adjustments-horizontal')
+                ->columns(['default' => 1, 'md' => 2])
+                ->schema([
+                    Forms\Components\Toggle::make('is_required')
+                        ->label('Wajib Lulus')
+                        ->default(true)
+                        ->helperText('Kalau butir wajib tidak lulus, Quality Check tidak lulus.'),
 
-            Forms\Components\Toggle::make('is_active')
-                ->label('Dipakai')
-                ->default(true)
-                ->helperText('Matikan untuk berhenti memeriksa butir ini tanpa menghapus riwayatnya.'),
+                    Forms\Components\Toggle::make('is_active')
+                        ->label('Dipakai')
+                        ->default(true)
+                        ->helperText('Matikan untuk berhenti memeriksa butir ini tanpa menghapus riwayatnya.'),
+                ]),
         ]);
     }
-
     public static function table(Table $table): Table
     {
         return $table
             ->defaultSort('sort_order')
+            ->emptyStateHeading('Belum ada butir periksa')
+            ->emptyStateDescription('Tambahkan butir yang harus diperiksa saat Quality Check tiap layanan.')
+            ->emptyStateIcon('heroicon-o-clipboard-document-check')
             // Urutan diatur dengan menyeret baris (tombol "Urutkan Ulang"), bukan mengetik angka. Hanya akses penuh, sama seperti ubah dan hapus.
             ->reorderable('sort_order', static::fullAccess())
             ->reorderRecordsTriggerAction(fn (\Filament\Tables\Actions\Action $action, bool $isReordering) => $action
@@ -118,9 +130,17 @@ class QcChecklistItemResource extends Resource
                     ->formatStateUsing(fn (string $state) => BookingServiceType::labelFor($state))
                     ->badge()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('label')->label('Butir')->wrap(),
-                Tables\Columns\IconColumn::make('is_required')->label('Wajib')->boolean(),
-                Tables\Columns\IconColumn::make('is_active')->label('Dipakai')->boolean(),
+                Tables\Columns\TextColumn::make('label')->label('Butir')->weight('semibold')->wrap(),
+                Tables\Columns\TextColumn::make('is_required')
+                    ->label('Sifat')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Wajib lulus' : 'Opsional')
+                    ->color(fn ($state) => $state ? 'warning' : 'gray'),
+                Tables\Columns\TextColumn::make('is_active')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Dipakai' : 'Nonaktif')
+                    ->color(fn ($state) => $state ? 'success' : 'gray'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('service_key')
@@ -128,8 +148,8 @@ class QcChecklistItemResource extends Resource
                     ->options(fn () => BookingServiceType::catalog()->pluck('label', 'key')->all()),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ]);
     }
 
