@@ -109,10 +109,65 @@ class ApprovalCenterService
         Cache::forget("approvals.count.{$user->id}");
     }
 
-    /** Halaman Pusat Persetujuan hanya untuk yang punya hak memutuskan sesuatu: akses penuh, store manager, atau supervisor keuangan. */
+    public const LEVEL_NONE = 'none';
+
+    public const LEVEL_VIEW = 'view';
+
+    public const LEVEL_DECIDE = 'decide';
+
+    /**
+     * Tingkat akses Pusat Persetujuan: none (tidak bisa membuka), view (melihat daftar saja, tanpa tombol Setujui/Tolak), decide (melihat dan
+     * memutuskan). Akses penuh selalu decide. Untuk lainnya pilihan di Hak Akses pengguna (users.approval_center_access) menang; kosong = ikut
+     * peran: store manager decide, supervisor keuangan view, selain itu none.
+     */
+    public function level(?User $user): string
+    {
+        if ($user === null) {
+            return self::LEVEL_NONE;
+        }
+
+        if ($user->isFullAccess()) {
+            return self::LEVEL_DECIDE;
+        }
+
+        $explicit = $user->approval_center_access;
+
+        if (in_array($explicit, [self::LEVEL_NONE, self::LEVEL_VIEW, self::LEVEL_DECIDE], true)) {
+            return $explicit;
+        }
+
+        if ($user->isStoreManager()) {
+            return self::LEVEL_DECIDE;
+        }
+
+        return $user->hasRole('spv_finance') ? self::LEVEL_VIEW : self::LEVEL_NONE;
+    }
+
+    /** Halaman Pusat Persetujuan terbuka untuk tingkat view dan decide. */
     public function canUse(?User $user): bool
     {
-        return $user !== null && ($user->isFullAccess() || $user->isStoreManager() || $user->hasRole('spv_finance'));
+        return $this->level($user) !== self::LEVEL_NONE;
+    }
+
+    /** Tombol Setujui dan Tolak hanya untuk tingkat decide. */
+    public function canDecide(?User $user): bool
+    {
+        return $this->level($user) === self::LEVEL_DECIDE;
+    }
+
+    /**
+     * Pengajuan keuangan (transaksi dan permohonan pembelian) terlihat oleh akses penuh dan oleh yang diberi akses lihat atau memutuskan secara
+     * eksplisit di Hak Akses, serta supervisor keuangan. Yang memutuskan tetap akses penuh (direksi).
+     */
+    public function seesFinance(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return $user->isFullAccess()
+            || $user->hasRole('spv_finance')
+            || in_array($user->approval_center_access, [self::LEVEL_VIEW, self::LEVEL_DECIDE], true);
     }
 
     // ------------------------------------------------------------------ sumber berupa tautan

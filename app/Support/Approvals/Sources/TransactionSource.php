@@ -34,7 +34,7 @@ class TransactionSource extends BaseSource
 
     public function items(User $user): Collection
     {
-        if (! $user->isFullAccess()) {
+        if (! app(\App\Services\ApprovalCenterService::class)->seesFinance($user)) {
             return $this->none();
         }
 
@@ -61,6 +61,8 @@ class TransactionSource extends BaseSource
 
     public function approve(int $id, User $by, array $data = []): string
     {
+        $this->requireFullAccess($by);
+
         $request = TransactionApprovalRequest::query()->findOrFail($id);
         $warnings = app(TransactionApprovalService::class)->approve($request, $by->id);
 
@@ -69,6 +71,8 @@ class TransactionSource extends BaseSource
 
     public function reject(int $id, User $by, string $note): string
     {
+        $this->requireFullAccess($by);
+
         $request = TransactionApprovalRequest::query()->findOrFail($id);
         app(TransactionApprovalService::class)->reject($request, $by->id, $note);
 

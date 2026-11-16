@@ -58,8 +58,12 @@
 
                 <div class="pu-ap-actions">
                     @if ($item->inline)
-                        {{ ($this->approveAction)(['source' => $item->source, 'id' => $item->id]) }}
-                        {{ ($this->rejectAction)(['source' => $item->source, 'id' => $item->id]) }}
+                        @if ($this->canDecide())
+                            {{ ($this->approveAction)(['source' => $item->source, 'id' => $item->id]) }}
+                            {{ ($this->rejectAction)(['source' => $item->source, 'id' => $item->id]) }}
+                        @else
+                            <span class="pu-small pu-muted">Hanya melihat</span>
+                        @endif
                         @if ($item->url)
                             <a href="{{ $item->url }}" class="pu-link pu-small">Detail</a>
                         @endif

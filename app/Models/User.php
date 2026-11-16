@@ -124,6 +124,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         'store_id',
         'menu_access',
         'menu_permissions',
+        'approval_center_access',
         'is_active',
     ];
 
@@ -720,7 +721,7 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         // role/menu_access -- siapa-menonaktifkan-siapa-kapan wajib
         // terlacak untuk akun yang jadi fondasi otorisasi sistem.
         return LogOptions::defaults()
-            ->logOnly(['name', 'email', 'store_id', 'menu_access', 'menu_permissions', 'base_salary', 'is_active', 'last_work_date'])
+            ->logOnly(['name', 'email', 'store_id', 'menu_access', 'menu_permissions', 'approval_center_access', 'base_salary', 'is_active', 'last_work_date'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('user')

@@ -229,6 +229,74 @@ class ApprovalCenterTest extends TestCase
         $this->assertSame('', trim(view('filament.partials.approval-topbar-link')->render()), 'Karyawan biasa tidak melihat pintasannya.');
     }
 
+    public function test_access_levels_follow_the_role_unless_the_user_has_an_explicit_choice(): void
+    {
+        Role::findOrCreate('spv_finance', 'web');
+        $spv = $this->user('spv_finance', null, 'SPV Finance', 'spv@test.local');
+
+        $this->assertSame('decide', $this->center->level($this->admin));
+        $this->assertSame('decide', $this->center->level($this->manager));
+        $this->assertSame('view', $this->center->level($spv), 'SPV Finance bawaannya hanya melihat.');
+        $this->assertSame('none', $this->center->level($this->andi));
+
+        $this->andi->update(['approval_center_access' => 'view']);
+        $this->assertSame('view', $this->center->level($this->andi->fresh()));
+
+        $this->manager->update(['approval_center_access' => 'none']);
+        $this->assertSame('none', $this->center->level($this->manager->fresh()));
+        $this->assertFalse($this->center->canUse($this->manager->fresh()));
+
+        $this->admin->update(['approval_center_access' => 'none']);
+        $this->assertSame('decide', $this->center->level($this->admin->fresh()), 'Akses penuh selalu bisa memutuskan.');
+    }
+
+    public function test_spv_finance_sees_finance_requests_but_cannot_decide_them(): void
+    {
+        Role::findOrCreate('spv_finance', 'web');
+        $spv = $this->user('spv_finance', null, 'SPV Finance', 'spv@test.local');
+        $request = $this->purchase();
+
+        $ids = $this->center->items($spv)->where('source', 'purchase_request')->pluck('id')->all();
+        $this->assertContains($request->id, $ids, 'SPV Finance melihat Permohonan Pembelian.');
+
+        // Ordinary staff without any choice sees nothing of it.
+        $this->assertCount(0, $this->center->items($this->andi)->where('source', 'purchase_request'));
+
+        try {
+            $this->center->source('purchase_request')->approve($request->id, $spv, ['quantity_approved' => 5]);
+            $this->fail('SPV Finance tidak boleh memutuskan.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('akses penuh', $e->getMessage());
+        }
+
+        $this->assertSame('pending', $request->fresh()->status);
+    }
+
+    public function test_a_view_only_user_gets_no_decision_buttons(): void
+    {
+        Role::findOrCreate('spv_finance', 'web');
+        $spv = $this->user('spv_finance', null, 'SPV Finance', 'spv@test.local');
+        $request = $this->purchase();
+        $this->actingAs($spv);
+
+        $this->assertTrue(ApprovalCenter::canAccess());
+
+        Livewire::test(ApprovalCenter::class)
+            ->assertSee('Hanya melihat')
+            ->assertDontSee('Setujui')
+            ->assertDontSee('Tolak');
+
+        $this->assertSame('pending', $request->fresh()->status);
+    }
+
+    public function test_the_explicit_choice_none_closes_the_page(): void
+    {
+        $this->manager->update(['approval_center_access' => 'none']);
+        $this->actingAs($this->manager->fresh());
+
+        $this->assertFalse(ApprovalCenter::canAccess());
+    }
+
     public function test_the_page_is_closed_to_ordinary_staff(): void
     {
         $this->actingAs($this->andi);

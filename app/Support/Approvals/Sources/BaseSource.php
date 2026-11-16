@@ -67,6 +67,14 @@ abstract class BaseSource implements ApprovalSource
     }
 
     /** @return Collection<int, ApprovalItem> */
+    /** Pengajuan keuangan hanya diputuskan akses penuh (direksi); yang lain hanya melihat. */
+    protected function requireFullAccess(User $user): void
+    {
+        if (! $user->isFullAccess()) {
+            throw new \RuntimeException('Pengajuan keuangan hanya bisa diputuskan oleh akses penuh (direksi).');
+        }
+    }
+
     protected function none(): Collection
     {
         return collect();

@@ -719,6 +719,21 @@ class UserResource extends Resource
     }
 
     /** Pilihan "Akses penuh / Dibatasi" beserta ringkasan jumlah modul yang dipilih. */
+    /** Hak atas halaman Pusat Persetujuan (lihat ApprovalCenterService::level()). Kosong = ikut peran. */
+    private static function approvalCenterField(): Forms\Components\Select
+    {
+        return Forms\Components\Select::make('approval_center_access')
+            ->label('Pusat Persetujuan')
+            ->options([
+                'none' => 'Tidak ada akses',
+                'view' => 'Lihat saja (tanpa Setujui dan Tolak)',
+                'decide' => 'Boleh memutuskan',
+            ])
+            ->placeholder('Ikuti peran (bawaan)')
+            ->native(false)
+            ->helperText('Bawaan: store manager boleh memutuskan, SPV Finance hanya melihat. Pengajuan keuangan tetap hanya diputuskan direksi walau di sini dipilih Boleh memutuskan.');
+    }
+
     private static function accessModeFields(): array
     {
         return [
@@ -1264,6 +1279,7 @@ class UserResource extends Resource
                 ->description('Pilih Akses penuh, batasi ke modul tertentu, atau Hanya aplikasi untuk karyawan yang tidak perlu panel. Kotak Lihat/Buat/Ubah/Hapus di sebelah modul hanya menambah izin; Hapus (dan Void) baru aktif kalau dicentang.')
                 ->visible(fn (Forms\Get $get) => self::isRestrictableStaffSelected($get))
                 ->schema(array_merge(
+                    [self::approvalCenterField()],
                     self::accessModeFields(),
                     [self::copyAccessField()],
                     self::hiddenAccessFields(),

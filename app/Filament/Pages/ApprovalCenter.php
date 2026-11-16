@@ -98,6 +98,12 @@ class ApprovalCenter extends Page implements HasActions, HasForms
         return collect(app(ApprovalCenterService::class)->sources())->map(fn ($s) => $s->label())->all();
     }
 
+    /** Tombol Setujui/Tolak hanya muncul untuk tingkat memutuskan. */
+    public function canDecide(): bool
+    {
+        return app(ApprovalCenterService::class)->canDecide(auth()->user());
+    }
+
     public function filterBy(?string $source): void
     {
         $this->source = $source ?: null;
@@ -192,6 +198,13 @@ class ApprovalCenter extends Page implements HasActions, HasForms
     {
         $service = app(ApprovalCenterService::class);
         $user = auth()->user();
+
+        if (! $service->canDecide($user)) {
+            Notification::make()->title('Akses Anda di Pusat Persetujuan hanya untuk melihat')->body('Keputusan diambil oleh yang berwenang.')->warning()->send();
+
+            return;
+        }
+
         $source = $service->source((string) ($arguments['source'] ?? ''));
 
         if ($source === null || ! $source->inline()) {

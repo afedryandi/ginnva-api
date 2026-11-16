@@ -33,7 +33,7 @@ class PurchaseRequestSource extends BaseSource
 
     public function items(User $user): Collection
     {
-        if (! $user->isFullAccess()) {
+        if (! app(\App\Services\ApprovalCenterService::class)->seesFinance($user)) {
             return $this->none();
         }
 
@@ -61,6 +61,8 @@ class PurchaseRequestSource extends BaseSource
 
     public function approve(int $id, User $by, array $data = []): string
     {
+        $this->requireFullAccess($by);
+
         $quantity = isset($data['quantity_approved']) && $data['quantity_approved'] !== ''
             ? (float) $data['quantity_approved']
             : (float) PurchaseRequest::withoutGlobalScopes()->findOrFail($id)->quantity;
@@ -72,6 +74,8 @@ class PurchaseRequestSource extends BaseSource
 
     public function reject(int $id, User $by, string $note): string
     {
+        $this->requireFullAccess($by);
+
         app(PurchaseRequestDecisionService::class)->reject($id, $by, $note);
 
         return 'Permohonan pembelian ditolak.';
