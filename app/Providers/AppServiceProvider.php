@@ -46,6 +46,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Bawaan tabel untuk halaman bergaya bersih (filter lipat di atas daftar); lihat App\Support\CleanUi.
+        \App\Support\CleanUi::registerTableDefaults();
+
         Warranty::observe(WarrantyObserver::class);
         Booking::observe(BookingObserver::class);
         BookingMessage::observe(BookingMessageObserver::class);

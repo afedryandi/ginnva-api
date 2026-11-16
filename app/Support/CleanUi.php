@@ -22,12 +22,50 @@ class CleanUi
         \App\Filament\Resources\StoreReviewResource::class,
         \App\Filament\Resources\BookingReworkResource::class,
         \App\Filament\Resources\TransactionApprovalRequestResource::class,
+        \App\Filament\Resources\InventoryItemResource::class,
+        \App\Filament\Resources\RawMaterialResource::class,
+        \App\Filament\Resources\MaterialMemoResource::class,
+        \App\Filament\Resources\PurchaseRequestResource::class,
+        \App\Filament\Resources\SupplierResource::class,
+        \App\Filament\Resources\InventoryMovementResource::class,
+        \App\Filament\Resources\RawMaterialMovementResource::class,
+        \App\Filament\Resources\StockWriteOffResource::class,
+        \App\Filament\Resources\StockOpnameResource::class,
+    ];
+
+    /**
+     * Halaman kustom (bukan Resource) yang ikut gaya bersih: kartu statistik dan tabel widget dashboard memakai kelas Filament yang sama.
+     *
+     * @var list<class-string<\Filament\Pages\Page>>
+     */
+    public const PAGES = [
+        \App\Filament\Pages\InventoryDashboard::class,
     ];
 
     public static function appliesTo(mixed $page): bool
     {
-        return is_object($page)
-            && method_exists($page, 'getResource')
+        if (! is_object($page)) {
+            return false;
+        }
+
+        if (in_array($page::class, self::PAGES, true)) {
+            return true;
+        }
+
+        return method_exists($page, 'getResource')
             && in_array($page::getResource(), self::RESOURCES, true);
+    }
+
+    /**
+     * Bawaan tabel untuk halaman bergaya bersih: filter dilipat di atas daftar dalam tiga kolom (menggantikan panel filter samping/popup),
+     * kecuali tabel itu menentukan sendiri. Dipanggil sekali dari AppServiceProvider::boot().
+     */
+    public static function registerTableDefaults(): void
+    {
+        \Filament\Tables\Table::configureUsing(function (\Filament\Tables\Table $table): void {
+            if (self::appliesTo($table->getLivewire())) {
+                $table->filtersLayout(\Filament\Tables\Enums\FiltersLayout::AboveContentCollapsible)->filtersFormColumns(3);
+            }
+        });
     }
 }

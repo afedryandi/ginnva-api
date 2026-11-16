@@ -469,7 +469,7 @@ class RawMaterialResource extends Resource
                     ->modalSubmitActionLabel('Import'),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
 
                 Tables\Actions\Action::make('record_movement')
                     ->label('Catat Stok')

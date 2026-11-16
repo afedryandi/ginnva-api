@@ -656,7 +656,7 @@ class InventoryItemResource extends Resource
                     ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
 
                 Tables\Actions\Action::make('download_qr')
                     ->label('Download QR')

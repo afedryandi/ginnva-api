@@ -381,7 +381,7 @@ class PurchaseRequestResource extends Resource
                     ->visible(fn () => auth()->user()?->isFullAccess()),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
 
                 Tables\Actions\Action::make('cancel')
                     ->label('Batalkan')

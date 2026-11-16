@@ -66,6 +66,15 @@
         .fi-main .fi-in-entry-wrp-label span { font-size: .75rem; font-weight: 500; color: var(--cu-muted); }
         .fi-main .fi-in-text-item { color: var(--cu-ink); }
 
+        /* Kartu statistik dan widget dashboard (Dashboard Inventaris): sudut 1rem, garis tipis, tanpa bayangan, angka tegas. */
+        .fi-main .fi-wi-stats-overview-stat {
+            background: var(--cu-surface); border: 1px solid var(--cu-line); border-radius: var(--cu-radius);
+            box-shadow: none; --tw-ring-shadow: 0 0 #0000; --tw-ring-color: transparent;
+        }
+        .fi-main .fi-wi-stats-overview-stat-label { font-size: .75rem; font-weight: 500; color: var(--cu-muted); }
+        .fi-main .fi-wi-stats-overview-stat-value { font-weight: 650; letter-spacing: -.01em; color: var(--cu-ink); font-variant-numeric: tabular-nums; }
+        .fi-main .fi-wi-stats-overview-stat-description { font-size: .75rem; }
+
         /* Tab status di atas daftar. */
         .fi-main .fi-tabs { border-radius: var(--cu-radius); box-shadow: none; border: 1px solid var(--cu-line); background: var(--cu-surface); }
     </style>

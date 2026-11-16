@@ -325,7 +325,7 @@ class RawMaterialMovementResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
                 static::reverseAction(),
             ])
             ->defaultSort('created_at', 'desc');

@@ -7,7 +7,9 @@ use App\Filament\Resources\PurchaseRequestResource;
 use App\Models\PurchaseRequest;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions;
+use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ListPurchaseRequests extends ListRecords
@@ -49,5 +51,37 @@ class ListPurchaseRequests extends ListRecords
 
             Actions\CreateAction::make(),
         ];
+    }
+
+    /**
+     * Status sebagai tab di atas daftar, dengan jumlah di tab (mengikuti pembatasan toko pengguna). "Semua" tetap bawaan supaya tidak ada
+     * permohonan yang tersembunyi; "Menunggu" berjumlah merah-amber karena itu yang perlu diputuskan.
+     *
+     * @return array<string, Tab>
+     */
+    public function getTabs(): array
+    {
+        $base = fn () => PurchaseRequestResource::getEloquentQuery()->withoutEagerLoads();
+
+        return [
+            'semua' => Tab::make('Semua'),
+            'menunggu' => Tab::make('Menunggu')
+                ->badge($base()->where('status', 'pending')->count())
+                ->badgeColor('warning')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'pending')),
+            'disetujui' => Tab::make('Disetujui')
+                ->badge($base()->where('status', 'approved')->count())
+                ->badgeColor('success')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'approved')),
+            'selesai' => Tab::make('Terpenuhi')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'fulfilled')),
+            'ditolak' => Tab::make('Ditolak / Dibatalkan')
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', ['rejected', 'cancelled'])),
+        ];
+    }
+
+    public function getDefaultActiveTab(): string|int|null
+    {
+        return 'semua';
     }
 }

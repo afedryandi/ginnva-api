@@ -270,7 +270,7 @@ class InventoryMovementResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
                 // Sama pola dengan MovementsRelationManager (per-barang) —
                 // cuma bisa membatalkan kejadian PALING TERAKHIR untuk
                 // barang terkait, terbatas full-access. Baris aslinya disimpan (ditandai dibatalkan) dan alasan wajib.

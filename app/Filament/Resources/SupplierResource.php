@@ -241,8 +241,8 @@ class SupplierResource extends Resource
                     ),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
                 Tables\Actions\DeleteAction::make()
                     ->before(function (Supplier $record, Tables\Actions\DeleteAction $action) {
                         if ($record->isInUse()) {
