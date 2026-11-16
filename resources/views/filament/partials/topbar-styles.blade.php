@@ -55,9 +55,14 @@
     .fi-topbar-item.fi-active .fi-topbar-item-icon,
     .fi-topbar-item.fi-active .fi-topbar-group-toggle-icon { color: var(--tb-active-icon); }
 
-    /* Sisi kanan (pencarian, notifikasi, persetujuan, avatar): jarak rapat, tombol ikon 36px seragam. */
-    .fi-topbar nav > div:last-of-type { gap: .25rem; }
+    /* Sisi kanan (pencarian, notifikasi, persetujuan, avatar): tombol ikon 36px seragam. Jarak cukup lebar supaya lencana angka tidak
+       menimpa tombol di sebelahnya. */
+    .fi-topbar nav > div:last-of-type { gap: .75rem; }
     .fi-topbar .fi-icon-btn { width: 2.25rem; height: 2.25rem; border-radius: .625rem; color: var(--tb-muted); }
+    /* Lencana angka: dipasang di sudut kanan atas tombol (bawaan Filament memusatkannya di tepi kanan, sehingga masuk ke tombol sebelah). */
+    .fi-topbar .fi-icon-btn-badge-ctn {
+        inset-inline-start: auto; inset-inline-end: -.25rem; top: .125rem; transform: translateY(-40%) !important;
+    }
     .fi-topbar .fi-icon-btn:hover { background: var(--tb-hover); }
     .fi-topbar .fi-icon-btn-icon { width: 1.25rem; height: 1.25rem; }
     .fi-topbar .fi-user-menu .fi-avatar { width: 2rem; height: 2rem; }

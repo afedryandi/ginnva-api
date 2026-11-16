@@ -18,6 +18,12 @@
         --sb-active-icon: rgb(var(--primary-600));
         width: 15.5rem;
     }
+    /* Lebar dikunci (tidak ikut menyusut oleh flexbox), dan kolom isi di sebelahnya boleh menyusut; kalau tidak, label panjang membuat
+       kartu menu meluber ke atas isi halaman. */
+    @media (min-width: 768px) {
+        .fi-page-sub-navigation-sidebar-ctn { flex: 0 0 15.5rem; min-width: 0; }
+        .fi-page-sub-navigation-sidebar-ctn ~ div { min-width: 0; }
+    }
     .dark .fi-page-sub-navigation-sidebar-ctn {
         --sb-surface: rgb(var(--gray-900));
         --sb-line: rgba(255, 255, 255, .08);
@@ -33,6 +39,7 @@
     .fi-page-sub-navigation-sidebar {
         row-gap: 1.125rem !important;
         padding: .75rem .5rem !important;
+        width: 100%; box-sizing: border-box; overflow-x: hidden;
         background: var(--sb-surface);
         border: 1px solid var(--sb-line);
         border-radius: 1rem;
