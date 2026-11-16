@@ -283,6 +283,11 @@ class AdminPanelProvider extends PanelProvider
                 \Filament\View\PanelsRenderHook::HEAD_END,
                 fn (): string => view('filament.partials.sidebar-styles')->render(),
             )
+            // Gaya navbar atas: bilah 56px bergaris tipis, menu berupa pil lembut, tombol ikon seragam, dropdown bersudut halus.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn (): string => view('filament.partials.topbar-styles')->render(),
+            )
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
