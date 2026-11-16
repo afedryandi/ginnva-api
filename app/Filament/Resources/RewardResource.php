@@ -19,12 +19,12 @@ class RewardResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-gift';
 
     // 2026-09-10: dipindah dari Marketing/Konten ke Penjualan > Promosi.
-    protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- "Loyalti & Poin".
-    protected static ?string $navigationGroup = 'Loyalti & Poin';
+    protected static ?string $navigationGroup = 'Promo & Loyalti';
 
-    protected static ?int $navigationSort = 100;
+    protected static ?int $navigationSort = 151;
 
     protected static ?string $navigationLabel = 'Katalog Reward';
 

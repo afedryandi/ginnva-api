@@ -19,12 +19,14 @@ class FilmProductResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-swatch';
 
+    protected static ?string $navigationGroup = 'Produk';
+
     // 2026-09-10: dipindah dari Lainnya > Master Data ke Penjualan >
     // Produk (cluster ProdukCluster), = "Daftar Produk" di menu Produk
     // Majoo. Ditaruh bareng "Master Resep" (MasterResepResource).
-    protected static ?string $cluster = \App\Filament\Clusters\ProdukCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 100;
 
     // Label menu = "Daftar Produk" (samakan dengan Majoo; katalog ini
     // juga sudah tidak film-only sejak ada product_type 'detailing').

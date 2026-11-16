@@ -20,7 +20,9 @@ class NotificationDeliveryResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-paper-airplane';
 
-    protected static ?string $cluster = \App\Filament\Clusters\NotifikasiCluster::class;
+    protected static ?string $navigationGroup = 'Notifikasi';
+
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     protected static ?string $navigationLabel = 'Log Pengiriman';
 
@@ -28,7 +30,7 @@ class NotificationDeliveryResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Log Pengiriman';
 
-    protected static ?int $navigationSort = 35;
+    protected static ?int $navigationSort = 306;
 
     public static function canViewAny(): bool
     {

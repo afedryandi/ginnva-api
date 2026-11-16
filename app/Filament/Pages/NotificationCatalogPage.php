@@ -13,13 +13,15 @@ class NotificationCatalogPage extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-queue-list';
 
-    protected static ?string $cluster = \App\Filament\Clusters\NotifikasiCluster::class;
+    protected static ?string $navigationGroup = 'Notifikasi';
+
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     protected static ?string $navigationLabel = 'Katalog Notifikasi';
 
     protected static ?string $title = 'Katalog Notifikasi';
 
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 305;
 
     protected static string $view = 'filament.pages.notification-catalog';
 

@@ -31,12 +31,12 @@ class PartnerPointTransactionResource extends Resource
     // Dipindah dari MarketingKontenCluster ke PromosiCluster 2026-09-15
     // (diminta user) -- konsisten dengan PointTransactionResource,
     // semua ledger poin dikumpulkan di 1 cluster loyalti.
-    protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- "Loyalti & Poin".
-    protected static ?string $navigationGroup = 'Loyalti & Poin';
+    protected static ?string $navigationGroup = 'Promo & Loyalti';
 
-    protected static ?int $navigationSort = 103;
+    protected static ?int $navigationSort = 154;
 
     protected static ?string $navigationLabel = 'Riwayat Poin Partner';
 

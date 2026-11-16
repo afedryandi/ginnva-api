@@ -23,7 +23,9 @@ class NotificationCampaignResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-megaphone';
 
-    protected static ?string $cluster = \App\Filament\Clusters\NotifikasiCluster::class;
+    protected static ?string $navigationGroup = 'Notifikasi';
+
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     protected static ?string $navigationLabel = 'Kampanye Notifikasi';
 
@@ -31,7 +33,7 @@ class NotificationCampaignResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Kampanye Notifikasi';
 
-    protected static ?int $navigationSort = 8;
+    protected static ?int $navigationSort = 301;
 
     public static function canViewAny(): bool
     {

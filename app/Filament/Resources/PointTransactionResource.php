@@ -37,12 +37,12 @@ class PointTransactionResource extends Resource
     // (diminta user) -- ledger poin customer secara konsep 1 keluarga
     // dengan Reward/RewardRedemption (poin didapat -> ditukar), bukan
     // konten marketing/website.
-    protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- "Loyalti & Poin".
-    protected static ?string $navigationGroup = 'Loyalti & Poin';
+    protected static ?string $navigationGroup = 'Promo & Loyalti';
 
-    protected static ?int $navigationSort = 102;
+    protected static ?int $navigationSort = 153;
 
     protected static ?string $navigationLabel = 'Riwayat Poin Pelanggan';
 

@@ -238,13 +238,8 @@ class GuideAccuracyTest extends TestCase
         \App\Filament\Clusters\KeuanganCluster::class,
         \App\Filament\Clusters\KaryawanCluster::class,
         \App\Filament\Clusters\InventarisCluster::class,
-        \App\Filament\Clusters\ProdukCluster::class,
-        \App\Filament\Clusters\PromosiCluster::class,
-        \App\Filament\Clusters\PelangganCluster::class,
-        \App\Filament\Clusters\AnalisaLaporanCluster::class,
         \App\Filament\Clusters\PenjualanCluster::class,
         \App\Filament\Clusters\MarketingKontenCluster::class,
-        \App\Filament\Clusters\NotifikasiCluster::class,
         \App\Filament\Clusters\MasterDataCluster::class,
         \App\Filament\Clusters\SistemCluster::class,
     ];

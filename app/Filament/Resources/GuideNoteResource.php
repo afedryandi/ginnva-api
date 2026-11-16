@@ -21,7 +21,9 @@ class GuideNoteResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-pencil-square';
 
-    protected static ?string $navigationGroup = 'Lainnya';
+    protected static ?string $cluster = \App\Filament\Clusters\SistemCluster::class;
+
+    protected static ?string $navigationGroup = null;
 
     protected static ?string $navigationLabel = 'Catatan Panduan';
 
@@ -29,7 +31,7 @@ class GuideNoteResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Catatan Panduan';
 
-    protected static ?int $navigationSort = 71;
+    protected static ?int $navigationSort = 31;
 
     public static function canViewAny(): bool
     {

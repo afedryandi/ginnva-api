@@ -16,6 +16,8 @@ class PriceRuleResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calculator';
 
+    protected static ?string $navigationGroup = 'Kendaraan & Toko';
+
     // Dipindah ke MasterDataCluster 2026-09-14 (struktur dropdown top-nav
     // "Lainnya" bertingkat — lihat catatan di MasterDataCluster.php).
     protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
@@ -26,7 +28,7 @@ class PriceRuleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Koefisien Harga';
 
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 303;
 
     /**
      * Data master pricing nasional, bukan per-toko — aksesnya diatur lewat

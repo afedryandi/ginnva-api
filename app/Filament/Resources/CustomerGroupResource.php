@@ -25,7 +25,9 @@ class CustomerGroupResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-tag';
 
-    protected static ?string $cluster = \App\Filament\Clusters\PelangganCluster::class;
+    protected static ?string $navigationGroup = 'Pelanggan';
+
+    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
 
     protected static ?string $navigationLabel = 'Grup Pelanggan';
 
@@ -33,7 +35,7 @@ class CustomerGroupResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Grup Pelanggan';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 201;
 
     private static function accessGate(): bool
     {

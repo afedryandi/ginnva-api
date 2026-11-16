@@ -15,7 +15,7 @@ class SistemCluster extends Cluster
 
     protected static ?string $navigationLabel = 'Sistem';
 
-    protected static ?string $navigationGroup = 'Lainnya';
+    protected static ?string $navigationGroup = null;
 
     protected static ?string $clusterBreadcrumb = 'Sistem';
 

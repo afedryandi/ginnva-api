@@ -35,11 +35,11 @@ class PenjualanCluster extends Cluster
 
     protected static ?string $navigationLabel = 'Laporan';
 
-    protected static ?string $navigationGroup = 'Penjualan';
+    protected static ?string $navigationGroup = null;
 
     protected static ?string $clusterBreadcrumb = 'Laporan';
 
-    protected static ?int $navigationSort = 15;
+    protected static ?int $navigationSort = 40;
 
     /**
      * Halaman induk menu hanya bisa dibuka kalau ada isi yang boleh diakses role ini. Tanpa ini, role yang tidak punya

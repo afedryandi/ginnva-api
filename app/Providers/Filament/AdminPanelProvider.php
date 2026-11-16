@@ -139,7 +139,6 @@ class AdminPanelProvider extends PanelProvider
                 // SEMUA Cluster anggotanya harus dilepas ikonnya dulu
                 // (trade-off yang belum tentu diinginkan, tanya user dulu
                 // sebelum coba lagi).
-                \Filament\Navigation\NavigationGroup::make('Penjualan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Penjualan')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Jasa')->collapsed(),
                 \Filament\Navigation\NavigationGroup::make('Laporan Promo & Loyalti')->collapsed(),

@@ -20,7 +20,9 @@ class NotificationTemplateResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-bookmark';
 
-    protected static ?string $cluster = \App\Filament\Clusters\NotifikasiCluster::class;
+    protected static ?string $navigationGroup = 'Notifikasi';
+
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     protected static ?string $navigationLabel = 'Template Notifikasi';
 
@@ -28,7 +30,7 @@ class NotificationTemplateResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Template Notifikasi';
 
-    protected static ?int $navigationSort = 9;
+    protected static ?int $navigationSort = 302;
 
     private static function allowed(string $action): bool
     {

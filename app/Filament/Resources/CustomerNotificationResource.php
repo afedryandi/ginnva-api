@@ -14,9 +14,11 @@ class CustomerNotificationResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-bell';
 
+    protected static ?string $navigationGroup = 'Notifikasi';
+
     // Dipindah ke NotifikasiCluster 2026-09-14 (struktur dropdown top-nav
     // "Lainnya" bertingkat — lihat catatan di MasterDataCluster.php).
-    protected static ?string $cluster = \App\Filament\Clusters\NotifikasiCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     protected static ?string $navigationLabel = 'Riwayat Notifikasi';
 
@@ -24,7 +26,7 @@ class CustomerNotificationResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Riwayat Notifikasi';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 303;
 
     public static function canViewAny(): bool
     {

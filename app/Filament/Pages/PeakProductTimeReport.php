@@ -37,7 +37,9 @@ class PeakProductTimeReport extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar';
 
-    protected static ?string $cluster = \App\Filament\Clusters\AnalisaLaporanCluster::class;
+    protected static ?string $navigationGroup = 'Analisa';
+
+    protected static ?string $cluster = \App\Filament\Clusters\PenjualanCluster::class;
 
     protected static ?string $navigationLabel = 'Waktu Teramai Produk';
 
@@ -45,7 +47,7 @@ class PeakProductTimeReport extends Page implements HasForms
 
     // 601 -- band grup 'Analisa Laporan' (lihat catatan sistem band di
     // ProductSalesReport.php).
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 801;
 
     protected static string $view = 'filament.pages.peak-product-time-report';
 

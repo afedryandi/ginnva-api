@@ -24,11 +24,13 @@ class CustomerResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
 
+    protected static ?string $navigationGroup = 'Pelanggan';
+
     // 2026-09-10: dipindah dari Marketing/Konten ke Penjualan > Pelanggan
     // (cluster PelangganCluster), = "Daftar Pelanggan" menu Pelanggan Majoo.
-    protected static ?string $cluster = \App\Filament\Clusters\PelangganCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 200;
 
     protected static ?string $navigationLabel = 'Daftar Pelanggan';
 

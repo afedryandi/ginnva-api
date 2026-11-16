@@ -23,12 +23,12 @@ class RewardRedemptionResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-gift-top';
 
     // 2026-09-10: dipindah dari Marketing/Konten ke Penjualan > Promosi.
-    protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- "Loyalti & Poin".
-    protected static ?string $navigationGroup = 'Loyalti & Poin';
+    protected static ?string $navigationGroup = 'Promo & Loyalti';
 
-    protected static ?int $navigationSort = 101;
+    protected static ?int $navigationSort = 152;
 
     protected static ?string $navigationLabel = 'Klaim Reward';
 

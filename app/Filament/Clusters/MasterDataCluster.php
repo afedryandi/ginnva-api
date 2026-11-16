@@ -23,7 +23,7 @@ class MasterDataCluster extends Cluster
 
     protected static ?string $navigationLabel = 'Master Data';
 
-    protected static ?string $navigationGroup = 'Lainnya';
+    protected static ?string $navigationGroup = null;
 
     protected static ?string $clusterBreadcrumb = 'Master Data';
 

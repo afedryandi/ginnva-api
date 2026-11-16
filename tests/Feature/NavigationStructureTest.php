@@ -7,6 +7,9 @@ use App\Filament\Clusters\InventarisCluster;
 use App\Filament\Clusters\KaryawanCluster;
 use App\Filament\Clusters\KeuanganCluster;
 use App\Filament\Clusters\MarketingKontenCluster;
+use App\Filament\Clusters\MasterDataCluster;
+use App\Filament\Clusters\PenjualanCluster;
+use App\Filament\Clusters\SistemCluster;
 use App\Filament\Pages\BayZoneUtilizationReport;
 use App\Filament\Pages\DashboardHome;
 use App\Filament\Pages\FinanceDashboard;
@@ -26,7 +29,8 @@ class NavigationStructureTest extends TestCase
     {
         $sorts = [
             BookingCluster::getNavigationSort(), InventarisCluster::getNavigationSort(), MarketingKontenCluster::getNavigationSort(),
-            KaryawanCluster::getNavigationSort(), KeuanganCluster::getNavigationSort(),
+            KaryawanCluster::getNavigationSort(), KeuanganCluster::getNavigationSort(), PenjualanCluster::getNavigationSort(),
+            MasterDataCluster::getNavigationSort(), SistemCluster::getNavigationSort(), \App\Filament\Pages\Panduan::getNavigationSort(),
         ];
 
         $this->assertSame($sorts, array_values(array_unique($sorts)));
@@ -61,5 +65,42 @@ class NavigationStructureTest extends TestCase
         $this->assertSame('Laporan Penjualan', ProductSalesReport::getNavigationGroup());
 
         $this->assertFalse(BayZoneUtilizationReport::shouldRegisterNavigation());
+    }
+
+    public function test_stage_b_merged_clusters_hold_their_former_members_and_the_old_clusters_are_gone(): void
+    {
+        foreach ([
+            \App\Filament\Resources\FilmProductResource::class, \App\Filament\Resources\CustomerResource::class, \App\Filament\Resources\StoreResource::class,
+            \App\Filament\Resources\VehicleResource::class, \App\Filament\Pages\MasterDataCenter::class,
+        ] as $class) {
+            $this->assertSame(MasterDataCluster::class, $class::getCluster(), $class);
+        }
+
+        foreach ([
+            \App\Filament\Pages\PeakSalesTimeReport::class, \App\Filament\Pages\StockTurnoverReport::class, \App\Filament\Pages\SalesDashboard::class,
+        ] as $class) {
+            $this->assertSame(PenjualanCluster::class, $class::getCluster(), $class);
+        }
+
+        foreach ([
+            \App\Filament\Resources\SpendPromoResource::class, \App\Filament\Resources\RewardResource::class, \App\Filament\Pages\SendNotification::class,
+            \App\Filament\Resources\NotificationDeliveryResource::class,
+        ] as $class) {
+            $this->assertSame(MarketingKontenCluster::class, $class::getCluster(), $class);
+        }
+
+        $this->assertSame(SistemCluster::class, \App\Filament\Resources\GuideNoteResource::getCluster());
+        $this->assertNull(\App\Filament\Pages\Panduan::getCluster(), 'Panduan terbuka untuk semua staf, jadi tidak boleh di kluster Sistem yang khusus akses penuh.');
+
+        foreach (['Pelanggan', 'Produk', 'AnalisaLaporan', 'Promosi', 'Notifikasi'] as $old) {
+            $this->assertFalse(class_exists('App\\Filament\\Clusters\\' . $old . 'Cluster'), $old);
+        }
+    }
+
+    public function test_no_top_bar_dropdown_groups_remain(): void
+    {
+        foreach ([PenjualanCluster::class, MasterDataCluster::class, SistemCluster::class, MarketingKontenCluster::class] as $cluster) {
+            $this->assertNull($cluster::getNavigationGroup(), $cluster);
+        }
     }
 }

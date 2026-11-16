@@ -74,3 +74,16 @@ Tiap tahap diuji dan di-commit terpisah.
 - **Laporan Utilisasi Zona/Bay** disembunyikan dari menu lewat flag `FEATURE_REPORT_BAY_ZONE` (bawaan mati).
 - Tidak ada URL kluster yang berubah.
 - Belum: Tahap B (gabung kluster) dan C (pangkas Karyawan).
+
+## 7. Tahap B: sudah dikerjakan (2026-11-16)
+
+Bilah atas sekarang: **Dashboard, Booking, Inventaris, Marketing/Konten, Karyawan, (Keuangan bila flag hidup), Laporan, Master Data, Sistem, Panduan**. Dropdown *Penjualan* dan *Lainnya* tidak ada lagi.
+
+- **Master Data** menampung Produk (Daftar Produk, Riwayat Import, Perubahan Harga Terjadwal), Pelanggan (Daftar, Grup), dan Kendaraan & Toko (Kendaraan, Luas Kaca, Toko/Dealer), di samping Pusat Master Data.
+- **Laporan** menampung Dashboard Penjualan di atas, dan grup *Analisa* (Waktu Teramai Penjualan/Produk, Perputaran Stok, Kepuasan Pelanggan).
+- **Marketing/Konten** menampung grup *Promo & Loyalti* dan *Notifikasi*.
+- **Sistem** berisi Riwayat Aktivitas dan Catatan Panduan (khusus akses penuh).
+- **Panduan** berdiri sendiri di bilah atas (terbuka untuk semua staf, jadi tidak di Sistem).
+- Kluster Pelanggan, Produk, Analisa Laporan, Promosi, dan Notifikasi dihapus. Urutan Laporan dipindah ke setelah Karyawan.
+- **URL yang berubah**: halaman-halaman yang pindah kluster (Pelanggan, Produk, Analisa, Promosi, Notifikasi, Dashboard Penjualan, Panduan, Catatan Panduan) punya alamat baru. Tautan tersimpan di notifikasi panel lama bisa tidak berlaku.
+- Kunci hak akses memakai nama kelas, jadi tidak berubah.

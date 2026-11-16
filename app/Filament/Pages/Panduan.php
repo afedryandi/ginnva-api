@@ -21,7 +21,7 @@ class Panduan extends Page
     protected static ?string $slug = 'panduan';
     // Di dropdown "Lainnya" (sejajar Master Data / Notifikasi / Sistem). Percobaan pertama tanpa grup tidak terlihat di bar
     // atas panel ini (2026-10-12). Tautan kedua ada di menu avatar (lihat AdminPanelProvider).
-    protected static ?string $navigationGroup = 'Lainnya';
+    protected static ?string $navigationGroup = null;
     protected static ?int $navigationSort = 70;
     protected static string $view = 'filament.pages.panduan';
 

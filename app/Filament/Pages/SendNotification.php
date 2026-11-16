@@ -33,11 +33,13 @@ class SendNotification extends Page implements HasForms
     use InteractsWithForms;
 
     protected static ?string $navigationIcon  = 'heroicon-o-bell';
+
+    protected static ?string $navigationGroup = 'Notifikasi';
     protected static ?string $navigationLabel = 'Kirim Notifikasi';
     // Dipindah ke NotifikasiCluster 2026-09-14 (struktur dropdown top-nav
     // "Lainnya" bertingkat — lihat catatan di MasterDataCluster.php).
-    protected static ?string $cluster = \App\Filament\Clusters\NotifikasiCluster::class;
-    protected static ?int    $navigationSort  = 5;
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
+    protected static ?int    $navigationSort  = 300;
     protected static string  $view            = 'filament.pages.send-notification';
 
     public ?array $data = [];

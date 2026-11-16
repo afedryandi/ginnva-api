@@ -21,9 +21,11 @@ class VehicleGlassAreaResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-squares-2x2';
 
+    protected static ?string $navigationGroup = 'Kendaraan & Toko';
+
     protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
 
-    protected static ?int $navigationSort = 25;
+    protected static ?int $navigationSort = 301;
 
     protected static ?string $navigationLabel = 'Luas Kaca';
 

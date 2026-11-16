@@ -23,12 +23,12 @@ class SpendPromoResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-banknotes';
 
-    protected static ?string $cluster = \App\Filament\Clusters\PromosiCluster::class;
+    protected static ?string $cluster = \App\Filament\Clusters\MarketingKontenCluster::class;
 
     // Grup sidebar (audit navigasi 2026-09-29) -- "Promo & Voucher".
-    protected static ?string $navigationGroup = 'Promo & Voucher';
+    protected static ?string $navigationGroup = 'Promo & Loyalti';
 
-    protected static ?int $navigationSort = 0;
+    protected static ?int $navigationSort = 150;
 
     protected static ?string $navigationLabel = 'Promo Total Pembelian';
 

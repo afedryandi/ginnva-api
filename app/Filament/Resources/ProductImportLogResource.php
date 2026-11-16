@@ -22,7 +22,9 @@ class ProductImportLogResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
-    protected static ?string $cluster = \App\Filament\Clusters\ProdukCluster::class;
+    protected static ?string $navigationGroup = 'Produk';
+
+    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
 
     protected static ?string $navigationLabel = 'Riwayat Import Produk';
 
@@ -31,7 +33,7 @@ class ProductImportLogResource extends Resource
     protected static ?string $pluralModelLabel = 'Riwayat Import';
 
     // 3: urutan 2 sudah dipakai Master Resep di cluster yang sama (urutan menu jadi tidak pasti).
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 101;
 
     // Hanya akses penuh (sama dengan Import Excel di Daftar Produk). Dulu juga mewajibkan kotak menu, tetapi kotak itu tidak membuka apa pun
     // bagi staf biasa, jadi tidak lagi ditawarkan di Akses Menu.

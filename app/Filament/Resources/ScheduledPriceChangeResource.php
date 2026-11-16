@@ -26,9 +26,11 @@ class ScheduledPriceChangeResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-date-range';
 
-    protected static ?string $cluster = \App\Filament\Clusters\ProdukCluster::class;
+    protected static ?string $navigationGroup = 'Produk';
 
-    protected static ?int $navigationSort = 6;
+    protected static ?string $cluster = \App\Filament\Clusters\MasterDataCluster::class;
+
+    protected static ?int $navigationSort = 102;
 
     protected static ?string $navigationLabel = 'Perubahan Harga Terjadwal';
 
