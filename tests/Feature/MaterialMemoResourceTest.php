@@ -451,11 +451,11 @@ class MaterialMemoResourceTest extends TestCase
 
         $this->as($this->writer($this->storeA));
         Livewire::test(EditMaterialMemo::class, ['record' => $memo->getRouteKey()])
-            ->fillForm(['vehicle_info' => 'Innova', 'notes' => 'Diubah'])
+            ->fillForm(['vehicle_brand' => 'Toyota', 'vehicle_model' => 'Innova', 'vehicle_plate' => 'd 1 ab', 'notes' => 'Diubah'])
             ->call('save')
             ->assertHasNoFormErrors();
 
-        $this->assertSame('Innova', $memo->fresh()->vehicle_info);
+        $this->assertSame('Toyota Innova - D 1 AB', $memo->fresh()->vehicle_info);
         $this->assertSame($booking->id, $memo->fresh()->booking_id, 'Booking sendiri tidak dianggap duplikat.');
     }
 
