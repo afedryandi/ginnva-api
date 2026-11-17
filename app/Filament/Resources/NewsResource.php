@@ -190,8 +190,8 @@ class NewsResource extends Resource
                     ->label('Status Publish'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

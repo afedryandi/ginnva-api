@@ -72,7 +72,7 @@ class NotificationCampaignResource extends Resource
                     ->dateTime('d M Y, H:i')
                     ->sortable(query: fn (Builder $query, string $direction) => $query->orderBy('created_at', $direction)),
 
-                Tables\Columns\TextColumn::make('title')->label('Judul')->searchable()->wrap()->weight('bold'),
+                Tables\Columns\TextColumn::make('title')->label('Judul')->searchable()->wrap()->weight('semibold'),
 
                 Tables\Columns\TextColumn::make('audience')
                     ->label('Untuk')
@@ -141,7 +141,7 @@ class NotificationCampaignResource extends Resource
                         ->when($data['until'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail')
                     ->modalHeading('Detail Kampanye')
                     ->form([
                         TextInput::make('title')->label('Judul')->disabled(),

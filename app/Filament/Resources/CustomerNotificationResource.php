@@ -72,7 +72,7 @@ class CustomerNotificationResource extends Resource
                 Tables\Columns\TextColumn::make('title')
                     ->label('Judul')
                     ->searchable()
-                    ->weight('bold')
+                    ->weight('semibold')
                     ->wrap(),
 
                 Tables\Columns\TextColumn::make('category')
@@ -148,7 +148,7 @@ class CustomerNotificationResource extends Resource
                     ),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail')
                     ->modalHeading('Detail Notifikasi')
                     ->form([
                         \Filament\Forms\Components\TextInput::make('title')->label('Judul')->disabled(),

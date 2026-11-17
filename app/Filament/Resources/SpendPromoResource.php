@@ -149,7 +149,7 @@ class SpendPromoResource extends Resource
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama')
                     ->searchable()
-                    ->weight('bold'),
+                    ->weight('semibold'),
 
                 Tables\Columns\TextColumn::make('min_purchase_amount')
                     ->label('Min. Pembelian')
@@ -183,8 +183,8 @@ class SpendPromoResource extends Resource
                 Tables\Filters\TernaryFilter::make('is_active')->label('Aktif'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->modalDescription(fn (SpendPromo $record) => $record->bookings()->exists()
                         ? "{$record->bookings()->count()} booking pernah memakai promo ini. Potongan di booking itu tetap tersimpan, tapi tautan ke promo ini hilang (tampil \"promo dihapus\"). Nonaktifkan saja kalau cuma tidak mau dipakai lagi."
                         : null),

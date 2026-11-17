@@ -209,8 +209,8 @@ class MaterialResource extends Resource
                     ->url(fn (Material $record) => Storage::disk('public')->url($record->file))
                     ->openUrlInNewTab(),
 
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

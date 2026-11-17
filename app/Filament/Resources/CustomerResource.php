@@ -571,14 +571,14 @@ class CustomerResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
                 static::personalDataTableAction(),
                 static::setGroupTableAction(),
                 static::changePhoneTableAction(),
                 static::setReferralTableAction(),
                 // Hapus = jalur yang SAMA dengan "Hapus Akun" di app (CustomerAccountDeletionService): data pribadi
                 // dianonimkan, bukan sekadar disembunyikan. Booking & garansi tetap utuh.
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->visible(fn (Customer $record) => ! $record->deleted_at)
                     ->modalHeading('Hapus Akun Pelanggan?')
                     ->modalDescription('Nama, email, dan nomor WhatsApp pelanggan ini dihapus permanen (dianonimkan). Riwayat booking dan garansi tetap ada tanpa identitas.')

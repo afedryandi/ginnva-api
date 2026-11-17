@@ -179,8 +179,8 @@ class ProductClaimResource extends Resource
                         $record->withdraw();
                         Notification::make()->title('Klaim ditarik')->success()->send();
                     }),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ]);
     }
 

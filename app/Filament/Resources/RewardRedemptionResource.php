@@ -188,7 +188,7 @@ class RewardRedemptionResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
             ])
             ->defaultSort('created_at', 'desc');
     }

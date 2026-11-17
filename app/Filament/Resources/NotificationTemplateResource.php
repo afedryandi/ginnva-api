@@ -62,7 +62,7 @@ class NotificationTemplateResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')->label('Nama')->searchable()->weight('bold'),
+                Tables\Columns\TextColumn::make('name')->label('Nama')->searchable()->weight('semibold'),
                 Tables\Columns\TextColumn::make('audience')
                     ->label('Untuk')
                     ->formatStateUsing(fn (string $state) => $state === 'partner' ? 'Partner' : 'Pelanggan')
@@ -84,8 +84,8 @@ class NotificationTemplateResource extends Resource
                     ->visible(fn () => \App\Filament\Pages\SendNotification::canAccess())
                     ->tooltip('Buka Kirim Notifikasi dengan template ini sudah terisi.')
                     ->url(fn (NotificationTemplate $r) => \App\Filament\Pages\SendNotification::getUrl(['template' => $r->id])),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ])
             ->bulkActions([]);
     }

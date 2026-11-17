@@ -187,7 +187,7 @@ class ScheduledPriceChangeResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')->label('Nama')->searchable()->weight('bold'),
+                Tables\Columns\TextColumn::make('name')->label('Nama')->searchable()->weight('semibold'),
 
                 Tables\Columns\TextColumn::make('effective_date')->label('Berlaku Mulai')->date('d M Y')->sortable(),
 
@@ -218,7 +218,7 @@ class ScheduledPriceChangeResource extends Resource
                 Tables\Filters\SelectFilter::make('status')->label('Status')->options(ScheduledPriceChange::STATUS_LABELS),
             ])
             ->actions([
-                Tables\Actions\EditAction::make()->visible(fn (ScheduledPriceChange $record) => static::canEdit($record)),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah')->visible(fn (ScheduledPriceChange $record) => static::canEdit($record)),
 
                 // Menerapkan sebelum dini hari: hanya bila tanggal efektifnya sudah tiba (mis. perintah harian belum sempat jalan).
                 Tables\Actions\Action::make('apply_now')

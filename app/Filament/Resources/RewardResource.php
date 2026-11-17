@@ -217,12 +217,12 @@ class RewardResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
                 // reward_redemptions.reward_id sekarang restrictOnDelete()
                 // — hapus reward yang masih punya riwayat penukaran akan
                 // ditolak database. Ditangkap di sini supaya staff dapat
                 // pesan jelas ("nonaktifkan saja"), bukan error mentah.
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->action(function (Reward $record) {
                         try {
                             $record->delete();

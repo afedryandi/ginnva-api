@@ -110,7 +110,7 @@ class JobOpeningResource extends Resource
                 Tables\Columns\TextColumn::make('title')
                     ->label('Posisi')
                     ->searchable()
-                    ->weight('bold'),
+                    ->weight('semibold'),
 
                 Tables\Columns\TextColumn::make('department')
                     ->label('Departemen')
@@ -160,8 +160,8 @@ class JobOpeningResource extends Resource
                     ->label('Status Tampil'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

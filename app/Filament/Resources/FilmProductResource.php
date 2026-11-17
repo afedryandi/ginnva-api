@@ -352,13 +352,13 @@ class FilmProductResource extends Resource
                 Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
                 // Sekarang scroll_codes.film_product_id restrictOnDelete()
                 // (bukan lagi nullOnDelete) — hapus produk yang masih
                 // dipakai ScrollCode akan ditolak database. Ditangkap di
                 // sini supaya staff dapat pesan yang jelas, bukan error
                 // mentah.
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->action(function (FilmProduct $record) {
                         if (! static::guardDelete($record)) {
                             return;

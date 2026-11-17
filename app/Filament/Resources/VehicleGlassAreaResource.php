@@ -156,8 +156,8 @@ class VehicleGlassAreaResource extends Resource
 
                         \Filament\Notifications\Notification::make()->title('Kendaraan ditambahkan ke katalog')->success()->send();
                     }),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ])
             ->defaultSort('brand')
             ->paginated([25, 50, 100])

@@ -388,8 +388,8 @@ class PartnershipInquiryResource extends Resource
                             ->send();
                     }),
 
-                Tables\Actions\EditAction::make()->label('Follow Up'),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah')->label('Follow Up'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

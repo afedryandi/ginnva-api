@@ -178,8 +178,8 @@ class CustomerGroupResource extends Resource
                     ->label('Status Aktif'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->modalDescription(fn (CustomerGroup $record) => $record->groupPrices()->exists()
                         ? "Grup yang masih dipakai pelanggan tidak bisa dihapus — nonaktifkan saja kalau tidak mau dipakai lagi. {$record->groupPrices()->count()} harga khusus produk untuk grup ini akan ikut terhapus permanen."
                         : 'Grup yang masih dipakai pelanggan tidak bisa dihapus — nonaktifkan saja kalau tidak mau dipakai lagi.'),

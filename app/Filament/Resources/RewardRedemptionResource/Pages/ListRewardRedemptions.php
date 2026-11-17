@@ -7,7 +7,9 @@ use App\Filament\Resources\RewardRedemptionResource;
 use App\Models\RewardRedemption;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions;
+use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ListRewardRedemptions extends ListRecords
@@ -61,5 +63,28 @@ class ListRewardRedemptions extends ListRecords
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);
                 }),
         ];
+    }
+
+    /** Tab status di atas daftar, dengan jumlah di tab (mengikuti pembatasan toko pengguna); "Semua" bawaan supaya tidak ada baris tersembunyi. */
+    public function getTabs(): array
+    {
+        $base = fn () => RewardRedemptionResource::getEloquentQuery()->withoutEagerLoads();
+
+        return [
+            'semua' => Tab::make('Semua'),
+            'menunggu' => Tab::make('Menunggu Diproses')
+                ->badge($base()->where('status', 'pending')->count())
+                ->badgeColor('warning')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'pending')),
+            'dikirim' => Tab::make('Sudah Dikirim')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'fulfilled')),
+            'batal' => Tab::make('Dibatalkan')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'cancelled')),
+        ];
+    }
+
+    public function getDefaultActiveTab(): string|int|null
+    {
+        return 'semua';
     }
 }

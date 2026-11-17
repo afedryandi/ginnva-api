@@ -314,7 +314,7 @@ class VehicleResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
                 Tables\Actions\Action::make('duplicate')
                     ->label('Duplikat sebagai varian')
                     ->icon('heroicon-o-document-duplicate')
@@ -374,7 +374,7 @@ class VehicleResource extends Resource
                         Notification::make()->title($record->is_active ? 'Kendaraan diaktifkan' : 'Kendaraan dinonaktifkan')->success()->send();
                     }),
                 // Hapus hanya untuk kendaraan yang belum dipakai di mana pun (salah ketik). Yang sudah dipakai: nonaktifkan.
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->action(function (Vehicle $record) {
                         $blocked = static::tryDelete($record);
 

@@ -45,6 +45,17 @@ class CleanUi
      *
      * @var list<class-string<\Filament\Pages\Page>>
      */
+    /**
+     * Kluster yang SELURUH isinya ikut gaya bersih: halaman baru di kluster ini otomatis ikut. Laporan (Penjualan), Master Data, Marketing/Konten.
+     *
+     * @var list<class-string>
+     */
+    public const CLUSTERS = [
+        \App\Filament\Clusters\PenjualanCluster::class,
+        \App\Filament\Clusters\MasterDataCluster::class,
+        \App\Filament\Clusters\MarketingKontenCluster::class,
+    ];
+
     public const PAGES = [
         \App\Filament\Pages\InventoryDashboard::class,
     ];
@@ -63,7 +74,7 @@ class CleanUi
             return true;
         }
 
-        return self::isReportPage($page);
+        return in_array(self::clusterOf($page), self::CLUSTERS, true);
     }
 
     /**
@@ -72,15 +83,19 @@ class CleanUi
      */
     public static function isReportPage(mixed $page): bool
     {
+        return self::clusterOf($page) === \App\Filament\Clusters\PenjualanCluster::class;
+    }
+
+    /** Kluster tempat halaman (atau resource halaman itu) berada, atau null. */
+    private static function clusterOf(mixed $page): ?string
+    {
         if (! is_object($page)) {
-            return false;
+            return null;
         }
 
-        $cluster = method_exists($page, 'getResource')
+        return method_exists($page, 'getResource')
             ? $page::getResource()::getCluster()
             : (method_exists($page, 'getCluster') ? $page::getCluster() : null);
-
-        return $cluster === \App\Filament\Clusters\PenjualanCluster::class;
     }
 
     /**

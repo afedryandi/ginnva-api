@@ -554,14 +554,14 @@ class StoreResource extends Resource
                     ->query(fn (Builder $query) => $query->whereNull('code')),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
                 // Hapus toko cascade-delete SELURUH booking, chat, teknisi,
                 // dan review milik toko itu (lihat cascadeOnDelete di
                 // migration bookings/technicians/blocked_dates/store_reviews)
                 // — sebelumnya bisa diklik siapa saja termasuk Store
                 // Manager atas tokonya sendiri, tanpa restriksi sama
                 // sekali. Sekarang cuma super_admin/direksi.
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->visible(fn () => auth()->user()?->isFullAccess())
                     ->modalDescription('Toko yang masih punya data (booking, staff, installer, garansi, dst) tidak bisa dihapus -- nonaktifkan saja lewat toggle "Aktif".')
                     ->action(function (Store $record) {

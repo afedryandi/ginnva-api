@@ -147,7 +147,7 @@ class ProductImportLogResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->actions([
-                Tables\Actions\ViewAction::make()->label('Lihat Detail'),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail')->label('Lihat Detail'),
             ]);
     }
 

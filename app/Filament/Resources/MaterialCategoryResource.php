@@ -116,13 +116,13 @@ class MaterialCategoryResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
 
                 // materials.material_category_id pakai cascadeOnDelete()
                 // — hapus kategori yang masih punya materi akan ikut
                 // menghapus SEMUA materinya diam-diam. Cuma boleh hapus
                 // kategori yang benar-benar kosong.
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->visible(fn (MaterialCategory $record) => $record->materials()->count() === 0)
                     ->action(function (MaterialCategory $record) {
                         if ($record->materials()->count() > 0) {
