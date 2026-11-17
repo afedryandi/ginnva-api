@@ -99,7 +99,8 @@ class PurchaseRequestController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'item_type' => 'required|in:raw_material,consumable_item,asset',
+            // Jenis yang dimatikan lewat saklar fitur (Barang Habis Pakai, Aset Tetap) tidak boleh dibuat lewat API, sama dengan form panel.
+            'item_type' => ['required', \Illuminate\Validation\Rule::in(\App\Support\HiddenInventoryTypes::allowed(['raw_material', 'consumable_item', 'asset']))],
             'item_id' => 'required_if:item_type,raw_material,consumable_item|nullable|integer',
             'item_name' => 'required_if:item_type,asset|nullable|string|max:255',
             'quantity' => 'required|numeric|min:0.01|max:1000000',

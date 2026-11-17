@@ -820,6 +820,20 @@ class StaffStockApiTest extends TestCase
         $this->assertNull(PurchaseRequest::withoutGlobalScopes()->where('item_name', 'Kompresor')->firstOrFail()->item_id);
     }
 
+    public function test_purchase_request_types_switched_off_by_feature_flags_are_refused(): void
+    {
+        $staff = $this->prStaff($this->storeA);
+        $material = $this->material('Slip Solution');
+        config(['features.consumables' => false, 'features.assets' => false]);
+
+        // Jenis yang dimatikan (sama dengan form panel) ditolak; Bahan Baku tetap bisa.
+        $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'asset', 'item_name' => 'Kompresor', 'quantity' => 1])
+            ->assertStatus(422)->assertJsonValidationErrors('item_type');
+        $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'consumable_item', 'item_id' => 1, 'quantity' => 1])
+            ->assertStatus(422)->assertJsonValidationErrors('item_type');
+        $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'raw_material', 'item_id' => $material->id, 'quantity' => 2])
+            ->assertStatus(201);
+    }
     public function test_purchase_request_validation_and_missing_catalogue_items(): void
     {
         $staff = $this->prStaff();
