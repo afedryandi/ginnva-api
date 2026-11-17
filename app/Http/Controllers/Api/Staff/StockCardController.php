@@ -72,6 +72,8 @@ class StockCardController extends Controller
                 'awal' => $row['awal'],
                 'masuk' => $row['masuk'],
                 'keluar' => $row['keluar'],
+                'masuk_detail' => $row['masuk_detail'],
+                'keluar_detail' => $row['keluar_detail'],
                 'akhir' => $row['akhir'],
                 'low' => $row['low'],
                 'inactive' => $row['inactive'],

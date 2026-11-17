@@ -18,6 +18,10 @@ use Illuminate\Support\Collection;
  * (sistem tidak menyimpan snapshot stok harian). Net: 'out' negatif, 'in' dan opname (bertanda) positif. Pergerakan yang dibatalkan
  * tidak dihitung (scope 'effective' pada kedua model pergerakan). Agregasi dilakukan di SQL per barang, bukan memuat semua baris.
  * Stok bersifat nasional: tidak ada pemisahan per toko.
+ *
+ * Masuk dan Keluar dirinci menurut asalnya (2026-11-17), supaya "Masuk" tidak dibaca sebagai pembelian saja:
+ *   Masuk  = Pembelian (masuk bukan dari memo) + Pengembalian memo + Penyesuaian (opname/koreksi lebih).
+ *   Keluar = Pakai (keluar, termasuk pengambilan memo) + Dibuang (Stok Terbuang) + Penyesuaian (opname/koreksi kurang).
  */
 class StockCardService
 {
@@ -68,6 +72,16 @@ class StockCardService
             'totals' => [
                 'masuk' => round((float) $rows->sum('masuk'), 2),
                 'keluar' => round((float) $rows->sum('keluar'), 2),
+                'masuk_detail' => [
+                    'pembelian' => round((float) $rows->sum('masuk_detail.pembelian'), 2),
+                    'pengembalian' => round((float) $rows->sum('masuk_detail.pengembalian'), 2),
+                    'penyesuaian' => round((float) $rows->sum('masuk_detail.penyesuaian'), 2),
+                ],
+                'keluar_detail' => [
+                    'pakai' => round((float) $rows->sum('keluar_detail.pakai'), 2),
+                    'dibuang' => round((float) $rows->sum('keluar_detail.dibuang'), 2),
+                    'penyesuaian' => round((float) $rows->sum('keluar_detail.penyesuaian'), 2),
+                ],
                 'count' => $rows->count(),
                 'anomalies' => $rows->where('anomaly', true)->count(),
             ],
@@ -154,15 +168,31 @@ class StockCardService
         $in = "CASE WHEN type = 'in' THEN quantity WHEN type = 'adjustment' AND quantity > 0 THEN quantity ELSE 0 END";
         $out = "CASE WHEN type = 'out' THEN quantity WHEN type = 'adjustment' AND quantity < 0 THEN -quantity ELSE 0 END";
 
+        $notMemo = "(source_type IS NULL OR source_type <> 'memo')";
+        $parts = [
+            'masuk_beli' => "CASE WHEN type = 'in' AND {$notMemo} THEN quantity ELSE 0 END",
+            'masuk_kembali' => "CASE WHEN type = 'in' AND source_type = 'memo' THEN quantity ELSE 0 END",
+            'masuk_adj' => "CASE WHEN type = 'adjustment' AND quantity > 0 THEN quantity ELSE 0 END",
+            'keluar_pakai' => "CASE WHEN type = 'out' THEN quantity ELSE 0 END",
+            'keluar_buang' => "CASE WHEN type = 'adjustment' AND quantity < 0 AND source_type = 'stock_write_off' THEN -quantity ELSE 0 END",
+            'keluar_adj' => "CASE WHEN type = 'adjustment' AND quantity < 0 AND (source_type IS NULL OR source_type <> 'stock_write_off') THEN -quantity ELSE 0 END",
+        ];
+        $partSelect = '';
+        $partBindings = [];
+        foreach ($parts as $alias => $sql) {
+            $partSelect .= "SUM(CASE WHEN created_at <= ? THEN ({$sql}) ELSE 0 END) as {$alias}, ";
+            $partBindings[] = $to;
+        }
+
         $aggregates = $movementClass::query()
             ->selectRaw(
-                "{$fk} as item_id, "
+                "{$fk} as item_id, " . $partSelect
                 . "SUM(CASE WHEN created_at > ? THEN ({$net}) ELSE 0 END) as net_after, "
                 . "SUM(CASE WHEN created_at <= ? THEN ({$net}) ELSE 0 END) as net_during, "
                 . "SUM(CASE WHEN created_at <= ? THEN ({$in}) ELSE 0 END) as masuk, "
                 . "SUM(CASE WHEN created_at <= ? THEN ({$out}) ELSE 0 END) as keluar, "
                 . 'SUM(CASE WHEN created_at <= ? THEN 1 ELSE 0 END) as moved',
-                [$to, $to, $to, $to, $to]
+                [...$partBindings, $to, $to, $to, $to, $to]
             )
             ->where('created_at', '>=', $from)
             ->groupBy($fk)
@@ -196,6 +226,16 @@ class StockCardService
                     'awal' => $this->clean($awalRaw),
                     'masuk' => round((float) ($a->masuk ?? 0), 2),
                     'keluar' => round((float) ($a->keluar ?? 0), 2),
+                    'masuk_detail' => [
+                        'pembelian' => round((float) ($a->masuk_beli ?? 0), 2),
+                        'pengembalian' => round((float) ($a->masuk_kembali ?? 0), 2),
+                        'penyesuaian' => round((float) ($a->masuk_adj ?? 0), 2),
+                    ],
+                    'keluar_detail' => [
+                        'pakai' => round((float) ($a->keluar_pakai ?? 0), 2),
+                        'dibuang' => round((float) ($a->keluar_buang ?? 0), 2),
+                        'penyesuaian' => round((float) ($a->keluar_adj ?? 0), 2),
+                    ],
                     'akhir' => $this->clean($akhirRaw),
                     'hasMovement' => $moved,
                     'inactive' => ! $item->is_active,
@@ -208,6 +248,24 @@ class StockCardService
             ->filter()
             ->values();
     }
+
+    /** Teks rincian satu kolom, mis. "Pembelian 10 · Pengembalian 2"; bagian bernilai 0 dihilangkan. */
+    public static function breakdownText(array $detail, array $labels, callable $format): string
+    {
+        $parts = [];
+
+        foreach ($labels as $key => $label) {
+            if (($detail[$key] ?? 0) > 0) {
+                $parts[] = $label . ' ' . $format($detail[$key]);
+            }
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    public const MASUK_LABELS = ['pembelian' => 'Pembelian', 'pengembalian' => 'Pengembalian memo', 'penyesuaian' => 'Penyesuaian'];
+
+    public const KELUAR_LABELS = ['pakai' => 'Pakai', 'dibuang' => 'Dibuang', 'penyesuaian' => 'Penyesuaian'];
 
     private function clean(float $value): float
     {

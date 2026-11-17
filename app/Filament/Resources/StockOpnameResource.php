@@ -8,6 +8,7 @@ use App\Filament\Resources\StockOpnameResource\RelationManagers\ItemsRelationMan
 use App\Models\ConsumableItem;
 use App\Models\RawMaterial;
 use App\Models\StockOpname;
+use App\Models\ScrollCode;
 use App\Models\Store;
 use App\Services\OpnameNeedsNoteException;
 use App\Services\StockCardService;
@@ -21,6 +22,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 use RuntimeException;
 
@@ -162,6 +164,106 @@ class StockOpnameResource extends Resource
         $item = $model && $id ? $model::query()->find($id) : null;
 
         return $item ? $item->name . ($item->code ? " ({$item->code})" : '') . ' · ' . $item->unit : null;
+    }
+
+    // ------------------------------------------------------------- gulungan PPF/WF
+
+    /**
+     * Daftar hitung gulungan: semua gulungan Dialokasikan di toko itu yang punya data sisa meter, hasil ukur dikosongkan (hitung buta:
+     * sisa meter menurut sistem tidak ditampilkan).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function rollRows(int $storeId): array
+    {
+        if ($storeId <= 0) {
+            return [];
+        }
+
+        return ScrollCode::query()
+            ->with('filmProduct:id,name')
+            ->where('store_id', $storeId)
+            ->where('status', 'allocated')
+            ->whereNotNull('remaining_length_meters')
+            ->orderBy('code')
+            ->get()
+            ->mapWithKeys(fn (ScrollCode $roll) => [
+                (string) Str::uuid() => [
+                    'item_id' => $roll->id,
+                    'label' => $roll->code . ($roll->filmProduct ? ' · ' . $roll->filmProduct->name : ''),
+                    'actual_quantity' => null,
+                    'note' => null,
+                ],
+            ])
+            ->all();
+    }
+
+    private static function rollSessionAction(): Tables\Actions\Action
+    {
+        return Tables\Actions\Action::make('create_roll_opname')
+            ->label('Opname Gulungan PPF/WF')
+            ->icon('heroicon-o-swatch')
+            ->color('primary')
+            ->visible(fn () => static::canSubmit())
+            ->modalWidth('4xl')
+            ->modalDescription('Ukur sisa meter tiap gulungan secara fisik lalu isi di sini. Gulungan yang tidak diisi dilewati. Sisa meter sistem sengaja tidak ditampilkan (hitung buta). Sisa meter baru berubah setelah sesi diterapkan akses penuh.')
+            ->form([
+                Forms\Components\Select::make('store_id')
+                    ->label('Toko')
+                    ->options(fn () => Store::where('is_active', true)->pluck('name', 'id'))
+                    ->default(fn () => auth()->user()?->isFullAccess() ? null : auth()->user()?->store_id)
+                    ->disabled(fn () => ! (auth()->user()?->isFullAccess() ?? false))
+                    ->dehydrated()
+                    ->required()
+                    ->live()
+                    ->afterStateUpdated(fn (?string $state, Forms\Set $set) => $set('rolls', static::rollRows((int) $state))),
+                Forms\Components\DatePicker::make('opname_date')
+                    ->label('Tanggal Opname')
+                    ->default(now())
+                    ->maxDate(now())
+                    ->native(false)
+                    ->required(),
+                Forms\Components\Textarea::make('notes')->label('Catatan (opsional)')->rows(2),
+                static::applyNowField(),
+                Forms\Components\Repeater::make('rolls')
+                    ->label('Gulungan yang Dihitung')
+                    ->default(fn () => auth()->user()?->isFullAccess() ? [] : static::rollRows((int) auth()->user()?->store_id))
+                    ->addable(false)
+                    ->deletable(false)
+                    ->reorderable(false)
+                    ->columns(3)
+                    ->schema([
+                        Forms\Components\Hidden::make('item_id'),
+                        Forms\Components\TextInput::make('label')->label('Gulungan')->disabled()->dehydrated(false),
+                        Forms\Components\TextInput::make('actual_quantity')
+                            ->label('Sisa meter hasil ukur')
+                            ->numeric()
+                            ->minValue(0)
+                            ->suffix('m'),
+                        Forms\Components\TextInput::make('note')->label('Catatan')->maxLength(255),
+                    ])
+                    ->helperText(fn (Forms\Get $get) => empty($get('rolls')) ? 'Pilih toko untuk menampilkan gulungannya. Hanya gulungan berstatus Dialokasikan yang punya data panjang yang muncul.' : null),
+            ])
+            ->action(function (array $data) {
+                $items = collect($data['rolls'] ?? [])
+                    ->filter(fn ($row) => isset($row['actual_quantity']) && $row['actual_quantity'] !== '')
+                    ->map(fn ($row) => [
+                        'item_type' => 'scroll_code',
+                        'item_id' => (int) $row['item_id'],
+                        'actual_quantity' => (float) $row['actual_quantity'],
+                        'note' => $row['note'] ?? null,
+                    ])
+                    ->values()
+                    ->all();
+
+                if ($items === []) {
+                    Notification::make()->title('Isi sisa meter minimal satu gulungan.')->warning()->send();
+
+                    return;
+                }
+
+                static::submitSession($data, $items);
+            });
     }
 
     // ------------------------------------------------------------- aksi bersama
@@ -320,6 +422,7 @@ class StockOpnameResource extends Resource
             $type = match (mb_strtolower(trim((string) ($row[$typeCol] ?? '')))) {
                 'bahan baku', 'raw_material' => 'raw_material',
                 'barang habis pakai', 'consumable_item' => 'consumable_item',
+                'ppf/wf (gulungan)', 'scroll_code' => 'scroll_code',
                 default => null,
             };
             $quantity = str_replace(',', '.', trim((string) $raw));
@@ -419,6 +522,8 @@ class StockOpnameResource extends Resource
                         ->when($data['until'], fn ($q, $date) => $q->whereDate('opname_date', '<=', $date))),
             ])
             ->headerActions([
+                static::rollSessionAction(),
+
                 Tables\Actions\Action::make('create_opname')
                     ->label('Buat Sesi Stok Opname')
                     ->icon('heroicon-o-clipboard-document-check')
@@ -513,12 +618,22 @@ class StockOpnameResource extends Resource
                     ->color('gray')
                     ->form([
                         Forms\Components\Select::make('format')->label('Format')->options(['xlsx' => 'Excel (bisa diisi lalu diimpor)', 'pdf' => 'PDF (untuk dicetak)'])->default('xlsx')->required()->native(false),
-                        Forms\Components\Select::make('jenis')->label('Jenis')->options(\App\Support\HiddenInventoryTypes::filter(['all' => 'Semua', 'raw_material' => 'Bahan Baku', 'consumable_item' => 'Barang Habis Pakai']))->default('all')->required()->native(false),
-                        Forms\Components\Select::make('category')->label('Kategori (opsional)')->options(fn () => app(StockCardService::class)->categories())->searchable()->placeholder('Semua kategori'),
+                        Forms\Components\Select::make('jenis')->label('Jenis')->options(\App\Support\HiddenInventoryTypes::filter(['all' => 'Semua', 'raw_material' => 'Bahan Baku', 'consumable_item' => 'Barang Habis Pakai']) + ['scroll_code' => 'PPF/WF (gulungan)'])->default('all')->required()->native(false)->live(),
+                        Forms\Components\Select::make('category')->label('Kategori (opsional)')->options(fn () => app(StockCardService::class)->categories())->searchable()->placeholder('Semua kategori')
+                            ->visible(fn (Forms\Get $get) => $get('jenis') !== 'scroll_code'),
+                        Forms\Components\Select::make('store_id')->label('Toko')
+                            ->options(fn () => Store::where('is_active', true)->pluck('name', 'id'))
+                            ->default(fn () => auth()->user()?->isFullAccess() ? null : auth()->user()?->store_id)
+                            ->disabled(fn () => ! (auth()->user()?->isFullAccess() ?? false))
+                            ->dehydrated()
+                            ->required()
+                            ->visible(fn (Forms\Get $get) => $get('jenis') === 'scroll_code')
+                            ->helperText('Gulungan dihitung per toko: hanya gulungan Dialokasikan di toko ini yang masuk lembar.'),
                     ])
                     ->modalDescription('Lembar berisi daftar barang dengan kolom hasil hitung kosong. Stok sistem sengaja tidak dicantumkan (hitung buta).')
                     ->action(function (array $data) {
-                        $rows = StockOpnameSheetExport::rows($data['jenis'], $data['category'] ?? null);
+                        $storeId = $data['jenis'] === 'scroll_code' ? static::resolveStoreId($data) : null;
+                        $rows = StockOpnameSheetExport::rows($data['jenis'], $data['category'] ?? null, $storeId);
 
                         if ($data['format'] === 'pdf') {
                             $pdf = Pdf::loadView('pdf.stock_opname_sheet', ['rows' => $rows, 'date' => now()])->setPaper('a4', 'portrait');
@@ -550,7 +665,7 @@ class StockOpnameResource extends Resource
                                 'application/vnd.ms-excel',
                                 'text/csv',
                             ])
-                            ->helperText('Pakai file dari "Download Lembar Hitung" (Excel). Baris tanpa Hasil Hitung dilewati.'),
+                            ->helperText('Pakai file dari "Download Lembar Hitung" (Excel). Baris tanpa Hasil Hitung dilewati. Lembar gulungan PPF/WF: Hasil Hitung = sisa meter, dan tokonya harus sama dengan toko lembar.'),
                     ])
                     ->modalSubmitActionLabel('Import')
                     ->action(function (array $data) {

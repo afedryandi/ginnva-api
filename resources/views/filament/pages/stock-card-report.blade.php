@@ -22,6 +22,7 @@
             .sk-table tbody tr:hover { background: var(--sk-soft); }
             .sk-table tbody tr:last-child td { border-bottom: 0; }
             .sk-r { text-align: right !important; }
+            .sk-sub { font-size: .6875rem; font-weight: 400; color: var(--sk-muted); white-space: normal; line-height: 1.3; }
             .sk-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; color: var(--sk-muted); }
             .sk-name { font-weight: 600; color: var(--sk-ink); }
             .sk-name a { color: inherit; text-decoration: none; }
@@ -57,7 +58,7 @@
 
         <div wire:loading.class="sk-loading" wire:target="{{ $filterTargets }}" style="display: flex; flex-direction: column; gap: 1rem;">
             <div class="sk-note">
-                Awal dan Akhir dihitung mundur dari stok sekarang dan riwayat pergerakan. Masuk = pencatatan masuk + penyesuaian positif; Keluar = pemakaian + penyesuaian negatif + stok terbuang. Awal + Masuk − Keluar = Akhir. Stok masih nasional (belum per toko).
+                Awal dan Akhir dihitung mundur dari stok sekarang dan riwayat pergerakan. Masuk = pembelian/pencatatan masuk + pengembalian dari memo + penyesuaian lebih (opname); Keluar = pemakaian (termasuk pengambilan memo) + stok terbuang + penyesuaian kurang. Rinciannya tertulis kecil di bawah angka. Awal + Masuk − Keluar = Akhir. Stok masih nasional (belum per toko).
             </div>
 
             @if ($result['totals']['anomalies'] > 0)
@@ -108,8 +109,8 @@
                                     <td>{{ $row['jenis'] }}</td>
                                     <td style="color: var(--sk-muted)">{{ $row['category'] ?: '—' }}</td>
                                     <td class="sk-r {{ $row['awal'] < 0 ? 'sk-neg' : '' }}">{{ $num($row['awal']) }}</td>
-                                    <td class="sk-r sk-in">{{ $row['masuk'] > 0 ? '+'.$num($row['masuk']) : '0' }}</td>
-                                    <td class="sk-r sk-out">{{ $row['keluar'] > 0 ? '−'.$num($row['keluar']) : '0' }}</td>
+                                    <td class="sk-r sk-in">{{ $row['masuk'] > 0 ? '+'.$num($row['masuk']) : '0' }}@if ($row['masuk'] > 0)<div class="sk-sub">{{ \App\Services\StockCardService::breakdownText($row['masuk_detail'], \App\Services\StockCardService::MASUK_LABELS, $num) }}</div>@endif</td>
+                                    <td class="sk-r sk-out">{{ $row['keluar'] > 0 ? '−'.$num($row['keluar']) : '0' }}@if ($row['keluar'] > 0)<div class="sk-sub">{{ \App\Services\StockCardService::breakdownText($row['keluar_detail'], \App\Services\StockCardService::KELUAR_LABELS, $num) }}</div>@endif</td>
                                     <td class="sk-r {{ $row['akhir'] < 0 ? 'sk-neg' : 'sk-strong' }}">{{ $num($row['akhir']) }}</td>
                                     <td style="color: var(--sk-muted)">{{ $row['unit'] }}</td>
                                     <td class="sk-r">

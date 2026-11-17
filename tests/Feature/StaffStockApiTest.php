@@ -327,6 +327,27 @@ class StaffStockApiTest extends TestCase
         $this->assertNull($empty['nearest_expiry_date']);
     }
 
+    public function test_roll_opname_lists_blind_rolls_of_own_store_and_submits_a_draft(): void
+    {
+        $mine = ScrollCode::create(['code' => 'SC-A', 'store_id' => $this->storeA->id, 'status' => 'allocated', 'total_length_meters' => 15, 'remaining_length_meters' => 10]);
+        ScrollCode::create(['code' => 'SC-B', 'store_id' => $this->storeB->id, 'status' => 'allocated', 'total_length_meters' => 15, 'remaining_length_meters' => 10]);
+        $user = $this->staff('kasir', null, ['InventoryItemResource'], true, ['InventoryItemResource' => ['update', 'view']]);
+
+        $list = $this->api($user)->getJson('/api/staff/stock-opnames/rolls')->assertOk();
+        $this->assertCount(1, $list->json('data'));
+        $this->assertSame($mine->id, $list->json('data.0.id'));
+        $this->assertArrayNotHasKey('remaining', $list->json('data.0'));
+
+        $this->api($user)->postJson('/api/staff/stock-opnames', ['items' => [['item_type' => 'scroll_code', 'item_id' => $mine->id, 'actual_quantity' => 7.5]]])
+            ->assertCreated();
+
+        $this->assertEquals(10, (float) $mine->fresh()->remaining_length_meters); // draf: belum berubah
+        $this->api($user)->getJson('/api/staff/stock-opnames')->assertOk()->assertJsonPath('summary.draft', 1);
+
+        $viewOnly = $this->staff('kasir', null, ['InventoryItemResource'], true, ['InventoryItemResource' => ['view']]);
+        $this->api($viewOnly)->getJson('/api/staff/stock-opnames/rolls')->assertForbidden();
+    }
+
     public function test_the_api_requires_a_note_for_an_opname_above_the_materials_limit(): void
     {
         $material = $this->material('Adhesive', 20);

@@ -124,6 +124,8 @@ class StockCardReportTest extends TestCase
 
         $this->assertEqualsWithDelta(100.0, $film['awal'], 0.001, 'Mundur dari 60: batalkan opname -10 setelah rentang, lalu seluruh pergerakan dalam rentang.');
         $this->assertEqualsWithDelta(20.0, $film['masuk'], 0.001);
+        $this->assertEqualsWithDelta(20.0, $film['masuk_detail']['pembelian'], 0.001, 'Masuk biasa = pembelian.');
+        $this->assertEqualsWithDelta(50.0, $film['keluar_detail']['pakai'], 0.001);
         $this->assertEqualsWithDelta(50.0, $film['keluar'], 0.001, 'Pergerakan 15 Okt 23:00 (hari terakhir) ikut.');
         $this->assertEqualsWithDelta(70.0, $film['akhir'], 0.001);
         $this->assertEqualsWithDelta($film['akhir'], $film['awal'] + $film['masuk'] - $film['keluar'], 0.001, 'Awal + Masuk - Keluar = Akhir.');
@@ -139,6 +141,8 @@ class StockCardReportTest extends TestCase
         $lap = $this->row($this->report(), 'Lap');
 
         $this->assertEqualsWithDelta(3.0, $lap['masuk'], 0.001, 'Opname +3 masuk ke Masuk.');
+        $this->assertEqualsWithDelta(3.0, $lap['masuk_detail']['penyesuaian'], 0.001, 'Opname naik = Penyesuaian.');
+        $this->assertEqualsWithDelta(2.0, $lap['keluar_detail']['penyesuaian'], 0.001, 'Opname turun = Penyesuaian keluar.');
         $this->assertEqualsWithDelta(17.0, $lap['keluar'], 0.001, 'Keluar 15 + |opname -2|.');
         $this->assertEqualsWithDelta(20.0, $lap['awal'], 0.001);
         $this->assertEqualsWithDelta(6.0, $lap['akhir'], 0.001);

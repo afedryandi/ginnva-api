@@ -33,11 +33,7 @@ class ItemsRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('item_type')
                     ->label('Jenis')
                     ->badge()
-                    ->formatStateUsing(fn (string $state) => match ($state) {
-                        'raw_material' => 'Bahan Baku',
-                        'consumable_item' => 'Barang Habis Pakai',
-                        default => $state,
-                    }),
+                    ->formatStateUsing(fn (string $state) => \App\Models\StockOpnameItem::typeLabel($state)),
 
                 Tables\Columns\TextColumn::make('system_quantity')
                     ->label('Stok Sistem')
@@ -71,11 +67,15 @@ class ItemsRelationManager extends RelationManager
                             return null;
                         }
 
-                        $item = $record->resolveItem();
+                        $now = $record->currentQuantity();
 
-                        return $item === null ? 'Barang dihapus' : (abs((float) $item->current_stock - (float) $record->system_quantity) < 0.01
-                            ? null
-                            : ((float) $item->current_stock - (float) $record->system_quantity > 0 ? '+' : '') . number_format((float) $item->current_stock - (float) $record->system_quantity, 2) . ' ' . $record->unit);
+                        if ($now === null) {
+                            return 'Barang dihapus';
+                        }
+
+                        $moved = $now - (float) $record->system_quantity;
+
+                        return abs($moved) < 0.01 ? null : ($moved > 0 ? '+' : '') . number_format($moved, 2) . ' ' . $record->unit;
                     })
                     ->placeholder('—')
                     ->color('warning'),

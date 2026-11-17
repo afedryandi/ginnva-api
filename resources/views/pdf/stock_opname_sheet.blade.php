@@ -22,7 +22,7 @@
         <tr><th>Kode</th><th>Nama</th><th>Satuan</th><th>Hasil Hitung</th><th>Catatan</th></tr>
         @php $group = null; @endphp
         @forelse ($rows as $row)
-            @php $heading = $row['jenis'] . ' — ' . ($row['category'] ?: 'Tanpa kategori'); @endphp
+            @php $heading = $row['jenis'] . ($row['unit'] === 'm' && ! $row['category'] ? '' : ' — ' . ($row['category'] ?: 'Tanpa kategori')); @endphp
             @if ($heading !== $group)
                 @php $group = $heading; @endphp
                 <tr class="group"><td colspan="5">{{ $heading }}</td></tr>

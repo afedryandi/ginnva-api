@@ -30,7 +30,7 @@ class StockCardReportExport implements FromArray, WithHeadings, WithStyles
             ['Daftar Stok (Kartu Stok)'],
             ['Periode: ' . $this->result['from']->format('d/m/Y') . ' s/d ' . $this->result['to']->format('d/m/Y') . ' · ' . $jenis],
             [],
-            ['Kode', 'Nama', 'Jenis', 'Kategori', 'Status', 'Awal', 'Masuk', 'Keluar', 'Akhir', 'Satuan', 'Stok Minimum', 'Catatan'],
+            ['Kode', 'Nama', 'Jenis', 'Kategori', 'Status', 'Awal', 'Masuk', 'Masuk: Pembelian', 'Masuk: Pengembalian memo', 'Masuk: Penyesuaian', 'Keluar', 'Keluar: Pakai', 'Keluar: Dibuang', 'Keluar: Penyesuaian', 'Akhir', 'Satuan', 'Stok Minimum', 'Catatan'],
         ];
     }
 
@@ -47,7 +47,13 @@ class StockCardReportExport implements FromArray, WithHeadings, WithStyles
                 $row['inactive'] ? 'Nonaktif' : 'Aktif',
                 $row['awal'],
                 $row['masuk'],
+                $row['masuk_detail']['pembelian'],
+                $row['masuk_detail']['pengembalian'],
+                $row['masuk_detail']['penyesuaian'],
                 $row['keluar'],
+                $row['keluar_detail']['pakai'],
+                $row['keluar_detail']['dibuang'],
+                $row['keluar_detail']['penyesuaian'],
                 $row['akhir'],
                 $row['unit'],
                 $row['reorder_point'] ?? '-',

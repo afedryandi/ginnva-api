@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ConsumableItem;
 use App\Models\RawMaterial;
+use App\Models\ScrollCode;
 use App\Models\StockOpname;
 use App\Models\StockOpnameItem;
 use Illuminate\Support\Carbon;
@@ -122,6 +123,81 @@ class StockOpnameService
     }
 
     /**
+     * Gulungan PPF/WF: hasil hitung = sisa meter hasil ukur fisik. Hanya gulungan berstatus Dialokasikan milik toko sesi yang bisa dihitung
+     * dan harus sudah punya data panjang (sisa meter), sebab tanpa itu tidak ada yang bisa dibandingkan.
+     *
+     * @param  array{item_id: int, actual_quantity: float, note?: ?string}  $row
+     */
+    private function submitRoll(StockOpname $opname, array $row): void
+    {
+        $roll = ScrollCode::query()->with('filmProduct')->find((int) $row['item_id']);
+
+        if (! $roll) {
+            throw new RuntimeException("Gulungan #{$row['item_id']} tidak ditemukan.");
+        }
+
+        if ($roll->status !== 'allocated' || (int) $roll->store_id !== (int) $opname->store_id) {
+            throw new RuntimeException("Gulungan {$roll->code} tidak berstatus Dialokasikan di toko sesi ini, jadi tidak bisa dihitung.");
+        }
+
+        if ($roll->remaining_length_meters === null) {
+            throw new RuntimeException("Gulungan {$roll->code} belum punya data panjang. Isi dulu lewat Kode Gulungan.");
+        }
+
+        $snapshot = (float) $roll->remaining_length_meters;
+        $actual = (float) $row['actual_quantity'];
+        $note = isset($row['note']) ? trim((string) $row['note']) : '';
+
+        StockOpnameItem::create([
+            'stock_opname_id' => $opname->id,
+            'item_type' => 'scroll_code',
+            'item_id' => $roll->id,
+            'item_name' => $roll->code . ($roll->filmProduct ? ' · ' . $roll->filmProduct->name : ''),
+            'unit' => 'm',
+            'system_quantity' => $snapshot,
+            'actual_quantity' => $actual,
+            'delta' => round($actual - $snapshot, 2),
+            'note' => $note !== '' ? $note : null,
+        ]);
+    }
+
+    /**
+     * Terapkan selisih gulungan secara relatif pada sisa meter terkini. Dicatat lewat ScrollCode::correctLength() (selisih masuk
+     * length_adjustment_meters, bukan baris pemakaian palsu) dan di Riwayat Aktivitas. Sisa 0 menandai gulungan Terpakai.
+     */
+    private function applyRoll(StockOpname $opname, StockOpnameItem $row, ?int $userId): void
+    {
+        $roll = ScrollCode::query()->whereKey($row->item_id)->lockForUpdate()->first();
+
+        if (! $roll) {
+            throw new RuntimeException("Gulungan \"{$row->item_name}\" sudah dihapus, jadi sesi tidak bisa diterapkan. Buang draf ini dan hitung ulang.");
+        }
+
+        if ($roll->remaining_length_meters === null) {
+            throw new RuntimeException("Gulungan {$roll->code} kehilangan data panjangnya, jadi sesi tidak bisa diterapkan.");
+        }
+
+        $current = (float) $roll->remaining_length_meters;
+        $target = max(0.0, round($current + (float) $row->delta, 2));
+
+        if (abs($target - $current) >= 0.01) {
+            $roll->correctLength($roll->total_length_meters !== null ? (float) $roll->total_length_meters : null, $target);
+
+            if ($target <= 0 && $roll->status !== 'used') {
+                $roll->update(['status' => 'used', 'used_at' => now()]);
+            }
+
+            activity('scroll_code')
+                ->performedOn($roll)
+                ->causedBy($userId)
+                ->withProperties(['stock_opname' => $opname->opname_number, 'sebelum' => $current, 'sesudah' => $target])
+                ->log("Sisa meter gulungan \"{$roll->code}\" disesuaikan lewat Stok Opname {$opname->opname_number} ({$current} m menjadi {$target} m)");
+        }
+
+        $row->update(['applied_system_quantity' => $current]);
+    }
+
+    /**
      * Simpan hasil hitung sebagai DRAF (stok belum berubah).
      *
      * @param  array<int, array{item_type: string, item_id: int, actual_quantity: float, note?: ?string}>  $items
@@ -168,6 +244,12 @@ class StockOpnameService
             $problems = [];
 
             foreach ($items as $row) {
+                if (($row['item_type'] ?? '') === 'scroll_code') {
+                    $this->submitRoll($opname, $row);
+
+                    continue;
+                }
+
                 $material = $this->findItem($row['item_type'], (int) $row['item_id']);
 
                 if (! $material) {
@@ -225,6 +307,12 @@ class StockOpnameService
             $valueDelta = ['1130' => 0.0, '1131' => 0.0];
 
             foreach ($locked->items()->get() as $row) {
+                if ($row->item_type === 'scroll_code') {
+                    $this->applyRoll($locked, $row, $userId);
+
+                    continue;
+                }
+
                 // lockForUpdate: stok terkini yang dipakai menghitung target harus sama dengan yang dipakai adjustStock().
                 $material = $this->findItem($row->item_type, $row->item_id, true);
 

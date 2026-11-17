@@ -526,6 +526,7 @@ Route::prefix('staff')->group(function () {
         Route::get('/stock-opnames', [\App\Http\Controllers\Api\Staff\StockOpnameController::class, 'index']);
         Route::post('/stock-opnames', [\App\Http\Controllers\Api\Staff\StockOpnameController::class, 'store'])
             ->middleware('throttle:20,1');
+        Route::get('/stock-opnames/rolls', [\App\Http\Controllers\Api\Staff\StockOpnameController::class, 'rolls']);
         Route::get('/stock-opnames/{id}', [\App\Http\Controllers\Api\Staff\StockOpnameController::class, 'show']);
         Route::get('/stock-scan', [\App\Http\Controllers\Api\Staff\StockScanController::class, 'lookup'])
             ->middleware('throttle:60,1');

@@ -31,7 +31,7 @@ class StockOpnameExport implements FromArray, WithHeadings, ShouldAutoSize, With
     {
         return $this->opname->items->map(fn ($i) => [
             $i->item_name,
-            $i->item_type === 'raw_material' ? 'Bahan Baku' : 'Barang Habis Pakai',
+            \App\Models\StockOpnameItem::typeLabel($i->item_type),
             (float) $i->system_quantity,
             (float) $i->actual_quantity,
             (float) $i->delta,

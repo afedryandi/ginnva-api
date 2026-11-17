@@ -26,7 +26,7 @@
         @foreach ($opname->items as $item)
             <tr>
                 <td>{{ $item->item_name }}</td>
-                <td>{{ $item->item_type === 'raw_material' ? 'Bahan Baku' : 'Barang Habis Pakai' }}</td>
+                <td>{{ \App\Models\StockOpnameItem::typeLabel($item->item_type) }}</td>
                 <td class="value">{{ $num($item->system_quantity) }}</td>
                 <td class="value">{{ $num($item->actual_quantity) }}</td>
                 <td class="value {{ $item->delta < 0 ? 'neg' : ($item->delta > 0 ? 'pos' : '') }}">{{ $item->delta > 0 ? '+' : '' }}{{ $num($item->delta) }}</td>

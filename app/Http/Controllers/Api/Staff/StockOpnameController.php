@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\Staff;
 
 use App\Filament\Resources\ConsumableItemResource;
+use App\Filament\Resources\InventoryItemResource;
 use App\Filament\Resources\RawMaterialResource;
 use App\Http\Controllers\Controller;
+use App\Models\ScrollCode;
 use App\Models\StockOpname;
 use App\Models\User;
 use App\Services\OpnameNeedsNoteException;
@@ -24,11 +26,15 @@ class StockOpnameController extends Controller
 
     private function canRead(User $user): bool
     {
-        return $user->hasMaterialAccess() || $user->hasConsumableAccess();
+        return $user->hasMaterialAccess() || $user->hasConsumableAccess() || $user->hasPpfWfAccess();
     }
 
     private function canWrite(User $user, string $type): bool
     {
+        if ($type === 'scroll_code') {
+            return $user->hasPpfWfAccess() && $user->hasModuleAction(InventoryItemResource::class, 'update', false);
+        }
+
         return $type === 'raw_material'
             ? $user->hasMaterialAccess() && $user->hasModuleAction(RawMaterialResource::class, 'update', false)
             : $user->hasConsumableAccess() && $user->hasModuleAction(ConsumableItemResource::class, 'update', false);
@@ -104,6 +110,39 @@ class StockOpnameController extends Controller
         ]);
     }
 
+    /**
+     * Daftar gulungan PPF/WF untuk dihitung (hitung buta: tanpa sisa meter sistem): gulungan Dialokasikan di toko itu yang punya data panjang.
+     * Akses penuh memilih toko lewat ?store_id=, staf lain dipaksa tokonya sendiri.
+     */
+    public function rolls(Request $request)
+    {
+        $user = $request->user('api');
+
+        if (! $this->canWrite($user, 'scroll_code')) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya izin Ubah pada menu Produk PPF/WF.'], 403);
+        }
+
+        $storeId = $user->isFullAccess() ? (int) $request->query('store_id') : (int) $user->store_id;
+
+        if ($storeId <= 0) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $rolls = ScrollCode::query()->with('filmProduct:id,name')
+            ->where('store_id', $storeId)->where('status', 'allocated')->whereNotNull('remaining_length_meters')
+            ->orderBy('code')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $rolls->map(fn (ScrollCode $r) => [
+                'id' => $r->id,
+                'name' => $r->code . ($r->filmProduct ? ' · ' . $r->filmProduct->name : ''),
+                'code' => $r->code,
+                'unit' => 'm',
+            ])->values(),
+        ]);
+    }
+
     public function show(Request $request, int $id)
     {
         $user = $request->user('api');
@@ -130,7 +169,7 @@ class StockOpnameController extends Controller
             'opname_date' => 'nullable|date',
             'notes' => 'nullable|string|max:255',
             'items' => 'required|array|min:1|max:300',
-            'items.*.item_type' => 'required|in:raw_material,consumable_item',
+            'items.*.item_type' => 'required|in:raw_material,consumable_item,scroll_code',
             'items.*.item_id' => 'required|integer',
             'items.*.actual_quantity' => 'required|numeric|min:0|max:1000000',
             'items.*.note' => 'nullable|string|max:255',
@@ -144,7 +183,7 @@ class StockOpnameController extends Controller
 
         foreach (array_unique(array_column($items, 'item_type')) as $type) {
             if (! $this->canWrite($user, $type)) {
-                return response()->json(['success' => false, 'message' => 'Akun ini tidak punya izin Ubah pada menu ' . ($type === 'raw_material' ? 'Bahan Baku' : 'Barang Habis Pakai') . '.'], 403);
+                return response()->json(['success' => false, 'message' => 'Akun ini tidak punya izin Ubah pada menu ' . ($type === 'raw_material' ? 'Bahan Baku' : ($type === 'scroll_code' ? 'Produk PPF/WF' : 'Barang Habis Pakai')) . '.'], 403);
             }
         }
 

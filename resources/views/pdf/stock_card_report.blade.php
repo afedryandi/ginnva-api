@@ -36,8 +36,8 @@
                 <td>{{ $row['jenis'] }}</td>
                 <td>{{ $row['category'] ?: '-' }}</td>
                 <td class="value {{ $row['awal'] < 0 ? 'neg' : '' }}">{{ $num($row['awal']) }}</td>
-                <td class="value">{{ $row['masuk'] > 0 ? '+'.$num($row['masuk']) : '0' }}</td>
-                <td class="value">{{ $row['keluar'] > 0 ? '-'.$num($row['keluar']) : '0' }}</td>
+                <td class="value">{{ $row['masuk'] > 0 ? '+'.$num($row['masuk']) : '0' }}@if ($row['masuk'] > 0)<div style="font-size:8px;color:#6b7280">{{ \App\Services\StockCardService::breakdownText($row['masuk_detail'], \App\Services\StockCardService::MASUK_LABELS, $num) }}</div>@endif</td>
+                <td class="value">{{ $row['keluar'] > 0 ? '-'.$num($row['keluar']) : '0' }}@if ($row['keluar'] > 0)<div style="font-size:8px;color:#6b7280">{{ \App\Services\StockCardService::breakdownText($row['keluar_detail'], \App\Services\StockCardService::KELUAR_LABELS, $num) }}</div>@endif</td>
                 <td class="value {{ $row['akhir'] < 0 ? 'neg' : '' }}">{{ $num($row['akhir']) }}</td>
                 <td>{{ $row['unit'] }}</td>
             </tr>

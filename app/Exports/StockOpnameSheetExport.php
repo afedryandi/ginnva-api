@@ -4,6 +4,7 @@ namespace App\Exports;
 
 use App\Models\ConsumableItem;
 use App\Models\RawMaterial;
+use App\Models\ScrollCode;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
@@ -28,9 +29,19 @@ class StockOpnameSheetExport implements FromArray, WithHeadings, ShouldAutoSize,
      *
      * @return Collection<int, array{jenis: string, id: int, code: ?string, name: string, category: ?string, unit: string}>
      */
-    public static function rows(string $jenis = 'all', ?string $category = null): Collection
+    public static function rows(string $jenis = 'all', ?string $category = null, ?int $storeId = null): Collection
     {
         $rows = collect();
+
+        // Gulungan PPF/WF per toko: hanya bila dipilih eksplisit (jenis 'scroll_code'), bukan bagian dari 'Semua'.
+        if ($jenis === 'scroll_code') {
+            ScrollCode::query()->with('filmProduct:id,name')
+                ->where('store_id', $storeId)->where('status', 'allocated')->whereNotNull('remaining_length_meters')
+                ->orderBy('code')->get()
+                ->each(fn (ScrollCode $r) => $rows->push(['jenis' => 'PPF/WF (gulungan)', 'id' => $r->id, 'code' => $r->code, 'name' => $r->filmProduct?->name ?? $r->code, 'category' => null, 'unit' => 'm']));
+
+            return $rows;
+        }
 
         foreach ([['raw_material', 'Bahan Baku', RawMaterial::class], ['consumable_item', 'Barang Habis Pakai', ConsumableItem::class]] as [$key, $label, $model]) {
             if ($jenis !== 'all' && $jenis !== $key) {
