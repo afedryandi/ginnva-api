@@ -13,7 +13,9 @@ use Illuminate\Support\HtmlString;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
+use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Database\Eloquent\Builder;
 
 class ListAttendances extends ListRecords
 {
@@ -175,5 +177,30 @@ class ListAttendances extends ListRecords
     {
         // Daftar nama yang belum absen hanya untuk yang berhak melihat satu toko.
         return (auth()->user()?->canSeeStoreAttendance() ?? false) ? [NotCheckedInTodayWidget::class] : [];
+    }
+
+    /** Tab status di atas daftar, dengan jumlah di tab (mengikuti pembatasan toko pengguna); "Semua" bawaan supaya tidak ada baris tersembunyi. */
+    public function getTabs(): array
+    {
+        $base = fn () => AttendanceResource::getEloquentQuery()->withoutEagerLoads();
+
+        return [
+            'semua' => Tab::make('Semua'),
+            'telat' => Tab::make('Telat')
+                ->badge($base()->where('late_minutes', '>', 0)->count())
+                ->badgeColor('warning')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('late_minutes', '>', 0)),
+            'alpha' => Tab::make('Alpha')
+                ->badge($base()->where('entry_type', 'alpha')->count())
+                ->badgeColor('danger')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('entry_type', 'alpha')),
+            'manual' => Tab::make('Manual')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('entry_type', 'manual')),
+        ];
+    }
+
+    public function getDefaultActiveTab(): string|int|null
+    {
+        return 'semua';
     }
 }

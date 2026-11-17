@@ -113,6 +113,7 @@ class AttendanceCorrectionRequestResource extends Resource
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Karyawan')
+                    ->weight('semibold')
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('date')
@@ -179,6 +180,8 @@ class AttendanceCorrectionRequestResource extends Resource
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
+                    ->iconButton()
+                    ->tooltip('Setujui')
                     ->color('success')
                     ->visible(fn (AttendanceCorrectionRequest $record) => $record->isPending()
                         && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager())
@@ -238,6 +241,8 @@ class AttendanceCorrectionRequestResource extends Resource
                 Tables\Actions\Action::make('reject')
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
+                    ->iconButton()
+                    ->tooltip('Tolak')
                     ->color('danger')
                     ->visible(fn (AttendanceCorrectionRequest $record) => $record->isPending()
                         && (auth()->user()?->isFullAccess() || auth()->user()?->isStoreManager())
@@ -265,6 +270,8 @@ class AttendanceCorrectionRequestResource extends Resource
                 Tables\Actions\Action::make('cancel')
                     ->label('Batalkan')
                     ->icon('heroicon-o-arrow-uturn-left')
+                    ->iconButton()
+                    ->tooltip('Batalkan')
                     ->color('gray')
                     ->visible(fn (AttendanceCorrectionRequest $record) => $record->isPending() && $record->requested_by === auth()->id())
                     ->requiresConfirmation()
@@ -279,7 +286,7 @@ class AttendanceCorrectionRequestResource extends Resource
                         }
                     }),
 
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
             ]);
     }
 

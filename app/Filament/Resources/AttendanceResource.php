@@ -267,6 +267,7 @@ class AttendanceResource extends Resource
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Karyawan')
+                    ->weight('semibold')
                     ->searchable()
                     ->sortable(),
 
@@ -274,15 +275,16 @@ class AttendanceResource extends Resource
                     ->label('Toko')
                     ->toggleable(),
 
-                Tables\Columns\BadgeColumn::make('entry_type')
+                Tables\Columns\TextColumn::make('entry_type')
                     ->label('Jenis')
-                    ->colors([
-                        'success' => 'clock',
-                        'warning' => 'manual',
-                        'info'    => 'field_duty',
-                        'gray'    => 'leave',
-                        'danger'  => 'alpha',
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'clock' => 'success',
+                        'manual' => 'warning',
+                        'field_duty' => 'info',
+                        'alpha' => 'danger',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'clock'      => 'Normal (App)',
                         'manual'     => 'Manual',
@@ -311,7 +313,7 @@ class AttendanceResource extends Resource
                     ->label('Pulang Cepat')
                     ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} mnt" : '—')
                     ->color(fn (int $state) => $state > 0 ? 'warning' : 'gray')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('clock_in_distance_meters')
                     ->label('Jarak Absen')
@@ -447,6 +449,8 @@ class AttendanceResource extends Resource
                 // Tampilan baca-saja untuk meninjau bukti absen (foto selfie, jarak, lokasi) tanpa membuka form yang bisa mengubah jam.
                 Tables\Actions\ViewAction::make()
                     ->label('Lihat')
+                    ->iconButton()
+                    ->tooltip('Lihat bukti absen')
                     ->modalHeading(fn (Attendance $record) => "Absensi {$record->user?->name} · {$record->date->translatedFormat('d M Y')}")
                     ->infolist(fn (Attendance $record) => [
                         \Filament\Infolists\Components\Section::make('Waktu')->columns(4)->schema([
@@ -478,6 +482,8 @@ class AttendanceResource extends Resource
                 Tables\Actions\Action::make('review')
                     ->label('Tandai Ditinjau')
                     ->icon('heroicon-o-eye')
+                    ->iconButton()
+                    ->tooltip('Tandai Ditinjau')
                     ->color('gray')
                     ->visible(fn (Attendance $record) => ! $record->isAcknowledged()
                         && ($record->late_minutes > 0 || $record->early_leave_minutes > 0 || $record->entry_type === 'alpha' || $record->isOutsideRadius()))
@@ -491,7 +497,7 @@ class AttendanceResource extends Resource
                 // sendiri masih mengunci field-field sensitif utk non-
                 // full-access (lihat disabled() di masing-masing field
                 // form()).
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
 
                 // "Ajukan Koreksi" (audit Majoo f24) — pengganti EditAction
                 // untuk staff non-manager (EditAction di atas sudah
@@ -501,6 +507,8 @@ class AttendanceResource extends Resource
                 Tables\Actions\Action::make('requestCorrectionExisting')
                     ->label('Ajukan Koreksi')
                     ->icon('heroicon-o-paper-airplane')
+                    ->iconButton()
+                    ->tooltip('Ajukan Koreksi')
                     ->color('gray')
                     ->visible(fn () => ! (auth()->user()?->isFullAccess() ?? false) && ! (auth()->user()?->isStoreManager() ?? false))
                     ->form([
@@ -553,7 +561,7 @@ class AttendanceResource extends Resource
                 // harus dikoreksi lewat Edit (meninggalkan jejak Activity
                 // Log), bukan dihapus tanpa bekas. Baris lain (manual/
                 // dinas luar/alpha/izin) tetap bisa dihapus super_admin.
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->visible(fn (Attendance $record) => auth()->user()?->isFullAccess()
                         && $record->entry_type !== 'clock'),
             ])

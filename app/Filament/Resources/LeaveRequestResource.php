@@ -259,7 +259,7 @@ class LeaveRequestResource extends Resource
                 Tables\Columns\TextColumn::make('request_number')
                     ->label('No. Pengajuan')
                     ->searchable()
-                    ->weight('bold'),
+                    ->weight('semibold'),
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Karyawan')
@@ -268,7 +268,7 @@ class LeaveRequestResource extends Resource
 
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('leaveType.name')
                     ->label('Jenis')
@@ -308,14 +308,15 @@ class LeaveRequestResource extends Resource
                     ->falseColor('gray')
                     ->state(fn (LeaveRequest $record) => filled($record->document)),
 
-                Tables\Columns\BadgeColumn::make('status')
+                Tables\Columns\TextColumn::make('status')
                     ->label('Status')
-                    ->colors([
-                        'warning' => 'pending',
-                        'success' => 'approved',
-                        'danger'  => 'rejected',
-                        'gray'    => 'cancelled',
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'pending' => 'warning',
+                        'approved' => 'success',
+                        'rejected' => 'danger',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state, LeaveRequest $record): string => match ($state) {
                         'pending'   => 'Menunggu Persetujuan',
                         'approved'  => 'Disetujui',
@@ -353,6 +354,8 @@ class LeaveRequestResource extends Resource
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
+                    ->iconButton()
+                    ->tooltip('Setujui')
                     ->color('success')
                     ->visible(fn (LeaveRequest $record) => $record->status === 'pending'
                         && (auth()->user()?->canDecideLeaveFor($record) ?? false))
@@ -389,6 +392,8 @@ class LeaveRequestResource extends Resource
                 Tables\Actions\Action::make('reject')
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
+                    ->iconButton()
+                    ->tooltip('Tolak')
                     ->color('danger')
                     ->visible(fn (LeaveRequest $record) => $record->status === 'pending'
                         && (auth()->user()?->canDecideLeaveFor($record) ?? false))
@@ -414,6 +419,8 @@ class LeaveRequestResource extends Resource
                 Tables\Actions\Action::make('revoke')
                     ->label('Cabut Persetujuan')
                     ->icon('heroicon-o-arrow-uturn-left')
+                    ->iconButton()
+                    ->tooltip('Cabut Persetujuan')
                     ->color('gray')
                     ->visible(fn (LeaveRequest $record) => (auth()->user()?->isFullAccess() ?? false) && $record->status === 'approved')
                     ->modalHeading(fn (LeaveRequest $record) => "Cabut persetujuan $record->request_number?")
@@ -442,10 +449,10 @@ class LeaveRequestResource extends Resource
                         Notification::make()->title('Persetujuan dicabut')->warning()->send();
                     }),
 
-                Tables\Actions\EditAction::make()
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah')
                     ->visible(fn (LeaveRequest $record) => $record->status === 'pending'),
 
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->visible(fn (LeaveRequest $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending'),
             ])

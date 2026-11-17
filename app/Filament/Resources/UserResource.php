@@ -1297,16 +1297,20 @@ class UserResource extends Resource
                     ->sortable()
                     ->placeholder('—'),
 
+                // Nama tegas, email sebagai keterangan di bawahnya (satu sel); pencarian nama tetap mencakup email.
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama')
-                    ->searchable()
+                    ->weight('semibold')
+                    ->description(fn (User $record) => $record->email)
+                    ->searchable(['name', 'email'])
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('email')
                     ->label('Email')
                     ->placeholder('—')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('phone')
                     ->label('No. HP')
@@ -1369,13 +1373,11 @@ class UserResource extends Resource
                     })
                     ->toggleable(),
 
-                Tables\Columns\IconColumn::make('is_active')
+                Tables\Columns\TextColumn::make('is_active')
                     ->label('Status')
-                    ->boolean()
-                    ->trueIcon('heroicon-o-check-circle')
-                    ->falseIcon('heroicon-o-x-circle')
-                    ->trueColor('success')
-                    ->falseColor('danger'),
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Aktif' : 'Nonaktif')
+                    ->color(fn ($state) => $state ? 'success' : 'danger'),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Dibuat')
@@ -1421,7 +1423,7 @@ class UserResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
 
                 // Ganti utama untuk "keluarkan karyawan dari sistem" —
                 // toggle is_active, TIDAK menyentuh baris/relasi apa pun,
@@ -1430,6 +1432,8 @@ class UserResource extends Resource
                 Tables\Actions\Action::make('toggleActive')
                     ->label(fn (User $record) => $record->is_active ? 'Nonaktifkan' : 'Aktifkan')
                     ->icon(fn (User $record) => $record->is_active ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
+                    ->iconButton()
+                    ->tooltip(fn (User $record) => $record->is_active ? 'Nonaktifkan' : 'Aktifkan')
                     ->color(fn (User $record) => $record->is_active ? 'danger' : 'success')
                     ->requiresConfirmation()
                     ->modalDescription(fn (User $record) => $record->is_active
@@ -1450,6 +1454,8 @@ class UserResource extends Resource
                 Tables\Actions\Action::make('resetPassword')
                     ->label('Atur Ulang Password')
                     ->icon('heroicon-o-key')
+                    ->iconButton()
+                    ->tooltip('Atur Ulang Password')
                     ->color('gray')
                     ->visible(fn (User $record) => (auth()->user()?->isFullAccess() ?? false) && auth()->id() !== $record->id)
                     ->modalHeading(fn (User $record) => "Atur ulang password {$record->name}")
@@ -1478,7 +1484,7 @@ class UserResource extends Resource
                             ->send();
                     }),
 
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus')
                     ->modalDescription(fn (User $record) => $record->hasHrHistory()
                         ? 'Akun ini punya riwayat HR (absensi, cuti, gaji, SP, kontrak), jadi tidak bisa dihapus. Nonaktifkan untuk mencabut akses.'
                         : 'Yakin hapus akun ini? Tindakan ini tidak bisa dibatalkan.'),

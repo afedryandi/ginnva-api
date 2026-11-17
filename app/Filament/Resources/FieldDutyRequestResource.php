@@ -118,6 +118,7 @@ class FieldDutyRequestResource extends Resource
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Karyawan')
+                    ->weight('semibold')
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('store.name')
@@ -191,6 +192,8 @@ class FieldDutyRequestResource extends Resource
                 Tables\Actions\Action::make('lihat_foto')
                     ->label('Foto Lokasi')
                     ->icon('heroicon-o-photo')
+                    ->iconButton()
+                    ->tooltip('Foto Lokasi')
                     ->color('gray')
                     ->visible(fn (FieldDutyRequest $record) => filled($record->location_photo))
                     ->url(fn (FieldDutyRequest $record) => \App\Support\SensitiveFiles::url($record->location_photo))
@@ -199,6 +202,8 @@ class FieldDutyRequestResource extends Resource
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
+                    ->iconButton()
+                    ->tooltip('Setujui')
                     ->color('success')
                     ->visible(fn (FieldDutyRequest $record) => static::canDecide($record))
                     ->modalHeading('Setujui dinas luar?')
@@ -234,6 +239,8 @@ class FieldDutyRequestResource extends Resource
                 Tables\Actions\Action::make('reject')
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
+                    ->iconButton()
+                    ->tooltip('Tolak')
                     ->color('danger')
                     ->visible(fn (FieldDutyRequest $record) => static::canDecide($record))
                     ->modalHeading('Tolak dinas luar?')
@@ -254,6 +261,8 @@ class FieldDutyRequestResource extends Resource
                 Tables\Actions\Action::make('cancel')
                     ->label('Batalkan')
                     ->icon('heroicon-o-arrow-uturn-left')
+                    ->iconButton()
+                    ->tooltip('Batalkan')
                     ->color('gray')
                     ->visible(fn (FieldDutyRequest $record) => $record->user_id === auth()->id() && app(FieldDutyRequestService::class)->isCancellable($record))
                     ->requiresConfirmation()
@@ -268,7 +277,7 @@ class FieldDutyRequestResource extends Resource
                         }
                     }),
 
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
             ]);
     }
 

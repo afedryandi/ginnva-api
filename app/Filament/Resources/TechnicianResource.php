@@ -276,6 +276,7 @@ class TechnicianResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama')
+                    ->weight('semibold')
                     ->searchable()
                     ->sortable(),
 
@@ -298,13 +299,14 @@ class TechnicianResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\BadgeColumn::make('level')
+                Tables\Columns\TextColumn::make('level')
                     ->label('Level')
-                    ->colors([
-                        'gray'    => 'intermediate',
-                        'warning' => 'advanced',
-                        'success' => 'mentor',
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'advanced' => 'warning',
+                        'mentor' => 'success',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'intermediate' => 'Intermediate',
                         'advanced'     => 'Advanced',
@@ -312,13 +314,14 @@ class TechnicianResource extends Resource
                         default        => $state,
                     }),
 
-                Tables\Columns\BadgeColumn::make('status')
+                Tables\Columns\TextColumn::make('status')
                     ->label('Status')
-                    ->colors([
-                        'warning' => 'pending_review',
-                        'success' => 'active',
-                        'danger'  => 'inactive',
-                    ])
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'pending_review' => 'warning',
+                        'active' => 'success',
+                        default => 'danger',
+                    })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'pending_review' => 'Menunggu Review',
                         'active'         => 'Aktif',
@@ -374,6 +377,8 @@ class TechnicianResource extends Resource
                 Tables\Actions\Action::make('approve')
                     ->label('Aktifkan')
                     ->icon('heroicon-o-check-circle')
+                    ->iconButton()
+                    ->tooltip('Aktifkan')
                     ->color('success')
                     ->visible(fn (Technician $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending_review')
@@ -399,6 +404,8 @@ class TechnicianResource extends Resource
                 Tables\Actions\Action::make('reject')
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
+                    ->iconButton()
+                    ->tooltip('Tolak')
                     ->color('danger')
                     ->visible(fn (Technician $record) => auth()->user()?->isFullAccess()
                         && $record->status === 'pending_review')
@@ -433,9 +440,9 @@ class TechnicianResource extends Resource
                         Notification::make()->title('Installer ditolak.')->warning()->send();
                     }),
 
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
+                Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
+                Tables\Actions\DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

@@ -116,6 +116,7 @@ class OvertimeRequestResource extends Resource
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Karyawan')
+                    ->weight('semibold')
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('store.name')
@@ -175,6 +176,8 @@ class OvertimeRequestResource extends Resource
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
+                    ->iconButton()
+                    ->tooltip('Setujui')
                     ->color('success')
                     ->visible(fn (OvertimeRequest $record) => static::canDecide($record))
                     ->modalHeading('Setujui lembur?')
@@ -195,6 +198,8 @@ class OvertimeRequestResource extends Resource
                 Tables\Actions\Action::make('reject')
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
+                    ->iconButton()
+                    ->tooltip('Tolak')
                     ->color('danger')
                     ->visible(fn (OvertimeRequest $record) => static::canDecide($record))
                     ->modalHeading('Tolak lembur?')
@@ -215,6 +220,8 @@ class OvertimeRequestResource extends Resource
                 Tables\Actions\Action::make('cancel')
                     ->label('Batalkan')
                     ->icon('heroicon-o-arrow-uturn-left')
+                    ->iconButton()
+                    ->tooltip('Batalkan')
                     ->color('gray')
                     ->visible(fn (OvertimeRequest $record) => $record->user_id === auth()->id()
                         && ($record->isPending() || ($record->isApproved() && $record->starts_at->greaterThan(now()))))
@@ -230,7 +237,7 @@ class OvertimeRequestResource extends Resource
                         }
                     }),
 
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
             ]);
     }
 

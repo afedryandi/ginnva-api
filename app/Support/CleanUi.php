@@ -31,6 +31,13 @@ class CleanUi
         \App\Filament\Resources\RawMaterialMovementResource::class,
         \App\Filament\Resources\StockWriteOffResource::class,
         \App\Filament\Resources\StockOpnameResource::class,
+        \App\Filament\Resources\AttendanceResource::class,
+        \App\Filament\Resources\LeaveRequestResource::class,
+        \App\Filament\Resources\OvertimeRequestResource::class,
+        \App\Filament\Resources\FieldDutyRequestResource::class,
+        \App\Filament\Resources\AttendanceCorrectionRequestResource::class,
+        \App\Filament\Resources\UserResource::class,
+        \App\Filament\Resources\TechnicianResource::class,
     ];
 
     /**
