@@ -304,10 +304,10 @@ class StockCardReportTest extends TestCase
         Excel::assertDownloaded('daftar-stok-20261008-100000.xlsx', function ($export) {
             $rows = $export->array();
 
-            return $export->headings()[3] === ['Kode', 'Nama', 'Jenis', 'Kategori', 'Status', 'Awal', 'Masuk', 'Keluar', 'Akhir', 'Satuan', 'Stok Minimum', 'Catatan']
+            return $export->headings()[3] === ['Kode', 'Nama', 'Jenis', 'Kategori', 'Status', 'Awal', 'Masuk', 'Masuk: Pembelian', 'Masuk: Pengembalian memo', 'Masuk: Penyesuaian', 'Keluar', 'Keluar: Pakai', 'Keluar: Dibuang', 'Keluar: Penyesuaian', 'Akhir', 'Satuan', 'Stok Minimum', 'Catatan']
                 && $export->headings()[1] === ['Periode: 01/10/2026 s/d 15/10/2026 · Semua jenis']
                 && count($rows) === 3
-                && in_array(['RM-FILM', 'Film', 'Bahan Baku', '-', 'Aktif', 100.0, 20.0, 50.0, 70.0, 'meter', '-', ''], $rows, true);
+                && in_array(['RM-FILM', 'Film', 'Bahan Baku', '-', 'Aktif', 100.0, 20.0, 20.0, 0.0, 0.0, 50.0, 50.0, 0.0, 0.0, 70.0, 'meter', '-', ''], $rows, true);
         });
 
         $page->callAction('exportPdf')->assertFileDownloaded('daftar-stok-20261008-100000.pdf');
@@ -432,6 +432,6 @@ class StockCardReportTest extends TestCase
         $rows = $export->array();
 
         $this->assertSame(['Daftar Stok (Kartu Stok)'], $export->headings()[0]);
-        $this->assertContains(['RM-LOW', 'Menipis', 'Bahan Baku', '-', 'Nonaktif', 2.0, 0.0, 0.0, 2.0, 'pcs', 5.0, 'Stok menipis'], $rows);
+        $this->assertContains(['RM-LOW', 'Menipis', 'Bahan Baku', '-', 'Nonaktif', 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 'pcs', 5.0, 'Stok menipis'], $rows);
     }
 }

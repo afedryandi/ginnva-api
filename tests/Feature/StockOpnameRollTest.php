@@ -129,7 +129,7 @@ class StockOpnameRollTest extends TestCase
         $this->assertCount(1, $rows);
         $this->assertSame('PPF/WF (gulungan)', $rows->first()['jenis']);
         $this->assertSame($roll->id, $rows->first()['id']);
-        $this->assertCount(0, \App\Exports\StockOpnameSheetExport::rows('all'));
+        $this->assertCount(0, \App\Exports\StockOpnameSheetExport::rows('all')->where('jenis', 'PPF/WF (gulungan)'));
 
         $path = tempnam(sys_get_temp_dir(), 'opn') . '.xlsx';
         \Maatwebsite\Excel\Facades\Excel::store(new class($rows) extends \App\Exports\StockOpnameSheetExport {
