@@ -78,7 +78,7 @@ class MaterialMemo extends Model
 
     public const REQUEST_STATUS_LABELS = [
         'pending' => 'Menunggu Persetujuan',
-        'approved' => 'Disetujui, silakan menemui staff gudang',
+        'approved' => 'Disetujui, silakan hubungi staf gudang',
         'rejected' => 'Ditolak',
         'fulfilled' => 'Sudah diserahkan',
     ];
