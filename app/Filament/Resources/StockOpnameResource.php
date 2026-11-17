@@ -154,6 +154,18 @@ class StockOpnameResource extends Resource
             ->all();
     }
 
+    /** Satuan barang terpilih (liter, pcs, dst.) untuk keterangan di kolom hasil hitung. */
+    public static function itemUnit(?string $type, mixed $id): ?string
+    {
+        $model = match ($type) {
+            'raw_material' => RawMaterial::class,
+            'consumable_item' => ConsumableItem::class,
+            default => null,
+        };
+
+        return $model && $id ? $model::query()->whereKey($id)->value('unit') : null;
+    }
+
     public static function itemLabel(?string $type, mixed $id): ?string
     {
         $model = match ($type) {
@@ -598,11 +610,13 @@ class StockOpnameResource extends Resource
                                     ->getSearchResultsUsing(fn (string $search, Forms\Get $get) => static::searchItems($get('item_type'), $search))
                                     ->getOptionLabelUsing(fn ($value, Forms\Get $get) => static::itemLabel($get('item_type'), $value))
                                     ->searchable()
+                                    ->live()
                                     ->required(),
                                 Forms\Components\TextInput::make('actual_quantity')
                                     ->label('Hasil Hitung Fisik')
                                     ->numeric()
                                     ->minValue(0)
+                                    ->suffix(fn (Forms\Get $get) => static::itemUnit($get('item_type'), $get('item_id')))
                                     ->required(),
                                 Forms\Components\TextInput::make('note')
                                     ->label('Catatan')
