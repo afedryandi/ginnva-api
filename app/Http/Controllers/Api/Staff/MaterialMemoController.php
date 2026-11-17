@@ -23,7 +23,9 @@ class MaterialMemoController extends Controller
     private function authorizeAccess(Request $request): bool
     {
         // Eksplisit (bukan akses bawaan): akun dengan menu_access kosong tidak ikut (audit Memo, 2026-11-02).
-        return $request->user('api')?->hasMaterialMemoAccess() ?? false;
+        $user = $request->user('api');
+
+        return ($user?->hasMaterialMemoAccess() ?? false) || ($user?->canRequestMemo() ?? false);
     }
 
     /**
@@ -37,16 +39,32 @@ class MaterialMemoController extends Controller
      * Memo terkunci begitu booking-nya Selesai (pemakaian bahan sudah dibukukan sebagai HPP); akses penuh membuka kunci lewat panel admin.
      * Dipanggil di semua endpoint yang mengubah memo atau barangnya.
      */
-    private function lockedResponse(MaterialMemo $memo): ?\Illuminate\Http\JsonResponse
+    private function lockedResponse(MaterialMemo $memo, bool $allowHandoverLock = false): ?\Illuminate\Http\JsonResponse
     {
-        if (! $memo->isLocked()) {
+        // Pengembalian bahan tetap boleh dicatat setelah memo pengajuan selesai diserahkan (hanya kunci booking Selesai yang menahannya).
+        if (! ($allowHandoverLock ? $memo->isBookingLocked() : $memo->isLocked())) {
             return null;
         }
 
         return response()->json([
             'success' => false,
             'locked' => true,
-            'message' => 'Memo ini terkunci karena booking-nya sudah selesai. Minta akses penuh untuk membuka kunci di panel admin.',
+            'message' => $memo->isHandoverLocked()
+                ? 'Memo ini sudah selesai diserahkan dan terkunci. Minta akses penuh untuk membuka kunci di panel admin.'
+                : 'Memo ini terkunci karena booking-nya sudah selesai. Minta akses penuh untuk membuka kunci di panel admin.',
+        ], 422);
+    }
+
+    /** Pada memo pengajuan, barang dicatat gudang lewat endpoint penyerahan (bukan oleh pengaju atau pemegang izin Ubah Memo). */
+    private function requestFlowItemBlock(MaterialMemo $memo): ?\Illuminate\Http\JsonResponse
+    {
+        if (! $memo->isRequestFlow()) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Barang pada memo pengajuan dicatat oleh gudang setelah memo disetujui, lewat layar penyerahan.',
         ], 422);
     }
 
@@ -58,7 +76,18 @@ class MaterialMemoController extends Controller
 
         $user = $request->user('api');
 
+        // Installer tanpa menu Memo hanya menyentuh memo yang ia ajukan sendiri.
+        if ($this->requesterOnly($user)) {
+            return (int) $memo->created_by === (int) $user->id && $memo->store_id === $user->store_id;
+        }
+
         return $user->isFullAccess() || $memo->store_id === $user->store_id;
+    }
+
+    /** Installer/Installer Leader yang tidak dicentang menu Memo: hanya mengajukan dan melihat miliknya sendiri. */
+    private function requesterOnly($user): bool
+    {
+        return $user && $user->canRequestMemo() && ! $user->hasMaterialMemoAccess();
     }
 
     private function forbiddenResponse()
@@ -80,8 +109,16 @@ class MaterialMemoController extends Controller
     /** Membuat memo butuh izin Tambah; mengubah memo dan barangnya butuh izin Ubah pada menu Memo. */
     private function can(Request $request, string $action): bool
     {
-        return $this->authorizeAccess($request)
-            && $request->user('api')->hasModuleAction(\App\Filament\Resources\MaterialMemoResource::class, $action, false);
+        if (! $this->authorizeAccess($request)) {
+            return false;
+        }
+
+        // Tanpa menu Memo, pengaju hanya boleh membuat pengajuan (tidak mengubah barang atau memo).
+        if ($this->requesterOnly($request->user('api'))) {
+            return $action === 'create';
+        }
+
+        return $request->user('api')->hasModuleAction(\App\Filament\Resources\MaterialMemoResource::class, $action, false);
     }
 
     private function denyUnlessCan(Request $request, string $action): ?\Illuminate\Http\JsonResponse
@@ -181,6 +218,7 @@ class MaterialMemoController extends Controller
             ->with(['creator:id,name', 'store:id,name', 'booking:id,booking_number,customer_name'])
             ->withCount(['items', 'items as unreturned_count' => fn ($q) => $q->whereIn('item_type', ['raw_material', 'consumable_item'])->whereNull('qty_returned')])
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
+            ->when($this->requesterOnly($user), fn ($q) => $q->where('created_by', $user->id))
             ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('memo_number', 'like', "%{$search}%")
                 ->orWhere('vehicle_info', 'like', "%{$search}%")
                 ->orWhere('spk_number', 'like', "%{$search}%")))
@@ -197,8 +235,8 @@ class MaterialMemoController extends Controller
             // Jumlah yang cocok dengan pencarian/filter, dan ringkasan seluruh memo (tidak terpengaruh pencarian/filter) untuk chip di app.
             'total' => (clone $query)->reorder()->count(),
             'summary' => [
-                'all' => MaterialMemo::query()->when($storeId, fn ($q) => $q->where('store_id', $storeId))->count(),
-                'unreturned' => MaterialMemo::query()->when($storeId, fn ($q) => $q->where('store_id', $storeId))->hasUnreturned()->count(),
+                'all' => MaterialMemo::query()->when($storeId, fn ($q) => $q->where('store_id', $storeId))->when($this->requesterOnly($user), fn ($q) => $q->where('created_by', $user->id))->count(),
+                'unreturned' => MaterialMemo::query()->when($storeId, fn ($q) => $q->where('store_id', $storeId))->when($this->requesterOnly($user), fn ($q) => $q->where('created_by', $user->id))->hasUnreturned()->count(),
             ],
             'can_create' => $this->can($request, 'create'),
         ]);
@@ -225,8 +263,13 @@ class MaterialMemoController extends Controller
 
         $validator = Validator::make($request->all(), [
             'vehicle_info' => 'nullable|string|max:255',
+            // Installer/Installer Leader wajib mengisi merek, tipe, dan plat kendaraan yang akan dikerjakan.
+            'vehicle_brand' => [$user->canRequestMemo() ? 'required' : 'nullable', 'string', 'max:60'],
+            'vehicle_model' => [$user->canRequestMemo() ? 'required' : 'nullable', 'string', 'max:60'],
+            'vehicle_plate' => [$user->canRequestMemo() ? 'required' : 'nullable', 'string', 'max:20'],
             'spk_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
+            'request_note' => 'nullable|string|max:500',
             // Full-access wajib kirim store_id manual (tidak terikat
             // toko manapun) — staff biasa selalu pakai toko akunnya
             // sendiri, field ini diabaikan kalau dikirim.
@@ -268,11 +311,19 @@ class MaterialMemoController extends Controller
                     return MaterialMemo::create([
                         'memo_number' => MaterialMemo::generateMemoNumber(),
                         'store_id' => $storeId,
-                        'vehicle_info' => $request->vehicle_info,
+                        'vehicle_info' => MaterialMemo::composeVehicleInfo($request->vehicle_brand, $request->vehicle_model, MaterialMemo::normalizePlate($request->vehicle_plate)) ?? $request->vehicle_info,
+                        'vehicle_brand' => $request->filled('vehicle_brand') ? trim($request->vehicle_brand) : null,
+                        'vehicle_model' => $request->filled('vehicle_model') ? trim($request->vehicle_model) : null,
+                        'vehicle_plate' => MaterialMemo::normalizePlate($request->vehicle_plate),
                         'spk_number' => $request->spk_number,
                         'booking_id' => $request->filled('booking_id') ? (int) $request->booking_id : null,
                         'notes' => $request->notes,
                         'created_by' => $user->id,
+                        // Memo dari non-akses-penuh memakai alur pengajuan (setujui store manager, serahkan gudang); akses penuh langsung.
+                        'flow' => $user->isFullAccess() ? MaterialMemo::FLOW_DIRECT : MaterialMemo::FLOW_REQUEST,
+                        'request_status' => $user->isFullAccess() ? null : MaterialMemo::REQ_PENDING,
+                        'request_note' => $user->isFullAccess() ? null : ($request->input('request_note') ?: null),
+                        'submitted_at' => $user->isFullAccess() ? null : now(),
                     ]);
                 });
                 break;
@@ -283,11 +334,15 @@ class MaterialMemoController extends Controller
             }
         }
 
+        if ($memo->isRequestFlow()) {
+            app(\App\Services\MaterialMemoRequestService::class)->notifyNewRequest($memo);
+        }
+
         $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
 
         return response()->json([
             'success' => true,
-            'message' => 'Memo berhasil dibuat.',
+            'message' => $memo->isRequestFlow() ? 'Pengajuan terkirim. Menunggu persetujuan store manager.' : 'Memo berhasil dibuat.',
             'data' => $memo,
         ], 201);
     }
@@ -307,7 +362,7 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
-        return response()->json(['success' => true, 'data' => $memo, 'can_modify' => $this->can($request, 'update') && ! $memo->isLocked(), 'is_locked' => $memo->isLocked()]);
+        return response()->json(['success' => true, 'data' => $memo, 'request_status_label' => MaterialMemo::REQUEST_STATUS_LABELS[$memo->request_status] ?? null, 'can_modify' => $this->can($request, 'update') && ! $memo->isLocked(), 'is_locked' => $memo->isLocked()]);
     }
 
     /**
@@ -338,6 +393,9 @@ class MaterialMemoController extends Controller
 
         $validator = Validator::make($request->all(), [
             'vehicle_info' => 'nullable|string|max:255',
+            'vehicle_brand' => 'nullable|string|max:60',
+            'vehicle_model' => 'nullable|string|max:60',
+            'vehicle_plate' => 'nullable|string|max:20',
             'spk_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
             'booking_id' => 'nullable|integer',
@@ -357,7 +415,22 @@ class MaterialMemoController extends Controller
             return $this->bookingErrorResponse($problem);
         }
 
-        $memo->update($validator->validated());
+        $data = $validator->validated();
+
+        if (array_key_exists('vehicle_plate', $data)) {
+            $data['vehicle_plate'] = MaterialMemo::normalizePlate($data['vehicle_plate']);
+        }
+
+        // Bila kendaraan terstruktur ikut diubah, teks gabungannya menyusul.
+        if (array_key_exists('vehicle_brand', $data) || array_key_exists('vehicle_model', $data) || array_key_exists('vehicle_plate', $data)) {
+            $data['vehicle_info'] = MaterialMemo::composeVehicleInfo(
+                $data['vehicle_brand'] ?? $memo->vehicle_brand,
+                $data['vehicle_model'] ?? $memo->vehicle_model,
+                $data['vehicle_plate'] ?? $memo->vehicle_plate,
+            ) ?? ($data['vehicle_info'] ?? $memo->vehicle_info);
+        }
+
+        $memo->update($data);
         $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
 
         return response()->json([
@@ -467,6 +540,10 @@ class MaterialMemoController extends Controller
 
         $userId = $request->user('api')->id;
 
+        if ($blocked = $this->requestFlowItemBlock($memo)) {
+            return $blocked;
+        }
+
         try {
             match ($request->item_type) {
                 'raw_material' => $this->requireMaterial(RawMaterial::find($request->item_id), fn ($material) => MaterialMemoStockService::addMaterial(
@@ -523,7 +600,7 @@ class MaterialMemoController extends Controller
             return $this->forbiddenResponse();
         }
 
-        if ($locked = $this->lockedResponse($memo)) {
+        if ($locked = $this->lockedResponse($memo, true)) {
             return $locked;
         }
 
@@ -664,6 +741,10 @@ class MaterialMemoController extends Controller
             return $locked;
         }
 
+        if ($blocked = $this->requestFlowItemBlock($memo)) {
+            return $blocked;
+        }
+
         if ($denied = $this->denyUnlessCan($request, 'update')) {
             return $denied;
         }
@@ -732,6 +813,10 @@ class MaterialMemoController extends Controller
 
         if ($locked = $this->lockedResponse($memo)) {
             return $locked;
+        }
+
+        if ($blocked = $this->requestFlowItemBlock($memo)) {
+            return $blocked;
         }
 
         if ($denied = $this->denyUnlessCan($request, 'update')) {

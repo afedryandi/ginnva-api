@@ -374,11 +374,12 @@ class MaterialMemoResourceTest extends TestCase
         $staff = $this->as($this->writer($this->storeA));
 
         Livewire::test(CreateMaterialMemo::class)
-            ->fillForm(['store_id' => $this->storeB->id, 'vehicle_info' => 'Avanza B 1 XYZ', 'spk_number' => 'SPK-1', 'notes' => 'Catatan'])
+            ->fillForm(['store_id' => $this->storeB->id, 'vehicle_brand' => 'Toyota', 'vehicle_model' => 'Avanza', 'vehicle_plate' => 'b 1  xyz', 'spk_number' => 'SPK-1', 'notes' => 'Catatan'])
             ->call('create')
             ->assertHasNoFormErrors();
 
-        $memo = MaterialMemo::withoutGlobalScopes()->where('vehicle_info', 'Avanza B 1 XYZ')->firstOrFail();
+        $memo = MaterialMemo::withoutGlobalScopes()->where('vehicle_info', 'Toyota Avanza - B 1 XYZ')->firstOrFail();
+        $this->assertSame('B 1 XYZ', $memo->vehicle_plate, 'Plat dibakukan: huruf besar, spasi tunggal.');
         $this->assertSame($this->storeA->id, $memo->store_id, 'Staff tidak bisa membuat memo untuk toko lain.');
         $this->assertSame($staff->id, $memo->created_by);
         $this->assertSame('MEMO-20261008-0001', $memo->memo_number);

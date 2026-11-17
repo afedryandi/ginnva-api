@@ -25,6 +25,17 @@ class MaterialMemo extends Model
     protected $fillable = [
         'memo_number',
         'store_id',
+        'flow',
+        'request_status',
+        'request_note',
+        'submitted_at',
+        'approved_by',
+        'approved_at',
+        'rejected_by',
+        'rejected_at',
+        'reject_reason',
+        'fulfilled_by',
+        'fulfilled_at',
         // Booking terkait -- OPSIONAL (diminta 2026-09-09, boleh diisi
         // kapan saja, tidak wajib saat memo dibuat), UNIQUE per booking
         // (selalu 1 booking = 1 memo; kalau ada tambahan barang di
@@ -34,6 +45,9 @@ class MaterialMemo extends Model
         // 2026_09_09_000001.
         'booking_id',
         'vehicle_info',
+        'vehicle_brand',
+        'vehicle_model',
+        'vehicle_plate',
         'spk_number',
         'notes',
         'created_by',
@@ -44,7 +58,68 @@ class MaterialMemo extends Model
 
     protected $casts = [
         'unlocked_at' => 'datetime',
+        'submitted_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
+        'fulfilled_at' => 'datetime',
     ];
+
+    public const FLOW_DIRECT = 'direct';
+
+    public const FLOW_REQUEST = 'request';
+
+    public const REQ_PENDING = 'pending';
+
+    public const REQ_APPROVED = 'approved';
+
+    public const REQ_REJECTED = 'rejected';
+
+    public const REQ_FULFILLED = 'fulfilled';
+
+    public const REQUEST_STATUS_LABELS = [
+        'pending' => 'Menunggu Persetujuan',
+        'approved' => 'Disetujui, barang sedang diserahkan',
+        'rejected' => 'Ditolak',
+        'fulfilled' => 'Sudah diserahkan',
+    ];
+
+    protected static function booted(): void
+    {
+        // Teks gabungan kendaraan selalu mengikuti isian merek/tipe/plat (panel, API, dan prefill booking sama-sama lewat sini).
+        static::saving(function (self $memo) {
+            if ($memo->isDirty(['vehicle_brand', 'vehicle_model', 'vehicle_plate'])) {
+                $memo->vehicle_info = self::composeVehicleInfo($memo->vehicle_brand, $memo->vehicle_model, $memo->vehicle_plate) ?? $memo->vehicle_info;
+            }
+        });
+    }
+
+    /** Plat dibakukan: huruf besar, spasi tunggal ("b 1234 xyz" menjadi "B 1234 XYZ"). */
+    public static function normalizePlate(?string $plate): ?string
+    {
+        $plate = trim(preg_replace('/\s+/', ' ', (string) $plate));
+
+        return $plate === '' ? null : mb_strtoupper($plate);
+    }
+
+    /** Teks gabungan untuk tampilan dan pencarian, sama bentuknya dengan isian otomatis dari booking: "Toyota Avanza - B 1234 XYZ". */
+    public static function composeVehicleInfo(?string $brand, ?string $model, ?string $plate): ?string
+    {
+        $vehicle = trim(implode(' ', array_filter([trim((string) $brand), trim((string) $model)])));
+        $info = trim($vehicle . ($plate ? ($vehicle !== '' ? ' - ' : '') . $plate : ''));
+
+        return $info !== '' ? $info : null;
+    }
+
+    public function isRequestFlow(): bool
+    {
+        return $this->flow === self::FLOW_REQUEST;
+    }
+
+    /** Selesai diserahkan: barang dan jumlahnya terkunci, bahkan untuk akun berizin Ubah. Hanya akses penuh yang bisa membuka (unlocked_at). */
+    public function isHandoverLocked(): bool
+    {
+        return $this->isRequestFlow() && $this->request_status === self::REQ_FULFILLED && $this->unlocked_at === null;
+    }
 
     /**
      * Format: MEMO-YYYYMMDD-XXXX (urut per hari). Dipanggil di dalam
@@ -71,7 +146,7 @@ class MaterialMemo extends Model
      * tidak cocok), kecuali akses penuh sudah membukanya (unlocked_at terisi). Booking Dibatalkan tidak mengunci: sisa bahan masih harus
      * bisa dikembalikan. Memo tanpa booking tidak pernah terkunci.
      */
-    public function isLocked(): bool
+    public function isBookingLocked(): bool
     {
         if (! $this->booking_id || $this->unlocked_at !== null) {
             return false;
@@ -84,6 +159,12 @@ class MaterialMemo extends Model
             : Booking::withoutGlobalScopes()->whereKey($this->booking_id)->value('status');
 
         return $status === 'completed';
+    }
+
+    /** Terkunci karena booking-nya Selesai, atau karena barangnya sudah selesai diserahkan (memo pengajuan). */
+    public function isLocked(): bool
+    {
+        return $this->isBookingLocked() || $this->isHandoverLocked();
     }
 
     /** Booking-nya Selesai tetapi kuncinya sudah dibuka akses penuh (bisa dikunci lagi). */
@@ -125,7 +206,7 @@ class MaterialMemo extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['memo_number', 'store_id', 'booking_id', 'vehicle_info', 'spk_number', 'notes'])
+            ->logOnly(['memo_number', 'store_id', 'booking_id', 'vehicle_info', 'vehicle_brand', 'vehicle_model', 'vehicle_plate', 'spk_number', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }

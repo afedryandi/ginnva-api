@@ -64,13 +64,28 @@ class MaterialMemoStockService
     /**
      * @throws \InvalidArgumentException  barang tidak punya kode gulungan
      */
-    public static function addInventory(InventoryItem $item, MaterialMemo $memo, float $meters, int $userId, ?string $conditionNotes): MaterialMemoItem
+    public static function addInventory(InventoryItem $item, MaterialMemo $memo, ?float $meters, int $userId, ?string $conditionNotes): MaterialMemoItem
     {
         if (! $item->scroll_code_id) {
             throw new \InvalidArgumentException('Barang ini tidak punya kode gulungan terkait.');
         }
 
         $scrollCode = ScrollCode::findOrFail($item->scroll_code_id);
+
+        // Meter belum diketahui (memo pengajuan: gulungan diserahkan dulu, pemakaian diisi setelah pekerjaan lewat recordPendingMeters()).
+        // Sisa gulungan belum berkurang sampai meternya diisi.
+        if ($meters === null) {
+            return MaterialMemoItem::create([
+                'material_memo_id' => $memo->id,
+                'item_type' => 'inventory_item',
+                'item_id' => $item->id,
+                'item_name' => $item->name . ' (' . $scrollCode->code . ')',
+                'unit' => 'meter',
+                'meters_used' => null,
+                'scroll_code_usage_id' => null,
+                'condition_notes' => $conditionNotes,
+            ]);
+        }
 
         return DB::transaction(function () use ($scrollCode, $item, $memo, $meters, $userId, $conditionNotes) {
             $scrollCode->recordUsage($meters, $userId, self::buildNote($memo, 'pemakaian gulungan', $conditionNotes));
@@ -89,6 +104,43 @@ class MaterialMemoStockService
                 'scroll_code_usage_id' => $usage?->id,
                 'condition_notes' => $conditionNotes,
             ]);
+        });
+    }
+
+    /**
+     * Isi meter pemakaian gulungan yang diserahkan tanpa meter (sekali saja; koreksi sesudahnya lewat updateInventoryQty()). Baru di sini
+     * sisa gulungan berkurang dan riwayat pemakaiannya tercatat.
+     *
+     * @throws \InvalidArgumentException
+     */
+    public static function recordPendingMeters(MaterialMemoItem $memoItem, float $meters, int $userId, MaterialMemo $memo): void
+    {
+        if ($memoItem->item_type !== 'inventory_item') {
+            throw new \InvalidArgumentException('Hanya gulungan PPF/WF yang punya meter pemakaian.');
+        }
+
+        if ($meters <= 0) {
+            throw new \InvalidArgumentException('Meter harus lebih besar dari 0.');
+        }
+
+        $scrollCodeId = InventoryItem::find($memoItem->item_id)?->scroll_code_id;
+        $scrollCode = $scrollCodeId ? ScrollCode::find($scrollCodeId) : null;
+
+        if (! $scrollCode) {
+            throw new \InvalidArgumentException('Kode gulungan aslinya sudah tidak ada di sistem.');
+        }
+
+        DB::transaction(function () use ($memoItem, $meters, $userId, $memo, $scrollCode) {
+            $locked = MaterialMemoItem::whereKey($memoItem->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->meters_used !== null) {
+                throw new \InvalidArgumentException('Meter untuk gulungan ini sudah diisi. Koreksi lewat Ubah jumlah.');
+            }
+
+            $scrollCode->recordUsage($meters, $userId, self::buildNote($memo, 'pemakaian gulungan', $locked->condition_notes));
+            $usage = $scrollCode->usages()->latest('id')->first();
+
+            $locked->update(['meters_used' => $meters, 'scroll_code_usage_id' => $usage?->id]);
         });
     }
 
@@ -274,6 +326,10 @@ class MaterialMemoStockService
     {
         if ($newMeters <= 0) {
             throw new \InvalidArgumentException('Jumlah harus lebih besar dari 0.');
+        }
+
+        if ($memoItem->meters_used === null) {
+            throw new \InvalidArgumentException('Meter gulungan ini belum diisi. Isi meter pemakaiannya dulu.');
         }
 
         $scrollCodeId = InventoryItem::find($memoItem->item_id)?->scroll_code_id;

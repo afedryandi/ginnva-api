@@ -569,6 +569,18 @@ Route::prefix('staff')->group(function () {
         Route::get('/memos', [StaffMaterialMemoController::class, 'index']);
         // Harus sebelum /memos/{id}, kalau tidak "bookings" terbaca sebagai id.
         Route::get('/memos/bookings', [StaffMaterialMemoController::class, 'bookings']);
+        // Memo barang berpersetujuan (2026-11-17): kotak masuk penyetuju/gudang dan langkah-langkah alurnya. Sebelum /memos/{id}.
+        Route::get('/memos/inbox', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'inbox']);
+        Route::get('/memos/{id}/request', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'showRequest']);
+        foreach (['resubmit', 'approve', 'reject', 'complete'] as $step) {
+            Route::post("/memos/{id}/{$step}", [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, $step])->middleware('throttle:30,1');
+        }
+        // Gudang mencatat barang yang diserahkan; gulungan dicatat tanpa meter, meternya diisi belakangan.
+        Route::post('/memos/{id}/handover', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'addHandoverItem'])->middleware('throttle:60,1');
+        Route::patch('/memos/{id}/handover/{itemId}', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'updateHandoverItem'])->middleware('throttle:60,1');
+        Route::delete('/memos/{id}/handover/{itemId}', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'destroyHandoverItem'])->middleware('throttle:60,1');
+        Route::post('/memos/{id}/handover/{itemId}/return', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'returnHandoverItem'])->middleware('throttle:60,1');
+        Route::post('/memos/{id}/items/{itemId}/meters', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'setMeters'])->middleware('throttle:30,1');
         Route::post('/memos', [StaffMaterialMemoController::class, 'store'])
             ->middleware('throttle:30,1');
         Route::get('/memos/{id}', [StaffMaterialMemoController::class, 'show']);

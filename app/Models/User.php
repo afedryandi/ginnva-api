@@ -673,6 +673,15 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
         return $this->hasExplicitMenuAccess(\App\Filament\Resources\ConsumableItemResource::class);
     }
 
+    /**
+     * Installer dan Installer Leader selalu boleh mengajukan memo barang untuk tokonya dan melihat memonya sendiri, tanpa menu Memo di Hak
+     * Akses (2026-11-17). Peran lain tetap memerlukan menu Memo.
+     */
+    public function canRequestMemo(): bool
+    {
+        return $this->hasAnyRole(['installer', 'installer_leader']);
+    }
+
     public function hasMaterialMemoAccess(): bool
     {
         // Eksplisit (bukan akses bawaan): lihat MaterialMemoResource::canViewAny().

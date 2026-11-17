@@ -171,7 +171,9 @@ class ClaimMaterialsTest extends TestCase
             ->assertFormSet([
                 'booking_id' => $booking->id,
                 'store_id' => $this->store->id,
-                'vehicle_info' => 'Toyota Raize - B 1234 XYZ',
+                'vehicle_brand' => 'Toyota',
+                'vehicle_model' => 'Raize',
+                'vehicle_plate' => 'B 1234 XYZ',
             ]);
     }
 

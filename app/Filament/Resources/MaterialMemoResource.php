@@ -73,9 +73,42 @@ class MaterialMemoResource extends Resource
     // tersedia sampai akses penuh membuka kunci (tombol Buka Kunci di halaman Lihat). Semua aksi barang membaca canEdit() ini.
     public static function canEdit($record): bool
     {
+        // Memo pengajuan: info memo tidak diubah lewat form Ubah (hanya akses penuh, dan hanya saat tidak terkunci); barangnya dicatat
+        // gudang lewat canHandoverEdit() setelah disetujui.
+        if ($record instanceof MaterialMemo && $record->isRequestFlow()) {
+            return (auth()->user()?->isFullAccess() ?? false) && ! $record->isLocked();
+        }
+
         return static::canViewAny()
             && auth()->user()->hasModuleAction(static::class, 'update', false)
             && ! ($record instanceof MaterialMemo && $record->isLocked());
+    }
+
+    /** Mencatat/mengubah/menghapus barang: memo langsung ikut canEdit(); memo pengajuan hanya gudang saat memo sudah disetujui dan belum selesai diserahkan. */
+    public static function canHandoverEdit($record): bool
+    {
+        if (! ($record instanceof MaterialMemo && $record->isRequestFlow())) {
+            return static::canEdit($record);
+        }
+
+        $user = auth()->user();
+
+        return $user !== null
+            && $record->request_status === MaterialMemo::REQ_APPROVED
+            && app(\App\Services\MaterialMemoRequestService::class)->canHandOver($user, $record);
+    }
+
+    /** Mencatat pengembalian bahan: memo pengajuan boleh sesudah disetujui, juga setelah terkunci penyerahan (hanya kunci booking yang menahan). */
+    public static function canRecordReturn($record): bool
+    {
+        if (! ($record instanceof MaterialMemo && $record->isRequestFlow())) {
+            return static::canEdit($record);
+        }
+
+        return static::canViewAny()
+            && auth()->user()->hasModuleAction(static::class, 'update', false)
+            && in_array($record->request_status, [MaterialMemo::REQ_APPROVED, MaterialMemo::REQ_FULFILLED], true)
+            && ! $record->isBookingLocked();
     }
 
     public static function getEloquentQuery(): Builder
@@ -132,13 +165,22 @@ class MaterialMemoResource extends Resource
                         . ($record !== null && $record->items()->exists()
                             ? ' Perhatian: mengganti booking memindahkan seluruh biaya bahan di memo ini ke booking yang baru (perubahannya tercatat di riwayat).'
                             : '')),
-                Forms\Components\TextInput::make('vehicle_info')
-                    ->label('Info Kendaraan')
-                    ->placeholder('Mis. Toyota Avanza - B 1234 XYZ')
-                    ->maxLength(255),
+                Forms\Components\Grid::make(3)->schema([
+                    Forms\Components\TextInput::make('vehicle_brand')->label('Merek Kendaraan')->placeholder('Mis. Toyota')->maxLength(60),
+                    Forms\Components\TextInput::make('vehicle_model')->label('Tipe Kendaraan')->placeholder('Mis. Avanza')->maxLength(60),
+                    Forms\Components\TextInput::make('vehicle_plate')->label('Plat Nomor')->placeholder('Mis. B 1234 XYZ')->maxLength(20)
+                        ->dehydrateStateUsing(fn (?string $state) => MaterialMemo::normalizePlate($state)),
+                ]),
                 Forms\Components\TextInput::make('spk_number')
                     ->label('SPK No (opsional)')
                     ->maxLength(100),
+                Forms\Components\Textarea::make('request_note')
+                    ->label('Keperluan Pengambilan')
+                    ->placeholder('Mis. PPF full body, atau tambahan cairan')
+                    ->rows(2)
+                    ->maxLength(500)
+                    ->visible(fn (?MaterialMemo $record) => $record === null && ! $isSuperAdmin)
+                    ->helperText('Memo diajukan ke store manager. Barang dan jumlahnya dicatat gudang setelah disetujui.'),
                 Forms\Components\Textarea::make('notes')
                     ->label('Catatan')
                     ->rows(2)
@@ -160,6 +202,19 @@ class MaterialMemoResource extends Resource
                     ->label('No Memo')
                     ->searchable()
                     ->weight('semibold'),
+                // Status pengajuan (memo langsung tidak punya status, kolom kosong).
+                Tables\Columns\TextColumn::make('request_status')
+                    ->label('Pengajuan')
+                    ->badge()
+                    ->placeholder('—')
+                    ->formatStateUsing(fn (?string $state) => MaterialMemo::REQUEST_STATUS_LABELS[$state] ?? $state)
+                    ->color(fn (?string $state) => match ($state) {
+                        MaterialMemo::REQ_PENDING => 'warning',
+                        MaterialMemo::REQ_APPROVED => 'info',
+                        MaterialMemo::REQ_FULFILLED => 'success',
+                        MaterialMemo::REQ_REJECTED => 'danger',
+                        default => 'gray',
+                    }),
                 Tables\Columns\TextColumn::make('store.name')
                     ->label('Toko')
                     ->searchable(),

@@ -121,7 +121,7 @@ class ItemsRelationManager extends RelationManager
             ->headerActions([
                 Tables\Actions\Action::make('add_item')
                     // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
-                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canHandoverEdit($this->getOwnerRecord()))
                     ->label('Tambah Barang')
                     ->icon('heroicon-o-plus')
                     ->form([
@@ -217,7 +217,8 @@ class ItemsRelationManager extends RelationManager
                         Forms\Components\TextInput::make('meters_used')
                             ->label('Meter Dipakai')
                             ->visible(fn (Forms\Get $get) => $get('item_type') === 'inventory_item')
-                            ->required(fn (Forms\Get $get) => $get('item_type') === 'inventory_item')
+                            ->required(fn (Forms\Get $get) => $get('item_type') === 'inventory_item' && ! $this->getOwnerRecord()->isRequestFlow())
+                            ->helperText(fn () => $this->getOwnerRecord()->isRequestFlow() ? 'Kosongkan: gulungan dicatat tanpa meter, meternya diisi setelah pekerjaan.' : null)
                             ->numeric()
                             ->minValue(0.01)
                             ->suffix('meter'),
@@ -230,6 +231,26 @@ class ItemsRelationManager extends RelationManager
                         $memo = $this->getOwnerRecord();
                         $userId = auth()->id();
                         $conditionNotes = $data['condition_notes'] ?? null;
+
+                        // Memo pengajuan: dicatat lewat layanan yang sama dengan aplikasi (hanya gudang, setelah disetujui, belum terkunci).
+                        if ($memo->isRequestFlow()) {
+                            try {
+                                $type = $data['item_type'];
+                                $itemId = (int) ($data['raw_material_id'] ?? $data['consumable_item_id'] ?? $data['inventory_item_id'] ?? 0);
+
+                                if ($type === 'offcut') {
+                                    throw new \InvalidArgumentException('Potongan sisa dicatat lewat memo langsung, bukan memo pengajuan.');
+                                }
+
+                                app(\App\Services\MaterialMemoRequestService::class)->addItem(
+                                    $memo, auth()->user(), $type, $itemId, isset($data['qty_taken']) ? (float) $data['qty_taken'] : null, $conditionNotes
+                                );
+                            } catch (\InvalidArgumentException $e) {
+                                Notification::make()->title('Tidak bisa menambah barang')->body($e->getMessage())->danger()->send();
+                            }
+
+                            return;
+                        }
 
                         try {
                             match ($data['item_type']) {
@@ -291,7 +312,7 @@ class ItemsRelationManager extends RelationManager
                 // di tengah pekerjaan).
                 Tables\Actions\Action::make('isi_dari_resep')
                     // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
-                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canHandoverEdit($this->getOwnerRecord()))
                     ->label('Isi dari Master Resep')
                     ->icon('heroicon-o-beaker')
                     ->color('info')
@@ -404,7 +425,7 @@ class ItemsRelationManager extends RelationManager
                 // Roll yang selesai dikerjakan kadang menyisakan potongan besar yang disimpan gudang. Dicatat dari baris roll di memo ini
                 // supaya potongannya tertaut ke kode roll dan memo asalnya. Hanya yang berwenang mengelola Kode Gulungan.
                 Tables\Actions\Action::make('store_offcuts')
-                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canHandoverEdit($this->getOwnerRecord()))
                     ->label('Simpan Potongan Sisa')
                     ->icon('heroicon-o-archive-box-arrow-down')
                     ->color('gray')
@@ -445,7 +466,7 @@ class ItemsRelationManager extends RelationManager
 
                 Tables\Actions\Action::make('return_item')
                     // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
-                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canRecordReturn($this->getOwnerRecord()))
                     ->label('Catat Pengembalian')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('success')
@@ -532,7 +553,7 @@ class ItemsRelationManager extends RelationManager
 
                 Tables\Actions\Action::make('edit_qty')
                     // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
-                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canHandoverEdit($this->getOwnerRecord()))
                     ->label('Koreksi Jumlah')
                     ->icon('heroicon-o-pencil')
                     ->color('warning')
@@ -574,9 +595,38 @@ class ItemsRelationManager extends RelationManager
                         }
                     }),
 
+                // Meter gulungan yang diserahkan tanpa meter (memo pengajuan): diisi staff gudang setelah pekerjaan, sekali saja; tetap bisa saat memo terkunci.
+                Tables\Actions\Action::make('set_meters')
+                    ->label('Isi Meter')
+                    ->icon('heroicon-o-pencil-square')
+                    ->visible(function (MaterialMemoItem $record) {
+                        $memo = $this->getOwnerRecord();
+                        $user = auth()->user();
+
+                        return $memo->isRequestFlow() && $record->item_type === 'inventory_item' && $record->meters_used === null
+                            && in_array($memo->request_status, [\App\Models\MaterialMemo::REQ_APPROVED, \App\Models\MaterialMemo::REQ_FULFILLED], true)
+                            && $user !== null
+                            && ($user->isFullAccess() || ((int) $memo->created_by !== (int) $user->id && app(\App\Services\MaterialMemoRequestService::class)->hasStockAccess($user, 'inventory_item')));
+                    })
+                    ->form([
+                        Forms\Components\TextInput::make('meters')->label('Meter Dipakai')->numeric()->minValue(0.01)->required()->suffix('meter'),
+                    ])
+                    ->modalDescription('Meter hanya bisa diisi sekali. Sisa gulungan berkurang setelah diisi.')
+                    ->action(function (MaterialMemoItem $record, array $data) {
+                        try {
+                            app(\App\Services\MaterialMemoRequestService::class)->setMeters($this->getOwnerRecord(), $record, auth()->user(), (float) $data['meters']);
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()->title('Tidak bisa mengisi meter')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Meter dicatat.')->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('delete_item')
                     // Mengubah stok lewat memo butuh izin Ubah pada menu Memo (akun yang hanya boleh melihat tidak mendapat tombolnya).
-                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canEdit($this->getOwnerRecord()))
+                    ->hidden(fn () => ! \App\Filament\Resources\MaterialMemoResource::canHandoverEdit($this->getOwnerRecord()))
                     ->label('Hapus')
                     ->icon('heroicon-o-trash')
                     ->color('danger')

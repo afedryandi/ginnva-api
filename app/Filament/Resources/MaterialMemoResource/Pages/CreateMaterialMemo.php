@@ -45,20 +45,33 @@ class CreateMaterialMemo extends CreateRecord
             return;
         }
 
-        $vehicle = trim(implode(' ', array_filter([$booking->vehicle_brand, $booking->vehicle_model])));
-        $info = trim($vehicle . ($booking->vehicle_plate ? ($vehicle !== '' ? ' - ' : '') . $booking->vehicle_plate : ''));
-
         $this->form->fill([
             ...$this->form->getRawState(),
             'booking_id' => $booking->id,
             'store_id' => $booking->store_id,
-            'vehicle_info' => $info !== '' ? $info : null,
+            'vehicle_brand' => $booking->vehicle_brand,
+            'vehicle_model' => $booking->vehicle_model,
+            'vehicle_plate' => $booking->vehicle_plate,
         ]);
+    }
+
+    protected function afterCreate(): void
+    {
+        if ($this->record->isRequestFlow()) {
+            app(\App\Services\MaterialMemoRequestService::class)->notifyNewRequest($this->record);
+        }
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['created_by'] = auth()->id();
+
+        // Non-akses-penuh: memo diajukan (setujui store manager, serahkan gudang); akses penuh tetap langsung.
+        if (! auth()->user()?->isFullAccess()) {
+            $data['flow'] = \App\Models\MaterialMemo::FLOW_REQUEST;
+            $data['request_status'] = \App\Models\MaterialMemo::REQ_PENDING;
+            $data['submitted_at'] = now();
+        }
 
         // Kolom toko hanya di-disable di form (state-nya masih bisa dimanipulasi dari klien) -- staf non-full-access
         // dipaksa ke tokonya sendiri di sisi server.

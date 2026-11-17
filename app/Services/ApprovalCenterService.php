@@ -18,6 +18,8 @@ use App\Support\Approvals\Sources\CorrectionSource;
 use App\Support\Approvals\Sources\FieldDutySource;
 use App\Support\Approvals\Sources\LeaveSource;
 use App\Support\Approvals\Sources\LinkSource;
+use App\Support\Approvals\Sources\MaterialMemoHandoverSource;
+use App\Support\Approvals\Sources\MaterialMemoSource;
 use App\Support\Approvals\Sources\OvertimeSource;
 use App\Support\Approvals\Sources\PurchaseRequestSource;
 use App\Support\Approvals\Sources\StockOpnameSource;
@@ -46,6 +48,8 @@ class ApprovalCenterService
             new CorrectionSource(),
             new PurchaseRequestSource(),
             new StockOpnameSource(),
+            new MaterialMemoSource(),
+            new MaterialMemoHandoverSource(),
             new TransactionSource(),
             $this->warrantySource(),
             $this->technicianSource(),

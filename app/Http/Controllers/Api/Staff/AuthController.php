@@ -315,6 +315,8 @@ class AuthController extends Controller
             'has_asset_access'     => $user->hasAssetAccess(),
             'has_consumable_access' => $user->hasConsumableAccess(),
             'has_material_memo_access' => $user->hasMaterialMemoAccess(),
+            // Installer/Installer Leader: tombol Memo Barang (ajukan pengambilan) muncul tanpa menu Memo di Hak Akses.
+            'can_request_memo' => $user->canRequestMemo(),
             'has_purchase_request_access' => $user->hasPurchaseRequestAccess(),
             // Slip Gaji dan tab Gaji di aplikasi hanya bila payroll menyala (FEATURE_PAYROLL; mati sejak 2026-11-10).
             'has_payroll' => (bool) config('features.payroll'),
