@@ -82,6 +82,8 @@ class StockCardService
                     'dibuang' => round((float) $rows->sum('keluar_detail.dibuang'), 2),
                     'penyesuaian' => round((float) $rows->sum('keluar_detail.penyesuaian'), 2),
                 ],
+                'masuk_count' => $rows->where('masuk', '>', 0)->count(),
+                'keluar_count' => $rows->where('keluar', '>', 0)->count(),
                 'count' => $rows->count(),
                 'anomalies' => $rows->where('anomaly', true)->count(),
             ],
