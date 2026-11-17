@@ -86,10 +86,21 @@ class StockOpnameController extends Controller
             ->when($status, fn ($q) => $q->where('status', $status))
             ->latest('created_at')->latest('id')->offset($offset)->limit(self::LIMIT + 1)->get();
 
+        // Jumlah sesi per status untuk chip filter di app (tidak terpengaruh filter status yang dipilih; mengikuti pembatasan toko).
+        $counts = StockOpname::query()
+            ->when(! $user->isFullAccess(), fn ($q) => $q->where('store_id', $user->store_id))
+            ->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
+
         return response()->json([
             'success' => true,
             'data' => $rows->take(self::LIMIT)->map(fn ($o) => $this->shape($o, false))->values(),
             'has_more' => $rows->count() > self::LIMIT,
+            'summary' => [
+                'all' => (int) $counts->sum(),
+                'draft' => (int) ($counts[StockOpname::STATUS_DRAFT] ?? 0),
+                'applied' => (int) ($counts[StockOpname::STATUS_APPLIED] ?? 0),
+                'cancelled' => (int) ($counts[StockOpname::STATUS_CANCELLED] ?? 0),
+            ],
         ]);
     }
 

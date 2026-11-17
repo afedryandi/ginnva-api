@@ -1510,6 +1510,10 @@ class StaffStockApiTest extends TestCase
         $this->api($gudang)->getJson("/api/staff/stock-opnames/{$session->id}")->assertSuccessful()->assertJsonPath('data.number', $session->opname_number);
         $otherStore = $this->warehouse($this->storeB);
         $this->assertCount(0, $this->api($otherStore)->getJson('/api/staff/stock-opnames')->json('data'));
+
+        // Ringkasan jumlah per status untuk chip filter di app: ikut pembatasan toko, tidak ikut filter status.
+        $this->assertSame(['all' => 1, 'draft' => 1, 'applied' => 0, 'cancelled' => 0], $this->api($gudang)->getJson('/api/staff/stock-opnames?status=applied')->json('summary'));
+        $this->assertSame(['all' => 0, 'draft' => 0, 'applied' => 0, 'cancelled' => 0], $this->api($otherStore)->getJson('/api/staff/stock-opnames')->json('summary'));
         $this->api($otherStore)->getJson("/api/staff/stock-opnames/{$session->id}")->assertNotFound();
         $this->assertCount(1, $this->api($this->staff('super_admin'))->getJson('/api/staff/stock-opnames')->json('data'));
         $this->assertCount(1, $this->api($gudang)->getJson('/api/staff/stock-opnames?status=draft')->json('data'));
