@@ -76,6 +76,7 @@ class NotificationCatalog
             ['audience' => 'pengguna', 'source' => 'Services/PurchaseRequestDecisionService.php', 'title' => 'Permohonan Pembelian Ditolak', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Services/PurchaseRequestReceiveService.php', 'title' => 'Permohonan Pembelian Terpenuhi', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Services/PurchaseRequestNotifier.php', 'title' => 'Permohonan Pembelian Baru', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/StockOpnameNotifier.php', 'title' => 'Stok Opname Menunggu Persetujuan', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Services/PurchaseRequestNotifier.php', 'title' => 'Permohonan Pembelian Menunggu', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/ShiftResource/Pages/EditShift.php', 'title' => 'Jam Shift Berubah', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Filament/Resources/TechnicianResource.php', 'title' => 'Akun Installer Diaktifkan', 'panel_inbox' => true],

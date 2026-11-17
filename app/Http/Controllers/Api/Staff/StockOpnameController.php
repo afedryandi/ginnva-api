@@ -210,6 +210,8 @@ class StockOpnameController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
+        app(\App\Services\StockOpnameNotifier::class)->notifyDraft($opname);
+
         return response()->json([
             'success' => true,
             'message' => "Hasil hitung terkirim sebagai {$opname->opname_number}. Stok berubah setelah diterapkan oleh admin.",

@@ -94,6 +94,35 @@ class ApprovalCenterTest extends TestCase
         return PurchaseRequest::create(['store_id' => $this->store->id, 'item_type' => 'raw_material', 'item_name' => 'Cairan Slip', 'unit' => 'liter', 'quantity' => 10, 'reason' => 'Stok menipis', 'status' => 'pending', 'requested_by' => $this->andi->id]);
     }
 
+    public function test_a_stock_opname_draft_waits_in_the_center_for_full_access_only_and_is_decided_in_its_own_menu(): void
+    {
+        $draft = \App\Models\StockOpname::create([
+            'opname_number' => \App\Models\StockOpname::generateOpnameNumber(),
+            'store_id' => $this->store->id,
+            'opname_date' => now()->toDateString(),
+            'status' => \App\Models\StockOpname::STATUS_DRAFT,
+            'snapshot_at' => now(),
+            'created_by' => $this->andi->id,
+        ]);
+        \App\Models\StockOpname::create([
+            'opname_number' => \App\Models\StockOpname::generateOpnameNumber(),
+            'store_id' => $this->store->id,
+            'opname_date' => now()->toDateString(),
+            'status' => \App\Models\StockOpname::STATUS_APPLIED,
+            'snapshot_at' => now(),
+            'created_by' => $this->andi->id,
+        ]);
+
+        $items = $this->center->items($this->admin)->where('source', 'stock_opname');
+        $this->assertCount(1, $items, 'Hanya draf yang menunggu; sesi yang sudah diterapkan tidak.');
+        $this->assertSame($draft->id, $items->first()->id);
+        $this->assertFalse($items->first()->inline, 'Diputuskan di rincian sesi, bukan satu klik.');
+        $this->assertCount(0, $this->center->items($this->manager)->where('source', 'stock_opname'));
+
+        $this->expectException(\RuntimeException::class);
+        $this->center->source('stock_opname')->approve($draft->id, $this->admin);
+    }
+
     public function test_each_person_only_sees_what_they_may_decide_oldest_first(): void
     {
         $this->overtime('2026-11-12 08:00:00');

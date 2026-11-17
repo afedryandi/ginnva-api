@@ -20,6 +20,7 @@ use App\Support\Approvals\Sources\LeaveSource;
 use App\Support\Approvals\Sources\LinkSource;
 use App\Support\Approvals\Sources\OvertimeSource;
 use App\Support\Approvals\Sources\PurchaseRequestSource;
+use App\Support\Approvals\Sources\StockOpnameSource;
 use App\Support\Approvals\Sources\TransactionSource;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -44,6 +45,7 @@ class ApprovalCenterService
             new LeaveSource(),
             new CorrectionSource(),
             new PurchaseRequestSource(),
+            new StockOpnameSource(),
             new TransactionSource(),
             $this->warrantySource(),
             $this->technicianSource(),

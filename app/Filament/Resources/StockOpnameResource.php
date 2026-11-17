@@ -340,6 +340,8 @@ class StockOpnameResource extends Resource
             return;
         }
 
+        app(\App\Services\StockOpnameNotifier::class)->notifyDraft($opname);
+
         Notification::make()
             ->title("Hasil hitung dicatat sebagai draf {$opname->opname_number}")
             ->body('Stok belum berubah. Akses penuh meninjau selisihnya lalu menerapkannya.')
