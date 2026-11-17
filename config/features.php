@@ -128,6 +128,9 @@ return [
     | langsung tetap bisa dibuka oleh yang berhak). Untuk memunculkan lagi isi FEATURE_REPORT_BAY_ZONE=true di .env.
     */
     'report_bay_zone' => (bool) env('FEATURE_REPORT_BAY_ZONE', false),
+    // Tautan Memo Barang ke Booking: mati dulu (2026-11-17), kolom booking di form, daftar, dan filter memo disembunyikan. Data dan kode tetap ada;
+    // isi FEATURE_MEMO_BOOKING_LINK=true untuk menampilkannya lagi.
+    'memo_booking_link' => (bool) env('FEATURE_MEMO_BOOKING_LINK', false),
     'report_voucher' => (bool) env('FEATURE_REPORT_VOUCHER', false),
     'report_persediaan_detail' => (bool) env('FEATURE_REPORT_PERSEDIAAN_DETAIL', false),
 

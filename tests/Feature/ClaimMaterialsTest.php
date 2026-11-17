@@ -32,6 +32,7 @@ class ClaimMaterialsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['features.memo_booking_link' => true]); // tautan booking di memo mati secara bawaan; tes ini menguji tautannya
 
         Http::fake();
         foreach (['super_admin', 'kasir'] as $role) {

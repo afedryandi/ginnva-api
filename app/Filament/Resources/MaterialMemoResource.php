@@ -147,6 +147,7 @@ class MaterialMemoResource extends Resource
                 // booking = 1 memo) -- kalau booking yang dipilih sudah
                 // punya memo lain, error di-tampilkan lewat validationMessages.
                 Forms\Components\Select::make('booking_id')
+                    ->visible(fn () => (bool) config('features.memo_booking_link'))
                     ->label('Booking Terkait (opsional)')
                     ->relationship('booking', 'booking_number', function ($query) {
                         $user = auth()->user();
@@ -226,6 +227,7 @@ class MaterialMemoResource extends Resource
                     ->color('gray')
                     ->tooltip(fn (MaterialMemo $record) => $record->isLocked() ? 'Terkunci: booking sudah selesai' : null),
                 Tables\Columns\TextColumn::make('booking.booking_number')
+                    ->visible(fn () => (bool) config('features.memo_booking_link'))
                     ->label('Booking')
                     ->searchable()
                     ->placeholder('—')
@@ -267,6 +269,7 @@ class MaterialMemoResource extends Resource
                     ->query(fn (Builder $query) => $query->hasUnreturned()),
 
                 Tables\Filters\TernaryFilter::make('has_booking')
+                    ->visible(fn () => (bool) config('features.memo_booking_link'))
                     ->label('Tertaut Booking')
                     ->placeholder('Semua')
                     ->trueLabel('Sudah tertaut')
