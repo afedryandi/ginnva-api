@@ -222,6 +222,8 @@ class AttendanceResource extends Resource
                     // thumbnail preview file yang sudah ada, cukup untuk
                     // verifikasi manual tanpa perlu infolist terpisah.
                     Forms\Components\FileUpload::make('clock_in_photo')
+                        ->openable()
+                        ->downloadable()
                         ->label('Foto Absen Masuk')
                         ->image()
                         ->directory('attendance-photos')
@@ -238,6 +240,8 @@ class AttendanceResource extends Resource
                         ->visible(fn (?Attendance $record) => (bool) $record?->clock_in_photo),
 
                     Forms\Components\FileUpload::make('clock_out_photo')
+                        ->openable()
+                        ->downloadable()
                         ->label('Foto Absen Keluar')
                         ->image()
                         ->directory('attendance-photos')

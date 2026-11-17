@@ -42,6 +42,8 @@ class DocumentsRelationManager extends RelationManager
                 ->required(),
 
             Forms\Components\FileUpload::make('file_path')
+                ->openable()
+                ->downloadable()
                 ->label('File')
                 ->disk('local')
                 ->directory('employee-documents')

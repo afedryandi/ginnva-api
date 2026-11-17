@@ -57,6 +57,8 @@ class EmployeeTrainingResource extends Resource
                 Forms\Components\DatePicker::make('held_on')->label('Tanggal pelatihan')->required()->maxDate(today()),
                 Forms\Components\DatePicker::make('valid_until')->label('Berlaku sampai')->helperText('Kosongkan kalau tidak kedaluwarsa.')->afterOrEqual('held_on'),
                 Forms\Components\FileUpload::make('certificate_path')
+                    ->openable()
+                    ->downloadable()
                     ->label('Berkas sertifikat (opsional)')
                     ->disk('local')->visibility('private')->directory('employee-certificates')
                     ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])->maxSize(10240),

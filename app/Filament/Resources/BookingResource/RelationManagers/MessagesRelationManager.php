@@ -42,6 +42,8 @@ class MessagesRelationManager extends RelationManager
                 ->visible(fn (Forms\Get $get) => $get('type') === 'stage'),
 
             Forms\Components\FileUpload::make('photo_path')
+                ->openable()
+                ->downloadable()
                 ->label('Foto')
                 ->image()
                 ->directory('booking-messages')

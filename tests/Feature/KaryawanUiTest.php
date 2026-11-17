@@ -85,4 +85,16 @@ class KaryawanUiTest extends TestCase
             ->assertCanSeeTableRecords([$other])
             ->assertCanNotSeeTableRecords([$admin]);
     }
+
+    public function test_attachment_uploads_can_be_opened_and_downloaded(): void
+    {
+        $this->admin();
+
+        $field = Livewire::test(\App\Filament\Resources\LeaveRequestResource\Pages\CreateLeaveRequest::class)
+            ->assertSuccessful()
+            ->instance()->form->getComponent('data.document');
+
+        $this->assertTrue($field->isOpenable());
+        $this->assertTrue($field->isDownloadable());
+    }
 }

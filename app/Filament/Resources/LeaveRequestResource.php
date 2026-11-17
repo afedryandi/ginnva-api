@@ -235,6 +235,8 @@ class LeaveRequestResource extends Resource
                         }),
 
                     Forms\Components\FileUpload::make('document')
+                        ->openable()
+                        ->downloadable()
                         ->label('Lampiran')
                         ->helperText('Mis. surat keterangan dokter. Wajib atau tidaknya mengikuti aturan jenis yang dipilih (menu Jenis Izin & Cuti).')
                         ->disk('local')

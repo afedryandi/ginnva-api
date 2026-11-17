@@ -248,6 +248,8 @@ class FinanceTransactionResource extends Resource
                         ->default(now()),
 
                     Forms\Components\FileUpload::make('receipt')
+                        ->openable()
+                        ->downloadable()
                         ->label('Bukti/Nota (opsional)')
                         ->disk(config('filament.default_filesystem_disk', 'public'))
                         ->directory('finance-receipts')

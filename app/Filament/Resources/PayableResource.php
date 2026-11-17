@@ -409,6 +409,8 @@ class PayableResource extends Resource
                             ->native(false),
 
                         Forms\Components\FileUpload::make('attachment')
+                            ->openable()
+                            ->downloadable()
                             ->label('Lampiran Invoice (opsional)')
                             ->disk(config('filament.default_filesystem_disk', 'public'))
                             ->directory('payable-attachments')

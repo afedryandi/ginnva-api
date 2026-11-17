@@ -337,6 +337,8 @@ class WarningLetterResource extends Resource
                         ->minDate(fn (Forms\Get $get) => $get('issued_date')),
 
                     Forms\Components\FileUpload::make('document')
+                        ->openable()
+                        ->downloadable()
                         ->label('Scan Surat (opsional)')
                         ->disk('local')
                         ->visibility('private')

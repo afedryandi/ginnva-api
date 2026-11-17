@@ -268,6 +268,8 @@ class JournalEntryResource extends Resource
                 ->collapsed()
                 ->schema([
                     Forms\Components\FileUpload::make('attachment')
+                        ->openable()
+                        ->downloadable()
                         ->label('Bukti / Lampiran (opsional)')
                         ->disk(config('filament.default_filesystem_disk', 'public'))
                         ->directory('journal-attachments')

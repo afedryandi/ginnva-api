@@ -133,6 +133,8 @@ class CompanyPolicyResource extends Resource
                     Forms\Components\DatePicker::make('effective_from')->label('Berlaku Sejak')->disabled($locked)->dehydrated(fn (?CompanyPolicy $record) => ! $locked($record)),
 
                     Forms\Components\FileUpload::make('file_path')
+                        ->openable()
+                        ->downloadable()
                         ->label('Berkas (PDF)')
                         ->disk('local')
                         ->visibility('private')

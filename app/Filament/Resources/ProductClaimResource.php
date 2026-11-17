@@ -99,6 +99,8 @@ class ProductClaimResource extends Resource
                 ->columns(2)
                 ->schema([
                     Forms\Components\FileUpload::make('evidence_path')
+                        ->openable()
+                        ->downloadable()
                         ->label('Berkas Bukti (laporan uji / sertifikat)')
                         ->directory('product-claims')
                         ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
