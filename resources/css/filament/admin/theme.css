@@ -95,12 +95,28 @@
 /* Isian dan tombol: sudut seragam, cincin fokus primer lembut. */
 .fi-input-wrp {
     border-radius: var(--gx-radius-sm);
+    border: 1px solid rgba(var(--gray-300), 0.9);
     box-shadow: none;
-    transition: box-shadow 0.15s ease;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-ring-color: transparent;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dark .fi-input-wrp {
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.fi-input-wrp:hover {
+    border-color: rgb(var(--gray-400));
 }
 
 .fi-input-wrp:focus-within {
+    border-color: rgb(var(--primary-500));
     box-shadow: 0 0 0 3px rgba(var(--primary-500), 0.16);
+}
+
+.fi-input-wrp.fi-disabled {
+    background: var(--gx-soft);
 }
 
 .fi-btn {
@@ -126,12 +142,16 @@
 
 .fi-dropdown-panel {
     border-radius: 0.875rem;
+    border: 1px solid var(--gx-line);
     box-shadow: 0 8px 24px -8px rgba(15, 23, 42, 0.12);
 }
 
 .fi-tabs {
     border-radius: var(--gx-radius);
+    border: 1px solid var(--gx-line);
     box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-ring-color: transparent;
 }
 
 /* Statistik widget: label redup kecil, angka tegas. */

@@ -41,4 +41,13 @@ class FilamentThemeTest extends TestCase
     {
         $this->get(\Filament\Facades\Filament::getPanel('admin')->getLoginUrl())->assertOk();
     }
+
+    public function test_the_theme_keeps_a_visible_border_on_inputs_even_though_it_removes_the_default_ring(): void
+    {
+        $css = file_get_contents(base_path('resources/css/filament/admin/theme.css'));
+
+        // Filament menggambar garis isian dengan ring (box-shadow); karena shadow dihapus, garis harus diganti border sungguhan.
+        $this->assertMatchesRegularExpression('/\.fi-input-wrp\s*\{[^}]*border:\s*1px solid/s', $css);
+        $this->assertMatchesRegularExpression('/\.dark \.fi-input-wrp\s*\{[^}]*border-color/s', $css);
+    }
 }
