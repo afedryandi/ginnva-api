@@ -379,6 +379,7 @@ Route::prefix('staff')->group(function () {
         // Filament (lihat SpkController), 1 booking = 1 SPK.
         Route::get('/spks', [StaffSpkController::class, 'index']);
         Route::get('/spks/checklist-template', [StaffSpkController::class, 'checklistTemplate']);
+        Route::get('/spks/assignable-installers', [StaffSpkController::class, 'assignableInstallers']);
         Route::get('/spks/{id}', [StaffSpkController::class, 'show']);
         Route::post('/spks', [StaffSpkController::class, 'store'])
             ->middleware('throttle:20,1');

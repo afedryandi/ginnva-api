@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Staff;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Spk;
+use App\Models\User;
 use App\Services\SpkService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -60,15 +61,18 @@ class SpkController extends Controller
 
         $user = $request->user('api');
 
-        $query = Spk::query()->with(['booking:id,booking_number', 'store:id,name', 'damageMarks'])
+        $query = Spk::query()->with(['booking:id,booking_number', 'store:id,name', 'damageMarks', 'installers:id,name'])
             ->orderByDesc('created_at');
 
         // Installer HANYA lihat SPK dari booking yang dirinya ditugaskan
-        // sebagai installer -- bukan seluruh SPK tokonya (beda dari
+        // sebagai installer, SPK manual yang ia buat, dan SPK manual yang
+        // menugaskannya -- bukan seluruh SPK tokonya (beda dari
         // store_manager dkk.), sama pola scoping dengan
         // BookingController::index() untuk role ini.
         if ($user->hasRole('installer')) {
-            $query->whereHas('booking.installers', fn ($q) => $q->where('users.id', $user->id));
+            $query->where(fn ($q) => $q->where('created_by', $user->id)
+                ->orWhereHas('installers', fn ($i) => $i->where('users.id', $user->id))
+                ->orWhereHas('booking.installers', fn ($i) => $i->where('users.id', $user->id)));
         } elseif (! $user->isFullAccess()) {
             $query->where('store_id', $user->store_id);
         }
@@ -113,7 +117,7 @@ class SpkController extends Controller
             return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke SPK.'], 403);
         }
 
-        $spk = Spk::with(['checklistItems', 'damageMarks', 'booking:id,booking_number', 'store:id,name'])->find($id);
+        $spk = Spk::with(['checklistItems', 'damageMarks', 'booking:id,booking_number', 'store:id,name', 'installers:id,name'])->find($id);
 
         if (! $spk || ! $this->canAccess($request, $spk)) {
             return response()->json(['success' => false, 'message' => 'SPK tidak ditemukan.'], 404);
@@ -133,10 +137,10 @@ class SpkController extends Controller
 
         $user = $request->user('api');
 
-        // SPK baru hanya dibuat leader installer dan atasannya (2026-10-10). Installer dan staf lain tetap bisa melihat /
-        // melengkapi SPK sesuai aksesnya.
+        // SPK baru dibuat installer (untuk booking yang ditugaskan padanya), leader installer, dan atasannya (2026-11-17).
+        // Staf lain tetap bisa melihat / melengkapi SPK sesuai aksesnya.
         if (! $user->canCreateSpk()) {
-            return response()->json(['success' => false, 'message' => 'Hanya leader installer dan atasannya (store manager, direksi) yang bisa membuat SPK baru.'], 403);
+            return response()->json(['success' => false, 'message' => 'Hanya installer, leader installer, dan atasannya (store manager, direksi) yang bisa membuat SPK baru.'], 403);
         }
 
         // spk_number: nomor SPK manual (opsional, unik); kosong = nomor otomatis. Hanya saat membuat.
@@ -150,24 +154,51 @@ class SpkController extends Controller
             ], 422);
         }
 
-        $booking = Booking::with('installers')->find($request->booking_id);
+        $installerIds = null;
 
-        if (! $booking || $booking->status !== 'confirmed') {
-            return response()->json(['success' => false, 'message' => 'Booking tidak valid atau belum dikonfirmasi.'], 422);
-        }
+        if ($request->filled('booking_id')) {
+            $booking = Booking::with('installers')->find($request->booking_id);
 
-        if ($user->hasRole('installer')) {
-            if (! $booking->installers->contains('id', $user->id)) {
-                return response()->json(['success' => false, 'message' => 'Booking ini tidak ditugaskan ke akun ini.'], 403);
+            if (! $booking || $booking->status !== 'confirmed') {
+                return response()->json(['success' => false, 'message' => 'Booking tidak valid atau belum dikonfirmasi.'], 422);
             }
-        } elseif (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
-            return response()->json(['success' => false, 'message' => 'Booking ini milik toko lain.'], 403);
+
+            if ($user->hasRole('installer')) {
+                if (! $booking->installers->contains('id', $user->id)) {
+                    return response()->json(['success' => false, 'message' => 'Booking ini tidak ditugaskan ke akun ini.'], 403);
+                }
+            } elseif (! $user->isFullAccess() && $booking->store_id !== $user->store_id) {
+                return response()->json(['success' => false, 'message' => 'Booking ini milik toko lain.'], 403);
+            }
+
+            $bookingId = $booking->id;
+            $storeId = $booking->store_id;
+        } else {
+            // SPK manual (tanpa booking, 2026-11-17): toko akun pembuat; akses penuh tanpa toko wajib memilih store_id.
+            $bookingId = null;
+            $storeId = $user->isFullAccess() && $request->filled('store_id') ? (int) $request->input('store_id') : $user->store_id;
+
+            if (! $storeId) {
+                return response()->json(['success' => false, 'message' => 'Pilih toko untuk SPK ini.'], 422);
+            }
+
+            if ($request->has('installer_ids')) {
+                $installerIds = $this->validInstallerIds((array) $request->input('installer_ids'), (int) $storeId);
+
+                if ($installerIds === null) {
+                    return response()->json(['success' => false, 'message' => 'Semua installer harus berasal dari toko SPK ini dan berstatus aktif.'], 422);
+                }
+            }
         }
 
         $data = $this->extractSpkData($request);
-        $data['booking_id'] = $booking->id;
-        $data['store_id'] = $booking->store_id;
+        $data['booking_id'] = $bookingId;
+        $data['store_id'] = $storeId;
         $data['spk_number'] = $request->input('spk_number');
+
+        if ($installerIds !== null) {
+            $data['installer_ids'] = $installerIds;
+        }
 
         try {
             $spk = app(SpkService::class)->create(
@@ -203,7 +234,6 @@ class SpkController extends Controller
         }
 
         $rules = $this->validationRules();
-        unset($rules['booking_id']); // booking_id tidak bisa diubah setelah SPK dibuat.
 
         $validator = Validator::make($request->all(), $rules);
 
@@ -216,6 +246,47 @@ class SpkController extends Controller
         }
 
         $data = $this->extractSpkData($request);
+
+        // booking_id: SPK manual boleh ditautkan ke booking SEKALI (belakangan); SPK yang sudah terikat tidak bisa dipindah.
+        if ($request->filled('booking_id')) {
+            if ($spk->booking_id !== null) {
+                if ((int) $request->booking_id !== (int) $spk->booking_id) {
+                    return response()->json(['success' => false, 'message' => 'SPK ini sudah terikat ke booking dan tidak bisa dipindah.'], 422);
+                }
+            } else {
+                $booking = Booking::with('installers')->find($request->booking_id);
+                $user = $request->user('api');
+
+                if (! $booking || $booking->status !== 'confirmed') {
+                    return response()->json(['success' => false, 'message' => 'Booking tidak valid atau belum dikonfirmasi.'], 422);
+                }
+
+                if ($booking->store_id !== $spk->store_id) {
+                    return response()->json(['success' => false, 'message' => 'Booking ini milik toko lain.'], 422);
+                }
+
+                if ($user->hasRole('installer') && ! $booking->installers->contains('id', $user->id)) {
+                    return response()->json(['success' => false, 'message' => 'Booking ini tidak ditugaskan ke akun ini.'], 403);
+                }
+
+                if (Spk::where('booking_id', $booking->id)->exists()) {
+                    return response()->json(['success' => false, 'message' => 'Booking ini sudah punya SPK.'], 422);
+                }
+
+                $data['booking_id'] = $booking->id;
+            }
+        }
+
+        // Installer SPK manual (hanya selama belum terikat booking; setelah itu installer booking yang berlaku).
+        if ($spk->booking_id === null && $request->has('installer_ids')) {
+            $installerIds = $this->validInstallerIds((array) $request->input('installer_ids'), (int) $spk->store_id);
+
+            if ($installerIds === null) {
+                return response()->json(['success' => false, 'message' => 'Semua installer harus berasal dari toko SPK ini dan berstatus aktif.'], 422);
+            }
+
+            $data['installer_ids'] = $installerIds;
+        }
 
         try {
             $spk = app(SpkService::class)->update(
@@ -292,16 +363,64 @@ class SpkController extends Controller
         $user = $request->user('api');
 
         if ($user->hasRole('installer')) {
-            return $spk->booking?->installers->contains('id', $user->id) ?? false;
+            return $spk->isAccessibleToInstaller($user);
         }
 
         return $user->isFullAccess() || $spk->store_id === $user->store_id;
     }
 
+    /**
+     * GET /api/staff/spks/assignable-installers?store_id=
+     * Pilihan installer untuk SPK manual: installer aktif di toko akun ini (akses penuh boleh memilih toko lewat store_id).
+     */
+    public function assignableInstallers(Request $request)
+    {
+        if (! $this->authorize($request)) {
+            return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke SPK.'], 403);
+        }
+
+        $user = $request->user('api');
+        $storeId = $user->isFullAccess() && $request->filled('store_id') ? (int) $request->input('store_id') : $user->store_id;
+
+        $installers = User::where('store_id', $storeId)
+            ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
+            ->whereDoesntHave('technician', fn ($q) => $q->whereIn('status', ['pending_review', 'inactive']))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json(['success' => true, 'data' => $installers]);
+    }
+
+    /**
+     * Installer SPK manual harus berasal dari toko SPK dan berstatus aktif di roster (sama dengan penugasan installer booking).
+     * Mengembalikan daftar id unik, atau null kalau ada yang tidak valid.
+     *
+     * @return list<int>|null
+     */
+    private function validInstallerIds(array $ids, int $storeId): ?array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $valid = User::whereIn('id', $ids)
+            ->where('store_id', $storeId)
+            ->whereHas('roles', fn ($q) => $q->where('name', 'installer'))
+            ->whereDoesntHave('technician', fn ($q) => $q->whereIn('status', ['pending_review', 'inactive']))
+            ->count();
+
+        return $valid === count($ids) ? $ids : null;
+    }
+
     private function validationRules(): array
     {
         return [
-            'booking_id' => 'required|integer|exists:bookings,id',
+            'booking_id' => 'nullable|integer|exists:bookings,id',
+            'store_id' => 'nullable|integer|exists:stores,id',
+            'installer_ids' => 'nullable|array',
+            'installer_ids.*' => 'integer|exists:users,id',
             'customer_name' => 'required|string|max:255',
             'phone_number' => 'nullable|string|max:30',
             'address' => 'nullable|string',

@@ -54,6 +54,10 @@ class SpkService
 
         $checklistItems = $this->withBookingWorkItems($data, $checklistItems);
 
+        // Installer yang mengerjakan SPK manual (tanpa booking) disimpan di pivot, bukan kolom spks.
+        $installerIds = $data['installer_ids'] ?? null;
+        unset($data['installer_ids']);
+
         // Nomor SPK boleh diketik manual (mis. mengikuti nomor di kertas SPK yang sudah berjalan); kosong = nomor otomatis. Nomor manual harus unik.
         $manualNumber = trim((string) ($data['spk_number'] ?? ''));
         unset($data['spk_number']);
@@ -63,7 +67,7 @@ class SpkService
         }
 
         try {
-            return DB::transaction(function () use ($data, $checklistItems, $createdBy, $damageMarks, $manualNumber) {
+            return DB::transaction(function () use ($data, $checklistItems, $createdBy, $damageMarks, $manualNumber, $installerIds) {
                 $spkNumber = $manualNumber !== '' ? $manualNumber : Spk::generateNumberForStore($data['store_id']);
 
                 $spk = Spk::create(array_merge($data, [
@@ -71,10 +75,14 @@ class SpkService
                     'created_by' => $createdBy,
                 ]));
 
+                if (is_array($installerIds) && $installerIds !== []) {
+                    $spk->installers()->sync($installerIds);
+                }
+
                 $this->syncChecklistItems($spk, $checklistItems);
                 $this->syncDamageMarks($spk, $damageMarks);
 
-                return $spk->fresh(['checklistItems', 'damageMarks']);
+                return $spk->fresh(['checklistItems', 'damageMarks', 'installers:id,name']);
             });
         } catch (QueryException $e) {
             // 23000 = pelanggaran integrity constraint (unique/foreign key)
@@ -191,13 +199,21 @@ class SpkService
         // secepat mungkin sebelum SPK & checklist-nya disentuh sama sekali.
         $this->assertBatchTrackingSatisfied($spk, $data);
 
-        return DB::transaction(function () use ($spk, $data, $checklistItems, $damageMarks) {
+        // Installer SPK manual diubah lewat kunci installer_ids (tidak ada = tidak disentuh).
+        $installerIds = array_key_exists('installer_ids', $data) ? (array) $data['installer_ids'] : null;
+        unset($data['installer_ids']);
+
+        return DB::transaction(function () use ($spk, $data, $checklistItems, $damageMarks, $installerIds) {
             $spk->update($data);
+
+            if ($installerIds !== null) {
+                $spk->installers()->sync($installerIds);
+            }
 
             $this->syncChecklistItems($spk, $checklistItems);
             $this->syncDamageMarks($spk, $damageMarks);
 
-            return $spk->fresh(['checklistItems', 'damageMarks']);
+            return $spk->fresh(['checklistItems', 'damageMarks', 'installers:id,name']);
         });
     }
 

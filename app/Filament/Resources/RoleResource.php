@@ -67,7 +67,7 @@ class RoleResource extends Resource
         'direksi' => 'Akses penuh ke semua menu dan semua toko; memutuskan hal yang butuh persetujuan, mis. pembayaran gaji.',
         'store_manager' => 'Wajib terikat satu toko. Memutuskan izin/cuti dan koreksi absensi tokonya, dan wewenang khusus booking (batal, tidak datang, koreksi tahap).',
         'spv_finance' => 'Menjalankan Penggajian (mengajukan pembayaran ke direksi) dan memutuskan izin/cuti tokonya. Menu lain dicentang per akun di User.',
-        'installer_leader' => 'Pemimpin tim installer: boleh membuat SPK dan menjalankan booking di aplikasi.',
+        'installer_leader' => 'Pemimpin tim installer: boleh menjalankan booking di aplikasi dan membuat SPK untuk booking mana pun di tokonya.',
         'installer' => 'Wajib terikat satu toko. Login lewat aplikasi saja, tidak masuk panel ini.',
         'partner' => 'Akun mitra referral. Dikelola di menu Partner, login lewat aplikasi saja.',
     ];

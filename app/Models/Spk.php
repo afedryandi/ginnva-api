@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\HasStoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -124,6 +125,20 @@ class Spk extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** Installer yang mengerjakan SPK manual (tanpa booking). SPK berbooking memakai installer booking-nya. */
+    public function installers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'spk_installers')->withTimestamps();
+    }
+
+    /** Installer yang berhak melihat / melengkapi SPK ini: installer booking-nya, installer yang ditugaskan, atau pembuatnya. */
+    public function isAccessibleToInstaller(User $user): bool
+    {
+        return $this->created_by === $user->id
+            || $this->installers()->where('users.id', $user->id)->exists()
+            || ($this->booking_id !== null && $this->booking()->first()?->installers()->where('users.id', $user->id)->exists() === true);
     }
 
     public function checklistItems(): HasMany

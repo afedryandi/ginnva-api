@@ -245,7 +245,7 @@ class MaterialMemoResource extends Resource
                     ->counts('items')
                     ->badge(),
                 Tables\Columns\TextColumn::make('unreturned_count')
-                    ->label('Belum Kembali')
+                    ->label('Masih Digunakan')
                     ->badge()
                     ->color(fn (int $state) => $state > 0 ? 'warning' : 'gray')
                     ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} baris" : '—')

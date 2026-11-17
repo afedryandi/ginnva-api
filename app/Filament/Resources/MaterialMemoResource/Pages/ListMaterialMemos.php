@@ -26,7 +26,7 @@ class ListMaterialMemos extends ListRecords
 
         return [
             'semua' => Tab::make('Semua'),
-            'belum' => Tab::make('Belum kembali')
+            'belum' => Tab::make('Masih digunakan')
                 ->badge($base()->hasUnreturned()->count())
                 ->badgeColor('warning')
                 ->modifyQueryUsing(fn (Builder $query) => $query->hasUnreturned()),

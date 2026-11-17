@@ -210,7 +210,8 @@ class SpkResource extends Resource
                         // Tanpa ini, admin bisa memindahkan SPK yang sudah
                         // dicetak/ditandatangani fisik ke booking lain lewat
                         // Filament — merusak jejak dokumen fisik vs digital.
-                        ->disabledOn('edit')
+                        // SPK manual (tanpa booking, 2026-11-17) boleh ditautkan ke booking SEKALI belakangan; yang sudah terikat tetap terkunci.
+                        ->disabled(fn (string $operation, ?Spk $record) => $operation === 'edit' && filled($record?->booking_id))
                         ->searchable()
                         ->getSearchResultsUsing(fn (string $search, ?Spk $record) => Booking::where('status', 'confirmed')
                             ->when(! (auth()->user()?->isFullAccess() ?? false), fn (Builder $q) => $q->where('store_id', auth()->user()?->store_id))
@@ -223,7 +224,8 @@ class SpkResource extends Resource
                         ->getOptionLabelUsing(fn ($value) => Booking::find($value)?->booking_number)
                         // Memilih booking menarik data pelanggan, kendaraan, dan catatan ke detail SPK, serta mencentang layanan di Uraian
                         // Pekerjaan. Semuanya hanya isian awal dan tetap bisa diubah manual.
-                        ->afterStateUpdated(fn (Forms\Set $set, Forms\Get $get, $state) => static::pullFromBooking($set, $get, $state))
+                        // Saat menautkan SPK manual yang sudah ada (edit), isian yang sudah diketik tidak ditimpa.
+                        ->afterStateUpdated(fn (Forms\Set $set, Forms\Get $get, $state, string $operation) => $operation === 'create' ? static::pullFromBooking($set, $get, $state) : null)
                         ->suffixAction(
                             Forms\Components\Actions\Action::make('pullFromBooking')
                                 ->label('Tarik ulang dari Booking')
@@ -236,8 +238,17 @@ class SpkResource extends Resource
                                 ->action(fn (Forms\Set $set, Forms\Get $get) => static::pullFromBooking($set, $get, $get('booking_id'))),
                         )
                         ->live()
-                        ->required()
-                        ->helperText('Cuma booking berstatus "Dikonfirmasi" yang belum punya SPK.'),
+                        ->helperText('Boleh dikosongkan (SPK manual) dan ditautkan ke booking belakangan. Cuma booking berstatus "Dikonfirmasi" yang belum punya SPK.'),
+
+                    Forms\Components\Select::make('installers')
+                        ->label('Installer')
+                        ->relationship('installers', 'name', fn (Builder $query, Forms\Get $get) => $query
+                            ->where('store_id', $get('store_id') ?: auth()->user()?->store_id)
+                            ->whereHas('roles', fn ($q) => $q->where('name', 'installer')))
+                        ->multiple()
+                        ->preload()
+                        ->visible(fn (Forms\Get $get, ?Spk $record) => blank($get('booking_id')) && blank($record?->booking_id))
+                        ->helperText('Installer yang mengerjakan SPK manual ini; SPK-nya muncul di akun mereka. SPK berbooking memakai installer booking.'),
 
                     Forms\Components\DateTimePicker::make('checked_in_at')
                         ->label('Jam Masuk')
@@ -387,7 +398,7 @@ class SpkResource extends Resource
 
                 Tables\Columns\TextColumn::make('booking.booking_number')
                     ->label('Booking')
-                    ->placeholder('—')
+                    ->placeholder('Manual')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('store.name')

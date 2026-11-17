@@ -85,7 +85,7 @@ class StaffGuidesApiTest extends TestCase
         }
 
         $installer = $this->user('installer');
-        $this->assertFalse($installer->canCreateSpk(), 'Panduan menyebut installer biasa tidak membuat SPK baru.');
+        $this->assertTrue($installer->canCreateSpk(), 'Panduan menyebut installer yang ditugaskan boleh membuat SPK baru.');
 
         $customer = \App\Models\Customer::create(['name' => 'Budi', 'phone_number' => '0812' . random_int(1000000, 9999999)]);
         $booking = \App\Models\Booking::create([

@@ -271,25 +271,23 @@ class SpkApiFlowTest extends TestCase
         $this->actingAs($installer, 'api')->putJson("/api/staff/spks/{$notMineSpk->id}/damage-marks", ['damage_marks' => []])->assertStatus(404);
         $this->actingAs($installer, 'api')->putJson("/api/staff/spks/{$mineSpk->id}", ['customer_name' => 'Budi Baru'])->assertSuccessful();
 
-        // Installer tidak boleh membuat SPK baru sama sekali (2026-10-10), baik untuk booking yang bukan miliknya...
+        // Installer boleh membuat SPK baru (2026-11-17), tetapi tidak untuk booking yang bukan miliknya...
         $another = $this->booking();
         $this->actingAs($installer, 'api')->postJson('/api/staff/spks', $this->payload($another))->assertStatus(403);
     }
 
-    public function test_installer_cannot_create_a_new_spk_even_for_an_assigned_booking(): void
+    public function test_any_installer_can_create_an_spk_for_an_assigned_booking(): void
     {
         $installer = $this->staff('installer');
         $booking = $this->booking();
         $booking->installers()->attach($installer->id);
 
-        $this->actingAs($installer, 'api')->postJson('/api/staff/spks', $this->payload($booking))
-            ->assertStatus(403)
-            ->assertJsonPath('message', 'Hanya leader installer dan atasannya (store manager, direksi) yang bisa membuat SPK baru.');
+        $this->actingAs($installer, 'api')->postJson('/api/staff/spks', $this->payload($booking))->assertStatus(201);
 
-        $this->assertSame(0, \App\Models\Spk::where('booking_id', $booking->id)->count());
+        $this->assertSame(1, \App\Models\Spk::where('booking_id', $booking->id)->count());
     }
 
-    public function test_only_the_installer_leader_and_their_superiors_can_create_an_spk(): void
+    public function test_only_installers_leaders_and_their_superiors_can_create_an_spk(): void
     {
         \Spatie\Permission\Models\Role::findOrCreate('kasir', 'web');
         \Spatie\Permission\Models\Role::findOrCreate('installer_leader', 'web');
@@ -304,6 +302,94 @@ class SpkApiFlowTest extends TestCase
             $b = $this->booking();
             $this->actingAs($this->staff($role), 'api')->postJson('/api/staff/spks', $this->payload($b))->assertStatus(201);
         }
+    }
+
+    private function manualPayload(array $overrides = []): array
+    {
+        $payload = $this->payload($this->booking(), $overrides);
+        unset($payload['booking_id']);
+
+        return $payload;
+    }
+
+    public function test_an_spk_can_be_created_manually_without_a_booking(): void
+    {
+        $installer = $this->staff('installer');
+
+        $id = $this->actingAs($installer, 'api')
+            ->postJson('/api/staff/spks', $this->manualPayload(['customer_name' => 'Pelanggan Walk-in']))
+            ->assertStatus(201)
+            ->json('data.id');
+
+        $spk = Spk::findOrFail($id);
+        $this->assertNull($spk->booking_id);
+        $this->assertSame($this->store->id, $spk->store_id);
+        $this->assertSame($installer->id, $spk->created_by);
+    }
+
+    public function test_a_manual_spk_is_visible_to_its_creator_and_to_the_assigned_installers_only(): void
+    {
+        $creator = $this->staff('installer');
+        $assigned = $this->staff('installer');
+        $outsider = $this->staff('installer');
+
+        $id = $this->actingAs($creator, 'api')
+            ->postJson('/api/staff/spks', $this->manualPayload(['installer_ids' => [$assigned->id]]))
+            ->assertStatus(201)
+            ->json('data.id');
+
+        foreach ([$creator, $assigned] as $allowed) {
+            $ids = collect($this->actingAs($allowed, 'api')->getJson('/api/staff/spks')->json('data'))->pluck('id');
+            $this->assertTrue($ids->contains($id));
+            $this->actingAs($allowed, 'api')->getJson("/api/staff/spks/{$id}")->assertSuccessful();
+        }
+
+        $this->assertFalse(collect($this->actingAs($outsider, 'api')->getJson('/api/staff/spks')->json('data'))->pluck('id')->contains($id));
+        $this->actingAs($outsider, 'api')->getJson("/api/staff/spks/{$id}")->assertStatus(404);
+    }
+
+    public function test_manual_spk_installers_must_be_from_the_same_store(): void
+    {
+        $foreign = $this->staff('installer', $this->otherStore);
+
+        $this->actingAs($this->staff('store_manager'), 'api')
+            ->postJson('/api/staff/spks', $this->manualPayload(['installer_ids' => [$foreign->id]]))
+            ->assertStatus(422);
+    }
+
+    public function test_the_assignable_installers_list_covers_the_own_store_only(): void
+    {
+        $mine = $this->staff('installer');
+        $this->staff('installer', $this->otherStore);
+
+        $names = collect($this->actingAs($this->staff('store_manager'), 'api')->getJson('/api/staff/spks/assignable-installers')->assertSuccessful()->json('data'))->pluck('id');
+
+        $this->assertSame([$mine->id], $names->all());
+    }
+
+    public function test_a_manual_spk_can_be_linked_to_a_booking_once(): void
+    {
+        $manager = $this->staff('store_manager');
+        $id = $this->actingAs($manager, 'api')->postJson('/api/staff/spks', $this->manualPayload())->assertStatus(201)->json('data.id');
+
+        $booking = $this->booking();
+        $this->actingAs($manager, 'api')
+            ->putJson("/api/staff/spks/{$id}", ['customer_name' => 'Budi', 'booking_id' => $booking->id])
+            ->assertSuccessful();
+
+        $this->assertSame($booking->id, Spk::findOrFail($id)->booking_id);
+
+        // Sudah terikat: tidak bisa dipindah ke booking lain.
+        $other = $this->booking();
+        $this->actingAs($manager, 'api')
+            ->putJson("/api/staff/spks/{$id}", ['customer_name' => 'Budi', 'booking_id' => $other->id])
+            ->assertStatus(422);
+
+        // Booking yang sudah punya SPK tidak bisa ditautkan lagi.
+        $second = $this->actingAs($manager, 'api')->postJson('/api/staff/spks', $this->manualPayload())->assertStatus(201)->json('data.id');
+        $this->actingAs($manager, 'api')
+            ->putJson("/api/staff/spks/{$second}", ['customer_name' => 'Budi', 'booking_id' => $booking->id])
+            ->assertStatus(422);
     }
 
     public function test_update_replaces_checklist_and_only_touches_damage_marks_when_sent(): void
