@@ -140,8 +140,9 @@ class PurchaseRequestResource extends Resource
                             'raw_material'    => 'Bahan Baku (restock)',
                             'consumable_item' => 'Barang Habis Pakai (restock)',
                             'asset'           => 'Aset Baru (belum ada di katalog)',
+                            'other'           => 'Lainnya (barang di luar stok inventori)',
                         ]))
-                        ->in(\App\Support\HiddenInventoryTypes::allowed(['raw_material', 'consumable_item', 'asset']))
+                        ->in(\App\Support\HiddenInventoryTypes::allowed(['raw_material', 'consumable_item', 'asset', 'other']))
                         ->required()
                         ->live()
                         ->afterStateUpdated(fn (Forms\Set $set) => $set('item_id', null)),
@@ -186,9 +187,16 @@ class PurchaseRequestResource extends Resource
                     // diketik manual di sini.
                     Forms\Components\TextInput::make('item_name')
                         ->label('Nama Barang / Aset yang Diminta')
-                        ->visible(fn (Forms\Get $get) => $get('item_type') === 'asset')
-                        ->required(fn (Forms\Get $get) => $get('item_type') === 'asset')
+                        ->visible(fn (Forms\Get $get) => in_array($get('item_type'), ['asset', 'other'], true))
+                        ->required(fn (Forms\Get $get) => in_array($get('item_type'), ['asset', 'other'], true))
                         ->maxLength(255),
+
+                    // Lainnya: barang di luar stok inventori, jadi satuannya diketik bebas (Bahan Baku mengambil satuan dari katalog).
+                    Forms\Components\TextInput::make('unit')
+                        ->label('Satuan')
+                        ->placeholder('Mis. buah, paket, lembar')
+                        ->visible(fn (Forms\Get $get) => $get('item_type') === 'other')
+                        ->maxLength(30),
 
                     Forms\Components\TextInput::make('quantity')
                         ->label('Jumlah')
@@ -278,6 +286,7 @@ class PurchaseRequestResource extends Resource
                         'raw_material'    => 'Bahan Baku',
                         'consumable_item' => 'Barang Habis Pakai',
                         'asset'           => 'Aset Baru',
+                        'other'           => 'Lainnya',
                         default           => null,
                     }),
 
@@ -374,6 +383,7 @@ class PurchaseRequestResource extends Resource
                         'raw_material'    => 'Bahan Baku',
                         'consumable_item' => 'Barang Habis Pakai',
                         'asset'           => 'Aset Baru',
+                        'other'           => 'Lainnya',
                     ])),
 
                 Tables\Filters\SelectFilter::make('store_id')

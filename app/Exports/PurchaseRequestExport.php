@@ -30,6 +30,7 @@ class PurchaseRequestExport implements FromCollection, WithHeadings, WithStyles
         'raw_material' => 'Bahan Baku',
         'consumable_item' => 'Barang Habis Pakai',
         'asset' => 'Aset Baru',
+        'other' => 'Lainnya',
     ];
 
     /** $withCost: kolom Biaya Aktual hanya untuk yang boleh melihat harga; $query: daftar yang sedang difilter di layar (kosong = semua yang boleh dilihat). */

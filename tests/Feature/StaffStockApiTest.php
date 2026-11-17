@@ -855,6 +855,39 @@ class StaffStockApiTest extends TestCase
         $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'raw_material', 'item_id' => $material->id, 'quantity' => 2])
             ->assertStatus(201);
     }
+    public function test_a_request_of_type_other_takes_a_free_name_and_unit_and_survives_the_feature_flags(): void
+    {
+        $staff = $this->prStaff($this->storeA);
+        config(['features.consumables' => false, 'features.assets' => false]);
+
+        $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'other', 'quantity' => 2])
+            ->assertStatus(422)->assertJsonValidationErrors('item_name');
+
+        $id = $this->api($staff)->postJson('/api/staff/purchase-requests', ['item_type' => 'other', 'item_name' => 'Kursi tunggu', 'unit' => 'buah', 'quantity' => 2, 'reason' => 'Ruang tunggu kurang'])
+            ->assertStatus(201)->assertJsonPath('data.item_type', 'other')->json('data.id');
+
+        $request = PurchaseRequest::withoutGlobalScopes()->findOrFail($id);
+        $this->assertSame(['other', null, 'Kursi tunggu', 'buah', 'pending'], [$request->item_type, $request->item_id, $request->item_name, $request->unit, $request->status]);
+    }
+
+    public function test_a_request_of_type_other_is_received_without_stock_or_a_journal(): void
+    {
+        $requester = $this->prStaff($this->storeA);
+        $request = $this->approvedRequest($this->storeA, $requester, ['item_type' => 'other', 'item_name' => 'Kursi tunggu', 'unit' => 'buah', 'quantity' => 2]);
+
+        $listed = $this->api($requester)->getJson('/api/staff/purchase-requests?status=approved')->assertSuccessful()->json('data.0');
+        $this->assertTrue($listed['can_receive']);
+        $this->assertFalse($listed['can_record_stock']);
+        $this->assertFalse($listed['can_register_asset']);
+
+        $this->api($requester)->postJson("/api/staff/purchase-requests/{$request->id}/receive", ['quantity_received' => 2] + $this->financeFields())->assertSuccessful()->assertJsonPath('data.status', 'fulfilled');
+
+        $fresh = $request->fresh();
+        $this->assertSame('fulfilled', $fresh->status);
+        $this->assertNull($fresh->stock_recorded_at);
+        $this->assertNull($fresh->journal_entry_id);
+    }
+
     public function test_purchase_request_validation_and_missing_catalogue_items(): void
     {
         $staff = $this->prStaff();

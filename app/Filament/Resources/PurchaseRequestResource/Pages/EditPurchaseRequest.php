@@ -35,7 +35,8 @@ class EditPurchaseRequest extends EditRecord
             $data['unit'] = $item?->unit;
         } else {
             $data['item_id'] = null;
-            $data['unit'] = null;
+            // Lainnya: satuan diketik bebas; Aset Baru tidak punya satuan.
+            $data['unit'] = $data['item_type'] === 'other' && filled($data['unit'] ?? null) ? trim($data['unit']) : null;
         }
 
         // Kolom hasil review dikunci total di form Edit biasa — cuma bisa

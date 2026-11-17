@@ -100,9 +100,11 @@ class PurchaseRequestController extends Controller
 
         $validator = Validator::make($request->all(), [
             // Jenis yang dimatikan lewat saklar fitur (Barang Habis Pakai, Aset Tetap) tidak boleh dibuat lewat API, sama dengan form panel.
-            'item_type' => ['required', \Illuminate\Validation\Rule::in(\App\Support\HiddenInventoryTypes::allowed(['raw_material', 'consumable_item', 'asset']))],
+            // 'other' = Lainnya: barang di luar stok inventori (nama dan satuan diketik bebas, tanpa katalog dan tanpa stok).
+            'item_type' => ['required', \Illuminate\Validation\Rule::in(\App\Support\HiddenInventoryTypes::allowed(['raw_material', 'consumable_item', 'asset', 'other']))],
             'item_id' => 'required_if:item_type,raw_material,consumable_item|nullable|integer',
-            'item_name' => 'required_if:item_type,asset|nullable|string|max:255',
+            'item_name' => 'required_if:item_type,asset,other|nullable|string|max:255',
+            'unit' => 'nullable|string|max:30',
             'quantity' => 'required|numeric|min:0.01|max:1000000',
             'reason' => 'nullable|string|max:1000',
             'store_id' => 'nullable|integer|exists:stores,id',
@@ -117,7 +119,7 @@ class PurchaseRequestController extends Controller
         }
 
         $itemName = $request->item_name;
-        $unit = null;
+        $unit = $request->item_type === 'other' ? (trim((string) $request->unit) !== '' ? trim((string) $request->unit) : null) : null;
         $catalogItem = null;
 
         if ($request->item_type === 'raw_material') {

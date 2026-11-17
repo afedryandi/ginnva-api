@@ -83,7 +83,8 @@ class PurchaseRequestReceiveService
             }
 
             // Pembukuan dipegang Accurate 5 (FEATURE_FINANCE mati): cukup tandai terpenuhi, tanpa jurnal dan tagihan.
-            if (! $ledger) {
+            // Jenis "Lainnya" (di luar stok inventori) tidak punya akun persediaan: cukup ditandai terpenuhi, tanpa jurnal dan tagihan.
+            if (! $ledger || $locked->item_type === 'other') {
                 return;
             }
 
