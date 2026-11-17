@@ -59,8 +59,28 @@ class CleanUi
             return true;
         }
 
-        return method_exists($page, 'getResource')
-            && in_array($page::getResource(), self::RESOURCES, true);
+        if (method_exists($page, 'getResource') && in_array($page::getResource(), self::RESOURCES, true)) {
+            return true;
+        }
+
+        return self::isReportPage($page);
+    }
+
+    /**
+     * Halaman kluster Laporan (Penjualan): laporan berupa halaman kustom, dan Detail Penjualan berupa resource. Ikut gaya bersih tanpa didaftar satu per satu,
+     * sehingga laporan baru di kluster ini otomatis ikut, dan mendapat gaya tabel laporan (resources/views/filament/partials/report-styles).
+     */
+    public static function isReportPage(mixed $page): bool
+    {
+        if (! is_object($page)) {
+            return false;
+        }
+
+        $cluster = method_exists($page, 'getResource')
+            ? $page::getResource()::getCluster()
+            : (method_exists($page, 'getCluster') ? $page::getCluster() : null);
+
+        return $cluster === \App\Filament\Clusters\PenjualanCluster::class;
     }
 
     /**

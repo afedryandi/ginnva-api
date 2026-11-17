@@ -229,6 +229,13 @@ class AdminPanelProvider extends PanelProvider
                     ? view('filament.partials.admin-ui-styles')->render()
                     : ''
             )
+            // Gaya tabel laporan (kluster Laporan): menyeragamkan <table> biasa di halaman laporan.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::PAGE_START,
+                fn (): string => \App\Support\CleanUi::isReportPage(\Livewire\Livewire::current())
+                    ? view('filament.partials.report-styles')->render()
+                    : ''
+            )
             // Pintasan Pusat Persetujuan: ikon dengan angka pengajuan menunggu, di antara lonceng dan avatar. Bukan tab menu supaya bilah atas tidak penuh.
             ->renderHook(
                 \Filament\View\PanelsRenderHook::USER_MENU_BEFORE,

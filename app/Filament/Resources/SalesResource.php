@@ -107,7 +107,7 @@ class SalesResource extends Resource
                 Tables\Columns\TextColumn::make('booking_number')
                     ->label('No. Booking')
                     ->searchable()
-                    ->weight('bold'),
+                    ->weight('semibold'),
 
                 // display_customer_name (bukan kolom mentah customer_name): booking dari aplikasi menyimpan nama di
                 // relasi customer, dan pelanggan yang dihapus tampil "Pelanggan Terhapus" (kebijakan PII) -- sama
@@ -139,7 +139,8 @@ class SalesResource extends Resource
                 Tables\Columns\TextColumn::make('transaction_amount')
                     ->label('Nilai Transaksi')
                     ->money('IDR', locale: 'id')
-                    ->weight('bold')
+                    ->alignEnd()
+                    ->weight('semibold')
                     ->sortable(),
 
                 // Potongan Promo (audit 2026-09-11, temuan #4) —
