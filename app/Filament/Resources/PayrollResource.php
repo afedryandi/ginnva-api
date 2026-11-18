@@ -253,6 +253,8 @@ class PayrollResource extends Resource
 
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
+                    ->searchable()
+                    ->preload()
                     ->relationship('store', 'name'),
 
                 Tables\Filters\SelectFilter::make('period_month')

@@ -309,6 +309,8 @@ class PartnershipInquiryResource extends Resource
                     ->options(\App\Support\LeadOutcome::OUTCOMES),
                 Tables\Filters\SelectFilter::make('owner_user_id')
                     ->label('Penanggung Jawab')
+                    ->searchable()
+                    ->preload()
                     ->relationship('owner', 'name'),
                 Tables\Filters\SelectFilter::make('category')
                     ->label('Kategori')

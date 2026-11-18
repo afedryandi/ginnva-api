@@ -86,7 +86,7 @@ class PpeIssuanceResource extends Resource
                 Tables\Filters\Filter::make('overdue')
                     ->label('Perlu diganti')
                     ->query(fn (Builder $query) => $query->whereNull('returned_on')->whereNotNull('replace_due_on')->whereDate('replace_due_on', '<=', today())),
-                Tables\Filters\SelectFilter::make('ppe_type_id')->label('Jenis')->relationship('type', 'name'),
+                Tables\Filters\SelectFilter::make('ppe_type_id')->label('Jenis')->searchable()->preload()->relationship('type', 'name'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

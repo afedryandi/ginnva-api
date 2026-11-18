@@ -427,6 +427,8 @@ class SpkResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
+                    ->searchable()
+                    ->preload()
                     ->relationship('store', 'name')
                     ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
 

@@ -359,6 +359,8 @@ class FinanceTransactionResource extends Resource
 
                 Tables\Filters\SelectFilter::make('finance_category_id')
                     ->label('Kategori')
+                    ->searchable()
+                    ->preload()
                     ->relationship('category', 'name'),
 
                 Tables\Filters\Filter::make('belum_terposting')

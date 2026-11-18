@@ -1388,6 +1388,8 @@ class UserResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('roles')
                     ->label('Jabatan')
+                    ->searchable()
+                    ->preload()
                     ->relationship('roles', 'name'),
 
                 Tables\Filters\SelectFilter::make('store_id')
