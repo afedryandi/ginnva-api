@@ -60,6 +60,33 @@ class DashboardHome extends Dashboard
         // $resultCache manual.
     }
 
+    /** Judul halaman berupa sapaan menurut jam, mis. "Selamat siang, Antony". */
+    public function getHeading(): string|IlluminateContractsSupportHtmlable
+    {
+        $hour = (int) now()->format('G');
+        $greeting = match (true) {
+            $hour < 11 => 'Selamat pagi',
+            $hour < 15 => 'Selamat siang',
+            $hour < 19 => 'Selamat sore',
+            default => 'Selamat malam',
+        };
+        $name = trim((string) (explode(' ', trim((string) auth()->user()?->name))[0] ?? ''));
+
+        return $name !== '' ? "{$greeting}, {$name}" : $greeting;
+    }
+
+    /** Anak judul: ruang lingkup data (toko) dan tanggal hari ini. */
+    public function getSubheading(): ?string
+    {
+        $options = $this->getStoreOptions();
+        $isFullAccess = auth()->user()?->isFullAccess() ?? false;
+        $scope = $this->storeId
+            ? ($options[$this->storeId] ?? 'Toko terpilih')
+            : ($isFullAccess ? 'Semua toko' : (auth()->user()?->store?->name ?? 'Toko Anda'));
+
+        return $scope . ' · ' . now()->locale('id')->translatedFormat('l, j F Y');
+    }
+
     /** Daftar toko untuk filter (full-access saja) — sama dengan SalesDashboard. */
     public function getStoreOptions(): array
     {

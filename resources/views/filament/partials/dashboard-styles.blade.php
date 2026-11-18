@@ -12,7 +12,8 @@
             --gd-soft: rgba(var(--gray-100), .7);
             --gd-ink: rgb(var(--gray-950));
             --gd-muted: rgb(var(--gray-500));
-            --gd-radius: 1rem;
+            --gd-radius: 1.25rem;
+            --gd-shadow: 0 8px 24px -10px rgba(20, 20, 27, .1);
             font-feature-settings: 'tnum' 1, 'cv11' 1;
             font-variant-numeric: tabular-nums;
         }
@@ -24,9 +25,16 @@
             --gd-muted: rgb(var(--gray-400));
         }
 
-        /* Tata letak: jarak antar blok selalu 1.5rem, antar kartu 1rem. */
-        .gd { display: flex; flex-direction: column; gap: 1.75rem; }
-        .gd-block { display: flex; flex-direction: column; gap: .75rem; }
+        /* Tata letak: jarak antar blok 2rem, antar kartu 1rem. Kolom utama 2/3 dan kolom samping 1/3 di layar lebar. */
+        .gd { display: flex; flex-direction: column; gap: 1.5rem; }
+        .gd-block { display: flex; flex-direction: column; gap: 1rem; }
+        .gd-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; }
+        .gd-col { display: flex; flex-direction: column; gap: 2rem; min-width: 0; }
+        .gd-col--side { order: -1; }
+        @media (min-width: 1280px) {
+            .gd-layout--side { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+            .gd-col--side { order: 0; }
+        }
         .gd-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
         @media (min-width: 1024px) {
             .gd-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -37,22 +45,17 @@
         /* Judul blok: kecil, huruf kapital, redup; hanya penanda, bukan pusat perhatian. */
         .gd-label {
             display: flex; align-items: center; gap: .5rem;
-            font-size: .6875rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--gd-muted);
+            font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--gd-muted);
         }
         .gd-label svg { width: 1rem; height: 1rem; }
         .gd-label::after { content: ''; flex: 1; height: 1px; background: var(--gd-line); }
 
-        /* Bilah atas: ruang lingkup data + filter toko. */
-        .gd-bar {
-            display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem;
-            padding: .75rem 1rem; background: var(--gd-surface); border: 1px solid var(--gd-line); border-radius: var(--gd-radius);
-        }
-        .gd-bar-info { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem 1rem; font-size: .8125rem; color: var(--gd-muted); }
-        .gd-bar-info strong { color: var(--gd-ink); font-weight: 600; }
-        .gd-dot { width: .375rem; height: .375rem; border-radius: 9999px; background: rgb(var(--primary-500)); display: inline-block; margin-right: .375rem; }
+        /* Filter toko: kapsul rata kanan di bawah judul halaman. */
+        .gd-toolbar { display: flex; justify-content: flex-end; }
         .gd-filter {
             display: inline-flex; align-items: center; gap: .5rem; padding: .375rem .75rem;
-            border: 1px solid var(--gd-line); border-radius: .75rem; background: var(--gd-soft); font-size: .8125rem;
+            border: 1px solid var(--gd-line); border-radius: 9999px; background: var(--gd-surface); font-size: .8125rem;
+            padding: .4375rem 1rem;
         }
         .gd-filter svg { width: 1rem; height: 1rem; color: var(--gd-muted); }
         .gd-filter select {
@@ -68,6 +71,10 @@
             background: var(--gd-surface); border: 1px solid var(--gd-line); border-radius: var(--gd-radius);
             box-shadow: none; --tw-ring-shadow: 0 0 #0000; --tw-ring-color: transparent;
         }
+        html:not(.dark) .gd .fi-section,
+        html:not(.dark) .gd .fi-wi-stats-overview-stat,
+        html:not(.dark) .gd-attn-item,
+        html:not(.dark) .gd-act { border-color: transparent; box-shadow: var(--gd-shadow); }
         .gd .fi-section { overflow: visible; }
         .gd .fi-section-header { padding: 1rem 1.25rem .25rem; }
         .gd .fi-section-header-heading { font-size: .875rem; font-weight: 600; letter-spacing: -.005em; color: var(--gd-ink); }
@@ -75,7 +82,7 @@
         .gd .fi-section-content { padding: .75rem 1.25rem 1.25rem; }
 
         /* Kartu angka: label redup di atas, nilai besar, keterangan kecil berwarna. */
-        .gd .fi-wi-stats-overview-stat { padding: 1.125rem 1.25rem; transition: border-color .15s ease; }
+        .gd .fi-wi-stats-overview-stat { padding: 1.25rem 1.375rem; transition: border-color .15s ease; }
         .gd a.fi-wi-stats-overview-stat:hover,
         .gd .fi-wi-stats-overview-stat:hover { border-color: rgba(var(--primary-500), .35); }
         .gd .fi-wi-stats-overview-stat-label { font-size: .8125rem; font-weight: 500; color: var(--gd-muted); }
@@ -84,7 +91,7 @@
             font-variant-numeric: tabular-nums;
         }
         .gd .fi-wi-stats-overview-stat-description { font-size: .75rem; font-weight: 500; }
-        .gd .fi-wi-stats-overview { gap: 1rem; }
+        .gd .fi-wi-stats-overview { gap: 1.25rem; }
 
         /* Grafik: ruang napas dan tinggi seragam. */
         .gd .fi-wi-chart .fi-section-content { padding-top: .5rem; }
