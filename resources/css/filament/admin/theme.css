@@ -394,3 +394,16 @@ html:not(.dark) .fi-ta-header-toolbar .fi-tabs {
 .fi-ta:has(.gx-filter-toggle) .fi-ta-filters-above-content-ctn:not(:has(> .fi-ta-filters:not([style*="display: none"]))) {
     display: none;
 }
+
+/* Logo di bilah atas tidak boleh menyusut ke samping: label menu yang tidak turun baris membuat bilah lebih lebar, dan lebar logo ikut dikecilkan
+   (max-width: 100% bawaan reset gaya) sementara tingginya tetap, sehingga gambarnya terlihat gepeng. */
+.fi-topbar .fi-logo {
+    max-width: none;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+.fi-topbar a:has(> .fi-logo),
+.fi-topbar div:has(> .fi-logo) {
+    flex-shrink: 0;
+}

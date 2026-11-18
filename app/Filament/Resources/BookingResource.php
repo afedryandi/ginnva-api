@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources;
 
-use App\Exports\BookingExport;
 use App\Filament\Resources\BookingResource\Pages;
 use App\Mail\BookingWatcherAssignedMail;
 use App\Models\Booking;
@@ -32,7 +31,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Maatwebsite\Excel\Facades\Excel;
 use RuntimeException;
 
 class BookingResource extends Resource
@@ -2010,26 +2008,7 @@ class BookingResource extends Resource
             ->emptyStateDescription('Booking dari aplikasi, WhatsApp, dan walk-in akan muncul di sini.')
             ->paginated([10, 25, 50])
             ->defaultPaginationPageOption(25)
-            ->headerActions([
-                Tables\Actions\Action::make('export')
-                    ->label('Export Excel')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->color('success')
-                    ->action(function ($livewire) {
-                        $storeId = auth()->user()?->isFullAccess()
-                            ? null
-                            : auth()->user()?->store_id;
-
-                        // Ekspor mengikuti filter & pencarian tabel yang aktif
-                        // (keputusan 2026-10-06).
-                        $ids = $livewire->getFilteredTableQuery()->reorder()->pluck('bookings.id')->all();
-
-                        return Excel::download(
-                            new BookingExport($storeId, $ids),
-                            'booking-' . now()->format('Ymd') . '.xlsx'
-                        );
-                    }),
-            ])
+            // Export Excel pindah ke kepala halaman (ListBookings::getHeaderActions), sejajar dengan tombol Tambah Booking.
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
