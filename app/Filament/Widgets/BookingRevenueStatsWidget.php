@@ -51,6 +51,11 @@ class BookingRevenueStatsWidget extends BaseWidget
 
     public static function canView(): bool
     {
+        // Angka penjualan disembunyikan (keputusan pemilik 2026-12-16). Nyalakan lagi lewat FEATURE_MONEY_MENUS=true di .env.
+        if (! config('features.money_menus')) {
+            return false;
+        }
+
         return auth()->user()?->hasMenuAccess(BookingResource::class) ?? false;
     }
 
