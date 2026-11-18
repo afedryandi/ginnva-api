@@ -161,4 +161,26 @@ return [
     */
     'overtime_requests' => (bool) env('FEATURE_OVERTIME_REQUESTS', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Menu penjualan dan harga (keputusan pemilik 2026-12-16)
+    |--------------------------------------------------------------------------
+    | Mati bawaan: nilai uang (penjualan, refund, promo, harga) tidak dikelola di sistem ini kecuali lewat Invoice. Menu Persetujuan Transaksi,
+    | Detail Penjualan, Dashboard Penjualan, Ringkasan Penjualan, Penjualan Per Periode, Penjualan Outlet, Penjualan Produk, Laporan Refund,
+    | Laporan Pembatalan, Buku Pembayaran, Koefisien Harga, Perubahan Harga Terjadwal, Promo Total Pembelian, dan Laporan Promo tidak tampil
+    | dan ditolak. Laporan Jenis Order, Laporan Voucher, dan Skala Upah punya saklar sendiri (juga mati bawaan). Kode, tabel, dan data tetap
+    | ada. Untuk menyalakan lagi isi FEATURE_MONEY_MENUS=true di .env lalu `php artisan config:cache`. Tes menyalakannya (phpunit.xml).
+    */
+    'money_menus' => (bool) env('FEATURE_MONEY_MENUS', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Komisi installer (keputusan pemilik 2026-12-16)
+    |--------------------------------------------------------------------------
+    | Mati bawaan: perusahaan tidak memakai komisi installer. Laporan Komisi Installer dan Komisi Tetap, tab Tarif Layanan di data installer, dan
+    | angka komisi di dashboard serta laporan tidak tampil. Kode, tabel, dan data tarif lama tetap ada. Untuk menyalakan lagi isi
+    | FEATURE_INSTALLER_COMMISSION=true di .env lalu `php artisan config:cache`. Tes menyalakannya (phpunit.xml).
+    */
+    'installer_commission' => (bool) env('FEATURE_INSTALLER_COMMISSION', false),
+
 ];

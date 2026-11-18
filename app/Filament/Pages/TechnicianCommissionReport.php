@@ -67,6 +67,11 @@ class TechnicianCommissionReport extends Page implements HasForms
 
     public static function canAccess(): bool
     {
+        // Komisi installer tidak dipakai (keputusan pemilik 2026-12-16). Nyalakan lagi lewat FEATURE_INSTALLER_COMMISSION=true di .env.
+        if (! config('features.installer_commission')) {
+            return false;
+        }
+
         return auth()->user()?->isFullAccess() ?? false;
     }
 

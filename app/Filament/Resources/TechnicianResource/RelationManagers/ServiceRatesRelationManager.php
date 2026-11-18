@@ -22,6 +22,12 @@ class ServiceRatesRelationManager extends RelationManager
 
     protected static ?string $title = 'Tarif per Layanan';
 
+    // Komisi installer tidak dipakai (keputusan pemilik 2026-12-16); nyalakan lagi lewat FEATURE_INSTALLER_COMMISSION=true.
+    public static function canViewForRecord(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): bool
+    {
+        return (bool) config('features.installer_commission');
+    }
+
     public function isReadOnly(): bool
     {
         return ! (auth()->user()?->isFullAccess() ?? false);

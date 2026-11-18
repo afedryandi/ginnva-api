@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Filament\Resources\BookingResource;
+use App\Models\Booking;
+use App\Support\BookingPdf;
 use App\Support\RecordPdf;
 use Filament\Facades\Filament;
 use Illuminate\Http\Request;
@@ -32,6 +35,11 @@ class RecordPdfController extends Controller
         abort_unless($resource::canView($model), 403);
 
         $name = Str::slug($resource::getModelLabel() . '-' . $resource::getRecordTitle($model)) ?: 'detail';
+
+        // Booking punya cetakan khusus (bergaya SPK); menu lain memakai cetakan umum.
+        if ($resource === BookingResource::class && $model instanceof Booking) {
+            return BookingPdf::render($model)->stream($name . '.pdf');
+        }
 
         return RecordPdf::render($resource, $model)->stream($name . '.pdf');
     }

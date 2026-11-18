@@ -179,6 +179,7 @@ class TechnicianResource extends Resource
                         ->default('intermediate'),
 
                     Forms\Components\TextInput::make('commission_amount')
+                        ->visible(fn () => (bool) config('features.installer_commission'))
                         ->label('Komisi per Pekerjaan (Rp)')
                         ->numeric()
                         ->minValue(0)
@@ -253,7 +254,7 @@ class TechnicianResource extends Resource
                 ->label('Komisi per Pekerjaan')
                 ->placeholder('Belum diatur')
                 ->money('IDR', locale: 'id')
-                ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
+                ->visible(fn () => (bool) config('features.installer_commission') && (auth()->user()?->isFullAccess() ?? false)),
             TextEntry::make('notes')->label('Catatan')->placeholder('—')->columnSpanFull(),
             TextEntry::make('created_at')->label('Ditambahkan')->dateTime('d M Y H:i'),
 
@@ -336,7 +337,7 @@ class TechnicianResource extends Resource
                     ->money('IDR', locale: 'id')
                     ->placeholder('Belum diatur')
                     ->toggleable(isToggledHiddenByDefault: true)
-                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false),
+                    ->visible(fn () => (bool) config('features.installer_commission') && (auth()->user()?->isFullAccess() ?? false)),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Ditambahkan')

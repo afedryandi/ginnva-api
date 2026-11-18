@@ -39,8 +39,8 @@ class RecordPdf
     {
         $sections = self::sectionsFromForm($resource, $record) ?? self::sectionsFromAttributes($record);
 
-        // Logo 1024 px (50 KB). Jangan pakai ginnva-logo.png (4445 px): dompdf menguraikannya jadi puluhan MB dan memori habis.
-        $logoPath = public_path('images/ginnva-logo-merah.png');
+        // Logo Ginnva (lambang + kata, 600 px) seperti kop cetakan SPK. Jangan pakai ginnva-logo.png (4445 px): dompdf menguraikannya jadi puluhan MB dan memori habis.
+        $logoPath = public_path('images/ginnva-wordmark-merah.png');
         $logo = is_file($logoPath) ? 'data:image/png;base64,' . base64_encode((string) file_get_contents($logoPath)) : null;
 
         $title = trim((string) $resource::getRecordTitle($record));

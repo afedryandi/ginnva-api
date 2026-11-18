@@ -9,6 +9,8 @@
 --}}
 @php
     $technician = $getRecord();
+    // Komisi installer tidak dipakai (keputusan pemilik 2026-12-16): tanpa saklar, hanya riwayat booking yang tampil.
+    $showCommission = (bool) config('features.installer_commission');
     $bookings = $technician->user_id
         ? \App\Models\Booking::query()
             ->whereHas('installers', fn ($q) => $q->where('users.id', $technician->user_id))
@@ -18,7 +20,7 @@
             ->get(['id', 'booking_number', 'customer_name', 'preferred_date', 'status', 'product_ppf', 'product_kaca_film', 'product_detailing', 'product_premium_wash'])
         : collect();
 
-    $monthToDateCommission = $technician->user_id
+    $monthToDateCommission = $showCommission && $technician->user_id
         ? \App\Models\Booking::query()
             ->whereHas('installers', fn ($q) => $q->where('users.id', $technician->user_id))
             ->where('status', 'confirmed')
@@ -31,11 +33,13 @@
 @endphp
 
 <div class="space-y-3">
+    @if ($showCommission)
     <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5">
         <span class="text-gray-500 dark:text-gray-400">Estimasi Komisi Bulan Ini:</span>
         <span class="font-semibold text-gray-900 dark:text-white">{{ $rupiah($monthToDateCommission) }}</span>
         <span class="text-xs text-gray-400 dark:text-gray-500">(booking berstatus confirmed yang sudah tercatat ke Jurnal Umum)</span>
     </div>
+    @endif
 
     @if ($bookings->isEmpty())
         <p class="text-xs text-gray-400 dark:text-gray-500">Belum ada riwayat booking untuk installer ini.</p>
@@ -56,9 +60,11 @@
                         <div class="truncate font-medium text-gray-900 dark:text-white">{{ $booking->booking_number }} — {{ $booking->customer_name }}</div>
                         <div class="text-xs text-gray-400 dark:text-gray-500">{{ $booking->preferred_date?->format('d M Y') }} · {{ $products ?: '—' }}</div>
                     </div>
+                    @if ($showCommission)
                     <div class="flex-shrink-0 text-xs font-semibold text-gray-700 dark:text-gray-200">
                         {{ $commission !== null ? $rupiah($commission) : 'Belum diatur' }}
                     </div>
+                    @endif
                 </div>
             @endforeach
         </div>
