@@ -323,3 +323,30 @@ html:not(.dark) .fi-tabs {
 .fi-modal-window {
     border-radius: 1.5rem;
 }
+
+/* Penyesuaian setelah tinjauan tampilan (2026-12-16): label menu atas tidak turun baris, bilah gulir sidebar tipis. */
+.fi-topbar-item-label {
+    white-space: nowrap;
+}
+
+.fi-topbar-item-button {
+    border-radius: 0.875rem;
+}
+
+.fi-sidebar-nav,
+.fi-page-sub-navigation-sidebar-ctn,
+.fi-page-sub-navigation-sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--gray-400), 0.45) transparent;
+}
+
+.fi-sidebar-nav::-webkit-scrollbar,
+.fi-page-sub-navigation-sidebar-ctn::-webkit-scrollbar {
+    width: 6px;
+}
+
+.fi-sidebar-nav::-webkit-scrollbar-thumb,
+.fi-page-sub-navigation-sidebar-ctn::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: rgba(var(--gray-400), 0.45);
+}
