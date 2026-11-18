@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\Store;
 use Filament\Pages\Dashboard;
+use Illuminate\Contracts\Support\Htmlable;
 use Livewire\Attributes\Url;
 
 /**
@@ -61,7 +62,7 @@ class DashboardHome extends Dashboard
     }
 
     /** Judul halaman berupa sapaan menurut jam, mis. "Selamat siang, Antony". */
-    public function getHeading(): string|IlluminateContractsSupportHtmlable
+    public function getHeading(): string|Htmlable
     {
         $hour = (int) now()->format('G');
         $greeting = match (true) {
