@@ -16,6 +16,7 @@ use App\Support\Approvals\ApprovalItem;
 use App\Support\Approvals\ApprovalSource;
 use App\Support\Approvals\Sources\CorrectionSource;
 use App\Support\Approvals\Sources\FieldDutySource;
+use App\Support\Approvals\Sources\PartialLeaveSource;
 use App\Support\Approvals\Sources\LeaveSource;
 use App\Support\Approvals\Sources\LinkSource;
 use App\Support\Approvals\Sources\MaterialMemoHandoverSource;
@@ -44,6 +45,7 @@ class ApprovalCenterService
             // Lembur hanya bila diberlakukan (FEATURE_OVERTIME_REQUESTS).
             ...(config('features.overtime_requests') ? [new OvertimeSource()] : []),
             new FieldDutySource(),
+            new PartialLeaveSource(),
             new LeaveSource(),
             new CorrectionSource(),
             new PurchaseRequestSource(),

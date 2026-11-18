@@ -16,6 +16,7 @@ use App\Filament\Resources\FinanceTransactionApprovalRequestResource;
 use App\Filament\Resources\InvoiceResource;
 use App\Filament\Resources\LeaveRequestResource;
 use App\Filament\Resources\OvertimeRequestResource;
+use App\Filament\Resources\PartialLeaveRequestResource;
 use App\Filament\Resources\PayableResource;
 use App\Filament\Resources\PayrollResource;
 use App\Filament\Resources\PurchaseRequestResource;
@@ -46,9 +47,10 @@ class PanelNotificationLink
     /** @var list<array{0: string, 1: class-string}> pola judul (regex, tanpa membedakan huruf besar kecil) => tujuan */
     private const RULES = [
         // Pengajuan baru yang menunggu keputusan membuka Pusat Persetujuan, tempat pengajuan bisa langsung disetujui atau ditolak.
-        ['/^(pengajuan (lembur|dinas luar|izin\/cuti) baru|permohonan pembelian baru|permintaan koreksi absensi baru)$/i', ApprovalCenter::class],
+        ['/^(pengajuan (lembur|dinas luar|izin\/cuti|izin sebagian hari) baru|permohonan pembelian baru|permintaan koreksi absensi baru)$/i', ApprovalCenter::class],
         ['/lembur/i', OvertimeRequestResource::class],
         ['/dinas luar/i', FieldDutyRequestResource::class],
+        ['/izin sebagian hari/i', PartialLeaveRequestResource::class],
         ['/koreksi absen/i', AttendanceCorrectionRequestResource::class],
         ['/izin|cuti/i', LeaveRequestResource::class],
         ['/pengajuan menunggu keputusan/i', LeaveRequestResource::class],

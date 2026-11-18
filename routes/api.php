@@ -426,6 +426,11 @@ Route::prefix('staff')->group(function () {
         Route::post('/field-duty-requests', [StaffFieldDutyRequestController::class, 'store'])->middleware('throttle:20,1');
         Route::post('/field-duty-requests/{id}/cancel', [StaffFieldDutyRequestController::class, 'cancel'])->middleware('throttle:20,1');
         Route::post('/field-duty-requests/{id}/location-photo', [StaffFieldDutyRequestController::class, 'locationPhoto'])->middleware('throttle:20,1');
+
+        // Izin Sebagian Hari (2026-11-18): terlambat masuk, keluar lingkungan kantor, pulang cepat; tidak memotong apa pun.
+        Route::get('/partial-leave-requests', [\App\Http\Controllers\Api\Staff\PartialLeaveRequestController::class, 'index']);
+        Route::post('/partial-leave-requests', [\App\Http\Controllers\Api\Staff\PartialLeaveRequestController::class, 'store'])->middleware('throttle:20,1');
+        Route::post('/partial-leave-requests/{id}/cancel', [\App\Http\Controllers\Api\Staff\PartialLeaveRequestController::class, 'cancel'])->middleware('throttle:20,1');
         Route::post('/attendance/clock-out', [StaffAttendanceController::class, 'clockOut'])
             ->middleware('throttle:10,1');
         Route::get('/attendance/history', [StaffAttendanceController::class, 'history']);

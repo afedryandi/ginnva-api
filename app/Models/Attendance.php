@@ -258,6 +258,8 @@ class Attendance extends Model
 
         if ($late > 0) {
             $late -= self::fieldDutyCoveredMinutes($user->id, $date, $expectedStart, $clockInTime);
+            // Izin Sebagian Hari "Terlambat Masuk Kerja" yang disetujui juga menghapus menit di antara jam mulai dan jam tiba yang diizinkan.
+            $late -= self::partialLeaveCoveredMinutes($user->id, $date, $expectedStart, $clockInTime, \App\Models\PartialLeaveRequest::CATEGORY_LATE_ARRIVAL);
         }
 
         return max(0, $late);
@@ -377,6 +379,8 @@ class Attendance extends Model
         // Menit di antara jam pulang dan jam selesai yang tercakup dinas luar sebagian hari yang disetujui tidak dihitung pulang cepat.
         if ($rawEarlyMinutes > 0) {
             $rawEarlyMinutes -= self::fieldDutyCoveredMinutes($user->id, $date, $clockOutTime, $expectedEnd);
+            // Izin Sebagian Hari "Pulang Cepat" yang disetujui menghapus menit di antara jam pulang yang diizinkan dan jam selesai.
+            $rawEarlyMinutes -= self::partialLeaveCoveredMinutes($user->id, $date, $clockOutTime, $expectedEnd, \App\Models\PartialLeaveRequest::CATEGORY_EARLY_LEAVE);
         }
 
         return max(0, $rawEarlyMinutes - $toleranceMinutes);
@@ -424,6 +428,25 @@ class Attendance extends Model
             ->whereNotNull('start_time')
             ->get()
             ->sum(fn (\App\Models\FieldDutyRequest $r) => \App\Services\OvertimeRequestService::overlapMinutes($from, $to, $r->startsAt(), $r->endsAt()));
+    }
+
+    /**
+     * Menit dalam rentang $from-$to yang tercakup Izin Sebagian Hari yang disetujui untuk karyawan itu pada $date, hanya untuk kategori $category
+     * (Terlambat Masuk Kerja hanya memengaruhi telat, Pulang Cepat hanya pulang cepat). Keluar Lingkungan Kantor hanya tercatat dan tidak dihitung.
+     */
+    public static function partialLeaveCoveredMinutes(int $userId, Carbon $date, Carbon $from, Carbon $to, string $category): int
+    {
+        if ($to->lessThanOrEqualTo($from)) {
+            return 0;
+        }
+
+        return (int) \App\Models\PartialLeaveRequest::withoutGlobalScopes()
+            ->where('user_id', $userId)
+            ->where('status', \App\Models\PartialLeaveRequest::STATUS_APPROVED)
+            ->where('category', $category)
+            ->whereDate('date', $date->toDateString())
+            ->get()
+            ->sum(fn (\App\Models\PartialLeaveRequest $r) => \App\Services\OvertimeRequestService::overlapMinutes($from, $to, $r->startsAt(), $r->endsAt()));
     }
 
     /**

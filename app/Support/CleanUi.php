@@ -35,6 +35,7 @@ class CleanUi
         \App\Filament\Resources\LeaveRequestResource::class,
         \App\Filament\Resources\OvertimeRequestResource::class,
         \App\Filament\Resources\FieldDutyRequestResource::class,
+        \App\Filament\Resources\PartialLeaveRequestResource::class,
         \App\Filament\Resources\AttendanceCorrectionRequestResource::class,
         \App\Filament\Resources\UserResource::class,
         \App\Filament\Resources\TechnicianResource::class,

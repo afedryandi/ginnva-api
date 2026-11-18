@@ -116,6 +116,8 @@ class NotificationCatalog
             ['audience' => 'pengguna', 'source' => 'Services/OvertimeRequestService.php', 'title' => 'Keputusan pengajuan lembur untuk pemohon (disetujui atau ditolak)', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Services/FieldDutyRequestService.php', 'title' => 'Pengajuan Dinas Luar Baru', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Services/FieldDutyRequestService.php', 'title' => 'Keputusan pengajuan dinas luar untuk pemohon (disetujui atau ditolak)', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/PartialLeaveRequestService.php', 'title' => 'Pengajuan Izin Sebagian Hari Baru', 'panel_inbox' => true],
+            ['audience' => 'pengguna', 'source' => 'Services/PartialLeaveRequestService.php', 'title' => 'Keputusan pengajuan izin sebagian hari untuk pemohon (disetujui atau ditolak)', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindUnclockedIns.php', 'title' => 'Jangan Lupa Absen Masuk', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindUnfinishedClockouts.php', 'title' => 'Jangan Lupa Absen Pulang', 'panel_inbox' => true],
             ['audience' => 'pengguna', 'source' => 'Console/Commands/RemindPendingAttendanceRequests.php', 'title' => 'Pengajuan Menunggu Keputusan', 'panel_inbox' => true],

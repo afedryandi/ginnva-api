@@ -206,6 +206,7 @@ class UserResource extends Resource
                 'LeaveRequestResource' => 'Izin & Cuti',
                 'OvertimeRequestResource' => 'Pengajuan Lembur',
                 'FieldDutyRequestResource' => 'Pengajuan Dinas Luar',
+                'PartialLeaveRequestResource' => 'Pengajuan Izin Sebagian Hari',
                 'LeaveTypeResource' => 'Jenis Izin & Cuti',
                 'CompanyPolicyResource' => 'Peraturan & Kebijakan',
                 'EmployeeChecklistItemResource' => 'Checklist Masuk & Keluar',
