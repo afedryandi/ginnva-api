@@ -65,7 +65,7 @@ class Spk extends Model
      * Premium Wash ditambahkan 2026-10-26 (layanan itu belum ada saat form kertas dibuat); SPK yang sudah ada tidak berubah.
      */
     public const DEFAULT_CHECKLIST = [
-        'pekerjaan' => ['Full Detailing Car Care', 'Premium Wash', 'PPF', 'Kaca Film'],
+        'pekerjaan' => ['Full Detailing', 'Premium Wash', 'PPF', 'Kaca Film'],
         'extra_service' => ['Watermark Remover', 'Exterior Detailing', 'Interior Detailing', 'Engine Detailing', 'Glass Cleaning', 'Wheel Cleaning'],
         'perlengkapan' => ['STNK', 'Ban Serep', 'Dongkrak + Tuas', 'Perkakas (Kunci Pas)', 'Karpet dalam', 'Headunit/Sound System', 'Karpet Bagasi', 'Tutup Velg'],
     ];

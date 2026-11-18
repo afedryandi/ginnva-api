@@ -137,7 +137,7 @@ class SpkService
     public static function workItemLabels(Booking $booking): array
     {
         return array_values(array_filter([
-            $booking->product_detailing ? 'Full Detailing Car Care' : null,
+            $booking->product_detailing ? 'Full Detailing' : null,
             $booking->product_premium_wash ? 'Premium Wash' : null,
             $booking->product_ppf ? 'PPF' : null,
             $booking->product_kaca_film ? 'Kaca Film' : null,

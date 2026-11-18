@@ -127,7 +127,7 @@ class SpkFilamentSmokeTest extends TestCase
         $labels = app(SpkService::class)->createFromBooking($booking, null)->checklistItems->where('is_checked', true)->pluck('label')->all();
 
         $this->assertContains('Premium Wash', $labels);
-        $this->assertContains('Full Detailing Car Care', $labels);
+        $this->assertContains('Full Detailing', $labels);
         $this->assertNotContains('PPF', $labels);
     }
 
@@ -153,9 +153,9 @@ class SpkFilamentSmokeTest extends TestCase
         // Staf sudah mencentang sendiri: pilihannya dihormati, tidak ditimpa booking.
         $second = $booking(['product_ppf' => true]);
         $own = $blank;
-        $own[0]['is_checked'] = true; // Full Detailing Car Care
+        $own[0]['is_checked'] = true; // Full Detailing
         $spk = $service->create(['store_id' => $second->store_id, 'booking_id' => $second->id, 'customer_name' => 'Budi'], $own, null);
-        $this->assertSame(['Full Detailing Car Care'], $spk->checklistItems->where('category', 'pekerjaan')->where('is_checked', true)->pluck('label')->all());
+        $this->assertSame(['Full Detailing'], $spk->checklistItems->where('category', 'pekerjaan')->where('is_checked', true)->pluck('label')->all());
     }
 
     public function test_spk_pdf_template_renders(): void
