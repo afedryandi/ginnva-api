@@ -164,3 +164,162 @@
     font-weight: 650;
     letter-spacing: -0.01em;
 }
+
+/*
+ * Rombak tampilan panel (2026-12-16): disamakan dengan aplikasi karyawan. Kanvas abu-putih, kartu putih berlekuk besar dengan bayangan sangat
+ * halus tanpa garis tepi, sidebar dan bilah atas bersih, menu aktif berbentuk pil merah lembut, tombol berbentuk pil, tab dan paginasi bersudut
+ * lembut. Semua warna lewat variabel Filament (--gray-*, --primary-*), jadi mode gelap ikut otomatis.
+ */
+
+:root {
+    --gx-radius: 1.25rem;
+    --gx-canvas: #f5f5f8;
+    --gx-shadow: 0 8px 24px -10px rgba(20, 20, 27, 0.1);
+}
+
+/* Kanvas: abu-putih di mode terang; mode gelap memakai bawaan Filament. */
+html:not(.dark) .fi-body {
+    background-color: var(--gx-canvas);
+}
+
+/* Kartu: bayangan halus menggantikan garis tepi (mode terang); mode gelap tetap bergaris tipis. */
+html:not(.dark) .fi-section,
+html:not(.dark) .fi-ta-ctn,
+html:not(.dark) .fi-wi-stats-overview-stat,
+html:not(.dark) .fi-fo-wizard,
+html:not(.dark) .fi-in-repeatable-item,
+html:not(.dark) .fi-tabs {
+    border-color: transparent;
+    box-shadow: var(--gx-shadow);
+    background-color: #ffffff;
+}
+
+/* Judul halaman: lebih besar dan tegas. */
+.fi-header-heading {
+    font-size: 1.625rem;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+}
+
+.fi-breadcrumbs {
+    font-size: 0.75rem;
+}
+
+/* Sidebar dan bilah atas: bersih, tanpa bayangan keras. */
+.fi-sidebar,
+.fi-sidebar-nav {
+    box-shadow: none;
+}
+
+.fi-sidebar {
+    border-inline-end: 1px solid var(--gx-line);
+}
+
+.fi-topbar > nav,
+.fi-topbar nav {
+    box-shadow: none;
+    border-bottom: 1px solid var(--gx-line);
+}
+
+.fi-sidebar-group-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* Menu sidebar: pil lembut; yang aktif berlatar merah tipis dan tulisan merah tebal. */
+.fi-sidebar-item-button {
+    border-radius: 0.875rem;
+    padding-block: 0.5rem;
+    transition: background-color 0.12s ease;
+}
+
+.fi-sidebar-item.fi-active > .fi-sidebar-item-button,
+.fi-sidebar-item-active > .fi-sidebar-item-button {
+    background-color: rgba(var(--primary-500), 0.1);
+}
+
+.fi-sidebar-item.fi-active .fi-sidebar-item-label,
+.fi-sidebar-item-active .fi-sidebar-item-label {
+    color: rgb(var(--primary-600));
+    font-weight: 700;
+}
+
+.dark .fi-sidebar-item.fi-active .fi-sidebar-item-label,
+.dark .fi-sidebar-item-active .fi-sidebar-item-label {
+    color: rgb(var(--primary-400));
+}
+
+/* Tombol: bentuk pil; tombol ikon (aksi baris tabel) kotak bersudut lembut. */
+.fi-btn {
+    border-radius: 9999px;
+    font-weight: 600;
+}
+
+.fi-icon-btn {
+    border-radius: 0.75rem;
+}
+
+.fi-btn.fi-size-xs,
+.fi-btn.fi-size-sm {
+    border-radius: 0.75rem;
+}
+
+/* Pencarian global dan pencarian tabel: kapsul. */
+.fi-global-search-field .fi-input-wrp,
+.fi-ta-search-field .fi-input-wrp {
+    border-radius: 9999px;
+}
+
+/* Tabel: baris lebih lapang, kepala redup, bilah alat tabel lega. */
+.fi-ta-cell {
+    height: 3.5rem;
+}
+
+.fi-ta-header-toolbar {
+    padding-block: 0.875rem;
+}
+
+.fi-ta-header-cell {
+    padding-block: 0.75rem;
+}
+
+.fi-ta-ctn .fi-ta-content,
+.fi-ta-ctn .fi-ta-table {
+    border-top-color: var(--gx-line);
+}
+
+/* Tab halaman: item aktif berbentuk pil. */
+.fi-tabs {
+    padding: 0.375rem;
+    gap: 0.25rem;
+}
+
+.fi-tabs-item {
+    border-radius: 0.75rem;
+}
+
+.fi-tabs-item.fi-active {
+    background-color: rgba(var(--primary-500), 0.1);
+}
+
+/* Paginasi: tombol halaman bersudut lembut. */
+.fi-pagination-item-button,
+.fi-pagination-item {
+    border-radius: 0.625rem;
+}
+
+/* Panel filter dan dropdown: sudut besar, bayangan halus. */
+.fi-ta-filters {
+    border-radius: 1rem;
+}
+
+.fi-dropdown-panel {
+    border-radius: 1rem;
+    box-shadow: 0 12px 32px -12px rgba(20, 20, 27, 0.18);
+}
+
+.fi-modal-window {
+    border-radius: 1.5rem;
+}
