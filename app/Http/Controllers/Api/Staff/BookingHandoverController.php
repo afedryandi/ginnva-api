@@ -143,8 +143,12 @@ class BookingHandoverController extends Controller
             return 'Serah terima hanya untuk booking yang sudah dikonfirmasi dan belum selesai.';
         }
 
-        // Bila QC diwajibkan, kendaraan harus sudah lulus QC (siap diambil) sebelum diserahkan.
-        if (config('booking.qc_required') && ! $booking->ready_at) {
+        // Kendaraan harus sudah lulus QC (siap diambil) sebelum diserahkan: bila QC diwajibkan, ATAU layanan booking ini punya
+        // checklist QC aktif (jadi QC memang bisa dilakukan). Tanpa checklist, tidak ada yang bisa dilulusi, jadi tidak dihalangi.
+        $qcApplies = config('booking.qc_required')
+            || AppModelsQcChecklistItem::whereIn('service_key', $booking->serviceKeys())->where('is_active', true)->exists();
+
+        if ($qcApplies && ! $booking->ready_at) {
             return 'Kendaraan belum lulus Quality Check, jadi belum bisa diserahkan.';
         }
 

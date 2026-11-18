@@ -55,7 +55,7 @@ class PhotoConsentGalleryTest extends TestCase
 
     private function booking(): Booking
     {
-        return Booking::create([
+        $booking = Booking::create([
             'booking_number' => 'BKG-PC-' . uniqid(),
             'customer_id' => $this->customer->id,
             'store_id' => $this->store->id,
@@ -67,6 +67,11 @@ class PhotoConsentGalleryTest extends TestCase
             'status' => 'confirmed',
             'current_stage' => 'qc',
         ]);
+
+        // Sudah lulus QC: serah terima ditolak sebelum itu.
+        $booking->forceFill(['ready_at' => now()])->saveQuietly();
+
+        return $booking->fresh();
     }
 
     /** Booking dengan serah terima, foto akhir, dan (opsional) izin aktif. */

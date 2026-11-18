@@ -46,7 +46,10 @@ class BookingHandoverTest extends TestCase
 
     private function booking(array $overrides = []): Booking
     {
-        return Booking::create(array_merge([
+        $readyAt = array_key_exists('ready_at', $overrides) ? $overrides['ready_at'] : now();
+        unset($overrides['ready_at']);
+
+        $booking = Booking::create(array_merge([
             'booking_number' => 'BKG-HO-' . uniqid(),
             'customer_id' => $this->customer->id,
             'store_id' => $this->store->id,
@@ -56,11 +59,16 @@ class BookingHandoverTest extends TestCase
             'status' => 'confirmed',
             'current_stage' => 'qc',
         ], $overrides));
+
+        // Bawaan: sudah lulus QC (ready_at terisi; bukan mass-assignable), karena layanan punya checklist QC bawaan migrasi.
+        $booking->forceFill(['ready_at' => $readyAt])->saveQuietly();
+
+        return $booking->fresh();
     }
 
-    private function light(): Booking
+    private function light(array $overrides = []): Booking
     {
-        return $this->booking(['service_type' => 'Premium Wash', 'product_ppf' => false, 'product_premium_wash' => true, 'current_stage' => null]);
+        return $this->booking(array_merge(['service_type' => 'Premium Wash', 'product_ppf' => false, 'product_premium_wash' => true, 'current_stage' => null], $overrides));
     }
 
     public function test_heavy_services_need_the_wet_signature(): void
@@ -150,12 +158,29 @@ class BookingHandoverTest extends TestCase
     {
         config(['booking.qc_required' => true]);
         $manager = $this->user('store_manager');
-        $booking = $this->light();
+        $booking = $this->light(['ready_at' => null]);
 
         $this->actingAs($manager, 'api')->postJson("/api/staff/bookings/{$booking->id}/handover", ['care_instructions_given' => true, 'wet_signature_received' => false])->assertStatus(422);
 
         $booking->forceFill(['ready_at' => now()])->saveQuietly();
         $this->actingAs($manager, 'api')->postJson("/api/staff/bookings/{$booking->id}/handover", ['care_instructions_given' => true, 'wet_signature_received' => false])->assertCreated();
+    }
+
+    public function test_handover_is_refused_until_qc_passes_even_when_the_flag_is_off(): void
+    {
+        $manager = $this->user('store_manager');
+        $booking = $this->booking(['ready_at' => null]);
+
+        $this->actingAs($manager, 'api')->postJson("/api/staff/bookings/{$booking->id}/handover", ['care_instructions_given' => true, 'wet_signature_received' => true])
+            ->assertStatus(422);
+        $this->assertNull($booking->fresh()->handover);
+
+        $this->actingAs($manager, 'api')->getJson("/api/staff/bookings/{$booking->id}/handover")
+            ->assertOk()->assertJsonPath('data.can_record', false);
+
+        $booking->forceFill(['ready_at' => now()])->saveQuietly();
+        $this->actingAs($manager, 'api')->postJson("/api/staff/bookings/{$booking->id}/handover", ['care_instructions_given' => true, 'wet_signature_received' => true])
+            ->assertCreated();
     }
 
     public function test_completion_needs_the_handover_only_when_the_flag_is_on(): void
