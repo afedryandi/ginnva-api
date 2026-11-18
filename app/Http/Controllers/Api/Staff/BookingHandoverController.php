@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Staff;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingHandover;
+use App\Models\QcChecklistItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -146,7 +147,7 @@ class BookingHandoverController extends Controller
         // Kendaraan harus sudah lulus QC (siap diambil) sebelum diserahkan: bila QC diwajibkan, ATAU layanan booking ini punya
         // checklist QC aktif (jadi QC memang bisa dilakukan). Tanpa checklist, tidak ada yang bisa dilulusi, jadi tidak dihalangi.
         $qcApplies = config('booking.qc_required')
-            || AppModelsQcChecklistItem::whereIn('service_key', $booking->serviceKeys())->where('is_active', true)->exists();
+            || QcChecklistItem::whereIn('service_key', $booking->serviceKeys())->where('is_active', true)->exists();
 
         if ($qcApplies && ! $booking->ready_at) {
             return 'Kendaraan belum lulus Quality Check, jadi belum bisa diserahkan.';
