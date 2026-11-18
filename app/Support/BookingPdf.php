@@ -35,8 +35,10 @@ class BookingPdf
 
         $products = collect();
 
-        if ($booking->filmProduct) {
-            $products->push(['name' => trim(($booking->filmProduct->name ?? '') . ($booking->filmProduct->sku ? ' (' . $booking->filmProduct->sku . ')' : '')), 'position' => 'Utama']);
+        // Produk utama (film_product_id) hanyalah salinan baris pertama "Produk per Bagian", jadi dipakai HANYA untuk booking lama yang belum
+        // punya baris per bagian; kalau tidak, produk yang sama tampil dua kali.
+        if ($booking->filmProduct && $booking->filmProducts->isEmpty()) {
+            $products->push(['name' => trim(($booking->filmProduct->name ?? '') . ($booking->filmProduct->sku ? ' (' . $booking->filmProduct->sku . ')' : '')), 'position' => '-']);
         }
 
         foreach ($booking->filmProducts as $extra) {
