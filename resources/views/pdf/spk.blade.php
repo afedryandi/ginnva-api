@@ -34,7 +34,9 @@
         <tr>
             <td style="width: 60%;">
                 {{-- Logo Ginnva (kata + lambang) + tulisan HOUSE, sama dengan header aplikasi. Disisipkan base64 supaya dompdf tidak perlu membuka berkas luar. --}}
-                @php($wordmark = public_path('images/ginnva-wordmark-merah.png'))
+                @php
+                    $wordmark = public_path('images/ginnva-wordmark-merah.png');
+                @endphp
                 <div class="brand">
                     @if (is_file($wordmark))
                         <img src="data:image/png;base64,{{ base64_encode((string) file_get_contents($wordmark)) }}" alt="Ginnva"><span class="brand-house">HOUSE</span>

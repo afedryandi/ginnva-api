@@ -1112,7 +1112,7 @@ class GuideCatalog
                 'id' => 'cuti-kontrak',
                 'title' => 'Izin, cuti, kontrak, dan surat peringatan',
                 'summary' => 'Memproses pengajuan izin dan cuti, mengatur jenis dan batasnya, mencatat perpanjangan kontrak, dan menerbitkan surat peringatan.',
-                'menus' => ['LeaveRequestResource', ...($overtime ? ['OvertimeRequestResource'] : []), 'FieldDutyRequestResource', 'LeaveTypeResource', 'ContractExtensionResource', 'WarningLetterResource'],
+                'menus' => ['LeaveRequestResource', ...($overtime ? ['OvertimeRequestResource'] : []), 'FieldDutyRequestResource', 'PartialLeaveRequestResource', 'LeaveTypeResource', 'ContractExtensionResource', 'WarningLetterResource'],
                 'steps' => [
                     'Karyawan mengajukan izin atau cuti lewat aplikasi karyawan, atau HR mengisinya di **Izin & Cuti**: **Karyawan**, **Jenis**, **Dari Tanggal**, **Sampai Tanggal**, **Alasan**, dan **Lampiran** (mis. surat dokter). Wajib atau tidaknya lampiran mengikuti aturan jenis yang dipilih.',
                     'Atasan menekan **Setujui** atau **Tolak** (isi **Alasan Ditolak**). Karyawan mendapat pemberitahuan atas keputusannya.',
