@@ -543,9 +543,15 @@ class QuotationResource extends Resource
                     ->options(\App\Support\LeadOutcome::OUTCOMES),
                 Tables\Filters\SelectFilter::make('owner_user_id')
                     ->label('Penanggung Jawab')
+                    // Dapat dicari: daftar pilihan memakai kotak Filament (maksimal sekitar 15 rem, terbuka ke bawah), bukan daftar bawaan browser yang
+                    // panjang dan terbuka ke atas bila ruang di bawah kurang.
+                    ->searchable()
+                    ->preload()
                     ->relationship('owner', 'name'),
                 Tables\Filters\SelectFilter::make('store_id')
                     ->label('Toko')
+                    ->searchable()
+                    ->preload()
                     ->relationship('store', 'name')
                     ->visible(fn () => auth()->user()?->isFullAccess()),
             ], layout: FiltersLayout::AboveContentCollapsible)
