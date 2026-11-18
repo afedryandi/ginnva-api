@@ -48,6 +48,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // Bawaan tabel untuk halaman bergaya bersih (filter lipat di atas daftar); lihat App\Support\CleanUi.
         \App\Support\CleanUi::registerTableDefaults();
+        // Tab status dan ikon filter satu baris dengan kolom cari di bilah alat tabel; lihat App\Support\CleanUi::registerToolbarHooks().
+        \App\Support\CleanUi::registerToolbarHooks();
 
         Warranty::observe(WarrantyObserver::class);
         Booking::observe(BookingObserver::class);

@@ -359,3 +359,32 @@ html:not(.dark) .fi-tabs {
 .fi-page-sub-navigation-sidebar:hover {
     scrollbar-color: rgba(var(--gray-400), 0.5) transparent !important;
 }
+
+/*
+ * Bilah alat tabel satu baris (2026-12-16): tab status dan ikon filter dipindah ke baris kolom cari (App\Support\CleanUi::registerToolbarHooks).
+ * Aslinya tab ada di kartu terpisah di atas tabel dan tombol filter di barisnya sendiri; keduanya disembunyikan hanya bila versi di bilah alat tampil.
+ */
+.fi-resource-list-records-page .gap-y-6:has(.fi-ta .fi-tabs) > .fi-tabs {
+    display: none;
+}
+
+.fi-ta-filters-above-content-ctn.gx-filter-moved > span.ms-auto {
+    display: none;
+}
+
+/* Tab di dalam bilah alat: tanpa kartu sendiri, hanya deretan pil. */
+.fi-ta-header-toolbar .fi-tabs,
+html:not(.dark) .fi-ta-header-toolbar .fi-tabs {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+    max-width: 100%;
+    flex: 0 1 auto;
+}
+
+.fi-ta-header-toolbar {
+    flex-wrap: wrap;
+    row-gap: 0.75rem;
+}

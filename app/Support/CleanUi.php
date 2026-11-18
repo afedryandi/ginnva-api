@@ -100,6 +100,45 @@ class CleanUi
     }
 
     /**
+     * Bilah alat tabel halaman daftar bergaya bersih (2026-12-16): tab status (bila halaman punya getTabs) dan ikon filter dipindah ke bilah alat
+     * yang sama dengan kolom cari, jadi satu baris: [tab status]            [cari] [filter] [kolom]. Tab asli di atas kartu disembunyikan lewat CSS
+     * (resources/css/filament/admin/theme.css) hanya bila tab di bilah alat tampil. Kedua hook dibatasi pada halaman daftar menu bergaya bersih.
+     */
+    public static function registerToolbarHooks(): void
+    {
+        $all = [];
+        $tabbed = [];
+
+        foreach (self::RESOURCES as $resource) {
+            $index = $resource::getPages()['index'] ?? null;
+
+            if ($index === null) {
+                continue;
+            }
+
+            $page = $index->getPage();
+            $all[] = $page;
+
+            if (method_exists($page, 'getTabs')
+                && (new \ReflectionMethod($page, 'getTabs'))->getDeclaringClass()->getName() !== \Filament\Resources\Pages\ListRecords::class) {
+                $tabbed[] = $page;
+            }
+        }
+
+        \Filament\Support\Facades\FilamentView::registerRenderHook(
+            \Filament\Tables\View\TablesRenderHook::TOOLBAR_START,
+            fn (): string => \Illuminate\Support\Facades\Blade::render('<x-filament-panels::resources.tabs />'),
+            scopes: $tabbed,
+        );
+
+        \Filament\Support\Facades\FilamentView::registerRenderHook(
+            \Filament\Tables\View\TablesRenderHook::TOOLBAR_SEARCH_AFTER,
+            fn (): string => view('filament.partials.filters-toggle')->render(),
+            scopes: $all,
+        );
+    }
+
+    /**
      * Bawaan tabel untuk halaman bergaya bersih: filter dilipat di atas daftar dalam tiga kolom (menggantikan panel filter samping/popup),
      * kecuali tabel itu menentukan sendiri. Dipanggil sekali dari AppServiceProvider::boot().
      */
@@ -107,7 +146,9 @@ class CleanUi
     {
         \Filament\Tables\Table::configureUsing(function (\Filament\Tables\Table $table): void {
             if (self::appliesTo($table->getLivewire())) {
-                $table->filtersLayout(\Filament\Tables\Enums\FiltersLayout::AboveContentCollapsible)->filtersFormColumns(3);
+                // Daftar kolom (tombol kolom) dibatasi tingginya dan bisa digulir sendiri: tanpa batas, daftar panjang terbuka ke atas dan terpotong
+                // di bawah bilah menu saat ruang di bawah tombol kurang.
+                $table->filtersLayout(\Filament\Tables\Enums\FiltersLayout::AboveContentCollapsible)->filtersFormColumns(3)->columnToggleFormMaxHeight('16rem');
             }
         });
     }
