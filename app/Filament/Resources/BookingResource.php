@@ -1344,7 +1344,8 @@ class BookingResource extends Resource
                     ->label('Catat Uang Muka (DP)')
                     ->icon('heroicon-o-banknotes')
                     ->color('info')
-                    ->visible(fn (Booking $record) => ! in_array($record->status, ['completed', 'cancelled'], true))
+                    // Aksi uang disembunyikan (keputusan pemilik 2026-12-16); nyalakan lagi lewat FEATURE_MONEY_MENUS=true.
+                    ->visible(fn (Booking $record) => (bool) config('features.money_menus') && ! in_array($record->status, ['completed', 'cancelled'], true))
                     ->form([
                         Forms\Components\Placeholder::make('dp_sudah_diterima')
                             ->label('DP Sudah Diterima (belum dikembalikan)')
@@ -1431,7 +1432,7 @@ class BookingResource extends Resource
                     ->label('Kembalikan Sisa DP')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
-                    ->visible(fn (Booking $record) => $record->status === 'completed'
+                    ->visible(fn (Booking $record) => (bool) config('features.money_menus') && $record->status === 'completed'
                         && $record->outstanding_down_payment > 0.009
                         && (auth()->user()?->isFullAccess() ?? false))
                     ->requiresConfirmation()
@@ -1459,7 +1460,7 @@ class BookingResource extends Resource
                     ->label('Catat Penjualan')
                     ->icon('heroicon-o-gift')
                     ->color('warning')
-                    ->visible(fn (Booking $record) => $record->status === 'completed')
+                    ->visible(fn (Booking $record) => (bool) config('features.money_menus') && $record->status === 'completed')
                     ->form([
                         // Rincian harga per layanan (Penjualan Fase 1, 2026-11-10): nilai SEBENARNYA tiap layanan/produk. Pendapatan
                         // per jenis layanan di Jurnal Umum dan laporan dibagi menurut nilai ini (booking tanpa rincian tetap dibagi rata).
@@ -1725,7 +1726,7 @@ class BookingResource extends Resource
                     ->label('Proses Refund')
                     ->icon('heroicon-o-receipt-refund')
                     ->color('danger')
-                    ->visible(fn (Booking $record) => $record->isSaleProcessed()
+                    ->visible(fn (Booking $record) => (bool) config('features.money_menus') && $record->isSaleProcessed()
                         && (float) $record->refunds()->sum('amount') < (float) $record->transaction_amount)
                     ->form(fn (Booking $record) => [
                         Forms\Components\Placeholder::make('sisa_refund')
