@@ -56,7 +56,7 @@ class BookingController extends Controller
             return $data;
         }
 
-        $data['installers'] = $booking->installers->map(fn ($i) => ['id' => $i->id, 'name' => $i->name])->values()->all();
+        $data['installers'] = $booking->installers->map(fn ($i) => ['id' => $i->id, 'name' => $i->name, 'can_chat' => (bool) $i->pivot?->can_chat])->values()->all();
         $data['spk'] = $booking->spk ? ['id' => $booking->spk->id] : null;
         $data['film_product'] = $booking->filmProduct ? ['sku' => $booking->filmProduct->sku, 'name' => $booking->filmProduct->name] : null;
         $data['film_products'] = $booking->filmProducts->map(fn ($p) => [
@@ -222,6 +222,9 @@ class BookingController extends Controller
         if ($this->isInstallerOnly($user)) {
             return response()->json(['success' => true, 'data' => $this->installerPayload($booking, true)]);
         }
+
+        // Izin chat per installer (dipakai sheet Assignment di aplikasi).
+        $booking->installers->each(fn ($i) => $i->setAttribute('can_chat', (bool) $i->pivot?->can_chat));
 
         return response()->json(['success' => true, 'data' => $booking->makeVisible('cancelled_by_type')]);
     }
@@ -928,6 +931,9 @@ class BookingController extends Controller
         $request->validate([
             'installer_user_ids'   => 'present|array',
             'installer_user_ids.*' => 'integer|exists:users,id',
+            // Subset installer yang boleh ikut chat booking ini. Tidak dikirim = izin yang sudah ada dipertahankan.
+            'chat_installer_user_ids'   => 'nullable|array',
+            'chat_installer_user_ids.*' => 'integer',
         ]);
 
         // Dedupe dulu — kalau tidak, ID yang sama terkirim 2x (mis. widget
@@ -959,12 +965,18 @@ class BookingController extends Controller
         // sebelum lock bisa jadi stale sehingga activity log mencatat
         // "old" yang sudah tidak akurat lagi. Lihat audit modul Booking
         // 2026-08-27.
-        DB::transaction(function () use ($booking, $installerIds, $user) {
+        DB::transaction(function () use ($booking, $installerIds, $user, $request) {
             Booking::where('id', $booking->id)->lockForUpdate()->first();
 
             $existingIds = $booking->installers()->pluck('users.id')->all();
 
-            $booking->installers()->sync($installerIds);
+            // Izin chat: bila daftar dikirim, ikuti daftar itu (hanya untuk installer yang ditugaskan); bila tidak, pertahankan.
+            $previousChat = $booking->installers()->wherePivot('can_chat', true)->pluck('users.id')->all();
+            $chatIds = $request->has('chat_installer_user_ids')
+                ? array_values(array_intersect($installerIds, array_map('intval', (array) $request->input('chat_installer_user_ids'))))
+                : array_values(array_intersect($installerIds, $previousChat));
+
+            $booking->installers()->sync(collect($installerIds)->mapWithKeys(fn ($id) => [$id => ['can_chat' => in_array($id, $chatIds, true)]])->all());
 
             // Installer yang BARU ditugaskan diberi push (diperbaiki
             // 2026-10-02) -- sebelumnya penugasan hanya tercatat di log.

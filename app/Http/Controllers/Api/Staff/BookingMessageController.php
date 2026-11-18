@@ -255,10 +255,13 @@ class BookingMessageController extends Controller
             abort(403, 'Partner tidak punya akses ke booking toko.');
         }
 
-        // Installer tidak memakai chat booking (2026-10-10): komunikasi dengan customer lewat leader installer.
-        // Mereka tetap tercatat sebagai pengerja (booking_installers) dan tetap melihat tugasnya.
+        // Installer tidak memakai chat booking (2026-10-10): komunikasi dengan customer lewat leader installer, KECUALI installer
+        // yang ditugaskan di booking ini dan diberi izin chat saat Assignment (booking_installers.can_chat, 2026-12-15).
         if ($user->hasRole('installer')) {
-            abort(403, 'Chat booking dipegang leader installer. Hubungi leader installer.');
+            $allowed = $booking->installers()->where('users.id', $user->id)->wherePivot('can_chat', true)->exists();
+            abort_unless($allowed, 403, 'Chat booking dipegang leader installer. Hubungi leader installer.');
+
+            return $booking;
         }
 
         // Konsisten dengan modul lain & filter notifikasi: staff toko wajib punya akses menu Booking.

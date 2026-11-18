@@ -893,7 +893,7 @@ class Booking extends Model
      */
     public function installers()
     {
-        return $this->belongsToMany(User::class, 'booking_installers')->withTimestamps();
+        return $this->belongsToMany(User::class, 'booking_installers')->withPivot('can_chat')->withTimestamps();
     }
 
     /**

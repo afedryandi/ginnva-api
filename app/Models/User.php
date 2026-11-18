@@ -371,6 +371,11 @@ class User extends Authenticatable implements FilamentUser, JWTSubject
             return 'Leader Installer';
         }
 
+        // Store Manager tampil sebagai jabatannya; staf toko lain (admin/kasir) tetap "Admin Toko".
+        if ($this->isStoreManager()) {
+            return $this->store ? "Store Manager {$this->store->name}" : 'Store Manager';
+        }
+
         if ($this->isRestrictedStaff()) {
             return $this->store ? "Admin Toko {$this->store->name}" : 'Admin Toko';
         }
