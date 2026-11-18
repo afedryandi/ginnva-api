@@ -368,7 +368,7 @@ html:not(.dark) .fi-tabs {
     display: none;
 }
 
-.fi-ta-filters-above-content-ctn.gx-filter-moved > span.ms-auto {
+.fi-ta:has(.gx-filter-toggle) .fi-ta-filters-above-content-ctn > span.ms-auto {
     display: none;
 }
 
@@ -391,6 +391,6 @@ html:not(.dark) .fi-ta-header-toolbar .fi-tabs {
 
 /* Panel filter yang ditutup tidak memakan ruang: kotaknya (dengan padding-nya) hanya ada saat filter terbuka. Alpine menyembunyikan isinya lewat
    style="display: none" saat tertutup, jadi kotak yang isinya begitu ikut disembunyikan. */
-.fi-ta-filters-above-content-ctn.gx-filter-moved:not(:has(> .fi-ta-filters:not([style*="display: none"]))) {
+.fi-ta:has(.gx-filter-toggle) .fi-ta-filters-above-content-ctn:not(:has(> .fi-ta-filters:not([style*="display: none"]))) {
     display: none;
 }
