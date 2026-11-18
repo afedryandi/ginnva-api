@@ -8,8 +8,6 @@
         .header { width: 100%; margin-bottom: 14px; border-bottom: 2px solid #222; padding-bottom: 10px; }
         .brand { font-size: 20px; font-weight: bold; color: #ED1651; }
         .brand img { height: 24px; vertical-align: middle; }
-        /* "House" setipis dan segaris dengan tulisan pada logo (bukan huruf kapital tebal), seperti di header aplikasi. */
-        .brand .brand-house { vertical-align: middle; margin-left: 3px; font-size: 22px; font-weight: normal; letter-spacing: -0.3px; }
         .brand-sub { font-size: 9px; color: #666; margin-top: 2px; }
         .title { font-size: 15px; font-weight: bold; text-align: right; color: #111; text-transform: uppercase; }
         .title-sub { font-size: 10px; color: #666; font-weight: normal; text-transform: none; }
@@ -34,13 +32,13 @@
     <table class="header">
         <tr>
             <td style="width: 60%;">
-                {{-- Logo Ginnva (kata + lambang) + tulisan HOUSE, sama dengan header aplikasi. Disisipkan base64 supaya dompdf tidak perlu membuka berkas luar. --}}
+                {{-- Logo Ginnva (lambang + kata). Disisipkan base64 supaya dompdf tidak perlu membuka berkas luar. --}}
                 @php
                     $wordmark = public_path('images/ginnva-wordmark-merah.png');
                 @endphp
                 <div class="brand">
                     @if (is_file($wordmark))
-                        <img src="data:image/png;base64,{{ base64_encode((string) file_get_contents($wordmark)) }}" alt="Ginnva"><span class="brand-house">House</span>
+                        <img src="data:image/png;base64,{{ base64_encode((string) file_get_contents($wordmark)) }}" alt="Ginnva">
                     @else
                         GINNVA HOUSE
                     @endif
