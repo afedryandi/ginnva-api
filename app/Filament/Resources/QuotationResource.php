@@ -455,13 +455,20 @@ class QuotationResource extends Resource
                     ->formatStateUsing(fn (?string $state) => match ($state) {
                         'new' => 'New', 'contacted' => 'Contacted', 'closed' => 'Closed', 'cancelled' => 'Cancelled', default => $state,
                     })
+                    // Hasil (Deal / Tidak Jadi) tampil di bawah status, jadi tabel tidak perlu kolom terpisah untuk keduanya.
+                    ->description(fn (Quotation $record): ?string => match ($record->outcome) {
+                        'won' => 'Deal',
+                        'lost' => 'Tidak Jadi',
+                        default => null,
+                    })
                     ->tooltip(fn (?string $state): ?string => \App\Support\Tooltips::quotationStatus($state)),
 
                 Tables\Columns\TextColumn::make('outcome')
                     ->label('Hasil')
                     ->badge()
                     ->formatStateUsing(fn (?string $state) => $state === 'won' ? 'Deal' : ($state === 'lost' ? 'Tidak Jadi' : '—'))
-                    ->color(fn (?string $state) => match ($state) { 'won' => 'success', 'lost' => 'danger', default => 'gray' }),
+                    ->color(fn (?string $state) => match ($state) { 'won' => 'success', 'lost' => 'danger', default => 'gray' })
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('owner.name')
                     ->label('Penanggung Jawab')
@@ -482,7 +489,9 @@ class QuotationResource extends Resource
                         ? $record->created_at->diffForHumans($record->contacted_at, syntax: \Carbon\CarbonInterface::DIFF_ABSOLUTE)
                         : null)
                     ->placeholder('Belum direspons')
-                    ->color(fn (Quotation $record) => ! $record->contacted_at && $record->created_at->lt(now()->subHours(24)) ? 'danger' : null),
+                    ->color(fn (Quotation $record) => ! $record->contacted_at && $record->created_at->lt(now()->subHours(24)) ? 'danger' : null)
+                    // Lead baru yang terlambat direspons sudah ditandai garis merah di barisnya, jadi kolom ini cukup tersedia lewat tombol kolom.
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 // Kolom pelengkap: tersedia lewat tombol kolom, disembunyikan bawaan agar tabel tidak padat.
                 Tables\Columns\TextColumn::make('quotation_number')
