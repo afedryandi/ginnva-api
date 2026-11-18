@@ -7,11 +7,11 @@
         body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #222; font-size: 11px; line-height: 1.4; }
         .header { width: 100%; margin-bottom: 14px; border-bottom: 2px solid #222; padding-bottom: 10px; }
         .brand { font-size: 20px; font-weight: bold; color: #ED1651; }
+        .brand img { height: 24px; vertical-align: middle; }
+        .brand .brand-house { vertical-align: middle; margin-left: 4px; }
         .brand-sub { font-size: 9px; color: #666; margin-top: 2px; }
         .title { font-size: 15px; font-weight: bold; text-align: right; color: #111; text-transform: uppercase; }
         .title-sub { font-size: 10px; color: #666; font-weight: normal; text-transform: none; }
-        .note-list { font-size: 9px; color: #555; margin-bottom: 10px; }
-        .note-list td { padding: 1px 6px 1px 0; vertical-align: top; }
         table.grid { width: 100%; border-collapse: collapse; border: 1px solid #222; margin-bottom: 10px; }
         table.grid > tbody > tr > td { border: 1px solid #222; padding: 8px; vertical-align: top; }
         .section-title { background: #111; color: #fff; font-weight: bold; text-transform: uppercase; font-size: 10px; padding: 4px 8px; }
@@ -33,7 +33,15 @@
     <table class="header">
         <tr>
             <td style="width: 60%;">
-                <div class="brand">GINNVA HOUSE</div>
+                {{-- Logo Ginnva (kata + lambang) + tulisan HOUSE, sama dengan header aplikasi. Disisipkan base64 supaya dompdf tidak perlu membuka berkas luar. --}}
+                @php($wordmark = public_path('images/ginnva-wordmark-merah.png'))
+                <div class="brand">
+                    @if (is_file($wordmark))
+                        <img src="data:image/png;base64,{{ base64_encode((string) file_get_contents($wordmark)) }}" alt="Ginnva"><span class="brand-house">HOUSE</span>
+                    @else
+                        GINNVA HOUSE
+                    @endif
+                </div>
                 {{-- Info perusahaan resmi (dikoreksi user 2026-09-16) --
                      BUKAN lagi data toko (Store). Tanpa nama PT,
                      telepon, & email (diminta user), cuma alamat +
@@ -47,19 +55,6 @@
                 Surat Perintah Kerja
                 <div class="title-sub">Nomor: {{ $spk->spk_number }}</div>
             </td>
-        </tr>
-    </table>
-
-    <table class="note-list">
-        <tr>
-            <td><strong>Catatan:</strong></td>
-            <td>Lembar 1 : Untuk Admin</td>
-            <td>Lembar 3 : Untuk PIC Cutting</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td>Lembar 2 : Untuk Installer</td>
-            <td>Lembar 4 : Untuk Pelanggan</td>
         </tr>
     </table>
 
