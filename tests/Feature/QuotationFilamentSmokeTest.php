@@ -106,7 +106,7 @@ class QuotationFilamentSmokeTest extends TestCase
         $this->assertSame(0, $tabs['closed']->getBadge());
     }
 
-    public function test_row_actions_are_whatsapp_view_and_the_more_menu(): void
+    public function test_row_actions_are_whatsapp_quick_status_and_the_more_menu(): void
     {
         Livewire::test(ListQuotations::class)
             ->assertTableActionExists('whatsapp')

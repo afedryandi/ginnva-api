@@ -1168,7 +1168,7 @@ class BookingResource extends Resource
                 Tables\Columns\TextColumn::make('current_stage')
                     ->label('Tahap')
                     ->formatStateUsing(fn (?string $state) => $state ? (\App\Models\BookingMessage::allStages()[$state] ?? $state) : '—')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('secondary_stage')
                     ->label('Tahap PPF')
@@ -1213,6 +1213,10 @@ class BookingResource extends Resource
                     // customer langsung terlihat di tabel (2026-10-02).
                     ->description(function (Booking $record): ?string {
                         $parts = [];
+                        // Tahap pengerjaan saat ini tampil di bawah status, jadi tabel tidak perlu kolom Tahap sendiri (kolomnya tetap ada lewat tombol kolom).
+                        if ($record->status === 'confirmed' && $record->current_stage) {
+                            $parts[] = \App\Models\BookingMessage::allStages()[$record->current_stage] ?? $record->current_stage;
+                        }
                         if ($record->status === 'pending') {
                             $hours = (int) $record->created_at?->diffInHours(now());
                             $parts[] = $hours >= 4 ? "Lewat SLA ({$hours} jam)" : "Menunggu {$hours} jam";

@@ -568,28 +568,32 @@ class QuotationResource extends Resource
                     ->url(fn (Quotation $record) => 'https://wa.me/' . \App\Support\PhoneFormatter::toWhatsAppNumber($record->customer_phone))
                     ->openUrlInNewTab(),
 
-                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
+                // Ubah status cepat: aksi paling sering tiap hari, jadi ikon utama di baris (menggantikan ikon mata "Lihat detail", yang pindah
+                // ke menu "..."; klik baris tetap membuka detail). Memicu event 'updating' yang sama, jadi contacted_at tetap terisi otomatis
+                // (QuotationObserver::updating()).
+                Tables\Actions\Action::make('quickStatus')
+                    ->label('Ubah Status')
+                    ->icon('heroicon-o-arrow-path')
+                    ->iconButton()
+                    ->tooltip('Ubah status')
+                    ->form([
+                        Forms\Components\Select::make('status')
+                            ->label('Status Follow-up')
+                            ->options([
+                                'new'       => 'New',
+                                'contacted' => 'Contacted',
+                                'closed'    => 'Closed',
+                                'cancelled' => 'Cancelled',
+                            ])
+                            ->required(),
+                    ])
+                    ->fillForm(fn (Quotation $record) => ['status' => $record->status])
+                    ->action(fn (Quotation $record, array $data) => $record->update(['status' => $data['status']])),
 
                 Tables\Actions\ActionGroup::make([
-                    // Ubah status cepat: aksi paling sering tiap hari. Memicu event 'updating' yang sama, jadi contacted_at tetap
-                    // terisi otomatis (QuotationObserver::updating()).
-                    Tables\Actions\Action::make('quickStatus')
-                        ->label('Ubah Status')
-                        ->icon('heroicon-o-arrow-path')
-                        ->form([
-                            Forms\Components\Select::make('status')
-                                ->label('Status Follow-up')
-                                ->options([
-                                    'new'       => 'New',
-                                    'contacted' => 'Contacted',
-                                    'closed'    => 'Closed',
-                                    'cancelled' => 'Cancelled',
-                                ])
-                                ->required(),
-                        ])
-                        ->fillForm(fn (Quotation $record) => ['status' => $record->status])
-                        ->action(fn (Quotation $record, array $data) => $record->update(['status' => $data['status']])),
+                    Tables\Actions\ViewAction::make(),
 
+                    // Ubah status cepat: aksi paling sering tiap hari. Memicu event 'updating' yang sama, jadi contacted_at tetap
                     Tables\Actions\Action::make('call')
                         ->label('Telepon')
                         ->icon('heroicon-o-phone')
