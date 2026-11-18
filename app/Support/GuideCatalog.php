@@ -32,8 +32,10 @@ class GuideCatalog
         'Konfirmasi Booking',
         'Selesaikan Booking',
         'Ubah Jadwal',
-        'Catat Penjualan',
         'Ajukan Izin/Cuti',
+        'Akses chat booking',
+        'Periksa',
+        'Aksi',
         'Ajukan Lembur',
         'Ajukan Dinas Luar',
         'Cek Jarak Saya ke Toko',
@@ -93,7 +95,7 @@ class GuideCatalog
     /** Versi isi panduan dan tanggal terakhir isinya dicocokkan dengan kode; tiap panduan bisa menimpa lewat kunci `version` dan `reviewed_at`. */
     public const VERSION = '1.0';
 
-    public const REVIEWED_AT = '2026-10-22';
+    public const REVIEWED_AT = '2026-12-15';
 
     /** Panduan yang terakhir ditinjau lebih lama dari ini diberi penanda "perlu ditinjau ulang". */
     public const REVIEW_INTERVAL_DAYS = 180;
@@ -220,7 +222,7 @@ class GuideCatalog
 
         $join = fn (array $names) => count($names) <= 1 ? ($names[0] ?? '') : (count($names) === 2 ? "{$names[0]} atau {$names[1]}" : implode(', ', array_slice($names, 0, -1)) . ', atau ' . end($names));
         $tail = fn (array $parts) => $parts === [] ? '' : (count($parts) === 1 ? ", dan {$parts[0]}" : ', ' . implode(', ', array_slice($parts, 0, -1)) . ', dan ' . end($parts));
-        $types = array_values(array_filter(['Bahan Baku', $consumables ? 'Barang Habis Pakai' : null, $assets ? 'Aset Baru' : null]));
+        $types = array_values(array_filter(['Bahan Baku', $consumables ? 'Barang Habis Pakai' : null, $assets ? 'Aset Baru' : null, 'Lainnya']));
         $dashboardParts = array_values(array_filter([$consumables ? '**Barang Habis Pakai Perlu Perhatian**' : null, $assets ? '**Aset Bermasalah** (rusak, diperbaiki, hilang)' : null]));
 
         $replace = [];
@@ -242,7 +244,7 @@ class GuideCatalog
 
         $replace += [
             ', **Barang Habis Pakai Perlu Perhatian**, dan **Aset Bermasalah** (rusak, diperbaiki, hilang)' => $tail($dashboardParts),
-            '(Bahan Baku, Barang Habis Pakai, atau Aset Baru)' => '(' . $join($types) . ')',
+            '(Bahan Baku, Barang Habis Pakai, Aset Baru, atau Lainnya)' => '(' . $join($types) . ')',
             '(total, bahan baku, barang habis pakai, aset)' => '(total, bahan baku' . ($consumables ? ', barang habis pakai' : '') . ($assets ? ', aset' : '') . ')',
         ];
 
@@ -305,18 +307,18 @@ class GuideCatalog
                 'steps' => [
                     "Pesanan masuk. Pelanggan memesan lewat aplikasi: pilih layanan, toko, dan tanggal (untuk Detailing dan Premium Wash wajib memilih jam). Karyawan juga bisa membuatnya di panel untuk pelanggan dari WhatsApp atau yang datang langsung. Status **Pending**; toko diharapkan merespons dalam {$sla} jam.",
                     'Konfirmasi di aplikasi karyawan (Store Manager, direksi, super admin, atau karyawan toko dengan akses menu Booking seperti Leader installer): periksa kapasitas, isi lama pengerjaan (hari kerja) kalau perlu, lalu **Konfirmasi Booking**. Status menjadi **Confirmed** dan slot toko terkunci. Kalau ada installer yang cuti atau libur pada tanggal itu, muncul peringatan (tidak memblokir konfirmasi).',
-                    'Store Manager atau direksi menugaskan installer yang mengerjakan (satu atau lebih). Penugasan tercatat di riwayat aktivitas.',
+                    'Store Manager atau direksi menugaskan installer yang mengerjakan (satu atau lebih). Di aplikasi, sheet **Assignment Booking** punya sakelar **Akses chat booking** per installer: bawaannya mati, dan kalau dinyalakan installer itu ikut chat booking tersebut (teks, foto, dan tahap). Penugasan tercatat di riwayat aktivitas.',
                     'Saat unit datang, ambil foto penerimaan kendaraan dari empat sudut (depan, belakang, kiri, kanan) dan foto kerusakan yang sudah ada (maksimal 10, wajib diberi keterangan). Leader installer membuat **SPK** (inspeksi kendaraan) sebelum pengerjaan; installer melengkapinya dari booking yang ditugaskan kepadanya.',
-                    "Progres dikirim lewat **chat booking** per tahap (boleh dengan foto); pelanggan mendapat notifikasi di setiap tahap. Tahap hanya bisa maju. Kaca Film: {$kacaFilmStages}. PPF: {$ppfStages}. Booking Kaca Film + PPF punya dua jalur tahap. Tahap bersama untuk semua layanan: {$sharedStages}. Detailing dan Premium Wash tidak punya tahap pengerjaan: setelah dikerjakan langsung ke Quality Check.",
-                    'Tandai tahap **Quality Check** (semua produk yang dipesan harus sudah sampai tahap terakhirnya). Isi juga checklist QC layanan itu; pemeriksanya Leader, Store Manager, atau akses penuh, bukan orang yang mengerjakan unit. Semua butir harus dijawab dan butir yang tidak lulus wajib diberi catatan. Kalau lulus, booking ditandai **Siap Diambil** dan pelanggan diberi tahu.',
-                    'Serah terima unit: catat bahwa petunjuk perawatan sudah disampaikan. Untuk PPF dan Kaca Film tanda tangan basah di kertas wajib diterima (untuk Detailing dan Premium Wash opsional); sistem hanya mencatat bahwa tanda tangan sudah diterima. Foto akhir dan catatan boleh ditambahkan. Dicatat sekali per booking.',
+                    "Progres ditandai lewat **Update Tahap** (tombol di Ringkasan booking, atau lewat menu **Aksi**) per tahap, boleh dengan foto; pelanggan mendapat notifikasi di setiap tahap. Tahap hanya bisa maju. Kaca Film: {$kacaFilmStages}. PPF: {$ppfStages}. Booking Kaca Film + PPF punya dua jalur tahap. Tahap bersama untuk semua layanan: {$sharedStages}. Detailing dan Premium Wash tidak punya tahap pengerjaan: setelah dikerjakan langsung ke Quality Check.",
+                    'Buka **Update Tahap** dan tekan **Periksa** pada baris Quality Check (semua produk yang dipesan harus sudah sampai tahap terakhirnya) untuk mengisi checklist QC layanan itu; pemeriksanya Leader, Store Manager, atau akses penuh, bukan orang yang mengerjakan unit. Semua butir harus dijawab dan butir yang tidak lulus wajib diberi catatan. Kalau lulus, tahap Quality Check tertandai otomatis, booking ditandai **Siap Diambil**, dan pelanggan diberi tahu. Kalau tidak lulus, tahap tidak berubah dan serah terima belum terbuka.',
+                    'Serah terima unit (baru terbuka setelah QC lulus; server menolak pencatatan sebelum itu): catat bahwa petunjuk perawatan sudah disampaikan. Untuk PPF dan Kaca Film tanda tangan basah di kertas wajib diterima (untuk Detailing dan Premium Wash opsional); sistem hanya mencatat bahwa tanda tangan sudah diterima. Foto akhir dan catatan boleh ditambahkan. Dicatat sekali per booking.',
                     'Terakhir, **Selesaikan Booking**. Status menjadi **Completed** dan tercatat di riwayat booking pelanggan. Syaratnya tahap Quality Check sudah ditandai.',
                     'Setelah selesai, kasir atau admin mencatat penjualannya di panel lewat **Catat Penjualan** (lihat panduan Penjualan).',
                 ],
                 'tips' => [
                     'Kewajiban lulus QC dan mencatat serah terima sebelum booking boleh diselesaikan bisa dinyalakan admin sistem. Kalau menyala dan syaratnya belum terpenuhi, tombol Selesaikan Booking menolak dengan pesan yang menjelaskan apa yang kurang.',
                     "Kapasitas ada dua jenis. Layanan berat (PPF, Kaca Film) dihitung per hari; layanan ringan (Detailing, Premium Wash) dihitung per jam dengan slot {$slots}. Booking campuran dihitung sebagai berat. Tanggal yang penuh atau toko libur tidak bisa dipilih. Kapasitas harian diatur di Kalender Kapasitas & Libur; kapasitas per slot jam diatur di form Toko.",
-                    'Yang boleh chat dengan pelanggan: leader installer, store manager, dan direksi. Installer tidak ikut chat.',
+                    'Yang boleh chat dengan pelanggan: leader installer, store manager, dan direksi. Installer tidak ikut chat, kecuali diberi **Akses chat booking** lewat Assignment (per booking: teks, foto, dan tahap). Nama pengirim di chat mengikuti jabatan: Ginnva Management (akses penuh), Store Manager (nama toko), Leader Installer, Tim Instalasi, atau Admin Toko (nama toko).',
                     'Pelanggan bisa mengajukan ganti tanggal atau pembatalan; karyawan menyetujui atau menolak di kartu pengajuan pada booking. Karyawan juga bisa memindahkan tanggal lewat **Ubah Jadwal**.',
                     'Pelanggan tidak datang: Store Manager atau akses penuh bisa menandai tidak datang kalau booking sudah Confirmed, tanggalnya sudah tiba, dan pengerjaan belum dimulai. Booking menjadi **Cancelled**, slot terlepas, dan DP yang sudah diterima dikembalikan penuh.',
                     'Pelanggan menerima pengingat otomatis H-2, H-1, dan pagi hari-H. Teks kebijakan pembatalan yang tampil di aplikasi diatur admin di Operasional, Teks Aplikasi.',
@@ -335,7 +337,7 @@ class GuideCatalog
                     'Siapkan unit: tugaskan installer, ambil foto penerimaan (empat sudut), catat kerusakan cat yang sudah ada sebagai foto kerusakan lengkap dengan keterangannya, dan buat **SPK**.',
                     'Catat gulungan film yang dipakai: di menu **Produk PPF/WF** pilih gulungannya lalu **Catat Pemakaian** untuk booking ini. Untuk produk yang diatur **Wajib Lacak Roll (Batch Number)** di **Daftar Produk**, SPK baru bisa ditandai selesai setelah pemakaian roll dicatat.',
                     "Kirim progres lewat **chat booking** pada tahap {$ppfStages}. Pada booking PPF + Kaca Film, tahap PPF berjalan di jalur kedua. Tahap Detailing di jalur ini adalah salah satu tahap pengerjaan PPF, bukan pemesanan layanan Detailing.",
-                    'Tandai tahap **Quality Check**, lalu isi checklist QC PPF. Butir bawaannya: tidak ada gelembung atau debu di bawah film, tepi dan sudut rapi dan menempel kuat, tidak ada kerutan atau potongan salah, bodi dan kaca bersih dari sisa larutan, tidak ada baret baru pada cat. Akses penuh bisa mengubah butirnya di menu **Checklist QC**.',
+                    'Tekan **Periksa** pada baris Quality Check di **Update Tahap**, lalu isi checklist QC PPF. Butir bawaannya: tidak ada gelembung atau debu di bawah film, tepi dan sudut rapi dan menempel kuat, tidak ada kerutan atau potongan salah, bodi dan kaca bersih dari sisa larutan, tidak ada baret baru pada cat. Akses penuh bisa mengubah butirnya di menu **Checklist QC**.',
                     'Serah terima: sampaikan petunjuk perawatan dan terima tanda tangan basah di kertas (wajib untuk PPF), lalu **Selesaikan Booking**.',
                     'Buat **Garansi** (atau minta pelanggan mendaftarkannya di aplikasi): pilih kategori PPF, isi plat nomor, tipe mobil, seri produk, **Posisi Pemasangan** (penuh atau sebagian, dengan keterangan area), dan **Kode Gulungan** (isi kode kedua kalau satu gulungan tidak cukup). Isi **Kuota Maintenance** dan **Interval Maintenance** kalau garansi menawarkan maintenance.',
                     'Garansi dari pelanggan menunggu **review**; setelah disetujui, jadwal maintenance berjalan otomatis (lihat panduan Garansi dan Maintenance PPF). Penjualannya dicatat lewat **Catat Penjualan** dengan baris layanan PPF.',
@@ -357,7 +359,7 @@ class GuideCatalog
                     'Siapkan unit: tugaskan installer, ambil foto penerimaan (empat sudut) dan foto kerusakan yang sudah ada, lalu buat **SPK**.',
                     'Catat gulungan film yang dipakai: di menu **Produk PPF/WF** pilih gulungannya lalu **Catat Pemakaian** untuk booking ini. Untuk produk yang diatur **Wajib Lacak Roll (Batch Number)** di **Daftar Produk**, SPK baru bisa ditandai selesai setelah pemakaian roll dicatat.',
                     "Kirim progres lewat **chat booking** pada tahap {$kacaFilmStages}. Pada booking Kaca Film + PPF, tahap Kaca Film berjalan di jalur pertama dan PPF di jalur kedua.",
-                    'Tandai tahap **Quality Check**, lalu isi checklist QC Kaca Film. Butir bawaannya: tidak ada gelembung, debu, atau goresan pada film, tepi film rapi dan merata di semua kaca, kaca bersih tanpa sisa larutan, semua kaca naik-turun normal, defogger dan sensor tidak terganggu. Akses penuh bisa mengubah butirnya di menu **Checklist QC**.',
+                    'Tekan **Periksa** pada baris Quality Check di **Update Tahap**, lalu isi checklist QC Kaca Film. Butir bawaannya: tidak ada gelembung, debu, atau goresan pada film, tepi film rapi dan merata di semua kaca, kaca bersih tanpa sisa larutan, semua kaca naik-turun normal, defogger dan sensor tidak terganggu. Akses penuh bisa mengubah butirnya di menu **Checklist QC**.',
                     'Serah terima: sampaikan petunjuk perawatan dan terima tanda tangan basah di kertas (wajib untuk Kaca Film), lalu **Selesaikan Booking**.',
                     'Buat **Garansi** (atau minta pelanggan mendaftarkannya di aplikasi): pilih kategori Window Film, isi plat nomor, tipe mobil, dan seri produk. Di bagian Detail Instalasi isi **Kode Gulungan — Kaca Depan** dan, kalau mobil ini juga dipasang di posisi itu, **Kode Gulungan — Kaca Samping & Belakang**. Pilihan hanya menampilkan gulungan yang terdaftar untuk posisi itu.',
                     'Garansi dari pelanggan menunggu **review**. Penjualannya dicatat lewat **Catat Penjualan** dengan baris layanan Kaca Film.',
@@ -415,7 +417,7 @@ class GuideCatalog
                 'summary' => 'Mencatat nilai penjualan sebuah booking yang sudah selesai: harga per layanan, pembayaran yang diterima, DP, voucher, dan kode referral.',
                 'menus' => ['BookingResource', 'SalesResource'],
                 'steps' => [
-                    'Syaratnya booking sudah **Completed**. Di panel, buka daftar Booking dan pilih aksi **Catat Penjualan** pada booking itu. Biasanya dikerjakan kasir atau admin, bukan installer. Aplikasi karyawan versi terbaru punya **Catat Penjualan** dengan aturan persetujuan yang sama.',
+                    'Syaratnya booking sudah **Completed**. Di panel, buka daftar Booking dan pilih aksi **Catat Penjualan** pada booking itu. Biasanya dikerjakan kasir atau admin, bukan installer. Pencatatan penjualan hanya lewat panel; aplikasi karyawan tidak punya aksi ini.',
                     'Isi **Rincian Harga per Layanan**: satu baris per layanan atau produk (jenis layanan, produk, bagian atau keterangan, jumlah, harga satuan, potongan baris). Pendapatan per jenis layanan di laporan mengikuti nilai baris ini; tanpa rincian, nilai dibagi rata antar jenis layanan. Untuk booking yang wajib rincian, form menolak kalau belum ada baris bernilai.',
                     'Isi **Nominal Transaksi**: angka bersih setelah voucher, promo, atau nego. Selisihnya dengan jumlah rincian dianggap potongan. Nominal ini juga dasar poin referral (1 poin per Rp10.000).',
                     'Isi **Pembayaran diterima**. Boleh lebih dari satu baris (mis. sebagian tunai, sebagian transfer): pilih metode dan nominal. Jumlah pembayaran ditambah DP yang terpakai tidak boleh melebihi Nominal Transaksi; sisanya tercatat sebagai sisa tagihan (Belum Lunas) di booking. Hapus semua baris kalau belum ada pembayaran.',
@@ -436,7 +438,7 @@ class GuideCatalog
                 'summary' => 'Form inspeksi dan perintah kerja untuk satu booking: data kendaraan, daftar pekerjaan, perlengkapan, dan kerusakan yang sudah ada sebelum pengerjaan.',
                 'menus' => ['SpkResource'],
                 'steps' => [
-                    'Buat SPK dari booking yang sudah Dikonfirmasi dan belum punya SPK (satu booking satu SPK), atau buat manual tanpa booking dan tautkan ke booking belakangan. Yang bisa membuat SPK baru: installer (untuk booking yang ditugaskan padanya), leader installer, Store Manager, direksi, dan super admin. Karyawan lain dengan akses menu melengkapi SPK yang sudah ada, termasuk dari aplikasi karyawan.',
+                    'Buat SPK dari booking yang sudah Dikonfirmasi dan belum punya SPK (satu booking satu SPK), atau buat manual tanpa booking dan tautkan ke booking belakangan. Tombol **Buat SPK** di detail booking langsung membuka form untuk booking itu, tanpa memilih booking lagi. Yang bisa membuat SPK baru: installer (untuk booking yang ditugaskan padanya), leader installer, Store Manager, direksi, dan super admin. Karyawan lain dengan akses menu melengkapi SPK yang sudah ada, termasuk dari aplikasi karyawan.',
                     'Di tab **Informasi** lengkapi data pelanggan dan kendaraan (nama, telepon, alamat, no. polisi, no. rangka, merek, tahun, jenis, kilometer, BBM, battery) dan **Jam Masuk**. Sebagian data terisi otomatis dari booking.',
                     'Di tab **Checklist** daftar Uraian Pekerjaan, Extra Services, dan Perlengkapan Kendaraan sudah terisi daftar bawaan (mis. PPF, Kaca Film, STNK, Ban Serep). Centang yang sesuai; tambah atau hapus baris kalau perlu.',
                     'Di tab **Kondisi Kendaraan** tandai kerusakan yang sudah ada pada diagram kendaraan dengan kode: C (cat luka atau belang), B (baret dalam), P (penyok), G (kaca baret atau retak), M (komponen hilang), OS (over spray), lengkap dengan catatan. Ini bukti kondisi unit sebelum dikerjakan.',
@@ -806,7 +808,7 @@ class GuideCatalog
                 'summary' => 'Mengajukan pembelian bahan, barang habis pakai, atau aset; persetujuan; sampai ditandai terpenuhi.',
                 'menus' => ['PurchaseRequestResource', 'SupplierResource'],
                 'steps' => [
-                    'Karyawan membuat permohonan di **Permohonan Pembelian**: pilih **Toko / Workshop**, **Jenis Barang** (Bahan Baku, Barang Habis Pakai, atau Aset Baru), **Barang** (atau **Nama Barang / Aset yang Diminta** untuk aset baru), **Jumlah**, dan **Alasan / Catatan**. Permohonan masih bisa diubah selama statusnya menunggu.',
+                    'Karyawan membuat permohonan di **Permohonan Pembelian**: pilih **Toko / Workshop**, **Jenis Barang** (Bahan Baku, Barang Habis Pakai, Aset Baru, atau Lainnya), **Barang** (atau **Nama Barang / Aset yang Diminta** untuk aset baru; untuk **Lainnya** nama dan satuannya diketik bebas karena barangnya di luar stok inventori), **Jumlah**, dan **Alasan / Catatan**. Permohonan masih bisa diubah selama statusnya menunggu.',
                     'Hanya akses penuh (super admin atau direksi) yang menekan **Setujui** atau **Tolak** (isi **Alasan Ditolak**). Permohonan yang sudah diproses terkunci; kalau dua orang menekan bersamaan, yang kedua mendapat pemberitahuan "sudah diproses".',
                     'Setelah barang diterima, catat dulu masuknya lewat **Catat Stok** pada barangnya, baru tekan **Tandai Terpenuhi**. Aksi ini bisa dilakukan akses penuh atau pengaju permohonan.',
                     'Saat **Tandai Terpenuhi** isi **Supplier** dan **Total Biaya Aktual** kalau perlu (keduanya opsional; supplier baru bisa dibuat langsung di sini). Pembukuan pembelian dilakukan di Accurate.',
@@ -1204,7 +1206,7 @@ class GuideCatalog
                         ? 'Bilah bawah berisi **Beranda**, **Absensi**, **Booking**, **Gaji**, dan **Profil**. Menu lain ada sebagai kotak di Beranda: **Surat Perintah Kerja**, **Kotak Masuk**, **Slip Gaji**, **K3 & Penilaian**, **Peraturan & Kebijakan**, dan **Panduan**.'
                         : 'Bilah bawah berisi **Beranda**, **Absensi**, **Booking**, dan **Profil**. Menu lain ada sebagai kotak di Beranda: **Surat Perintah Kerja**, **Kotak Masuk**, **K3 & Penilaian**, **Peraturan & Kebijakan**, dan **Panduan**.',
                     'Pekerjaan muncul di **Booking Toko** dan **Surat Perintah Kerja**, hanya untuk booking yang DITUGASKAN, bukan seluruh booking toko. Saat leader menugaskan atau mencopot dari sebuah booking, ada pemberitahuan "Penugasan Instalasi Baru" atau "Penugasan Dicabut"; riwayatnya ada di **Kotak Masuk**. Periksa kotak masuk di awal hari.',
-                    'Yang dipegang leader installer, Store Manager, atau atasan, bukan installer: konfirmasi dan pembatalan booking, chat dengan pelanggan, foto penerimaan, Quality Check, serah terima, dan penugasan installer. Layar-layar itu ditolak untuk akun installer; hubungi leader kalau ada kendala di lapangan.',
+                    'Yang dipegang leader installer, Store Manager, atau atasan, bukan installer: konfirmasi dan pembatalan booking, chat dengan pelanggan (kecuali installer yang diberi **Akses chat booking**), foto penerimaan, Quality Check, serah terima, dan penugasan installer. Layar-layar itu ditolak untuk akun installer; hubungi leader kalau ada kendala di lapangan.',
                     $payroll
                         ? 'Tugas di aplikasi: melihat detail pengerjaan, melengkapi SPK, absen, mengajukan izin dan koreksi, dan membaca slip gaji, perlengkapan, dan peraturan. Langkah tiap tugas ada di panduan Installer: mengerjakan satu booking dan Installer: absensi, gaji, dan K3.'
                         : 'Tugas di aplikasi: melihat detail pengerjaan, melengkapi SPK, absen, mengajukan izin dan koreksi, dan membaca perlengkapan dan peraturan. Langkah tiap tugas ada di panduan Installer: mengerjakan satu booking dan Installer: absensi, izin, dan K3.',
@@ -1226,7 +1228,7 @@ class GuideCatalog
                     'Di SPK, lengkapi data kendaraan (**No. Polisi**, **No. Rangka**, merek, tahun, jenis, kilometer, BBM, battery), centang daftar **Uraian Pekerjaan**, **Extra Services**, dan **Perlengkapan Kendaraan** yang sesuai, lalu isi **Catatan** kalau perlu. Tekan **Simpan Perubahan** supaya tersimpan.',
                     'Ketuk **Kondisi Kendaraan** untuk menandai kerusakan yang sudah ada sebelum pengerjaan pada diagram kendaraan (C cat luka, B baret dalam, P penyok, G kaca baret atau retak, M komponen hilang, OS over spray). Ini bukti kondisi unit saat diterima; tandai teliti, lalu tekan **Simpan Kondisi Kendaraan**.',
                     'Saat kendaraan selesai dan keluar, tekan **Tandai Kendaraan Keluar**. Untuk produk film yang wajib dilacak gulungannya, penandaan ditolak sampai pemakaian gulungan dicatat; minta bagian inventaris atau leader mencatatnya, lalu ulangi.',
-                    'Kendala lain, mis. unit tidak sesuai data, kerusakan baru, atau jadwal mundur, sampaikan ke leader installer. Chat dengan pelanggan dipegang leader.',
+                    'Kendala lain, mis. unit tidak sesuai data, kerusakan baru, atau jadwal mundur, sampaikan ke leader installer. Chat dengan pelanggan dipegang leader, kecuali kamu diberi **Akses chat booking** (lalu booking punya tab Chat dan kamu bisa menandai tahap lewat **Update Tahap**).',
                 ],
                 'tips' => [
                     'SPK yang sudah keluar tetap bisa dibuka, tapi pastikan datanya benar sebelum menekan Tandai Kendaraan Keluar.',
@@ -1336,13 +1338,13 @@ class GuideCatalog
                 'summary' => 'Dari menugaskan installer dan menerima unit sampai chat progres, Quality Check, serah terima, dan menyelesaikan booking; plus apa yang hanya boleh dilakukan Store Manager.',
                 'menus' => [],
                 'steps' => [
-                    'Leader installer memegang sisi lapangan: menugaskan installer, menerima unit, berbicara dengan pelanggan lewat chat, memeriksa hasil, dan menyerahkan unit. Installer sendiri tidak ikut chat dan tidak melihat layar-layar ini. Di chat, nama tampil sebagai "Leader Installer". Yang terlihat hanya booking toko sendiri, dan perlu akses menu Booking (diatur admin).',
+                    'Leader installer memegang sisi lapangan: menugaskan installer, menerima unit, berbicara dengan pelanggan lewat chat, memeriksa hasil, dan menyerahkan unit. Installer biasanya tidak ikut chat dan tidak melihat layar-layar ini, kecuali yang diberi **Akses chat booking**. Di chat, nama tampil sebagai "Leader Installer". Yang terlihat hanya booking toko sendiri, dan perlu akses menu Booking (diatur admin).',
                     'Awal hari: buka **Booking Toko**, periksa booking Confirmed yang jadwalnya hari ini dan beberapa hari ke depan. Ada booking baru berstatus Pending? Tekan **Konfirmasi Booking** (isi lama pengerjaan kalau perlu; **Kapasitas Instalasi per Tanggal** menunjukkan hari mana yang masih longgar untuk layanan berat) atau ubah tanggalnya lewat **Ubah Jadwal** (alasan wajib untuk booking yang sudah Confirmed). Pengajuan ganti jadwal dari pelanggan disetujui atau ditolak di kartu pengajuan pada booking.',
-                    'Tugaskan installer lewat **Assignment Booking**: pilih satu atau lebih di **Installer (bisa lebih dari satu)**, lalu **Simpan**. Hanya installer aktif toko itu yang bisa dipilih. Sistem memberi peringatan kalau installer sudah bertugas di booking lain pada tanggal yang bertumpuk; peringatan tidak memblokir. Installer yang ditambahkan atau dicopot menerima pemberitahuan.',
+                    'Tugaskan installer lewat **Assignment Booking**: pilih satu atau lebih di **Installer (bisa lebih dari satu)**, lalu nyalakan **Akses chat booking** untuk installer yang boleh ikut chat booking itu (bawaannya mati), lalu **Simpan**. Hanya installer aktif toko itu yang bisa dipilih. Sistem memberi peringatan kalau installer sudah bertugas di booking lain pada tanggal yang bertumpuk; peringatan tidak memblokir. Installer yang ditambahkan atau dicopot menerima pemberitahuan.',
                     'Saat unit datang, buka **Foto Penerimaan**: foto empat sudut (depan, belakang, kiri, kanan) dan setiap **Kerusakan yang sudah ada** lengkap dengan keterangan bagiannya (wajib). Lalu buat SPK lewat tombol Buat SPK di booking; installer akan melengkapinya (lihat panduan SPK).',
-                    'Kirim progres di **Chat & Progress**: pilih produk dan tahap lewat **Update Tahap**, boleh dengan foto, atau kirim pesan teks. Pelanggan menerima notifikasi tiap tahap. Tahap hanya bisa maju. Salah memilih tahap? Hanya Store Manager atau akses penuh yang bisa memperbaikinya lewat **Koreksi Tahap**. Detailing dan Premium Wash tidak punya tahap pengerjaan.',
-                    'Setelah pengerjaan selesai, tandai tahap **Quality Check** lalu isi daftar periksanya di layar Quality Check: jawab **Lulus** atau **Tidak lulus** tiap butir (butir tidak lulus wajib diberi catatan), lalu **Kirim Hasil QC**. Unit yang dikerjakan sendiri tidak bisa diperiksa sendiri; minta leader atau Store Manager lain. Pada booking dua produk, kedua produk harus sudah di tahap akhirnya.',
-                    'Buka **Serah Terima Unit** saat pelanggan mengambil kendaraan: centang bahwa petunjuk perawatan sudah disampaikan, dan untuk PPF dan Kaca Film pastikan tanda tangan basah di kertas sudah diterima (wajib; untuk Detailing dan Premium Wash opsional). Tambahkan foto kondisi akhir kalau perlu. Centang izin foto pemasaran HANYA kalau pelanggan menyetujuinya; bawaannya tidak ada izin. Tekan **Catat Serah Terima** (hanya sekali per booking), lalu **Selesaikan Booking**.',
+                    'Tandai progres lewat **Update Tahap** (tombol di Ringkasan booking, atau lewat menu **Aksi**), boleh dengan foto; pesan teks dikirim di tab Chat. Pelanggan menerima notifikasi tiap tahap. Tahap hanya bisa maju. Salah memilih tahap? Hanya Store Manager atau akses penuh yang bisa memperbaikinya lewat **Koreksi Tahap**. Detailing dan Premium Wash tidak punya tahap pengerjaan.',
+                    'Setelah pengerjaan selesai, buka **Update Tahap** dan tekan **Periksa** pada baris Quality Check, lalu isi daftar periksanya: jawab **Lulus** atau **Tidak lulus** tiap butir (butir tidak lulus wajib diberi catatan), lalu **Kirim Hasil QC**. Unit yang dikerjakan sendiri tidak bisa diperiksa sendiri; minta leader atau Store Manager lain. Pada booking dua produk, kedua produk harus sudah di tahap akhirnya.',
+                    'Setelah QC lulus, buka **Serah Terima Unit** (tombol **Serah Terima** di Update Tahap, atau lewat menu **Aksi**) saat pelanggan mengambil kendaraan: centang bahwa petunjuk perawatan sudah disampaikan, dan untuk PPF dan Kaca Film pastikan tanda tangan basah di kertas sudah diterima (wajib; untuk Detailing dan Premium Wash opsional). Tambahkan foto kondisi akhir kalau perlu. Centang izin foto pemasaran HANYA kalau pelanggan menyetujuinya; bawaannya tidak ada izin. Tekan **Catat Serah Terima** (hanya sekali per booking), lalu **Selesaikan Booking**.',
                     'Yang TIDAK bisa dilakukan dan harus diteruskan ke Store Manager atau akses penuh: membatalkan booking, menandai pelanggan tidak datang, menyetujui pembatalan dari pelanggan, dan mengoreksi tahap. Aplikasi menolaknya dengan pesan yang jelas.',
                     'Kendala installer di lapangan (unit tidak sesuai data, kerusakan baru, jadwal mundur) diteruskan ke leader; leader yang berbicara dengan pelanggan dan memutuskan langkah berikutnya.',
                 ],
