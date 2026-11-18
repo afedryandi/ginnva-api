@@ -350,3 +350,12 @@ html:not(.dark) .fi-tabs {
     border-radius: 9999px;
     background: rgba(var(--gray-400), 0.45);
 }
+
+/* Bilah gulir menu samping kluster: tersembunyi sampai kursor di atasnya (gaya sebaris di AdminPanelProvider memuat belakangan, jadi !important). */
+.fi-page-sub-navigation-sidebar {
+    scrollbar-color: transparent transparent !important;
+}
+
+.fi-page-sub-navigation-sidebar:hover {
+    scrollbar-color: rgba(var(--gray-400), 0.5) transparent !important;
+}
