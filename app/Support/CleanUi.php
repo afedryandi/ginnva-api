@@ -39,6 +39,7 @@ class CleanUi
         \App\Filament\Resources\AttendanceCorrectionRequestResource::class,
         \App\Filament\Resources\UserResource::class,
         \App\Filament\Resources\TechnicianResource::class,
+        \App\Filament\Resources\FilmProductResource::class,
     ];
 
     /**

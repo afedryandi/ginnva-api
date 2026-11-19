@@ -95,9 +95,13 @@ class FilmProductResource extends Resource
 
     public static function form(Form $form): Form
     {
+        // Dua kolom di layar lebar: kiri data produk dan harga, kanan pengaturan (aktif dan lacak roll).
         return $form->schema([
+            Forms\Components\Grid::make(['default' => 1, 'lg' => 3])->columnSpanFull()->schema([
+            Forms\Components\Group::make()->columnSpan(['lg' => 2])->schema([
             Forms\Components\Section::make('Data Produk')
-                ->columns(2)
+                ->icon('heroicon-o-cube')
+                ->columns(['default' => 1, 'sm' => 2])
                 ->schema([
                     Forms\Components\TextInput::make('sku')
                         ->label('SKU')
@@ -145,22 +149,6 @@ class FilmProductResource extends Resource
                         // Wajib hanya bila belum ada harga per ukuran sama sekali.
                         ->required(fn (Forms\Get $get) => collect($get('prices') ?? [])->filter(fn ($row) => filled($row['price'] ?? null))->isEmpty())
                         ->dehydrateStateUsing(fn ($state) => filled($state) ? $state : 0),
-
-                    Forms\Components\Toggle::make('is_active')
-                        ->label('Aktif (tampil di pilihan produk)')
-                        ->helperText('Nonaktif: produk tidak muncul di pilihan quotation, booking, dan penjualan, dan tidak ikut perubahan harga massal.')
-                        ->default(true),
-
-                    // f28 — opt-in per produk (default false, tidak
-                    // mengubah perilaku produk yang sudah ada). Kalau
-                    // aktif, SPK booking yang memakai produk ini TIDAK
-                    // bisa ditandai selesai (checked_out_at) sebelum ada
-                    // minimal 1 "Catat Pemakaian" roll yang tertaut ke
-                    // booking itu — lihat SpkService::assertBatchTrackingSatisfied().
-                    Forms\Components\Toggle::make('tracks_batch')
-                        ->label('Wajib Lacak Roll (Batch Number)')
-                        ->helperText('Kalau aktif, SPK booking dengan produk ini baru bisa ditandai selesai setelah roll gulungan yang dipakai dicatat (Produk PPF/WF, Catat Pemakaian).')
-                        ->default(false),
                 ]),
 
             // Matriks harga per ukuran kendaraan (film_product_prices).
@@ -168,6 +156,7 @@ class FilmProductResource extends Resource
             // Majoo tidak mengikuti koefisien tunggal. Baris di sini MENANG
             // atas base_price untuk ukuran yang diisi. Harga INTERNAL saja.
             Forms\Components\Section::make('Harga Jual per Ukuran Kendaraan')
+                ->icon('heroicon-o-banknotes')
                 ->description('Isi kalau harga beda per ukuran mobil. Kosongkan untuk produk harga flat.')
                 ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing', 'premium_wash', 'color_change'], true))
                 ->schema([
@@ -211,6 +200,7 @@ class FilmProductResource extends Resource
             // customer booking ini tergabung di grup tsb. Lihat
             // PriceCalculator::priceFor().
             Forms\Components\Section::make('Harga Khusus per Grup Pelanggan')
+                ->icon('heroicon-o-user-group')
                 ->description('Opsional — isi kalau grup pelanggan tertentu (mis. Member/Korporat) dapat harga berbeda dari harga normal di atas untuk produk ini.')
                 ->visible(fn (Forms\Get $get) => in_array($get('product_type'), ['window_film', 'ppf', 'detailing', 'premium_wash', 'color_change'], true))
                 ->collapsed()
@@ -241,6 +231,119 @@ class FilmProductResource extends Resource
                                 ->required(),
                         ]),
                 ]),
+            ]),
+            Forms\Components\Group::make()->columnSpan(['lg' => 1])->schema([
+            // Panduan singkat hanya saat membuat produk baru; isinya mengikuti aturan harga di PriceCalculator dan teks bantuan tiap isian.
+            Forms\Components\Section::make('Panduan Pengisian')
+                ->icon('heroicon-o-light-bulb')
+                ->visible(fn (string $operation) => $operation === 'create')
+                ->schema([
+                    Forms\Components\Placeholder::make('create_tips')
+                        ->hiddenLabel()
+                        ->content(new \Illuminate\Support\HtmlString(
+                            '<ul style="margin:0;padding-left:1.1rem;list-style:disc;line-height:1.7;">'
+                            . '<li><strong>SKU</strong> harus unik dan dipakai untuk mencocokkan Import Excel.</li>'
+                            . '<li><strong>Harga Dasar</strong> untuk harga yang sama di semua ukuran mobil.</li>'
+                            . '<li>Harga <strong>per ukuran</strong> mengalahkan harga dasar untuk ukuran yang diisi.</li>'
+                            . '<li>Harga bersifat <strong>internal</strong>, tidak tampil ke pelanggan.</li>'
+                            . '<li>Produk <strong>nonaktif</strong> tidak muncul di pilihan quotation, booking, dan penjualan.</li>'
+                            . '</ul>'
+                        )),
+                ]),
+
+            Forms\Components\Section::make('Pengaturan')
+                ->icon('heroicon-o-adjustments-horizontal')
+                ->schema([
+                    Forms\Components\Toggle::make('is_active')
+                        ->label('Aktif (tampil di pilihan produk)')
+                        ->helperText('Nonaktif: produk tidak muncul di pilihan quotation, booking, dan penjualan, dan tidak ikut perubahan harga massal.')
+                        ->default(true),
+
+                    // f28 — opt-in per produk (default false, tidak
+                    // mengubah perilaku produk yang sudah ada). Kalau
+                    // aktif, SPK booking yang memakai produk ini TIDAK
+                    // bisa ditandai selesai (checked_out_at) sebelum ada
+                    // minimal 1 "Catat Pemakaian" roll yang tertaut ke
+                    // booking itu — lihat SpkService::assertBatchTrackingSatisfied().
+                    Forms\Components\Toggle::make('tracks_batch')
+                        ->label('Wajib Lacak Roll (Batch Number)')
+                        ->helperText('Kalau aktif, SPK booking dengan produk ini baru bisa ditandai selesai setelah roll gulungan yang dipakai dicatat (Produk PPF/WF, Catat Pemakaian).')
+                        ->default(false),
+                ]),
+            ]),
+            ]),
+        ]);
+    }
+
+    /** Halaman Lihat: dua kolom, kiri data dan harga, kanan status dan pelacakan. */
+    public static function infolist(\Filament\Infolists\Infolist $infolist): \Filament\Infolists\Infolist
+    {
+        $entry = \Filament\Infolists\Components\TextEntry::class;
+
+        return $infolist->schema([
+            \Filament\Infolists\Components\Grid::make(['default' => 1, 'lg' => 3])->columnSpanFull()->schema([
+                \Filament\Infolists\Components\Group::make()->columnSpan(['lg' => 2])->schema([
+                    \Filament\Infolists\Components\Section::make('Data Produk')
+                        ->icon('heroicon-o-cube')
+                        ->columns(['default' => 1, 'sm' => 2])
+                        ->schema([
+                            $entry::make('name')->label('Nama Produk')->weight('semibold'),
+                            $entry::make('sku')->label('SKU')->copyable(),
+                            $entry::make('product_type')
+                                ->label('Tipe')
+                                ->badge()
+                                ->formatStateUsing(fn (string $state): string => match ($state) {
+                                    'window_film'  => 'Kaca Film',
+                                    'ppf'          => 'PPF',
+                                    'detailing'    => 'Detailing',
+                                    'premium_wash' => 'Premium Wash',
+                                    'color_change' => 'Ganti Warna',
+                                    default        => $state,
+                                }),
+                            $entry::make('position')
+                                ->label('Posisi Kaca')
+                                ->visible(fn (FilmProduct $record) => $record->product_type === 'window_film')
+                                ->formatStateUsing(fn (?string $state): string => match ($state) {
+                                    'front'     => 'Kaca Depan',
+                                    'side_rear' => 'Samping & Belakang',
+                                    default     => '—',
+                                }),
+                        ]),
+
+                    \Filament\Infolists\Components\Section::make('Harga Jual')
+                        ->icon('heroicon-o-banknotes')
+                        ->description('Internal, tidak tampil ke pelanggan.')
+                        ->schema([
+                            \Filament\Infolists\Components\ViewEntry::make('prices_overview')
+                                ->hiddenLabel()
+                                ->view('filament.infolists.film-product-prices'),
+                        ]),
+                ]),
+
+                \Filament\Infolists\Components\Group::make()->columnSpan(['lg' => 1])->schema([
+                    \Filament\Infolists\Components\Section::make('Status')
+                        ->icon('heroicon-o-adjustments-horizontal')
+                        ->columns(1)
+                        ->schema([
+                            $entry::make('is_active')
+                                ->label('Aktif')
+                                ->badge()
+                                ->state(fn (FilmProduct $record) => $record->is_active ? 'Aktif' : 'Nonaktif')
+                                ->color(fn (string $state) => $state === 'Aktif' ? 'success' : 'gray'),
+                            $entry::make('price_status')
+                                ->label('Status Harga')
+                                ->badge()
+                                ->state(fn (FilmProduct $record) => static::hasPrice($record) ? 'Terisi' : 'Belum diisi')
+                                ->color(fn (string $state) => $state === 'Terisi' ? 'success' : 'warning'),
+                            $entry::make('tracks_batch')
+                                ->label('Wajib Lacak Roll')
+                                ->badge()
+                                ->state(fn (FilmProduct $record) => $record->tracks_batch ? 'Ya' : 'Tidak')
+                                ->color(fn (string $state) => $state === 'Ya' ? 'info' : 'gray'),
+                            $entry::make('created_at')->label('Dibuat')->dateTime('d M Y'),
+                        ]),
+                ]),
+            ]),
         ]);
     }
 
@@ -248,15 +351,19 @@ class FilmProductResource extends Resource
     {
         return $table
             ->columns([
+                // Nama tegas dengan SKU sebagai keterangan di bawahnya (satu sel); kolom SKU terpisah tersedia lewat pemilih kolom.
+                Tables\Columns\TextColumn::make('name')
+                    ->label('Produk')
+                    ->weight('semibold')
+                    ->description(fn (FilmProduct $record): string => (string) $record->sku)
+                    ->searchable(['name', 'sku'])
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('sku')
                     ->label('SKU')
                     ->searchable()
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('name')
-                    ->label('Nama Produk')
-                    ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('product_type')
                     ->label('Tipe')
@@ -296,6 +403,7 @@ class FilmProductResource extends Resource
                 Tables\Columns\TextColumn::make('price_range')
                     ->label('Harga Jual')
                     ->state(fn (FilmProduct $record): string => static::priceLabel($record))
+                    ->alignEnd()
                     ->description(fn (FilmProduct $record): ?string => $record->prices->isNotEmpty() ? 'per ukuran kendaraan' : null),
 
                 Tables\Columns\TextColumn::make('base_price')
@@ -336,22 +444,37 @@ class FilmProductResource extends Resource
                     ]),
 
                 Tables\Filters\TernaryFilter::make('is_active')
-                    ->label('Status Aktif'),
+                    ->label('Status Aktif')
+                    ->placeholder('Semua')
+                    ->trueLabel('Aktif')
+                    ->falseLabel('Nonaktif'),
 
-                Tables\Filters\Filter::make('price_missing')
-                    ->label('Harga belum diisi')
-                    ->toggle()
-                    ->query(fn (Builder $query) => $query->where('base_price', '<=', 0)->whereDoesntHave('prices')),
+                // Pilihan (bukan kotak centang) supaya tinggi dan labelnya sejajar dengan isian lain di baris filter.
+                Tables\Filters\TernaryFilter::make('price_missing')
+                    ->label('Status Harga')
+                    ->placeholder('Semua')
+                    ->trueLabel('Belum diisi')
+                    ->falseLabel('Sudah terisi')
+                    ->queries(
+                        true: fn (Builder $query) => $query->where('base_price', '<=', 0)->whereDoesntHave('prices'),
+                        false: fn (Builder $query) => $query->where(fn (Builder $q) => $q->where('base_price', '>', 0)->orWhereHas('prices')),
+                        blank: fn (Builder $query) => $query,
+                    ),
 
                 Tables\Filters\TernaryFilter::make('tracks_batch')
-                    ->label('Wajib lacak roll'),
+                    ->label('Wajib Lacak Roll')
+                    ->placeholder('Semua')
+                    ->trueLabel('Ya')
+                    ->falseLabel('Tidak'),
 
                 // SoftDeletes ditambahkan 2026-09-25 (audit Daftar Produk) --
                 // supaya produk yang dihapus tetap bisa dicari & dipulihkan
                 // dari sini, bukan hilang tanpa jejak dari sisi Filament.
                 Tables\Filters\TrashedFilter::make(),
-            ])
+            ], layout: \Filament\Tables\Enums\FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(3)
             ->actions([
+                Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
                 Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
                 // Sekarang scroll_codes.film_product_id restrictOnDelete()
                 // (bukan lagi nullOnDelete) — hapus produk yang masih
@@ -510,6 +633,7 @@ class FilmProductResource extends Resource
         return [
             'index' => Pages\ListFilmProducts::route('/'),
             'create' => Pages\CreateFilmProduct::route('/create'),
+            'view' => Pages\ViewFilmProduct::route('/{record}'),
             'edit' => Pages\EditFilmProduct::route('/{record}/edit'),
         ];
     }

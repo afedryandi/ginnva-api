@@ -51,6 +51,8 @@ class ListFilmProducts extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            // Ekspor dan impor dikelompokkan di satu tombol, jadi kepala halaman tidak penuh lima tombol sejajar.
+            Actions\ActionGroup::make([
             Actions\Action::make('exportExcel')
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -140,6 +142,11 @@ class ListFilmProducts extends ListRecords
                         ->send();
                 })
                 ->modalSubmitActionLabel('Import'),
+            ])
+                ->label('Export & Import')
+                ->icon('heroicon-o-arrows-up-down')
+                ->color('gray')
+                ->button(),
 
             Actions\CreateAction::make(),
         ];
