@@ -248,6 +248,9 @@ class InvoiceTest extends TestCase
         Livewire::test(ListInvoices::class)->assertSuccessful()->assertCanSeeTableRecords([$invoice]);
         Livewire::test(CreateInvoice::class)->assertSuccessful();
         Livewire::test(EditInvoice::class, ['record' => $invoice->getKey()])->assertSuccessful();
+        Livewire::test(\App\Filament\Resources\InvoiceResource\Pages\ViewInvoice::class, ['record' => $invoice->getKey()])
+            ->assertSuccessful()
+            ->assertSee($invoice->invoice_number);
 
         Livewire::test(ListInvoices::class)
             ->callTableAction('record_payment', $invoice, data: ['amount' => 2_000_000]);

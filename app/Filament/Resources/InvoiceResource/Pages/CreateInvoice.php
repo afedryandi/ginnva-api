@@ -13,6 +13,15 @@ class CreateInvoice extends CreateRecord
 {
     protected static string $resource = InvoiceResource::class;
 
+    // Tombol Buat dan Batal menempel di bawah layar saat form digulir.
+    public static bool $formActionsAreSticky = true;
+
+    /** Lebar penuh supaya tata letak 2:1 (isi invoice di kiri, ringkasan total di kanan) muncul. */
+    public function getMaxContentWidth(): \Filament\Support\Enums\MaxWidth|string|null
+    {
+        return \Filament\Support\Enums\MaxWidth::SevenExtraLarge;
+    }
+
     /**
      * Tombol "Buat Invoice" di halaman booking membuka form ini dengan ?booking={id}: pelanggan, referensi booking, dan baris produk
      * terisi dari booking itu. Semuanya hanya isian awal dan tetap bisa diubah manual. Booking di luar toko pengguna diabaikan.

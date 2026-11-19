@@ -100,7 +100,10 @@ class InvoiceResource extends Resource
 
     public static function form(Form $form): Form
     {
+        // Dua kolom di layar lebar: kiri isi invoice (informasi, pelanggan, produk), kanan ringkasan total dan rincian tagihan.
         return $form->schema([
+            Forms\Components\Grid::make(['default' => 1, 'lg' => 3])->columnSpanFull()->schema([
+            Forms\Components\Group::make()->columnSpan(['lg' => 2])->schema([
             Forms\Components\Section::make('Informasi Invoice')
                 ->description('Toko, referensi booking, dan tanggal tagihan.')
                 ->icon('heroicon-o-document-text')
@@ -274,32 +277,76 @@ class InvoiceResource extends Resource
                         ->required(),
                 ]),
 
+            ]),
+            Forms\Components\Group::make()->columnSpan(['lg' => 1])->schema([
+            // Perkiraan total yang ikut berubah saat produk, diskon, atau biaya diubah. Rumusnya sama dengan InvoiceService::recalculateTotals();
+            // angka resmi tetap dihitung server saat disimpan.
+            Forms\Components\Section::make('Ringkasan')
+                ->icon('heroicon-o-receipt-percent')
+                ->schema([
+                    Forms\Components\Placeholder::make('summary')
+                        ->hiddenLabel()
+                        ->content(function (Forms\Get $get, ?Invoice $record) {
+                            $subtotal = collect((array) $get('items'))->sum(fn ($row) => round(
+                                (float) ($row['price'] ?? 0) * (float) ($row['quantity'] ?? 0) * (1 - (float) ($row['discount_percent'] ?? 0) / 100),
+                                2
+                            ));
+                            $discount = match ($get('transaction_discount_type')) {
+                                'percent' => round($subtotal * (float) $get('transaction_discount_value') / 100, 2),
+                                'rp' => (float) $get('transaction_discount_value'),
+                                default => 0.0,
+                            };
+                            $shipping = (float) $get('shipping_cost');
+                            $other = (float) $get('other_cost');
+                            $total = max(0, $subtotal - $discount + $shipping + $other);
+                            $rp = fn (float $n) => 'Rp' . number_format($n, 0, ',', '.');
+
+                            $row = fn (string $label, string $value, bool $strong = false) => '<div style="display:flex;justify-content:space-between;gap:1rem;padding:.35rem 0;'
+                                . ($strong ? 'border-top:1px solid rgba(128,128,128,.25);margin-top:.35rem;padding-top:.75rem;font-weight:700;font-size:1.05rem;' : '')
+                                . '"><span>' . e($label) . '</span><span style="font-variant-numeric:tabular-nums;">' . e($value) . '</span></div>';
+
+                            return new \Illuminate\Support\HtmlString(
+                                $row('Subtotal', $rp($subtotal))
+                                . ($discount > 0 ? $row('Diskon transaksi', '- ' . $rp($discount)) : '')
+                                . ($shipping > 0 ? $row('Biaya pengiriman', $rp($shipping)) : '')
+                                . ($other > 0 ? $row('Biaya lainnya', $rp($other)) : '')
+                                . $row('Total tagihan', $rp($total), true)
+                                // Saat mengubah invoice yang sudah ada: yang sudah dibayar dan sisa terhadap total di layar.
+                                . ($record?->exists ? $row('Sudah dibayar', $rp((float) $record->amount_paid)) . $row('Sisa tagihan', $rp(max(0, $total - (float) $record->amount_paid)), true) : '')
+                            );
+                        }),
+                ]),
+
             Forms\Components\Section::make('Rincian Tagihan')
                 ->description('Diskon, biaya tambahan, dan catatan di bawah total.')
                 ->icon('heroicon-o-calculator')
-                ->columns(['default' => 1, 'md' => 2])
+                ->columns(2)
                 ->schema([
                     Forms\Components\Select::make('transaction_discount_type')
-                        ->label('Jenis Diskon Transaksi')
+                        ->label('Jenis Diskon')
                         ->options(['rp' => 'Rp', 'percent' => '%'])
-                        ->native(false),
+                        ->native(false)
+                        ->live(),
 
                     Forms\Components\TextInput::make('transaction_discount_value')
-                        ->label('Nilai Diskon Transaksi')
+                        ->label('Nilai Diskon')
                         ->numeric()
-                        ->default(0),
+                        ->default(0)
+                        ->live(onBlur: true),
 
                     Forms\Components\TextInput::make('shipping_cost')
                         ->label('Biaya Pengiriman')
                         ->numeric()
                         ->prefix('Rp')
-                        ->default(0),
+                        ->default(0)
+                        ->live(onBlur: true),
 
                     Forms\Components\TextInput::make('other_cost')
                         ->label('Biaya Lainnya')
                         ->numeric()
                         ->prefix('Rp')
-                        ->default(0),
+                        ->default(0)
+                        ->live(onBlur: true),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Keterangan')
@@ -311,6 +358,8 @@ class InvoiceResource extends Resource
                         ->columnSpanFull()
                         ->rows(2),
                 ]),
+            ]),
+            ]),
         ]);
     }
 
@@ -525,6 +574,73 @@ class InvoiceResource extends Resource
             ]);
     }
 
+    public static function infolist(\Filament\Infolists\Infolist $infolist): \Filament\Infolists\Infolist
+    {
+        $entry = \Filament\Infolists\Components\TextEntry::class;
+        $money = fn ($state) => 'Rp' . number_format((float) $state, 0, ',', '.');
+
+        return $infolist->schema([
+            // Dua kolom: kiri pelanggan dan baris produk, kanan status, total, dan catatan.
+            \Filament\Infolists\Components\Grid::make(['default' => 1, 'lg' => 3])->columnSpanFull()->schema([
+                \Filament\Infolists\Components\Group::make()->columnSpan(['lg' => 2])->schema([
+                    \Filament\Infolists\Components\Section::make('Pelanggan')
+                        ->icon('heroicon-o-user')
+                        ->columns(2)
+                        ->schema([
+                            $entry::make('customer_name')->label('Nama')->placeholder('—'),
+                            $entry::make('customer_phone')->label('Telepon')->placeholder('—'),
+                            $entry::make('customer_email')->label('Email')->placeholder('—'),
+                            $entry::make('booking.booking_number')->label('Referensi Booking')->placeholder('Tanpa nomor referensi'),
+                            $entry::make('billing_address')->label('Alamat Penagihan')->placeholder('—'),
+                            $entry::make('shipping_address')->label('Alamat Pengiriman')->placeholder('—'),
+                        ]),
+
+                    \Filament\Infolists\Components\Section::make('Detail Produk')
+                        ->icon('heroicon-o-shopping-bag')
+                        ->schema([
+                            \Filament\Infolists\Components\ViewEntry::make('items_table')
+                                ->hiddenLabel()
+                                ->view('filament.infolists.invoice-items'),
+                        ]),
+                ]),
+
+                \Filament\Infolists\Components\Group::make()->columnSpan(['lg' => 1])->schema([
+                    \Filament\Infolists\Components\Section::make('Tagihan')
+                        ->icon('heroicon-o-receipt-percent')
+                        ->columns(1)
+                        ->schema([
+                            $entry::make('invoice_number')->label('No. Invoice')->copyable(),
+                            $entry::make('status')
+                                ->label('Status')
+                                ->badge()
+                                ->color(fn (string $state) => match ($state) {
+                                    'draft' => 'gray', 'unpaid' => 'warning', 'paid' => 'success', 'void' => 'danger', default => 'gray',
+                                })
+                                ->formatStateUsing(fn (string $state) => Invoice::STATUS_LABELS[$state] ?? $state),
+                            $entry::make('issue_date')->label('Tanggal Dibuat')->date('d M Y'),
+                            $entry::make('due_date')->label('Jatuh Tempo')->date('d M Y')->placeholder('—'),
+                            $entry::make('subtotal')->label('Subtotal')->formatStateUsing($money),
+                            $entry::make('total')->label('Total Tagihan')->formatStateUsing($money)->weight('bold')->size('lg'),
+                            $entry::make('amount_paid')->label('Terbayar')->formatStateUsing($money),
+                            $entry::make('sisa')
+                                ->label('Sisa Tagihan')
+                                ->state(fn (Invoice $record) => $record->remainingAmount())
+                                ->formatStateUsing($money)
+                                ->weight('bold')
+                                ->color(fn (Invoice $record) => in_array($record->status, ['draft', 'unpaid'], true) && $record->remainingAmount() > 0 ? 'danger' : 'gray'),
+                        ]),
+
+                    \Filament\Infolists\Components\Section::make('Catatan')
+                        ->icon('heroicon-o-pencil-square')
+                        ->schema([
+                            $entry::make('notes')->label('Keterangan')->placeholder('—'),
+                            $entry::make('terms_conditions')->label('Syarat dan Ketentuan')->placeholder('—'),
+                        ]),
+                ]),
+            ]),
+        ]);
+    }
+
     public static function getRelations(): array
     {
         return [
@@ -537,6 +653,7 @@ class InvoiceResource extends Resource
         return [
             'index' => Pages\ListInvoices::route('/'),
             'create' => Pages\CreateInvoice::route('/create'),
+            'view' => Pages\ViewInvoice::route('/{record}'),
             'edit' => Pages\EditInvoice::route('/{record}/edit'),
         ];
     }
