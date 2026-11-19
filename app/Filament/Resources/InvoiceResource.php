@@ -414,7 +414,7 @@ class InvoiceResource extends Resource
 
                 Tables\Columns\TextColumn::make('total')
                     ->label('Total')
-                    ->money('IDR', locale: 'id')
+                    ->formatStateUsing(fn ($state) => 'Rp' . number_format((float) $state, 0, ',', '.'))
                     ->alignEnd()
                     ->sortable(),
 
@@ -468,9 +468,17 @@ class InvoiceResource extends Resource
                         return $out;
                     }),
 
-                Tables\Filters\Filter::make('jatuh_tempo_lewat')
-                    ->label('Lewat jatuh tempo')
-                    ->query(fn (Builder $query) => $query->whereIn('status', ['draft', 'unpaid'])->whereNotNull('due_date')->whereDate('due_date', '<', today())),
+                // Pilihan (bukan kotak centang) supaya tinggi dan labelnya sejajar dengan isian lain di baris filter.
+                Tables\Filters\TernaryFilter::make('jatuh_tempo_lewat')
+                    ->label('Jatuh tempo')
+                    ->placeholder('Semua')
+                    ->trueLabel('Sudah lewat')
+                    ->falseLabel('Belum lewat')
+                    ->queries(
+                        true: fn (Builder $query) => $query->whereIn('status', ['draft', 'unpaid'])->whereNotNull('due_date')->whereDate('due_date', '<', today()),
+                        false: fn (Builder $query) => $query->where(fn (Builder $q) => $q->whereNull('due_date')->orWhereDate('due_date', '>=', today())),
+                        blank: fn (Builder $query) => $query,
+                    ),
             ], layout: FiltersLayout::AboveContentCollapsible)
             ->filtersFormColumns(3)
             // Aksi yang paling sering dipakai (Lihat, Ubah, Catat Pembayaran) berupa ikon; sisanya dikelompokkan di menu "...", supaya baris tidak penuh tombol.
