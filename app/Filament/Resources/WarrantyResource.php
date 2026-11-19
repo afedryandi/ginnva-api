@@ -1109,6 +1109,9 @@ class WarrantyResource extends Resource
 
                 Tables\Filters\Filter::make('created_at')
                     ->label('Rentang Tanggal Diajukan')
+                    // Dua kolom selebar dua sel filter, jadi Dari dan Sampai bersebelahan dalam satu baris (sebelumnya bertumpuk di satu sel).
+                    ->columnSpan(2)
+                    ->columns(2)
                     ->form([
                         Forms\Components\DatePicker::make('from')->label('Dari'),
                         Forms\Components\DatePicker::make('until')->label('Sampai'),
