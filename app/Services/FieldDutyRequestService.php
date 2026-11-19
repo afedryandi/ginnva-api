@@ -367,7 +367,7 @@ class FieldDutyRequestService
      *
      * @throws RuntimeException
      */
-    public function attachLocationPhoto(FieldDutyRequest $request, User $user, \Illuminate\Http\UploadedFile $photo): FieldDutyRequest
+    public function attachLocationPhoto(FieldDutyRequest $request, User $user, \Illuminate\Http\UploadedFile $photo, ?array $coordinates = null): FieldDutyRequest
     {
         if ((int) $request->user_id !== (int) $user->id) {
             throw new RuntimeException('Pengajuan ini bukan milik Anda.');
@@ -384,7 +384,14 @@ class FieldDutyRequestService
         $path = \App\Support\SensitiveFiles::store($photo, 'field-duty-photos');
         $old = $request->location_photo;
 
-        $request->update(['location_photo' => $path, 'location_photo_at' => now()]);
+        // Koordinat dari GPS ponsel (latitude, longitude, accuracy) ikut tersimpan bila dikirim; foto dari panel tidak punya koordinat.
+        $request->update([
+            'location_photo' => $path,
+            'location_photo_at' => now(),
+            'location_latitude' => $coordinates['latitude'] ?? null,
+            'location_longitude' => $coordinates['longitude'] ?? null,
+            'location_accuracy' => $coordinates['accuracy'] ?? null,
+        ]);
         \App\Support\SensitiveFiles::delete($old);
 
         activity('field_duty_request')->performedOn($request)->causedBy($user)->log('Foto di lokasi dinas luar dikirim');

@@ -31,6 +31,9 @@ class FieldDutyRequest extends Model
         'description',
         'location_photo',
         'location_photo_at',
+        'location_latitude',
+        'location_longitude',
+        'location_accuracy',
         'status',
         'reviewed_by',
         'reviewed_at',
@@ -41,7 +44,20 @@ class FieldDutyRequest extends Model
         'date' => 'date',
         'reviewed_at' => 'datetime',
         'location_photo_at' => 'datetime',
+        'location_latitude' => 'float',
+        'location_longitude' => 'float',
+        'location_accuracy' => 'float',
     ];
+
+    /** Tautan Google Maps ke titik koordinat saat foto dikirim; null bila koordinat tidak tercatat (foto lama atau dari panel). */
+    public function mapsUrl(): ?string
+    {
+        if ($this->location_latitude === null || $this->location_longitude === null) {
+            return null;
+        }
+
+        return 'https://www.google.com/maps?q=' . $this->location_latitude . ',' . $this->location_longitude;
+    }
 
     /** Sudah disetujui, harinya sudah tiba (atau lewat), tetapi foto bukti di lokasi belum dikirim. */
     public function needsLocationPhoto(): bool

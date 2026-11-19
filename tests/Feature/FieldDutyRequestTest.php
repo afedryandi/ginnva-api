@@ -480,6 +480,60 @@ class FieldDutyRequestTest extends TestCase
             ->assertStatus(404);
     }
 
+    private function sendPhoto(FieldDutyRequest $request, array $extra = [])
+    {
+        return $this->actingAs($this->andi, 'api')->post(
+            "/api/staff/field-duty-requests/{$request->id}/location-photo",
+            ['photo' => \Illuminate\Http\UploadedFile::fake()->image('lokasi.jpg', 600, 600)] + $extra,
+            ['Accept' => 'application/json']
+        );
+    }
+
+    public function test_the_gps_coordinates_are_saved_with_the_photo_and_give_a_maps_link(): void
+    {
+        $request = $this->approvedForToday();
+
+        $this->sendPhoto($request, ['latitude' => '-6.2088000', 'longitude' => '106.8456000', 'accuracy' => '12.5', 'is_mocked' => 'false'])
+            ->assertSuccessful()
+            ->assertJsonPath('field_duty_request.location_maps_url', 'https://www.google.com/maps?q=-6.2088,106.8456');
+
+        $fresh = $request->fresh();
+        $this->assertEqualsWithDelta(-6.2088, $fresh->location_latitude, 0.00001);
+        $this->assertEqualsWithDelta(106.8456, $fresh->location_longitude, 0.00001);
+        $this->assertEqualsWithDelta(12.5, $fresh->location_accuracy, 0.01);
+    }
+
+    public function test_a_mocked_location_is_refused_and_no_photo_is_saved(): void
+    {
+        $request = $this->approvedForToday();
+
+        $this->sendPhoto($request, ['latitude' => '-6.2', 'longitude' => '106.8', 'is_mocked' => 'true'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Lokasi palsu terdeteksi. Matikan aplikasi pengubah lokasi di ponsel lalu coba lagi.');
+
+        $this->assertNull($request->fresh()->location_photo);
+    }
+
+    public function test_coordinates_are_required_only_when_the_feature_switch_is_on(): void
+    {
+        $request = $this->approvedForToday();
+
+        config(['features.field_duty_coords_required' => true]);
+        $this->sendPhoto($request)->assertStatus(422);
+        $this->assertNull($request->fresh()->location_photo, 'Tanpa koordinat ditolak saat saklar menyala.');
+
+        config(['features.field_duty_coords_required' => false]);
+        $this->sendPhoto($request)->assertSuccessful();
+        $this->assertNull($request->fresh()->location_latitude, 'Saat saklar mati, app lama tanpa koordinat tetap diterima.');
+    }
+
+    public function test_a_latitude_without_a_longitude_is_invalid(): void
+    {
+        $request = $this->approvedForToday();
+
+        $this->sendPhoto($request, ['latitude' => '-6.2'])->assertStatus(422);
+    }
+
     public function test_the_photo_is_refused_before_the_day_and_for_unapproved_requests(): void
     {
         \Illuminate\Support\Facades\Storage::fake('local');

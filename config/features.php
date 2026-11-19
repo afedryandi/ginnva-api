@@ -131,6 +131,9 @@ return [
     // Tautan Memo Barang ke Booking: mati dulu (2026-11-17), kolom booking di form, daftar, dan filter memo disembunyikan. Data dan kode tetap ada;
     // isi FEATURE_MEMO_BOOKING_LINK=true untuk menampilkannya lagi.
     'memo_booking_link' => (bool) env('FEATURE_MEMO_BOOKING_LINK', false),
+    // Koordinat GPS wajib saat foto di lokasi dinas luar dikirim dari aplikasi (keputusan pemilik 2026-12-18). Mati bawaan sampai aplikasi
+    // dengan pembaca lokasi beredar, supaya versi lama tidak terkunci; isi FEATURE_FIELD_DUTY_COORDS_REQUIRED=true setelah build baru dirilis.
+    'field_duty_coords_required' => (bool) env('FEATURE_FIELD_DUTY_COORDS_REQUIRED', false),
     'report_voucher' => (bool) env('FEATURE_REPORT_VOUCHER', false),
     'report_persediaan_detail' => (bool) env('FEATURE_REPORT_PERSEDIAAN_DETAIL', false),
 

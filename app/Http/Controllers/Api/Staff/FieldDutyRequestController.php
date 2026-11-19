@@ -83,7 +83,38 @@ class FieldDutyRequestController extends Controller
      */
     public function locationPhoto(Request $request, int $id)
     {
-        $request->validate(['photo' => ['required', 'image', 'max:5120', 'dimensions:min_width=200,min_height=200']]);
+        // Unggahan multipart mengirim semua nilai sebagai teks, jadi "true"/"false" diubah dulu agar lolos aturan boolean.
+        $mocked = $request->input('is_mocked');
+        if (is_string($mocked) && in_array(strtolower(trim($mocked)), ['true', 'false'], true)) {
+            $request->merge(['is_mocked' => strtolower(trim($mocked)) === 'true']);
+        }
+
+        $request->validate([
+            'photo' => ['required', 'image', 'max:5120', 'dimensions:min_width=200,min_height=200'],
+            // Koordinat GPS ponsel saat foto diambil, terbaca otomatis oleh aplikasi (bukan diketik).
+            'latitude' => ['nullable', 'numeric', 'between:-90,90', 'required_with:longitude'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180', 'required_with:latitude'],
+            'accuracy' => ['nullable', 'numeric', 'min:0'],
+            'is_mocked' => ['nullable', 'boolean'],
+        ]);
+
+        // Lokasi palsu (aplikasi pengubah lokasi) ditolak (keputusan pemilik 2026-12-18).
+        if ($request->boolean('is_mocked')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lokasi palsu terdeteksi. Matikan aplikasi pengubah lokasi di ponsel lalu coba lagi.',
+            ], 422);
+        }
+
+        // Koordinat wajib untuk foto dari aplikasi begitu aplikasi barunya beredar (saklar fitur); sebelum itu foto tanpa koordinat tetap diterima.
+        $hasCoordinates = $request->filled('latitude') && $request->filled('longitude');
+
+        if (! $hasCoordinates && config('features.field_duty_coords_required')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lokasi belum terbaca. Nyalakan GPS dan izinkan lokasi untuk aplikasi, lalu ambil foto lagi.',
+            ], 422);
+        }
 
         $user = $request->user('api');
         $duty = FieldDutyRequest::withoutGlobalScopes()->where('id', $id)->where('user_id', $user->id)->first();
@@ -93,7 +124,16 @@ class FieldDutyRequestController extends Controller
         }
 
         try {
-            $duty = app(FieldDutyRequestService::class)->attachLocationPhoto($duty, $user, $request->file('photo'));
+            $duty = app(FieldDutyRequestService::class)->attachLocationPhoto(
+                $duty,
+                $user,
+                $request->file('photo'),
+                $hasCoordinates ? [
+                    'latitude' => (float) $request->input('latitude'),
+                    'longitude' => (float) $request->input('longitude'),
+                    'accuracy' => $request->filled('accuracy') ? (float) $request->input('accuracy') : null,
+                ] : null,
+            );
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -122,6 +162,10 @@ class FieldDutyRequestController extends Controller
             'can_cancel' => app(FieldDutyRequestService::class)->isCancellable($r),
             'location_photo_url' => \App\Support\SensitiveFiles::url($r->location_photo),
             'location_photo_at' => $r->location_photo_at?->toIso8601String(),
+            'location_latitude' => $r->location_latitude,
+            'location_longitude' => $r->location_longitude,
+            'location_accuracy' => $r->location_accuracy,
+            'location_maps_url' => $r->mapsUrl(),
             // Foto bukti di lokasi wajib di hari dinas: aplikasi menampilkan tombol ambil foto saat ini true.
             'needs_location_photo' => $r->needsLocationPhoto(),
         ];

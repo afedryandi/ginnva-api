@@ -144,7 +144,10 @@ class FieldDutyRequestResource extends Resource
                     ->label('Foto Lokasi')
                     ->state(fn (FieldDutyRequest $record) => $record->status !== FieldDutyRequest::STATUS_APPROVED ? null : (filled($record->location_photo) ? true : ($record->needsLocationPhoto() ? false : null)))
                     ->boolean()
-                    ->tooltip(fn (FieldDutyRequest $record) => $record->location_photo_at ? 'Dikirim ' . $record->location_photo_at->translatedFormat('d M Y H:i') : null),
+                    ->tooltip(fn (FieldDutyRequest $record) => $record->location_photo_at
+                        ? 'Dikirim ' . $record->location_photo_at->translatedFormat('d M Y H:i')
+                            . ($record->location_accuracy !== null ? ' · akurasi GPS ±' . round($record->location_accuracy) . ' m' : ($record->location_photo ? ' · tanpa koordinat' : ''))
+                        : null),
 
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
@@ -197,6 +200,17 @@ class FieldDutyRequestResource extends Resource
                     ->color('gray')
                     ->visible(fn (FieldDutyRequest $record) => filled($record->location_photo))
                     ->url(fn (FieldDutyRequest $record) => \App\Support\SensitiveFiles::url($record->location_photo))
+                    ->openUrlInNewTab(),
+
+                // Titik koordinat saat foto dikirim (terbaca otomatis dari GPS ponsel): membuka Google Maps. Tidak ada untuk foto lama atau dari panel.
+                Tables\Actions\Action::make('mapsLocation')
+                    ->label('Lokasi di Peta')
+                    ->icon('heroicon-o-map-pin')
+                    ->iconButton()
+                    ->tooltip('Lokasi di Google Maps')
+                    ->color('gray')
+                    ->visible(fn (FieldDutyRequest $record) => $record->mapsUrl() !== null)
+                    ->url(fn (FieldDutyRequest $record) => $record->mapsUrl())
                     ->openUrlInNewTab(),
 
                 Tables\Actions\Action::make('approve')
