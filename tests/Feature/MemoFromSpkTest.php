@@ -29,6 +29,8 @@ class MemoFromSpkTest extends TestCase
 
     private Spk $spk;
 
+    private User $admin;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -36,7 +38,7 @@ class MemoFromSpkTest extends TestCase
         Http::fake();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $admin = User::create(['name' => 'Admin', 'email' => 'admin@test.local', 'password' => 'x']);
+        $admin = $this->admin = User::create(['name' => 'Admin', 'email' => 'admin@test.local', 'password' => 'x']);
         $admin->assignRole('super_admin');
         $this->actingAs($admin, 'web');
 
@@ -84,7 +86,7 @@ class MemoFromSpkTest extends TestCase
 
     public function test_the_booking_link_is_skipped_when_the_booking_already_has_a_memo(): void
     {
-        MaterialMemo::create(['memo_number' => 'MEMO-LAMA-1', 'store_id' => $this->store->id, 'booking_id' => $this->booking->id]);
+        MaterialMemo::create(['memo_number' => 'MEMO-LAMA-1', 'store_id' => $this->store->id, 'booking_id' => $this->booking->id, 'created_by' => $this->admin->id]);
 
         $data = MaterialMemo::completeFromSpk(['spk_id' => $this->spk->id]);
 
@@ -103,7 +105,7 @@ class MemoFromSpkTest extends TestCase
             'preferred_date' => now()->addDays(4)->toDateString(),
             'status' => 'confirmed',
         ]);
-        $memo = MaterialMemo::create(['memo_number' => 'MEMO-LAMA-2', 'store_id' => $this->store->id, 'booking_id' => $other->id]);
+        $memo = MaterialMemo::create(['memo_number' => 'MEMO-LAMA-2', 'store_id' => $this->store->id, 'booking_id' => $other->id, 'created_by' => $this->admin->id]);
 
         $data = MaterialMemo::completeFromSpk(['spk_id' => $this->spk->id], $memo);
 
@@ -117,6 +119,7 @@ class MemoFromSpkTest extends TestCase
             'store_id' => $this->store->id,
             'spk_id' => $this->spk->id,
             'spk_number' => $this->spk->spk_number,
+            'created_by' => $this->admin->id,
         ]);
 
         Livewire::test(ViewSpk::class, ['record' => $this->spk->getKey()])
@@ -186,7 +189,7 @@ class MemoFromSpkTest extends TestCase
 
     public function test_the_spk_detail_for_mobile_includes_its_memos(): void
     {
-        $memo = MaterialMemo::create(['memo_number' => 'MEMO-API-1', 'store_id' => $this->store->id, 'spk_id' => $this->spk->id]);
+        $memo = MaterialMemo::create(['memo_number' => 'MEMO-API-1', 'store_id' => $this->store->id, 'spk_id' => $this->spk->id, 'created_by' => $this->admin->id]);
 
         // Akses ke SPK di app mengikuti menu SPK, jadi akun akses penuh yang dipakai di sini.
         $this->actingAs(User::where('email', 'admin@test.local')->first(), 'api')
