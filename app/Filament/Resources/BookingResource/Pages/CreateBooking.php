@@ -194,9 +194,12 @@ class CreateBooking extends CreateRecord
         }
     }
 
-    /** Form satu kolom (2026-10-12, panduan UI minimalis): lebar dibatasi supaya isian tidak membentang selebar layar. */
+    // Tombol Buat dan Batal menempel di bawah layar saat form panjang digulir.
+    public static bool $formActionsAreSticky = true;
+
+    /** Lebar penuh supaya tata letak 2:1 (isi booking di kiri, sumber dan status di kanan) benar-benar muncul; batas 3xl sebelumnya menjepit tiga kolom ke 768px. */
     public function getMaxContentWidth(): \Filament\Support\Enums\MaxWidth|string|null
     {
-        return \Filament\Support\Enums\MaxWidth::ThreeExtraLarge;
+        return \Filament\Support\Enums\MaxWidth::SevenExtraLarge;
     }
 }

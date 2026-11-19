@@ -14,6 +14,16 @@ class ViewBooking extends ViewRecord
 
     protected static string $resource = BookingResource::class;
 
+    /** Ringkas siapa dan kendaraan apa di bawah judul, supaya konteks langsung terbaca tanpa menggulir. */
+    public function getSubheading(): ?string
+    {
+        $record = $this->record;
+
+        return collect([$record->display_customer_name, $record->vehicle_plate, $record->store?->name])
+            ->filter()
+            ->implode(' · ') ?: null;
+    }
+
     protected function getHeaderActions(): array
     {
         return [

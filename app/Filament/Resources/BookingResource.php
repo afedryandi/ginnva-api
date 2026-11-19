@@ -187,11 +187,12 @@ class BookingResource extends Resource
                 Forms\Components\Group::make()->columnSpan(['lg' => 2])->schema([
             Forms\Components\Section::make('Pelanggan')
                 ->icon('heroicon-o-user')
-                ->columns(1)
+                ->columns(['default' => 1, 'sm' => 2])
                 ->schema([
                     // Booking dari app — pilih dari akun terdaftar
                     Forms\Components\Select::make('customer_id')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Akun Pelanggan (App)')
+                        ->columnSpanFull()
                         ->options(fn () => Customer::orderBy('name')
                             ->get()
                             ->mapWithKeys(fn ($c) => [
@@ -227,7 +228,7 @@ class BookingResource extends Resource
             Forms\Components\Section::make('Kendaraan')
                 ->icon('heroicon-o-truck')
                 ->description('Opsional. Booking dari aplikasi sudah terisi otomatis dari "Kendaraan Saya" milik pelanggan.')
-                ->columns(1)
+                ->columns(['default' => 1, 'sm' => 2])
                 ->schema([
                     Forms\Components\TextInput::make('vehicle_plate')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Plat Nomor')
@@ -253,8 +254,8 @@ class BookingResource extends Resource
                         ->helperText('Menentukan harga acuan PPF dan Kaca Film. Kosongkan kalau belum tahu.'),
                 ]),
 
-            Forms\Components\Section::make('Detail Booking')
-                ->icon('heroicon-o-clipboard-document-list')
+            Forms\Components\Section::make('Toko & Penugasan')
+                ->icon('heroicon-o-building-storefront')
                 ->columns(1)
                 ->schema([
                     Forms\Components\Select::make('store_id')
@@ -382,6 +383,12 @@ class BookingResource extends Resource
                     // KOSONG di Select ini saat diedit (lihat catatan "select tampil kosong" di
                     // atas) -- data aslinya tetap utuh, cuma preselect-nya yang hilang, sengaja
                     // diterima sebagai trade-off minor untuk legacy record.
+                ]),
+
+            Forms\Components\Section::make('Layanan & Produk')
+                ->icon('heroicon-o-sparkles')
+                ->columns(1)
+                ->schema([
                     // Jenis Layanan: pilihan ganda 4 jenis (sama seperti aplikasi pelanggan). `services` hanya penampung form; yang
                     // tersimpan adalah kolom penanda produk + teks service_type (label dipisah koma, urutan tetap).
                     Forms\Components\Hidden::make('service_type'),
@@ -555,6 +562,12 @@ class BookingResource extends Resource
                     Forms\Components\Hidden::make('product_detailing')->default(false),
                     Forms\Components\Hidden::make('product_premium_wash')->default(false),
 
+                ]),
+
+            Forms\Components\Section::make('Jadwal Pengerjaan')
+                ->icon('heroicon-o-calendar-days')
+                ->columns(['default' => 1, 'sm' => 3])
+                ->schema([
                     Forms\Components\DatePicker::make('preferred_date')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Tanggal Diinginkan')
                         ->required()
@@ -575,13 +588,6 @@ class BookingResource extends Resource
                     // berubah dari tempat lain (2026-10-03).
                     Forms\Components\Hidden::make('form_version')
                         ->afterStateHydrated(fn (Forms\Components\Hidden $component, ?Booking $record) => $component->state($record?->updated_at?->timestamp)),
-
-                    Forms\Components\Textarea::make('reschedule_reason')
-->label(fn (?Booking $record) => $record?->status === 'confirmed' ? 'Alasan Pindah Jadwal' : 'Alasan Pindah Jadwal (opsional)')
-                        ->helperText('Wajib kalau tanggal booking yang sudah dikonfirmasi diubah; opsional untuk booking yang masih menunggu. Dikirim ke pelanggan.')
-                        ->maxLength(500)
-                        ->visible(fn (?Booking $record, Forms\Get $get) => $record?->status === 'pending' || ($record?->status === 'confirmed' && ! self::coreLocked($record, $get)))
-                        ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('preferred_time')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
                         ->label('Jam Diinginkan')
@@ -630,6 +636,13 @@ class BookingResource extends Resource
                         ->live()
                         ->required()
                         ->helperText('Berapa hari mobil ini memakai slot instalasi (untuk cek kapasitas). Default PPF 3 hari, lainnya 1 hari.'),
+
+                    Forms\Components\Textarea::make('reschedule_reason')
+->label(fn (?Booking $record) => $record?->status === 'confirmed' ? 'Alasan Pindah Jadwal' : 'Alasan Pindah Jadwal (opsional)')
+                        ->helperText('Wajib kalau tanggal booking yang sudah dikonfirmasi diubah; opsional untuk booking yang masih menunggu. Dikirim ke pelanggan.')
+                        ->maxLength(500)
+                        ->visible(fn (?Booking $record, Forms\Get $get) => $record?->status === 'pending' || ($record?->status === 'confirmed' && ! self::coreLocked($record, $get)))
+                        ->columnSpanFull(),
 
                     // Redesain 2026-09-25 (diminta user langsung, audit
                     // Booking Instalasi) — SEBELUMNYA ada Repeater
@@ -691,10 +704,41 @@ class BookingResource extends Resource
                         })
                         ->helperText('Kapasitas diatur di Kalender Kapasitas (menu Booking). Approve ditolak otomatis kalau salah satu tanggal di atas sudah PENUH.'),
 
+                ]),
+
+            Forms\Components\Section::make('Catatan')
+                ->icon('heroicon-o-pencil-square')
+                ->columns(1)
+                ->schema([
+
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
                         ->placeholder('Tipe mobil, warna, permintaan khusus, dll.')
                         ->columnSpanFull(),
+
+                ]),
+                ]),
+                Forms\Components\Group::make()->columnSpan(['lg' => 1])->schema([
+            Forms\Components\Section::make('Sumber & Status')
+                ->icon('heroicon-o-inbox-arrow-down')
+                ->columns(1)
+                ->schema([
+                    Forms\Components\Select::make('source')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
+                        ->label('Asal Booking')
+                        ->options([
+                            'app'       => '📱 Mobile App',
+                            'whatsapp'  => '💬 WhatsApp',
+                            'walk_in'   => '🚶 Walk-in',
+                        ])
+                        ->default('whatsapp')
+                        ->required()
+                        ->live()
+                        ->disabledOn('edit'),
+
+                    Forms\Components\TextInput::make('booking_number')
+                        ->label('No. Booking')
+                        ->disabled()
+                        ->hiddenOn('create'),
 
                     Forms\Components\Select::make('status')
                         ->label('Status')
@@ -746,30 +790,6 @@ class BookingResource extends Resource
                         // perbedaan ini tidak dijelaskan di mana pun.
                         ->default('confirmed')
                         ->required(),
-
-                ]),
-                ]),
-                Forms\Components\Group::make()->columnSpan(['lg' => 1])->schema([
-            Forms\Components\Section::make('Sumber Booking')
-                ->icon('heroicon-o-inbox-arrow-down')
-                ->columns(1)
-                ->schema([
-                    Forms\Components\Select::make('source')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
-                        ->label('Asal Booking')
-                        ->options([
-                            'app'       => '📱 Mobile App',
-                            'whatsapp'  => '💬 WhatsApp',
-                            'walk_in'   => '🚶 Walk-in',
-                        ])
-                        ->default('whatsapp')
-                        ->required()
-                        ->live()
-                        ->disabledOn('edit'),
-
-                    Forms\Components\TextInput::make('booking_number')
-                        ->label('No. Booking')
-                        ->disabled()
-                        ->hiddenOn('create'),
                 ]),
 
                 ]),
@@ -828,8 +848,8 @@ class BookingResource extends Resource
                     TextEntry::make('vehicle_size')->label('Ukuran Mobil')->badge()->placeholder('Belum ditentukan'),
                 ]),
 
-            InfolistSection::make('Detail Booking')
-                ->icon('heroicon-o-clipboard-document-list')
+            InfolistSection::make('Layanan & Produk')
+                ->icon('heroicon-o-sparkles')
                 ->columns(2)
                 ->schema([
                     TextEntry::make('service_type')->label('Jenis Layanan'),
@@ -926,6 +946,12 @@ class BookingResource extends Resource
                         ->url(fn (Booking $record) => $record->warrantyClaim?->warranty_id
                             ? \App\Filament\Resources\WarrantyResource::getUrl('view', ['record' => $record->warrantyClaim->warranty_id])
                             : null),
+                ]),
+
+            InfolistSection::make('Jadwal & Catatan')
+                ->icon('heroicon-o-calendar-days')
+                ->columns(2)
+                ->schema([
                     // BUG (500 error): ->date('d M Y') dipakai BARENGAN
                     // dengan ->state() yang sudah mengembalikan string
                     // terformat sendiri — Filament coba Carbon::parse()
@@ -987,6 +1013,12 @@ class BookingResource extends Resource
                             'walk_in'  => '🚶 Walk-in',
                             default    => $state,
                         }),
+                ]),
+
+            InfolistSection::make('Penugasan')
+                ->icon('heroicon-o-user-group')
+                ->columns(1)
+                ->schema([
                     TextEntry::make('store.name')->label('Toko/Workshop')->placeholder('—'),
                     TextEntry::make('installers.name')->label('Installer Bertugas')->badge()->placeholder('Belum ditugaskan'),
                     TextEntry::make('watchers.name')->label('Direksi Pemantau')->badge()->placeholder('—'),
