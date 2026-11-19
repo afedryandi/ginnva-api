@@ -101,7 +101,8 @@
 
                         <div class="ap-actions">
                             @if ($item->inline)
-                                @if ($item->url)
+                                {{-- Tautan ke halaman asli hanya untuk yang bisa memutuskan; tingkat "lihat saja" cukup membaca ringkasan di sini. --}}
+                                @if ($item->url && $this->canDecide())
                                     <a href="{{ $item->url }}" class="ap-detail">Detail</a>
                                 @endif
                                 @if ($this->canDecide())
@@ -110,10 +111,12 @@
                                 @else
                                     <span class="ap-view-only">Hanya melihat</span>
                                 @endif
-                            @elseif ($item->url)
+                            @elseif ($item->url && $this->canDecide())
                                 <x-filament::button tag="a" :href="$item->url" color="gray" size="sm" icon="heroicon-o-arrow-top-right-on-square">
                                     Buka
                                 </x-filament::button>
+                            @elseif (! $this->canDecide())
+                                <span class="ap-view-only">Hanya melihat</span>
                             @endif
                         </div>
                     </div>

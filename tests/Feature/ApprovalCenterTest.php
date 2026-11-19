@@ -356,6 +356,60 @@ class ApprovalCenterTest extends TestCase
         $this->assertNotNull($this->center->items($viewer->fresh(), 'field_duty')->first()->url);
     }
 
+    private function viewer(string $name, string $email, ?Store $store = null, array $menus = ['QuotationResource']): User
+    {
+        $viewer = $this->user('kasir', $store ?? $this->store, $name, $email);
+        $viewer->update(['approval_center_access' => 'view', 'menu_access' => $menus]);
+
+        return $viewer->fresh();
+    }
+
+    public function test_a_view_only_employee_sees_link_types_in_their_store_without_the_origin_menu(): void
+    {
+        $viewer = $this->viewer('Eka', 'eka@test.local');
+        $source = new \App\Support\Approvals\Sources\LinkSource('warranty', 'Garansi Baru', 'heroicon-o-shield-check', fn () => collect());
+
+        $this->assertTrue($source->visibleTo($viewer, \App\Filament\Resources\WarrantyResource::class, $this->store->id), 'Toko sendiri, walau menu Garansi tidak dicentang.');
+        $this->assertFalse($source->visibleTo($viewer, \App\Filament\Resources\WarrantyResource::class, $this->otherStore->id), 'Toko lain tidak terlihat.');
+        $this->assertTrue($source->visibleTo($viewer, \App\Filament\Resources\RewardRedemptionResource::class), 'Jenis tanpa toko (reward) terlihat.');
+
+        // Tingkat memutuskan non-akses-penuh tetap memakai hak menu seperti sebelumnya.
+        $noMenu = $this->user('kasir', $this->store, 'Fani', 'fani@test.local');
+        $noMenu->update(['menu_access' => ['QuotationResource']]);
+        $this->assertFalse($source->visibleTo($noMenu->fresh(), \App\Filament\Resources\WarrantyResource::class, $this->store->id));
+    }
+
+    public function test_a_view_only_employee_sees_memo_requests_and_stock_opname_drafts_of_their_store(): void
+    {
+        $viewer = $this->viewer('Gita', 'gita@test.local');
+
+        $memo = \App\Models\MaterialMemo::create([
+            'memo_number' => 'MEMO-VIEW-1', 'store_id' => $this->store->id, 'created_by' => $this->andi->id,
+            'flow' => \App\Models\MaterialMemo::FLOW_REQUEST, 'request_status' => \App\Models\MaterialMemo::REQ_PENDING, 'submitted_at' => now(),
+        ]);
+        $draft = \App\Models\StockOpname::create([
+            'opname_number' => \App\Models\StockOpname::generateOpnameNumber(), 'store_id' => $this->store->id, 'opname_date' => now()->toDateString(),
+            'status' => \App\Models\StockOpname::STATUS_DRAFT, 'snapshot_at' => now(), 'created_by' => $this->andi->id,
+        ]);
+
+        $memos = $this->center->items($viewer, 'material_memo');
+        $this->assertSame([$memo->id], $memos->pluck('id')->all());
+        $this->assertNull($memos->first()->url, 'Tanpa akses menu Memo, tidak ada tautan Detail.');
+
+        $opnames = $this->center->items($viewer, 'stock_opname');
+        $this->assertSame([$draft->id], $opnames->pluck('id')->all());
+
+        $this->assertCount(0, $this->center->items($this->viewer('Hana', 'hana@test.local', $this->otherStore), 'material_memo'), 'Toko lain tidak terlihat.');
+    }
+
+    public function test_finance_requests_are_visible_to_a_view_only_employee_in_all_stores(): void
+    {
+        $viewer = $this->viewer('Indah', 'indah@test.local', $this->otherStore);
+        $this->purchase();   // toko A
+
+        $this->assertCount(1, $this->center->items($viewer, 'purchase_request'), 'Pengajuan keuangan tidak dibatasi toko bagi yang diberi tingkat lihat.');
+    }
+
     public function test_the_explicit_choice_none_closes_the_page(): void
     {
         $this->manager->update(['approval_center_access' => 'none']);

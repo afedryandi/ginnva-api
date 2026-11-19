@@ -38,7 +38,8 @@ class TransactionSource extends BaseSource
             return $this->none();
         }
 
-        return TransactionApprovalRequest::query()
+        // Tanpa pembatasan toko bawaan: pengajuan keuangan terlihat oleh semua yang diberi tingkat lihat atau memutuskan (sama dengan Permohonan Pembelian).
+        return TransactionApprovalRequest::withoutGlobalScopes()
             ->with(['booking', 'requester:id,name'])
             ->where('status', 'pending')
             ->where('requested_by', '!=', $user->id)
@@ -53,7 +54,7 @@ class TransactionSource extends BaseSource
                 summary: 'Booking ' . ($r->booking?->booking_number ?? '—') . ($r->booking?->customer_name ? " ({$r->booking->customer_name})" : '') . ' · Rp' . number_format($r->amount(), 0, ',', '.'),
                 store: null,
                 submittedAt: $r->created_at,
-                url: $this->url(TransactionApprovalRequestResource::class, $r->id),
+                url: $this->urlFor($user, TransactionApprovalRequestResource::class, $r->id),
                 inline: true,
             ))
             ->values();

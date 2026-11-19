@@ -52,7 +52,7 @@ class PurchaseRequestSource extends BaseSource
                     . ($r->reason ? " · {$r->reason}" : ''),
                 store: $r->store?->name,
                 submittedAt: $r->created_at,
-                url: $this->url(PurchaseRequestResource::class, $r->id),
+                url: $this->urlFor($user, PurchaseRequestResource::class, $r->id),
                 inline: true,
                 extra: ['quantity' => (float) $r->quantity, 'unit' => $r->unit],
             ))

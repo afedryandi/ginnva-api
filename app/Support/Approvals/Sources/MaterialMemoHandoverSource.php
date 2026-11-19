@@ -39,7 +39,7 @@ class MaterialMemoHandoverSource extends BaseSource
             ->where('request_status', MaterialMemo::REQ_APPROVED)
             ->orderBy('approved_at')
             ->get()
-            ->filter(fn (MaterialMemo $m) => $service->canHandOver($user, $m))
+            ->filter(fn (MaterialMemo $m) => $service->canHandOver($user, $m) || $this->canGlance($user, (int) $m->store_id, (int) $m->created_by))
             ->map(fn (MaterialMemo $m) => new ApprovalItem(
                 source: $this->key(),
                 id: $m->id,
@@ -49,7 +49,7 @@ class MaterialMemoHandoverSource extends BaseSource
                 summary: collect([$m->memo_number, $m->vehicle_info, 'disetujui, menunggu barang diserahkan'])->filter()->implode(' · '),
                 store: $m->store?->name,
                 submittedAt: $m->approved_at ?? $m->created_at,
-                url: $this->url(MaterialMemoResource::class, $m->id),
+                url: $this->urlFor($user, MaterialMemoResource::class, $m->id),
                 inline: false,
             ))
             ->values();

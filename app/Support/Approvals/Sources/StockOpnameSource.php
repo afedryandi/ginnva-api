@@ -31,7 +31,8 @@ class StockOpnameSource extends BaseSource
 
     public function items(User $user): Collection
     {
-        if (! $user->isFullAccess()) {
+        // Draf opname diputuskan akses penuh; tingkat "lihat saja" melihat ringkasan draf tokonya (tanpa tombol dan tanpa tautan bila menunya tidak terbuka).
+        if (! $user->isFullAccess() && app(\App\Services\ApprovalCenterService::class)->level($user) !== \App\Services\ApprovalCenterService::LEVEL_VIEW) {
             return $this->none();
         }
 
@@ -41,6 +42,7 @@ class StockOpnameSource extends BaseSource
             ->where('status', StockOpname::STATUS_DRAFT)
             ->orderBy('created_at')
             ->get()
+            ->filter(fn (StockOpname $o) => $user->isFullAccess() || $this->canGlance($user, (int) $o->store_id, (int) $o->created_by))
             ->map(fn (StockOpname $o) => new ApprovalItem(
                 source: $this->key(),
                 id: $o->id,
@@ -50,7 +52,7 @@ class StockOpnameSource extends BaseSource
                 summary: "{$o->opname_number} · {$o->items_count} item dihitung, {$o->diff_count} berselisih",
                 store: $o->store?->name,
                 submittedAt: $o->created_at,
-                url: $this->url(StockOpnameResource::class, $o->id),
+                url: $this->urlFor($user, StockOpnameResource::class, $o->id),
                 inline: false,
             ))
             ->values();

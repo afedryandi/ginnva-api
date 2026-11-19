@@ -44,7 +44,7 @@ class MaterialMemoSource extends BaseSource
             ->where('request_status', MaterialMemo::REQ_PENDING)
             ->orderBy('submitted_at')
             ->get()
-            ->filter(fn (MaterialMemo $m) => $service->canApprove($user, $m))
+            ->filter(fn (MaterialMemo $m) => $service->canApprove($user, $m) || $this->canGlance($user, (int) $m->store_id, (int) $m->created_by))
             ->map(fn (MaterialMemo $m) => new ApprovalItem(
                 source: $this->key(),
                 id: $m->id,
@@ -54,7 +54,7 @@ class MaterialMemoSource extends BaseSource
                 summary: collect([$m->memo_number, $m->vehicle_info, $m->spk_number ? "SPK {$m->spk_number}" : null, $m->request_note])->filter()->implode(' · '),
                 store: $m->store?->name,
                 submittedAt: $m->submitted_at ?? $m->created_at,
-                url: $this->url(MaterialMemoResource::class, $m->id),
+                url: $this->urlFor($user, MaterialMemoResource::class, $m->id),
                 inline: true,
             ))
             ->values();
