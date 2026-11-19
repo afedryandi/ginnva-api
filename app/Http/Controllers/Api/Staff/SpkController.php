@@ -117,7 +117,7 @@ class SpkController extends Controller
             return response()->json(['success' => false, 'message' => 'Akun ini tidak punya akses ke SPK.'], 403);
         }
 
-        $spk = Spk::with(['checklistItems', 'damageMarks', 'booking:id,booking_number', 'store:id,name', 'installers:id,name'])->find($id);
+        $spk = Spk::with(['checklistItems', 'damageMarks', 'booking:id,booking_number', 'store:id,name', 'installers:id,name', 'materialMemos:id,spk_id,memo_number,flow,request_status'])->find($id);
 
         if (! $spk || ! $this->canAccess($request, $spk)) {
             return response()->json(['success' => false, 'message' => 'SPK tidak ditemukan.'], 404);

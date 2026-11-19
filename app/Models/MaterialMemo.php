@@ -44,6 +44,8 @@ class MaterialMemo extends Model
         // menampilkan inventori yang terpakai. Lihat migrasi
         // 2026_09_09_000001.
         'booking_id',
+        // SPK asal memo (alur Booking -> SPK -> Memo). Opsional: memo tanpa SPK dan memo lama tetap memakai spk_number teks bebas.
+        'spk_id',
         'vehicle_info',
         'vehicle_brand',
         'vehicle_model',
@@ -193,6 +195,45 @@ class MaterialMemo extends Model
         return $this->belongsTo(Booking::class);
     }
 
+    public function spk(): BelongsTo
+    {
+        return $this->belongsTo(Spk::class);
+    }
+
+    /**
+     * Melengkapi data memo dari SPK yang dipilih: nomor SPK terisi, dan booking ikut tertaut (supaya kunci booking Selesai tetap berlaku)
+     * bila SPK itu punya booking dan booking tersebut belum punya memo lain (satu booking satu memo).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public static function completeFromSpk(array $data, ?self $existing = null): array
+    {
+        if (blank($data['spk_id'] ?? null)) {
+            return $data;
+        }
+
+        $spk = Spk::withoutGlobalScopes()->find($data['spk_id']);
+
+        if (! $spk) {
+            return $data;
+        }
+
+        if (blank($data['spk_number'] ?? null)) {
+            $data['spk_number'] = $spk->spk_number;
+        }
+
+        if (blank($data['booking_id'] ?? null) && blank($existing?->booking_id) && $spk->booking_id) {
+            $taken = static::withoutGlobalScopes()->where('booking_id', $spk->booking_id)->exists();
+
+            if (! $taken) {
+                $data['booking_id'] = $spk->booking_id;
+            }
+        }
+
+        return $data;
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -206,7 +247,7 @@ class MaterialMemo extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['memo_number', 'store_id', 'booking_id', 'vehicle_info', 'vehicle_brand', 'vehicle_model', 'vehicle_plate', 'spk_number', 'notes'])
+            ->logOnly(['memo_number', 'store_id', 'booking_id', 'spk_id', 'vehicle_info', 'vehicle_brand', 'vehicle_model', 'vehicle_plate', 'spk_number', 'notes'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }

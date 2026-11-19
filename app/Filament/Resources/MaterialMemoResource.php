@@ -172,8 +172,41 @@ class MaterialMemoResource extends Resource
                     Forms\Components\TextInput::make('vehicle_plate')->label('Plat Nomor')->placeholder('Mis. B 1234 XYZ')->maxLength(20)
                         ->dehydrateStateUsing(fn (?string $state) => MaterialMemo::normalizePlate($state)),
                 ]),
+                // Memo dibuat dari SPK (alur Booking -> SPK -> Memo): pilih SPK untuk menautkan (cari nomor atau nama pelanggan), atau ketik
+                // nomor SPK bebas di bawahnya untuk memo tanpa SPK terdaftar. Memilih SPK mengisi nomor, kendaraan, dan toko.
+                Forms\Components\Select::make('spk_id')
+                    ->label('SPK Terkait (opsional)')
+                    ->relationship('spk', 'spk_number', function ($query) {
+                        $user = auth()->user();
+                        if ($user && ! $user->isFullAccess()) {
+                            $query->where('store_id', $user->store_id);
+                        }
+                    })
+                    ->getOptionLabelFromRecordUsing(fn (\App\Models\Spk $record) => "{$record->spk_number} — {$record->customer_name}")
+                    ->searchable(['spk_number', 'customer_name', 'vehicle_plate'])
+                    ->preload()
+                    ->live()
+                    ->afterStateUpdated(function (Forms\Set $set, $state) use ($isSuperAdmin) {
+                        $spk = filled($state) ? \App\Models\Spk::withoutGlobalScopes()->find($state) : null;
+
+                        if (! $spk) {
+                            return;
+                        }
+
+                        $set('spk_number', $spk->spk_number);
+                        if (filled($spk->vehicle_plate)) {
+                            $set('vehicle_plate', $spk->vehicle_plate);
+                        }
+                        if (filled($spk->vehicle_brand)) {
+                            $set('vehicle_brand', $spk->vehicle_brand);
+                        }
+                        if ($isSuperAdmin && $spk->store_id) {
+                            $set('store_id', $spk->store_id);
+                        }
+                    })
+                    ->helperText('Pilih SPK supaya memo tertaut ke SPK dan booking-nya. Tidak ada di daftar? Ketik nomor SPK di bawah.'),
                 Forms\Components\TextInput::make('spk_number')
-                    ->label('SPK No (opsional)')
+                    ->label('SPK No (ketik bebas, opsional)')
                     ->maxLength(100),
                 Forms\Components\Textarea::make('request_note')
                     ->label('Keperluan Pengambilan')

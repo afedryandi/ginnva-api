@@ -21,6 +21,7 @@ class CreateMaterialMemo extends CreateRecord
         $this->form->fill();
 
         $this->prefillFromBooking();
+        $this->prefillFromSpk();
 
         $this->callHook('afterFill');
     }
@@ -55,6 +56,36 @@ class CreateMaterialMemo extends CreateRecord
         ]);
     }
 
+    /** Isi awal dari ?spk={id} (tombol "Buat Memo Barang" di SPK): SPK, nomornya, toko, dan kendaraan. Belum tersimpan. */
+    private function prefillFromSpk(): void
+    {
+        $id = request()->query('spk');
+        $user = auth()->user();
+
+        if (! $id || ! $user) {
+            return;
+        }
+
+        $spk = \App\Models\Spk::query()->find($id);
+
+        if (! $spk) {
+            return;
+        }
+
+        if (! $user->isFullAccess() && (int) $spk->store_id !== (int) $user->store_id) {
+            return;
+        }
+
+        $this->form->fill([
+            ...$this->form->getRawState(),
+            'spk_id' => $spk->id,
+            'spk_number' => $spk->spk_number,
+            'store_id' => $spk->store_id,
+            'vehicle_brand' => $spk->vehicle_brand,
+            'vehicle_plate' => $spk->vehicle_plate,
+        ]);
+    }
+
     protected function afterCreate(): void
     {
         if ($this->record->isRequestFlow()) {
@@ -65,6 +96,9 @@ class CreateMaterialMemo extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['created_by'] = auth()->id();
+
+        // SPK yang dipilih melengkapi nomor SPK dan menautkan booking-nya (bila belum punya memo lain).
+        $data = MaterialMemo::completeFromSpk($data);
 
         // Non-akses-penuh: memo diajukan (setujui store manager, serahkan gudang); akses penuh tetap langsung.
         if (! auth()->user()?->isFullAccess()) {

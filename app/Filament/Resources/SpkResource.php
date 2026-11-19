@@ -443,6 +443,15 @@ class SpkResource extends Resource
                                     $entry::make('c_perlengkapan')->label('Perlengkapan Kendaraan')->state($checked('perlengkapan'))->badge()->color('gray')->placeholder('—'),
                                 ]),
 
+                            \Filament\Infolists\Components\Section::make('Memo Barang')
+                                ->icon('heroicon-o-archive-box-arrow-down')
+                                ->description('Bahan dan barang yang diambil untuk SPK ini.')
+                                ->schema([
+                                    \Filament\Infolists\Components\ViewEntry::make('memos_list')
+                                        ->hiddenLabel()
+                                        ->view('filament.infolists.spk-memos'),
+                                ]),
+
                             \Filament\Infolists\Components\Section::make('Catatan')
                                 ->icon('heroicon-o-pencil-square')
                                 ->schema([
@@ -585,6 +594,14 @@ class SpkResource extends Resource
                 Tables\Actions\EditAction::make()->iconButton()->tooltip('Ubah'),
 
                 Tables\Actions\ActionGroup::make([
+                // Alur Booking -> SPK -> Memo: memo dibuat dari SPK, jadi nomor, kendaraan, dan toko terisi dari SPK ini.
+                Tables\Actions\Action::make('createMemo')
+                    ->label('Buat Memo Barang')
+                    ->icon('heroicon-o-archive-box-arrow-down')
+                    ->color('gray')
+                    ->visible(fn () => \App\Filament\Resources\MaterialMemoResource::canCreate())
+                    ->url(fn (Spk $record) => \App\Filament\Resources\MaterialMemoResource::getUrl('create', ['spk' => $record->id])),
+
                 Tables\Actions\Action::make('print')
                     ->label('Cetak PDF')
                     ->icon('heroicon-o-printer')

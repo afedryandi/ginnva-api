@@ -22,6 +22,14 @@ class ViewSpk extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            // Alur Booking -> SPK -> Memo: memo dibuat dari SPK ini (nomor, kendaraan, dan toko terisi otomatis).
+            Actions\Action::make('createMemo')
+                ->label('Buat Memo Barang')
+                ->icon('heroicon-o-archive-box-arrow-down')
+                ->color('gray')
+                ->visible(fn () => \App\Filament\Resources\MaterialMemoResource::canCreate())
+                ->url(fn () => \App\Filament\Resources\MaterialMemoResource::getUrl('create', ['spk' => $this->record->id])),
+
             Actions\Action::make('print')
                 ->label(fn () => $this->record->checked_out_at ? 'Cetak Ulang (Arsip)' : 'Cetak PDF')
                 ->icon('heroicon-o-printer')

@@ -59,7 +59,8 @@ class EditMaterialMemo extends EditRecord
             $data['store_id'] = $this->record->store_id;
         }
 
-        return $data;
+        // SPK yang baru dipilih melengkapi nomor SPK dan menautkan booking-nya (bila belum punya memo lain).
+        return MaterialMemo::completeFromSpk($data, $this->record);
     }
 
     protected function getRedirectUrl(): string

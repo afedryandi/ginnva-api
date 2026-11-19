@@ -158,6 +158,84 @@ class MaterialMemoController extends Controller
         return $taken ? 'Booking ini sudah tertaut ke memo lain.' : null;
     }
 
+    /**
+     * Alasan sebuah SPK tidak boleh ditautkan ke memo (null = boleh): harus ada dan milik toko memo. Tautan ke SPK opsional; nomor SPK
+     * teks bebas tetap diterima untuk memo tanpa SPK terdaftar.
+     */
+    private function spkProblem(int $spkId, int $storeId): ?string
+    {
+        $spk = \App\Models\Spk::withoutGlobalScopes()->find($spkId);
+
+        if (! $spk) {
+            return 'SPK tidak ditemukan.';
+        }
+
+        return (int) $spk->store_id !== $storeId ? 'SPK ini milik toko lain.' : null;
+    }
+
+    /**
+     * Melengkapi data memo dari SPK yang dipilih (alur Booking -> SPK -> Memo): nomor SPK terisi bila kosong, dan booking SPK ikut tertaut
+     * bila memo belum punya booking dan booking itu boleh ditautkan (toko sama, belum selesai, belum bermemo).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function completeFromSpk(array $data, int $spkId, int $storeId, ?MaterialMemo $existing = null): array
+    {
+        $spk = \App\Models\Spk::withoutGlobalScopes()->find($spkId);
+
+        if (! $spk) {
+            return $data;
+        }
+
+        if (blank($data['spk_number'] ?? null)) {
+            $data['spk_number'] = $spk->spk_number;
+        }
+
+        if (blank($data['booking_id'] ?? null) && blank($existing?->booking_id) && $spk->booking_id
+            && $this->bookingProblem((int) $spk->booking_id, $storeId, $existing?->id) === null) {
+            $data['booking_id'] = (int) $spk->booking_id;
+        }
+
+        return $data;
+    }
+
+    /**
+     * GET /api/staff/memos/spks?search=...&store_id=...
+     *
+     * Pilihan SPK untuk ditautkan ke memo: hanya milik toko akun ini (akses penuh: toko yang dipilih lewat store_id), terbaru dulu.
+     */
+    public function spks(Request $request)
+    {
+        if (! $this->authorizeAccess($request)) {
+            return $this->forbiddenResponse();
+        }
+
+        if (! $this->can($request, 'create') && ! $this->can($request, 'update')) {
+            return $this->denyUnlessCan($request, 'update');
+        }
+
+        $user = $request->user('api');
+        $storeId = $user->isFullAccess() ? (int) $request->query('store_id') : (int) $user->store_id;
+
+        if (! $storeId) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $search = trim((string) $request->query('search', ''));
+
+        $spks = \App\Models\Spk::withoutGlobalScopes()
+            ->where('store_id', $storeId)
+            ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('spk_number', 'like', "%{$search}%")
+                ->orWhere('customer_name', 'like', "%{$search}%")
+                ->orWhere('vehicle_plate', 'like', "%{$search}%")))
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get(['id', 'spk_number', 'customer_name', 'vehicle_brand', 'vehicle_plate', 'booking_id', 'checked_out_at']);
+
+        return response()->json(['success' => true, 'data' => $spks]);
+    }
+
     private function bookingErrorResponse(string $message): \Illuminate\Http\JsonResponse
     {
         return response()->json(['success' => false, 'message' => $message, 'errors' => ['booking_id' => [$message]]], 422);
@@ -215,7 +293,7 @@ class MaterialMemoController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $query = MaterialMemo::query()
-            ->with(['creator:id,name', 'store:id,name', 'booking:id,booking_number,customer_name'])
+            ->with(['creator:id,name', 'store:id,name', 'booking:id,booking_number,customer_name', 'spk:id,spk_number'])
             ->withCount(['items', 'items as unreturned_count' => fn ($q) => $q->whereIn('item_type', ['raw_material', 'consumable_item'])->whereNull('qty_returned')])
             ->when($storeId, fn ($q) => $q->where('store_id', $storeId))
             ->when($this->requesterOnly($user), fn ($q) => $q->where('created_by', $user->id))
@@ -274,6 +352,7 @@ class MaterialMemoController extends Controller
             // toko manapun) — staff biasa selalu pakai toko akunnya
             // sendiri, field ini diabaikan kalau dikirim.
             'booking_id' => 'nullable|integer',
+            'spk_id' => 'nullable|integer',
             'store_id' => $user->isFullAccess() ? 'required|exists:stores,id' : 'nullable',
         ]);
 
@@ -303,11 +382,23 @@ class MaterialMemoController extends Controller
             return $this->bookingErrorResponse($problem);
         }
 
+        // SPK terkait (opsional): milik toko memo; melengkapi nomor SPK dan menautkan booking-nya bila boleh.
+        $spkId = $request->filled('spk_id') ? (int) $request->spk_id : null;
+        $linked = ['spk_number' => $request->spk_number, 'booking_id' => $request->filled('booking_id') ? (int) $request->booking_id : null];
+
+        if ($spkId !== null) {
+            if ($problem = $this->spkProblem($spkId, (int) $storeId)) {
+                return response()->json(['success' => false, 'message' => $problem, 'errors' => ['spk_id' => [$problem]]], 422);
+            }
+
+            $linked = $this->completeFromSpk($linked, $spkId, (int) $storeId);
+        }
+
         $attempts = 0;
         while (true) {
             $attempts++;
             try {
-                $memo = DB::transaction(function () use ($request, $user, $storeId) {
+                $memo = DB::transaction(function () use ($request, $user, $storeId, $spkId, $linked) {
                     return MaterialMemo::create([
                         'memo_number' => MaterialMemo::generateMemoNumber(),
                         'store_id' => $storeId,
@@ -315,8 +406,9 @@ class MaterialMemoController extends Controller
                         'vehicle_brand' => $request->filled('vehicle_brand') ? trim($request->vehicle_brand) : null,
                         'vehicle_model' => $request->filled('vehicle_model') ? trim($request->vehicle_model) : null,
                         'vehicle_plate' => MaterialMemo::normalizePlate($request->vehicle_plate),
-                        'spk_number' => $request->spk_number,
-                        'booking_id' => $request->filled('booking_id') ? (int) $request->booking_id : null,
+                        'spk_number' => $linked['spk_number'],
+                        'spk_id' => $spkId,
+                        'booking_id' => $linked['booking_id'] ?? null,
                         'notes' => $request->notes,
                         'created_by' => $user->id,
                         // Memo dari non-akses-penuh memakai alur pengajuan (setujui store manager, serahkan gudang); akses penuh langsung.
@@ -338,7 +430,7 @@ class MaterialMemoController extends Controller
             app(\App\Services\MaterialMemoRequestService::class)->notifyNewRequest($memo);
         }
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name', 'spk:id,spk_number']);
 
         return response()->json([
             'success' => true,
@@ -352,7 +444,7 @@ class MaterialMemoController extends Controller
      */
     public function show(Request $request, int $id)
     {
-        $memo = MaterialMemo::with(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name'])->find($id);
+        $memo = MaterialMemo::with(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name', 'spk:id,spk_number'])->find($id);
 
         if (! $memo) {
             return response()->json(['success' => false, 'message' => 'Memo tidak ditemukan.'], 404);
@@ -399,6 +491,7 @@ class MaterialMemoController extends Controller
             'spk_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
             'booking_id' => 'nullable|integer',
+            'spk_id' => 'nullable|integer',
         ]);
 
         if ($validator->fails()) {
@@ -417,6 +510,15 @@ class MaterialMemoController extends Controller
 
         $data = $validator->validated();
 
+        // SPK terkait: hanya diperiksa bila berubah. Memilih SPK baru melengkapi nomor SPK (bila tidak ikut dikirim) dan booking (bila memo belum punya).
+        if (! empty($data['spk_id']) && (int) $data['spk_id'] !== (int) $memo->spk_id) {
+            if ($problem = $this->spkProblem((int) $data['spk_id'], (int) $memo->store_id)) {
+                return response()->json(['success' => false, 'message' => $problem, 'errors' => ['spk_id' => [$problem]]], 422);
+            }
+
+            $data = $this->completeFromSpk($data, (int) $data['spk_id'], (int) $memo->store_id, $memo);
+        }
+
         if (array_key_exists('vehicle_plate', $data)) {
             $data['vehicle_plate'] = MaterialMemo::normalizePlate($data['vehicle_plate']);
         }
@@ -431,7 +533,7 @@ class MaterialMemoController extends Controller
         }
 
         $memo->update($data);
-        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name', 'spk:id,spk_number']);
 
         return response()->json([
             'success' => true,
@@ -562,7 +664,7 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 404);
         }
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name', 'spk:id,spk_number']);
 
         return response()->json([
             'success' => true,
@@ -641,7 +743,7 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name', 'spk:id,spk_number']);
 
         return response()->json([
             'success' => true,
@@ -716,7 +818,7 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name', 'spk:id,spk_number']);
 
         return response()->json([
             'success' => true,
@@ -783,7 +885,7 @@ class MaterialMemoController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name', 'spk:id,spk_number']);
 
         return response()->json([
             'success' => true,
@@ -832,7 +934,7 @@ class MaterialMemoController extends Controller
         MaterialMemoStockService::reverseItem($memoItem, $request->user('api')->id, $memo);
         $memoItem->delete();
 
-        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name']);
+        $memo->load(['creator:id,name', 'store:id,name', 'items', 'booking:id,booking_number,customer_name', 'spk:id,spk_number']);
 
         return response()->json([
             'success' => true,

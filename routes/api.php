@@ -575,6 +575,7 @@ Route::prefix('staff')->group(function () {
         Route::get('/memos', [StaffMaterialMemoController::class, 'index']);
         // Harus sebelum /memos/{id}, kalau tidak "bookings" terbaca sebagai id.
         Route::get('/memos/bookings', [StaffMaterialMemoController::class, 'bookings']);
+        Route::get('/memos/spks', [StaffMaterialMemoController::class, 'spks']);
         // Memo barang berpersetujuan (2026-11-17): kotak masuk penyetuju/gudang dan langkah-langkah alurnya. Sebelum /memos/{id}.
         Route::get('/memos/inbox', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'inbox']);
         Route::get('/memos/{id}/request', [\App\Http\Controllers\Api\Staff\MaterialMemoRequestController::class, 'showRequest']);

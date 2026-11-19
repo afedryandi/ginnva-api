@@ -141,6 +141,12 @@ class Spk extends Model
             || ($this->booking_id !== null && $this->booking()->first()?->installers()->where('users.id', $user->id)->exists() === true);
     }
 
+    /** Memo Barang yang dibuat dari SPK ini (alur Booking -> SPK -> Memo). */
+    public function materialMemos(): HasMany
+    {
+        return $this->hasMany(MaterialMemo::class);
+    }
+
     public function checklistItems(): HasMany
     {
         return $this->hasMany(SpkChecklistItem::class)->orderBy('sort_order');
