@@ -415,14 +415,17 @@ class SpkResource extends Resource
                     ->label('Status')
                     ->badge()
                     ->state(fn (Spk $record) => $record->checked_out_at ? 'Selesai' : 'Dikerjakan')
-                    ->color(fn (string $state) => $state === 'Selesai' ? 'success' : 'warning'),
+                    ->color(fn (string $state) => $state === 'Selesai' ? 'success' : 'warning')
+                    // Jumlah titik kerusakan tampil di bawah status, jadi tabel tidak perlu kolom Kerusakan sendiri (kolomnya tetap ada lewat tombol kolom).
+                    ->description(fn (Spk $record) => $record->damageMarks->count() > 0 ? $record->damageMarks->count() . ' titik kerusakan' : null),
 
                 Tables\Columns\TextColumn::make('damage_marks_count')
                     ->label('Kerusakan')
                     ->state(fn (Spk $record) => $record->damageMarks->count())
                     ->badge()
                     ->color(fn (int $state) => $state > 0 ? 'danger' : 'gray')
-                    ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} titik" : 'Belum ada'),
+                    ->formatStateUsing(fn (int $state) => $state > 0 ? "{$state} titik" : 'Belum ada')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('store_id')

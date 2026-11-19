@@ -9,6 +9,9 @@ class CreateQuotation extends CreateRecord
 {
     protected static string $resource = QuotationResource::class;
 
+    // Tombol Buat dan Batal menempel di bawah layar saat form panjang digulir, jadi aksi utama selalu terjangkau.
+    public static bool $formActionsAreSticky = true;
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $user = auth()->user();

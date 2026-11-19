@@ -226,13 +226,14 @@ class QuotationResource extends Resource
                         Forms\Components\Section::make('Penanganan')
                             ->icon('heroicon-o-adjustments-horizontal')
                             ->schema([
-                                Forms\Components\TextInput::make('quotation_number')
-                                    ->label('No. Quotation')
-                                    ->default(fn () => static::generateQuotationNumber())
+                                // Urutan isian mengikuti alur input staf: kanal masuk, penanggung jawab, toko, status; nomor quotation terisi
+                                // otomatis dan jarang diubah, jadi di paling bawah.
+                                Forms\Components\Select::make('channel')
+                                    ->label('Kanal Masuk')
+                                    ->options(array_intersect_key(\App\Support\LeadAttribution::CHANNELS, array_flip(\App\Support\LeadAttribution::MANUAL_CHANNELS)))
                                     ->required()
-                                    ->unique(ignoreRecord: true)
-                                    ->disabledOn('edit')
-                                    ->maxLength(255),
+                                    ->visible(fn (string $operation) => $operation === 'create')
+                                    ->helperText('Dari mana lead ini datang (WhatsApp, telepon, datang langsung, dst.).'),
 
                                 Forms\Components\Select::make('status')
                                     ->label('Status Follow-up')
@@ -264,17 +265,20 @@ class QuotationResource extends Resource
                                     ->visible($isSuperAdmin)
                                     ->default(fn () => $isSuperAdmin ? null : auth()->user()?->store_id),
 
-                                // Marketing/Konten Fase 0: lead yang diinput staf wajib menyebut asalnya (lead web/aplikasi terisi otomatis).
-                                Forms\Components\Select::make('channel')
-                                    ->label('Kanal Masuk')
-                                    ->options(array_intersect_key(\App\Support\LeadAttribution::CHANNELS, array_flip(\App\Support\LeadAttribution::MANUAL_CHANNELS)))
+                                // Marketing/Konten Fase 0: lead yang diinput staf wajib menyebut asalnya (lead web/aplikasi terisi otomatis); isiannya di atas.
+                                Forms\Components\TextInput::make('quotation_number')
+                                    ->label('No. Quotation')
+                                    ->default(fn () => static::generateQuotationNumber())
                                     ->required()
-                                    ->visible(fn (string $operation) => $operation === 'create')
-                                    ->helperText('Dari mana lead ini datang (WhatsApp, telepon, datang langsung, dst.).'),
+                                    ->unique(ignoreRecord: true)
+                                    ->disabledOn('edit')
+                                    ->maxLength(255),
                             ]),
 
+                        // Hasil (Deal / Tidak Jadi) baru ada setelah lead ditindaklanjuti, jadi tidak ditampilkan di form buat.
                         Forms\Components\Section::make('Hasil')
                             ->icon('heroicon-o-flag')
+                            ->hiddenOn('create')
                             ->schema([
                                 Forms\Components\Select::make('outcome')
                                     ->label('Hasil')
@@ -365,7 +369,6 @@ class QuotationResource extends Resource
                         InfolistSection::make('Penanganan')
                             ->icon('heroicon-o-adjustments-horizontal')
                             ->schema([
-                                TextEntry::make('quotation_number')->label('No. Quotation')->copyable(),
                                 TextEntry::make('status')
                                     ->label('Status Follow-up')
                                     ->badge()
@@ -384,6 +387,8 @@ class QuotationResource extends Resource
                                     ->color(fn (?string $state) => match ($state) { 'won' => 'success', 'lost' => 'danger', default => 'gray' }),
                                 TextEntry::make('owner.name')->label('Penanggung Jawab')->placeholder('Belum ditentukan'),
                                 TextEntry::make('store.name')->label('Toko/Dealer')->placeholder('—'),
+                                // Nomor quotation di paling bawah, sama dengan urutan isian di form (status dan penanggung jawab lebih sering dicari).
+                                TextEntry::make('quotation_number')->label('No. Quotation')->copyable(),
                             ]),
 
                         InfolistSection::make('Jejak Lead')
