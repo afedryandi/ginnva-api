@@ -42,6 +42,8 @@ class AdminPanelProvider extends PanelProvider
             ->brandLogo(asset('images/ginnva-logo-merah.png'))
             ->darkModeBrandLogo(asset('images/ginnva-logo.png'))
             ->brandLogoHeight('2.5rem')
+            // Ikon tab browser: huruf G putih di kotak merah brand (sebelumnya logo Laravel bawaan).
+            ->favicon(asset('images/ginnva-favicon.png'))
             // Sempat diganti ke Color::hex('#ED1651') (hex asli brand) lalu
             // dicoba warnai background topbar merah solid via CSS override
             // — percobaannya gagal 2x dan sempat bikin topbar tidak
