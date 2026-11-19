@@ -92,20 +92,21 @@ class SpkResource extends Resource
             ->addActionLabel('Tambah Item')
             ->columns(3)
             ->schema([
+                // Satu baris ringkas per butir: nama di kiri, sakelar di kanan. Label disembunyikan karena kolomnya sudah jelas dari judul bagian.
                 Forms\Components\TextInput::make('label')
-                    ->label('Nama Item')
+                    ->hiddenLabel()
+                    ->placeholder('Nama item')
                     ->required()
                     ->columnSpan(2),
 
                 Forms\Components\Toggle::make('is_checked')
-                    ->label('Ya')
+                    ->hiddenLabel()
                     ->columnSpan(1),
             ])
             ->default(collect(Spk::DEFAULT_CHECKLIST[$category] ?? [])
                 ->map(fn ($item) => ['label' => $item, 'is_checked' => false])
                 ->toArray())
-            ->reorderable()
-            ->collapsible();
+            ->reorderable();
     }
 
     public static function form(Form $form): Form
