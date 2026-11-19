@@ -10,6 +10,21 @@ class EditRawMaterial extends EditRecord
 {
     protected static string $resource = RawMaterialResource::class;
 
+    // Tombol simpan dan batal menempel di bawah layar saat form digulir.
+    public static bool $formActionsAreSticky = true;
+
+    /** Lebar penuh supaya tata letak 2:1 (data di kiri, pengaturan di kanan) muncul. */
+    public function getMaxContentWidth(): \Filament\Support\Enums\MaxWidth|string|null
+    {
+        return \Filament\Support\Enums\MaxWidth::SevenExtraLarge;
+    }
+
+    /** Kode dan kategori di bawah judul, supaya bahan langsung dikenali. */
+    public function getSubheading(): ?string
+    {
+        return collect([$this->record->code, $this->record->category])->filter()->implode(' · ') ?: null;
+    }
+
     protected function getHeaderActions(): array
     {
         return [

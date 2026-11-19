@@ -21,6 +21,8 @@ class ListRawMaterials extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            // Dua ekspor dikelompokkan di satu tombol, jadi kepala halaman tinggal Export dan Buat.
+            Actions\ActionGroup::make([
             Actions\Action::make('exportExcel')
                 ->label('Export ke Excel')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -43,6 +45,11 @@ class ListRawMaterials extends ListRecords
 
                     return response()->streamDownload(fn () => print($pdf->output()), $filename);
                 }),
+            ])
+                ->label('Export')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->button(),
 
             Actions\CreateAction::make(),
         ];

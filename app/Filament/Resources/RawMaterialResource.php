@@ -110,9 +110,13 @@ class RawMaterialResource extends Resource
 
     public static function form(Form $form): Form
     {
+        // Dua kolom di layar lebar: kiri identitas, satuan, serta stok dan harga; kanan pengaturan dan catatan.
         return $form->schema([
-            Forms\Components\Section::make('Detail Bahan Baku')
-                ->columns(2)
+            Forms\Components\Grid::make(['default' => 1, 'lg' => 3])->columnSpanFull()->schema([
+            Forms\Components\Group::make()->columnSpan(['lg' => 2])->schema([
+            Forms\Components\Section::make('Identitas Bahan')
+                ->icon('heroicon-o-beaker')
+                ->columns(['default' => 1, 'sm' => 2])
                 ->schema([
                     Forms\Components\TextInput::make('name')
                         ->label('Nama Bahan')
@@ -142,6 +146,12 @@ class RawMaterialResource extends Resource
                         ->datalist(fn () => static::categoryOptions())
                         ->dehydrateStateUsing(fn (?string $state) => static::canonicalCategory($state)),
 
+                ]),
+
+            Forms\Components\Section::make('Satuan')
+                ->icon('heroicon-o-scale')
+                ->columns(['default' => 1, 'sm' => 2])
+                ->schema([
                     Forms\Components\TextInput::make('unit')
                         ->label('Satuan Dasar (Stok & Konsumsi)')
                         ->required(fn (?RawMaterial $record) => ! static::unitLocked($record))
@@ -173,6 +183,12 @@ class RawMaterialResource extends Resource
                         ->required(fn (Forms\Get $get) => filled($get('purchase_unit')))
                         ->live(),
 
+                ]),
+
+            Forms\Components\Section::make('Stok & Harga')
+                ->icon('heroicon-o-archive-box')
+                ->columns(['default' => 1, 'sm' => 2])
+                ->schema([
                     // BUKAN "Tanggal Masuk Batch Ini" di "Catat Stok" —
                     // field itu yang benar-benar menentukan urutan FIFO.
                     // Ini cuma tanggal pendaftaran bahan ke sistem (sekali
@@ -241,6 +257,66 @@ class RawMaterialResource extends Resource
                             ? 'Kosongkan/isi 0 kalau belum ada stok fisik sama sekali — otomatis tercatat sebagai 1 batch (dengan tanggal masuk di atas) supaya ada jejaknya sejak awal.'
                             : 'Stok cuma bisa diubah lewat tombol "Catat Stok" di daftar — supaya selalu ada riwayatnya, tidak diedit langsung di sini.'),
 
+                ]),
+            ]),
+            Forms\Components\Group::make()->columnSpan(['lg' => 1])->schema([
+            // Ringkasan keadaan stok saat ini, hanya untuk bahan yang sudah ada (halaman Ubah dan Lihat). Angka yang sama dengan kolom
+            // di daftar: stok total, status menipis, kedaluwarsa terdekat dari batch, nilai stok (bagi yang boleh melihat harga), dan gerakan terakhir.
+            Forms\Components\Section::make('Ringkasan Stok')
+                ->icon('heroicon-o-chart-bar-square')
+                ->visible(fn (?RawMaterial $record) => $record !== null)
+                ->schema([
+                    Forms\Components\Placeholder::make('stock_summary')
+                        ->hiddenLabel()
+                        ->content(function (?RawMaterial $record) {
+                            if ($record === null) {
+                                return '';
+                            }
+
+                            $row = fn (string $label, string $value, string $style = '') => '<div style="display:flex;justify-content:space-between;gap:1rem;padding:.35rem 0;' . $style . '"><span>'
+                                . e($label) . '</span><span style="font-variant-numeric:tabular-nums;font-weight:600;text-align:right;">' . $value . '</span></div>';
+
+                            $expiry = $record->earliestActiveExpiryDate();
+                            $lastMove = $record->movements()->latest()->value('created_at');
+                            $low = $record->isLowStock();
+
+                            $html = $row('Stok total', e(number_format((float) $record->current_stock, 2, ',', '.') . ' ' . $record->unit))
+                                . $row('Status stok', $low
+                                    ? '<span style="color:rgb(var(--danger-600));">Menipis</span>'
+                                    : '<span style="color:rgb(var(--success-600));">Aman</span>')
+                                . $row('Kedaluwarsa terdekat', $expiry ? e(\Illuminate\Support\Carbon::parse($expiry)->translatedFormat('d M Y')) : '—');
+
+                            if (static::canSeeCost()) {
+                                $html .= $row('Nilai stok', e('Rp' . number_format((float) $record->stockValue(), 0, ',', '.'))
+                                    . ($record->hasUnpricedStock() ? ' (sebagian belum berharga)' : ''));
+                            }
+
+                            return new \Illuminate\Support\HtmlString($html
+                                . $row('Terakhir bergerak', $lastMove ? e(\Illuminate\Support\Carbon::parse($lastMove)->translatedFormat('d M Y')) : 'Belum pernah'));
+                        }),
+                ]),
+
+            // Panduan singkat hanya saat mendaftarkan bahan baru; isinya mengikuti teks bantuan dan aturan di form ini.
+            Forms\Components\Section::make('Panduan Pengisian')
+                ->icon('heroicon-o-light-bulb')
+                ->visible(fn (?RawMaterial $record) => $record === null)
+                ->schema([
+                    Forms\Components\Placeholder::make('create_tips')
+                        ->hiddenLabel()
+                        ->content(new \Illuminate\Support\HtmlString(
+                            '<ul style="margin:0;padding-left:1.1rem;list-style:disc;line-height:1.7;">'
+                            . '<li><strong>Nama</strong> tidak boleh sama dengan bahan yang sudah ada; catat stok masuk di bahan yang ada.</li>'
+                            . '<li><strong>Satuan dasar</strong> dipakai untuk stok dan konsumsi, dan terkunci setelah ada riwayat stok.</li>'
+                            . '<li>Beli dalam satuan besar? Isi <strong>satuan beli</strong> beserta isinya (mis. 1 Galon = 3785 ml).</li>'
+                            . '<li><strong>Stok awal</strong> otomatis tercatat sebagai satu batch pada tanggal masuk yang dipilih.</li>'
+                            . '<li>Isi <strong>ambang stok menipis</strong> supaya bahan ditandai saat hampir habis.</li>'
+                            . '</ul>'
+                        )),
+                ]),
+
+            Forms\Components\Section::make('Pengaturan & Catatan')
+                ->icon('heroicon-o-adjustments-horizontal')
+                ->schema([
                     Forms\Components\Toggle::make('is_active')
                         ->label('Aktif')
                         ->default(true)
@@ -248,8 +324,11 @@ class RawMaterialResource extends Resource
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Catatan')
+                        ->rows(4)
                         ->columnSpanFull(),
                 ]),
+            ]),
+            ]),
         ]);
     }
 
@@ -315,7 +394,8 @@ class RawMaterialResource extends Resource
                 Tables\Columns\TextColumn::make('category')
                     ->label('Kategori')
                     ->placeholder('—')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('received_date')
                     ->label('Tanggal Pendaftaran')
@@ -335,6 +415,7 @@ class RawMaterialResource extends Resource
 
                 Tables\Columns\TextColumn::make('reorder_point')
                     ->label('Ambang Menipis')
+                    ->alignEnd()
                     ->placeholder('—')
                     ->formatStateUsing(fn ($state, RawMaterial $record) => $state !== null ? number_format((float) $state, 2) . ' ' . $record->unit : null)
                     ->toggleable(),
@@ -347,6 +428,7 @@ class RawMaterialResource extends Resource
                 Tables\Columns\TextColumn::make('unit_cost')
                     ->label('Harga/Satuan')
                     ->money('IDR')
+                    ->alignEnd()
                     ->placeholder('—')
                     ->visible(fn () => static::canSeeCost())
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -419,25 +501,51 @@ class RawMaterialResource extends Resource
                         ->pluck('category', 'category')
                         ->toArray()),
 
-                Tables\Filters\Filter::make('low_stock')
+                // Tiga kondisi stok berupa pilihan (bukan kotak centang) supaya tinggi dan labelnya sejajar dengan isian lain di baris filter.
+                Tables\Filters\TernaryFilter::make('low_stock')
                     ->label('Stok Menipis')
-                    ->query(fn ($query) => $query->whereNotNull('reorder_point')
-                        ->whereColumn('current_stock', '<=', 'reorder_point')),
+                    ->placeholder('Semua')
+                    ->trueLabel('Menipis')
+                    ->falseLabel('Aman')
+                    ->queries(
+                        true: fn ($query) => $query->whereNotNull('reorder_point')
+                            ->whereColumn('current_stock', '<=', 'reorder_point'),
+                        false: fn ($query) => $query->where(fn ($q) => $q->whereNull('reorder_point')
+                            ->orWhereColumn('current_stock', '>', 'reorder_point')),
+                        blank: fn ($query) => $query,
+                    ),
 
-                Tables\Filters\Filter::make('near_expiry')
-                    ->label('Mendekati/Sudah Kedaluwarsa')
-                    // Sama dengan kolom "Kedaluwarsa" di atas — cek batch
-                    // yang masih ada stoknya, BUKAN kolom expiry_date induk.
-                    ->query(fn ($query) => $query->whereHas('batches', fn ($q) => $q
-                        ->where('quantity', '>', 0)
-                        ->whereNotNull('expiry_date')
-                        ->whereDate('expiry_date', '<=', now()->addDays(30)))),
+                // Sama dengan kolom "Kedaluwarsa" di atas — cek batch yang masih ada stoknya, BUKAN kolom expiry_date induk.
+                Tables\Filters\TernaryFilter::make('near_expiry')
+                    ->label('Kedaluwarsa')
+                    ->placeholder('Semua')
+                    ->trueLabel('Mendekati / sudah kedaluwarsa')
+                    ->falseLabel('Masih jauh')
+                    ->queries(
+                        true: fn ($query) => $query->whereHas('batches', fn ($q) => $q
+                            ->where('quantity', '>', 0)
+                            ->whereNotNull('expiry_date')
+                            ->whereDate('expiry_date', '<=', now()->addDays(30))),
+                        false: fn ($query) => $query->whereDoesntHave('batches', fn ($q) => $q
+                            ->where('quantity', '>', 0)
+                            ->whereNotNull('expiry_date')
+                            ->whereDate('expiry_date', '<=', now()->addDays(30))),
+                        blank: fn ($query) => $query,
+                    ),
 
-                Tables\Filters\Filter::make('dead_stock')
-                    ->label('Tidak Bergerak (' . RawMaterial::DEAD_STOCK_DAYS . '+ hari)')
-                    // Menurut riwayat pergerakan, bukan updated_at (lihat RawMaterial::scopeDeadStock()).
-                    ->query(fn ($query) => $query->deadStock()),
-            ])
+                // Menurut riwayat pergerakan, bukan updated_at (lihat RawMaterial::scopeDeadStock()).
+                Tables\Filters\TernaryFilter::make('dead_stock')
+                    ->label('Pergerakan')
+                    ->placeholder('Semua')
+                    ->trueLabel('Tidak bergerak (' . RawMaterial::DEAD_STOCK_DAYS . '+ hari)')
+                    ->falseLabel('Bergerak')
+                    ->queries(
+                        true: fn ($query) => $query->deadStock(),
+                        false: fn ($query) => $query->whereNotIn('raw_materials.id', RawMaterial::query()->deadStock()->select('raw_materials.id')),
+                        blank: fn ($query) => $query,
+                    ),
+            ], layout: \Filament\Tables\Enums\FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(3)
             ->headerActions([
                 Tables\Actions\Action::make('download_template')
                     ->label('Download Template')
