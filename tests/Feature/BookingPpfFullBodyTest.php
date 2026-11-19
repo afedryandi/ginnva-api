@@ -79,13 +79,16 @@ class BookingPpfFullBodyTest extends TestCase
         $R = \App\Filament\Resources\BookingResource::class;
 
         // Full Body dan Interior: hanya "Seluruh Bagian PPF" (untuk menambah lebih dari satu varian), tanpa panel satu per satu.
-        $this->assertSame([Booking::PPF_ALL], array_keys($R::partOptions(['ppf'], Booking::PPF_SCOPE_FULL_BODY, 'exterior')['PPF']));
-        $this->assertSame([Booking::PPF_ALL], array_keys($R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, Booking::PPF_AREA_INTERIOR)['PPF']));
-        $this->assertCount(1 + count(Booking::PPF_PARTS), $R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, 'exterior')['PPF']);
-        $this->assertSame(['Window Film'], array_keys($R::partOptions(['kaca_film'], null, null)));
-        $this->assertContains(Booking::WF_ALL, array_keys($R::partOptions(['kaca_film'], null, null)['Window Film']));
-        $this->assertSame(['PPF', 'Window Film'], array_keys($R::partOptions(['ppf', 'kaca_film'], Booking::PPF_SCOPE_PARTIAL, 'exterior')));
-        $this->assertSame([], $R::partOptions(['detailing'], null, null));
+        $this->assertSame([Booking::PPF_ALL], array_keys($R::partOptions(['ppf'], Booking::PPF_SCOPE_FULL_BODY, true, false)['PPF']));
+        // Interior saja: tanpa panel eksterior, tetapi ada bagian "Interior" untuk varian produk interior.
+        $this->assertSame([Booking::PPF_ALL, Booking::PPF_INTERIOR_PART], array_keys($R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, false, true)['PPF']));
+        // Eksterior dan Interior bersamaan: panel (untuk Part) ditambah bagian Interior.
+        $this->assertCount(2 + count(Booking::PPF_PARTS), $R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, true, true)['PPF']);
+        $this->assertCount(1 + count(Booking::PPF_PARTS), $R::partOptions(['ppf'], Booking::PPF_SCOPE_PARTIAL, true, false)['PPF']);
+        $this->assertSame(['Window Film'], array_keys($R::partOptions(['kaca_film'], null)));
+        $this->assertContains(Booking::WF_ALL, array_keys($R::partOptions(['kaca_film'], null)['Window Film']));
+        $this->assertSame(['PPF', 'Window Film'], array_keys($R::partOptions(['ppf', 'kaca_film'], Booking::PPF_SCOPE_PARTIAL, true, false)));
+        $this->assertSame([], $R::partOptions(['detailing'], null));
         $this->assertSame('window_film', $R::productTypeForPart('Kaca Depan'));
         $this->assertSame('window_film', $R::productTypeForPart(Booking::WF_ALL));
         $this->assertSame('ppf', $R::productTypeForPart('Hood'));
@@ -134,5 +137,70 @@ class BookingPpfFullBodyTest extends TestCase
 
         $this->assertNull($booking->ppf_scope);
         $this->assertFalse((bool) $booking->product_detailing);
+    }
+
+    public function test_exterior_and_interior_can_be_chosen_together(): void
+    {
+        $booking = $this->makeBooking(['ppf_exterior' => true, 'ppf_interior' => true, 'ppf_scope' => Booking::PPF_SCOPE_FULL_BODY]);
+
+        $this->assertSame(Booking::PPF_AREA_BOTH, $booking->ppf_area, 'ppf_area diturunkan dari dua penanda.');
+        $this->assertSame('Eksterior & Interior', $booking->ppfAreaLabel());
+        $this->assertSame(4, (int) $booking->duration_days, 'Eksterior 3 hari + Interior 1 hari.');
+        $this->assertSame(Booking::PPF_SCOPE_FULL_BODY, $booking->ppf_scope, 'Cakupan tetap berlaku untuk bagian Eksterior.');
+        $this->assertTrue($booking->includesPpfBonus(), 'Bonus untuk Full Body di bagian Eksterior.');
+    }
+
+    public function test_interior_only_takes_one_day_and_has_no_scope_or_bonus(): void
+    {
+        $booking = $this->makeBooking(['ppf_interior' => true, 'ppf_scope' => Booking::PPF_SCOPE_FULL_BODY]);
+
+        $this->assertSame(Booking::PPF_AREA_INTERIOR, $booking->ppf_area);
+        $this->assertSame('Interior', $booking->ppfAreaLabel());
+        $this->assertSame(1, (int) $booking->duration_days);
+        $this->assertNull($booking->ppf_scope);
+        $this->assertFalse($booking->includesPpfBonus());
+    }
+
+    public function test_exterior_only_and_unspecified_ppf_keep_three_days_and_the_bonus_rule(): void
+    {
+        $exterior = $this->makeBooking(['ppf_exterior' => true, 'ppf_scope' => Booking::PPF_SCOPE_FULL_BODY]);
+        $this->assertSame(3, (int) $exterior->duration_days);
+        $this->assertSame('Eksterior', $exterior->ppfAreaLabel());
+        $this->assertTrue($exterior->includesPpfBonus());
+
+        $unspecified = $this->makeBooking(['ppf_scope' => Booking::PPF_SCOPE_FULL_BODY]);
+        $this->assertSame(3, (int) $unspecified->duration_days, 'Belum menentukan area dihitung Eksterior (perilaku lama).');
+        $this->assertTrue($unspecified->includesPpfBonus());
+    }
+
+    public function test_the_legacy_ppf_area_value_still_sets_the_two_flags(): void
+    {
+        $interior = $this->makeBooking(['ppf_area' => Booking::PPF_AREA_INTERIOR]);
+        $this->assertFalse((bool) $interior->ppf_exterior);
+        $this->assertTrue((bool) $interior->ppf_interior);
+
+        $both = $this->makeBooking(['ppf_area' => Booking::PPF_AREA_BOTH]);
+        $this->assertTrue((bool) $both->ppf_exterior);
+        $this->assertTrue((bool) $both->ppf_interior);
+    }
+
+    public function test_the_default_duration_follows_the_areas(): void
+    {
+        $this->assertSame(1, Booking::defaultDurationDays(false, false, false));
+        $this->assertSame(3, Booking::defaultDurationDays(true, true, false));
+        $this->assertSame(1, Booking::defaultDurationDays(true, false, true));
+        $this->assertSame(4, Booking::defaultDurationDays(true, true, true));
+        $this->assertSame(3, Booking::defaultDurationDays(true, false, false));
+    }
+
+    public function test_turning_ppf_off_clears_the_areas(): void
+    {
+        $booking = $this->makeBooking(['ppf_exterior' => true, 'ppf_interior' => true]);
+        $booking->update(['product_ppf' => false]);
+
+        $fresh = $booking->fresh();
+        $this->assertFalse((bool) $fresh->ppf_exterior);
+        $this->assertFalse((bool) $fresh->ppf_interior);
+        $this->assertNull($fresh->ppf_area);
     }
 }

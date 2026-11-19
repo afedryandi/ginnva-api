@@ -105,11 +105,7 @@ class InvoiceBookingPrefill
     /** @return list<array<string, mixed>> */
     private static function ppfItems(Booking $booking, string $label): array
     {
-        $area = match ($booking->ppf_area) {
-            Booking::PPF_AREA_EXTERIOR => 'Eksterior',
-            Booking::PPF_AREA_INTERIOR => 'Interior',
-            default => null,
-        };
+        $area = $booking->product_ppf && ($booking->ppf_exterior || $booking->ppf_interior || $booking->ppf_area) ? $booking->ppfAreaLabel() : null;
         $scope = match ($booking->ppf_scope) {
             Booking::PPF_SCOPE_FULL_BODY => 'Full Body',
             Booking::PPF_SCOPE_PARTIAL => 'Part',

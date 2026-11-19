@@ -79,6 +79,12 @@ class Booking extends Model
 
     public const PPF_AREA_INTERIOR = 'interior';
 
+    /** Nilai turunan ppf_area bila Eksterior dan Interior dipilih bersamaan. */
+    public const PPF_AREA_BOTH = 'exterior_interior';
+
+    /** Bagian "Interior" di Produk per Bagian (varian produk untuk pemasangan interior). */
+    public const PPF_INTERIOR_PART = 'Interior';
+
     /** Bagian kaca Window Film yang bisa dipilih. */
     public const WF_AREAS = ['Kaca Depan', 'Kaca Samping', 'Kaca Belakang', 'Sun Roof'];
 
@@ -114,7 +120,46 @@ class Booking extends Model
      */
     public function includesPpfBonus(): bool
     {
-        return $this->ppf_scope === self::PPF_SCOPE_FULL_BODY && (bool) $this->product_ppf && $this->ppf_area !== self::PPF_AREA_INTERIOR;
+        // Bonus hanya untuk Full Body di bagian Eksterior (keputusan pemilik 2026-12-19); Interior tidak menambah bonus.
+        return $this->ppf_scope === self::PPF_SCOPE_FULL_BODY && $this->ppfHasExterior();
+    }
+
+    /** Pemasangan PPF mencakup Eksterior. Booking lama yang belum menentukan area dianggap Eksterior (perilaku sebelum ada pilihan ganda). */
+    public function ppfHasExterior(): bool
+    {
+        return (bool) $this->product_ppf && ((bool) $this->ppf_exterior || ! (bool) $this->ppf_interior);
+    }
+
+    public function ppfHasInterior(): bool
+    {
+        return (bool) $this->product_ppf && (bool) $this->ppf_interior;
+    }
+
+    /** "Eksterior", "Interior", atau "Eksterior & Interior"; null bila bukan booking PPF. */
+    public function ppfAreaLabel(): ?string
+    {
+        if (! $this->product_ppf) {
+            return null;
+        }
+
+        return match (true) {
+            $this->ppfHasExterior() && $this->ppfHasInterior() => 'Eksterior & Interior',
+            $this->ppfHasInterior() => 'Interior',
+            default => 'Eksterior',
+        };
+    }
+
+    /**
+     * Lama pengerjaan bawaan (hari): PPF Eksterior 3 hari, Interior 1 hari, keduanya dijumlahkan (4 hari); selain PPF 1 hari. Yang belum menentukan
+     * area dihitung Eksterior. Staf tetap bisa mengubah angkanya di form.
+     */
+    public static function defaultDurationDays(bool $ppf, bool $exterior, bool $interior): int
+    {
+        if (! $ppf) {
+            return self::DEFAULT_DURATION_DAYS_DEFAULT;
+        }
+
+        return (($exterior || ! $interior) ? self::DEFAULT_DURATION_DAYS_PPF : 0) + ($interior ? self::DEFAULT_DURATION_DAYS_PPF_INTERIOR : 0);
     }
 
     public function getDisplayPhoneNumberAttribute(): string
@@ -132,6 +177,8 @@ class Booking extends Model
     // selesai 1 hari.
     public const DEFAULT_DURATION_DAYS_PPF     = 3;
     public const DEFAULT_DURATION_DAYS_DEFAULT = 1;
+    // Pemasangan PPF Interior (sendiri atau menambah Eksterior): 1 hari.
+    public const DEFAULT_DURATION_DAYS_PPF_INTERIOR = 1;
 
     // Keputusan atasan 2026-09-19 (Topik 1, "Keputusan-PPN-DP-Produk-
     // Stok-Ginnva.docx"): harga customer SUDAH inclusive PPN 11%.
@@ -189,6 +236,9 @@ class Booking extends Model
         'product_ppf',
         // Cakupan PPF: full_body = sudah termasuk Detailing + Premium Wash (lihat includesPpfBonus()).
         'ppf_area',
+        // Eksterior dan Interior boleh dipilih bersamaan; ppf_area diturunkan otomatis dari keduanya (lihat saving di booted()).
+        'ppf_exterior',
+        'ppf_interior',
         'ppf_scope',
         // Penanda booking mencakup jasa detailing (sendiri / tambahan).
         // Lihat migrasi 2026_09_10_000003.
@@ -306,6 +356,8 @@ class Booking extends Model
         'amount_received' => 'decimal:2',
         'product_kaca_film' => 'boolean',
         'product_ppf' => 'boolean',
+        'ppf_exterior' => 'boolean',
+        'ppf_interior' => 'boolean',
         'product_detailing' => 'boolean',
         'product_premium_wash' => 'boolean',
         'spend_promo_discount' => 'decimal:2',
@@ -341,7 +393,7 @@ class Booking extends Model
     public function getEffectiveDurationDaysAttribute(): int
     {
         return $this->duration_days
-            ?? ($this->product_ppf ? self::DEFAULT_DURATION_DAYS_PPF : self::DEFAULT_DURATION_DAYS_DEFAULT);
+            ?? self::defaultDurationDays((bool) $this->product_ppf, (bool) $this->ppf_exterior, (bool) $this->ppf_interior);
     }
 
     /**
@@ -1397,9 +1449,7 @@ class Booking extends Model
             // (confirmedOverlapCount) bisa langsung pakai kolomnya tanpa
             // perlu tahu product_ppf row lain satu-satu.
             if (empty($booking->duration_days)) {
-                $booking->duration_days = $booking->product_ppf
-                    ? self::DEFAULT_DURATION_DAYS_PPF
-                    : self::DEFAULT_DURATION_DAYS_DEFAULT;
+                $booking->duration_days = self::defaultDurationDays((bool) $booking->product_ppf, (bool) $booking->ppf_exterior, (bool) $booking->ppf_interior);
             }
         });
 
@@ -1422,12 +1472,27 @@ class Booking extends Model
         static::saving(function (Booking $booking) {
             if (! $booking->product_ppf) {
                 $booking->ppf_area = $booking->ppf_scope = null;
+                $booking->ppf_exterior = $booking->ppf_interior = false;
 
                 return;
             }
 
-            // Interior hanya satu paket (tanpa Full Body/Part); daftar panel hanya untuk Part.
-            if ($booking->ppf_area === self::PPF_AREA_INTERIOR) {
+            // Jalur lama yang hanya mengisi ppf_area (mis. data atau tes lama): turunkan dua penanda darinya.
+            if (! $booking->ppf_exterior && ! $booking->ppf_interior && $booking->ppf_area && $booking->isDirty('ppf_area')) {
+                $booking->ppf_exterior = in_array($booking->ppf_area, [self::PPF_AREA_EXTERIOR, self::PPF_AREA_BOTH], true);
+                $booking->ppf_interior = in_array($booking->ppf_area, [self::PPF_AREA_INTERIOR, self::PPF_AREA_BOTH], true);
+            }
+
+            // ppf_area diturunkan dari dua penanda supaya pembaca lama tetap konsisten.
+            $booking->ppf_area = match (true) {
+                (bool) $booking->ppf_exterior && (bool) $booking->ppf_interior => self::PPF_AREA_BOTH,
+                (bool) $booking->ppf_interior => self::PPF_AREA_INTERIOR,
+                (bool) $booking->ppf_exterior => self::PPF_AREA_EXTERIOR,
+                default => null,
+            };
+
+            // Interior saja hanya satu paket (tanpa Full Body/Part); cakupan dan daftar panel hanya untuk Eksterior.
+            if ($booking->ppf_interior && ! $booking->ppf_exterior) {
                 $booking->ppf_scope = null;
             }
 

@@ -418,7 +418,7 @@ class BookingResource extends Resource
                         ->disableOptionWhen(fn (string $value, Forms\Get $get) => in_array($value, ['detailing', 'premium_wash'], true)
                             && $get('ppf_scope') === Booking::PPF_SCOPE_FULL_BODY
                             && in_array('ppf', (array) $get('services'), true)
-                            && $get('ppf_area') !== Booking::PPF_AREA_INTERIOR)
+                            && ((bool) $get('ppf_exterior') || ! $get('ppf_interior')))
                         ->dehydrated(false)
                         ->required()
                         ->minItems(1)
@@ -434,9 +434,13 @@ class BookingResource extends Resource
                             $set('service_type', self::serviceTypeLabel($keys));
 
                             if (! $isPpf) {
-                                $set('ppf_area', null);
+                                $set('ppf_exterior', false);
+                                $set('ppf_interior', false);
                                 $set('ppf_scope', null);
-                                $set('filmProducts', self::withoutPpfParts((array) $get('filmProducts')));
+                                $set('filmProducts', self::withoutInteriorPart(self::withoutPpfParts((array) $get('filmProducts'))));
+                            } elseif (! $get('ppf_exterior') && ! $get('ppf_interior')) {
+                                // PPF baru dicentang: Eksterior terpilih sebagai awal (staf bisa menambah atau menggantinya dengan Interior).
+                                $set('ppf_exterior', true);
                             }
 
                             // Cuma auto-isi default kalau staff belum
@@ -444,10 +448,7 @@ class BookingResource extends Resource
                             // salah satu nilai default) — supaya ganti
                             // Jenis Layanan tidak diam-diam menimpa durasi
                             // yang sudah sengaja diedit staff.
-                            $current = $get('duration_days');
-                            if (! $current || in_array((int) $current, [Booking::DEFAULT_DURATION_DAYS_PPF, Booking::DEFAULT_DURATION_DAYS_DEFAULT], true)) {
-                                $set('duration_days', $isPpf ? Booking::DEFAULT_DURATION_DAYS_PPF : Booking::DEFAULT_DURATION_DAYS_DEFAULT);
-                            }
+                            self::syncDuration($set, $get, $isPpf);
                         })
                         // Booking dari mobile app (source=app) sudah dipilih
                         // sendiri oleh customer — tampilkan apa adanya, jangan
@@ -458,31 +459,31 @@ class BookingResource extends Resource
                             ? 'Dipilih oleh pelanggan lewat mobile app — tidak bisa diubah di sini.'
                             : 'Centang semua yang dikerjakan. PPF Full Body sudah termasuk Detailing dan Premium Wash.'),
 
-                    Forms\Components\Select::make('ppf_area')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
-                        ->label('PPF Eksterior / Interior')
-                        ->options([
-                            Booking::PPF_AREA_EXTERIOR => 'Eksterior',
-                            Booking::PPF_AREA_INTERIOR => 'Interior',
-                        ])
-                        ->placeholder('Pilih')
+                    // Eksterior dan Interior boleh dipilih bersamaan (permintaan pemilik 2026-12-19). Eksterior: cakupan Full Body/Part dan bonus; Interior:
+                    // satu paket 1 hari. ppf_area diturunkan otomatis oleh model dari dua penanda ini.
+                    Forms\Components\Fieldset::make('PPF Eksterior / Interior')
+                        ->columns(2)
                         ->visible(fn (Forms\Get $get) => (bool) $get('product_ppf'))
-                        ->live()
-                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
-                            if ($state === Booking::PPF_AREA_INTERIOR) {
-                                $set('ppf_scope', null);
-                                $set('filmProducts', self::withoutPpfParts((array) $get('filmProducts')));
-                            }
-                        }),
+                        ->schema([
+                            Forms\Components\Checkbox::make('ppf_exterior')->label('Eksterior')
+                                ->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
+                                ->live()
+                                ->afterStateUpdated(fn (Forms\Set $set, Forms\Get $get) => self::onPpfAreaChanged($set, $get)),
+                            Forms\Components\Checkbox::make('ppf_interior')->label('Interior')
+                                ->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
+                                ->live()
+                                ->afterStateUpdated(fn (Forms\Set $set, Forms\Get $get) => self::onPpfAreaChanged($set, $get)),
+                        ]),
 
                     Forms\Components\Select::make('ppf_scope')->disabled(fn (?Booking $record, Forms\Get $get) => self::coreLocked($record, $get))->dehydrated()
-                        ->label('Bagian Panel Mobil')
+                        ->label('Bagian Panel Mobil (Eksterior)')
                         ->options([
                             Booking::PPF_SCOPE_FULL_BODY => 'Full Body (sudah termasuk Detailing + Premium Wash)',
                             Booking::PPF_SCOPE_PARTIAL   => 'Part (pilih panel)',
                         ])
                         ->placeholder('Pilih')
                         ->helperText('Full Body: Detailing dan Premium Wash ikut otomatis. Harga diisi manual saat membuat invoice.')
-                        ->visible(fn (Forms\Get $get) => (bool) $get('product_ppf') && $get('ppf_area') !== Booking::PPF_AREA_INTERIOR)
+                        ->visible(fn (Forms\Get $get) => (bool) $get('product_ppf') && ((bool) $get('ppf_exterior') || ! $get('ppf_interior')))
                         ->live()
                         ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
                             if ($state === Booking::PPF_SCOPE_FULL_BODY) {
@@ -527,12 +528,12 @@ class BookingResource extends Resource
                         ->defaultItems(0)
                         ->columns(2)
                         ->columnSpanFull()
-                        ->visible(fn (Forms\Get $get) => self::partOptions((array) $get('services'), $get('ppf_scope'), $get('ppf_area')) !== [])
+                        ->visible(fn (Forms\Get $get) => self::partOptions((array) $get('services'), $get('ppf_scope'), (bool) ($get('ppf_exterior') || ! $get('ppf_interior')), (bool) $get('ppf_interior')) !== [])
                         ->itemLabel(fn (array $state): ?string => filled($state['position'] ?? null) ? $state['position'] : 'Bagian baru')
                         ->schema([
                             Forms\Components\Select::make('position')
                                 ->label('Bagian')
-                                ->options(fn (Forms\Get $get) => self::partOptions((array) $get('../../services'), $get('../../ppf_scope'), $get('../../ppf_area')))
+                                ->options(fn (Forms\Get $get) => self::partOptions((array) $get('../../services'), $get('../../ppf_scope'), (bool) ($get('../../ppf_exterior') || ! $get('../../ppf_interior')), (bool) $get('../../ppf_interior')))
                                 ->placeholder('Pilih bagian')
                                 ->native(false)
                                 ->required()
@@ -879,12 +880,8 @@ class BookingResource extends Resource
 
                     TextEntry::make('ppf_area')
                         ->label('PPF Eksterior / Interior')
-                        ->state(fn (Booking $record) => match ($record->ppf_area) {
-                            Booking::PPF_AREA_EXTERIOR => 'Eksterior',
-                            Booking::PPF_AREA_INTERIOR => 'Interior',
-                            default => null,
-                        })
-                        ->visible(fn (Booking $record) => filled($record->ppf_area)),
+                        ->state(fn (Booking $record) => $record->ppfAreaLabel())
+                        ->visible(fn (Booking $record) => (bool) $record->product_ppf),
 
                     TextEntry::make('product_detailing')
                         ->label('Jasa Detailing')
@@ -2131,16 +2128,21 @@ class BookingResource extends Resource
      * @param  array<int, string>  $services
      * @return array<string, array<string, string>|string>
      */
-    public static function partOptions(array $services, ?string $ppfScope, ?string $ppfArea): array
+    public static function partOptions(array $services, ?string $ppfScope, bool $exterior = true, bool $interior = false): array
     {
         $options = [];
 
         if (in_array('ppf', $services, true)) {
-            // "Seluruh Bagian PPF" selalu ada (untuk varian yang dipakai di semua bagian); panel satu per satu hanya untuk Eksterior Part.
+            // "Seluruh Bagian PPF" selalu ada (untuk varian yang dipakai di semua bagian); panel satu per satu hanya untuk Eksterior Part,
+            // dan "Interior" bila pemasangan Interior ikut dipilih (varian produk untuk paket interior).
             $labels = [Booking::PPF_ALL];
 
-            if ($ppfScope === Booking::PPF_SCOPE_PARTIAL && $ppfArea !== Booking::PPF_AREA_INTERIOR) {
+            if ($ppfScope === Booking::PPF_SCOPE_PARTIAL && $exterior) {
                 $labels = [...$labels, ...array_values(Booking::PPF_PARTS)];
+            }
+
+            if ($interior) {
+                $labels[] = Booking::PPF_INTERIOR_PART;
             }
 
             $options['PPF'] = array_combine($labels, $labels);
@@ -2181,8 +2183,46 @@ class BookingResource extends Resource
         'source', 'customer_id', 'customer_name', 'phone_number',
         'vehicle_plate', 'vehicle_brand', 'vehicle_model', 'vehicle_variant', 'vehicle_color', 'vehicle_year', 'vehicle_size',
         'store_id', 'service_type', 'product_kaca_film', 'product_ppf', 'product_detailing', 'product_premium_wash',
-        'ppf_area', 'ppf_scope', 'preferred_date', 'preferred_time', 'duration_days',
+        'ppf_area', 'ppf_exterior', 'ppf_interior', 'ppf_scope', 'preferred_date', 'preferred_time', 'duration_days',
     ];
+
+    /** Hilangkan baris produk bagian "Interior" (Interior tidak lagi dipilih). */
+    public static function withoutInteriorPart(array $rows): array
+    {
+        return collect($rows)->reject(fn ($row) => ($row['position'] ?? null) === Booking::PPF_INTERIOR_PART)->all();
+    }
+
+    /**
+     * Setelah Eksterior atau Interior dicentang: Interior saja tidak punya cakupan Full Body/Part (dan daftar panelnya), Eksterior saja tidak punya bagian
+     * Interior; lama pengerjaan bawaan menyesuaikan (Eksterior 3 hari, Interior 1 hari, keduanya 4 hari) selama belum diubah manual.
+     */
+    public static function onPpfAreaChanged(Forms\Set $set, Forms\Get $get): void
+    {
+        $exterior = (bool) $get('ppf_exterior');
+        $interior = (bool) $get('ppf_interior');
+
+        if ($interior && ! $exterior) {
+            $set('ppf_scope', null);
+            $set('filmProducts', self::withoutPpfParts((array) $get('filmProducts')));
+        }
+
+        if (! $interior) {
+            $set('filmProducts', self::withoutInteriorPart((array) $get('filmProducts')));
+        }
+
+        self::syncDuration($set, $get, true);
+    }
+
+    /** Isi lama pengerjaan bawaan hanya bila masih kosong atau masih salah satu angka bawaan, supaya durasi yang sengaja diubah staf tidak tertimpa. */
+    public static function syncDuration(Forms\Set $set, Forms\Get $get, bool $isPpf): void
+    {
+        $current = $get('duration_days');
+        $defaults = [Booking::DEFAULT_DURATION_DAYS_DEFAULT, Booking::DEFAULT_DURATION_DAYS_PPF, Booking::DEFAULT_DURATION_DAYS_PPF + Booking::DEFAULT_DURATION_DAYS_PPF_INTERIOR];
+
+        if (! $current || in_array((int) $current, $defaults, true)) {
+            $set('duration_days', Booking::defaultDurationDays($isPpf, (bool) $get('ppf_exterior'), (bool) $get('ppf_interior')));
+        }
+    }
 
     /** Buang baris panel PPF dari daftar Produk per Bagian (dipakai saat cakupan bukan Part), baris Window Film tetap. */
     public static function withoutPpfParts(array $rows): array

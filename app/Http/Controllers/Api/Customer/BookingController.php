@@ -96,6 +96,9 @@ class BookingController extends Controller
                 'services'            => 'required|array|min:1|max:' . count($serviceKeys),
                 'services.*'          => 'required|string|distinct|in:' . implode(',', $serviceKeys),
                 'customer_vehicle_id' => 'required|integer',
+                // Pilihan area PPF (opsional): Eksterior dan Interior boleh dua-duanya; hanya berarti bila layanan PPF dipilih.
+                'ppf_exterior'        => 'sometimes|boolean',
+                'ppf_interior'        => 'sometimes|boolean',
                 'notes'               => 'nullable|string|max:2000',
                 // Fase 5: persetujuan pemberitahuan privasi (UU PDP) wajib di booking v2.
                 'privacy_consent'     => 'required|accepted',
@@ -147,6 +150,10 @@ class BookingController extends Controller
             foreach (BookingServiceType::FLAGS as $key => $column) {
                 $flags[$column] = $selected->contains($key);
             }
+
+            $wantsPpf = $selected->contains('ppf');
+            $flags['ppf_exterior'] = $wantsPpf && $request->boolean('ppf_exterior');
+            $flags['ppf_interior'] = $wantsPpf && $request->boolean('ppf_interior');
         } else {
             $serviceType = $request->service_type;
             $flags = [

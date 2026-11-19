@@ -55,6 +55,8 @@ class BookingCatalogController extends Controller
         return response()->json(['success' => true, 'data' => [
             'vehicle_size' => $size,
             'services' => $services,
+            // Pemasangan PPF Interior (sendiri atau menambah Eksterior) memakan 1 hari; Eksterior memakai lama layanan PPF di atas.
+            'ppf_interior_days' => \App\Models\Booking::DEFAULT_DURATION_DAYS_PPF_INTERIOR,
             // Fase 4: teks kebijakan pembatalan (diedit admin di menu Teks Aplikasi), tampil di ringkasan booking.
             'cancellation_policy' => \App\Models\AppSetting::get(\App\Models\AppSetting::CANCELLATION_POLICY),
             // Fase 5: pemberitahuan privasi + versinya; aplikasi menampilkannya dengan kotak persetujuan.
