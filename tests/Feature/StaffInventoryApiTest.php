@@ -447,11 +447,10 @@ class StaffInventoryApiTest extends TestCase
         $this->item('INV-1', 'Film Alpha', $scroll);
         $user = $this->staff();
 
-        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 3, 'offcut_count' => 2, 'offcut_location' => 'Rak B2'])->assertSuccessful();
+        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 3, 'offcut_count' => 2])->assertSuccessful();
 
         $offcuts = $scroll->offcuts()->get();
         $this->assertCount(2, $offcuts, 'Potongan sisa disimpan bersama pemakaian.');
-        $this->assertSame('Rak B2', $offcuts->first()->location);
         $this->assertSame($this->storeA->id, $offcuts->first()->store_id);
         $this->assertEquals(12, (float) $scroll->fresh()->remaining_length_meters);
 

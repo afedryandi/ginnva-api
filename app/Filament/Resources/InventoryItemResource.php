@@ -781,12 +781,6 @@ class InventoryItemResource extends Resource
                             ->minValue(0)
                             ->maxValue(50)
                             ->helperText('Isi jumlah potongan besar yang disimpan gudang; kosongkan kalau tidak ada.'),
-
-                        Forms\Components\TextInput::make('offcut_location')
-                            ->label('Lokasi Simpan Potongan (opsional)')
-                            ->maxLength(100)
-                            ->placeholder('mis. Rak B2')
-                            ->visible(fn (Forms\Get $get) => (int) $get('offcut_count') > 0),
                     ])
                     ->action(function (InventoryItem $record, array $data) {
                         if (! static::canActOnScrollCode($record->scrollCode)) {
@@ -810,7 +804,7 @@ class InventoryItemResource extends Resource
                             );
 
                             if ((int) ($data['offcut_count'] ?? 0) > 0) {
-                                $record->scrollCode->storeOffcuts((int) $data['offcut_count'], $data['offcut_location'] ?? null, 'Disimpan saat Catat Pemakaian', auth()->id());
+                                $record->scrollCode->storeOffcuts((int) $data['offcut_count'], null, 'Disimpan saat Catat Pemakaian', auth()->id());
                             }
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()

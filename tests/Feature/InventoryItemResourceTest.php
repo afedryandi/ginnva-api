@@ -354,7 +354,7 @@ class InventoryItemResourceTest extends TestCase
 
         Livewire::test(ListInventoryItems::class)
             ->assertTableActionVisible('record_scroll_code_usage', $item)
-            ->callTableAction('record_scroll_code_usage', $item, data: ['meters' => 3.5, 'note' => 'Avanza B 1234 XY'])
+            ->callTableAction('record_scroll_code_usage', $item, data: ['meters' => 3.5, 'note' => 'Avanza B 1234 XY', 'spk_number' => 'SPK-TEST-1'])
             ->assertHasNoTableActionErrors();
 
         $roll->refresh();
@@ -362,6 +362,20 @@ class InventoryItemResourceTest extends TestCase
         $this->assertSame(1, $roll->usage_count);
         $usage = $roll->usages()->first();
         $this->assertSame([3.5, 'Avanza B 1234 XY', $user->id], [(float) $usage->meters, $usage->note, $usage->user_id]);
+        $this->assertSame('SPK-TEST-1', $usage->spk_number, 'Nomor SPK yang diketik tersimpan.');
+    }
+
+    public function test_recording_usage_in_the_panel_requires_an_spk(): void
+    {
+        $this->as($this->user('kasir'));
+        $roll = $this->roll('GLN-USE-3', $this->storeA, 'allocated', 15, 15);
+        $item = $this->item('PPF Tanpa SPK', 'PPF', 'out', $roll);
+
+        Livewire::test(ListInventoryItems::class)
+            ->callTableAction('record_scroll_code_usage', $item, data: ['meters' => 1])
+            ->assertHasTableActionErrors(['spk_id', 'spk_number']);
+
+        $this->assertSame(0, $roll->usages()->count(), 'Tanpa SPK ditolak: meter tidak terpakai.');
     }
 
     public function test_using_more_than_the_remaining_length_is_refused_and_the_last_meters_finish_the_roll(): void
@@ -371,12 +385,12 @@ class InventoryItemResourceTest extends TestCase
         $item = $this->item('PPF Sisa Sedikit', 'PPF', 'out', $roll);
 
         Livewire::test(ListInventoryItems::class)
-            ->callTableAction('record_scroll_code_usage', $item, data: ['meters' => 5]);
+            ->callTableAction('record_scroll_code_usage', $item, data: ['meters' => 5, 'spk_number' => 'SPK-TEST-2']);
         $this->assertEqualsWithDelta(2.0, (float) $roll->fresh()->remaining_length_meters, 0.001, 'Meter melebihi sisa ditolak.');
         $this->assertSame(0, $roll->usages()->count());
 
         Livewire::test(ListInventoryItems::class)
-            ->callTableAction('record_scroll_code_usage', $item, data: ['meters' => 2]);
+            ->callTableAction('record_scroll_code_usage', $item, data: ['meters' => 2, 'spk_number' => 'SPK-TEST-2']);
         $roll->refresh();
         $this->assertEqualsWithDelta(0.0, (float) $roll->remaining_length_meters, 0.001);
         $this->assertSame('used', $roll->status);

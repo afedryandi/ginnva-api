@@ -557,7 +557,6 @@ class InventoryController extends Controller
             'spk_number' => 'nullable|string|max:100',
             // Potongan sisa (wasted) yang disimpan setelah pemakaian ini (opsional); gantinya "Simpan Potongan Sisa" dari baris roll di memo.
             'offcut_count' => 'nullable|integer|min:0|max:50',
-            'offcut_location' => 'nullable|string|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -644,7 +643,7 @@ class InventoryController extends Controller
             if ((int) $request->offcut_count > 0) {
                 $scrollCode->storeOffcuts(
                     (int) $request->offcut_count,
-                    $request->offcut_location,
+                    null,
                     'Disimpan saat Catat Pemakaian' . (filled($request->spk_number) ? ' (SPK ' . trim((string) $request->spk_number) . ')' : ''),
                     $user->id,
                 );
