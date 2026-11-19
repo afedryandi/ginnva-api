@@ -199,7 +199,7 @@ class ScrollCode extends Model
      */
     public function usages()
     {
-        return $this->hasMany(ScrollCodeUsage::class)->with('booking:id,booking_number,customer_name')->latest();
+        return $this->hasMany(ScrollCodeUsage::class)->with(['booking:id,booking_number,customer_name', 'spk:id,spk_number,customer_name'])->latest();
     }
 
     /**
@@ -217,13 +217,13 @@ class ScrollCode extends Model
      *         atau gulungan ini belum punya total_length_meters (tidak bisa
      *         dilacak per meter).
      */
-    public function recordUsage(float $meters, ?int $userId = null, ?string $note = null, ?int $bookingId = null): void
+    public function recordUsage(float $meters, ?int $userId = null, ?string $note = null, ?int $bookingId = null, ?int $spkId = null, ?string $spkNumber = null): void
     {
         if ($meters <= 0) {
             throw new \InvalidArgumentException('Jumlah meter harus lebih besar dari 0.');
         }
 
-        DB::transaction(function () use ($meters, $userId, $note, $bookingId) {
+        DB::transaction(function () use ($meters, $userId, $note, $bookingId, $spkId, $spkNumber) {
             $scrollCode = self::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
             if ($scrollCode->remaining_length_meters === null) {
@@ -246,11 +246,25 @@ class ScrollCode extends Model
                 'used_at' => $remaining <= 0 ? now() : $scrollCode->used_at,
             ]);
 
+            // SPK terkait (pilihan dari daftar, atau nomor yang diketik). Nomor yang cocok dengan SPK toko gulungan ini ikut tertaut ke SPK itu; booking-nya
+            // menjadi booking pemakaian bila belum dipilih sendiri (penelusuran dan syarat SPK selesai tetap lewat booking).
+            $spk = null;
+            if ($spkId) {
+                $spk = Spk::withoutGlobalScopes()->find($spkId);
+            } elseif (filled($spkNumber)) {
+                $spk = Spk::withoutGlobalScopes()
+                    ->where('spk_number', trim((string) $spkNumber))
+                    ->when($scrollCode->store_id, fn ($q) => $q->where('store_id', $scrollCode->store_id))
+                    ->first();
+            }
+
             $scrollCode->usages()->create([
                 'meters' => $meters,
                 'note' => $note,
                 'user_id' => $userId,
-                'booking_id' => $bookingId,
+                'booking_id' => $bookingId ?? $spk?->booking_id,
+                'spk_id' => $spk?->id,
+                'spk_number' => $spk?->spk_number ?? (filled($spkNumber) ? trim((string) $spkNumber) : null),
             ]);
 
             $this->setRawAttributes($scrollCode->getAttributes());

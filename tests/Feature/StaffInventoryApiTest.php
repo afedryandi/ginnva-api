@@ -358,6 +358,165 @@ class StaffInventoryApiTest extends TestCase
         $this->api($this->staff('super_admin'))->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1, 'booking_id' => $theirs->id])->assertSuccessful();
     }
 
+    // ------------------------------------------------------------- SPK terkait pemakaian
+
+    private function spkFor(Store $store, ?Booking $booking = null, ?string $number = null): \App\Models\Spk
+    {
+        return \App\Models\Spk::withoutGlobalScopes()->create([
+            'store_id' => $store->id, 'booking_id' => $booking?->id, 'spk_number' => $number ?? 'SPK/' . strtoupper(uniqid()), 'customer_name' => 'Budi',
+        ]);
+    }
+
+    public function test_usage_linked_to_an_spk_takes_the_spk_and_its_booking(): void
+    {
+        $scroll = $this->scroll('GLN-1', $this->storeA, 'allocated', 15, 15);
+        $this->item('INV-1', 'Film Alpha', $scroll);
+        $booking = $this->booking($this->storeA, 'confirmed');
+        $spk = $this->spkFor($this->storeA, $booking);
+
+        $this->api($this->staff())->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 2, 'spk_id' => $spk->id])->assertSuccessful();
+
+        $usage = $scroll->usages()->firstOrFail();
+        $this->assertSame($spk->id, $usage->spk_id);
+        $this->assertSame($spk->spk_number, $usage->spk_number);
+        $this->assertSame($booking->id, $usage->booking_id, 'Booking diturunkan dari SPK, supaya penelusuran per booking tetap jalan.');
+    }
+
+    public function test_a_typed_spk_number_is_kept_and_matches_an_existing_spk_of_the_store(): void
+    {
+        $scroll = $this->scroll('GLN-1', $this->storeA, 'allocated', 15, 15);
+        $this->item('INV-1', 'Film Alpha', $scroll);
+        $spk = $this->spkFor($this->storeA, null, 'SPK-COCOK-1');
+        $user = $this->staff();
+
+        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1, 'spk_number' => 'SPK-COCOK-1'])->assertSuccessful();
+        $this->assertSame($spk->id, $scroll->usages()->latest('id')->first()->spk_id, 'Nomor yang cocok ikut tertaut ke SPK-nya.');
+
+        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1, 'spk_number' => 'SPK-TIDAK-ADA'])->assertSuccessful();
+        $manual = $scroll->usages()->latest('id')->first();
+        $this->assertNull($manual->spk_id);
+        $this->assertSame('SPK-TIDAK-ADA', $manual->spk_number, 'Nomor ketikan bebas tersimpan apa adanya.');
+    }
+
+    public function test_the_spk_is_required_only_when_the_feature_switch_is_on(): void
+    {
+        $scroll = $this->scroll('GLN-1', $this->storeA, 'allocated', 15, 15);
+        $this->item('INV-1', 'Film Alpha', $scroll);
+        $user = $this->staff();
+
+        config(['features.usage_spk_required' => true]);
+        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1])->assertStatus(422)->assertJsonValidationErrors('spk_number');
+        $this->assertEquals(15, (float) $scroll->fresh()->remaining_length_meters, 'Ditolak: meter tidak terpakai.');
+
+        config(['features.usage_spk_required' => false]);
+        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1])->assertSuccessful();
+    }
+
+    public function test_an_spk_of_another_store_is_refused_and_the_list_shows_only_the_own_store(): void
+    {
+        $scroll = $this->scroll('GLN-1', $this->storeA, 'allocated', 15, 15);
+        $this->item('INV-1', 'Film Alpha', $scroll);
+        $mine = $this->spkFor($this->storeA, null, 'SPK-MILIK-A');
+        $theirs = $this->spkFor($this->storeB, null, 'SPK-MILIK-B');
+        $user = $this->staff('kasir', $this->storeA);
+
+        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1, 'spk_id' => $theirs->id])->assertStatus(422)->assertJsonValidationErrors('spk_id');
+
+        $numbers = collect($this->api($user)->getJson('/api/staff/inventory/INV-1/spks')->assertOk()->json('data'))->pluck('spk_number');
+        $this->assertTrue($numbers->contains('SPK-MILIK-A'));
+        $this->assertFalse($numbers->contains('SPK-MILIK-B'));
+        $this->assertSame($mine->id, collect($this->api($user)->getJson('/api/staff/inventory/INV-1/spks?search=MILIK-A')->json('data'))->first()['id']);
+    }
+
+    public function test_an_spk_with_a_batch_tracked_product_can_finish_once_usage_is_linked_to_it(): void
+    {
+        $scroll = $this->scroll('GLN-1', $this->storeA, 'allocated', 15, 15);
+        $this->item('INV-1', 'Film Alpha', $scroll);
+        $booking = $this->booking($this->storeA, 'confirmed');
+        $spk = $this->spkFor($this->storeA, $booking);
+
+        // Pemakaian yang tertaut langsung ke SPK (tanpa booking) juga dihitung oleh syarat selesai.
+        $scroll->recordUsage(1, null, null, null, $spk->id);
+
+        $this->assertTrue(\App\Models\ScrollCodeUsage::where(fn ($q) => $q->where('booking_id', $booking->id)->orWhere('spk_id', $spk->id))->exists());
+    }
+
+    public function test_usage_can_store_offcuts_in_the_same_step(): void
+    {
+        $scroll = $this->scroll('GLN-1', $this->storeA, 'allocated', 15, 15);
+        $this->item('INV-1', 'Film Alpha', $scroll);
+        $user = $this->staff();
+
+        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 3, 'offcut_count' => 2, 'offcut_location' => 'Rak B2'])->assertSuccessful();
+
+        $offcuts = $scroll->offcuts()->get();
+        $this->assertCount(2, $offcuts, 'Potongan sisa disimpan bersama pemakaian.');
+        $this->assertSame('Rak B2', $offcuts->first()->location);
+        $this->assertSame($this->storeA->id, $offcuts->first()->store_id);
+        $this->assertEquals(12, (float) $scroll->fresh()->remaining_length_meters);
+
+        // Tanpa isian potongan: tidak ada potongan yang dibuat.
+        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1])->assertSuccessful();
+        $this->assertCount(2, $scroll->offcuts()->get());
+
+        $this->api($user)->postJson('/api/staff/inventory/INV-1/record-usage', ['meters' => 1, 'offcut_count' => 99])->assertStatus(422)->assertJsonValidationErrors('offcut_count');
+    }
+
+    public function test_a_stored_offcut_can_be_used_directly_for_an_spk(): void
+    {
+        $scroll = $this->scroll('GLN-1', $this->storeA, 'allocated', 15, 15);
+        $this->item('INV-1', 'Film Alpha', $scroll);
+        $offcuts = $scroll->storeOffcuts(2, 'Rak B2', null, null);
+        $spk = $this->spkFor($this->storeA, null, 'SPK-POTONG-1');
+        $user = $this->staff();
+
+        $list = $this->api($user)->getJson('/api/staff/inventory/INV-1/offcuts')->assertOk();
+        $this->assertCount(2, $list->json('data'));
+
+        $this->api($user)->postJson("/api/staff/inventory/INV-1/offcuts/{$offcuts[0]->id}/use", ['spk_id' => $spk->id, 'car_part' => 'Kaca belakang'])
+            ->assertSuccessful()
+            ->assertJsonCount(1, 'data');
+
+        $used = $offcuts[0]->fresh();
+        $this->assertSame('used', $used->status);
+        $this->assertSame($spk->id, $used->used_in_spk_id);
+        $this->assertSame('Kaca belakang', $used->car_part);
+        $this->assertNull($used->used_in_memo_item_id, 'Tanpa memo.');
+
+        // Nomor yang diketik dan cocok SPK toko ikut tertaut; yang tidak cocok disimpan sebagai teks.
+        $this->api($user)->postJson("/api/staff/inventory/INV-1/offcuts/{$offcuts[1]->id}/use", ['spk_number' => 'SPK-BEBAS-9', 'car_part' => 'Spion'])->assertSuccessful();
+        $manual = $offcuts[1]->fresh();
+        $this->assertNull($manual->used_in_spk_id);
+        $this->assertSame('SPK-BEBAS-9', $manual->used_spk_number);
+
+        // Sudah terpakai: tidak bisa dipakai lagi.
+        $this->api($user)->postJson("/api/staff/inventory/INV-1/offcuts/{$offcuts[0]->id}/use", ['spk_id' => $spk->id, 'car_part' => 'Lain'])->assertStatus(422);
+    }
+
+    public function test_using_an_offcut_needs_the_car_part_and_an_spk_when_required(): void
+    {
+        $scroll = $this->scroll('GLN-1', $this->storeA, 'allocated', 15, 15);
+        $this->item('INV-1', 'Film Alpha', $scroll);
+        $offcut = $scroll->storeOffcuts(1, null, null, null)->first();
+        $user = $this->staff();
+
+        $this->api($user)->postJson("/api/staff/inventory/INV-1/offcuts/{$offcut->id}/use", ['spk_number' => 'X'])->assertStatus(422)->assertJsonValidationErrors('car_part');
+
+        config(['features.usage_spk_required' => true]);
+        $this->api($user)->postJson("/api/staff/inventory/INV-1/offcuts/{$offcut->id}/use", ['car_part' => 'Hood'])->assertStatus(422)->assertJsonValidationErrors('spk_number');
+        $this->assertSame('stored', $offcut->fresh()->status);
+    }
+
+    public function test_an_offcut_of_another_stores_roll_is_refused(): void
+    {
+        $scroll = $this->scroll('GLN-1', $this->storeB, 'allocated', 15, 15);
+        $this->item('INV-1', 'Film Alpha', $scroll);
+        $offcut = $scroll->storeOffcuts(1, null, null, null)->first();
+
+        $this->api($this->staff('kasir', $this->storeA))->postJson("/api/staff/inventory/INV-1/offcuts/{$offcut->id}/use", ['spk_number' => 'X', 'car_part' => 'Hood'])->assertForbidden();
+        $this->assertSame('stored', $offcut->fresh()->status);
+    }
+
     // ------------------------------------------------------------- tandai habis
 
     public function test_marking_a_roll_used_works_only_from_allocated(): void

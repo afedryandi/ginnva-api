@@ -133,6 +133,13 @@ return [
     'memo_booking_link' => (bool) env('FEATURE_MEMO_BOOKING_LINK', false),
     // Koordinat GPS wajib saat foto di lokasi dinas luar dikirim dari aplikasi (keputusan pemilik 2026-12-18). Mati bawaan sampai aplikasi
     // dengan pembaca lokasi beredar, supaya versi lama tidak terkunci; isi FEATURE_FIELD_DUTY_COORDS_REQUIRED=true setelah build baru dirilis.
+    // SPK wajib saat "Catat Pemakaian" roll dari aplikasi staf (keputusan pemilik 2026-12-20): pilih dari daftar atau ketik nomornya. Mati bawaan sampai
+    // aplikasi dengan kolom SPK beredar (versi lama tidak punya kolomnya); isi FEATURE_USAGE_SPK_REQUIRED=true setelah build baru dirilis. Panel selalu mewajibkan.
+    // PPF/WF (gulungan) lewat Memo Pengambilan/Pengembalian: mati bawaan (keputusan pemilik 2026-12-20). PPF/WF berdiri sendiri: keluar gudang lewat Catat Keluar
+    // dan pemakaian lewat Catat Pemakaian per SPK; memo hanya untuk bahan baku. Pilihan PPF/WF hilang dari form memo (panel dan aplikasi), memo lama yang berisi
+    // roll tetap terbaca. Isi FEATURE_MEMO_PPF_WF=true untuk menyalakan lagi.
+    'memo_ppf_wf' => (bool) env('FEATURE_MEMO_PPF_WF', false),
+    'usage_spk_required' => (bool) env('FEATURE_USAGE_SPK_REQUIRED', false),
     'field_duty_coords_required' => (bool) env('FEATURE_FIELD_DUTY_COORDS_REQUIRED', false),
     'report_voucher' => (bool) env('FEATURE_REPORT_VOUCHER', false),
     'report_persediaan_detail' => (bool) env('FEATURE_REPORT_PERSEDIAAN_DETAIL', false),

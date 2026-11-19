@@ -501,6 +501,9 @@ Route::prefix('staff')->group(function () {
         Route::get('/inventory/{code}', [StaffInventoryController::class, 'show']);
         Route::get('/inventory-movements', [StaffInventoryController::class, 'history']);
         Route::get('/inventory/{code}/movements', [StaffInventoryController::class, 'movements']);
+        Route::get('/inventory/{code}/spks', [StaffInventoryController::class, 'spks']);
+        Route::get('/inventory/{code}/offcuts', [StaffInventoryController::class, 'offcuts']);
+        Route::post('/inventory/{code}/offcuts/{id}/use', [StaffInventoryController::class, 'useOffcut'])->middleware('throttle:30,1');
         Route::post('/inventory/{code}/movement', [StaffInventoryController::class, 'storeMovement'])
             ->middleware('throttle:30,1');
         Route::post('/inventory/{code}/mark-scroll-code-used', [StaffInventoryController::class, 'markScrollCodeUsed'])

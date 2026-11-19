@@ -261,7 +261,8 @@ class SpkService
             return;
         }
 
-        $hasRecordedUsage = ScrollCodeUsage::where('booking_id', $booking->id)->exists();
+        // Pemakaian roll tertaut ke SPK ini langsung, atau ke booking-nya (catatan lama yang masih memakai tautan booking).
+        $hasRecordedUsage = ScrollCodeUsage::where(fn ($q) => $q->where('booking_id', $booking->id)->orWhere('spk_id', $spk->id))->exists();
 
         if (! $hasRecordedUsage) {
             throw new RuntimeException('Catat dulu roll yang dipakai (Produk PPF/WF, Catat Pemakaian) sebelum SPK ditandai selesai; produk ini wajib lacak roll.');

@@ -740,23 +740,53 @@ class InventoryItemResource extends Resource
                             ->label('Catatan (opsional)')
                             ->placeholder('Mis. dipakai untuk mobil apa, no. polisi, nama pelanggan'),
 
-                        // Traceability roll -> booking (diminta user
-                        // 2026-09-15) -- opsional, cuma booking
-                        // 'confirmed' toko yang sama (kecuali full-access)
-                        // supaya kalau roll ini ternyata cacat, semua
-                        // booking pemakainya bisa ditemukan lewat
-                        // ScrollCodeResource > Riwayat Pemakaian.
-                        Forms\Components\Select::make('booking_id')
-                            ->label('Booking Terkait (opsional)')
-                            ->options(fn (InventoryItem $record) => \App\Models\Booking::query()
-                                ->where('status', 'confirmed')
-                                ->when(! auth()->user()?->isFullAccess(), fn ($q) => $q->where('store_id', $record->scrollCode->store_id))
-                                ->orderByDesc('preferred_date')
-                                ->limit(50)
+                        // Traceability roll -> SPK (permintaan pemilik 2026-12-20, menggantikan Booking terkait): WAJIB pilih SPK toko gulungan ini atau ketik
+                        // nomornya. Nomor yang cocok dengan SPK ikut tertaut ke SPK itu, dan booking SPK-nya ikut tercatat untuk penelusuran roll cacat
+                        // (ScrollCodeResource > Riwayat Pemakaian).
+                        Forms\Components\Select::make('spk_id')
+                            ->label('SPK Terkait')
+                            ->options(fn (InventoryItem $record) => \App\Models\Spk::withoutGlobalScopes()
+                                ->when($record->scrollCode?->store_id, fn ($q, $storeId) => $q->where('store_id', $storeId))
+                                ->orderByRaw('checked_out_at IS NULL DESC')
+                                ->orderByDesc('created_at')
+                                ->limit(30)
                                 ->get()
-                                ->mapWithKeys(fn ($b) => [$b->id => "{$b->booking_number} — {$b->customer_name}"]))
+                                ->mapWithKeys(fn ($s) => [$s->id => "{$s->spk_number} — {$s->customer_name}"]))
+                            ->getSearchResultsUsing(fn (string $search, InventoryItem $record) => \App\Models\Spk::withoutGlobalScopes()
+                                ->when($record->scrollCode?->store_id, fn ($q, $storeId) => $q->where('store_id', $storeId))
+                                ->where(fn ($q) => $q->where('spk_number', 'like', "%{$search}%")
+                                    ->orWhere('customer_name', 'like', "%{$search}%")
+                                    ->orWhere('vehicle_plate', 'like', "%{$search}%"))
+                                ->orderByDesc('created_at')
+                                ->limit(30)
+                                ->get()
+                                ->mapWithKeys(fn ($s) => [$s->id => "{$s->spk_number} — {$s->customer_name}"]))
                             ->searchable()
-                            ->placeholder('Tidak dilink ke booking mana pun'),
+                            ->placeholder('Pilih SPK dari daftar')
+                            ->required(fn (Forms\Get $get) => blank($get('spk_number')))
+                            ->live(),
+
+                        Forms\Components\TextInput::make('spk_number')
+                            ->label('Atau ketik nomor SPK')
+                            ->maxLength(100)
+                            ->required(fn (Forms\Get $get) => blank($get('spk_id')))
+                            ->live(onBlur: true)
+                            ->helperText('Isi salah satu: pilih SPK di atas, atau ketik nomornya bila tidak ada di daftar.'),
+
+                        // Potongan sisa (wasted) yang disimpan setelah pemakaian ini; gantinya "Simpan Potongan Sisa" dari baris roll di memo.
+                        Forms\Components\TextInput::make('offcut_count')
+                            ->label('Potongan Sisa yang Disimpan (opsional)')
+                            ->numeric()
+                            ->integer()
+                            ->minValue(0)
+                            ->maxValue(50)
+                            ->helperText('Isi jumlah potongan besar yang disimpan gudang; kosongkan kalau tidak ada.'),
+
+                        Forms\Components\TextInput::make('offcut_location')
+                            ->label('Lokasi Simpan Potongan (opsional)')
+                            ->maxLength(100)
+                            ->placeholder('mis. Rak B2')
+                            ->visible(fn (Forms\Get $get) => (int) $get('offcut_count') > 0),
                     ])
                     ->action(function (InventoryItem $record, array $data) {
                         if (! static::canActOnScrollCode($record->scrollCode)) {
@@ -770,7 +800,18 @@ class InventoryItemResource extends Resource
                         }
 
                         try {
-                            $record->scrollCode->recordUsage((float) $data['meters'], auth()->id(), $data['note'] ?? null, $data['booking_id'] ?? null);
+                            $record->scrollCode->recordUsage(
+                                (float) $data['meters'],
+                                auth()->id(),
+                                $data['note'] ?? null,
+                                null,
+                                filled($data['spk_id'] ?? null) ? (int) $data['spk_id'] : null,
+                                filled($data['spk_number'] ?? null) ? trim((string) $data['spk_number']) : null,
+                            );
+
+                            if ((int) ($data['offcut_count'] ?? 0) > 0) {
+                                $record->scrollCode->storeOffcuts((int) $data['offcut_count'], $data['offcut_location'] ?? null, 'Disimpan saat Catat Pemakaian', auth()->id());
+                            }
                         } catch (\InvalidArgumentException $e) {
                             Notification::make()
                                 ->title('Tidak bisa mencatat pemakaian')

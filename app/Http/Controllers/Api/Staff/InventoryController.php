@@ -145,7 +145,7 @@ class InventoryController extends Controller
                 'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name', 'store:id,name'])->limit(20),
                 'scrollCode.filmProduct',
                 'scrollCode.store:id,name',
-                'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
+                'scrollCode.usages' => fn ($q) => $q->with(['user:id,name', 'spk:id,spk_number'])->limit(20),
             ])
             ->first();
 
@@ -388,13 +388,149 @@ class InventoryController extends Controller
             'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name', 'store:id,name'])->limit(20),
             'scrollCode.filmProduct',
             'scrollCode.store:id,name',
-            'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'scrollCode.usages' => fn ($q) => $q->with(['user:id,name', 'spk:id,spk_number'])->limit(20),
         ]);
 
         return response()->json([
             'success' => true,
             'message' => $request->type === 'in' ? 'Barang masuk berhasil dicatat.' : 'Barang keluar berhasil dicatat.',
             'data' => $item,
+        ]);
+    }
+
+    /**
+     * GET /api/staff/inventory/{code}/spks?search=...
+     *
+     * Pilihan SPK untuk "Catat Pemakaian": SPK toko akun ini (akses penuh: toko gulungan barang ini), yang masih dikerjakan lebih dulu.
+     */
+    public function spks(Request $request, string $code)
+    {
+        if ($denied = $this->denyUnlessWrite($request)) {
+            return $denied;
+        }
+
+        $item = InventoryItem::where('code', $code)->first();
+        $scrollCode = $item?->scroll_code_id ? ScrollCode::find($item->scroll_code_id) : null;
+        $user = $request->user('api');
+        $storeId = $user->isFullAccess() ? $scrollCode?->store_id : $user->store_id;
+
+        if (! $storeId) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $search = trim((string) $request->query('search', ''));
+
+        $spks = \App\Models\Spk::withoutGlobalScopes()
+            ->where('store_id', $storeId)
+            ->when($search !== '', fn ($q) => $q->where(fn ($inner) => $inner->where('spk_number', 'like', "%{$search}%")
+                ->orWhere('customer_name', 'like', "%{$search}%")
+                ->orWhere('vehicle_plate', 'like', "%{$search}%")))
+            ->orderByRaw('checked_out_at IS NULL DESC')
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get(['id', 'spk_number', 'customer_name', 'vehicle_brand', 'vehicle_plate', 'booking_id', 'checked_out_at']);
+
+        return response()->json(['success' => true, 'data' => $spks]);
+    }
+
+    /**
+     * GET /api/staff/inventory/{code}/offcuts
+     *
+     * Potongan sisa (wasted) yang masih tersimpan dari gulungan barang ini, untuk dipakai langsung ke SPK (tanpa memo).
+     */
+    public function offcuts(Request $request, string $code)
+    {
+        if ($denied = $this->denyUnlessWrite($request)) {
+            return $denied;
+        }
+
+        $item = InventoryItem::where('code', $code)->first();
+        $scrollCode = $item?->scroll_code_id ? ScrollCode::find($item->scroll_code_id) : null;
+
+        if (! $scrollCode) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        if (! $this->canActOnScrollCode($scrollCode, $request->user('api'))) {
+            return response()->json(['success' => false, 'message' => 'Kode gulungan ini teralokasi ke toko lain.'], 403);
+        }
+
+        $offcuts = $scrollCode->offcuts()->stored()->orderBy('id')->get(['id', 'location', 'notes', 'created_at']);
+
+        return response()->json(['success' => true, 'data' => $offcuts]);
+    }
+
+    /**
+     * POST /api/staff/inventory/{code}/offcuts/{id}/use
+     *
+     * Pakai satu potongan sisa untuk sebuah SPK: spk_id (pilih) atau spk_number (ketik) serta car_part (bagian mobil) wajib.
+     */
+    public function useOffcut(Request $request, string $code, int $id)
+    {
+        if ($denied = $this->denyUnlessWrite($request)) {
+            return $denied;
+        }
+
+        $validator = Validator::make($request->all(), [
+            'spk_id' => 'nullable|integer|exists:spks,id',
+            'spk_number' => 'nullable|string|max:100',
+            'car_part' => 'required|string|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Data yang dikirim tidak valid.', 'errors' => $validator->errors()], 422);
+        }
+
+        if (config('features.usage_spk_required') && ! $request->filled('spk_id') && ! filled(trim((string) $request->spk_number))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Isi nomor SPK atau pilih dari daftar.',
+                'errors' => ['spk_number' => ['Isi nomor SPK atau pilih dari daftar.']],
+            ], 422);
+        }
+
+        $item = InventoryItem::where('code', $code)->first();
+        $scrollCode = $item?->scroll_code_id ? ScrollCode::find($item->scroll_code_id) : null;
+        $user = $request->user('api');
+
+        if (! $scrollCode) {
+            return response()->json(['success' => false, 'message' => 'Barang ini tidak punya kode gulungan terkait.'], 404);
+        }
+
+        if (! $this->canActOnScrollCode($scrollCode, $user)) {
+            return response()->json(['success' => false, 'message' => 'Kode gulungan ini teralokasi ke toko lain.'], 403);
+        }
+
+        $offcut = $scrollCode->offcuts()->where('id', $id)->first();
+
+        if (! $offcut) {
+            return response()->json(['success' => false, 'message' => 'Potongan tidak ditemukan.'], 404);
+        }
+
+        if ($request->filled('spk_id')) {
+            $spk = \App\Models\Spk::withoutGlobalScopes()->find($request->spk_id);
+            $expectedStore = $user->isFullAccess() ? $scrollCode->store_id : $user->store_id;
+
+            if ($spk && $expectedStore !== null && (int) $spk->store_id !== (int) $expectedStore) {
+                return response()->json(['success' => false, 'message' => 'SPK ini milik toko lain.', 'errors' => ['spk_id' => ['SPK ini milik toko lain.']]], 422);
+            }
+        }
+
+        try {
+            $offcut->markUsed(
+                $request->filled('spk_id') ? (int) $request->spk_id : null,
+                filled(trim((string) $request->spk_number)) ? trim((string) $request->spk_number) : null,
+                (string) $request->car_part,
+                $user->id,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Potongan sisa dipakai.',
+            'data' => $scrollCode->offcuts()->stored()->orderBy('id')->get(['id', 'location', 'notes', 'created_at']),
         ]);
     }
 
@@ -416,6 +552,12 @@ class InventoryController extends Controller
             'meters' => 'required|numeric|min:0.01|max:100000',
             'note' => 'nullable|string|max:500',
             'booking_id' => 'nullable|integer|exists:bookings,id',
+            // SPK terkait: pilih dari daftar (spk_id) atau ketik nomornya (spk_number). Wajib begitu aplikasi barunya beredar (saklar fitur).
+            'spk_id' => 'nullable|integer|exists:spks,id',
+            'spk_number' => 'nullable|string|max:100',
+            // Potongan sisa (wasted) yang disimpan setelah pemakaian ini (opsional); gantinya "Simpan Potongan Sisa" dari baris roll di memo.
+            'offcut_count' => 'nullable|integer|min:0|max:50',
+            'offcut_location' => 'nullable|string|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -423,6 +565,14 @@ class InventoryController extends Controller
                 'success' => false,
                 'message' => 'Data yang dikirim tidak valid.',
                 'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        if (config('features.usage_spk_required') && ! $request->filled('spk_id') && ! filled(trim((string) $request->spk_number))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Isi nomor SPK atau pilih dari daftar.',
+                'errors' => ['spk_number' => ['Isi nomor SPK atau pilih dari daftar.']],
             ], 422);
         }
 
@@ -467,8 +617,38 @@ class InventoryController extends Controller
             }
         }
 
+        // SPK yang dipilih harus milik toko yang sama (staf biasa: tokonya sendiri; akses penuh: toko gulungan ini).
+        if ($request->filled('spk_id')) {
+            $spk = \App\Models\Spk::withoutGlobalScopes()->find($request->spk_id);
+            $expectedStore = $user->isFullAccess() ? $scrollCode->store_id : $user->store_id;
+
+            if ($spk && $expectedStore !== null && (int) $spk->store_id !== (int) $expectedStore) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'SPK ini milik toko lain.',
+                    'errors' => ['spk_id' => ['SPK ini milik toko lain.']],
+                ], 422);
+            }
+        }
+
         try {
-            $scrollCode->recordUsage((float) $request->meters, $user->id, $request->note, $request->booking_id);
+            $scrollCode->recordUsage(
+                (float) $request->meters,
+                $user->id,
+                $request->note,
+                $request->booking_id,
+                $request->filled('spk_id') ? (int) $request->spk_id : null,
+                filled(trim((string) $request->spk_number)) ? trim((string) $request->spk_number) : null,
+            );
+
+            if ((int) $request->offcut_count > 0) {
+                $scrollCode->storeOffcuts(
+                    (int) $request->offcut_count,
+                    $request->offcut_location,
+                    'Disimpan saat Catat Pemakaian' . (filled($request->spk_number) ? ' (SPK ' . trim((string) $request->spk_number) . ')' : ''),
+                    $user->id,
+                );
+            }
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
@@ -483,7 +663,7 @@ class InventoryController extends Controller
             'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name', 'store:id,name'])->limit(20),
             'scrollCode.filmProduct',
             'scrollCode.store:id,name',
-            'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'scrollCode.usages' => fn ($q) => $q->with(['user:id,name', 'spk:id,spk_number'])->limit(20),
         ]);
 
         return response()->json([
@@ -540,7 +720,7 @@ class InventoryController extends Controller
             'movements' => fn ($q) => $q->with(['user:id,name', 'destinationStore:id,name', 'store:id,name'])->limit(20),
             'scrollCode.filmProduct',
             'scrollCode.store:id,name',
-            'scrollCode.usages' => fn ($q) => $q->with('user:id,name')->limit(20),
+            'scrollCode.usages' => fn ($q) => $q->with(['user:id,name', 'spk:id,spk_number'])->limit(20),
         ]);
 
         if (! $wasMarked) {

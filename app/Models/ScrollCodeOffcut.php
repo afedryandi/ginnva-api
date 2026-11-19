@@ -29,6 +29,8 @@ class ScrollCodeOffcut extends Model
         'notes',
         'status',
         'used_in_memo_item_id',
+        'used_in_spk_id',
+        'used_spk_number',
         'car_part',
         'used_at',
         'used_by',
@@ -81,6 +83,55 @@ class ScrollCodeOffcut extends Model
     public function usedInMemoItem(): BelongsTo
     {
         return $this->belongsTo(MaterialMemoItem::class, 'used_in_memo_item_id');
+    }
+
+    public function usedInSpk(): BelongsTo
+    {
+        return $this->belongsTo(Spk::class, 'used_in_spk_id');
+    }
+
+    /**
+     * Pakai potongan ini langsung untuk sebuah SPK (tanpa memo): pilih SPK dari daftar atau ketik nomornya, dan isi bagian mobil yang dikerjakan. Nomor yang
+     * diketik dan cocok dengan SPK toko potongan ini ikut tertaut ke SPK itu. Potongan bukan stok dan tanpa nilai uang; status berubah ke Terpakai.
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function markUsed(?int $spkId, ?string $spkNumber, string $carPart, int $userId): void
+    {
+        $carPart = trim($carPart);
+
+        if ($carPart === '') {
+            throw new \InvalidArgumentException('Bagian mobil yang dikerjakan wajib diisi.');
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($spkId, $spkNumber, $carPart, $userId) {
+            $locked = static::where('id', $this->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== self::STORED) {
+                throw new \InvalidArgumentException('Potongan ini sudah tidak tersimpan (terpakai atau dibuang).');
+            }
+
+            $spk = null;
+            if ($spkId) {
+                $spk = Spk::withoutGlobalScopes()->find($spkId);
+            } elseif (filled($spkNumber)) {
+                $spk = Spk::withoutGlobalScopes()
+                    ->where('spk_number', trim((string) $spkNumber))
+                    ->when($locked->store_id, fn ($q) => $q->where('store_id', $locked->store_id))
+                    ->first();
+            }
+
+            $locked->update([
+                'status' => self::USED,
+                'used_in_spk_id' => $spk?->id,
+                'used_spk_number' => $spk?->spk_number ?? (filled($spkNumber) ? trim((string) $spkNumber) : null),
+                'car_part' => $carPart,
+                'used_at' => now(),
+                'used_by' => $userId,
+            ]);
+
+            $this->setRawAttributes($locked->getAttributes());
+        });
     }
 
     /** Nama yang tampil di memo dan daftar: kode roll asal + nomor potongan. */

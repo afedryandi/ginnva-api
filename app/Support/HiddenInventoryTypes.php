@@ -27,6 +27,11 @@ class HiddenInventoryTypes
             unset($options['asset']);
         }
 
+        // PPF/WF tidak lagi lewat memo (berdiri sendiri: Catat Keluar dan Catat Pemakaian per SPK); lihat config features.memo_ppf_wf.
+        if (! config('features.memo_ppf_wf')) {
+            unset($options['inventory_item'], $options['offcut']);
+        }
+
         return $options;
     }
 
@@ -36,6 +41,7 @@ class HiddenInventoryTypes
         return array_values(array_filter($types, fn (string $type) => match ($type) {
             'consumable_item', 'consumable' => (bool) config('features.consumables'),
             'asset' => (bool) config('features.assets'),
+            'inventory_item', 'offcut' => (bool) config('features.memo_ppf_wf'),
             default => true,
         }));
     }

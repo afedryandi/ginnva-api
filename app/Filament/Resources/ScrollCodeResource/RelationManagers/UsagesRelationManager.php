@@ -37,6 +37,12 @@ class UsagesRelationManager extends RelationManager
                     ->badge()
                     ->color('warning'),
 
+                // SPK terkait: nomor dari daftar atau yang diketik bebas (nomor bebas tampil apa adanya).
+                Tables\Columns\TextColumn::make('spk_display')
+                    ->label('SPK')
+                    ->state(fn ($record) => $record->spk?->spk_number ?? $record->spk_number)
+                    ->placeholder('—'),
+
                 Tables\Columns\TextColumn::make('booking.booking_number')
                     ->label('Booking')
                     ->placeholder('—')

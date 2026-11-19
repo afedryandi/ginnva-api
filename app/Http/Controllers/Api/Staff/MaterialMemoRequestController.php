@@ -169,7 +169,7 @@ class MaterialMemoRequestController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'item_type' => 'required|in:raw_material,consumable_item,inventory_item',
+            'item_type' => 'required|in:' . implode(',', \App\Support\HiddenInventoryTypes::allowed(['raw_material', 'consumable_item', 'inventory_item'])),
             'item_id' => 'required|integer',
             'qty' => 'nullable|numeric|min:0.01|max:1000000',
             'note' => 'nullable|string|max:500',
