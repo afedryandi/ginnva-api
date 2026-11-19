@@ -384,11 +384,17 @@ class WarrantyResource extends Resource
     {
         $isSuperAdmin = auth()->user()?->isFullAccess();
 
+        // Dua kolom di layar lebar: kiri isi garansi (pelanggan, kendaraan, perawatan, pemasangan), kanan status review.
+        // Saat membuat garansi baru, kolom kanan berisi panduan singkat (status review baru ada setelah garansi tersimpan).
         return $form->schema([
-            Forms\Components\Section::make('Data Garansi')
-                ->description('Pelanggan, kendaraan, produk, dan masa berlaku garansi.')
-                ->icon('heroicon-o-shield-check')
-                ->columns(1)
+            Forms\Components\Grid::make(['default' => 1, 'lg' => 3])->columnSpanFull()->schema([
+            Forms\Components\Group::make()
+                ->columnSpan(['lg' => 2])
+                ->schema([
+            Forms\Components\Section::make('Pelanggan')
+                ->description('Pemilik garansi dan akun aplikasinya.')
+                ->icon('heroicon-o-user')
+                ->columns(['default' => 1, 'sm' => 2])
                 ->schema([
                     // Tidak diisi manual — nomor sekuensial GNV-PPF-00001 /
                     // GNV-WF-00001 dst, di-generate sekali begitu kode
@@ -396,6 +402,7 @@ class WarrantyResource extends Resource
                     // Placeholder ini cuma info, bukan input.
                     Forms\Components\Placeholder::make('warranty_code_info')
                         ->label('Kode Garansi')
+                        ->columnSpanFull()
                         ->content(fn (?Warranty $record) => $record?->warranty_code
                             ?? 'Otomatis begitu Detail Instalasi di bawah diisi'),
 
@@ -476,6 +483,12 @@ class WarrantyResource extends Resource
                             return new \Illuminate\Support\HtmlString(implode('<br>', array_map('e', $lines)));
                         }),
 
+                ]),
+
+            Forms\Components\Section::make('Kendaraan & Produk')
+                ->icon('heroicon-o-shield-check')
+                ->columns(['default' => 1, 'sm' => 2])
+                ->schema([
                     Forms\Components\TextInput::make('car_plate')
                         ->label('Plat Nomor')
                         ->required()
@@ -519,6 +532,14 @@ class WarrantyResource extends Resource
                     // (tanpa sadar) mengaktifkan maintenance untuk garansi
                     // Kaca Film/Window Film juga, padahal fitur ini (plus
                     // maintenance_interval_months di bawah) eksplisit khusus PPF.
+                ]),
+
+            Forms\Components\Section::make('Perawatan Berkala')
+                ->icon('heroicon-o-wrench-screwdriver')
+                ->columns(['default' => 1, 'sm' => 2])
+                ->visible(fn (Forms\Get $get, ?Warranty $record) => $get('product_category') === 'ppf'
+                    || ($record && $record->maintenanceVisits->isNotEmpty()))
+                ->schema([
                     Forms\Components\TextInput::make('maintenance_quota')
                         ->label('Kuota Maintenance (kali)')
                         ->numeric()
@@ -593,6 +614,12 @@ class WarrantyResource extends Resource
                             return new \Illuminate\Support\HtmlString($header . '<br>' . implode('<br>', array_map('e', $lines)));
                         }),
 
+                ]),
+
+            Forms\Components\Section::make('Pemasangan & Masa Berlaku')
+                ->icon('heroicon-o-calendar-days')
+                ->columns(['default' => 1, 'sm' => 2])
+                ->schema([
                     Forms\Components\TextInput::make('vin')
                         ->label('VIN (Nomor Rangka)')
                         ->helperText('Berbeda dari plat nomor — VIN permanen, penting untuk garansi jangka panjang.')
@@ -659,7 +686,7 @@ class WarrantyResource extends Resource
             // roll film yang berbeda (卷芯号 前挡 vs 侧后).
             Forms\Components\Section::make('Detail Instalasi (PPF)')
                 ->icon('heroicon-o-sparkles')
-                ->columns(1)
+                ->columns(['default' => 1, 'sm' => 2])
                 ->schema([
                     Forms\Components\Select::make('installation_position')
                         ->label('Posisi Pemasangan')
@@ -738,7 +765,7 @@ class WarrantyResource extends Resource
 
             Forms\Components\Section::make('Detail Instalasi (Window Film)')
                 ->icon('heroicon-o-sun')
-                ->columns(1)
+                ->columns(['default' => 1, 'sm' => 2])
                 ->schema([
                     Forms\Components\Select::make('roll_number_front')
                         ->label('Kode Gulungan — Kaca Depan')
@@ -815,6 +842,27 @@ class WarrantyResource extends Resource
             // sebenarnya dilakukan lewat tombol di tabel/halaman edit
             // (lihat getHeaderActions di EditWarranty), bukan field form,
             // supaya tidak bisa "diam-diam" diubah lewat save form biasa.
+                ]),
+            Forms\Components\Group::make()
+                ->columnSpan(['lg' => 1])
+                ->schema([
+            Forms\Components\Section::make('Panduan Pengisian')
+                ->icon('heroicon-o-light-bulb')
+                ->visible(fn (?Warranty $record) => $record === null)
+                ->schema([
+                    Forms\Components\Placeholder::make('create_tips')
+                        ->hiddenLabel()
+                        ->content(new \Illuminate\Support\HtmlString(
+                            '<ul style="margin:0;padding-left:1.1rem;list-style:disc;line-height:1.7;">'
+                            . '<li>Pilih <strong>akun pelanggan</strong> supaya garansi langsung muncul di "Garansi Saya" pada aplikasi mereka.</li>'
+                            . '<li>Pilih <strong>kategori produk</strong> dulu: isian Detail Instalasi (PPF atau Window Film) menyesuaikan.</li>'
+                            . '<li><strong>Kode garansi</strong> dibuat otomatis begitu kode gulungan pertama diisi.</li>'
+                            . '<li>Kode gulungan yang tampil hanya milik <strong>toko yang dipilih</strong>.</li>'
+                            . '<li>Garansi baru berstatus <strong>Pending Review</strong> sampai disetujui QA.</li>'
+                            . '</ul>'
+                        )),
+                ]),
+
             Forms\Components\Section::make('Status Review (QA Certificate)')
                 ->icon('heroicon-o-check-badge')
                 ->columns(1)
@@ -838,6 +886,8 @@ class WarrantyResource extends Resource
                         ->visible(fn (?Warranty $record) => $record?->review_status === 'rejected'),
                 ])
                 ->visible(fn (?Warranty $record) => $record !== null),
+                ]),
+            ]),
         ]);
     }
 
@@ -970,48 +1020,6 @@ class WarrantyResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->headerActions([
-                // Export Excel untuk dikirim manual (email) ke tim Ginnva
-                // China secara mingguan/bulanan. Ini PENGGANTI mekanisme
-                // sync API realtime yang sebelumnya direncanakan (job
-                // SyncWarrantyToChina) — per info resmi China (akhir Juni
-                // 2026), mereka belum bisa sediakan API/data interface
-                // karena ketentuan pemerintah. Hanya super_admin yang bisa
-                // export, karena ini data sensitif (info pelanggan
-                // lengkap) yang dikirim ke pihak luar.
-                // Pakai getFilteredTableQuery() (bukan query polos) supaya
-                // export ikut filter yang sedang aktif di layar (Toko,
-                // Status Review QA, Kategori Produk, pencarian) — SEBELUMNYA
-                // WarrantyExport bikin query independen sendiri, admin
-                // filter ke 1 toko lalu export tetap dapat data SEMUA
-                // toko. Rentang tanggal dari form ini ditambahkan DI ATAS
-                // query yang sudah terfilter itu (bukan menggantikannya).
-                // Lihat catatan di WarrantyExport. Ditemukan & diperbaiki
-                // 2026-08-31.
-                Tables\Actions\Action::make('exportExcel')
-                    ->label('Export ke Excel')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->color('gray')
-                    ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
-                    ->form([
-                        Forms\Components\DatePicker::make('start_date')
-                            ->label('Dari Tanggal (opsional)')
-                            ->helperText('Kosongkan untuk export semua data dari awal.'),
-
-                        Forms\Components\DatePicker::make('end_date')
-                            ->label('Sampai Tanggal (opsional)')
-                            ->helperText('Kosongkan untuk export sampai data terbaru.'),
-                    ])
-                    ->action(function (array $data, $livewire) {
-                        $filename = 'warranty-export-' . now()->format('Ymd-His') . '.xlsx';
-
-                        $query = $livewire->getFilteredTableQuery()
-                            ->when($data['start_date'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-                            ->when($data['end_date'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
-
-                        return Excel::download(new WarrantyExport($query), $filename);
-                    }),
-            ])
             ->filters([
                 Tables\Filters\SelectFilter::make('review_status')
                     ->label('Status Review QA')
@@ -1068,12 +1076,22 @@ class WarrantyResource extends Resource
                 // yang mendesak. Sama pola dengan filter "upcoming" di
                 // BookingResource/BlockedDateResource. Lihat audit modul
                 // Garansi 2026-08-27.
-                Tables\Filters\Filter::make('expiring_soon')
-                    ->label('Akan Berakhir (30 Hari)')
-                    ->query(fn (Builder $query) => $query
-                        ->where('review_status', 'approved')
-                        ->whereDate('expiry_date', '>=', now())
-                        ->whereDate('expiry_date', '<=', now()->addDays(30))),
+                // Pilihan (bukan kotak centang) supaya tinggi dan labelnya sejajar dengan isian lain di baris filter.
+                Tables\Filters\TernaryFilter::make('expiring_soon')
+                    ->label('Masa Berlaku')
+                    ->placeholder('Semua')
+                    ->trueLabel('Berakhir dalam 30 hari')
+                    ->falseLabel('Lebih dari 30 hari')
+                    ->queries(
+                        true: fn (Builder $query) => $query
+                            ->where('review_status', 'approved')
+                            ->whereDate('expiry_date', '>=', now())
+                            ->whereDate('expiry_date', '<=', now()->addDays(30)),
+                        false: fn (Builder $query) => $query
+                            ->where('review_status', 'approved')
+                            ->whereDate('expiry_date', '>', now()->addDays(30)),
+                        blank: fn (Builder $query) => $query,
+                    ),
 
                 Tables\Filters\SelectFilter::make('product_category')
                     ->label('Kategori Produk')
@@ -1101,7 +1119,7 @@ class WarrantyResource extends Resource
                             ->when($data['until'] ?? null, fn (Builder $q, $date) => $q->whereDate('created_at', '<=', $date));
                     }),
             ], layout: FiltersLayout::AboveContentCollapsible)
-            ->filtersFormColumns(3)
+            ->filtersFormColumns(4)
             // Lihat, Ubah, Approve, dan Reject sebagai ikon; sisanya dikelompokkan di menu "...", supaya baris tidak penuh tombol.
             ->actions([
                 Tables\Actions\ViewAction::make()->iconButton()->tooltip('Lihat detail'),
@@ -1286,6 +1304,163 @@ class WarrantyResource extends Resource
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    /**
+     * Halaman Lihat: tampilan baca-saja yang tertata (sebelumnya jatuh ke form yang dikunci). Dua kolom: kiri pelanggan, kendaraan,
+     * pemasangan, dan riwayat; kanan status, masa berlaku, dan hasil review.
+     */
+    public static function infolist(\Filament\Infolists\Infolist $infolist): \Filament\Infolists\Infolist
+    {
+        $entry = \Filament\Infolists\Components\TextEntry::class;
+
+        return $infolist->schema([
+            \Filament\Infolists\Components\Grid::make(['default' => 1, 'lg' => 3])->columnSpanFull()->schema([
+                \Filament\Infolists\Components\Group::make()->columnSpan(['lg' => 2])->schema([
+                    \Filament\Infolists\Components\Section::make('Pelanggan')
+                        ->icon('heroicon-o-user')
+                        ->columns(2)
+                        ->schema([
+                            $entry::make('customer_name')->label('Nama'),
+                            $entry::make('phone_number')->label('Telepon'),
+                            $entry::make('customer.email')->label('Akun Aplikasi')->placeholder('Belum tertaut akun'),
+                            $entry::make('ownership_history')
+                                ->label('Riwayat Kepemilikan')
+                                ->columnSpanFull()
+                                ->visible(fn (Warranty $record) => $record->ownershipTransfers->isNotEmpty())
+                                ->bulleted()
+                                ->state(fn (Warranty $record) => $record->ownershipTransfers->map(function (WarrantyOwnershipTransfer $t) {
+                                    return "{$t->previous_customer_name} → {$t->new_customer_name} ({$t->transferred_at?->format('d M Y H:i')}, oleh " . ($t->transferredBy?->name ?? 'Sistem') . ')'
+                                        . ($t->note ? " — {$t->note}" : '');
+                                })->all()),
+                        ]),
+
+                    \Filament\Infolists\Components\Section::make('Kendaraan & Produk')
+                        ->icon('heroicon-o-shield-check')
+                        ->columns(['default' => 1, 'sm' => 2])
+                        ->schema([
+                            $entry::make('car_plate')->label('Plat Nomor')->placeholder('—'),
+                            $entry::make('car_type')->label('Tipe Mobil')->placeholder('—'),
+                            $entry::make('vin')->label('No. Rangka (VIN)')->placeholder('—'),
+                            $entry::make('product_series')->label('Seri Produk')->placeholder('—'),
+                            $entry::make('product_category')
+                                ->label('Kategori')
+                                ->badge()
+                                ->formatStateUsing(fn (?string $state) => match ($state) {
+                                    'window_film' => 'Window Film',
+                                    'ppf' => 'PPF',
+                                    default => $state ?? '—',
+                                }),
+                            $entry::make('dealer_name')->label('Dealer')->placeholder('—'),
+                        ]),
+
+                    \Filament\Infolists\Components\Section::make('Detail Instalasi')
+                        ->icon('heroicon-o-sparkles')
+                        ->columns(['default' => 1, 'sm' => 2])
+                        ->schema([
+                            $entry::make('installation_position')
+                                ->label('Posisi Pemasangan')
+                                ->formatStateUsing(fn (?string $state, Warranty $record) => match ($state) {
+                                    'full_body' => 'Seluruh Bodi',
+                                    'partial' => 'Parsial' . ($record->installation_position_detail ? ' — ' . $record->installation_position_detail : ''),
+                                    default => '—',
+                                })
+                                ->visible(fn (Warranty $record) => $record->product_category === 'ppf'),
+                            $entry::make('roll_number')->label('Kode Gulungan')->placeholder('—')->visible(fn (Warranty $record) => $record->product_category === 'ppf'),
+                            $entry::make('roll_number_2')->label('Kode Gulungan Kedua')->placeholder('—')->visible(fn (Warranty $record) => $record->product_category === 'ppf' && filled($record->roll_number_2)),
+                            $entry::make('roll_number_front')->label('Gulungan Kaca Depan')->placeholder('—')->visible(fn (Warranty $record) => $record->product_category === 'window_film'),
+                            $entry::make('roll_number_side_rear')->label('Gulungan Kaca Samping & Belakang')->placeholder('—')->visible(fn (Warranty $record) => $record->product_category === 'window_film'),
+                        ]),
+
+                    \Filament\Infolists\Components\Section::make('Riwayat Maintenance')
+                        ->icon('heroicon-o-wrench-screwdriver')
+                        ->visible(fn (Warranty $record) => $record->maintenanceVisits->isNotEmpty() || filled($record->maintenance_quota))
+                        ->schema([
+                            $entry::make('maintenance_info')
+                                ->label('Kuota')
+                                ->state(fn (Warranty $record) => 'Terpakai ' . $record->maintenanceVisits->whereNull('cancelled_at')->count() . '/' . ($record->maintenance_quota ?? '—') . ' kunjungan'
+                                    . ($record->maintenance_interval_months ? ", tiap {$record->maintenance_interval_months} bulan" : '')),
+                            $entry::make('maintenance_history')
+                                ->hiddenLabel()
+                                ->visible(fn (Warranty $record) => $record->maintenanceVisits->isNotEmpty())
+                                ->bulleted()
+                                ->state(fn (Warranty $record) => $record->maintenanceVisits->map(function (WarrantyMaintenanceVisit $v) {
+                                    $when = $v->visited_at?->format('d M Y');
+                                    $by = $v->recordedBy?->name ?? 'Sistem';
+
+                                    if ($v->isCancelled()) {
+                                        return "{$when} (dicatat oleh {$by}) — DIBATALKAN oleh " . ($v->cancelledBy?->name ?? 'Sistem') . ": {$v->cancel_reason}";
+                                    }
+
+                                    return "{$when} (dicatat oleh {$by})" . ($v->note ? " — {$v->note}" : '');
+                                })->all()),
+                        ]),
+                ]),
+
+                \Filament\Infolists\Components\Group::make()->columnSpan(['lg' => 1])->schema([
+                    \Filament\Infolists\Components\Section::make('Ringkasan')
+                        ->icon('heroicon-o-clipboard-document-check')
+                        ->columns(1)
+                        ->schema([
+                            $entry::make('warranty_code')->label('Kode Garansi')->placeholder('Belum dibuat')->copyable(),
+                            $entry::make('status')
+                                ->label('Status Garansi')
+                                ->badge()
+                                ->color(fn (string $state) => match ($state) {
+                                    'active' => 'success',
+                                    'pending_review' => 'warning',
+                                    'expired', 'rejected', 'revoked' => 'danger',
+                                    default => 'gray',
+                                })
+                                ->formatStateUsing(fn (string $state) => match ($state) {
+                                    'active' => 'Active',
+                                    'expired' => 'Expired',
+                                    'pending_review' => 'Pending Review',
+                                    'rejected' => 'Rejected',
+                                    'revoked' => 'Revoked',
+                                    default => $state,
+                                }),
+                            $entry::make('store.name')->label('Toko')->placeholder('—'),
+                            $entry::make('installation_date')->label('Tanggal Pasang')->date('d M Y')->placeholder('—'),
+                            $entry::make('expiry_date')->label('Berlaku Sampai')->date('d M Y')->placeholder('—'),
+                            $entry::make('sisa_hari')
+                                ->label('Sisa Masa Berlaku')
+                                ->state(function (Warranty $record) {
+                                    if (! $record->expiry_date) {
+                                        return null;
+                                    }
+
+                                    $days = (int) now()->startOfDay()->diffInDays($record->expiry_date->copy()->startOfDay(), false);
+
+                                    return $days >= 0 ? number_format($days, 0, ',', '.') . ' hari lagi' : 'Sudah berakhir ' . number_format(abs($days), 0, ',', '.') . ' hari lalu';
+                                })
+                                ->placeholder('—'),
+                        ]),
+
+                    \Filament\Infolists\Components\Section::make('Review QA')
+                        ->icon('heroicon-o-check-badge')
+                        ->columns(1)
+                        ->schema([
+                            $entry::make('review_status')
+                                ->label('Status Review')
+                                ->badge()
+                                ->color(fn (?string $state) => match ($state) {
+                                    'approved' => 'success',
+                                    'rejected' => 'danger',
+                                    default => 'warning',
+                                })
+                                ->formatStateUsing(fn (?string $state) => match ($state) {
+                                    'approved' => 'Approved',
+                                    'rejected' => 'Rejected',
+                                    default => 'Pending Review',
+                                }),
+                            $entry::make('reviewed_at')->label('Direview Pada')->dateTime('d M Y H:i')->placeholder('—'),
+                            $entry::make('rejection_reason')->label('Alasan Reject')
+                                ->visible(fn (Warranty $record) => $record->review_status === 'rejected'),
+                        ]),
+                ]),
+            ]),
+        ]);
     }
 
     public static function getRelations(): array

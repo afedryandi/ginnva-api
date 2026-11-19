@@ -3,10 +3,13 @@
 namespace App\Filament\Resources\WarrantyResource\Pages;
 
 use App\Filament\Resources\WarrantyResource;
+use App\Exports\WarrantyExport;
 use Filament\Actions;
+use Filament\Forms;
 use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ListWarranties extends ListRecords
 {
@@ -15,6 +18,31 @@ class ListWarranties extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            // Export Excel sejajar dengan tombol utama di kepala halaman (sebelumnya di baris sendiri di dalam kartu tabel).
+            // Untuk dikirim manual ke tim Ginnva China; hanya akses penuh karena memuat data pelanggan lengkap. Mengikuti filter dan
+            // pencarian yang aktif di tabel; rentang tanggal dari form ini ditambahkan di atasnya.
+            Actions\Action::make('exportExcel')
+                ->label('Export Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->visible(fn () => auth()->user()?->isFullAccess() ?? false)
+                ->form([
+                    Forms\Components\DatePicker::make('start_date')
+                        ->label('Dari Tanggal (opsional)')
+                        ->helperText('Kosongkan untuk export semua data dari awal.'),
+
+                    Forms\Components\DatePicker::make('end_date')
+                        ->label('Sampai Tanggal (opsional)')
+                        ->helperText('Kosongkan untuk export sampai data terbaru.'),
+                ])
+                ->action(function (array $data) {
+                    $query = $this->getFilteredTableQuery()
+                        ->when($data['start_date'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+                        ->when($data['end_date'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
+
+                    return Excel::download(new WarrantyExport($query), 'warranty-export-' . now()->format('Ymd-His') . '.xlsx');
+                }),
+
             Actions\CreateAction::make(),
         ];
     }

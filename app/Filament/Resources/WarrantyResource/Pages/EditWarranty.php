@@ -11,6 +11,9 @@ class EditWarranty extends EditRecord
 {
     protected static string $resource = WarrantyResource::class;
 
+    // Tombol simpan dan batal menempel di bawah layar saat form digulir.
+    public static bool $formActionsAreSticky = true;
+
     protected function getHeaderActions(): array
     {
         return [
@@ -213,9 +216,9 @@ class EditWarranty extends EditRecord
         return $data;
     }
 
-    /** Form satu kolom (2026-10-12, panduan UI minimalis): lebar dibatasi supaya isian tidak membentang selebar layar. */
+    /** Lebar penuh supaya tata letak 2:1 (isi garansi di kiri, status review di kanan) muncul. */
     public function getMaxContentWidth(): \Filament\Support\Enums\MaxWidth|string|null
     {
-        return \Filament\Support\Enums\MaxWidth::ThreeExtraLarge;
+        return \Filament\Support\Enums\MaxWidth::SevenExtraLarge;
     }
 }
