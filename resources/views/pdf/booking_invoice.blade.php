@@ -146,6 +146,10 @@
         @endif
     </table>
 
+    <div style="margin-top: 14px; font-size: 11px;">
+        <strong>Pembayaran :</strong> Rek BCA 0358671678 a/n PT. Ginnva Shield Indonesia
+    </div>
+
     @php($company = \App\Models\FinanceSetting::companyProfile())
     <div class="signature-box">
         <div>{{ $company['name'] }}</div>

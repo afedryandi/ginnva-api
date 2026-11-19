@@ -165,6 +165,11 @@
         <tr class="strong"><td>Sisa Tagihan:</td><td>{{ $money($remaining) }}</td></tr>
     </table>
 
+    <div class="block">
+        <div class="block-title">Pembayaran :</div>
+        <div class="block-body">Rek BCA 0358671678 a/n PT. Ginnva Shield Indonesia</div>
+    </div>
+
     @if ($invoice->notes)
         <div class="block">
             <div class="block-title">Keterangan :</div>
