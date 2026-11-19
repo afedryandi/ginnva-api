@@ -527,6 +527,57 @@ class FieldDutyRequestTest extends TestCase
         $this->assertNull($request->fresh()->location_latitude, 'Saat saklar mati, app lama tanpa koordinat tetap diterima.');
     }
 
+    public function test_a_pending_request_can_send_the_photo_with_coordinates_on_the_day(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $request = $this->submit();   // tanggal 13 Nov, belum disetujui
+        Carbon::setTestNow('2026-11-13 10:00:00');
+        $request = $request->fresh();
+
+        $this->assertTrue($request->canSendLocationPhoto(), 'Masih menunggu tetapi hari dinas sudah tiba: foto boleh dikirim.');
+
+        $this->sendPhoto($request, ['latitude' => '-6.2', 'longitude' => '106.8', 'accuracy' => '8'])
+            ->assertSuccessful()
+            ->assertJsonPath('field_duty_request.status', 'pending');
+
+        $this->assertNotNull($request->fresh()->location_photo);
+        $this->assertEqualsWithDelta(-6.2, $request->fresh()->location_latitude, 0.00001);
+
+        $this->service->approve($request->fresh(), $this->manager);
+        $this->assertNotNull($request->fresh()->location_photo, 'Foto yang sudah dikirim ikut berlaku setelah disetujui.');
+        $this->assertFalse($request->fresh()->canSendLocationPhoto());
+    }
+
+    public function test_a_catch_up_request_needs_the_photo_but_no_coordinates(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $request = $this->submit();   // tanggal 13 Nov
+        $this->service->approve($request, $this->manager);
+        Carbon::setTestNow('2026-11-15 10:00:00');   // dua hari sesudah hari dinas (disetujui susulan)
+        $request = $request->fresh();
+
+        $this->assertTrue($request->canSendLocationPhoto());
+        $this->assertFalse($request->locationPhotoNeedsCoordinates());
+
+        config(['features.field_duty_coords_required' => true]);
+        $this->sendPhoto($request, ['latitude' => '-6.2', 'longitude' => '106.8'])->assertSuccessful();
+
+        $fresh = $request->fresh();
+        $this->assertNotNull($fresh->location_photo, 'Foto tetap berlaku untuk pengajuan susulan.');
+        $this->assertNull($fresh->location_latitude, 'Koordinat tidak dicatat untuk pengajuan susulan, walau terkirim.');
+    }
+
+    public function test_a_catch_up_photo_does_not_require_coordinates_even_when_the_switch_is_on(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $request = $this->submit();
+        $this->service->approve($request, $this->manager);
+        Carbon::setTestNow('2026-11-15 10:00:00');
+
+        config(['features.field_duty_coords_required' => true]);
+        $this->sendPhoto($request->fresh())->assertSuccessful();
+    }
+
     public function test_a_latitude_without_a_longitude_is_invalid(): void
     {
         $request = $this->approvedForToday();

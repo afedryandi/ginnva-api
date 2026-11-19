@@ -98,6 +98,13 @@ class FieldDutyRequestController extends Controller
             'is_mocked' => ['nullable', 'boolean'],
         ]);
 
+        $user = $request->user('api');
+        $duty = FieldDutyRequest::withoutGlobalScopes()->where('id', $id)->where('user_id', $user->id)->first();
+
+        if (! $duty) {
+            return response()->json(['success' => false, 'message' => 'Pengajuan tidak ditemukan.'], 404);
+        }
+
         // Lokasi palsu (aplikasi pengubah lokasi) ditolak (keputusan pemilik 2026-12-18).
         if ($request->boolean('is_mocked')) {
             return response()->json([
@@ -106,21 +113,15 @@ class FieldDutyRequestController extends Controller
             ], 422);
         }
 
-        // Koordinat wajib untuk foto dari aplikasi begitu aplikasi barunya beredar (saklar fitur); sebelum itu foto tanpa koordinat tetap diterima.
+        // Koordinat wajib untuk foto dari aplikasi pada hari dinas begitu aplikasi barunya beredar (saklar fitur); sebelum itu foto tanpa koordinat
+        // tetap diterima. Pengajuan susulan (tanggal sudah lewat): fotonya tetap berlaku, koordinatnya tidak diminta dan tidak dicatat.
         $hasCoordinates = $request->filled('latitude') && $request->filled('longitude');
 
-        if (! $hasCoordinates && config('features.field_duty_coords_required')) {
+        if (! $hasCoordinates && $duty->locationPhotoNeedsCoordinates() && config('features.field_duty_coords_required')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Lokasi belum terbaca. Nyalakan GPS dan izinkan lokasi untuk aplikasi, lalu ambil foto lagi.',
             ], 422);
-        }
-
-        $user = $request->user('api');
-        $duty = FieldDutyRequest::withoutGlobalScopes()->where('id', $id)->where('user_id', $user->id)->first();
-
-        if (! $duty) {
-            return response()->json(['success' => false, 'message' => 'Pengajuan tidak ditemukan.'], 404);
         }
 
         try {
@@ -140,7 +141,9 @@ class FieldDutyRequestController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Foto di lokasi tersimpan. Dinas luar Anda tercatat hadir.',
+            'message' => $duty->status === 'pending'
+                ? 'Foto di lokasi tersimpan. Pengajuan Anda masih menunggu persetujuan atasan; fotonya ikut dinilai begitu disetujui.'
+                : 'Foto di lokasi tersimpan. Dinas luar Anda tercatat hadir.',
             'field_duty_request' => $this->transform($duty->load('reviewedBy:id,name')),
         ]);
     }
@@ -167,7 +170,10 @@ class FieldDutyRequestController extends Controller
             'location_accuracy' => $r->location_accuracy,
             'location_maps_url' => $r->mapsUrl(),
             // Foto bukti di lokasi wajib di hari dinas: aplikasi menampilkan tombol ambil foto saat ini true.
-            'needs_location_photo' => $r->needsLocationPhoto(),
+            'needs_location_photo' => $r->canSendLocationPhoto(),
+            // Koordinat GPS hanya diminta pada hari dinas; pengajuan susulan cukup foto (boleh dari galeri), tanpa lokasi.
+            'location_photo_needs_coordinates' => $r->locationPhotoNeedsCoordinates(),
+            'location_photo_is_catch_up' => $r->date->lt(today()),
         ];
     }
 }

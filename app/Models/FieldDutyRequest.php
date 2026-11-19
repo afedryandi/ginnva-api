@@ -59,6 +59,26 @@ class FieldDutyRequest extends Model
         return 'https://www.google.com/maps?q=' . $this->location_latitude . ',' . $this->location_longitude;
     }
 
+    /**
+     * Foto di lokasi boleh dikirim sekarang dan belum ada: pengajuan yang sudah disetujui pada hari dinas atau sesudahnya (susulan), atau yang
+     * masih menunggu tetapi hari dinasnya hari ini (karyawan sudah di lokasi sebelum atasan sempat menyetujui; fotonya ikut dinilai begitu disetujui).
+     */
+    public function canSendLocationPhoto(): bool
+    {
+        if (filled($this->location_photo)) {
+            return false;
+        }
+
+        return ($this->status === self::STATUS_APPROVED && $this->date->lte(today()))
+            || ($this->status === self::STATUS_PENDING && $this->date->isToday());
+    }
+
+    /** Koordinat GPS hanya berarti pada hari dinas itu sendiri; untuk pengajuan susulan (tanggal sudah lewat) tidak dicatat dan tidak diwajibkan. */
+    public function locationPhotoNeedsCoordinates(): bool
+    {
+        return $this->date->isToday();
+    }
+
     /** Sudah disetujui, harinya sudah tiba (atau lewat), tetapi foto bukti di lokasi belum dikirim. */
     public function needsLocationPhoto(): bool
     {

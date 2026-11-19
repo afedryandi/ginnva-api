@@ -373,12 +373,16 @@ class FieldDutyRequestService
             throw new RuntimeException('Pengajuan ini bukan milik Anda.');
         }
 
-        if ($request->status !== 'approved') {
-            throw new RuntimeException('Foto di lokasi hanya untuk pengajuan dinas luar yang sudah disetujui.');
+        // Sudah disetujui, atau masih menunggu pada hari dinas (karyawan sudah di lokasi sebelum atasan menyetujui).
+        $isToday = $request->date->isToday();
+
+        if (! ($request->status === 'approved' || ($request->status === 'pending' && $isToday))) {
+            throw new RuntimeException('Foto di lokasi hanya untuk pengajuan dinas luar yang sudah disetujui, atau yang masih menunggu pada hari dinas.');
         }
 
-        if (! $request->date->isToday()) {
-            throw new RuntimeException('Foto di lokasi hanya bisa dikirim pada hari dinas (' . $request->date->translatedFormat('d M Y') . ').');
+        // Hari dinas belum tiba: belum bisa. Hari dinas sudah lewat (pengajuan susulan): foto tetap berlaku, tetapi koordinat tidak dicatat.
+        if ($request->date->isFuture()) {
+            throw new RuntimeException('Foto di lokasi hanya bisa dikirim pada hari dinas (' . $request->date->translatedFormat('d M Y') . ') atau sesudahnya.');
         }
 
         $path = \App\Support\SensitiveFiles::store($photo, 'field-duty-photos');
@@ -388,9 +392,9 @@ class FieldDutyRequestService
         $request->update([
             'location_photo' => $path,
             'location_photo_at' => now(),
-            'location_latitude' => $coordinates['latitude'] ?? null,
-            'location_longitude' => $coordinates['longitude'] ?? null,
-            'location_accuracy' => $coordinates['accuracy'] ?? null,
+            'location_latitude' => $isToday ? ($coordinates['latitude'] ?? null) : null,
+            'location_longitude' => $isToday ? ($coordinates['longitude'] ?? null) : null,
+            'location_accuracy' => $isToday ? ($coordinates['accuracy'] ?? null) : null,
         ]);
         \App\Support\SensitiveFiles::delete($old);
 
