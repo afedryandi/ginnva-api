@@ -96,6 +96,37 @@ class InventoryDashboard extends Page
         ];
     }
 
+    private ?array $widgetsMemo = null;
+
+    /** Daftar widget dihitung sekali per render (getWidgets menjalankan tiga query hitung). */
+    private function widgetsOnce(): array
+    {
+        return $this->widgetsMemo ??= $this->getWidgets();
+    }
+
+    /** Kartu ringkasan di atas (perlu perhatian, aktivitas, nilai), hanya yang boleh dilihat pengguna. */
+    public function getSummaryWidgets(): array
+    {
+        return array_values(array_filter(
+            array_slice($this->widgetsOnce(), 0, 3),
+            fn (string $widget) => $widget::canView(),
+        ));
+    }
+
+    /** Tabel "perlu ditinjau" di bawahnya, urutan mengikuti jumlah baris terbanyak (lihat getWidgets), hanya yang boleh dilihat. */
+    public function getTableWidgets(): array
+    {
+        return array_values(array_filter(
+            array_slice($this->widgetsOnce(), 3),
+            fn (string $widget) => $widget::canView(),
+        ));
+    }
+
+    public function getSubheading(): ?string
+    {
+        return 'Stok bahan, barang habis pakai, dan aset yang perlu ditindak.';
+    }
+
     public function getColumns(): int|array
     {
         return 1;
