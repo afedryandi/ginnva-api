@@ -6,6 +6,7 @@ use App\Filament\Resources\SpkResource;
 use App\Services\SpkService;
 use Filament\Actions;
 use Filament\Notifications\Notification;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 use RuntimeException;
@@ -14,9 +15,34 @@ class EditSpk extends EditRecord
 {
     protected static string $resource = SpkResource::class;
 
+    // Tombol Simpan dan Batal menempel di bawah layar saat form digulir.
+    public static bool $formActionsAreSticky = true;
+
+    /** Konteks di bawah judul: siapa, kendaraan apa, dan di toko mana. */
+    public function getSubheading(): ?string
+    {
+        return collect([$this->record->customer_name, $this->record->vehicle_plate, $this->record->store?->name])
+            ->filter()
+            ->implode(' · ') ?: null;
+    }
+
     protected function getHeaderActions(): array
     {
+        // Cetak sejajar dengan Hapus di kepala halaman, jadi tidak perlu kembali ke daftar untuk mencetak.
         return [
+            Actions\Action::make('print')
+                ->label(fn () => $this->record->checked_out_at ? 'Cetak Ulang (Arsip)' : 'Cetak PDF')
+                ->icon('heroicon-o-printer')
+                ->color('gray')
+                ->action(function () {
+                    $record = $this->record->loadMissing(['checklistItems', 'damageMarks', 'store', 'booking']);
+                    $reprint = $record->checked_out_at !== null;
+                    $pdf = Pdf::loadView('pdf.spk', ['spk' => $record, 'isReprint' => $reprint])->setPaper('a4', 'portrait');
+                    $filename = str_replace('/', '-', $record->spk_number) . ($reprint ? '-arsip' : '') . '.pdf';
+
+                    return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                }),
+
             Actions\DeleteAction::make(),
         ];
     }

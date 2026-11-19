@@ -13,6 +13,15 @@ class CreateSpk extends CreateRecord
 {
     protected static string $resource = SpkResource::class;
 
+    // Tombol Buat dan Batal menempel di bawah layar saat form digulir.
+    public static bool $formActionsAreSticky = true;
+
+    /** Lebar penuh supaya tata letak 2:1 (data di kiri, checklist di kanan) muncul. */
+    public function getMaxContentWidth(): \Filament\Support\Enums\MaxWidth|string|null
+    {
+        return \Filament\Support\Enums\MaxWidth::SevenExtraLarge;
+    }
+
     /**
      * Semua tulis-menulis (nomor SPK, checklist item) WAJIB lewat
      * SpkService -- lihat catatan di SpkResource::checklistRepeater()

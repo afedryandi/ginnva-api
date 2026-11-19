@@ -90,6 +90,14 @@ class SpkFilamentSmokeTest extends TestCase
             ->assertCanSeeTableRecords([$this->spk]);
     }
 
+    public function test_spk_view_page_renders_with_summary_and_checked_items(): void
+    {
+        Livewire::test(\App\Filament\Resources\SpkResource\Pages\ViewSpk::class, ['record' => $this->spk->getKey()])
+            ->assertSuccessful()
+            ->assertSee($this->spk->spk_number)
+            ->assertSee('PPF');
+    }
+
     public function test_spk_create_and_edit_pages_render(): void
     {
         Livewire::test(CreateSpk::class)->assertSuccessful();

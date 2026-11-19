@@ -90,15 +90,15 @@ class SpkResource extends Resource
         return Forms\Components\Repeater::make("checklist_{$category}")
             ->label($label)
             ->addActionLabel('Tambah Item')
-            ->columns(2)
+            ->columns(3)
             ->schema([
                 Forms\Components\TextInput::make('label')
                     ->label('Nama Item')
                     ->required()
-                    ->columnSpan(1),
+                    ->columnSpan(2),
 
                 Forms\Components\Toggle::make('is_checked')
-                    ->label('Dicentang')
+                    ->label('Ya')
                     ->columnSpan(1),
             ])
             ->default(collect(Spk::DEFAULT_CHECKLIST[$category] ?? [])
@@ -110,34 +110,44 @@ class SpkResource extends Resource
 
     public static function form(Form $form): Form
     {
+        // Dua kolom di layar lebar: kiri identitas SPK, pelanggan, dan kendaraan; kanan checklist dan catatan. Tanpa tab, supaya
+        // semua isian terlihat dan terisi dalam satu gulir.
         return $form->schema([
-            Forms\Components\Tabs::make('Tabs')
+            Forms\Components\Grid::make(['default' => 1, 'lg' => 3])
                 ->columnSpanFull()
-                ->tabs([
-                    Forms\Components\Tabs\Tab::make('Informasi')
+                ->schema([
+                    Forms\Components\Group::make()
+                        ->columnSpan(['lg' => 2])
                         ->schema(static::informationTabSchema()),
 
-                    Forms\Components\Tabs\Tab::make('Checklist')
-                        ->schema(static::checklistTabSchema()),
-
-                    Forms\Components\Tabs\Tab::make('Kondisi Kendaraan')
-                        ->visible(fn (?Spk $record) => $record !== null)
-                        ->badge(fn (?Spk $record) => $record?->damageMarks->count() ?: null)
+                    Forms\Components\Group::make()
+                        ->columnSpan(['lg' => 1])
                         ->schema([
-                            Forms\Components\ViewField::make('damage_diagram')
-                                ->label('')
-                                ->view('filament.spk.damage-diagram')
-                                ->viewData(fn (?Spk $record) => ['record' => $record]),
+                            ...static::checklistTabSchema(),
 
-                            static::damageMarksPlaceholder(),
+                            Forms\Components\Section::make('Catatan')
+                                ->icon('heroicon-o-pencil-square')
+                                ->schema([
+                                    Forms\Components\Textarea::make('notes')
+                                        ->hiddenLabel()
+                                        ->placeholder('Catatan tambahan untuk pengerjaan')
+                                        ->rows(4),
+                                ]),
                         ]),
+                ]),
 
-                    Forms\Components\Tabs\Tab::make('Catatan')
-                        ->schema([
-                            Forms\Components\Textarea::make('notes')
-                                ->label('')
-                                ->rows(3),
-                        ]),
+            Forms\Components\Section::make('Kondisi Kendaraan')
+                ->icon('heroicon-o-exclamation-triangle')
+                ->description('Titik kerusakan ditandai dari aplikasi karyawan.')
+                ->visible(fn (?Spk $record) => $record !== null)
+                ->columnSpanFull()
+                ->schema([
+                    Forms\Components\ViewField::make('damage_diagram')
+                        ->label('')
+                        ->view('filament.spk.damage-diagram')
+                        ->viewData(fn (?Spk $record) => ['record' => $record]),
+
+                    static::damageMarksPlaceholder(),
                 ]),
         ]);
     }
@@ -284,7 +294,7 @@ class SpkResource extends Resource
             Forms\Components\Section::make('Data Kendaraan')
                 ->description('Identitas dan kondisi awal kendaraan saat masuk.')
                 ->icon('heroicon-o-truck')
-                ->columns(['default' => 1, 'sm' => 2, 'xl' => 4])
+                ->columns(['default' => 1, 'sm' => 2])
                 ->schema([
                     Forms\Components\TextInput::make('vehicle_plate')
                         ->label('No. Polisi')
@@ -329,7 +339,6 @@ class SpkResource extends Resource
             Forms\Components\Section::make('Uraian Pekerjaan')
                 ->description('Pekerjaan yang dikerjakan; layanan dari booking tercentang otomatis.')
                 ->icon('heroicon-o-wrench-screwdriver')
-                ->collapsed()
                 ->schema([static::checklistRepeater('pekerjaan', '')]),
 
             Forms\Components\Section::make('Extra Services')
@@ -344,6 +353,103 @@ class SpkResource extends Resource
                 ->collapsed()
                 ->schema([static::checklistRepeater('perlengkapan', '')]),
         ];
+    }
+
+    public static function infolist(\Filament\Infolists\Infolist $infolist): \Filament\Infolists\Infolist
+    {
+        $entry = \Filament\Infolists\Components\TextEntry::class;
+        $checked = fn (string $category) => fn (Spk $record) => $record->checklistItems
+            ->where('category', $category)->where('is_checked', true)->pluck('label')->values()->all();
+
+        return $infolist->schema([
+            // Dua kolom: kiri pelanggan, kendaraan, kondisi; kanan ringkasan, checklist tercentang, catatan.
+            \Filament\Infolists\Components\Grid::make(['default' => 1, 'lg' => 3])
+                ->columnSpanFull()
+                ->schema([
+                    \Filament\Infolists\Components\Group::make()
+                        ->columnSpan(['lg' => 2])
+                        ->schema([
+                            \Filament\Infolists\Components\Section::make('Pelanggan')
+                                ->icon('heroicon-o-user')
+                                ->columns(2)
+                                ->schema([
+                                    $entry::make('customer_name')->label('Nama')->placeholder('—'),
+                                    $entry::make('phone_number')->label('Telepon')->placeholder('—'),
+                                    $entry::make('address')->label('Alamat')->placeholder('—')->columnSpanFull(),
+                                ]),
+
+                            \Filament\Infolists\Components\Section::make('Kendaraan')
+                                ->icon('heroicon-o-truck')
+                                ->columns(['default' => 1, 'sm' => 2])
+                                ->schema([
+                                    $entry::make('vehicle_plate')->label('No. Polisi')->placeholder('—'),
+                                    $entry::make('vehicle_vin')->label('No. Rangka')->placeholder('—'),
+                                    $entry::make('vehicle_brand')->label('Merek')->placeholder('—'),
+                                    $entry::make('vehicle_year')->label('Tahun')->placeholder('—'),
+                                    $entry::make('vehicle_type')->label('Jenis')->placeholder('—')->formatStateUsing(fn ($state) => Spk::VEHICLE_TYPE_LABELS[$state] ?? $state),
+                                    $entry::make('vehicle_km')->label('Kilometer')->placeholder('—')->numeric(),
+                                    $entry::make('fuel_level')->label('BBM')->placeholder('—')->formatStateUsing(fn ($state) => Spk::FUEL_LEVEL_LABELS[$state] ?? $state),
+                                    $entry::make('battery_note')->label('Battery')->placeholder('—'),
+                                ]),
+
+                            \Filament\Infolists\Components\Section::make('Kondisi Kendaraan')
+                                ->icon('heroicon-o-exclamation-triangle')
+                                ->description('Titik kerusakan ditandai dari aplikasi karyawan.')
+                                ->schema([
+                                    \Filament\Infolists\Components\ViewEntry::make('damage_diagram')
+                                        ->hiddenLabel()
+                                        ->view('filament.spk.damage-diagram')
+                                        ->viewData(fn (Spk $record) => ['record' => $record]),
+
+                                    $entry::make('damage_list')
+                                        ->hiddenLabel()
+                                        ->state(fn (Spk $record) => $record->damageMarks
+                                            ->map(fn ($mark) => $mark->code . ' — ' . (Spk::DAMAGE_CODE_LABELS[$mark->code] ?? $mark->code) . ($mark->note ? ' — ' . $mark->note : ''))
+                                            ->all())
+                                        ->bulleted()
+                                        ->placeholder('Belum ada titik kerusakan ditandai dari aplikasi.'),
+                                ]),
+                        ]),
+
+                    \Filament\Infolists\Components\Group::make()
+                        ->columnSpan(['lg' => 1])
+                        ->schema([
+                            \Filament\Infolists\Components\Section::make('Ringkasan')
+                                ->icon('heroicon-o-clipboard-document-check')
+                                ->columns(1)
+                                ->schema([
+                                    $entry::make('spk_number')->label('No. SPK')->copyable(),
+                                    $entry::make('status_kerja')
+                                        ->label('Status')
+                                        ->badge()
+                                        ->state(fn (Spk $record) => $record->checked_out_at ? 'Sudah keluar' : 'Dikerjakan')
+                                        ->color(fn (string $state) => $state === 'Sudah keluar' ? 'success' : 'warning'),
+                                    $entry::make('store.name')->label('Toko')->placeholder('—'),
+                                    $entry::make('booking.booking_number')->label('Booking')->placeholder('SPK manual (tanpa booking)'),
+                                    $entry::make('installers.name')->label('Installer')->badge()->placeholder('—')
+                                        ->visible(fn (Spk $record) => blank($record->booking_id)),
+                                    $entry::make('checked_in_at')->label('Jam Masuk')->dateTime('d M Y, H:i')->placeholder('—'),
+                                    $entry::make('checked_out_at')->label('Jam Keluar')->dateTime('d M Y, H:i')->placeholder('Belum keluar'),
+                                ]),
+
+                            \Filament\Infolists\Components\Section::make('Checklist')
+                                ->icon('heroicon-o-check-circle')
+                                ->description('Hanya butir yang tercentang.')
+                                ->columns(1)
+                                ->schema([
+                                    $entry::make('c_pekerjaan')->label('Uraian Pekerjaan')->state($checked('pekerjaan'))->badge()->color('success')->placeholder('—'),
+                                    $entry::make('c_extra')->label('Extra Services')->state($checked('extra_service'))->badge()->color('info')->placeholder('—'),
+                                    $entry::make('c_perlengkapan')->label('Perlengkapan Kendaraan')->state($checked('perlengkapan'))->badge()->color('gray')->placeholder('—'),
+                                ]),
+
+                            \Filament\Infolists\Components\Section::make('Catatan')
+                                ->icon('heroicon-o-pencil-square')
+                                ->schema([
+                                    $entry::make('notes')->hiddenLabel()->placeholder('Tidak ada catatan.'),
+                                ]),
+                        ]),
+                ]),
+        ]);
     }
 
     /**
@@ -523,6 +629,7 @@ class SpkResource extends Resource
         return [
             'index' => Pages\ListSpks::route('/'),
             'create' => Pages\CreateSpk::route('/create'),
+            'view' => Pages\ViewSpk::route('/{record}'),
             'edit' => Pages\EditSpk::route('/{record}/edit'),
         ];
     }
