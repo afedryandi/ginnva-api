@@ -80,6 +80,14 @@ class ApprovalCenter extends Page implements HasActions, HasForms
         return 'danger';
     }
 
+    /** Ringkasan satu kalimat di bawah judul. */
+    public function getSubheading(): ?string
+    {
+        $total = array_sum($this->getCounts());
+
+        return $total > 0 ? "{$total} pengajuan menunggu keputusan." : 'Tidak ada pengajuan yang menunggu.';
+    }
+
     /** @return Collection<int, \App\Support\Approvals\ApprovalItem> */
     public function getItems(): Collection
     {

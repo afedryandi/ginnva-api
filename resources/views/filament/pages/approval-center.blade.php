@@ -8,24 +8,34 @@
             .ap { --ap-surface: #fff; --ap-line: rgba(var(--gray-200), .7); --ap-title: rgb(var(--gray-900)); --ap-text: rgb(var(--gray-700)); --ap-muted: rgb(var(--gray-500)); --ap-hover: rgba(var(--gray-100), .8); --ap-soft: rgba(var(--primary-500), .08); --ap-accent: rgb(var(--primary-600)); --ap-warn-bg: rgba(245, 158, 11, .14); --ap-warn: #92400e; display: flex; flex-direction: column; gap: 1rem; font-variant-numeric: tabular-nums; }
             .dark .ap { --ap-surface: rgb(var(--gray-900)); --ap-line: rgba(255, 255, 255, .08); --ap-title: rgb(var(--gray-50)); --ap-text: rgb(var(--gray-200)); --ap-muted: rgb(var(--gray-400)); --ap-hover: rgba(255, 255, 255, .05); --ap-soft: rgba(var(--primary-400), .14); --ap-accent: rgb(var(--primary-300)); --ap-warn-bg: rgba(245, 158, 11, .18); --ap-warn: #fcd34d; }
 
-            /* Ringkasan: dua angka kecil di atas daftar. */
-            .ap-summary { display: flex; flex-wrap: wrap; gap: .75rem; }
-            .ap-stat { flex: 1 1 11rem; max-width: 16rem; padding: .875rem 1rem; background: var(--ap-surface); border: 1px solid var(--ap-line); border-radius: 1rem; }
+            /* Tata letak 2:1: daftar di kiri (2/3), kolom samping di kanan (1/3) berisi ringkasan dan penyaring jenis. Di layar sempit kolom samping naik ke atas. */
+            .ap-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+            .ap-main { min-width: 0; }
+            .ap-side { display: flex; flex-direction: column; gap: 1.5rem; order: -1; min-width: 0; }
+            @media (min-width: 1024px) {
+                .ap-layout { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+                .ap-side { order: 0; }
+            }
+            .ap-card { background: var(--ap-surface); border: 1px solid var(--ap-line); border-radius: 1.25rem; padding: 1.25rem; }
+            .ap-card-title { margin-bottom: .875rem; font-size: .75rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--ap-muted); }
+
+            /* Ringkasan: dua angka. */
+            .ap-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
             .ap-stat-label { font-size: .75rem; color: var(--ap-muted); }
-            .ap-stat-value { margin-top: .125rem; font-size: 1.5rem; line-height: 2rem; font-weight: 650; letter-spacing: -.01em; color: var(--ap-title); }
+            .ap-stat-value { margin-top: .125rem; font-size: 1.75rem; line-height: 2.25rem; font-weight: 650; letter-spacing: -.01em; color: var(--ap-title); }
             .ap-stat-value.is-warn { color: var(--ap-warn); }
 
-            /* Filter jenis: pil lembut, yang aktif berlatar primer. */
-            .ap-filter { display: flex; flex-wrap: wrap; gap: .375rem; }
-            .ap-pill { display: inline-flex; align-items: center; gap: .5rem; height: 2.25rem; padding: 0 .875rem; border: 1px solid var(--ap-line); border-radius: 999px; background: var(--ap-surface); font-size: .8125rem; font-weight: 600; color: var(--ap-text); cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+            /* Penyaring jenis: daftar vertikal, yang aktif berlatar primer lembut, jumlah rata kanan. */
+            .ap-filter { display: flex; flex-direction: column; gap: .25rem; }
+            .ap-pill { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; min-height: 2.5rem; padding: 0 .75rem; border: 1px solid transparent; border-radius: .875rem; background: transparent; font-size: .875rem; font-weight: 550; color: var(--ap-text); text-align: left; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
             .ap-pill:hover { background: var(--ap-hover); }
             .ap-pill:focus-visible { outline: 2px solid rgb(var(--primary-500)); outline-offset: 2px; }
-            .ap-pill-count { min-width: 1.375rem; padding: 0 .375rem; border-radius: 999px; background: var(--ap-hover); font-size: .75rem; line-height: 1.375rem; text-align: center; color: var(--ap-muted); }
-            .ap-pill.is-active { background: var(--ap-soft); border-color: rgba(var(--primary-500), .35); color: var(--ap-accent); }
+            .ap-pill-count { min-width: 1.5rem; padding: 0 .4rem; border-radius: 999px; background: var(--ap-hover); font-size: .75rem; line-height: 1.5rem; text-align: center; color: var(--ap-muted); }
+            .ap-pill.is-active { background: var(--ap-soft); border-color: rgba(var(--primary-500), .3); color: var(--ap-accent); }
             .ap-pill.is-active .ap-pill-count { background: rgb(var(--primary-600)); color: #fff; }
 
             /* Daftar: satu kartu berisi baris-baris bersekat tipis. */
-            .ap-list { background: var(--ap-surface); border: 1px solid var(--ap-line); border-radius: 1rem; overflow: hidden; }
+            .ap-list { background: var(--ap-surface); border: 1px solid var(--ap-line); border-radius: 1.25rem; overflow: hidden; }
             .ap-row { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; padding: 1rem 1.25rem; transition: background .15s ease; }
             .ap-row + .ap-row { border-top: 1px solid var(--ap-line); }
             .ap-row:hover { background: var(--ap-hover); }
@@ -66,30 +76,8 @@
     @endphp
 
     <div class="ap">
-        <div class="ap-summary">
-            <div class="ap-stat">
-                <div class="ap-stat-label">Menunggu keputusan</div>
-                <div class="ap-stat-value">{{ $total }}</div>
-            </div>
-            <div class="ap-stat">
-                <div class="ap-stat-label">Lebih dari sehari</div>
-                <div class="ap-stat-value {{ $stale > 0 ? 'is-warn' : '' }}">{{ $stale }}</div>
-            </div>
-        </div>
-
-        <div class="ap-filter" role="tablist" aria-label="Jenis pengajuan">
-            <button type="button" role="tab" aria-selected="{{ $this->source ? 'false' : 'true' }}" wire:click="filterBy(null)" class="ap-pill {{ $this->source ? '' : 'is-active' }}">
-                Semua <span class="ap-pill-count">{{ $total }}</span>
-            </button>
-            @foreach ($labels as $key => $label)
-                @if (($counts[$key] ?? 0) > 0 || $this->source === $key)
-                    <button type="button" role="tab" aria-selected="{{ $this->source === $key ? 'true' : 'false' }}" wire:click="filterBy('{{ $key }}')" class="ap-pill {{ $this->source === $key ? 'is-active' : '' }}">
-                        {{ $label }} <span class="ap-pill-count">{{ $counts[$key] ?? 0 }}</span>
-                    </button>
-                @endif
-            @endforeach
-        </div>
-
+        <div class="ap-layout">
+        <div class="ap-main">
         @if (count($items) > 0)
             <div class="ap-list">
                 @foreach ($items as $item)
@@ -138,6 +126,40 @@
                 <div class="ap-empty-text">Semua pengajuan sudah diputuskan. Pengajuan baru muncul di sini dan di lencana menu.</div>
             </div>
         @endif
+        </div>
+
+        <aside class="ap-side">
+            <section class="ap-card">
+                <div class="ap-card-title">Ringkasan</div>
+                <div class="ap-summary">
+                    <div>
+                        <div class="ap-stat-label">Menunggu keputusan</div>
+                        <div class="ap-stat-value">{{ $total }}</div>
+                    </div>
+                    <div>
+                        <div class="ap-stat-label">Lebih dari sehari</div>
+                        <div class="ap-stat-value {{ $stale > 0 ? 'is-warn' : '' }}">{{ $stale }}</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="ap-card">
+                <div class="ap-card-title">Jenis pengajuan</div>
+                <div class="ap-filter" role="tablist" aria-label="Jenis pengajuan">
+                    <button type="button" role="tab" aria-selected="{{ $this->source ? 'false' : 'true' }}" wire:click="filterBy(null)" class="ap-pill {{ $this->source ? '' : 'is-active' }}">
+                        Semua <span class="ap-pill-count">{{ $total }}</span>
+                    </button>
+                    @foreach ($labels as $key => $label)
+                        @if (($counts[$key] ?? 0) > 0 || $this->source === $key)
+                            <button type="button" role="tab" aria-selected="{{ $this->source === $key ? 'true' : 'false' }}" wire:click="filterBy('{{ $key }}')" class="ap-pill {{ $this->source === $key ? 'is-active' : '' }}">
+                                {{ $label }} <span class="ap-pill-count">{{ $counts[$key] ?? 0 }}</span>
+                            </button>
+                        @endif
+                    @endforeach
+                </div>
+            </section>
+        </aside>
+        </div>
     </div>
 
     <x-filament-actions::modals />
