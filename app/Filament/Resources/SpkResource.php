@@ -457,9 +457,18 @@ class SpkResource extends Resource
                         return $out;
                     }),
 
-                Tables\Filters\Filter::make('ada_kerusakan')
-                    ->label('Ada titik kerusakan')
-                    ->query(fn (Builder $query) => $query->whereHas('damageMarks')),
+                // Kotak pilih (Semua / Ada / Belum ada), bukan kotak centang: tingginya sama dengan isian lain di baris filter, jadi baris rapi dan
+                // sejajar (kotak centang tanpa label mengambang di atas isian bernama).
+                Tables\Filters\TernaryFilter::make('ada_kerusakan')
+                    ->label('Titik kerusakan')
+                    ->placeholder('Semua')
+                    ->trueLabel('Ada titik kerusakan')
+                    ->falseLabel('Belum ada titik kerusakan')
+                    ->queries(
+                        true: fn (Builder $query) => $query->whereHas('damageMarks'),
+                        false: fn (Builder $query) => $query->whereDoesntHave('damageMarks'),
+                        blank: fn (Builder $query) => $query,
+                    ),
             ], layout: FiltersLayout::AboveContentCollapsible)
             ->filtersFormColumns(3)
             ->defaultSort('created_at', 'desc')

@@ -73,8 +73,13 @@ class SpkFilamentSmokeTest extends TestCase
     {
         Livewire::test(ListSpks::class)
             ->set('activeTab', 'semua')
-            ->filterTable('ada_kerusakan')
+            ->filterTable('ada_kerusakan', true)
             ->assertCanNotSeeTableRecords([$this->spk]);
+
+        Livewire::test(ListSpks::class)
+            ->set('activeTab', 'semua')
+            ->filterTable('ada_kerusakan', false)
+            ->assertCanSeeTableRecords([$this->spk]);
 
         $this->assertTrue(\App\Support\CleanUi::appliesTo(new ListSpks()));
     }
