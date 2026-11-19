@@ -180,8 +180,7 @@
     @endif
 
     <div class="footer">
-        <strong>{{ $company['name'] }}</strong>@if ($company['npwp']) &middot; NPWP {{ $company['npwp'] }}@endif @if ($company['klu']) &middot; KLU {{ $company['klu'] }}@endif<br>
-        Dicetak {{ now()->translatedFormat('d F Y H:i') }} &mdash; dokumen ini bukan Faktur Pajak.
+        <strong>{{ $company['name'] }}</strong>@if ($company['npwp']) &middot; NPWP {{ $company['npwp'] }}@endif @if ($company['klu']) &middot; KLU {{ $company['klu'] }}@endif
     </div>
 
 </body>
