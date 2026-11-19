@@ -1251,6 +1251,34 @@ class BookingResource extends Resource
             ])
             ->defaultGroup('preferred_date')
             ->filters([
+                // Pilihan (kotak pilih) di baris pertama, lalu kotak centang: baris dengan isi sejenis rapi dan tidak berselang-seling tinggi.
+                Tables\Filters\SelectFilter::make('source')
+                    ->label('Asal Booking')
+                    ->options([
+                        'app'      => 'Mobile App',
+                        'whatsapp' => 'WhatsApp',
+                        'walk_in'  => 'Walk-in',
+                    ]),
+
+                Tables\Filters\SelectFilter::make('store_id')
+                    ->label('Toko')
+                    ->searchable()
+                    ->preload()
+                    ->relationship('store', 'name')
+                    ->visible(fn () => auth()->user()?->isFullAccess()),
+
+                // Bawaan "Aktif": pending/confirmed APAPUN tanggalnya (pending
+                // lewat tanggal & job multi-hari yang mulai kemarin tidak boleh
+                // hilang dari daftar), ditambah yang selesai/batal yang
+                // tanggalnya hari ini atau mendatang.
+                Tables\Filters\SelectFilter::make('cancelled_by_type')
+                    ->label('Dibatalkan oleh')
+                    ->options([
+                        'customer' => 'Pelanggan',
+                        'staff'    => 'Karyawan',
+                        'system'   => 'Sistem',
+                    ]),
+
                 Tables\Filters\Filter::make('pending_sla')
                     ->label('Menunggu > 4 jam (lewat SLA)')
                     ->query(fn (Builder $query) => $query->where('status', 'pending')->where('created_at', '<=', now()->subHours(4))),
@@ -1283,33 +1311,6 @@ class BookingResource extends Resource
                     ->label('Ada pengajuan pembatalan')
                     ->query(fn (Builder $query) => $query->whereHas('cancellationRequests', fn ($q) => $q->where('status', 'pending'))),
 
-                Tables\Filters\SelectFilter::make('cancelled_by_type')
-                    ->label('Dibatalkan oleh')
-                    ->options([
-                        'customer' => 'Pelanggan',
-                        'staff'    => 'Karyawan',
-                        'system'   => 'Sistem',
-                    ]),
-
-                Tables\Filters\SelectFilter::make('source')
-                    ->label('Asal Booking')
-                    ->options([
-                        'app'      => 'Mobile App',
-                        'whatsapp' => 'WhatsApp',
-                        'walk_in'  => 'Walk-in',
-                    ]),
-
-                Tables\Filters\SelectFilter::make('store_id')
-                    ->label('Toko')
-                    ->searchable()
-                    ->preload()
-                    ->relationship('store', 'name')
-                    ->visible(fn () => auth()->user()?->isFullAccess()),
-
-                // Bawaan "Aktif": pending/confirmed APAPUN tanggalnya (pending
-                // lewat tanggal & job multi-hari yang mulai kemarin tidak boleh
-                // hilang dari daftar), ditambah yang selesai/batal yang
-                // tanggalnya hari ini atau mendatang.
                 Tables\Filters\Filter::make('upcoming')
                     ->label('Aktif & akan datang')
                     ->query(fn (Builder $query) => $query->where(fn (Builder $q) => $q

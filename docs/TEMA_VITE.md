@@ -26,3 +26,9 @@ Mengembalikan seluruhnya (termasuk berkas tema): `git revert` commit tema, lalu 
 
 - Font Plus Jakarta Sans dimuat lewat `->font()` Filament (penyedia Bunny Fonts); warna utama tetap merah Ginnva, netral memakai slate.
 - Menu yang dirombak satu per satu (`App\Support\CleanUi`) tetap memakai gayanya sendiri di atas tema ini.
+
+## Deploy satu perintah
+
+`bash scripts/deploy.sh` (atau `bash scripts/deploy.sh --migrate`) menarik kode lalu menjalankan `npm install` dan `npm run build` hanya bila berkas
+yang memengaruhi tema berubah (CSS, JS, view dan kelas Filament, `package*.json`, konfigurasi Vite/Tailwind) atau hasil build belum ada, lalu
+membersihkan dan membangun ulang cache. Tes tidak ikut: jalankan terpisah SEBELUM skrip ini (cache konfigurasi membuat tes mengarah ke database dev).
