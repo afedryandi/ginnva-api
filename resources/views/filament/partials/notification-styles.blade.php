@@ -19,8 +19,8 @@
         --nt-soft: rgba(var(--primary-500), .08);
         --nt-soft-hover: rgba(var(--primary-500), .14);
         --nt-soft-text: rgb(var(--primary-700));
-        border-radius: 1rem 0 0 1rem;
-        box-shadow: -16px 0 40px -16px rgba(var(--gray-950), .22);
+        border-radius: 1.5rem 0 0 1.5rem;
+        box-shadow: -16px 0 40px -20px rgba(var(--gray-950), .16);
         --tw-ring-shadow: 0 0 #0000; --tw-ring-color: transparent;
     }
     .dark .fi-modal-window:has(.fi-no-notification) {
@@ -46,12 +46,22 @@
     .fi-modal-window:has(.fi-no-notification) .fi-modal-header .fi-link.fi-color-primary:hover { background: var(--nt-soft-hover); }
     .fi-modal-window:has(.fi-no-notification) .fi-modal-header .fi-link.fi-color-danger { color: var(--nt-muted); }
 
-    /* Daftar: pemisah tipis, belum dibaca berlatar tipis dengan garis primer di kiri (bawaan Filament). */
-    .fi-modal-window:has(.fi-no-notification) .divide-y > * + * { border-color: var(--nt-line); }
-    .fi-modal-window:has(.fi-no-notification) [class*="before:bg-primary-600"] { background: var(--nt-unread); }
+    /* Daftar: tiap notifikasi berupa kartu terpisah (sudut halus, garis tipis, jarak lega) di atas latar redup, bukan baris bersambung. */
+    .fi-modal-window:has(.fi-no-notification) .fi-modal-content { background: rgba(var(--gray-50), .6); }
+    .dark .fi-modal-window:has(.fi-no-notification) .fi-modal-content { background: rgba(255, 255, 255, .02); }
+    .fi-modal-window:has(.fi-no-notification) .divide-y { display: flex; flex-direction: column; gap: .625rem; padding: .875rem 1rem 1.25rem; }
+    .fi-modal-window:has(.fi-no-notification) .divide-y > * {
+        border: 1px solid var(--nt-line) !important; border-radius: 1.125rem; overflow: hidden; background: #fff; position: relative;
+    }
+    .dark .fi-modal-window:has(.fi-no-notification) .divide-y > * { background: rgb(var(--gray-900)); }
+    /* Belum dibaca: latar putih dengan semburat primer sangat tipis dan penanda garis pendek di kiri (bukan blok merah penuh). */
+    .fi-modal-window:has(.fi-no-notification) [class*="before:bg-primary-600"] { background-image: linear-gradient(var(--nt-unread), var(--nt-unread)); }
+    .fi-modal-window:has(.fi-no-notification) [class*="before:bg-primary-600"]::before {
+        top: 1.125rem; bottom: auto; height: 1.25rem; width: .1875rem; border-radius: 0 .25rem .25rem 0;
+    }
 
     /* Satu notifikasi: ruang lega, judul tegas, tanggal dan isi redup. */
-    .fi-no-notification.fi-inline > div { padding: 1rem 1.5rem; gap: .75rem; }
+    .fi-no-notification.fi-inline > div { padding: 1rem 1.25rem; gap: .75rem; }
     .fi-no-notification.fi-inline .fi-no-notification-title { font-size: .875rem; line-height: 1.25rem; font-weight: 600; color: var(--nt-ink, rgb(var(--gray-950))); }
     .fi-no-notification.fi-inline .fi-no-notification-date { font-size: .75rem; color: var(--nt-muted, rgb(var(--gray-500))); }
     .fi-no-notification.fi-inline .fi-no-notification-body { font-size: .8125rem; line-height: 1.35rem; color: var(--nt-body, rgb(var(--gray-600))); }
@@ -62,9 +72,9 @@
         padding: .3125rem .75rem; font-size: .75rem; font-weight: 600; border-radius: .5rem; box-shadow: none; --tw-ring-shadow: 0 0 #0000;
     }
     .fi-no-notification.fi-inline .fi-btn.fi-btn-color-primary {
-        background: var(--nt-soft); color: var(--nt-soft-text); --tw-ring-color: transparent;
+        background: transparent; color: var(--nt-soft-text); border: 1px solid var(--nt-line, rgba(var(--gray-200), .7)); --tw-ring-color: transparent;
     }
-    .fi-no-notification.fi-inline .fi-btn.fi-btn-color-primary:hover { background: var(--nt-soft-hover); }
+    .fi-no-notification.fi-inline .fi-btn.fi-btn-color-primary:hover { background: var(--nt-soft); border-color: transparent; }
 
     /* Tombol tutup (X) per notifikasi dan di kepala: kecil dan redup. */
     .fi-no-notification.fi-inline .fi-icon-btn { width: 1.75rem; height: 1.75rem; border-radius: .5rem; color: var(--nt-muted, rgb(var(--gray-500))); }
