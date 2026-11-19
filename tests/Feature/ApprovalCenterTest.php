@@ -318,6 +318,44 @@ class ApprovalCenterTest extends TestCase
         $this->assertSame('pending', $request->fresh()->status);
     }
 
+    public function test_a_view_only_employee_sees_the_summary_of_store_requests_without_deciding_rights(): void
+    {
+        $duty = $this->fieldDuty();
+        $ally = $this->user('kasir', $this->store, 'Budi', 'budi@test.local');
+        $ally->update(['approval_center_access' => 'view']);
+
+        $items = $this->center->items($ally->fresh(), 'field_duty');
+
+        $this->assertCount(1, $items, 'Tingkat lihat saja melihat ringkasan pengajuan tokonya, tanpa harus store manager atau punya aksi Ubah.');
+        $this->assertSame($duty->id, $items->first()->id);
+        $this->assertFalse($this->center->canDecide($ally->fresh()), 'Tombol Setujui dan Tolak tetap tidak ada.');
+    }
+
+    public function test_a_view_only_employee_does_not_see_other_stores_or_their_own_requests(): void
+    {
+        $this->fieldDuty();   // pengajuan Andi (toko A)
+        $andiView = $this->andi;
+        $andiView->update(['approval_center_access' => 'view']);
+        $otherStoreWorker = $this->user('kasir', $this->otherStore, 'Citra', 'citra@test.local');
+        $otherStoreWorker->update(['approval_center_access' => 'view']);
+
+        $this->assertCount(0, $this->center->items($andiView->fresh(), 'field_duty'), 'Pengajuan milik sendiri tidak ikut.');
+        $this->assertCount(0, $this->center->items($otherStoreWorker->fresh(), 'field_duty'), 'Toko lain tidak terlihat.');
+    }
+
+    public function test_the_detail_link_appears_only_for_those_who_can_open_the_menu(): void
+    {
+        $this->fieldDuty();
+        $viewer = $this->user('kasir', $this->store, 'Dewi', 'dewi@test.local');
+        $viewer->update(['approval_center_access' => 'view', 'menu_access' => ['QuotationResource']]);   // menu Pengajuan Dinas Luar tidak dicentang
+
+        $this->assertNull($this->center->items($viewer->fresh(), 'field_duty')->first()->url, 'Tanpa akses menu aslinya, tidak ada tautan Detail.');
+
+        $viewer->update(['menu_access' => ['QuotationResource', 'FieldDutyRequestResource']]);
+
+        $this->assertNotNull($this->center->items($viewer->fresh(), 'field_duty')->first()->url);
+    }
+
     public function test_the_explicit_choice_none_closes_the_page(): void
     {
         $this->manager->update(['approval_center_access' => 'none']);

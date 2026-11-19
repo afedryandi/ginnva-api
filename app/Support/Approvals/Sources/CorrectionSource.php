@@ -40,7 +40,7 @@ class CorrectionSource extends BaseSource
             ->where('requested_by', '!=', $user->id)
             ->orderBy('created_at')
             ->get()
-            ->filter(fn (AttendanceCorrectionRequest $r) => $user->isFullAccess() || ($user->isStoreManager() && $this->inStore($user, $r->store_id)))
+            ->filter(fn (AttendanceCorrectionRequest $r) => $user->isFullAccess() || ($user->isStoreManager() && $this->inStore($user, $r->store_id)) || $this->canGlance($user, (int) $r->store_id))
             ->map(fn (AttendanceCorrectionRequest $r) => new ApprovalItem(
                 source: $this->key(),
                 id: $r->id,
@@ -50,7 +50,7 @@ class CorrectionSource extends BaseSource
                 summary: $r->date->translatedFormat('d M Y') . ': masuk ' . ($r->clock_in_at?->format('H:i') ?? '—') . ', keluar ' . ($r->clock_out_at?->format('H:i') ?? '—') . ' · ' . $r->reason,
                 store: $r->store?->name,
                 submittedAt: $r->created_at,
-                url: $this->url(AttendanceCorrectionRequestResource::class, $r->id),
+                url: $this->urlFor($user, AttendanceCorrectionRequestResource::class, $r->id),
                 inline: true,
             ))
             ->values();

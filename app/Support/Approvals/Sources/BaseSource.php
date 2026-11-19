@@ -60,6 +60,26 @@ abstract class BaseSource implements ApprovalSource
         return $user->isFullAccess() || ($user->store_id !== null && (int) $user->store_id === (int) $storeId);
     }
 
+    /**
+     * Tingkat "lihat saja" di Pusat Persetujuan: boleh melihat ringkasan pengajuan karyawan tokonya sendiri tanpa harus bisa memutuskannya
+     * (tanpa aksi Ubah di menu aslinya dan bukan store manager). Pengajuan miliknya sendiri tidak ikut. Yang bertingkat memutuskan tetap
+     * memakai aturan memutuskan masing-masing jenis.
+     */
+    protected function canGlance(User $user, ?int $storeId, ?int $ownerId = null): bool
+    {
+        if (app(\App\Services\ApprovalCenterService::class)->level($user) !== \App\Services\ApprovalCenterService::LEVEL_VIEW) {
+            return false;
+        }
+
+        return ($ownerId === null || (int) $ownerId !== (int) $user->id) && $this->inStore($user, $storeId);
+    }
+
+    /** Alamat halaman asli sebuah pengajuan, hanya bagi yang boleh membuka menunya (yang lain cukup melihat ringkasan di Pusat Persetujuan). */
+    protected function urlFor(User $user, string $resource, mixed $record = null): ?string
+    {
+        return $this->canOpenMenu($user, $resource) ? $this->url($resource, $record) : null;
+    }
+
     /** Menu ini terbuka bagi pengguna (akses penuh, atau dicentang di Hak Akses). */
     protected function canOpenMenu(User $user, string $resource): bool
     {

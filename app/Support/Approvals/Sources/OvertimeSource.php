@@ -40,7 +40,7 @@ class OvertimeSource extends BaseSource
             ->where('status', OvertimeRequest::STATUS_PENDING)
             ->orderBy('created_at')
             ->get()
-            ->filter(fn (OvertimeRequest $r) => $service->canDecide($user, $r))
+            ->filter(fn (OvertimeRequest $r) => $service->canDecide($user, $r) || $this->canGlance($user, (int) $r->store_id, (int) $r->user_id))
             ->map(fn (OvertimeRequest $r) => new ApprovalItem(
                 source: $this->key(),
                 id: $r->id,
@@ -50,7 +50,7 @@ class OvertimeSource extends BaseSource
                 summary: $r->starts_at->translatedFormat('d M Y') . ' pukul ' . $r->starts_at->format('H:i') . '–' . $r->ends_at->format('H:i') . ' · ' . $r->workLabel(),
                 store: $r->store?->name,
                 submittedAt: $r->created_at,
-                url: $this->url(OvertimeRequestResource::class, $r->id),
+                url: $this->urlFor($user, OvertimeRequestResource::class, $r->id),
                 inline: true,
             ))
             ->values();

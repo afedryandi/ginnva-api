@@ -38,7 +38,7 @@ class LeaveSource extends BaseSource
             ->where('status', 'pending')
             ->orderBy('created_at')
             ->get()
-            ->filter(fn (LeaveRequest $r) => $user->canDecideLeaveFor($r))
+            ->filter(fn (LeaveRequest $r) => $user->canDecideLeaveFor($r) || $this->canGlance($user, (int) $r->store_id, (int) $r->user_id))
             ->map(fn (LeaveRequest $r) => new ApprovalItem(
                 source: $this->key(),
                 id: $r->id,
@@ -49,7 +49,7 @@ class LeaveSource extends BaseSource
                     . ' (' . $r->dayCount() . ' hari) · ' . $r->reason,
                 store: $r->store?->name,
                 submittedAt: $r->created_at,
-                url: $this->url(LeaveRequestResource::class, $r->id),
+                url: $this->urlFor($user, LeaveRequestResource::class, $r->id),
                 inline: true,
             ))
             ->values();

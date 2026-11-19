@@ -40,7 +40,7 @@ class PartialLeaveSource extends BaseSource
             ->where('status', PartialLeaveRequest::STATUS_PENDING)
             ->orderBy('created_at')
             ->get()
-            ->filter(fn (PartialLeaveRequest $r) => $service->canDecide($user, $r))
+            ->filter(fn (PartialLeaveRequest $r) => $service->canDecide($user, $r) || $this->canGlance($user, (int) $r->store_id, (int) $r->user_id))
             ->map(fn (PartialLeaveRequest $r) => new ApprovalItem(
                 source: $this->key(),
                 id: $r->id,
@@ -50,7 +50,7 @@ class PartialLeaveSource extends BaseSource
                 summary: $r->categoryLabel() . ', ' . $r->date->translatedFormat('d M Y') . ' (' . $r->windowLabel() . ') · ' . $r->reason,
                 store: $r->store?->name,
                 submittedAt: $r->created_at,
-                url: $this->url(PartialLeaveRequestResource::class, $r->id),
+                url: $this->urlFor($user, PartialLeaveRequestResource::class, $r->id),
                 inline: true,
             ))
             ->values();
