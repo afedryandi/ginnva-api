@@ -42,16 +42,22 @@ class FieldDutyPhoto extends Page
             && $user->hasMenuAccess(FieldDutyRequestResource::class);
     }
 
-    /** Dinas luar milik sendiri yang disetujui, hari ini, dan belum ada foto di lokasi. */
+    /** Dinas luar milik sendiri yang disetujui, hari ini, dan masih butuh foto awal atau foto akhir. */
     public function pending(): ?FieldDutyRequest
     {
         return FieldDutyRequest::withoutGlobalScopes()
             ->where('user_id', auth()->id())
             ->where('status', FieldDutyRequest::STATUS_APPROVED)
             ->whereDate('date', today())
-            ->whereNull('location_photo')
+            ->where(fn ($q) => $q->whereNull('location_photo')->orWhereNull('end_photo'))
             ->orderBy('id')
             ->first();
+    }
+
+    /** Tahap foto yang sedang dikirim: 'start' (foto awal) bila belum ada, selain itu 'end' (foto akhir). */
+    public function stage(): string
+    {
+        return filled($this->pending()?->location_photo) ? 'end' : 'start';
     }
 
     public function submitPhoto(): void
@@ -61,7 +67,7 @@ class FieldDutyPhoto extends Page
         $this->validate(
             ['photo' => 'required|image|max:5120|dimensions:min_width=200,min_height=200'],
             [
-                'photo.required' => 'Ambil foto di lokasi dulu.',
+                'photo.required' => 'Ambil foto dulu.',
                 'photo.image' => 'Berkas harus berupa foto.',
                 'photo.max' => 'Ukuran foto maksimal 5 MB.',
                 'photo.dimensions' => 'Foto terlalu kecil (minimal 200 x 200 piksel).',
@@ -77,7 +83,9 @@ class FieldDutyPhoto extends Page
         }
 
         try {
-            app(FieldDutyRequestService::class)->attachLocationPhoto($duty, auth()->user(), $this->photo);
+            $service = app(FieldDutyRequestService::class);
+            $isEnd = filled($duty->location_photo);
+            $isEnd ? $service->attachEndPhoto($duty, auth()->user(), $this->photo) : $service->attachLocationPhoto($duty, auth()->user(), $this->photo);
         } catch (\RuntimeException $e) {
             Notification::make()->title('Foto ditolak')->body($e->getMessage())->danger()->send();
 
@@ -86,6 +94,10 @@ class FieldDutyPhoto extends Page
 
         $this->photo = null;
 
-        Notification::make()->title('Foto di lokasi tersimpan')->body('Dinas luar Anda tercatat hadir.')->success()->send();
+        Notification::make()
+            ->title($isEnd ? 'Foto akhir tersimpan' : 'Foto awal tersimpan')
+            ->body($isEnd ? 'Dinas luar Anda lengkap.' : 'Foto akhir dikirim saat dinas selesai.')
+            ->success()
+            ->send();
     }
 }

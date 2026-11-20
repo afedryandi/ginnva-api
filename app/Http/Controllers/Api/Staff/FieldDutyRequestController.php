@@ -83,6 +83,20 @@ class FieldDutyRequestController extends Controller
      */
     public function locationPhoto(Request $request, int $id)
     {
+        return $this->receivePhoto($request, $id, 'start');
+    }
+
+    /**
+     * POST /api/staff/field-duty-requests/{id}/end-photo (multipart: photo)
+     * Foto akhir dinas luar (saat selesai), setelah foto awal. Aturan koordinat dan lokasi palsu sama dengan foto awal.
+     */
+    public function endPhoto(Request $request, int $id)
+    {
+        return $this->receivePhoto($request, $id, 'end');
+    }
+
+    private function receivePhoto(Request $request, int $id, string $stage)
+    {
         // Unggahan multipart mengirim semua nilai sebagai teks, jadi "true"/"false" diubah dulu agar lolos aturan boolean.
         $mocked = $request->input('is_mocked');
         if (is_string($mocked) && in_array(strtolower(trim($mocked)), ['true', 'false'], true)) {
@@ -125,18 +139,26 @@ class FieldDutyRequestController extends Controller
         }
 
         try {
-            $duty = app(FieldDutyRequestService::class)->attachLocationPhoto(
-                $duty,
-                $user,
-                $request->file('photo'),
-                $hasCoordinates ? [
-                    'latitude' => (float) $request->input('latitude'),
-                    'longitude' => (float) $request->input('longitude'),
-                    'accuracy' => $request->filled('accuracy') ? (float) $request->input('accuracy') : null,
-                ] : null,
-            );
+            $coordinates = $hasCoordinates ? [
+                'latitude' => (float) $request->input('latitude'),
+                'longitude' => (float) $request->input('longitude'),
+                'accuracy' => $request->filled('accuracy') ? (float) $request->input('accuracy') : null,
+            ] : null;
+
+            $service = app(FieldDutyRequestService::class);
+            $duty = $stage === 'end'
+                ? $service->attachEndPhoto($duty, $user, $request->file('photo'), $coordinates)
+                : $service->attachLocationPhoto($duty, $user, $request->file('photo'), $coordinates);
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        if ($stage === 'end') {
+            return response()->json([
+                'success' => true,
+                'message' => 'Foto akhir tersimpan. Dinas luar Anda lengkap.',
+                'field_duty_request' => $this->transform($duty->load('reviewedBy:id,name')),
+            ]);
         }
 
         return response()->json([
@@ -174,6 +196,11 @@ class FieldDutyRequestController extends Controller
             // Koordinat GPS hanya diminta pada hari dinas; pengajuan susulan cukup foto (boleh dari galeri), tanpa lokasi.
             'location_photo_needs_coordinates' => $r->locationPhotoNeedsCoordinates(),
             'location_photo_is_catch_up' => $r->date->lt(today()),
+            // Foto akhir (saat selesai dinas): tombolnya muncul setelah foto awal terkirim.
+            'needs_end_photo' => $r->canSendEndPhoto(),
+            'end_photo_url' => \App\Support\SensitiveFiles::url($r->end_photo),
+            'end_photo_at' => $r->end_photo_at?->toIso8601String(),
+            'end_maps_url' => $r->endMapsUrl(),
         ];
     }
 }

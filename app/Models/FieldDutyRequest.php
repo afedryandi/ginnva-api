@@ -34,6 +34,11 @@ class FieldDutyRequest extends Model
         'location_latitude',
         'location_longitude',
         'location_accuracy',
+        'end_photo',
+        'end_photo_at',
+        'end_latitude',
+        'end_longitude',
+        'end_accuracy',
         'status',
         'reviewed_by',
         'reviewed_at',
@@ -47,6 +52,10 @@ class FieldDutyRequest extends Model
         'location_latitude' => 'float',
         'location_longitude' => 'float',
         'location_accuracy' => 'float',
+        'end_photo_at' => 'datetime',
+        'end_latitude' => 'float',
+        'end_longitude' => 'float',
+        'end_accuracy' => 'float',
     ];
 
     /** Tautan Google Maps ke titik koordinat saat foto dikirim; null bila koordinat tidak tercatat (foto lama atau dari panel). */
@@ -57,6 +66,36 @@ class FieldDutyRequest extends Model
         }
 
         return 'https://www.google.com/maps?q=' . $this->location_latitude . ',' . $this->location_longitude;
+    }
+
+    /** Tautan Google Maps ke titik koordinat saat foto akhir dikirim; null bila koordinat tidak tercatat. */
+    public function endMapsUrl(): ?string
+    {
+        if ($this->end_latitude === null || $this->end_longitude === null) {
+            return null;
+        }
+
+        return 'https://www.google.com/maps?q=' . $this->end_latitude . ',' . $this->end_longitude;
+    }
+
+    /**
+     * Foto akhir (saat selesai dinas) boleh dikirim sekarang: foto awal sudah ada, foto akhir belum, dan pengajuannya disetujui (atau menunggu pada hari
+     * dinas, seperti foto awal). Tidak ada jeda minimum dari foto awal (keputusan pemilik 2026-12-21).
+     */
+    public function canSendEndPhoto(): bool
+    {
+        if (blank($this->location_photo) || filled($this->end_photo)) {
+            return false;
+        }
+
+        return ($this->status === self::STATUS_APPROVED && $this->date->lte(today()))
+            || ($this->status === self::STATUS_PENDING && $this->date->isToday());
+    }
+
+    /** Sudah disetujui, harinya tiba atau lewat, foto awal ada tetapi foto akhir belum dikirim. */
+    public function needsEndPhoto(): bool
+    {
+        return $this->status === self::STATUS_APPROVED && filled($this->location_photo) && blank($this->end_photo) && $this->date->lte(today());
     }
 
     /**

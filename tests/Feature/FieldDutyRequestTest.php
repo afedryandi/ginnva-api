@@ -658,6 +658,215 @@ class FieldDutyRequestTest extends TestCase
 
         $this->assertNull(FieldDutyRequest::withoutGlobalScopes()->where('user_id', $this->andi->id)->value('location_photo'));
     }
+    // ------------------------------------------------------------- foto akhir
+
+    private function sendEndPhoto(FieldDutyRequest $request, array $extra = [])
+    {
+        return $this->actingAs($this->andi, 'api')->post(
+            "/api/staff/field-duty-requests/{$request->id}/end-photo",
+            ['photo' => \Illuminate\Http\UploadedFile::fake()->image('akhir.jpg', 600, 600)] + $extra,
+            ['Accept' => 'application/json']
+        );
+    }
+
+    public function test_the_end_photo_needs_the_start_photo_first_and_can_follow_it_without_delay(): void
+    {
+        $request = $this->approvedForToday();
+
+        $this->sendEndPhoto($request)->assertStatus(422)->assertJsonPath('message', 'Kirim foto awal (saat tiba di lokasi) lebih dulu, baru foto akhir.');
+        $this->assertFalse($request->fresh()->canSendEndPhoto());
+
+        $this->sendPhoto($request, ['latitude' => '-6.2', 'longitude' => '106.8', 'accuracy' => '9'])->assertSuccessful();
+        $this->assertTrue($request->fresh()->canSendEndPhoto(), 'Tanpa jeda minimum: boleh langsung setelah foto awal.');
+
+        $this->sendEndPhoto($request, ['latitude' => '-6.3', 'longitude' => '106.9', 'accuracy' => '7', 'is_mocked' => 'false'])
+            ->assertSuccessful()
+            ->assertJsonPath('field_duty_request.needs_end_photo', false)
+            ->assertJsonPath('field_duty_request.end_maps_url', 'https://www.google.com/maps?q=-6.3,106.9');
+
+        $fresh = $request->fresh();
+        $this->assertNotNull($fresh->end_photo);
+        $this->assertNotNull($fresh->end_photo_at);
+        $this->assertEqualsWithDelta(-6.3, $fresh->end_latitude, 0.00001);
+        $this->assertEqualsWithDelta(-6.2, $fresh->location_latitude, 0.00001, 'Foto awal tidak tertimpa.');
+        \Illuminate\Support\Facades\Storage::disk('local')->assertExists($fresh->end_photo);
+
+        $this->sendEndPhoto($request)->assertStatus(422)->assertJsonPath('message', 'Foto akhir sudah dikirim.');
+    }
+
+    public function test_the_end_photo_refuses_a_mocked_location_and_follows_the_coordinate_switch(): void
+    {
+        $request = $this->approvedForToday();
+        $this->sendPhoto($request)->assertSuccessful();
+
+        $this->sendEndPhoto($request, ['latitude' => '-6.2', 'longitude' => '106.8', 'is_mocked' => 'true'])->assertStatus(422);
+        $this->assertNull($request->fresh()->end_photo);
+
+        config(['features.field_duty_coords_required' => true]);
+        $this->sendEndPhoto($request)->assertStatus(422);
+        $this->assertNull($request->fresh()->end_photo);
+    }
+
+    public function test_a_catch_up_end_photo_is_accepted_without_coordinates(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $request = $this->submit();
+        $this->service->approve($request, $this->manager);
+        Carbon::setTestNow('2026-11-15 10:00:00');
+
+        config(['features.field_duty_coords_required' => true]);
+        $this->sendPhoto($request->fresh())->assertSuccessful();
+        $this->sendEndPhoto($request->fresh(), ['latitude' => '-6.2', 'longitude' => '106.8'])->assertSuccessful();
+
+        $this->assertNotNull($request->fresh()->end_photo);
+        $this->assertNull($request->fresh()->end_latitude);
+    }
+
+    public function test_the_end_photo_is_required_to_keep_a_full_day_duty_only_when_the_switch_is_on(): void
+    {
+        $request = $this->approvedForToday();
+        $this->service->attachLocationPhoto($request, $this->andi, \Illuminate\Http\UploadedFile::fake()->image('awal.jpg', 600, 600));
+
+        config(['features.field_duty_end_photo_required' => false]);
+        $this->assertSame(0, $this->service->voidUnprovenDuty(Carbon::parse('2026-11-13')), 'Saklar mati: foto awal saja cukup.');
+
+        config(['features.field_duty_end_photo_required' => true]);
+        $this->assertSame(1, $this->service->voidUnprovenDuty(Carbon::parse('2026-11-13')), 'Saklar menyala: tanpa foto akhir dinas dibatalkan.');
+        $this->assertNull(Attendance::withoutGlobalScopes()->where('user_id', $this->andi->id)->whereDate('date', '2026-11-13')->first());
+    }
+
+    public function test_a_full_day_duty_with_both_photos_keeps_its_attendance_when_the_switch_is_on(): void
+    {
+        $request = $this->approvedForToday();
+        $this->service->attachLocationPhoto($request, $this->andi, \Illuminate\Http\UploadedFile::fake()->image('awal.jpg', 600, 600));
+        $this->service->attachEndPhoto($request->fresh(), $this->andi, \Illuminate\Http\UploadedFile::fake()->image('akhir.jpg', 600, 600));
+
+        config(['features.field_duty_end_photo_required' => true]);
+        $this->assertSame(0, $this->service->voidUnprovenDuty(Carbon::parse('2026-11-13')));
+        $this->assertSame('field_duty', Attendance::withoutGlobalScopes()->where('user_id', $this->andi->id)->whereDate('date', '2026-11-13')->value('entry_type'));
+    }
+
+    // ------------------------------------------------------------- pengingat dan pemulihan foto akhir
+
+    private function inboxTitles(User $user): array
+    {
+        return $user->notifications()->get()->map(fn ($n) => $n->data['title'] ?? null)->all();
+    }
+
+    public function test_the_end_photo_reminder_goes_15_minutes_before_the_requested_end_time_once(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $partial = $this->partial('2026-11-13', '10:00', '13:00');
+        $this->service->approve($partial, $this->manager);
+        Carbon::setTestNow('2026-11-13 10:30:00');
+        $this->service->attachLocationPhoto($partial->fresh(), $this->andi, \Illuminate\Http\UploadedFile::fake()->image('awal.jpg', 600, 600));
+
+        Carbon::setTestNow('2026-11-13 12:40:00');   // belum 12:45
+        $this->artisan('field-duty:remind-end-photo')->assertSuccessful();
+        $this->assertSame([], $this->inboxTitles($this->andi));
+
+        Carbon::setTestNow('2026-11-13 12:46:00');
+        $this->artisan('field-duty:remind-end-photo')->assertSuccessful();
+        $this->assertSame(['Jangan Lupa Foto Akhir Dinas'], $this->inboxTitles($this->andi));
+
+        Carbon::setTestNow('2026-11-13 12:51:00');   // putaran berikutnya: tidak diulang
+        $this->artisan('field-duty:remind-end-photo')->assertSuccessful();
+        $this->assertCount(1, $this->inboxTitles($this->andi));
+    }
+
+    public function test_the_end_photo_reminder_skips_those_who_already_sent_it_and_full_days_use_the_closing_time(): void
+    {
+        $request = $this->approvedForToday();   // sehari penuh, toko tutup 18:00 => ingatkan 17:45
+        $this->service->attachLocationPhoto($request, $this->andi, \Illuminate\Http\UploadedFile::fake()->image('awal.jpg', 600, 600));
+
+        Carbon::setTestNow('2026-11-13 17:40:00');
+        $this->artisan('field-duty:remind-end-photo')->assertSuccessful();
+        $this->assertSame([], $this->inboxTitles($this->andi));
+
+        $this->service->attachEndPhoto($request->fresh(), $this->andi, \Illuminate\Http\UploadedFile::fake()->image('akhir.jpg', 600, 600));
+        Carbon::setTestNow('2026-11-13 17:50:00');
+        $this->artisan('field-duty:remind-end-photo')->assertSuccessful();
+        $this->assertSame([], $this->inboxTitles($this->andi), 'Foto akhir sudah dikirim: tidak diingatkan.');
+    }
+
+    public function test_the_reminder_for_a_full_day_without_any_photo_mentions_both_photos(): void
+    {
+        $this->approvedForToday();
+
+        Carbon::setTestNow('2026-11-13 17:50:00');
+        $this->artisan('field-duty:remind-end-photo')->assertSuccessful();
+
+        $this->assertSame(['Jangan Lupa Foto Dinas Luar'], $this->inboxTitles($this->andi));
+    }
+
+    public function test_a_late_photo_that_completes_the_set_restores_a_voided_duty_automatically(): void
+    {
+        config(['features.field_duty_end_photo_required' => true]);
+        $request = $this->approvedForToday();
+        $this->service->attachLocationPhoto($request, $this->andi, \Illuminate\Http\UploadedFile::fake()->image('awal.jpg', 600, 600));
+
+        $this->assertSame(1, $this->service->voidUnprovenDuty(Carbon::parse('2026-11-13')), 'Lupa foto akhir: dibatalkan.');
+        Attendance::create(['user_id' => $this->andi->id, 'store_id' => $this->store->id, 'date' => '2026-11-13', 'entry_type' => 'alpha']);
+
+        Carbon::setTestNow('2026-11-15 09:00:00');   // dua hari kemudian, masih dalam 7 hari
+        $this->service->attachEndPhoto($request->fresh(), $this->andi, \Illuminate\Http\UploadedFile::fake()->image('akhir.jpg', 600, 600));
+
+        $this->assertSame('field_duty', Attendance::withoutGlobalScopes()->where('user_id', $this->andi->id)->whereDate('date', '2026-11-13')->value('entry_type'));
+        $this->assertContains('Dinas Luar Dipulihkan', $this->inboxTitles($this->andi));
+    }
+
+    public function test_a_photo_older_than_the_catch_up_limit_does_not_restore_and_only_a_manager_can(): void
+    {
+        config(['features.field_duty_end_photo_required' => true]);
+        $request = $this->approvedForToday();
+        $this->service->attachLocationPhoto($request, $this->andi, \Illuminate\Http\UploadedFile::fake()->image('awal.jpg', 600, 600));
+        $this->service->voidUnprovenDuty(Carbon::parse('2026-11-13'));
+
+        Carbon::setTestNow('2026-11-25 09:00:00');   // 12 hari kemudian
+        $this->service->attachEndPhoto($request->fresh(), $this->andi, \Illuminate\Http\UploadedFile::fake()->image('akhir.jpg', 600, 600));
+        $this->assertNull(Attendance::withoutGlobalScopes()->where('user_id', $this->andi->id)->whereDate('date', '2026-11-13')->first());
+        $this->assertTrue($this->service->needsRestore($request->fresh()));
+
+        // Karyawan sendiri dan manajer toko lain tidak boleh; manajer toko itu boleh.
+        $this->assertRejected(fn () => $this->service->restoreByManager($request->fresh(), $this->andi), 'memutuskan');
+        $this->assertRejected(fn () => $this->service->restoreByManager($request->fresh(), $this->otherManager), 'memutuskan');
+
+        $this->service->restoreByManager($request->fresh(), $this->manager);
+        $this->assertSame('field_duty', Attendance::withoutGlobalScopes()->where('user_id', $this->andi->id)->whereDate('date', '2026-11-13')->value('entry_type'));
+        $this->assertFalse($this->service->needsRestore($request->fresh()));
+        $this->assertRejected(fn () => $this->service->restoreByManager($request->fresh(), $this->manager), 'Tidak bisa dipulihkan');
+    }
+
+    public function test_restoring_never_overwrites_real_attendance(): void
+    {
+        $request = $this->approvedForToday();
+        $this->service->voidUnprovenDuty(Carbon::parse('2026-11-13'));
+        Carbon::setTestNow('2026-11-14 09:00:00');
+        Attendance::create(['user_id' => $this->andi->id, 'store_id' => $this->store->id, 'date' => '2026-11-13', 'entry_type' => 'manual', 'clock_in_at' => '2026-11-13 09:00:00', 'clock_out_at' => '2026-11-13 17:00:00']);
+
+        $this->assertRejected(fn () => $this->service->restoreByManager($request->fresh(), $this->manager), 'Tidak bisa dipulihkan');
+        $this->assertSame('manual', Attendance::withoutGlobalScopes()->where('user_id', $this->andi->id)->whereDate('date', '2026-11-13')->value('entry_type'));
+    }
+
+    public function test_the_panel_page_sends_the_start_photo_then_the_end_photo(): void
+    {
+        $this->approvedForToday();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($this->andi);
+
+        Livewire::test(\App\Filament\Pages\FieldDutyPhoto::class)
+            ->set('photo', \Illuminate\Http\UploadedFile::fake()->image('awal.jpg', 600, 600))
+            ->call('submitPhoto')
+            ->assertHasNoErrors()
+            ->set('photo', \Illuminate\Http\UploadedFile::fake()->image('akhir.jpg', 600, 600))
+            ->call('submitPhoto')
+            ->assertHasNoErrors();
+
+        $duty = FieldDutyRequest::withoutGlobalScopes()->where('user_id', $this->andi->id)->first();
+        $this->assertNotNull($duty->location_photo);
+        $this->assertNotNull($duty->end_photo);
+    }
+
     public function test_the_api_list_flags_the_requests_that_still_need_the_photo(): void
     {
         $this->approvedForToday();

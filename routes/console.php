@@ -118,6 +118,9 @@ Schedule::command('otp:prune-expired')->dailyAt('04:00');
 // Hapus kunci idempotensi yang sudah kedaluwarsa (24 jam) -- lihat App\Console\Commands\PruneIdempotencyKeys.
 Schedule::command('idempotency:prune')->dailyAt('04:20');
 
+// Telescope (hanya bila dinyalakan di dev): buang catatan lebih dari 48 jam supaya tabel telescope_entries tidak membengkak lagi (2026-11-20).
+Schedule::command('telescope:prune --hours=48')->hourly()->when(fn () => (bool) config('telescope.enabled'));
+
 // Generate tagihan rutin (audit Majoo f48, "Template tagihan rutin")
 // -- lihat App\Console\Commands\GenerateRecurringBills.
 Schedule::command('billing:generate-recurring')->dailyAt('05:00')->withoutOverlapping()->when(fn () => (bool) config('features.finance'));
@@ -147,6 +150,8 @@ Schedule::command('attendance:notify-missing-clockins')->hourlyAt(5)->between('0
 Schedule::command('attendance:remind-clockins')->everyFiveMinutes()->between('06:00', '21:00');
 Schedule::command('attendance:remind-clockouts')->everyFiveMinutes()->between('12:00', '23:55');
 Schedule::command('attendance:remind-pending-requests')->dailyAt('09:00');
+// Pengingat foto akhir dinas luar, 15 menit sebelum jam selesai dinas (2026-12-21).
+Schedule::command('field-duty:remind-end-photo')->everyFiveMinutes()->between('06:00', '23:55')->withoutOverlapping();
 
 // Pengingat sertifikat installer yang hampir/baru kedaluwarsa (audit Kompetensi Installer): tiap Senin pagi ke akses penuh dan store manager.
 Schedule::command('training:notify-expiring')->weeklyOn(1, '08:00');

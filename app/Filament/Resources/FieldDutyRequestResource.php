@@ -141,12 +141,22 @@ class FieldDutyRequestResource extends Resource
 
                 // Foto bukti di lokasi: tanda centang kalau sudah dikirim, tanda silang bila disetujui tetapi harinya tiba dan belum ada foto.
                 Tables\Columns\IconColumn::make('location_photo')
-                    ->label('Foto Lokasi')
+                    ->label('Foto Awal')
                     ->state(fn (FieldDutyRequest $record) => $record->status !== FieldDutyRequest::STATUS_APPROVED ? null : (filled($record->location_photo) ? true : ($record->needsLocationPhoto() ? false : null)))
                     ->boolean()
                     ->tooltip(fn (FieldDutyRequest $record) => $record->location_photo_at
                         ? 'Dikirim ' . $record->location_photo_at->translatedFormat('d M Y H:i')
                             . ($record->location_accuracy !== null ? ' · akurasi GPS ±' . round($record->location_accuracy) . ' m' : ($record->location_photo ? ' · tanpa koordinat' : ''))
+                        : null),
+
+                // Foto akhir (saat selesai dinas): sama seperti foto awal, tetapi hanya dinilai setelah foto awal ada.
+                Tables\Columns\IconColumn::make('end_photo')
+                    ->label('Foto Akhir')
+                    ->state(fn (FieldDutyRequest $record) => $record->status !== FieldDutyRequest::STATUS_APPROVED ? null : (filled($record->end_photo) ? true : ($record->needsEndPhoto() ? false : null)))
+                    ->boolean()
+                    ->tooltip(fn (FieldDutyRequest $record) => $record->end_photo_at
+                        ? 'Dikirim ' . $record->end_photo_at->translatedFormat('d M Y H:i')
+                            . ($record->end_accuracy !== null ? ' · akurasi GPS ±' . round($record->end_accuracy) . ' m' : ($record->end_photo ? ' · tanpa koordinat' : ''))
                         : null),
 
                 Tables\Columns\TextColumn::make('status')
@@ -169,8 +179,8 @@ class FieldDutyRequestResource extends Resource
             ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\Filter::make('tanpa_foto')
-                    ->label('Disetujui, belum ada foto di lokasi')
-                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('status', FieldDutyRequest::STATUS_APPROVED)->whereNull('location_photo')->whereDate('date', '<=', today())),
+                    ->label('Disetujui, foto awal/akhir belum lengkap')
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('status', FieldDutyRequest::STATUS_APPROVED)->whereDate('date', '<=', today())->where(fn ($q) => $q->whereNull('location_photo')->orWhereNull('end_photo'))),
 
                 // Pemutus langsung melihat antrean yang menunggu; karyawan melihat seluruh riwayatnya.
                 Tables\Filters\SelectFilter::make('status')
@@ -186,20 +196,40 @@ class FieldDutyRequestResource extends Resource
             ->actions([
                 // Karyawan tanpa aplikasi (mis. iPhone) mengirim foto di lokasi dari panel; halaman ini memakai layanan yang sama dengan aplikasi.
                 Tables\Actions\Action::make('kirim_foto')
-                    ->label('Kirim Foto di Lokasi')
+                    ->label(fn (FieldDutyRequest $record) => $record->needsLocationPhoto() ? 'Kirim Foto Awal' : 'Kirim Foto Akhir')
                     ->icon('heroicon-o-camera')
                     ->color('warning')
-                    ->visible(fn (FieldDutyRequest $record) => $record->user_id === auth()->id() && $record->needsLocationPhoto() && $record->date->isToday())
+                    ->visible(fn (FieldDutyRequest $record) => $record->user_id === auth()->id() && ($record->needsLocationPhoto() || $record->needsEndPhoto()) && $record->date->isToday())
                     ->url(fn () => \App\Filament\Pages\FieldDutyPhoto::getUrl()),
 
                 Tables\Actions\Action::make('lihat_foto')
-                    ->label('Foto Lokasi')
+                    ->label('Foto Awal')
                     ->icon('heroicon-o-photo')
                     ->iconButton()
-                    ->tooltip('Foto Lokasi')
+                    ->tooltip('Foto Awal')
                     ->color('gray')
                     ->visible(fn (FieldDutyRequest $record) => filled($record->location_photo))
                     ->url(fn (FieldDutyRequest $record) => \App\Support\SensitiveFiles::url($record->location_photo))
+                    ->openUrlInNewTab(),
+
+                Tables\Actions\Action::make('lihat_foto_akhir')
+                    ->label('Foto Akhir')
+                    ->icon('heroicon-o-photo')
+                    ->iconButton()
+                    ->tooltip('Foto Akhir')
+                    ->color('gray')
+                    ->visible(fn (FieldDutyRequest $record) => filled($record->end_photo))
+                    ->url(fn (FieldDutyRequest $record) => \App\Support\SensitiveFiles::url($record->end_photo))
+                    ->openUrlInNewTab(),
+
+                Tables\Actions\Action::make('mapsEnd')
+                    ->label('Lokasi Akhir di Peta')
+                    ->icon('heroicon-o-map-pin')
+                    ->iconButton()
+                    ->tooltip('Lokasi akhir di Google Maps')
+                    ->color('gray')
+                    ->visible(fn (FieldDutyRequest $record) => $record->endMapsUrl() !== null)
+                    ->url(fn (FieldDutyRequest $record) => $record->endMapsUrl())
                     ->openUrlInNewTab(),
 
                 // Titik koordinat saat foto dikirim (terbaca otomatis dari GPS ponsel): membuka Google Maps. Tidak ada untuk foto lama atau dari panel.
@@ -213,6 +243,32 @@ class FieldDutyRequestResource extends Resource
                     ->url(fn (FieldDutyRequest $record) => $record->mapsUrl())
                     ->openUrlInNewTab(),
 
+                // Dinas sehari penuh yang dibatalkan (foto tidak lengkap) bisa dipulihkan atasan, mis. karena karyawan lupa foto akhir tetapi memang bekerja di luar.
+                Tables\Actions\Action::make('pulihkan')
+                    ->label('Pulihkan Kehadiran')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->visible(function (FieldDutyRequest $record) {
+                        $user = auth()->user();
+                        $service = app(FieldDutyRequestService::class);
+
+                        return $user && $service->canDecide($user, $record) && $service->needsRestore($record);
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Pulihkan kehadiran dinas luar?')
+                    ->modalDescription('Hari itu kembali tercatat Dinas Luar (menggantikan Alpha). Pastikan karyawan memang bekerja di luar pada hari itu.')
+                    ->action(function (FieldDutyRequest $record) {
+                        try {
+                            app(FieldDutyRequestService::class)->restoreByManager($record, auth()->user());
+                        } catch (\RuntimeException $e) {
+                            \Filament\Notifications\Notification::make()->title('Tidak bisa dipulihkan')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        \Filament\Notifications\Notification::make()->title('Kehadiran dinas luar dipulihkan')->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
@@ -223,7 +279,7 @@ class FieldDutyRequestResource extends Resource
                     ->modalHeading('Setujui dinas luar?')
                     ->modalDescription(fn (FieldDutyRequest $record) => $record->isPartialDay()
                         ? 'Telat dan pulang cepat di rentang jam ini tidak dihitung; absen masuk dan keluar tetap wajib. Jam boleh diubah sesuai kenyataan sebelum menyetujui.'
-                        : 'Absensi karyawan pada tanggal itu akan tercatat sebagai Dinas Luar (tanpa telat atau pulang cepat). Hari yang sudah ditandai Alpha diganti. Karyawan wajib mengirim foto di lokasi pada hari dinas; tanpa foto, kehadiran dinasnya dibatalkan dan hari itu menjadi Alpha.')
+                        : 'Absensi karyawan pada tanggal itu akan tercatat sebagai Dinas Luar (tanpa telat atau pulang cepat). Hari yang sudah ditandai Alpha diganti. Karyawan wajib mengirim dua foto pada hari dinas (foto awal saat tiba dan foto akhir saat selesai); tanpa foto yang lengkap, kehadiran dinasnya dibatalkan dan hari itu menjadi Alpha.')
                     ->fillForm(fn (FieldDutyRequest $record) => [
                         'start_time' => $record->isPartialDay() ? substr($record->start_time, 0, 5) : null,
                         'end_time' => $record->isPartialDay() ? substr($record->end_time, 0, 5) : null,

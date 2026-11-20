@@ -9,6 +9,7 @@
 
     @php
         $duty = $this->pending();
+        $isEnd = $duty && filled($duty->location_photo);
     @endphp
 
     {{-- Kamera dibuka langsung di halaman (getUserMedia, kamera belakang diutamakan) dan fotonya diambil dari video, jadi tidak ada pilihan galeri.
@@ -72,8 +73,13 @@
                 <div class="pu-bar">Tidak ada dinas luar yang butuh foto hari ini. Foto hanya bisa dikirim pada hari dinas yang sudah disetujui.</div>
             @else
                 <div class="pu-bar">
-                    Dinas luar hari ini: <span class="pu-strong">{{ $duty->description ?: 'Dinas luar' }}</span>. Ambil foto di lokasi sekarang.
-                    Tanpa foto, dinas luar sehari penuh tidak dihitung hadir dan hari ini menjadi Alpha.
+                    Dinas luar hari ini: <span class="pu-strong">{{ $duty->description ?: 'Dinas luar' }}</span>.
+                    @if ($isEnd)
+                        Foto awal sudah terkirim. Ambil <span class="pu-strong">foto akhir</span> sekarang, saat dinas selesai.
+                    @else
+                        Ambil <span class="pu-strong">foto awal</span> di lokasi sekarang; foto akhir dikirim nanti saat dinas selesai.
+                    @endif
+                    Tanpa kedua foto, dinas luar sehari penuh tidak dihitung hadir dan hari ini menjadi Alpha.
                 </div>
 
                 <div class="pu-stack">
@@ -87,7 +93,7 @@
 
                     <div x-show="! camOn" class="pu-stack">
                         <template x-if="previewUrl && $wire.photo">
-                            <img x-bind:src="previewUrl" alt="Foto di lokasi" class="pu-cam">
+                            <img x-bind:src="previewUrl" alt="Foto dinas luar" class="pu-cam">
                         </template>
                         <div class="pu-row">
                             <x-filament::button color="gray" x-on:click="openCam()">
@@ -105,7 +111,7 @@
                 </div>
 
                 <div class="pu-row">
-                    <x-filament::button wire:click="submitPhoto" x-bind:disabled="uploading || ! $wire.photo">Kirim Foto</x-filament::button>
+                    <x-filament::button wire:click="submitPhoto" x-bind:disabled="uploading || ! $wire.photo">{{ $isEnd ? 'Kirim Foto Akhir' : 'Kirim Foto Awal' }}</x-filament::button>
                 </div>
             @endif
         </div>

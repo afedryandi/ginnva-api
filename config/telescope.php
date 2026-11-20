@@ -16,7 +16,9 @@ return [
     |
     */
 
-    'enabled' => env('TELESCOPE_ENABLED', true),
+    // Mati bawaan (2026-11-20): di produksi Telescope menulis setiap request/query/job ke MySQL dan membengkak sampai 659 MB (99% isi database).
+    // Nyalakan hanya di server dev dengan TELESCOPE_ENABLED=true.
+    'enabled' => env('TELESCOPE_ENABLED', false),
 
     /*
     |--------------------------------------------------------------------------

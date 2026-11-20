@@ -238,7 +238,12 @@ class FieldDutyRequestService
             throw new RuntimeException('Karyawan ini sudah punya catatan absensi di tanggal itu, jadi tidak bisa jadi dinas luar sehari penuh. Tolak pengajuan atau koreksi absensinya dulu.');
         }
 
-        // Hari Alpha (otomatis dini hari) dan baris kosong diganti menjadi Dinas Luar; absensi di toko tidak pernah ditimpa.
+        $this->writeFieldDutyRow($locked, $by->id, $day);
+    }
+
+    /** Hari Alpha (otomatis dini hari) dan baris kosong diganti menjadi Dinas Luar; absensi di toko tidak pernah ditimpa (dicek pemanggil). */
+    private function writeFieldDutyRow(FieldDutyRequest $locked, ?int $recordedBy, string $day): void
+    {
         $attributes = [
             'store_id' => $locked->store_id,
             'entry_type' => 'field_duty',
@@ -247,7 +252,7 @@ class FieldDutyRequestService
             'late_minutes' => 0,
             'early_leave_minutes' => 0,
             'note' => $locked->description,
-            'recorded_by' => $by->id,
+            'recorded_by' => $recordedBy,
         ];
 
         $existing = Attendance::withoutGlobalScopes()->where('user_id', $locked->user_id)->whereDate('date', $day)->first();
@@ -256,6 +261,75 @@ class FieldDutyRequestService
             $existing->forceFill($attributes)->save();
         } else {
             Attendance::create($attributes + ['user_id' => $locked->user_id, 'date' => $day]);
+        }
+    }
+
+    /** Dinas sehari penuh disetujui, harinya sudah lewat, tetapi barisnya bukan Dinas Luar (dibatalkan karena foto tidak lengkap): bisa dipulihkan. */
+    public function needsRestore(FieldDutyRequest $request): bool
+    {
+        if (! $request->isApproved() || $request->isPartialDay() || ! $request->date->lt(today())) {
+            return false;
+        }
+
+        return ! Attendance::withoutGlobalScopes()
+            ->where('user_id', $request->user_id)
+            ->whereDate('date', $request->date->toDateString())
+            ->where('entry_type', 'field_duty')
+            ->exists();
+    }
+
+    /**
+     * Memulihkan kehadiran Dinas Luar yang dibatalkan voidUnprovenDuty (atau hari Alpha penggantinya). Tidak menimpa absensi nyata (absen di toko, Izin
+     * atau Cuti). Mengembalikan true bila dipulihkan.
+     */
+    public function restoreAttendance(FieldDutyRequest $request, ?User $by = null): bool
+    {
+        return DB::transaction(function () use ($request, $by) {
+            $locked = FieldDutyRequest::withoutGlobalScopes()->whereKey($request->id)->lockForUpdate()->first();
+
+            if (! $locked || ! $this->needsRestore($locked) || $this->hasRealAttendance($locked->user_id, $locked->date->toDateString(), lock: true)) {
+                return false;
+            }
+
+            $this->writeFieldDutyRow($locked, $by?->id ?? $locked->reviewed_by, $locked->date->toDateString());
+
+            activity('field_duty_request')->performedOn($locked)->causedBy($by)->log($by ? 'Kehadiran dinas luar dipulihkan oleh atasan' : 'Kehadiran dinas luar dipulihkan otomatis: foto susulan lengkap');
+
+            app(\App\Services\StaffNotifier::class)->toUsers(
+                [$locked->user_id],
+                'Dinas Luar Dipulihkan',
+                "Dinas luar {$locked->date->format('d M Y')} tercatat hadir lagi" . ($by ? ' oleh atasan.' : ' karena foto susulan sudah lengkap.'),
+                color: 'success',
+            );
+
+            return true;
+        });
+    }
+
+    /** Pemulihan oleh atasan (store manager toko itu, akses penuh, atau pemegang hak Ubah), bukan untuk pengajuan sendiri. */
+    public function restoreByManager(FieldDutyRequest $request, User $by): void
+    {
+        $this->assertCanDecide($request, $by);
+
+        if (! $this->restoreAttendance($request, $by)) {
+            throw new RuntimeException('Tidak bisa dipulihkan: hanya untuk dinas sehari penuh yang disetujui, harinya sudah lewat, belum tercatat Dinas Luar, dan hari itu belum punya absensi nyata atau izin/cuti.');
+        }
+    }
+
+    /**
+     * Foto susulan yang melengkapi syarat (foto awal, dan foto akhir bila saklarnya menyala) memulihkan kehadiran dinas yang sudah dibatalkan, selama
+     * harinya masih dalam batas pengajuan susulan ({@see self::MAX_DAYS_BACK} hari). Lebih lama dari itu hanya atasan yang bisa memulihkan.
+     */
+    private function restoreIfPhotosComplete(FieldDutyRequest $request): void
+    {
+        $fresh = $request->fresh();
+
+        if ($fresh->date->lt(today()->subDays(self::MAX_DAYS_BACK))) {
+            return;
+        }
+
+        if (filled($fresh->location_photo) && (! config('features.field_duty_end_photo_required') || filled($fresh->end_photo))) {
+            $this->restoreAttendance($fresh);
         }
     }
 
@@ -400,6 +474,53 @@ class FieldDutyRequestService
 
         activity('field_duty_request')->performedOn($request)->causedBy($user)->log('Foto di lokasi dinas luar dikirim');
 
+        $this->restoreIfPhotosComplete($request);
+
+        return $request->fresh();
+    }
+
+    /**
+     * Foto AKHIR dinas luar (saat selesai), pasangan foto awal seperti absen masuk dan keluar. Aturannya sama dengan foto awal (pemilik, disetujui atau
+     * menunggu pada hari dinas, tidak sebelum hari dinas, koordinat hanya pada hari dinas), ditambah: foto awal harus sudah ada dan foto akhir hanya sekali.
+     *
+     * @throws RuntimeException
+     */
+    public function attachEndPhoto(FieldDutyRequest $request, User $user, \Illuminate\Http\UploadedFile $photo, ?array $coordinates = null): FieldDutyRequest
+    {
+        if ((int) $request->user_id !== (int) $user->id) {
+            throw new RuntimeException('Pengajuan ini bukan milik Anda.');
+        }
+
+        $isToday = $request->date->isToday();
+
+        if (! ($request->status === 'approved' || ($request->status === 'pending' && $isToday))) {
+            throw new RuntimeException('Foto akhir hanya untuk pengajuan dinas luar yang sudah disetujui, atau yang masih menunggu pada hari dinas.');
+        }
+
+        if ($request->date->isFuture()) {
+            throw new RuntimeException('Foto akhir hanya bisa dikirim pada hari dinas (' . $request->date->translatedFormat('d M Y') . ') atau sesudahnya.');
+        }
+
+        if (blank($request->location_photo)) {
+            throw new RuntimeException('Kirim foto awal (saat tiba di lokasi) lebih dulu, baru foto akhir.');
+        }
+
+        if (filled($request->end_photo)) {
+            throw new RuntimeException('Foto akhir sudah dikirim.');
+        }
+
+        $request->update([
+            'end_photo' => \App\Support\SensitiveFiles::store($photo, 'field-duty-photos'),
+            'end_photo_at' => now(),
+            'end_latitude' => $isToday ? ($coordinates['latitude'] ?? null) : null,
+            'end_longitude' => $isToday ? ($coordinates['longitude'] ?? null) : null,
+            'end_accuracy' => $isToday ? ($coordinates['accuracy'] ?? null) : null,
+        ]);
+
+        activity('field_duty_request')->performedOn($request)->causedBy($user)->log('Foto akhir dinas luar dikirim');
+
+        $this->restoreIfPhotosComplete($request);
+
         return $request->fresh();
     }
 
@@ -417,7 +538,14 @@ class FieldDutyRequestService
         $requests = FieldDutyRequest::withoutGlobalScopes()
             ->where('status', 'approved')
             ->whereDate('date', $day->toDateString())
-            ->whereNull('location_photo')
+            // Foto awal wajib; foto akhir juga wajib begitu saklar field_duty_end_photo_required menyala (setelah aplikasi barunya beredar).
+            ->where(function ($q) {
+                $q->whereNull('location_photo');
+
+                if (config('features.field_duty_end_photo_required')) {
+                    $q->orWhereNull('end_photo');
+                }
+            })
             ->get()
             ->reject(fn (FieldDutyRequest $r) => $r->isPartialDay());
 
@@ -430,7 +558,7 @@ class FieldDutyRequestService
 
             if ($deleted > 0) {
                 $voided += $deleted;
-                activity('field_duty_request')->performedOn($request)->log('Kehadiran dinas luar dibatalkan: tidak ada foto di lokasi');
+                activity('field_duty_request')->performedOn($request)->log('Kehadiran dinas luar dibatalkan: foto di lokasi (awal/akhir) tidak lengkap');
             }
         }
 

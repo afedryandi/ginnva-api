@@ -140,6 +140,9 @@ return [
     // roll tetap terbaca. Isi FEATURE_MEMO_PPF_WF=true untuk menyalakan lagi.
     'memo_ppf_wf' => (bool) env('FEATURE_MEMO_PPF_WF', false),
     'usage_spk_required' => (bool) env('FEATURE_USAGE_SPK_REQUIRED', false),
+    // Foto AKHIR dinas luar (selain foto awal) wajib supaya dinas sehari penuh dianggap hadir (keputusan pemilik 2026-12-21). Mati bawaan sampai aplikasi
+    // dengan tombol foto akhir beredar; isi FEATURE_FIELD_DUTY_END_PHOTO_REQUIRED=true setelah build baru dirilis. Foto akhir tetap bisa dikirim kapan pun.
+    'field_duty_end_photo_required' => (bool) env('FEATURE_FIELD_DUTY_END_PHOTO_REQUIRED', false),
     'field_duty_coords_required' => (bool) env('FEATURE_FIELD_DUTY_COORDS_REQUIRED', false),
     'report_voucher' => (bool) env('FEATURE_REPORT_VOUCHER', false),
     'report_persediaan_detail' => (bool) env('FEATURE_REPORT_PERSEDIAAN_DETAIL', false),
