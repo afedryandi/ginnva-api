@@ -750,7 +750,8 @@ class FieldDutyRequestTest extends TestCase
 
     private function inboxTitles(User $user): array
     {
-        return $user->notifications()->get()->map(fn ($n) => $n->data['title'] ?? null)->all();
+        // Pemberitahuan persetujuan pengajuan bukan bagian yang diuji di sini.
+        return $user->notifications()->get()->map(fn ($n) => $n->data['title'] ?? null)->reject(fn ($title) => $title === 'Pengajuan Dinas Luar Disetujui')->values()->all();
     }
 
     public function test_the_end_photo_reminder_goes_15_minutes_before_the_requested_end_time_once(): void
